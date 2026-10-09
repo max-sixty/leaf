@@ -819,6 +819,9 @@ def test_context_paste_after_rewrap_keeps_the_previous_panel_turn_visible(
     narrow = editor.bounding_box()
     page.set_viewport_size({"width": 1600, "height": 900})
     rendered(page)
+    # Rewrapping retains the reading position. Start at the list end before
+    # wheeling back to test how paste growth keeps the latest turn visible.
+    page.locator(".lf-threads").evaluate("list => list.scrollTop = list.scrollHeight")
     page.locator(".lf-threads").hover()
     page.mouse.wheel(0, -40)
     scroll_settled(page, ".lf-threads")

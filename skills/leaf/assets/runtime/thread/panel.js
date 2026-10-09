@@ -8,20 +8,26 @@
    takes words from the first paint — the offline banner says a comment will not send, not
    that there is nowhere to write it. A drawing belongs to an element's comment, never to
    this box (composing/drawing.js). */
-import { focused, keys } from "../keyboard/scopes.js";
+import { keys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
 import { runtime } from "../context.js";
 import { pagePresented } from "../presentation.js";
+import { focusDestination, focused } from "../focus.js";
+import { rowWalk } from "../walk-position.js";
 
 export function createThreadPanelKeys({
-  elements: { closeBtn, findInput, narrowingView, inPanel: panelFocusIsInside },
+  elements: {
+    closeBtn,
+    findInput,
+    narrowingView,
+    threadsBox,
+    inPanel: panelFocusIsInside,
+  },
   openThreads,
   setPanel,
   panelIsOpen,
   narrowing,
   stepThread,
-  firstUnread,
-  unreadCount,
 }) {
   async function mount() {
     closeBtn.onclick = () => setPanel(false);
@@ -31,12 +37,27 @@ export function createThreadPanelKeys({
 
   const inPanel = () => panelFocusIsInside(panelIsOpen);
   const hasThreads = () => openThreads({ visibleOnly: panelIsOpen() }).length > 0;
+  // The list's rows are its threads' titles, which the arrows walk as they walk the
+  // Questions panel's rows; `t` and `T` still step and open. Only from a title, so the
+  // arrows inside an open thread keep scrolling it.
+  const titles = () =>
+    [...threadsBox.querySelectorAll(".lf-thread-summary")].filter((title) =>
+      title.checkVisibility(),
+    );
+  const onTitle = () => Boolean(focused()?.matches?.(".lf-thread-summary"));
+  const titleWalk = rowWalk({
+    id: "thread.list",
+    noun: "Thread",
+    plural: "threads",
+    rows: titles,
+  }).map((row) => ({ ...row, when: onTitle }));
 
   const stopPanelScope = pageScope("panel", {
     title: "In the thread panel",
     root: focused,
     at: inPanel,
     rows: [
+      ...titleWalk,
       {
         // Search repeat keeps its canonical n/N meaning in the nearest active search.
         // Only a textual query makes this row live; the waiting filter does not claim them.
@@ -62,7 +83,7 @@ export function createThreadPanelKeys({
       {
         id: "thread.waiting.toggle",
         // `w` for the words the control says. It is the phrase the page already uses for
-        // the same question the queue walk (a/A) asks of the page, asked here of
+        // the same question the queue walk (q/Q) asks of the page, asked here of
         // the thread — so the user learns one idea and reaches it two ways rather
         // than learning "needs you" beside it.
         //
@@ -79,14 +100,6 @@ export function createThreadPanelKeys({
         run: () => narrowingView.toggleUser(),
       },
       {
-        id: "thread.unread.first",
-        keys: ["u"],
-        description: "Go to the first unread message",
-        title: "first unread",
-        when: () => unreadCount() > 0,
-        run: firstUnread,
-      },
-      {
         id: "thread.find",
         // `/` is what every list with a search field takes it with, and the one letter a
         // text box does not shadow: the typing scope claims what types a character, so the
@@ -96,7 +109,7 @@ export function createThreadPanelKeys({
         title: "find",
         control: () => findInput,
         run: () => {
-          findInput.focus();
+          focusDestination(findInput, "move", { scroll: true });
           findInput.select();
         },
       },

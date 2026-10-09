@@ -15,6 +15,7 @@ from interact_support import (
     declare_work,
     end_work,
     record_claim,
+    response_reference,
     wait_for,
     working,
 )
@@ -28,6 +29,7 @@ from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
+from leaf import thread as thread_model
 from leaf import user_views as user_views_model
 from leaf.leases import release_lease, take_lease, waiter_lease_path
 from leaf.render_checks import rendered, wait_until_ready
@@ -192,7 +194,7 @@ window.authoredModuleRan = true;
     assert any(
         event.get("kind") == "action"
         and event.get("widget") == "pick"
-        and event.get("detail") == {"options": ["yes"]}
+        and event.get("detail") == {"value": ["yes"]}
         for event in events_model.read_events(serve.page_dir)
     )
 
@@ -210,7 +212,7 @@ def test_the_gallery_embeds_an_ordinary_stamped_page(browser, serve):
         "Which map should the sample team carry?"
     )
     frame.locator(".lf-threads-toggle").click()
-    expect(frame.locator(".lf-thread-panel")).to_have_attribute("open", "")
+    expect(frame.locator(".lf-thread-panel")).to_be_visible()
     frame.goto(frame.url)
     wait_until_ready(frame)
     assert urlparse(frame.url).path == "/versions/v2.html"
@@ -332,6 +334,104 @@ def test_a_website_example_names_its_limited_agent(browser, serve):
     expect(page.locator(".lf-status-button .lf-publication-install")).to_have_count(0)
     expect(status).to_have_attribute("title", " ".join(status.text_content().split()))
     expect(page.locator(".lf-banner .lf-dot")).to_have_class(re.compile(r"^lf-dot\s*$"))
+
+
+@pytest.mark.parametrize("outcome", ["presented", "abandoned", "offline"])
+def test_public_startup_reports_upgrade_separately_from_held_state(
+    browser, serve, outcome, request
+):
+    """Public telemetry names the independent browser and state milestones.
+
+    A local delivered document gets the public release marker at the HTTP boundary.
+    The real widget runtime upgrades while its first state read is held. A full
+    Resource Timing buffer must not lose that response, an unrelated page's state
+    must not stand in for it, and later polling or departure must not send again.
+    A refused request has a Resource Timing entry but no state response to report.
+    """
+    url = serve(SHORT_SUGGESTION)
+    page = browser.new_page()
+    request.addfinalizer(page.close)
+    reports = []
+    held = []
+
+    def public_document(route):
+        response = route.fetch()
+        route.fulfill(
+            response=response,
+            body=response.text().replace(
+                "data-lf-server=", f'data-lf-release="{"a" * 64}" data-lf-server=', 1
+            ),
+        )
+
+    def report(route):
+        reports.append(route.request.post_data_json)
+        route.fulfill(status=204)
+
+    page.route("**/versions/v1.html?*", public_document)
+    page.route("**/api/performance", report)
+    page.route("**/api/state", lambda route: held.append(route))
+    page.route("**/other/api/state", lambda route: route.fulfill(json={}))
+    page.add_init_script(
+        """performance.setResourceTimingBufferSize(1);
+        window.firstStateResponses = [];
+        new PerformanceObserver(list => {
+          for (const entry of list.getEntries())
+            if (new URL(entry.name).pathname === '/api/state')
+              window.firstStateResponses.push(entry.responseEnd);
+        }).observe({type: 'resource', buffered: true});"""
+    )
+    page.goto(url, wait_until="load")
+    page.wait_for_function("document.body.dataset.lfUpgraded === '1'")
+    assert held, "the positive control did not hold the first state read"
+    expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+    assert reports == []
+    assert page.evaluate("firstStateResponses") == []
+    upgraded_before_release = page.evaluate("Math.round(performance.now())")
+    page.evaluate("async () => await (await fetch('/other/api/state')).json()")
+
+    if outcome == "abandoned":
+        with page.expect_response("**/api/performance"):
+            page.evaluate("dispatchEvent(new PageTransitionEvent('pagehide'))")
+        assert len(reports) == 1
+        assert reports[0]["firstStateResponseMs"] is None
+        assert reports[0]["presentedMs"] is None
+
+    released_at = page.evaluate("Math.round(performance.now())")
+    if outcome != "abandoned":
+        with page.expect_response("**/api/performance"):
+            first = held.pop(0)
+            if outcome == "offline":
+                refuse(first)
+                expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+            else:
+                first.continue_()
+                wait_until_ready(page)
+    else:
+        held.pop(0).continue_()
+        wait_until_ready(page)
+    page.wait_for_function("firstStateResponses.length === 1")
+    with page.expect_request("**/api/state"):
+        page.evaluate("void fetch('/api/state').then(response => response.json())")
+    holding(page, held, 1, "the follow-up state read")
+    held.pop(0).continue_()
+    page.wait_for_function("firstStateResponses.length === 2")
+    page.evaluate("dispatchEvent(new PageTransitionEvent('pagehide'))")
+    assert len(reports) == 1
+    reading = reports[0]
+    assert reading["version"] == 2
+    assert reading["outcome"] == ("presented" if outcome == "offline" else outcome)
+    assert 0 <= reading["upgradedMs"] <= upgraded_before_release
+    if outcome == "presented":
+        first_response = page.evaluate("Math.round(firstStateResponses[0])")
+        assert reading["firstStateResponseMs"] == first_response
+        assert released_at <= first_response <= reading["presentedMs"]
+        assert page.evaluate(
+            """performance.getEntriesByType('resource').every(entry =>
+                new URL(entry.name).pathname !== '/api/state')"""
+        ), "the response remained in the global timeline; eviction was not tested"
+    elif outcome == "offline":
+        assert reading["firstStateResponseMs"] is None
+        assert reading["presentedMs"] >= reading["upgradedMs"]
 
 
 def test_a_website_example_shows_its_public_session_reference(browser, serve):
@@ -626,14 +726,17 @@ def _hold_startup(page, stage):
 
 
 @pytest.mark.parametrize("stage", ["module", "state"])
+@pytest.mark.parametrize("touch", [False, True])
 def test_a_key_pressed_before_presentation_runs_once_the_page_presents(
-    browser, serve, stage
+    browser, serve, stage, touch
 ):
     """`t` walks threads the first state answer brings, so a press before presentation
     is held, shown as held, and replayed into the presented page — whether the runtime
     had not loaded or had loaded and not yet read the log."""
     url = serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD])
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page = browser.new_page(
+        viewport={"width": 390 if touch else 1200, "height": 900}, has_touch=touch
+    )
     watched(page)
     held, release = _hold_startup(page, stage)
     page.goto(url, wait_until="commit")
@@ -646,11 +749,65 @@ def test_a_key_pressed_before_presentation_runs_once_the_page_presents(
     echo = page.locator(".lf-held-keys")
     expect(echo).to_contain_text("Page still loading")
     expect(echo.locator("kbd")).to_have_text("t")
+    bounds = echo.bounding_box()
+    assert bounds and bounds["y"] >= 0
+    assert bounds["y"] + bounds["height"] <= page.viewport_size["height"], bounds
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
 
     release()
     expect(page.locator('[data-thread="held-thread"]').first).to_be_focused()
     expect(echo).to_have_count(0)
+
+
+@pytest.mark.parametrize("stage", ["module", "state"])
+def test_disabled_quick_shortcuts_are_not_held_before_presentation(
+    browser, serve, stage
+):
+    """The saved preference applies before either bootstrap or controller can act."""
+    url = serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD])
+    page = open_page(browser, url)
+    page.locator(".lf-banner-more").click()
+    page.get_by_role("button", name="Keyboard shortcuts", exact=True).click()
+    page.get_by_role("checkbox", name="Quick keyboard shortcuts").uncheck()
+    page.keyboard.press("Escape")
+    held, release = _hold_startup(page, stage)
+    page.reload(wait_until="commit")
+    holding(page, held, 1, f"the {stage} request")
+    expect(page.locator("#said")).to_be_visible()
+    page.keyboard.press("t")
+    expect(page.locator(".lf-held-keys")).to_have_count(0)
+    release()
+    wait_until_ready(page)
+    expect(page.locator('[data-thread="held-thread"]:focus')).to_have_count(0)
+    expect(page.locator(".lf-held-keys")).to_have_count(0)
+
+
+def test_disabling_quick_shortcuts_discards_keys_already_held(browser, serve):
+    """A preference change before replay must also withdraw an already captured trip."""
+    page = browser.new_page(viewport={"width": 1400, "height": 900})
+    watched(page)
+    # The queue has transferred to the controller, but its first frame has not run.
+    page.add_init_script(
+        """document.addEventListener('lf-presentation', () => queueMicrotask(() =>
+          document.documentElement.lfKeyboard.setQuick(false)));"""
+    )
+    held, release = _hold_startup(page, "state")
+    page.goto(serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD]), wait_until="commit")
+    holding(page, held, 1, "the first state read")
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+T")
+    try:
+        expect(page.locator(".lf-held-keys kbd")).to_have_text(["g", "T"])
+    finally:
+        release()
+    wait_until_ready(page)
+    expect(page.locator(".lf-held-keys")).to_have_count(0)
+    expect(page.locator("body")).not_to_have_attribute(
+        "data-lf-auxiliary-surface", "threads"
+    )
+    page.keyboard.press("t")
+    expect(page.locator('[data-thread="held-thread"]:focus')).to_have_count(0)
 
 
 def test_a_key_pressed_while_held_keys_run_waits_its_turn(browser, serve):
@@ -795,7 +952,12 @@ RESTORED_PROSE = "".join(
 @pytest.mark.parametrize(
     ("saved", "wide", "window"),
     [
-        ({"lf-auxiliary-surface": "queue", "lf-drawer-slot-width": "280"}, False, 1600),
+        # Questions stands on the Threads panel's edge, at the width the user drew it.
+        (
+            {"lf-auxiliary-surface": "queue", "lf-thread-panel-width": "380"},
+            False,
+            1600,
+        ),
         (
             {"lf-auxiliary-surface": "threads", "lf-thread-panel-width": "500"},
             True,
@@ -803,7 +965,7 @@ RESTORED_PROSE = "".join(
         ),
         # Where it would leave less than a usable page it covers the page instead.
         ({"lf-auxiliary-surface": "threads"}, True, 700),
-        # The Queue panel by the same rule: 300 of a 600px window leaves 300.
+        # The Questions panel by the same rule: 420 of a 600px window leaves 180.
         ({"lf-auxiliary-surface": "queue"}, False, 600),
     ],
     ids=["queue", "threads-wide-page", "covering", "queue-covering"],
@@ -874,7 +1036,7 @@ def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
             "data-lf-auxiliary-surface", surface
         )
         expect(page.locator("html[data-lf-covering-surface]")).to_have_count(
-            1 if window < {"queue": 620, "threads": 740}[surface] else 0
+            1 if window < 740 else 0
         )
         presented = geometry()
         assert presented == pytest.approx(initial, abs=1), (
@@ -970,6 +1132,123 @@ def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve)
           mark: link.querySelector('.lf-external-mark'),
         })"""
     ) == {"target": "_parent", "rel": "author next", "describedBy": None, "mark": None}
+
+
+@pytest.mark.parametrize("initial_motion", ["no-preference", "reduce"])
+def test_reduced_motion_reaches_declared_shadow_stages(
+    browser, serve, tmp_path, initial_motion
+):
+    """Package CSS has the same motion guard in the document and a declared tree.
+
+    The ordinary-motion control proves the package's animation and transition really
+    run. Both a preference held at navigation and one changed in the live document
+    must finish the animation once and make the next state change immediate.
+    """
+    entry = {
+        "description": "A package motion control.",
+        "type": "object",
+        "properties": {"id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-upgrade": True,
+    }
+    registry = {
+        tag: {
+            **entry,
+            **({"x-shadow": True} if tree == "shadow" else {}),
+            "x-example": f'<{tag} id="{tree}-example"></{tag}>',
+        }
+        for tree, tag in (("light", "lf-motion-light"), ("shadow", "lf-motion-shadow"))
+    }
+    package = tmp_path / ".leaf"
+    package.mkdir()
+    (package / "shadow.css").write_text("""
+.pulse { animation: package-pulse 30s linear infinite; }
+.pulse::before { content: 'Activity'; animation: package-pulse 30s linear infinite; }
+@keyframes package-pulse { from { opacity: .25; } to { opacity: 1; } }
+button { transition: background-color 30s linear; background-color: rgb(10, 20, 30); }
+button.chosen { background-color: rgb(40, 50, 60); }
+""")
+    modules = {}
+    for tag, declaration in registry.items():
+        stage = (
+            "shadowStage(this, nodes)"
+            if declaration.get("x-shadow")
+            else "this.replaceChildren(...nodes)"
+        )
+        modules[f"{tag}.js"] = f"""
+import {{ once, shadowStage }} from '/runtime/widget-api.js';
+customElements.define('{tag}', class extends HTMLElement {{
+  connectedCallback() {{
+    if (!once(this)) return;
+    const pulse = document.createElement('span'); pulse.className = 'pulse';
+    pulse.textContent = 'Working';
+    pulse.ends = [];
+    pulse.addEventListener('animationend', event => pulse.ends.push(event.pseudoElement));
+    const button = document.createElement('button'); button.textContent = 'Choose';
+    button.style.transition = 'background-color 30s linear';
+    button.onclick = () => button.classList.toggle('chosen');
+    const nodes = [pulse, button];
+    {stage};
+  }}
+}});
+"""
+    url = serve(
+        leaf_page(
+            "Package motion",
+            '<h1>Package motion</h1><lf-motion-light id="light"></lf-motion-light>'
+            '<lf-motion-shadow id="shadow"></lf-motion-shadow>',
+        ),
+        layer_registry=registry,
+        layer_widgets=modules,
+    )
+    page = open_page(
+        browser, url, context=browser.new_context(reduced_motion=initial_motion)
+    )
+    if initial_motion == "no-preference":
+        for tree in ("light", "shadow"):
+            pulse = page.locator(f"#{tree} .pulse")
+            expect(pulse).to_have_css("animation-iteration-count", "infinite")
+            assert (
+                pulse.evaluate("node => node.getAnimations({subtree: true}).length")
+                == 2
+            )
+            button = page.locator(f"#{tree} button")
+            expect(button).to_have_css("transition-duration", "30s")
+            button.click()
+            assert button.evaluate("node => node.getAnimations().length") == 1
+            button.click()
+        page.emulate_media(reduced_motion="reduce")
+    for tree in ("light", "shadow"):
+        pulse = page.locator(f"#{tree} .pulse")
+        button = page.locator(f"#{tree} button")
+        button.click()
+        reading = button.evaluate("""node => ({
+            transition: getComputedStyle(node).transitionProperty,
+            colour: getComputedStyle(node).backgroundColor,
+            animations: node.getAnimations().length,
+        })""")
+        assert reading == {
+            "transition": "none",
+            "colour": "rgb(40, 50, 60)",
+            "animations": 0,
+        }
+        expect(pulse).to_have_css("animation-iteration-count", "1")
+        page.wait_for_function(
+            "tree => { const host = document.getElementById(tree); "
+            "return (host.shadowRoot ?? host).querySelector('.pulse').ends.length === 2; }",
+            arg=tree,
+        )
+        assert pulse.evaluate("node => node.getAnimations({subtree: true}).length") == 0
+    page.emulate_media(reduced_motion="no-preference")
+    for tree in ("light", "shadow"):
+        pulse = page.locator(f"#{tree} .pulse")
+        expect(pulse).to_have_css("animation-iteration-count", "infinite")
+        assert pulse.evaluate("node => node.getAnimations({subtree: true}).length") == 2
+        expect(page.locator(f"#{tree} button")).to_have_css(
+            "transition-duration", "30s"
+        )
 
 
 def test_settled_and_shadow_links_get_the_pages_link_treatment(browser, serve):
@@ -1356,7 +1635,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
             "revision": 1,
             "widget": "startup-note",
             "action": "edit",
-            "detail": {"text": "Ship on Friday from the green room."},
+            "detail": {"value": "Ship on Friday from the green room."},
         },
     )
     held = []
@@ -1607,9 +1886,16 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     assert held, "the positive control did not hold the first state response"
     body = page.locator("body")
     expect(body).to_have_attribute("data-lf-auxiliary-surface", "queue")
-    expect_banner_control_offered(page.locator(".lf-queue"), offered=False)
+    # The door stands on every page, and claims no count before the log has answered.
+    expect(page.locator(".lf-queue")).to_have_text("Questions")
     expect(page.locator(".lf-queue-panel")).to_be_hidden()
     expect_banner_control_offered(page.locator(".lf-answer-all"), offered=False)
+    # Opened by hand, the panel counts nothing yet either.
+    page.locator(".lf-queue").click()
+    expect(page.locator(".lf-queue-panel")).to_contain_text(
+        "Loading current questions…"
+    )
+    expect(page.locator(".lf-queue-panel")).not_to_contain_text("Questions · 0")
 
     comments = page.locator(".lf-threads-toggle")
     expect(comments).to_be_enabled()
@@ -1621,7 +1907,7 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     wait_until_ready(page)
     expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
     decisions = page.locator(".lf-queue")
-    expect_banner_control_offered(decisions)
+    expect(decisions).to_have_text("Questions: 0")
     expect_asks_answered(page, "1/1")
     expect(decisions).to_have_attribute("aria-expanded", "false")
     expect(page.locator(".lf-queue-panel")).to_be_hidden()
@@ -1645,8 +1931,8 @@ def test_comments_wait_for_the_first_log_to_be_renderable(browser, serve):
     held = []
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
-    page.route("**/vendor/marked.esm.js", lambda route: held.append(route))
-    with page.expect_request("**/vendor/marked.esm.js"):
+    page.route("**/vendor/markdown-it.esm.js", lambda route: held.append(route))
+    with page.expect_request("**/vendor/markdown-it.esm.js"):
         page.goto(url, wait_until="load")
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     assert held, "the positive control did not hold the Markdown renderer"
@@ -1889,7 +2175,7 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
             "revision": 1,
             "widget": "draft-ops",
             "action": "edit",
-            "detail": {"text": DRAFT_EDITED},
+            "detail": {"value": DRAFT_EDITED},
         },
     )
     corrected = "Run the migration after deploying — it needs the new column."
@@ -1999,7 +2285,7 @@ def test_foreign_state_waits_until_a_live_drag_releases_the_page(browser, serve)
             "revision": 1,
             "widget": "draft-ops",
             "action": "edit",
-            "detail": {"text": "Foreign words held behind the drag."},
+            "detail": {"value": "Foreign words held behind the drag."},
         },
     )
     told(page)
@@ -2496,11 +2782,9 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
     replied = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(d),
-            "--for",
-            "c-store",
+            response_reference(d, "c-store"),
             "--text",
             "Depends what you want to keep:",
             "--markup",
@@ -2539,7 +2823,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
         primed(
             browser,
             lambda page: page.route(
-                "**/vendor/marked.esm.js", lambda route: marked.append(route)
+                "**/vendor/markdown-it.esm.js", lambda route: marked.append(route)
             ),
         ),
         serve(LONG_PAGE),
@@ -2581,7 +2865,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
     old_route.fulfill(json=old_state)
     page.title()  # let the old response join the shared import before releasing it
     marked[0].continue_()
-    page.unroute("**/vendor/marked.esm.js")
+    page.unroute("**/vendor/markdown-it.esm.js")
 
     expect(page.locator(".lf-thread", has_text="Older snapshot")).to_have_count(1)
     expect(page.locator(".lf-thread", has_text="Newest snapshot")).to_have_count(1)
@@ -2628,20 +2912,17 @@ def test_a_durable_server_restart_keeps_the_current_editor(browser, serve):
     )
     page.evaluate("window.__originalDocument = true")
     reading = page.locator("body").get_attribute("data-lf-reading")
-    looks = []
-
-    def read_news(route):
-        answer = route.fetch()
-        looks.append((answer.headers, answer.text()))
-        route.fulfill(response=answer)
-
-    page.route("**/api/news", read_news)
-    serve.httpd.server_id = "replacement-server"
-    with page.expect_response("**/api/news", timeout=5000):
-        pass
-    page.unroute("**/api/news", read_news)
-    assert looks[-1][0]["leaf-server"] == "replacement-server"
-    assert looks[-1][1] == reading
+    # A poll already in flight can finish after the route is registered without
+    # passing through it. Read the response that actually identifies the new server.
+    with page.expect_response(
+        lambda response: (
+            response.url.endswith("/api/news")
+            and response.headers.get("leaf-server") == "replacement-server"
+        ),
+        timeout=5000,
+    ) as restarted:
+        serve.httpd.server_id = "replacement-server"
+    assert restarted.value.text() == reading
     page.wait_for_timeout(500)
     assert page.evaluate("window.__originalDocument === true")
     expect(editor).to_be_focused()
@@ -3170,7 +3451,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     text, dot = page.locator(".lf-status-detail"), page.locator(".lf-banner .lf-dot")
     summary = page.locator(".lf-status-text")
     UNHELD = (
-        "No session holds this page. 2 moves are saved."
+        "No session holds this page. Your updates are saved."
         " It picks up again when a session does."
     )
 
@@ -3241,10 +3522,10 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     expect(summary).to_have_text("Claude working — revising the plan")
     # The row's account of the agent's side is the queue count, not the delivery
     # count the disclosure keeps.
-    expect(page.locator(".lf-status-queues")).to_have_text("2 on Claude")
+    expect(page.locator(".lf-status-queues")).to_have_text("Tasks: 2")
     expect(text).to_have_text(
         re.compile(
-            r"^Claude is working — revising the plan \(.+\)\. 1 move waiting\."
+            r"^Claude is working — revising the plan \(.+\)\. 1 response owed on updates awaiting delivery\."
             r" Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
         )
     )
@@ -3266,7 +3547,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     expect(text).to_have_text(
         re.compile(
             r"^Claude is working — revising the plan \(.+\)\. "
-            r"1 move queued\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
+            r"1 response owed on queued updates\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
         )
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3308,7 +3589,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         expect(text).to_have_text(
             re.compile(
                 r"^Claude is working — revising the plan \(.+\)\. "
-                r"1 move waiting\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
+                r"1 response owed on updates awaiting delivery\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
             )
         )
         expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3327,7 +3608,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         expect(text).to_have_text(
             re.compile(
                 r"^Claude is using a tool — revising the plan \(.+\) · "
-                r"Running the tests\. 1 move waiting\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
+                r"Running the tests\. 1 response owed on updates awaiting delivery\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
             )
         )
         expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3350,7 +3631,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         # remedy — nobody needs to touch a terminal for a comment to reach a live wait.
         declare("working", "revising the plan", quiet_for=20 * 60)
         expect(text).to_have_text(
-            "Claude last checked in 20m ago: revising the plan. 1 move is saved."
+            "Claude last checked in 20m ago: revising the plan. Your updates are saved."
             " Waiting on Claude: 1 reply, 1 task (Work on the page)."
         )
         expect(dot).to_have_class(re.compile(r"\baway\b"))
@@ -3366,8 +3647,8 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         # in just now" under an amber dot is the line arguing with the dot.
         declare("working", "revising the plan", quiet_for=6 * 60, turn_ended=5 * 60)
         expect(text).to_have_text(
-            "Claude left this when its turn ended 5m ago: revising the plan."
-            " 1 move is saved. Waiting on Claude: 1 reply, 1 task (Work on the page)."
+            "Claude’s turn ended 5m ago: revising the plan."
+            " Your updates are saved. Waiting on Claude: 1 reply, 1 task (Work on the page)."
         )
         expect(dot).to_have_class(re.compile(r"\baway\b"))
 
@@ -3379,8 +3660,8 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         # renewed by nothing after it.
         declare("working", "revising the plan", quiet_for=5 * 60, turn_ended=5 * 60)
         expect(text).to_have_text(
-            "Claude left this when its turn ended 5m ago: revising the plan."
-            " 1 move is saved. Waiting on Claude: 1 reply, 1 task (Work on the page)."
+            "Claude’s turn ended 5m ago: revising the plan."
+            " Your updates are saved. Waiting on Claude: 1 reply, 1 task (Work on the page)."
         )
 
         # A turn that has only just ended still holds it. An agent that ends its turn
@@ -3403,19 +3684,19 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         # clipped, and a narrow window must not be why the decision goes unread.
         declare("waiting", "pick a storage engine")
         expect(text).to_have_text(
-            "Claude is listening — pick a storage engine. 1 move waiting."
+            "Claude is listening — pick a storage engine. 1 response owed on updates awaiting delivery."
             " Waiting on Claude: 1 reply."
         )
         expect(page.locator(".lf-status-button")).to_have_attribute(
             "title",
-            "Claude is listening — pick a storage engine. 1 move waiting."
+            "Claude is listening — pick a storage engine. 1 response owed on updates awaiting delivery."
             " Waiting on Claude: 1 reply.",
         )
 
     # No watcher, but Claude checked in moments ago, so it is between turns.
     declare("waiting")
     expect(text).to_have_text(
-        "Claude isn't watching right now. 1 move is saved."
+        "Claude isn't watching right now. Your updates are saved."
         " It picks them up next turn. Waiting on Claude: 1 reply."
     )
 
@@ -3426,7 +3707,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     # message was sent it as it arrived.
     declare("working", "running the migration", quiet_for=6 * 60, turn_ended=5 * 60)
     expect(text).to_have_text(
-        "Claude isn't watching right now. 1 move is saved."
+        "Claude isn't watching right now. Your updates are saved."
         " It picks them up next turn. Waiting on Claude: 1 reply, 1 task (Work on the page)."
     )
     expect(dot).to_have_class(re.compile(r"\baway\b"))
@@ -3446,7 +3727,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     )
     declare("working", "running the migration", quiet_for=6 * 60, turn_ended=5 * 60)
     expect(text).to_have_text(
-        "Claude left this when its turn ended 5m ago. 2 moves are saved."
+        "Claude’s turn ended 5m ago. Your updates are saved."
         " Nothing is answering them, so nudge it in the terminal."
         " Waiting on Claude: 2 replies, 1 task (Work on the page)."
     )
@@ -3485,7 +3766,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     expect(text).to_have_text(re.compile(r"^Codex is working — revising the plan"))
 
     declare("idle")
-    expect(text).to_have_text("Leaf closed. Waiting on Claude: 2 replies.")
+    expect(text).to_have_text("Page closed. Waiting on Claude: 2 replies.")
 
 
 def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
@@ -3588,11 +3869,11 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(other_workflow).to_have_text("Sent")
     expect(page.locator(".lf-status-detail")).to_have_text(
         "Claude picked up your comment and hasn't said what it's doing yet"
-        " (just now). 1 move waiting. Waiting on Claude: 2 replies, 1 task"
+        " (just now). 1 response owed on updates awaiting delivery. Waiting on Claude: 2 replies, 1 task"
         " (Work on the page)."
     )
     expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
-        "Working · 1 move waiting"
+        "Working · 1 response owed on updates awaiting delivery"
     )
 
     # The agent finishes the earlier task and waits on the user.
@@ -3605,7 +3886,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
         "Claude picked up your comment and hasn't said what it's doing yet"
-        " (just now). 1 move waiting. Waiting on Claude: 2 replies."
+        " (just now). 1 response owed on updates awaiting delivery. Waiting on Claude: 2 replies."
     )
 
     with service_model.PageTransaction(d) as transaction:
@@ -3619,7 +3900,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # The turn ended with both updates still the agent's to answer, so they are overdue
     # and the remedy is the user's.
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude last checked in just now. 2 moves are saved. "
+        "Claude last checked in just now. Your updates are saved. "
         "Nothing is answering them, so nudge it in the terminal."
         " Waiting on Claude: 2 replies."
     )
@@ -3688,7 +3969,6 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         },
     )
     told(page)
-    held_thread.get_by_role("button", name="1 new reply", exact=True).click()
     followup_workflow = held_thread.locator(
         f'.lf-msg.user[data-mid="{followup["id"]}"] > .lf-msg-head .lf-msg-sending'
     )
@@ -3722,7 +4002,6 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         },
     )
     told(page)
-    held_thread.get_by_role("button", name="1 new reply", exact=True).click()
     expect(page.locator(f'.lf-thread[data-id="{held}"] .lf-msg.agent')).to_have_count(1)
     expect(held_workflow).to_have_count(0)
     expect(workflows).to_have_count(1)
@@ -3843,7 +4122,7 @@ def test_ended_pickup_preserves_the_declared_invitation_in_banner_and_leaves(
         expect(page.locator(".lf-status-text")).to_have_text(
             "Claude awaits — pick a storage engine"
         )
-        expect(page.locator(".lf-status-queues")).to_have_text("1 on Claude")
+        expect(page.locator(".lf-status-queues")).to_have_text("Tasks: 1")
         expect(page.locator(".lf-status-detail")).to_have_text(
             "Claude awaits — pick a storage engine. Waiting on Claude: 1 reply."
         )
@@ -5203,6 +5482,139 @@ def test_an_idle_page_keeps_its_dom_and_data_subscriptions_at_rest(browser, serv
     ) == {"mutations": 0, "deliveries": 1}
 
 
+def test_data_consumers_clear_and_recover_across_contract_only_rebindings(
+    browser, serve
+):
+    """Active and frozen consumers keep their declarations as a source is rebound.
+
+    A changed contract must reach the browser even with identical value bytes, clear
+    the incompatible consumer, and leave its subscription able to recover.
+    """
+
+    def entry(tag, contract):
+        return {
+            "description": "An instrumented data reader.",
+            "type": "object",
+            "properties": {
+                "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+                "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            },
+            "required": ["id", "source"],
+            "additionalProperties": False,
+            "x-content": "empty",
+            "x-upgrade": True,
+            "x-data": {"data": {"contract": contract, "source": "source"}},
+            "x-example": f'<{tag} id="example-{contract}" source="shared"></{tag}>',
+        }
+
+    def module(tag):
+        return """import {watchData} from '/runtime/widget-api.js';
+customElements.define(TAG, class extends HTMLElement {
+  connectedCallback() {
+    if (this.started) return;
+    this.started = true;
+    window.dataDeliveries ??= [];
+    this.stop = watchData(this, 'data', snapshot => {
+      window.dataDeliveries.push({id: this.id, snapshot});
+      const text = JSON.stringify(snapshot?.value ?? null);
+      if (this.textContent !== text) this.textContent = text;
+    });
+  }
+  disconnectedCallback() { this.stop?.(); }
+});""".replace("TAG", json.dumps(tag))
+
+    authored = leaf_page(
+        "Different contracts",
+        '<h1 id="title">Feeds</h1>'
+        '<lf-array-feed id="page-feed" source="shared"></lf-array-feed>',
+    )
+    url = serve(
+        authored,
+        layer_registry={
+            "lf-array-feed": entry("lf-array-feed", "rows"),
+            "lf-object-feed": entry("lf-object-feed", "other-rows"),
+            "$data": {
+                "contracts": {
+                    "rows": {"description": "Rows.", "schema": {"type": "array"}},
+                    "other-rows": {
+                        "description": "Another contract.",
+                        "schema": {"type": ["array", "object"]},
+                    },
+                }
+            },
+        },
+        layer_widgets={
+            "lf-array-feed.js": module("lf-array-feed"),
+            "lf-object-feed.js": module("lf-object-feed"),
+        },
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "question",
+            "author": "user",
+            "revision": 1,
+            "text": "Another feed.",
+        },
+    )
+    thread_model.post_reply(
+        serve.page_dir,
+        "question",
+        "Frozen feed.",
+        '<lf-object-feed id="thread-feed" source="shared"></lf-object-feed>',
+        for_event="question",
+    )
+    data_model.cmd_data_set(serve.page_dir, "shared", ["same bytes"])
+    page = open_page(browser, url)
+    page.keyboard.press("c")
+    expect(page.locator("#page-feed")).to_have_text('["same bytes"]')
+    expect(page.locator("#thread-feed")).to_have_text("null")
+    consume_browser_errors(page, "watchData(lf-object-feed, data) requires other-rows")
+    read = """async () => {
+      const {readAndApply} = await window.__lfRuntimeImport('/runtime/application.js');
+      await readAndApply();
+    }"""
+    wire = "async () => (await (await fetch('/api/state')).json()).data"
+
+    def rebind(contract, value):
+        (serve.page_dir / "index.html").write_text(
+            authored
+            if contract == "rows"
+            else authored.replace("lf-array-feed", "lf-object-feed")
+        )
+        data_model.cmd_data_set(serve.page_dir, "shared", value)
+        page.evaluate(read)
+        return page.evaluate(wire)
+
+    original = page.evaluate(wire)
+    rebound = rebind("other-rows", ["same bytes"])
+    expect(page.locator("#page-feed")).to_have_text("null")
+    expect(page.locator("#thread-feed")).to_have_text('["same bytes"]')
+    assert (
+        original["sources"]["shared"]["revision"]
+        == rebound["sources"]["shared"]["revision"]
+    )
+    assert original["version"] != rebound["version"]
+    consume_browser_errors(page, "watchData(lf-array-feed, data) requires rows")
+
+    calls = page.evaluate("window.dataDeliveries.length")
+    page.evaluate(read)
+    page.evaluate(read)
+    assert page.evaluate("window.dataDeliveries.length") == calls
+    assert page.lf_errors == []
+
+    rebind("rows", ["same bytes"])
+    expect(page.locator("#page-feed")).to_have_text('["same bytes"]')
+    expect(page.locator("#thread-feed")).to_have_text("null")
+    consume_browser_errors(page, "watchData(lf-object-feed, data) requires other-rows")
+
+    rebind("other-rows", {"new": "object meaning"})
+    expect(page.locator("#page-feed")).to_have_text("null")
+    expect(page.locator("#thread-feed")).to_have_text('{"new":"object meaning"}')
+    consume_browser_errors(page, "watchData(lf-array-feed, data) requires rows")
+
+
 def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
     browser, serve
 ):
@@ -5914,8 +6326,8 @@ def _hold_required_thread_panel(page):
         __lfRuntimeImport('/runtime/thread/state.js'),
         __lfRuntimeImport('/runtime/application.js')]);
       const elements=createThreadPanelElements();
-      elements.panel.style.cssText='position:fixed;left:8px;top:160px;width:400px;height:400px';
-      document.body.append(elements.panel);elements.panel.show();
+      elements.panel.style.cssText='position:relative;inset:auto;width:400px;height:400px;margin:0';
+      document.body.append(elements.panel);elements.panel.classList.add('open');
       const controller=createThreadListController(elements);
       const original=controller.renderThreads.bind(controller);
       controller.renderThreads=async(...args)=>{

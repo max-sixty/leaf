@@ -24,10 +24,6 @@
    a false floor. Modal entry dismisses auto and hint popovers through the platform
    contract; a later opening joins as a new layer rather than preserving a hidden entry.
 
-   A covering auxiliary surface is not an entry. It takes modal semantics without entering
-   the browser's top layer, and the dispatcher reads that surface as the floor when no
-   modal entry stands; this stack never sees it.
-
    What Escape takes off is not recorded here, and not recorded anywhere: every step is
    read off the state standing in front of the user, by the owner of that state, through
    `pageRung` and the scopes each owner declares. `register.js` orders those steps and
@@ -35,7 +31,8 @@
    layers the browser is holding, because that is the one fact about the scene that its
    own DOM cannot be asked for in order. */
 
-import { releaseFocus } from "../focus.js";
+import { releaseFocus, holdFocus, closeLayer } from "../focus.js";
+import { under } from "../shadow.js";
 
 const entries = [];
 const watchedRoots = new WeakSet();
@@ -78,7 +75,7 @@ function pushNativeLayer(node) {
 // the user: standing nowhere. A modal is still modal as it announces its close, with the
 // page behind it inert, so a let-go there lands no one and only takes the body's stop
 // and gives it back; the modal's owner lands the user as it closes it (the Page Map's
-// cancel, the command reference's close).
+// cancellation returns to its opener or reading position; the command reference closes).
 function closing(event) {
   if (event.newState !== "closed") return;
   const entry = entries.find((candidate) => candidate.root === event.target);
@@ -120,6 +117,48 @@ watchLayers(document);
 export function nativeLayers() {
   prune();
   return entries.filter((entry) => entry.active());
+}
+
+// Same-origin embedded pages consult the native owner of the document holding their
+// frame. The bridge exposes the owner's reading, never a second stack. An ordinary
+// host without Leaf cannot supply opening order: require containment in every standing
+// modal there, so an unobserved layer never becomes evidence that a child was shown.
+const NATIVE_LAYERS = Symbol.for("leaf.nativeLayers");
+Object.defineProperty(document, NATIVE_LAYERS, { value: nativeLayers });
+export function nativeModalAdmits(node) {
+  const owner = node.ownerDocument;
+  const reading = owner[NATIVE_LAYERS];
+  if (reading) {
+    const modal = reading().findLast((layer) => layer.kind === "modal")?.root;
+    return !modal || under(node, modal);
+  }
+  return [...owner.querySelectorAll("dialog:modal")].every((modal) =>
+    under(node, modal),
+  );
+}
+
+// Raising a native ancestor appends it above its standing descendants. Re-seat those
+// same layers after its transition, in their native order; their owners and retained
+// nodes keep the reading and the eventual return. The browser state changes in one
+// turn, before any queued close event can see a descendant left closed.
+export function transitionNativeAncestor(root, transition) {
+  const descendants = nativeLayers().filter(
+    (layer) => layer.root !== root && under(layer.root, root),
+  );
+  const held = holdFocus(root);
+  closeLayer(() => {
+    for (const layer of descendants.toReversed())
+      if (layer.kind === "modal") layer.root.close();
+      else layer.root.hidePopover();
+    transition();
+    for (const layer of descendants)
+      if (layer.root instanceof HTMLDialogElement) layer.root.showModal();
+      else
+        layer.root.showPopover(
+          layer.root.lfInvoker ? { source: layer.root.lfInvoker } : undefined,
+        );
+  });
+  held?.();
 }
 
 // Modal owners close pre-existing popovers before establishing a new floor.

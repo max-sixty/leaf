@@ -1,10 +1,12 @@
 /* News a thread surface holds back while it would move what the reader reads.
 
-   The rule: what the user sees moves only in answer to a gesture of theirs
-   (`skills/leaf/assets/AGENTS.md`, "Layout and motion"). News is not one, so where
-   drawing it would move something on screen it waits, and the first gesture that takes
-   the user to it shows it, since the motion is then that gesture's. Everything here
-   follows from that.
+   These holds protect existing reading and active composition
+   (`skills/leaf/assets/AGENTS.md`, "Layout and motion"). Each surface's rule below
+   determines which surrounding content may move as messages arrive. A held change
+   shows when a gesture takes the user to it. A hidden tab ends that reading. Returning reveals its held
+   news and its first refreshed reading through the shared reading-continuity owner;
+   keyboard blur alone leaves the reading protected. The ordinary message arrival
+   tint and retirement fold explain the changed layout without withholding its words.
 
    A seat draws its threads in the page's flow (inline.js: a widget's seat, or a widget's
    outlet such as a diff line's), so whatever the agent adds grows the page there: a turn
@@ -32,7 +34,10 @@
      the thread to place (surfaces.js), and the margin draws it as it draws any thread
      no widget places, out of the flow.
 
-   A panel card uses the same hold for its own news, and a closed card holds nothing,
+   An open panel card shows appended messages immediately when no composition is
+   active: its idle reply row and later cards may move, while existing messages keep
+   their place. Changes to existing messages, reactions, folds and settlement use
+   the same hold as a seat in page flow. A closed card holds nothing,
    since its title row draws at one size whatever it says. A reply pinned to its
    scrollport lets a turn joining the thread's end grow up into the room scrolled past
    (thread-list.js, `followThreadEnd`), though nothing that changes above that end. A
@@ -68,8 +73,9 @@
    undrawn can take focus. Anything held in a seat is not drawn, so it stays unread until
    it shows.
 
-   Decisions. A panel card holds news behind its notice, like every other surface (#1694;
-   the user's decision, 2026-10-04). Rejected: filling the list (#1480), which makes the
+   Decisions. An idle open panel card shows appended messages (the user's decision,
+   2026-10-08, relaxing #1694's blanket hold). Its existing reading and active editor
+   remain protected. Rejected: filling the list (#1480), which makes the
    open card as tall as the panel and leaves later cards below the fold; and letting a
    list that cannot scroll push its contents down, which needs the shift watch to stop
    checking such lists. Arrival is read from where the user stands (the user's decision,
@@ -86,7 +92,7 @@ import { shownBand, whenOffScreen } from "../geometry.js";
 import { scrollersOf } from "../reading-regions.js";
 import { offer } from "../widget-elements.js";
 import { keeps, keepsText, layoutPx } from "../keeps.js";
-import { keys, focused } from "../keyboard/scopes.js";
+import { keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { focusThread, threadFocusStop } from "./focus.js";
 import { isReaction, threadKey, threadNames } from "./model.js";
@@ -94,7 +100,8 @@ import { allThreads } from "./state.js";
 import { THREAD } from "./selectors.js";
 import { closestAcross } from "../passages.js";
 import { readApplication } from "../semantic-state.js";
-import { onStanding } from "../focus.js";
+import { onStanding, focused } from "../focus.js";
+import { readingIsContinuous } from "../reading-continuity.js";
 
 // Whether this page's ledger holds a gesture of the user's on `thread`: one of its
 // messages, a reply or a settlement naming one, a move on a widget one of them holds, an
@@ -209,7 +216,10 @@ function difference(was, now) {
     summaries: gone.map(({ id }) => id),
   };
   if (!settled && !news.replies && !news.reactions && !news.summaries) return null;
-  return { news, changed, folds };
+  const appendedAtEnd =
+    news.appended &&
+    was.messages.every((message, index) => now.messages[index]?.key === message.key);
+  return { news, changed, folds, appendedAtEnd };
 }
 
 // The thread `now` with what `was`, the thread as the seat drew it, did not show held
@@ -243,6 +253,7 @@ function withheld(was, now) {
 // Whether growth after `node` would move what the user sees: the node's foot stands
 // inside every box that scrolls it. A node not drawn has no foot to grow from.
 export function growthAfterIsSeen(node) {
+  if (!readingIsContinuous()) return false;
   const { bottom, height } = node?.getBoundingClientRect() ?? {};
   if (!height) return false;
   for (const box of scrollersOf(node)) {
@@ -256,6 +267,7 @@ export function growthAfterIsSeen(node) {
 // sees: some of them stands inside every box that scrolls it. Growth wholly above the
 // screen goes into what scroll anchoring holds, and wholly below it moves nothing seen.
 export function growthInsideIsSeen(nodes) {
+  if (!readingIsContinuous()) return false;
   return nodes.some((node) => {
     const { top, bottom, height } = node.getBoundingClientRect();
     if (!height) return false;
@@ -281,23 +293,23 @@ const newsLabel = ({ settled, replies, reactions, summaries, threads }) =>
 /** The control that says what a row holds and shows it. `set(news)` gives it the
  *  reading's `news` ({label, reopened, open}); `open` returns the thread to land a
  *  keyboard on, since the notice goes with what it held. A held reopening's notice stands
- *  where Reopen did, in Reopen's face, which sets its row's height, and is the thread's
+ *  where Reopen did, with the same compact face as other news, and is the thread's
  *  reopen control (`lf-reopen`), so the thread's Enter and `r` keep their meaning and
  *  press it to show the thread reopened. A `header` notice stands in a resolved panel
- *  card's title, in the face Reopen wears there, as a node of its own, since the
- *  notice in the card's rows may have stood elsewhere a moment before. */
+ *  card's title as a node of its own, since the notice in the card's rows may have
+ *  stood elsewhere a moment before. */
 export function newsNotice(header = false) {
   const node = offer(
     "button",
     header
-      ? "lf-btn lf-thread-action lf-thread-header-action lf-thread-news"
-      : "lf-outline-chip lf-thread-news",
+      ? "lf-thread-notice lf-thread-notice-news lf-thread-header-action lf-thread-news"
+      : "lf-thread-notice lf-thread-notice-news lf-thread-news",
   );
   let open = () => null;
   const show = () => {
     const standing = focused() === node;
     const landing = open();
-    if (standing && landing) focusThread(landing, { preventScroll: true });
+    if (standing && landing) focusThread(landing, "move");
   };
   keys(node, "On news waiting in a thread", [
     {
@@ -314,11 +326,6 @@ export function newsNotice(header = false) {
     set(news) {
       keepsText(node, news.label);
       keeps(node, "title", news.label);
-      if (!header) {
-        node.classList.toggle("lf-outline-chip", !news.reopened);
-        for (const face of ["lf-btn", "lf-thread-action"])
-          node.classList.toggle(face, news.reopened);
-      }
       node.classList.toggle("lf-reopen", news.reopened);
       open = news.open;
     },
@@ -368,13 +375,17 @@ function everySeat(id, show) {
 // The thread the user stands in, and their arrivals at another, which show what it holds.
 let standing = null;
 onStanding((node, cause) => {
+  // A drop leaves them standing in the thread, for its owner to put them back in.
+  if (cause === "drop") return;
   const thread = node && closestAcross(node, THREAD);
   const id = thread ? (thread.dataset.id ?? thread.dataset.thread) : null;
   const title = thread && threadFocusStop(thread);
   const arrived =
     id !== null &&
     id !== standing &&
-    (cause === "move" || (cause === "press" && title !== thread && node === title));
+    (cause === "move" ||
+      cause === "step" ||
+      (cause === "press" && title !== thread && node === title));
   standing = id;
   if (arrived) showHeld(id);
 });
@@ -411,7 +422,7 @@ export class HeldNews {
   // whose place a new thread's notice can stand.
   hold(reading, { row }) {
     const read = readApplication().phase === "ready";
-    if (!read) this.#forget();
+    if (!read || !readingIsContinuous()) this.#forget();
     const prior = read ? this.#shown : null;
     const keys = new Set(reading.threads.map(({ key }) => key));
     for (const key of this.#threads) if (!keys.has(key)) this.#threads.delete(key);
@@ -679,6 +690,10 @@ export class HeldArrivals {
   }
 
   #take(threads, drawn) {
+    if (!readingIsContinuous()) {
+      this.#lapse(() => true);
+      return;
+    }
     const keys = new Set(threads.map(({ thread }) => thread.key));
     this.#release(({ key }) => !keys.has(key));
     // Settling a thread or reopening it is the user's gesture in it, as a turn is. A

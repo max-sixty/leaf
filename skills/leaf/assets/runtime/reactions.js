@@ -36,7 +36,6 @@
    capabilities; thread views register their template-owned trigger and palette.
    mount installs the mode teardown listeners after composition. */
 
-import { nextRender } from "./rendering.js";
 import { whenOffScreen } from "./geometry.js";
 import { scrollIntoReadingBand } from "./landing-scroll.js";
 import { registerContribution } from "./contributions.js";
@@ -54,8 +53,16 @@ import {
   visualPartLabel,
 } from "./anchor-resolution.js";
 import { announce, notice } from "./notifications.js";
-import { claimsEsc, focused, saying } from "./keyboard/scopes.js";
-import { handBack, returningFocus } from "./focus.js";
+import { claimsEsc, saying } from "./keyboard/scopes.js";
+import {
+  handBack,
+  focusDestination,
+  focused,
+  closeLayer,
+  drawn,
+  openerOf,
+  openLayer,
+} from "./focus.js";
 import { repaint } from "./repaint.js";
 
 import {
@@ -108,7 +115,7 @@ export function createReactionController({
   hideComposer,
   syncResponseOptions,
   fabAnchorAt,
-  fabReturnTo,
+  fabReturnPlaces,
   fabTargetAt,
   hasPageSelectionTarget,
   showFab,
@@ -168,8 +175,7 @@ export function createReactionController({
     // The bar owns what that answer is. `setReact(false)` runs after the bar goes and the
     // palette makes a return of its own, so the user lands once, when everything has
     // settled, rather than once as the bar goes and again after the palette.
-    const returnTo = fabReturnTo();
-    const restoreTargetFocus = () => handBack(returnTo);
+    const returnTo = fabReturnPlaces();
     if (!anchor) return;
     let sent;
     if (standing) sent = commands.withdrawReaction(standing);
@@ -183,10 +189,14 @@ export function createReactionController({
       if (designModeActive()) event.about = "design";
       sent = sendReaction(event, chip, anchorWord(anchor), commands.postReaction);
     }
-    hideComposer();
-    showFab(null, { returnFocus: "none" });
-    setReact(false);
-    restoreTargetFocus();
+    closeLayer(
+      () => {
+        hideComposer();
+        showFab(null);
+        setReact(false);
+      },
+      () => handBack(...returnTo),
+    );
     getSelection()?.removeAllRanges();
     await sent;
   }
@@ -201,7 +211,10 @@ export function createReactionController({
   // choices away has a fold of its own to put back. A user who pressed `…` themselves
   // and then `e` opened that layer before the raise found it, and it is theirs to keep.
   let marginUnfolded = false;
-  let reactFrom = null;
+  // React mode's opener (focus.js, `openLayer`): the control the user stood on as the
+  // press armed it, which the close hands them back to.
+  const reactLayer = {};
+  const reactFrom = () => openerOf(reactLayer);
   let reactSurface = null;
   // An open reply list closes once its trigger is out of view. The list is in the
   // top layer, and its anchor only stops painting it there, so without this the user
@@ -297,7 +310,9 @@ export function createReactionController({
     reactDeparture?.();
     reactDeparture = null;
     const picker = pickerFor(surface);
-    if (picker) returningFocus(() => picker.palette.hidePopover());
+    // The platform hands focus back to the opener as the list closes, the layer's own
+    // return (focus.js).
+    picker?.palette.hidePopover();
     picker?.trigger.setAttribute("aria-expanded", "false");
   }
 
@@ -327,9 +342,14 @@ export function createReactionController({
     // with its contribution, after which the browser reports where focus went rather
     // than the choice the user stood on, the fact the return below reads.
     const closingActive = on ? null : focused();
+    if (!on) {
+      closeReact(closingActive);
+      repaint();
+      return;
+    }
     closeSurface(reactSurface);
     if (on) {
-      reactFrom = focused();
+      openLayer(reactLayer);
       if (surface) reactSurface = surface;
       else {
         const target = reactionTarget();
@@ -340,7 +360,6 @@ export function createReactionController({
             // off screen. Keep the semantic anchor without
             // asking a floating bar to find geometry; the shared element is the surface.
             showFab(target.target.anchor, {
-              origin: reactFrom,
               place: false,
             });
             reactRaised = true;
@@ -349,20 +368,20 @@ export function createReactionController({
             if (reactRaised) showFab(null);
             reactRaised = false;
             reactSurface = null;
-            reactFrom = null;
+            openLayer(reactLayer, null);
             notice("That reaction target is no longer available");
             return;
           }
           reactSurface = marginSurface;
         } else {
           reactSurface = null;
-          reactFrom = null;
+          openLayer(reactLayer, null);
           return;
         }
       }
       if (reactSurface !== marginSurface && !pickerFor(reactSurface)) {
         reactSurface = null;
-        reactFrom = null;
+        openLayer(reactLayer, null);
         return;
       }
       reactArmed = true;
@@ -379,56 +398,51 @@ export function createReactionController({
           if (reactSurface === opened) setReact(false);
         });
         picker.trigger.setAttribute("aria-expanded", "true");
-        if (surface && reactFrom === picker.trigger)
-          picker.palette.querySelector(".lf-react")?.focus({ preventScroll: true });
+        const first =
+          surface &&
+          reactFrom() === picker.trigger &&
+          picker.palette.querySelector(".lf-react");
+        if (first) focusDestination(first, "move");
       }
       announce(`React — ${saying(REACT.rows)}`);
-    } else {
-      const from = reactFrom;
-      const trigger = pickerFor(reactSurface)?.trigger;
-      const active = closingActive;
-      const stoodInMargin = marginOffer?.contains(active);
-      reactArmed = false;
-      reactSurface = null;
-      reactFrom = null;
-      if (reactRaised) showFab(null);
-      reactRaised = false;
-      lowerMarginSurface();
-      if (fabAnchorAt()) showFab(fabAnchorAt());
-      if (
-        fabBar.contains(from) ||
-        stoodInMargin ||
-        active === document.body ||
-        active?.closest?.(".lf-react-palette")
-      ) {
-        const input = fabBar.querySelector(".lf-fab-input");
-        const destination = input?.checkVisibility?.()
-          ? input
-          : from?.isConnected && from.checkVisibility?.()
-            ? from
-            : trigger?.checkVisibility?.()
-              ? trigger
-              : document.body;
-        // Hiding a focused choice may leave focus on that now-hidden node or drop it to
-        // body before the browser paints. The user may choose another control during
-        // that frame; only those two states mean the palette still owes its return.
-        if (destination !== document.body) {
-          const returnFocus = () => {
-            if (
-              destination.isConnected &&
-              destination.checkVisibility?.() &&
-              (focused() === active || focused() === document.body)
-            )
-              destination.focus({ preventScroll: true });
-          };
-          // A reaction press may release held news and repaint this thread before
-          // the next frame. Put focus on its trigger now so that repaint carries it.
-          returnFocus();
-          nextRender(returnFocus);
-        }
-      }
     }
     repaint();
+  }
+
+  // Putting the reaction choices away is closing a layer (focus.js, `closeLayer`): the
+  // palette's own hand-back as it hides reaches no reader, and a user who stood in the
+  // choices, the bar or the margin's raise goes back once, to the bar's field, the
+  // control the press stood them on, or the list's trigger, whichever stands as the
+  // choices go; one they covered then is no way back, and a later frame showing it again
+  // must not pull the user onto it. `handBack` tries again a frame later only where the
+  // one it chose is swapped by a repaint in that frame, as a reaction press releasing
+  // held news repaints the thread. A press armed from nowhere has only the bar's field.
+  function closeReact(active) {
+    const from = reactFrom();
+    const trigger = pickerFor(reactSurface)?.trigger;
+    const input = fabBar.querySelector(".lf-fab-input");
+    const owed =
+      fabBar.contains(from) ||
+      marginOffer?.contains(active) ||
+      active === document.body ||
+      active?.closest?.(".lf-react-palette");
+    // Which candidates the user may go back to is read before the close, since it ends
+    // the reading of where the press came from; which of them stand is read after it,
+    // since the close itself may show one, as putting the bar back does its field.
+    const candidates = from ? [input, from, trigger] : [input];
+    closeLayer(
+      () => {
+        closeSurface(reactSurface);
+        reactArmed = false;
+        reactSurface = null;
+        openLayer(reactLayer, null);
+        if (reactRaised) showFab(null);
+        reactRaised = false;
+        lowerMarginSurface();
+        if (fabAnchorAt()) showFab(fabAnchorAt());
+      },
+      owed && (() => handBack(...candidates.filter(drawn))),
+    );
   }
 
   function responseChoices(surface) {
@@ -451,7 +465,7 @@ export function createReactionController({
           ? choices.length - 1
           : 0
         : (at + (backward ? -1 : 1) + choices.length) % choices.length;
-    choices[next].focus({ preventScroll: true });
+    focusDestination(choices[next], "move");
     beginWalk("reaction", "Reaction", () =>
       listWalkPosition(responseChoices(reactSurface), focused()),
     );
@@ -629,6 +643,6 @@ function reactionPlace(event) {
 export const undoSentence = (undoable) => {
   const event = undoable();
   return event?.token
-    ? `Take back: ${event.token} on ${reactionPlace(event)}`
-    : "Take back the last change you made here";
+    ? `Undo: ${event.token} reaction on ${reactionPlace(event)}`
+    : "Undo your latest update";
 };

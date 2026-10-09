@@ -38,13 +38,19 @@
     "@shikijs/langs": "4.5.0",
     "acorn": "8.18.0",
     "agentic-mermaid": "0.4.1",
+    "amaro": "1.2.1",
     "diff": "9.0.0",
     "esbuild": "0.28.2",
     "happy-dom": "20.14.5",
     "lit": "3.3.3",
     "lit-html": "3.3.0",
-    "marked": "18.0.14",
+    "markdown-it": "14.3.2",
+    "markdown-it-task-lists": "2.1.1",
+    "photoswipe": "5.4.4",
     "sortablejs": "1.15.7",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "viewerjs": "1.15.2",
+    "vis-data": "8.0.5",
+    "vis-timeline": "8.5.4"
   }
 }

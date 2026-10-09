@@ -59,6 +59,7 @@ reaches a module by importing it from this package, never through `sys.path`,
 - `leaf-dev stills [BASE_REF]` screenshots a catalogue of UI states, at rest and
   reached by input, on a base runtime and HEAD's, and crops each state that changed
   into a before/after pair in its own run directory under `.tmp/stills/`.
+  Repeat `--state NAME` to compare only the states a change touches.
 - `leaf-dev thread-snapshots` owns reviewed message-delivery images in leaf-assets;
   `thread_snapshots.py` owns capture and acceptance. Its shared journey replaces
   the former panel/card sent stills. Acceptance alone advances
@@ -66,12 +67,6 @@ reaches a module by importing it from this package, never through `sys.path`,
   `revision`, so new demo assets cannot replace a runtime's reviewed expectations.
 - `suite.py` runs a selection of the suite in a checkout and reads each test's
   outcome from pytest's junit report, refusing a selection pytest would not run.
-- `leaf-dev test-select collect`, `prepare`, and `select` are a local research
-  selector for immutable changes. Collection binds the complete inventory and
-  actual interpreter to a clean candidate checkout. Preparation writes a complete
-  planned question offline; selection asks Jev and writes exact runnable node IDs,
-  decisions and usage. Source evidence forces known relationships and unresolved
-  inputs retain coverage. This experiment does not replace CI's full gates.
 - `leaf-dev flake NODEID...` runs tests from the working tree as 18 copies, six at a
   time, and prints every failure's message, since a load flake never shows serially.
   The copies share every fixed path a test writes in the checkout, such as an export
@@ -89,8 +84,8 @@ reaches a module by importing it from this package, never through `sys.path`,
   examples, base plugin against HEAD's, with no model, and prints each arm's wall
   time. Its arms, pages and state stay in its own run directory under
   `.tmp/bench-check/`.
-- `leaf-dev eval [CASE]...` runs the eval catalog through Promptfoo on Claude Code
-  and Codex, on the working tree and with `--base` the merge base too.
+- `leaf-dev eval [CASE]... --harness claude-code|codex|both` runs the eval catalog
+  through Promptfoo on the working tree, and with `--base` the merge base too.
   `evals/README.md` owns the format and how to read the results.
 
 ## Examples and previews
@@ -165,7 +160,8 @@ in `leaf-assets.json` and the README's image URLs that name it.
 
 - `leaf-dev verify-codex-task` runs real Codex tasks with this working tree's
   plugin through both transports of automatic server handoff. It posts comments while the
-  task is idle, mid-turn, and after the adapter is killed, and fails when a comment is
+  task is idle, mid-turn, during an empty-input resume, and after the adapter is
+  killed, and fails when a comment is
   not answered exactly once, queue-backed work does not pick up and answer a comment
   in the same active turn, or the page's claim does not name the task's last turn,
   closed. It spends the host's Codex login, so CI does not run it.

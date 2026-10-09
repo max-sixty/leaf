@@ -25,18 +25,18 @@
    once shown, drawn resolved in the shape it stood in, until its going would move
    nothing the user sees. */
 import { html, repeat } from "../../vendor/browser-runtime.js";
-import { focused } from "../keyboard/scopes.js";
-import { holdFocus } from "../focus.js";
+import { holdFocus, onStanding, focusDestination, focused } from "../focus.js";
 import { RetainedFace } from "../retained-face.js";
 import { ThreadView } from "./thread-card.js";
 import { draftHasContent } from "../drafts.js";
-import { focusThread } from "./focus.js";
+import { forwardToThread } from "./focus.js";
 import { passOn, retainUserIntent } from "../user-intent.js";
 import { layoutChanged } from "../widget-elements.js";
 import { isFolding } from "./folding.js";
 import { threadKey } from "./model.js";
 import { seenRect, whenOffScreen } from "../geometry.js";
 import { gesturedOn } from "./held-news.js";
+import { readingIsContinuous } from "../reading-continuity.js";
 
 const TAG = "leaf-thread-list";
 
@@ -54,7 +54,6 @@ class ThreadListView extends RetainedFace {
   #rows = [];
   #retaining = false;
   #rollbackFocus = null;
-  #passingFocus = false;
   #selection = [];
   #intent = null;
   #leaving = new Map();
@@ -89,6 +88,15 @@ class ThreadListView extends RetainedFace {
       row.node.toggleAttribute("open", row === chosen);
   }
 
+  // The user's own move onto a card's title chooses the card, whatever route took them
+  // there, so the focused thread is always the open one. A press waits for its click
+  // (thread-card.js), which lands what it chose, and a return puts them back where they
+  // had chosen, or on the card the list shows while a change holds theirs from it,
+  // which is no choice of theirs.
+  chooseTitle(title) {
+    this.#choose(title.parentElement);
+  }
+
   // An open title is still the user's focus stop for the thread. A second press leaves
   // it selected; choosing another title moves disclosure.
   #choose(card) {
@@ -121,9 +129,11 @@ class ThreadListView extends RetainedFace {
     if (this.#intent !== intent || !view?.model.visible || view.model.folding)
       return null;
     const news = view.model.kept ? view.model.kept === "news" : !gesturedOn(thread);
-    const seen = view.node.open
-      ? this.checkVisibility()
-      : Boolean(seenRect(view.node, new Map()));
+    const seen =
+      readingIsContinuous() &&
+      (view.node.open
+        ? this.checkVisibility()
+        : Boolean(seenRect(view.node, new Map())));
     const draft = draftHasContent("reply:" + key);
     if (news && (seen || draft)) return "news";
     return draft ? "draft" : null;
@@ -190,12 +200,8 @@ class ThreadListView extends RetainedFace {
       this.#showExpanded();
       const open = this.#expandedRow();
       if (!open) return;
-      this.#passingFocus = true;
-      try {
-        focusThread(open.node, { preventScroll: true });
-      } finally {
-        this.#passingFocus = false;
-      }
+      // Handed on with the cause that gave the list its focus (`chooseTitle`).
+      forwardToThread(open.node);
       passOn(this, focused());
     });
   }
@@ -254,7 +260,7 @@ class ThreadListView extends RetainedFace {
       if (generation !== this.#generation) return false;
       const focus = this.#rollbackFocus;
       if (focus?.node.isConnected && focus.mayRestore())
-        focus.node.focus({ preventScroll: true });
+        focusDestination(focus.node, "return");
       this.#rollbackFocus = null;
       return this.committed;
     } finally {
@@ -282,9 +288,7 @@ class ThreadListView extends RetainedFace {
           row.key,
           (view = new ThreadView("panel", {
             ...this.#commands.card,
-            choose: () => {
-              if (!this.#passingFocus) this.#choose(view.node);
-            },
+            choose: () => this.#choose(view.node),
           })),
         );
         // A card opened by something other than the list becomes the choice: a reveal
@@ -338,4 +342,9 @@ class ThreadListView extends RetainedFace {
   }
 }
 if (!customElements.get(TAG)) customElements.define(TAG, ThreadListView);
+
+onStanding((node, cause) => {
+  if ((cause === "move" || cause === "step") && node?.matches?.(".lf-thread-summary"))
+    node.closest(TAG)?.chooseTitle(node);
+});
 export const createThreadListView = () => document.createElement(TAG);

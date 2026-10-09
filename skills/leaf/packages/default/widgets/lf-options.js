@@ -117,6 +117,7 @@ import {
   widgetController,
   worksInside,
   wrote,
+  focusDestination,
 } from "/runtime/widget-api.js";
 
 // What an option is called, in either form: its title where it leads with one, and its
@@ -147,7 +148,7 @@ customElements.define(
     // order and then the user's in the order they added them. An option the user added
     // is named by the words its `add` carries, and an authored one by its markup.
     static answerWords(state, group) {
-      const picked = new Set(state.choose.detail.options);
+      const picked = new Set(state.choose.detail.value);
       const added = Object.entries(state.add?.units ?? {});
       const authored = [...group.querySelectorAll(":scope > lf-option")].filter(
         (option) => picked.has(option.id) && !added.some(([id]) => id === option.id),
@@ -289,7 +290,7 @@ customElements.define(
 
     #picked() {
       const ids = new Set(
-        this.reading?.state.choose?.detail.options ?? this.#authoredChoice().options,
+        this.reading?.state.choose?.detail.value ?? this.#authoredChoice().value,
       );
       return new Set([...this.#options()].filter((option) => ids.has(option.id)));
     }
@@ -313,11 +314,7 @@ customElements.define(
     #doneRow() {
       this.#done = offer(DONE_TAG, "lf-options-done");
       const button = offer("button", "lf-btn lf-done", "Done");
-      const badge = offer("span", "lf-key-badge");
-      badge.setAttribute("aria-hidden", "true");
-      button.prepend(badge);
       this.#done.control = button;
-      this.#done.bindingBadge = badge;
       this.#done.append(button);
       this.append(this.#done);
     }
@@ -476,7 +473,7 @@ customElements.define(
           title: "Another option",
           description: "Write another option",
           when: () => this.#available("choose"),
-          run: () => this.#addition.input.focus(),
+          run: () => focusDestination(this.#addition.input, "move", { scroll: true }),
         });
       if (this.#done)
         answerRows.push({
@@ -484,7 +481,6 @@ customElements.define(
           contextKeys: this.#contextKeys("done"),
           control: () => this.#done.control,
           decision: true,
-          bindingBadge: () => this.#done.bindingBadge,
           title: "Done",
           description: () =>
             this.reading?.state.answer?.action
@@ -531,7 +527,7 @@ customElements.define(
 
     #syncChoice(detail) {
       const options = [...this.#options()];
-      const picked = new Set(detail.options);
+      const picked = new Set(detail.value);
       for (const [option] of this.#controls)
         if (option.parentElement !== this) this.#controls.delete(option);
       for (const [index, option] of options.entries()) {
@@ -558,7 +554,7 @@ customElements.define(
 
     #authoredChoice() {
       return {
-        options: [...this.#options()]
+        value: [...this.#options()]
           .filter((option) => option.hasAttribute("chosen"))
           .map((option) => option.id),
       };

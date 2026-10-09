@@ -38,9 +38,10 @@ def event_document(event: dict) -> dict:
     return document_identity(event["meaning"]["scope"], event["revision"])
 
 
-def standing_approvals(events: list) -> list:
+def standing_approvals(events: list, *, withdrawn: set | None = None) -> list:
     """The sign-off approvals no later undo took back, in log order."""
-    withdrawn = taken_back(events)
+    if withdrawn is None:
+        withdrawn = taken_back(events)
     return [
         event
         for event in events
@@ -65,16 +66,6 @@ def spoken_turns(thread: dict) -> list:
 def conversation_turns(thread: dict) -> list:
     """Spoken messages that participate in the exchange, excluding progress updates."""
     return [message for message in spoken_turns(thread) if not message.get("ephemeral")]
-
-
-def thread_replied_after(thread: dict, after: int) -> bool:
-    """Whether an ordinary agent reply ended thread work after its starting sequence."""
-    return any(
-        message["kind"] == "reply"
-        and message["author"] == "agent"
-        and message["seq"] > after
-        for message in conversation_turns(thread)
-    )
 
 
 def bare_reaction(thread: dict) -> bool:
@@ -221,7 +212,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     of another verb cannot supersede one, while an explicit answer with null
     effect replaces a closing answer without itself closing a thread. ``anchor`` is
     the thread's current page location, and ``detached_from`` retains the last real
-    anchor only when an explicit null replacement leaves the thread detached.
+    anchor when a null replacement or removed passage leaves the thread detached.
     ``rewritten_from`` retains the anchor a ``reanchor`` moved off, whose quoted words a
     version rewrote, until a reply chooses the thread's place again.
     A new spoken reply resumes the thread; reactions and failure receipts
@@ -261,7 +252,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             thread = {
                 "id": e["id"],
                 "root": message,
-                "title": None,
+                "title": e.get("title"),
                 "anchor": message.get("anchor"),
                 "detached_from": None,
                 "rewritten_from": None,
@@ -284,9 +275,10 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             continue
         if e["kind"] == "reanchor":
             if thread := threads.get(e["thread"]):
-                thread["rewritten_from"] = thread["anchor"]
+                previous = thread["anchor"]
+                thread["rewritten_from"] = previous if e["anchor"] else None
+                thread["detached_from"] = previous if e["anchor"] is None else None
                 thread["anchor"] = e["anchor"]
-                thread["detached_from"] = None
             continue
         if e["kind"] == "edit":
             if message := messages.get(e["message"]):
@@ -322,6 +314,8 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 thread_for[e["parent"]] = thread
             messages[e["id"]] = message
             thread["msgs"].append(message)
+            if thread["title"] is None and "title" in e:
+                thread["title"] = e["title"]
             if "token" not in e and "failure" not in e and not e.get("ephemeral"):
                 thread["resolved"] = None
             if "anchor" in e:

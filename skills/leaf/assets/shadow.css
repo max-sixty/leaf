@@ -4,9 +4,40 @@
  * need is stated here, once: the stage copies the composed shadow.css into each declared
  * root, and the document reads the same rules at the head of this root's part of
  * /theme.css. A rule belongs here when a declared tree has to see it too. */
-/* The face every widget-injected control wears. `offer()` writes `lf-ui` on each one it
+/* Reduced motion: the shared sheet guards CSS animations and transitions in the
+ * document and every declared shadow stage (!important outranks inline styles, so
+ * JS-driven transitions stop too). JS-driven motion goes through the runtime's
+ * motion() and the live motion readings, which answer the same preference themselves.
+ *
+ * The two halves are not written alike, because a duration is a way of keeping
+ * an animation and no way at all of keeping a transition. An animation is
+ * declared and named, and `animationend` is how the layer knows one has run —
+ * the thread list takes `grow` off a card that way — so the near-zero duration
+ * keeps that event and spends no time on it. It runs once, since an endless
+ * animation at that duration repeats on every frame, showing a different point
+ * of its keyframes each time: a pulse becomes a flicker, and the page never
+ * rests. A transition is declared by
+ * nobody: `transition-property` is `all` until something says otherwise, so a
+ * duration on every element makes a transition out of every property that
+ * changes, on every element, and none of them is a transition this theme
+ * wrote. Nothing listens for `transitionend`, so they were kept for no one and
+ * were not free: a running transition's animated value is what the platform
+ * reports for the property, so for the frames one of these took, every reading
+ * of a box's style — the render gate's included — was told the value the
+ * property was leaving rather than the one on screen. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition: none !important;
+  }
+}
+
+/* The default face of native widget-injected controls. `offer()` writes `lf-ui-face` on each one it
  * builds, so this is the layer's answer for a control standing in the page's own prose:
- * the chrome's family, size and ink rather than the document's serif.
+ * the chrome's family, size and ink rather than the document's serif. The separate
+ * lf-ui identity still marks custom-element apparatus, but its component owns its
+ * face: an outer host declaration would outrank even its internal state rules.
  *
  * It is a default, and three things make it behave like one. It stands at this sheet's
  * head, which composes ahead of theme.css and every package sheet, so each component rule
@@ -34,9 +65,9 @@
  * so a rule that weighs nothing is enough to stop that, and it leaves every rule that
  * sets these on purpose winning: at a class's weight it took the pane header's 600 off
  * each playground's presets. */
-:where(:root) :is(.lf-ui, .button, .field) { font-family: var(--sans); font-size: var(--t-5);
+:where(:root) :is(.lf-ui-face, .button, .field) { font-family: var(--sans); font-size: var(--t-5);
     line-height: var(--lf-ui-lh); color: var(--ink); }
-:where(:root .lf-ui, :root .button, :root .field) { font: var(--t-5) / var(--lf-ui-lh) var(--sans);
+:where(:root .lf-ui-face, :root .button, :root .field) { font: var(--t-5) / var(--lf-ui-lh) var(--sans);
     font-feature-settings: normal; font-variation-settings: normal;
     letter-spacing: normal; word-spacing: normal; text-transform: none; }
 /* Words for a user listening, silent on screen: real text, the one thing every
@@ -107,6 +138,9 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     display: inline-flex; align-items: center; justify-content: center;
     user-select: none; -webkit-user-select: none; }
 .lf-key-badge:empty { display: none; }
+/* A lent command hint never participates in flow, whether empty, filled or restored.
+   Its widget positions the external seat beside the control it labels. */
+.lf-binding-seat { position: absolute; }
 .lf-external-mark { display: inline-block; width: .75em; height: .75em;
                     margin-inline-start: .24em; vertical-align: .03em;
                     fill: none; stroke: currentColor; stroke-width: 1.5;
@@ -247,14 +281,23 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    words run longer keeps them. The members left on min-height stand in rows or in
    flow, or state their own height.
 
+   Declared pressables join by their offer, rather than by adding their class here.
+   A resting skip control is transparent and has no pointer route; it takes its aim
+   size from chrome.css only when focus reveals it.
+   Native and selectable choice marks keep their enclosing labelled target; squeezing-prone button
+   faces and version rows keep the padding floor described above. Inline offered words
+   remain inline: like links in prose, their words determine their target.
+
    .lf-outline-chip is halved on how it is spelled, because the class dresses a standing
    chip as well as a press and a chip is not something to aim at. */
-.lf-btn, .button, .lf-outline-chip:is(button, [role="button"]), .lf-react, .lf-react-trigger,
+[data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer="checkbox"], [data-lf-offer="radio"], .lf-skip)),
+.lf-btn, .button, .lf-outline-chip:is(button, [role="button"]), .lf-thread-notice:is(button), .lf-react, .lf-react-trigger,
 .lf-margin-entry,
 .lf-thread-action, .lf-preview, .lf-layer-reference, .lf-version-diff, .lf-version-row,
 .lf-command-reference-command, .lf-quote {
   min-width: var(--aim-floor); }
-.lf-outline-chip:is(button, [role="button"]), .lf-react, .lf-react-trigger,
+[data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer="checkbox"], [data-lf-offer="radio"], .lf-skip, .lf-btn, .lf-version-row, .lf-version-diff)),
+.lf-outline-chip:is(button, [role="button"]), .lf-thread-notice:is(button), .lf-react, .lf-react-trigger,
 .lf-margin-entry, .lf-thread-action, .lf-command-reference-command, .lf-quote {
   min-height: var(--aim-floor); }
 /* --entry-floor under every field, beside --aim-floor under every aim. iOS Safari zooms
@@ -299,7 +342,10 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
           gap: var(--sp-2); margin-top: var(--sp-3); }
 .lf-say leaf-text { flex: 1; min-width: 0; }
 .lf-page-thread-resolved { display: flex;
-          align-items: center; justify-content: space-between; gap: var(--sp-2); }
+          align-items: center; justify-content: space-between; gap: var(--sp-2);
+          /* Reopen inherits this row's line, 4px padding and a 1px border on each side.
+             Its compact news replacement retains that room under either pointer. */
+          min-height: max(calc(1lh + 10px), var(--aim-floor)); }
 .lf-thread-seat > .lf-say { margin-top: 0; }
 .lf-page-thread + .lf-page-thread { margin-top: calc(2 * var(--sp-3)); }
 .lf-page-thread + .lf-page-thread::before { content: "";
@@ -327,9 +373,11 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
             var(--hi-tint) calc(var(--lf-msg-arrival) * 100%), var(--lf-msg-rest-ground));
           background-color: var(--lf-msg-ground); }
 .lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) { margin-top: 0; }
-/* All message headers share one shrinking policy, including sticky margin heads.
+/* Every message header holds the same control-height row, including sticky margin
+   heads. Thread actions and reactions must not change its metadata-to-body gap.
    An author may ellipsize while time and receipt use their own intrinsic room. */
-.lf-msg-head { display: flex; align-items: baseline; gap: var(--sp-2);
+.lf-msg-head { display: flex; align-items: center; gap: var(--sp-2);
+          min-block-size: max(28px, var(--aim-floor)); box-sizing: border-box;
           min-width: 0; overflow: hidden; white-space: nowrap;
           font-size: var(--t-6); --lf-msg-name-size: 13px; }
 .lf-msg-head .lf-msg-meta { flex: 0 1 auto; overflow: hidden; }
@@ -338,6 +386,39 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-msg-head b { flex: 0 1 auto; min-width: 0; overflow: hidden;
           text-overflow: ellipsis; font-size: var(--lf-msg-name-size);
           font-weight: 600; color: var(--ink); }
+/* A checkpoint is agent-written reading context, followed by the retained originals
+   it covers. One disclosure beside that context controls the entire range. */
+.lf-thread-checkpoint { margin-block: 16px; }
+.lf-thread-checkpoint[hidden] { display: none; }
+/* The bracket joins the disclosure to exactly the messages it will hide. */
+.lf-thread-checkpoint[data-expanded="true"] { position: relative; }
+.lf-thread-checkpoint[data-expanded="true"]::before { content: ""; position: absolute;
+  inset-block: 4px; inset-inline-start: -10px; width: 6px;
+  border: 1px solid var(--muted-2); border-inline-end: 0; pointer-events: none; }
+.lf-summary-checkpoint { padding-block: 4px; }
+/* Keep the context label readable when the disclosure needs another line. */
+.lf-summary-header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.lf-summary-label { min-width: 0; overflow-wrap: anywhere; color: var(--muted); font: 500 11px/1.3 var(--sans); }
+.lf-summary-text { color: var(--ink-2); font-size: var(--t-5); line-height: 1.5;
+  overflow-wrap: anywhere; user-select: text; }
+.lf-summary-text > :first-child { margin-top: 0; }
+.lf-summary-text > :last-child { margin-bottom: 0; }
+.lf-summary-expand { min-height: var(--aim-floor); max-inline-size: 100%; flex-shrink: 0; border: 0;
+  padding: 4px 0; background: transparent; color: var(--accent); font: 600 11px/1.4 var(--sans);
+  cursor: pointer; }
+/* Progress belongs to the completing reply's metadata, with no summary row.
+   Flex wrapping keeps its complete label and hit target at narrow widths. */
+.lf-msg-head:has(> .lf-summary-expand) { flex-wrap: wrap; overflow: visible;
+  white-space: normal; row-gap: 0; }
+.lf-msg-head > .lf-summary-expand { padding-block: 0; }
+.lf-summary-expand:hover { text-decoration: underline; text-underline-offset: 3px; }
+.lf-summary-required { margin-top: 6px; color: var(--turn-ink); font: 600 11px/1.4 var(--sans); }
+.lf-summary-originals { min-width: 0; padding-inline-start: 12px; }
+.lf-summary-originals[hidden] { display: none; }
+.lf-summary-originals > .lf-msg { margin-block: 16px; }
+.lf-summary-expand:is(:focus-visible, .lf-focus-visible) {
+  outline: var(--focus-ring); --lf-focus-ring: summary-fold;
+  outline-offset: calc(-1 * var(--focus-ring-w)); }
 /* Held news and header words spend separate retained allocations. A receipt may
    change inside its metadata box, but cannot grow underneath the notice. */
 .lf-msg-head > .lf-held-header-item {
@@ -359,8 +440,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-thread-content:has(> .lf-thread-controls) > .lf-thread-transcript
   > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-msg-head {
           anchor-name: --lf-thread-headline;
-          min-height: var(--lf-thread-action-room); align-items: center;
-          box-sizing: border-box;
           margin-inline-end: calc(var(--lf-thread-action-room) + var(--sp-2));
           padding-inline-end: calc(var(--lf-thread-notice-room) + var(--sp-2) + var(--lf-thread-reaction-room)); }
 .lf-thread-content:has(> .lf-thread-controls) > .lf-thread-transcript
@@ -391,11 +470,25 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
           min-height: var(--lf-thread-action-room);
           overflow: hidden; text-overflow: ellipsis;
           white-space: nowrap; text-align: start; }
+/* Unread and held news share one text face in chrome and declared widget trees.
+   Their color says whether the conversation can be opened normally or is waiting
+   behind a deliberate reveal. A notice button keeps its aim floor without a chip's
+   border, fill or padding; a label inside a disclosure keeps the disclosure's hit box.
+   Both use an underline on hover, declining the generic pressable's inset wash. */
+.lf-thread-notice { color: var(--accent); font: 700 10px/14px var(--sans);
+          white-space: nowrap; }
+.lf-thread-notice-news { color: var(--danger); }
+button.lf-thread-notice { appearance: none; margin: 0; padding: 0;
+          border: 0; background: none; cursor: pointer; }
+.lf-thread-notice:hover { box-shadow: none; text-decoration: underline;
+          text-underline-offset: 3px; }
+button.lf-thread-notice:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+          --lf-focus-ring: thread-notice; outline-offset: 1px; }
 /* What a seat holds while it would move the page under the reader (thread/held-news.js).
    The rows it appears in already stand at the height of a control beside it: the head
    controls row's Resolve, the resolved row's Reopen. Centred rather than on the row's baseline,
    it asks for none of the depth below the words; in the resolved row it stands at the
-   end, beside Reopen, or in Reopen's place and face where it holds the reopening. A seat
+   end, beside Reopen, or in Reopen's place where it holds the reopening. A seat
    that draws no thread shows it in its controls row's place, at the height the
    runtime measured that row at. */
 .lf-thread-news { flex: none; align-self: center; }
@@ -661,16 +754,12 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 @media (hover: none) {
   .lf-react-strip > .lf-react-trigger { opacity: 1; }
 }
-/* Under a finger the trigger takes the aim floor, and with no hover to reveal it, it
-   stands on every reply for good; either way it is more than an overlay on the corner
-   can hold. Hung there at the floor's size it covered the last words of the reply's
-   first line at 360px, so the head row it stands beside holds its height and the
-   trigger stands in that row. Its words and trigger share the header's centre. */
+/* Under a finger the always-visible reaction takes the aim floor. The common
+   header row already holds its height; reserve its inline room here too. */
 @media (pointer: coarse), (hover: none) {
   .lf-msg.agent > .lf-msg-head {
           --lf-react-row: max(26px, var(--aim-floor));
-          box-sizing: border-box; min-height: var(--lf-react-row);
-          align-items: center; padding-inline-end: var(--lf-react-row); }
+          padding-inline-end: var(--lf-react-row); }
 }
 .lf-msg-meta { display: flex; align-items: baseline; gap: var(--sp-2); min-width: 0; }
 .lf-msg-sending { color: var(--muted); font-weight: 600; white-space: nowrap; }
@@ -869,6 +958,54 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover::before {
           background: var(--ok-tint); }
 .lf-resolve.lf-icon-action .lf-action-icon { inline-size: 15px; block-size: 15px; }
+/* Every composition input renders the same attachment shelf, including inputs seated
+   in widget shadow trees. Surfaces set its allocation and thumbnail size; the shelf
+   owns its controls, image inspection face, and drawing paint here. */
+:is(.lf-thread-reply, .lf-say):has(> .lf-composer-media:not([hidden])) {
+  flex-wrap: wrap; }
+.lf-composer-media {
+  display: flex; flex: 1 0 100%; gap: 6px; min-width: 0; overflow-x: auto;
+  padding: 2px; box-sizing: border-box; }
+.lf-composer-media[hidden] { display: none !important; }
+.lf-composer-media-item { flex: none; display: flex; align-items: stretch;
+  box-sizing: border-box; border: 1px solid var(--border-2);
+  border-radius: var(--r); background: var(--paper); overflow: hidden; }
+.lf-media-open { display: block; width: fit-content; max-width: 100%; padding: 0;
+  border: 0; border-radius: var(--r); background: transparent; color: inherit;
+  font: inherit; }
+button.lf-media-open { cursor: zoom-in; }
+.lf-media-open:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+  --lf-focus-ring: media; outline-offset: 2px; }
+.lf-composer-media-open { width: 68px; height: 52px; overflow: hidden;
+  border: 0; border-radius: 0; align-self: center; }
+.lf-composer-media-open img { display: block; width: 100%; height: 100%;
+  object-fit: cover; }
+/* Controls stay inside each tile, so the scrolling shelf never cuts their hit area.
+   Images and drawings keep their own thumbnail dimensions beside full-height presses. */
+.lf-composer-drawing > .lf-composer-media-open { padding: 4px;
+  box-sizing: border-box; }
+.lf-composer-drawing > .lf-composer-media-open > svg { display: block; width: 100%;
+  height: 100%; overflow: visible; }
+.lf-composer-drawing > .lf-composer-media-open path { fill: none;
+  stroke: var(--accent); stroke-width: 2px; stroke-linecap: round;
+  stroke-linejoin: round; }
+.lf-composer-media-item > button:not(.lf-media-open) { flex: none; display: grid; place-items: center;
+  inline-size: max(26px, var(--aim-floor)); min-block-size: var(--aim-floor);
+  padding: 0; border: 0; font: inherit;
+  border-inline-start: 1px solid var(--border-2); background: transparent;
+  color: var(--ink-2); cursor: pointer; }
+.lf-composer-media-item > button:not(.lf-media-open):hover { color: var(--accent); background: var(--chip); }
+.lf-composer-media-item > button:not(.lf-media-open):is(:focus-visible, .lf-focus-visible) {
+  outline: var(--focus-ring); --lf-focus-ring: composer-media;
+  outline-offset: calc(-1 * var(--focus-ring-w)); }
+.lf-composer-media-item > button:not(.lf-media-open) > svg { inline-size: 14px; block-size: 14px; }
+.lf-composer-media-item > .lf-media-open:is(:focus-visible, .lf-focus-visible) {
+  outline-offset: calc(-1 * var(--focus-ring-w)); }
+/* Sent media can live in chrome-owned threads or page-owned widget threads.
+   Scale the complete image in both surfaces; a tall capture must not become the whole
+   thread, and nothing is cropped. */
+.lf-message-media img { display: block;
+  max-width: 100%; max-height: min(60vh, 480px); border-radius: var(--r); }
 /* Core may seat its one response bar in a widget's exact-datum Thread outlet. The
    widget supplies only the layout location; these rules carry the canonical composer
    into the same trees as the Thread view around it. */
@@ -916,43 +1053,21 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-fab-bar[data-lf-presentation="inline"].lf-response-open
           > .lf-response-options { display: inline-flex; align-items: center;
           flex-wrap: wrap; gap: 4px; max-width: 100%; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media { display: flex;
-          flex: none; gap: 6px; max-width: 148px; padding: 0; overflow-x: auto; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media[hidden] {
-          display: none !important; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media-item {
-          position: relative; flex: none; }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media {
+          flex: none; max-width: 148px; padding: 0; }
 .lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media-open {
-          width: 42px; height: 34px; overflow: hidden; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media-open img {
-          display: block; width: 100%; height: 100%; object-fit: cover; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media-remove {
-          position: absolute; top: -5px; right: -5px; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-drawing {
-          display: flex; align-items: stretch; border: 1px solid var(--border-2);
-          border-radius: var(--r); background: var(--paper); overflow: hidden; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-drawing
-          > .lf-composer-media-open { padding: 4px; box-sizing: border-box; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-drawing
-          > .lf-composer-media-open > svg {
-          display: block; width: 100%; height: 100%; overflow: visible; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-drawing
-          > .lf-composer-media-open path {
-          fill: none; stroke: var(--accent); stroke-width: 2px; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-drawing > button {
-          display: grid; place-items: center; inline-size: max(26px, var(--aim-floor));
-          min-block-size: var(--aim-floor);
-          padding: 0; border: 0; border-inline-start: 1px solid var(--border-2);
-          background: transparent; color: var(--ink-2); }
+          width: 42px; height: 34px; }
 @media print {
   .lf-fab-bar[data-lf-presentation="inline"] { display: none !important; }
 }
 :is(.lf-btn, .button):is(.on, [aria-pressed="true"]) { border-color: var(--accent); color: var(--accent); background: var(--chip); }
-/* Draw mode takes page-widget presses before their controls can act. This rule is in
-   this file because document selectors do not cross a declared shadow root. */
+/* Draw mode takes page-word presses while offered controls keep their gestures.
+   Document selectors do not cross a declared shadow root. */
 :host-context(html[data-lf-draw-mode]):host-context(main) * { cursor: crosshair !important; }
 :host-context(html[data-lf-draw-mode]):host-context(main) .lf-thread-seat,
-:host-context(html[data-lf-draw-mode]):host-context(main) .lf-thread-seat * {
+:host-context(html[data-lf-draw-mode]):host-context(main) .lf-thread-seat *,
+:host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-offer],
+:host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-offer] * {
   cursor: auto !important; }
 /* Copy floats over the code's corner without changing its box or scrolling text.
    Pointer and keyboard intent reveal it; touch keeps the control available. */

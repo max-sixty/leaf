@@ -313,7 +313,7 @@ customElements.define(
                 text: outcome
                   ? `${outcome === "accept" ? "Accepted" : "Rejected"} suggested change`
                   : "Accept or reject suggested change",
-                activate: () => this.#margin?.focus(this.#focusKey()),
+                activate: () => this.#margin?.focus(this.#focusKey(), "move"),
               },
             ]
           : [],
@@ -655,7 +655,7 @@ customElements.define(
     }
 
     // Which of the three changes this is, for anything naming it away from the page:
-    // a row in the Queue panel, the label on a comment anchored here. The slots are the
+    // a row in the Questions panel, the label on a comment anchored here. The slots are the
     // whole of the answer — both is a rewrite, lf-new alone inserts, lf-old alone
     // deletes — and it is the reading #voice already speaks on the slots themselves,
     // said once for the element. A settled suggestion keeps the word it had: the

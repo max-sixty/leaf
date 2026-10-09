@@ -12,20 +12,25 @@ import shutil
 import subprocess
 import threading
 import time
+from contextlib import ExitStack
 from dataclasses import dataclass
 from html import unescape
 from pathlib import Path
 
-import click
+from leaf.delivery import opened_input_ids, pickup_receipts
+from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
 from leaf.service import requires_agent_attention
+from leaf.thread import successful_replies
+from playwright.sync_api import Browser
+from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from leaf_dev import ROOT
 from leaf_dev.arms import (
+    TURN_LIMIT,
     URL,
     LiveChild,
     PageClient,
-    accepted_starts,
     blocks,
     commands,
     completed,
@@ -33,15 +38,18 @@ from leaf_dev.arms import (
     inputs_received,
     now,
     observed_sum,
-    opened_input_ids,
+    progress_start,
+    read_page_state,
     read_trace,
     run_agent,
     run_leaf,
     scratch,
-    token_counts,
+    serving,
     trace_result,
+    trace_summary,
     waits_started,
 )
+from leaf_dev.browser import chrome, load, tab
 
 FIXTURES = ROOT / "evals/usability/fixtures"
 ANSWERS = json.loads((FIXTURES / "reading-answers.json").read_text())
@@ -133,9 +141,9 @@ alerts" to "Key expiry alerts". Check the page and stamp the new version. {quiet
 # The user's moves, in order: two cards into Doing at ranks around the authored "1"
 # and "2", and one into Done that they then undid.
 BOARD_MOVES = [
-    {"card": "card-docs", "to": "col-doing", "rank": "0i"},
-    {"card": "card-audit", "to": "col-doing", "rank": "1i"},
-    {"card": "card-rotate", "to": "col-done", "rank": "1"},
+    {"unit": "card-docs", "value": "col-doing", "rank": "0i"},
+    {"unit": "card-audit", "value": "col-doing", "rank": "1i"},
+    {"unit": "card-rotate", "value": "col-done", "rank": "1"},
 ]
 BOARD_DOING = ["card-docs", "card-inventory", "card-audit", "card-alerts"]
 
@@ -183,7 +191,7 @@ PICK = {
     "kind": "action",
     "widget": "copy-mode",
     "action": "choose",
-    "detail": {"options": ["opt-online"]},
+    "detail": {"value": ["opt-online"]},
 }
 SHORTEN = {
     "kind": "comment",
@@ -194,7 +202,7 @@ CARD_MOVE = {
     "kind": "action",
     "widget": "follow-board",
     "action": "move",
-    "detail": {"card": "card-lag-alert", "to": "col-done", "rank": "1"},
+    "detail": {"unit": "card-lag-alert", "value": "col-done", "rank": "1"},
 }
 # The duration the `DRY_RUN` comment asks for, as the edited paragraph may write it.
 DRY_RUN_DONE = r"3\s*h(ours?)?\s*(and\s*)?10"
@@ -316,39 +324,36 @@ class Run:
 # Fixtures
 
 
-def arm_python(run: Run, code: str, *args: str) -> None:
-    """Run `code` with the arm's own `leaf` package, in the run's state home."""
-    proc = subprocess.run(
-        ["uv", "run", "-q", "--no-dev", "--project", str(run.payload), "python", "-c"]
-        + [code, *args],
-        capture_output=True,
-        text=True,
-        check=False,
+def arm_fixture(run: Run, action: str, *args: str) -> None:
+    """Run the fixture module with the selected arm's Leaf and isolated state."""
+    subprocess.run(
+        [
+            "uv",
+            "run",
+            "-q",
+            "--no-dev",
+            "--project",
+            str(run.payload),
+            "--with",
+            str(ROOT / "dev"),
+            "python",
+            "-m",
+            "leaf_dev.usability_fixture",
+            action,
+            *args,
+        ],
+        check=True,
         env=environment(XDG_STATE_HOME=str(run.state)),
     )
-    if proc.returncode:
-        raise click.ClickException(f"{code.splitlines()[-1]} {args}: {proc.stderr}")
 
 
 def admit(run: Run, page: Path, event: dict) -> None:
     """Admit one user move through the arm's browser door."""
-    arm_python(
-        run,
-        "import json, sys\nfrom pathlib import Path\nfrom leaf import event_endpoint\n"
-        "status, body = event_endpoint.accept_event(Path(sys.argv[1]), "
-        "json.loads(sys.argv[2]), dict)\n"
-        "assert status == 200, body",
-        str(page),
-        json.dumps(event),
-    )
+    arm_fixture(run, "admit", str(page), json.dumps(event))
 
 
 def page_events(page: Path) -> list[dict]:
-    return [
-        json.loads(line)
-        for line in (page / "events.jsonl").read_text().splitlines()
-        if line.strip()
-    ]
+    return read_events(page)
 
 
 def build_reading(run: Run, page: Path, surface: str | None) -> None:
@@ -409,11 +414,13 @@ def build_resume(run: Run, page: Path) -> None:
         "page", "stamp", str(page), "--text",
         "Rehearsal rerun after the mapping change; ask how traffic moves", check=True,
     )  # fmt: skip
-    run.leaf(
-        "thread", "reply", str(page), "--for", rerun, "--text",
+    arm_fixture(
+        run,
+        "answer",
+        str(page),
+        rerun,
         "Reran it on 18 September after the mapping change: 4.3 million documents in 3 h 05 min. The page shows the new figure.",
-        check=True,
-    )  # fmt: skip
+    )
     run.leaf(
         "status", str(page), "waiting", "Pick how traffic moves to the new index",
         check=True,
@@ -421,7 +428,7 @@ def build_resume(run: Run, page: Path) -> None:
     admit(run, page, {"kind": "resolve", "parent": rerun})
     admit(run, page, {
         "kind": "action", "revision": 2, "widget": "rollout", "action": "choose",
-        "detail": {"options": ["opt-per-tenant"]},
+        "detail": {'value': ["opt-per-tenant"]},
     })  # fmt: skip
     admit(run, page, {
         "kind": "comment", "revision": 2,
@@ -460,7 +467,7 @@ def build_constructs(run: Run, page: Path) -> None:
     run.leaf("status", str(page), "waiting", "Edit the release note", check=True)
     admit(run, page, {
         "kind": "action", "revision": 1, "widget": "release-note", "action": "edit",
-        "detail": {"text": CONSTRUCTS_DRAFT},
+        "detail": {'value': CONSTRUCTS_DRAFT},
     })  # fmt: skip
     run.leaf("data", "set", str(page), "checkout-p95", input_text="231", check=True)
 
@@ -535,28 +542,9 @@ def append_elided_history(run: Run, page: Path) -> None:
     as the CLI and hooks, under their one transaction lease.
     """
     state, html = active_html(run, page)
-    arm_python(
+    arm_fixture(
         run,
-        "import json, sys\nfrom pathlib import Path\n"
-        "from leaf.event_contracts import append_admitted\n"
-        "from leaf.delivery import batch_data, receive_batch, record_pickup\n"
-        "from leaf.service import PageTransaction, unacknowledged\n"
-        "page_dir = Path(sys.argv[1])\n"
-        "history, anchor, revision = json.loads(sys.argv[2])\n"
-        "with PageTransaction(page_dir) as page:\n"
-        "    first = append_admitted(page, dict(kind='comment', author='user', "
-        "revision=revision, anchor=anchor, text=history[0]))\n"
-        "    latest = first\n"
-        "    for n, text in enumerate(history[1:]):\n"
-        "        latest = append_admitted(page, dict(kind='reply', "
-        "author='agent' if n % 2 == 0 else 'user', "
-        "parent=latest['id'], text=text, revision=revision))\n"
-        "    append_admitted(page, dict(kind='resolve', author='user', parent=first['id']))\n"
-        "    batch = batch_data(page_dir, page, unacknowledged(page.events, page.cursor))\n"
-        "    claim = page.active_claim\n"
-        "    session = claim['id'] if claim else None\n"
-        "    with receive_batch(page, batch, session_id=session) as events:\n"
-        "        record_pickup(page, events, session=session)\n",
+        "history",
         str(page),
         json.dumps(
             [
@@ -590,45 +578,44 @@ def build_fixture(run: Run, name: str, page: Path) -> None:
 # Running
 
 
-def execute(run: Run) -> None:
+def execute(run: Run, work: Path) -> None:
     """One run: build the case's fixture, then run each phase, resuming the first
-    phase's session, or the live session."""
+    phase's session, or the live session. The caller keeps `work` alive through
+    scoring; this function archives pages before returning or raising."""
     case = CASES[run.case]
     run.state.mkdir(parents=True)
-    work = scratch()
     (run.dir / "work-dir").write_text(f"{work}\n")
     page = work / "page"
-    if case.fixture:
-        build_fixture(run, case.fixture, page)
-        shutil.copytree(page, run.dir / "fixture", ignore=ignore)
-    if case.rounds:
-        execute_live(run, case, work, page)
-    else:
-        execute_phases(run, case, work, page)
-    for found in pages(work, run.state):
-        shutil.copytree(found, run.dir / "pages" / found.name, ignore=ignore)
+    try:
+        if case.fixture:
+            build_fixture(run, case.fixture, page)
+            shutil.copytree(page, run.dir / "fixture", ignore=ignore)
+        if case.rounds:
+            execute_live(run, case, work, page)
+        else:
+            execute_phases(run, case, work, page)
+    finally:
+        for found in pages(work, run.state):
+            shutil.copytree(found, run.dir / "pages" / found.name, ignore=ignore)
 
 
-# How long a live session may run, how long a posted round may wait for the delivery
-# that carries it, and how long a finished session stays open for a trailing turn.
-LIVE_LIMIT = 1500
-DELIVERY_LIMIT = 300
+# How long a finished session stays open for a trailing turn.
 GRACE = 20
 
 
 def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
     """Serve the case's page from a live session and play its user.
 
-    Each time a turn ends with every posted round delivered, the next round goes out
-    through the served page, a few seconds later so that Leaf's watcher has
-    taken its lease. The session closes once the last round's turn has ended, when a
-    round waits past DELIVERY_LIMIT, or at LIVE_LIMIT, which voids the run. At each
-    turn's end the stream records the page's status."""
+    Each round retains its admitted inputs until delivery is confirmed. The next
+    round goes out at a turn's end, or during work for a declared running injection.
+    An idle injection pauses so Leaf's watcher can take its lease. The session closes
+    once the last round's turn ends or the session reaches TURN_LIMIT. Each turn's
+    end records the page's status."""
     prompt = case.prompts[0].replace("{page}", str(page))
     (run.dir / "prompt-1.txt").write_text(prompt)
-    # The deadline for the posted round's delivery; unstarted until the first post.
-    waiting = threading.Timer(DELIVERY_LIMIT, lambda: None)
+    closing: threading.Timer | None = None
     url, posted, delivered = None, 0, 0
+    observed_tool_round = 0
     pending_events: set[str] = set()
     attempts: set[str] = set()
     try:
@@ -639,21 +626,83 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                 "--plugin-dir",
                 str(run.payload),
                 stderr=run.dir / "err-1.txt",
-                limit=LIVE_LIMIT,
+                limit=TURN_LIMIT,
                 timed_out=run.dir / "timed-out",
                 dirs=[run.payload],
                 env={"XDG_STATE_HOME": str(run.state)},
                 harness=run.harness,
             ) as child,
             (run.dir / "stream-1.jsonl").open("w") as stream,
+            ExitStack() as deadlines,
         ):
 
             def note(record: dict) -> None:
                 stream.write(json.dumps(record) + "\n")
                 stream.flush()
 
-            def post(injection: str) -> None:
-                nonlocal posted, pending_events, waiting
+            for record in child.records():
+                if delivered < posted:
+                    events = page_events(page)
+                    if inputs_received(
+                        events, attempts
+                    ) and pending_events <= opened_input_ids(events):
+                        delivered = posted
+                        note(
+                            {
+                                "type": "eval_received",
+                                "round": posted,
+                                "events": sorted(pending_events),
+                                "received_at": now(),
+                            }
+                        )
+                note(record)
+                if delivered > observed_tool_round and any(
+                    block.get("type") == "tool_use" for block in blocks([record])
+                ):
+                    observed_tool_round = delivered
+                    note(
+                        {
+                            "type": "eval_first_tool_state",
+                            "round": delivered,
+                            "workflows": page_state(run, page)["workflows"],
+                            "received_at": now(),
+                        }
+                    )
+                if not url and record.get("type") in ("user", "result"):
+                    server = page_state(run, page)["server"]
+                    if server:
+                        url = server["url"]
+                        note({"type": "eval_served", "url": url, "received_at": now()})
+                if record.get("type") == "result":
+                    state = page_state(run, page)
+                    note(
+                        {
+                            "type": "eval_status",
+                            "status": state.get("status"),
+                            "listening": state["listening"],
+                            "received_at": now(),
+                        }
+                    )
+                # Posting the next running round cannot replace an undelivered
+                # round's evidence.
+                if delivered < posted:
+                    continue
+                if not url or posted == len(case.rounds):
+                    if record.get("type") == "result":
+                        if closing is not None:
+                            closing.cancel()
+                        closing = threading.Timer(GRACE, child.close)
+                        deadlines.callback(closing.join)
+                        deadlines.callback(closing.cancel)
+                        closing.start()
+                    continue
+                injection = "idle" if record.get("type") == "result" else "running"
+                if (
+                    injection == "running"
+                    and (case.injection[posted] if case.injection else "idle")
+                    != "running"
+                ):
+                    continue
                 if injection == "idle":
                     time.sleep(3)
                 active_turn = observed_active_turn(run, page, child)
@@ -678,55 +727,9 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                         "received_at": now(),
                     }
                 )
-                waiting = threading.Timer(DELIVERY_LIMIT, child.close)
-                waiting.start()
-
-            for record in child.records():
-                if delivered < posted:
-                    events = page_events(page)
-                    if inputs_received(
-                        events, attempts
-                    ) and pending_events <= opened_input_ids(events):
-                        delivered = posted
-                        waiting.cancel()
-                        note(
-                            {
-                                "type": "eval_received",
-                                "round": posted,
-                                "events": sorted(pending_events),
-                                "received_at": now(),
-                            }
-                        )
-                note(record)
-                if not url and (found := URL.search(json.dumps(record))):
-                    url = found[0]
-                if (
-                    posted < len(case.rounds)
-                    and url
-                    and record.get("type") != "result"
-                    and (case.injection[posted] if case.injection else "idle")
-                    == "running"
-                ):
-                    post("running")
-                if record.get("type") != "result":
-                    continue
-                state = page_state(run, page)
-                note(
-                    {
-                        "type": "eval_status",
-                        "status": state.get("status"),
-                        "listening": state["listening"],
-                        "received_at": now(),
-                    }
-                )
-                if delivered < posted:
-                    continue
-                if url and posted < len(case.rounds):
-                    post("idle")
-                else:
-                    threading.Timer(GRACE, child.close).start()
     finally:
-        waiting.cancel()
+        if closing is not None:
+            closing.cancel()
         run.leaf("server", "stop", str(page))
 
 
@@ -843,46 +846,6 @@ def pages(*roots: Path) -> list[Path]:
 # Scoring
 
 
-# The first match names a shell call; a call that reads several things counts as the
-# first, so `output_bytes` is a rough split.
-BASH_KINDS = {
-    "reference": r"references/|SKILL\.md",
-    # A thread's or widget's reading: `page state PAGE ID`.
-    "page state ID": r"\bpage state\s+\S+\s+[^-\s|;&>]",
-    "page state": r"\bpage state\b",
-    "events": r"\bpage events\b",
-    "transcript": r"\btranscript\b",
-    "page check": r"\bpage check\b",
-    "page stamp": r"\bpage stamp\b",
-    "thread reply": r"\bthread reply\b",
-    "server": r"\bserver (start|run)\b",
-    "wait": r"\bleaf wait\b",
-    "registry": r"registry\.json",
-    "events.jsonl": r"events\.jsonl",
-    "index.html": r"index\.html",
-    "data/": r"\bdata/",
-}
-
-
-def call_kind(call: dict) -> str:
-    """What a tool call read or ran, for the context-cost breakdown."""
-    name, inp = call["name"], call.get("input", {})
-    if name == "Skill":
-        return "skill"
-    if name == "Bash":
-        cmd = inp.get("command", "")
-        return next((k for k, p in BASH_KINDS.items() if re.search(p, cmd)), "bash")
-    path = inp.get("file_path", "") or inp.get("path", "")
-    if "/references/" in path:
-        return "reference"
-    if path.endswith("SKILL.md"):
-        return "skill"
-    for kind in ("registry.json", "events.jsonl", "index.html", "/data/"):
-        if path.endswith(kind) or kind in path:
-            return kind.strip("/")
-    return name.lower()
-
-
 def text_of(content) -> str:
     return content if isinstance(content, str) else json.dumps(content)
 
@@ -894,54 +857,23 @@ def trace_scores(trace: list[dict]) -> dict:
             calls[block["id"]] = block
         elif block.get("type") == "tool_result":
             results[block["tool_use_id"]] = block
-    kinds, output = [], {}
-    for cid, call in calls.items():
-        kind = call_kind(call)
-        kinds.append(kind)
-        size = len(text_of(results.get(cid, {}).get("content", "")))
-        output[kind] = output.get(kind, 0) + size
     skills = [
         c["input"].get("skill", "") for c in calls.values() if c["name"] == "Skill"
     ]
-    references = sorted(
-        {
-            m
-            for c in calls.values()
-            for m in re.findall(r"references/[\w-]+\.md", json.dumps(c.get("input")))
-        }
-    )
-    done = trace_result(trace)
-    # A live trace ends each turn with a result: its usage, turns and duration are
-    # that turn's, and its cost is the session's so far.
-    ended = [d for d in trace if d.get("type") == "result"]
     return {
-        "completed": completed(trace),
-        "turns": sum(d.get("num_turns", 0) for d in ended),
-        "cost_usd": (
-            round(done["total_cost_usd"], 3)
-            if done.get("total_cost_usd") is not None
-            else None
-        ),
-        "cost_known": done.get("total_cost_usd") is not None,
-        "minutes": round(sum(d.get("duration_ms", 0) for d in ended) / 60000, 1),
-        **token_counts(trace),
-        "denials": len(done.get("permission_denials") or []),
+        **trace_summary(trace),
         "leaf_skill": any("leaf" in s for s in skills)
         or any(
             "skills/leaf/SKILL.md" in json.dumps(c["input"])
             and results.get(cid, {}).get("is_error") is False
             for cid, c in calls.items()
         ),
-        "references": references,
-        "calls": kinds,
-        "output_bytes": dict(sorted(output.items(), key=lambda kv: -kv[1])),
-        "reply": done.get("result") or "",
+        "calls": [command for record in trace for command in commands(record)],
     }
 
 
 def page_state(run: Run, page: Path) -> dict:
-    proc = run.leaf("page", "state", str(page))
-    return json.loads(proc.stdout) if proc.returncode == 0 else {}
+    return read_page_state(run.payload, run.state, page)
 
 
 def answered_lines(reply: str) -> dict[int, str]:
@@ -971,9 +903,9 @@ def score_cold(run: Run, reply: str, calls: list[str]) -> dict:
     state = page_state(run, page)
     out |= {
         "valid": checked.returncode == 0,
-        "agent_checked": "page check" in calls,
+        "agent_checked": any("page check" in c for c in calls),
         "stamped": len(state.get("versions", [])),
-        "not_served": "server" not in calls,
+        "not_served": not any(re.search(r"\bserver (start|run)\b", c) for c in calls),
         "status": (state.get("status") or {}).get("state"),
         "asks": len(re.findall(r"<lf-ask\b", html)),
         "choose_groups": len(re.findall(r"<lf-options\b[^>]*\bchoose\b", html)),
@@ -991,22 +923,35 @@ def score_cold(run: Run, reply: str, calls: list[str]) -> dict:
     return out
 
 
-def score_reading(run: Run, reply: str) -> dict:
-    surface = run.case.removeprefix("reading").removeprefix("-") or None
-    questions = [
+def reading_questions(case: str) -> list[dict]:
+    surface = case.removeprefix("reading").removeprefix("-") or None
+    return [
         q for q in ANSWERS["questions"] if surface is None or q["surface"] == surface
     ]
-    lines = answered_lines(reply)
-    return {
-        "answers": {
-            q["surface"]: check(q["pattern"], lines.get(n, ""))
-            for n, q in enumerate(questions, 1)
-        },
-        "correct": sum(
-            check(q["pattern"], lines.get(n, "")) for n, q in enumerate(questions, 1)
-        ),
-        "of": len(questions),
-    }
+
+
+def rubrics(case: str) -> list[dict]:
+    """Reading answers require meaning, including acknowledging unavailable state."""
+    if not case.startswith("reading"):
+        return []
+    return [
+        {
+            "type": "llm-rubric",
+            "metric": f"answer_{q['surface']}",
+            "value": f"Question {n}: {q['question']}\n"
+            f"Expected answer: {q['answer']}\n"
+            "Pass only if the answer to this question conveys the expected meaning. "
+            "Equivalent wording is fine; contradicting the expected answer fails, "
+            "even when its words occur in the reply."
+            + (
+                " For viewer state, acknowledge uncertainty and do not identify a "
+                "currently open tab."
+                if q["surface"] == "view"
+                else ""
+            ),
+        }
+        for n, q in enumerate(reading_questions(case), 1)
+    ]
 
 
 def score_constructs(run: Run, replies: list[str]) -> dict:
@@ -1024,7 +969,7 @@ def score_constructs(run: Run, replies: list[str]) -> dict:
     html = (page / state["active"]["file"]).read_text()
     draft = re.search(r"<lf-draft\b([^>]*)>(.*?)</lf-draft>", html, re.DOTALL)
     standing = next(
-        (s["detail"]["text"] for s in state["state"] if s["widget"] == "release-note"),
+        (s["detail"]["value"] for s in state["state"] if s["widget"] == "release-note"),
         None,
     )
     # What the user now reads: their edit where it still stands, else the markup.
@@ -1123,16 +1068,11 @@ def score_resume(run: Run, replies: list[str]) -> dict:
         ),
         "pick_standing": any(
             s.get("widget") == "rollout"
-            and s.get("detail", {}).get("options") == ["opt-per-tenant"]
+            and s.get("detail", {}).get("value") == ["opt-per-tenant"]
             for s in state.get("state", [])
         ),
         "no_restated": "restated" not in html,
-        "replied": any(
-            e.get("kind") == "reply"
-            and e.get("author") == "agent"
-            and e.get("parent") == batch_comment
-            for e in events
-        ),
+        "replied": bool(successful_replies(events, batch_comment)),
         "date_final": (
             re.search(r'id="cutover-date"[^>]*>(.*?)</p>', html, re.DOTALL)
             or [None, ""]
@@ -1290,32 +1230,47 @@ def ran_between(trace: list[dict], start: int, end: int) -> list[str]:
     return [c for record in trace[start:end] for c in commands(record)]
 
 
-def claimed_first(trace: list[dict], thread: str) -> bool:
-    """An accepted start on this thread's comment, a progress update's included,
-    before the turn's first reply call that answers it."""
-    reply = next(
+def progress_shown(trace: list[dict], events: list[dict], thread: str) -> bool:
+    """Progress on the exact input while the agent is handling it.
+
+    Work starts come from the scenario's admitted page log and exact input.
+    Command spelling, stdout and stream observation times do not set the cutoff.
+    Native commentary counts only when the canonical workflow confirms that
+    the exact input has an active response with text during tool handling.
+    A chat message alone cannot establish that the page showed progress.
+    """
+    first_tool = next(
         (
-            index
-            for index, record in enumerate(trace)
-            if any(
-                re.search(r"\bthread reply\b", c) and "--ephemeral" not in c
-                for c in commands(record)
-            )
+            i
+            for i, record in enumerate(trace)
+            if any(b.get("type") == "tool_use" for b in blocks([record]))
         ),
         len(trace),
     )
-    return any(index < reply for index in accepted_starts(trace, thread).values())
+    opening = any(
+        b.get("type") == "text" and b.get("text")
+        for record in trace[:first_tool]
+        if record.get("type") == "assistant"
+        for b in blocks([record])
+    )
+    observation = next((r for r in trace if r["type"] == "eval_first_tool_state"), None)
+    if opening and observation is not None:
+        for workflow in observation["workflows"]:
+            response = workflow["response"]
+            if (
+                workflow["input"] == thread
+                and response is not None
+                and response["state"] == "active"
+                and response["has_text"]
+            ):
+                return True
+    return progress_start(events, thread) is not None
 
 
-def answered(events: list[dict], event_id: str) -> list[dict]:
-    """The agent's replies to one event."""
-    return [
-        e
-        for e in events
-        if e["kind"] == "reply"
-        and e["author"] == "agent"
-        and event_id in (e.get("parent"), e.get("responds"))
-    ]
+def handed_page_url(trace: list[dict], reply: str) -> bool:
+    """The final message links the exact server this live run observed."""
+    served = next((r["url"] for r in trace if r["type"] == "eval_served"), None)
+    return served is not None and served in URL.findall(reply)
 
 
 def round_scores(trace: list[dict], r: dict, name: str) -> dict:
@@ -1329,7 +1284,7 @@ def round_scores(trace: list[dict], r: dict, name: str) -> dict:
             waits_started(d) for d in trace[r["delivery"] : r["end"]]
         ),
         f"{name}_waiting": (r["status"] or {}).get("state") == "waiting",
-        f"{name}_url": bool(URL.search(end.get("result") or "")),
+        f"{name}_url": handed_page_url(trace, end.get("result") or ""),
     }
 
 
@@ -1343,7 +1298,7 @@ def score_handoff(run: Run, trace: list[dict]) -> dict:
         next((d["status"] for d in trace if d["type"] == "eval_status"), None) or {}
     )
     out = {
-        "served": bool(URL.search(handover.get("result") or "")),
+        "served": handed_page_url(trace, handover.get("result") or ""),
         "checked": any("page check" in c for c in ran_between(trace, 0, first_end)),
         "handoff_waiting": status.get("state") == "waiting",
         "detail_names_ask": check(
@@ -1362,13 +1317,13 @@ def score_handoff(run: Run, trace: list[dict]) -> dict:
         out |= round_scores(trace, r, "edit") | {
             "edit_claimed": r["delivery"] is not None
             and r["end"] is not None
-            and claimed_first(trace[r["delivery"] : r["end"]], comment["id"]),
-            "edit_replied": bool(answered(events, comment["id"])),
+            and progress_shown(trace[r["delivery"] : r["end"]], events, comment["id"]),
+            "edit_replied": bool(successful_replies(events, comment["id"])),
             "edit_done": check(DRY_RUN_DONE, element_text(html, "dry-run")),
         }
     if len(rounds) > 1:
         question = posted_event(run.work / "page", attempt_key(1, 0))
-        replies = answered(events, question["id"])
+        replies = successful_replies(events, question["id"])
         out |= round_scores(trace, rounds[1], "question") | {
             "question_answered": any(
                 check(r"snapshot", e.get("text", ""))
@@ -1379,7 +1334,7 @@ def score_handoff(run: Run, trace: list[dict]) -> dict:
     return out
 
 
-def score_mixed(run: Run, trace: list[dict]) -> dict:
+def score_mixed(run: Run, trace: list[dict], browser: Browser) -> dict:
     page = run.work / "page"
     events = page_events(page)
     rounds = live_rounds(trace)
@@ -1392,10 +1347,8 @@ def score_mixed(run: Run, trace: list[dict]) -> dict:
     post_ids = set(trace[r["post"]]["events"])
     batches = [
         e
-        for e in events
-        if e["kind"] == "pickup"
-        and e["phase"] == "opened"
-        and post_ids.intersection(e["events"])
+        for e in pickup_receipts(events, phase="opened")
+        if post_ids.intersection(e["events"])
     ]
     fixture_words = len(
         element_text((FIXTURES / "mixed.html").read_text(), "why-now").split()
@@ -1408,8 +1361,8 @@ def score_mixed(run: Run, trace: list[dict]) -> dict:
         and post_ids <= set(batches[0]["events"]),
         "comment_claimed": r["delivery"] is not None
         and r["end"] is not None
-        and claimed_first(trace[r["delivery"] : r["end"]], comment["id"]),
-        "comment_replied": bool(answered(events, comment["id"])),
+        and progress_shown(trace[r["delivery"] : r["end"]], events, comment["id"]),
+        "comment_replied": bool(successful_replies(events, comment["id"])),
         "comment_done": check(DRY_RUN_DONE, element_text(html, "dry-run")),
         "stamped": len(state.get("versions", [])) >= 2,
         # Leaf's own reading: the pick owes nothing more, and the user still sees it,
@@ -1448,16 +1401,39 @@ def score_mixed(run: Run, trace: list[dict]) -> dict:
             )
             or f'resolves="{reaction["id"]}"' in html
         ),
-        "reaction_unreplied": not answered(events, reaction["id"]),
+        "reaction_unreplied": not successful_replies(events, reaction["id"]),
         "undo_kept": "card-lag-alert" in column_cards(html, "col-open")
         and column_cards(html, "col-done") == [],
-        # Every regular expression the page's script passes to replaceAll is global.
-        "error_fixed": all(
-            "g" in flags
-            for flags in re.findall(r"replaceAll\(\s*/(?:[^/\\\n]|\\.)+/([a-z]*)", html)
-        ),
+        "error_fixed": copy_summary_works(run, page, browser),
     }
     return out
+
+
+def copy_summary_works(run: Run, page: Path, browser: Browser) -> bool:
+    """Exercise the repaired control; deleting its behavior cannot pass."""
+    with (
+        serving(run.payload, run.state, page) as url,
+        tab(browser) as view,
+    ):
+        view.context.grant_permissions(["clipboard-read", "clipboard-write"])
+        load(view, url)
+        expected = " ".join(view.locator("#summary").inner_text().split())
+        view.evaluate("() => navigator.clipboard.writeText('leaf-eval-unwritten')")
+        try:
+            view.locator("#copy-summary").click()
+            return view.evaluate(
+                """async expected => {
+                    const deadline = performance.now() + 5000;
+                    do {
+                        if (await navigator.clipboard.readText() === expected) return true;
+                        await new Promise(requestAnimationFrame);
+                    } while (performance.now() < deadline);
+                    return false;
+                }""",
+                expected,
+            )
+        except PlaywrightTimeout:
+            return False
 
 
 PREMISE = "the vacuum job now owns the ops window"
@@ -1492,7 +1468,10 @@ def score_elided(run: Run, trace: list[dict]) -> dict:
         (
             i
             for i in range(r["delivery"], len(trace))
-            if any("thread reply" in c for c in commands(trace[i]))
+            if any(
+                re.search(r"\b(?:thread|response) reply\b", c)
+                for c in commands(trace[i])
+            )
         ),
         len(trace),
     )
@@ -1509,7 +1488,7 @@ def score_elided(run: Run, trace: list[dict]) -> dict:
         ),
         None,
     )
-    replies = answered(events, question["id"])
+    replies = successful_replies(events, question["id"])
     return out | {
         # Validity: the delivery shortened the thread, as the case assumes.
         "shown_elided": any(
@@ -1527,7 +1506,8 @@ def score_elided(run: Run, trace: list[dict]) -> dict:
             check(r"\b22[:.]?00\b|\b10\s*p\.?m\b", e.get("text", "")) for e in replies
         ),
         "titled": any(
-            e["kind"] == "thread_title" and e.get("thread") == thread for e in events
+            item["id"] == thread and item["title"] is not None
+            for item in page_state(run, page)["threads"]
         ),
         "summarized": any(
             e["kind"] == "summary" and e.get("thread") == thread for e in events
@@ -1535,7 +1515,7 @@ def score_elided(run: Run, trace: list[dict]) -> dict:
     }
 
 
-LIVE_SCORES = {"handoff": score_handoff, "mixed": score_mixed, "elided": score_elided}
+LIVE_SCORES = {"handoff": score_handoff, "elided": score_elided}
 
 # These declarations remain complete when a scorer exits early or a round never
 # arrives. Missing observations fail instead of silently shrinking the assertion set.
@@ -1674,15 +1654,7 @@ CHECKS = {
 def expected_checks(case: str, *, condition: str = "leaf") -> list[str]:
     """The fixed assertion set for one complete scenario."""
     CASES[case]
-    if case.startswith("reading"):
-        surface = case.removeprefix("reading").removeprefix("-") or None
-        checks = [
-            f"answer_{q['surface']}"
-            for q in ANSWERS["questions"]
-            if surface is None or q["surface"] == surface
-        ]
-    else:
-        checks = list(CHECKS[case])
+    checks = [] if case.startswith("reading") else list(CHECKS[case])
     return ["completed", *checks]
 
 
@@ -1704,11 +1676,6 @@ def checks_for(case: str, score: dict, phases: list[dict], usable: bool) -> dict
         ):
             if field in score:
                 values[name] = score[field] == count
-    elif case.startswith("reading"):
-        values |= {
-            f"answer_{name}": passed
-            for name, passed in score.get("answers", {}).items()
-        }
     elif case == "resume":
         values["stamped"] = score.get("versions", 0) >= 3
     return {
@@ -1721,6 +1688,9 @@ def score_run(
     run: Run, traces: list[list[dict]], replies: list[str], calls: list[str]
 ) -> dict:
     """Apply the scenario's semantic reading to its complete native trajectory."""
+    if run.case == "mixed":
+        with chrome() as browser:
+            return score_mixed(run, traces[0], browser)
     if run.case in LIVE_SCORES:
         return LIVE_SCORES[run.case](run, traces[0])
     if run.case == "package":
@@ -1730,7 +1700,7 @@ def score_run(
     if run.case in COLD:
         return score_cold(run, replies[-1] if replies else "", calls)
     if run.case.startswith("reading"):
-        return score_reading(run, replies[-1] if replies else "")
+        return {}
     if run.case == "board":
         return score_board(run, replies)
     if run.case == "constructs":
@@ -1748,13 +1718,14 @@ def execute_scenario(
 ) -> dict:
     """One Promptfoo provider call owns all phases, live rounds, and evidence."""
     run = Run(case, payload, work, harness)
-    execute(run)
-    traces = run.traces()
-    phases = [trace_scores(t) for t in traces]
-    replies = [p["reply"] for p in phases]
-    calls = [c for p in phases for c in p["calls"]]
-    usable = run.usable()
-    score = score_run(run, traces, replies, calls) if usable else {}
+    with scratch() as child_work:
+        execute(run, child_work)
+        traces = run.traces()
+        phases = [trace_scores(t) for t in traces]
+        replies = [p["reply"] for p in phases]
+        calls = [c for p in phases for c in p["calls"]]
+        usable = run.usable()
+        score = score_run(run, traces, replies, calls) if usable else {}
     checks = checks_for(case, score, phases, usable)
     usage = {
         field: count

@@ -21,7 +21,7 @@ from leaf import service as service_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.served_state import context as served_context
 from leaf.validation import compatibility as validation_model
-from PIL import Image, ImageChops
+from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ASK_PAGE,
@@ -44,6 +44,7 @@ from render_cases_layout import (
     LEGEND_TRUE,
     NAMED,
     PAGE_MARKUP,
+    QUESTIONS,
     aim_targets,
     banner_control,
     draw_edge,
@@ -82,6 +83,7 @@ from render_harness import (
     assert_follows_in_every_frame,
     draft_key,
     expect_comment_notes,
+    gesture_writes,
     hold_pending_thread_presentation,
     judge_watches,
     leaf_page,
@@ -91,6 +93,7 @@ from render_harness import (
     regions_side_by_side,
     resized,
     round_trip,
+    scroll_followers,
     scroll_settled,
     scroll_writes,
     select,
@@ -304,10 +307,10 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
 
 
 @pytest.mark.parametrize("width", [900, 1200])
-def test_an_aimed_comment_keeps_its_place_with_the_queue_panel_open(
+def test_an_aimed_comment_keeps_its_place_with_the_questions_panel_open(
     browser, serve, width
 ):
-    """The Queue panel stands over the page without moving its coordinate plane.
+    """The Questions panel stands over the page without moving its coordinate plane.
 
     A broad authored rule may position ordinary divs, and the drawer may arrive over a
     target without another pointer event. Neither may move the chrome's document origin or
@@ -331,7 +334,7 @@ def test_an_aimed_comment_keeps_its_place_with_the_queue_panel_open(
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lq-keep")
     # Open by script so the pointer remains parked on the target while the drawer arrives.
     page.locator(".lf-queue").evaluate("node => node.click()")
-    edge_settled(page, EDGES[1])
+    edge_settled(page, QUESTIONS)
     aligned = page.evaluate(
         """() => {
           const target = document.getElementById('lq-keep').getBoundingClientRect();
@@ -356,7 +359,8 @@ def test_an_aimed_comment_keeps_its_place_with_the_queue_panel_open(
         f"the aim moved {aligned['dx']:.1f}px across and {aligned['dy']:.1f}px down "
     )
 
-    target.click()
+    # The panel stands over the right of the item, so the press lands on its start.
+    target.click(position={"x": 12, "y": 12})
     page.keyboard.up("Alt")
     open_compact_comment(page)
     placed = page.evaluate(
@@ -1734,9 +1738,10 @@ def test_a_covering_auxiliary_surface_holds_design_paint_beneath_it(browser, ser
     the mode, which is how a phone the sheet covers gets back to its page.
     """
     page = open_page(browser, serve(ASKS_PAGE))
-    resized(page, 700, 900)
+    # Wide enough that the panel first stands beside the page, where Design mode starts.
+    resized(page, 900, 900)
     banner_control(page, ".lf-queue").click()
-    edge_settled(page, EDGES[1])
+    edge_settled(page, QUESTIONS)
     page.keyboard.press("l")
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     resized(page, 560, 900)
@@ -1814,11 +1819,25 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
     traced = Image.open(io.BytesIO(label.screenshot())).convert("RGB")
     trace.evaluate("node => { node.style.visibility = 'hidden' }")
     untraced = Image.open(io.BytesIO(label.screenshot())).convert("RGB")
-    center = (3, 3, traced.width - 3, traced.height - 3)
-    assert (
-        ImageChops.difference(traced.crop(center), untraced.crop(center)).getbbox()
-        is None
-    ), "the target trace paints over the status label"
+    # Toggling the trace's paint layer can change Chrome's text antialiasing
+    # without changing which surface covers the trace. Compare the solid label
+    # background at the trace's crossing instead of its glyph pixels.
+    edge = round(
+        (trace_box["x"] + trace_box["width"] - label_box["x"])
+        * untraced.width
+        / label_box["width"]
+    )
+    background = untraced.getpixel((5, 5))
+    crossing = [
+        (x, y)
+        for x in range(max(3, edge - 3), min(untraced.width - 3, edge + 4))
+        for y in range(3, untraced.height - 3)
+        if untraced.getpixel((x, y)) == background
+    ]
+    assert crossing
+    assert all(traced.getpixel(point) == background for point in crossing), (
+        "the target trace paints over the status label"
+    )
 
 
 def test_the_aim_reads_the_pointer_where_the_press_is_dispatched_from(browser, serve):
@@ -1906,9 +1925,10 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
     switched the panel under it. Neither shows in the composer, which opens either way.
 
     So both halves are asserted together — the composer opens on the item that was
-    outlined, and the page is exactly as it was, in its markup and in where its focus
-    sits. The capture mechanism is layer-wide; these pages are retained for the distinct
-    downstream paths they put under it rather than for every repetition of those paths.
+    outlined, the press does not focus the control beneath it, and the page's markup
+    is as it was after the composer closes. The capture mechanism is layer-wide;
+    these pages stand for their distinct downstream paths rather than every repetition
+    of those paths.
     `required_paths` keeps that causal selection honest when an example changes.
     """
     url = serve(example)
@@ -1982,6 +2002,9 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
         )
         page.mouse.click(*point)
         page.keyboard.up("Alt")
+        assert not page.evaluate(FOCUS_IN_PAGE), (
+            f"⌥-clicking {label} in {case_name} focused the control under the aim"
+        )
         composer = page.locator(".lf-composer")
         bar = page.locator(".lf-fab-bar")
         if "suggestion control" in target_paths and promised:
@@ -2026,14 +2049,14 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
             # the outline, which is the one mark an aim is supposed to leave.
             page.keyboard.press("Escape")
             expect(composer).to_be_hidden()
+            # Closing the composer may hand focus back to its page subject. Release
+            # that focus before comparing markup, which can carry focus-only badges.
+            page.evaluate("() => document.activeElement.blur()")
+            rendered(page)
             aimed += 1
         assert page.evaluate(PAGE_MARKUP) == before, (
             f"⌥-clicking {label} in {case_name} changed the page, so a press the aim "
             "had taken reached a widget as well"
-        )
-        assert not page.evaluate(FOCUS_IN_PAGE), (
-            f"⌥-clicking {label} in {case_name} left the focus on the page, so the "
-            "press reached the control under it"
         )
         pressed += 1
     assert pressed, f"{case_name} pressed nothing, so it asserts nothing"
@@ -3711,7 +3734,7 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
             "revision": 1,
             "widget": "work",
             "action": "move",
-            "detail": {"card": "card-importer", "to": "col-done", "rank": "1i"},
+            "detail": {"unit": "card-importer", "value": "col-done", "rank": "1i"},
         },
     )
     told(page)
@@ -4170,3 +4193,342 @@ def test_a_withheld_draft_restores_editing_and_deliberate_dismissal(browser, ser
     rendered(page)
     assert not page.locator(".lf-fab-input").is_visible()
     assert json.loads(stored_draft_text(page, context))["text"] == words
+
+
+DESIGN_PANE_PAGE = leaf_page(
+    "design paint in a pane",
+    """
+  <div id="design-split">
+    <lf-pane id="design-pane" label="Findings">
+      <div>
+        <div style="height: 100px"></div>
+        <p id="pane-target" style="height: 260px">The first finding, named.</p>
+        <p id="pane-later">A later finding.</p>
+        <div style="height: 1600px"></div>
+      </div>
+    </lf-pane>
+    <lf-pane id="other-pane" label="Notes"><div><p id="note">Notes.</p></div></lf-pane>
+  </div>""",
+    head=regions_side_by_side("design-split"),
+    layout="workspace",
+)
+
+
+def _design_mode(page):
+    page.evaluate(RELEASE_FOCUS)
+    page.keyboard.press("l")
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+
+
+# A long page whose paragraphs stand under a header stuck below the banner, which cuts
+# paint over them in the window's plane (geometry.js, `headerInset`).
+HEADED_PAGE = LONG_PAGE.replace(
+    "<p id='p0'>",
+    "<section style='--lf-top: calc(var(--lf-banner-h) + 40px)'>"
+    "<h2 id='head' style='position: sticky; top: var(--lf-banner-h); height: 40px;"
+    " margin: 0; background: var(--paper)'>Head</h2><p id='p0'>",
+).replace("</p>\n</main>", "</p></section>\n</main>", 1)
+
+
+# A suggestion's accept and reject stand in the margin beside it, each wearing the digit
+# Ask travel gives it.
+ASK_PANE_PAGE = DESIGN_PANE_PAGE.replace(
+    '<p id="pane-later">A later finding.</p>',
+    '<p id="pane-later">Bring <lf-suggestion id="pane-ask"><lf-old>nine.</lf-old>'
+    "<lf-new>ten.</lf-new></lf-suggestion> now.</p>",
+)
+
+# What a paint over the page's targets is made of, by the places the write watch names.
+PAINT = re.compile(
+    r"lf-(chip-seat|key-chips|key-badge|paint-|legend|page-search-match|inspect|aim"
+    r"|drawing)"
+)
+
+
+# A drawing comment circling what it names, from above its left edge to past its right.
+def _drawn_on(section):
+    return {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "anchor": {"section": section},
+        "drawing": {
+            "format": "leaf-drawing/2",
+            "strokes": [[[-20, -10], [200, 30], [420, 60]]],
+            "box": [400, 40],
+            "viewport": [1280, 720],
+            "scheme": "light",
+        },
+    }
+
+
+def _paint_mode(page, mode, words):
+    page.evaluate(RELEASE_FOCUS)
+    if mode == "ask":
+        page.keyboard.press("q")
+        expect(page.locator("#pane-ask")).to_be_focused()
+        expect(page.locator(".lf-command-binding-badge")).to_have_count(2)
+    elif mode == "search":
+        page.keyboard.press("/")
+        page.keyboard.type(words)
+        expect(page.locator(".lf-page-search-match").first).to_be_visible()
+    elif mode == "design":
+        _design_mode(page)
+    elif mode == "ink":
+        expect(page.locator(".lf-drawing-posted")).to_have_count(1)
+    else:
+        page.keyboard.press({"picker": "s", "go-to": "g"}[mode])
+        expect(page.locator(".lf-key-hint[data-lf-hint-code]").first).to_be_visible()
+
+
+@pytest.mark.parametrize("scroller", ["window", "header", "pane"])
+@pytest.mark.parametrize("mode", ["design", "picker", "go-to", "search", "ask", "ink"])
+def test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled(
+    browser, serve, mode, scroller
+):
+    """Paint over what the page shows, a mode's names, chips and marks, stands where
+    what it names is carried, anchored to it in the frames that cut it
+    (target-paint-geometry.js, `paintSet`), so a scroll of the window or of a pane moves
+    it with the scroll and writes none of it on the scroll's frames. What the scroll
+    changes, the map's members and a chip the banner holds in, is read once it
+    settles, and a legend's tags step inside their boxes as they cross a cut. The
+    design legend, its boxes and tags placed and written on every scroll, trailed a
+    pane by a frame, and so did the picker's and Go-to's chips, the search's mark and
+    an Ask's binding digits, each written on every frame of the gesture. Saved ink
+    stands the same way."""
+    if mode == "ask" and scroller != "pane":
+        pytest.skip("the Ask's digits stand beside a pane's suggestion")
+    source = {
+        "window": LONG_PAGE,
+        "header": HEADED_PAGE,
+        "pane": ASK_PANE_PAGE if mode == "ask" else DESIGN_PANE_PAGE,
+    }[scroller]
+    if mode == "go-to":
+        # Go-to names links.
+        source = source.replace(
+            "<p id='p", "<p><a href='#t'>Top</a></p><p id='p"
+        ).replace("finding", "<a href='#note'>finding</a>")
+    events = [_drawn_on("pane-target" if scroller == "pane" else "p3")]
+    page = open_page(browser, serve(source, events=events if mode == "ink" else []))
+    resized(page, 1280, 720)
+    if scroller == "pane":
+        pane_posture(page, page.locator("#design-pane"), "bounded")
+    _paint_mode(page, mode, "finding" if scroller == "pane" else "Paragraph 3")
+    if mode == "design":
+        named = ["pane-target", "pane-later"] if scroller == "pane" else ["p3", "p4"]
+        expect(page.locator(f'.lf-legend-box[data-for="{named[0]}"]')).to_be_visible()
+        # The boxes one set of frames cuts share its stand, each anchored to what it
+        # names.
+        stand = page.evaluate(
+            """([first, next]) => {
+              const box = (id) => document.querySelector(`.lf-legend-box[data-for="${id}"]`);
+              return {shared: box(first).closest('.lf-paint-stand')
+                        === box(next).closest('.lf-paint-stand'),
+                      anchors: [box(first), box(next)].map(
+                        (b) => getComputedStyle(b).positionAnchor)};
+            }""",
+            named,
+        )
+        assert stand["shared"] and all(
+            anchor.startswith("--lf-a") for anchor in stand["anchors"]
+        ), stand
+    writes, frames = gesture_writes(
+        page,
+        200,
+        scroller="document.querySelector('#design-pane > div')"
+        if scroller == "pane"
+        else "document.scrollingElement",
+    )
+    painted = [w for w in writes if PAINT.search(w["target"])]
+    assert not scroll_followers(painted, frames), painted
+
+
+def test_a_chip_seated_below_its_neighbour_rides_the_scroll_with_it(browser, serve):
+    """A chip the picker seats below a neighbour's, which rides the scroll, rides it too
+    (keyboard/hints.js, `seatHints`): only what stands still as the page scrolls, the
+    window's edge or the chrome, holds a chip where the window does. Held because the
+    shortcut bar shared its column, such a chip stood still mid-page through a scroll
+    and jumped once it settled."""
+    source = LONG_PAGE.replace(
+        "<p id='p10'>",
+        "<section id='outer' style='padding-bottom: 12px'><p id='inner'>A nested"
+        " line.</p></section><p id='p10'>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1280, 720)
+    page.evaluate(
+        "() => document.getElementById('outer').scrollIntoView({block: 'center'})"
+    )
+    rendered(page)
+    page.evaluate(RELEASE_FOCUS)
+    page.keyboard.press("s")
+    chips = page.locator(".lf-target-picker-hint[data-lf-hint-code]")
+    expect(chips.first).to_be_visible()
+    _, _, samples = gesture_writes(
+        page,
+        60,
+        sample="""() => {
+          const foot = document.querySelector('.lf-banner').getBoundingClientRect().bottom + 40;
+          return Object.fromEntries([...document.querySelectorAll(
+              '.lf-target-picker-hint[data-lf-hint-code]')]
+            .map((chip) => [chip.dataset.lfHintCode, chip.getBoundingClientRect().top])
+            .filter(([, top]) => top > foot && top < innerHeight - 120));
+        }""",
+    )
+    first, last = samples[0], samples[-1]
+    scrolled = last["scrolled"] - first["scrolled"]
+    assert scrolled > 20, samples
+    carried = {
+        code: round(top - last["read"][code], 1)
+        for code, top in first["read"].items()
+        if code in last["read"]
+    }
+    assert carried and all(abs(moved - scrolled) < 1 for moved in carried.values()), (
+        scrolled,
+        carried,
+    )
+
+
+def test_saved_ink_is_cut_where_its_pane_cuts_what_it_marks(browser, serve):
+    """Saved ink stands in the frames that cut what it marks, so a pane that scrolls
+    its element away cuts the ink at the pane's edge too, rather than leaving it drawn
+    over the pane's header and the page beside it."""
+    page = open_page(
+        browser, serve(DESIGN_PANE_PAGE, events=[_drawn_on("pane-target")])
+    )
+    resized(page, 1280, 720)
+    pane_posture(page, page.locator("#design-pane"), "bounded")
+    mark = page.locator(".lf-drawing-posted")
+    expect(mark).to_have_count(1)
+    page.evaluate("() => document.querySelector('#design-pane > div').scrollBy(0, 150)")
+    rendered(page)
+    cut = mark.evaluate(
+        """el => {
+          const pane = document.querySelector('#design-pane > div').getBoundingClientRect();
+          const frame = el.closest('.lf-paint-frame');
+          return {ink: el.getBoundingClientRect().top, pane: pane.top,
+                  frame: frame && frame.getBoundingClientRect().top,
+                  clip: frame && getComputedStyle(frame).clipPath};
+        }"""
+    )
+    assert cut["ink"] < cut["pane"], cut
+    assert cut["frame"] == pytest.approx(cut["pane"], abs=1), cut
+    assert cut["clip"].startswith("inset(0"), cut
+
+
+@pytest.mark.parametrize("paint", ["inspect", "legend"])
+def test_design_paint_in_a_pane_paints_in_the_frame_its_target_scrolls(
+    browser, serve, paint
+):
+    """Every frame Chrome draws while a pane scrolls under the pointer in Design mode
+    shows the name and the legend box level with what they name."""
+    follower = (
+        f".lf-inspect {{ background: {FOLLOWER_MARK} !important; }}"
+        if paint == "inspect"
+        else '.lf-legend-box[data-for="pane-target"]'
+        f" {{ border: 6px solid {FOLLOWER_MARK} !important; }}"
+    )
+    page = open_page(
+        browser,
+        serve(
+            DESIGN_PANE_PAGE.replace(
+                "</head>",
+                f"<style>#pane-target {{ background:{SUBJECT_MARK}; }} {follower}"
+                ".lf-legend-tag { display: none; }</style></head>",
+            )
+        ),
+    )
+    resized(page, 1280, 720)
+    pane_posture(page, page.locator("#design-pane"), "bounded")
+    _design_mode(page)
+    target = page.locator("#pane-target").bounding_box()
+    page.mouse.move(target["x"] + 40, target["y"] + 130)
+    expect(page.locator(".lf-inspect")).to_have_text(re.compile("pane-target"))
+    rendered(page)
+    assert_follows_in_every_frame(page, "#design-pane > div")
+
+
+# A sticky bar, a fixed bar, and a popover's content: three boxes that do not move with
+# the page's scroll alone.
+OFF_FLOW_PAGE = leaf_page(
+    "off flow",
+    "<h1 id='t'>Off flow</h1>"
+    "<nav id='nav' style='position: sticky; top: var(--lf-banner-h);"
+    " background: var(--paper)'>Contents</nav>"
+    "<div id='fixedbar' style='position: fixed; bottom: 0; left: 0; right: 0;"
+    " background: var(--paper)'>A fixed bar.</div>"
+    "<div id='pop' popover='manual' style='top: 120px; left: 40px; margin: 0'>"
+    "<p id='inpop'>Inside the popover.</p></div>"
+    + "".join(
+        f"<p id='p{i}'>Paragraph {i}. " + "Filler. " * 20 + "</p>" for i in range(40)
+    ),
+)
+
+
+def test_legend_tags_step_apart_as_the_page_slides_under_a_sticky_bar(browser, serve):
+    """A paragraph's tag scrolls past the tag a sticky bar keeps still, and the two
+    step apart as they meet, with no legend pass between (design.js, `placeTags`):
+    a scroll that left every tag on the same side of its box once kept the steps it
+    found, though the tags it had stepped apart now stood elsewhere."""
+    page = open_page(browser, serve(OFF_FLOW_PAGE))
+    resized(page, 1280, 720)
+    _design_mode(page)
+    expect(
+        page.locator('.lf-legend-box[data-for="nav"] .lf-legend-tag')
+    ).to_be_visible()
+    overlaps = """() => {
+      const tags = [...document.querySelectorAll('.lf-legend-tag')]
+        .filter((tag) => tag.checkVisibility())
+        .map((tag) => [tag.closest('.lf-legend-box').dataset.for,
+                       tag.getBoundingClientRect()]);
+      const found = [];
+      for (const [i, [a, r]] of tags.entries())
+        for (const [b, q] of tags.slice(i + 1))
+          if (r.left < q.right - 0.5 && q.left < r.right - 0.5 &&
+              r.top < q.bottom - 0.5 && q.top < r.bottom - 0.5)
+            found.push([a, b]);
+      return found;
+    }"""
+    met = []
+    for _ in range(60):
+        page.evaluate("() => document.scrollingElement.scrollBy(0, 4)")
+        rendered(page)
+        met += page.evaluate(overlaps)
+    assert met == [], met
+
+
+def test_each_legend_box_stays_on_what_it_names_without_a_pass(browser, serve):
+    """Each legend box is anchored to its own element, so it stays on a sticky bar the
+    page scrolls under and on an element a transform moves, with no pass to place it
+    again (design.js, `paintLegend`); a fixed bar and a popover's content, which no
+    frame cuts, stand beside it."""
+    page = open_page(browser, serve(OFF_FLOW_PAGE))
+    resized(page, 1280, 720)
+    page.evaluate("() => document.getElementById('pop').showPopover()")
+    _design_mode(page)
+    offsets = """(ids) => ids.map((id) => {
+      const box = document.querySelector(`.lf-legend-box[data-for="${id}"]`);
+      if (!box?.isConnected) return [id, null];
+      const b = box.getBoundingClientRect();
+      const it = document.getElementById(id).getBoundingClientRect();
+      return [id, Math.round(b.left - it.left), Math.round(b.top - it.top)];
+    })"""
+    ids = ["nav", "p3", "fixedbar", "inpop"]
+    expect(page.locator('.lf-legend-box[data-for="inpop"]')).to_be_visible()
+    assert page.evaluate(offsets, ids) == [[id, -1, -1] for id in ids]
+    page.mouse.move(2, 300)
+    page.mouse.wheel(0, 600)
+    scroll_settled(page)
+    assert page.evaluate(offsets, ["nav"]) == [["nav", -1, -1]]
+    # A sheet moves the element with no mutation a pass could hear; the box is read in
+    # the same task, before any frame.
+    moved = page.evaluate(
+        """(offsets) => {
+          const sheet = new CSSStyleSheet();
+          sheet.replaceSync('#p3 { transform: translateX(30px); }');
+          document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+          return eval(offsets)(['p3']);
+        }""",
+        offsets,
+    )
+    assert moved == [["p3", -1, -1]], moved

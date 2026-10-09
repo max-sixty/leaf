@@ -27,7 +27,11 @@
  * stands the list beside the panels, a queue beside the item it opens, walked up and
  * down as well as across (theme.css says where it stacks); a side list is a box even as
  * the root set, which keeps the root's history, and Back or Forward there lands the
- * set's start when the user stood below it.
+ * set's start when the user stood below it. Where a side list fills a height it is
+ * given, as a full-height workspace's body (theme.css), its list and its open item each
+ * scroll on their own. Its panels are reading regions, and so is its list while it
+ * scrolls on its own, so reading keys and the user's place follow the list or the item
+ * rather than the set.
  *
  * Travel into a hidden panel briefly highlights its selected name, without moving
  * focus from the destination or delaying it. Reduced motion keeps the selected state
@@ -55,6 +59,7 @@ import {
   capturePlace,
   claimTraversals,
   commands,
+  compoundReadingRegionId,
   elementsDeclaring,
   keepView,
   keeps,
@@ -68,15 +73,19 @@ import {
   pageScroller,
   preserveReadingRegions,
   pushEntry,
+  registerReadingRegion,
   relabel,
   removeRuntimeRootStyle,
   replaceEntry,
   restorePlace,
+  scrollBehavior,
   selectableOffer,
   setRuntimeRootStyle,
   sizeObserver,
   tabStore,
   watchAsks,
+  focusDestination,
+  rove,
 } from "/runtime/widget-api.js";
 
 // The page's navigation strip, where one stands: the first tab set in main, drawn as
@@ -112,6 +121,8 @@ customElements.define(
     #pageFlow = false;
     #revealMotion = null;
     #stripSize = null;
+    #stopPanels = null;
+    #stopList = null;
 
     connectedCallback() {
       if (!once(this)) {
@@ -120,6 +131,7 @@ customElements.define(
         this.#listenForHistory();
         this.#listenForAsks();
         this.#watchStrip();
+        this.#syncRegions();
         return this.#listenForDiff();
       }
       // Own panels only (a nested lf-tabs wires its own).
@@ -223,7 +235,7 @@ customElements.define(
         const next = order[to(at, order.length)];
         // The strip is always on screen; focus scrolling a stuck tab back to its place
         // in flow would move the view being left before the switch records it.
-        next.focus({ preventScroll: true });
+        focusDestination(next, "move");
         next.click();
         beginWalk("tab", "Tab", () =>
           listWalkPosition([...this.#buttons.values()], document.activeElement),
@@ -297,9 +309,44 @@ customElements.define(
       this.#listenForDiff();
       this.#listenForAsks();
       this.#watchStrip();
+      this.#syncRegions();
+    }
+
+    // A side list's panels are reading regions whatever their posture, as panes are, so
+    // the user's place in an item survives the workspace flowing and filling the window
+    // again. Its list is one only while it is a column scrolling on its own, while the
+    // set is told it has a definite height to fill (`--lf-full-height`, theme.css):
+    // elsewhere the strip keeps its open tab in view itself (`#showTab`), and observed
+    // as a region there, its own scrolling as it turned into a row ended the size
+    // observers' pass with notifications undelivered. Whether the set is told follows
+    // the window, so the strip's size observer asks again.
+    #syncRegions() {
+      if (!this.#side || !this.isConnected) return;
+      this.#stopPanels ??= [...this.#buttons.keys()].map((panel) =>
+        registerReadingRegion({
+          id: compoundReadingRegionId(this, `panel-${panel.id}`),
+          host: panel,
+          body: panel,
+        }),
+      );
+      const told =
+        getComputedStyle(this).getPropertyValue("--lf-full-height").trim() === "1";
+      if (told === Boolean(this.#stopList)) return;
+      this.#stopList?.();
+      this.#stopList = told
+        ? registerReadingRegion({
+            id: compoundReadingRegionId(this, "list"),
+            host: this.#strip,
+            body: this.#strip,
+          })
+        : null;
     }
 
     disconnectedCallback() {
+      for (const stop of this.#stopPanels ?? []) stop();
+      this.#stopPanels = null;
+      this.#stopList?.();
+      this.#stopList = null;
       this.#revealMotion?.cancel();
       this.#revealMotion = null;
       this.#stripSize?.disconnect();
@@ -404,11 +451,12 @@ customElements.define(
           keeps(panel, "hidden", panel === active ? null : HIDDEN);
           // A tabpanel of prose has no focusable content, so Tab reaches the open
           // panel itself. hidden="until-found" skips only what a panel holds, not
-          // the panel, so a closed one would still be a stop with nothing on screen.
-          keeps(panel, "tabindex", panel === active ? 0 : null);
+          // the panel. A scrolling panel also takes a native browser stop without
+          // tabindex, so explicitly exclude closed panels from the tab order.
+          keeps(panel, "tabindex", panel === active ? 0 : -1);
           keeps(btn, "aria-selected", panel === active);
-          keeps(btn, "tabindex", panel === active ? 0 : -1);
         }
+        rove(this.#buttons.values(), this.#buttons.get(active));
         this.#active = active;
         const button = this.#buttons.get(active);
         this.#showTab(button);
@@ -522,7 +570,7 @@ customElements.define(
         const ahead = getComputedStyle(strip).direction === "rtl" ? -1 : 1;
         strip.scrollBy({
           left: ahead * (to === "start" ? -0.8 : 0.8) * strip.clientWidth,
-          behavior: "smooth",
+          behavior: scrollBehavior(),
         });
       };
       edge.append(face);
@@ -532,13 +580,26 @@ customElements.define(
     // A tab the row runs past is scrolled into the strip, and only the strip: a page
     // strip sticks, and scrolling the page to it would move the view being read. It
     // stops clear of the edge's press, which the strip states as its inline
-    // `scroll-padding` (the package theme). A strip runs past only where its one row
-    // holds more names than it shows, which a side list's column never does.
-    // Where the row has room for it, the tab comes in with its run's label, so the
+    // `scroll-padding` (the package theme). A row runs past where it holds more names
+    // than it shows. A side list's column runs past only where it scrolls on its own,
+    // in a workspace that fills the window (theme.css), and the tab comes into it the
+    // same way, down the column.
+    // Where the strip has room for it, the tab comes in with its run's label, so the
     // name of the group the user opened stays beside it.
     #showTab(btn) {
       const strip = this.#strip;
-      if (!btn || strip.scrollWidth <= strip.clientWidth) return;
+      if (!btn) return;
+      if (strip.scrollHeight > strip.clientHeight) {
+        const room = strip.getBoundingClientRect();
+        const tab = btn.getBoundingClientRect();
+        const label = btn.parentElement.querySelector(":scope > .lf-tab-group");
+        const named = label && label.getBoundingClientRect();
+        const top =
+          named && tab.bottom - named.top <= room.height ? named.top : tab.top;
+        if (top < room.top) strip.scrollTop -= room.top - top;
+        else if (tab.bottom > room.bottom) strip.scrollTop += tab.bottom - room.bottom;
+      }
+      if (strip.scrollWidth <= strip.clientWidth) return;
       const room = strip.getBoundingClientRect();
       const { scrollPaddingLeft, scrollPaddingRight } = getComputedStyle(strip);
       const left = room.left + (Number.parseFloat(scrollPaddingLeft) || 0);
@@ -571,7 +632,9 @@ customElements.define(
       this.#stripSize = sizeObserver(() => {
         pending ||= nextRender(() => {
           pending = 0;
-          if (this.#strip.isConnected) this.#showTab(this.#buttons.get(this.#active));
+          if (!this.#strip.isConnected) return;
+          this.#syncRegions();
+          this.#showTab(this.#buttons.get(this.#active));
         });
       });
       this.#stripSize.observe(this.#strip);

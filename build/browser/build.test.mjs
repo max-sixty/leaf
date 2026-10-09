@@ -3,22 +3,25 @@ import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { parse } from "acorn";
 import { buildOutputs, checkOutputs } from "./build.mjs";
 import { bundledPackages, checkModule } from "./shipped.mjs";
 import { createApplicationPublisher } from "./snapshot.ts";
 
 const outputs = await buildOutputs();
-const outputRoot = "skills/leaf/assets/vendor";
-const diagnosticsRoot = "build/browser/generated";
+const vendor = "skills/leaf/assets/vendor";
+const read = (name) => outputs.get(`${vendor}/${name}`).toString();
+const exportsOf = (code) =>
+  parse(code, { ecmaVersion: "latest", sourceType: "module" })
+    .body.filter((node) => node.type === "ExportNamedDeclaration")
+    .flatMap((node) => node.specifiers.map((specifier) => specifier.exported.name))
+    .sort();
 
 test("locked source reproduces the complete committed output", async () => {
   const rebuilt = await buildOutputs();
   assert.deepEqual(rebuilt, outputs);
   await checkOutputs(outputs);
-  const manifest = JSON.parse(
-    outputs.get(`${diagnosticsRoot}/browser-runtime.manifest.json`),
-  );
-  assert.deepEqual(manifest.exports, [
+  assert.deepEqual(exportsOf(read("browser-runtime.js")), [
     "LitElement",
     "PRESENTATION_HELD",
     "createPresentationCoordinator",
@@ -31,26 +34,48 @@ test("locked source reproduces the complete committed output", async () => {
     "render",
     "repeat",
   ]);
-  // The page's one Lit: the framework imports it rather than carrying a copy.
-  assert.match(
-    outputs.get(`${outputRoot}/browser-runtime.js`).toString(),
-    /^import\{[^}]*\}from"\.\/lit\.js"/,
-  );
-  assert.ok(
-    !outputs.get(`${outputRoot}/browser-runtime.js`).includes("litHtmlVersions"),
-  );
+  const lit = exportsOf(read("lit.js"));
   for (const name of ["LitElement", "html", "classMap", "property", "staticHtml"])
-    assert.ok(manifest.litExports.includes(name), name);
-  assert.ok(outputs.has(`${outputRoot}/browser-runtime.LICENSES.txt`));
-  assert.ok(
-    !outputs.get(`${outputRoot}/browser-runtime.js`).includes("sourceMappingURL"),
+    assert.ok(lit.includes(name), name);
+  const notices = read("browser-runtime.LICENSES.txt");
+  for (const name of ["lit-html", "@preact/signals-core"])
+    assert.ok(notices.includes(`===== ${name} `), name);
+});
+
+test("each source module compiles to one module that keeps its lines", async () => {
+  const modules = [...outputs.keys()].filter((name) =>
+    name.startsWith(`${vendor}/browser-runtime/`),
   );
-  assert.ok(!outputs.has(`${outputRoot}/browser-runtime.js.map`));
-  assert.ok(!outputs.has(`${outputRoot}/browser-runtime.manifest.json`));
-  const map = JSON.parse(outputs.get(`${diagnosticsRoot}/browser-runtime.js.map`));
-  assert.ok(map.sources.includes("../snapshot.ts"));
-  assert.equal(map.sources.length, map.sourcesContent.length);
-  assert.ok(map.sources.every((name) => !path.isAbsolute(name)));
+  for (const name of ["application", "presentation", "snapshot"]) {
+    const source = (
+      await readFile(new URL(`./${name}.ts`, import.meta.url), "utf8")
+    ).split("\n");
+    const compiled = read(`browser-runtime/${name}.js`).split("\n");
+    // One trailer line names the source; every other line is the source's.
+    assert.equal(compiled.length, source.length + 1, name);
+    // Each line is its source line with types blanked; only import paths move.
+    for (const [index, line] of compiled.slice(0, -2).entries())
+      if (!/\bfrom "/.test(line))
+        assert.ok(
+          line.length <= source[index].length &&
+            [...line].every((char, at) => char === source[index][at] || char === " "),
+          `${name}.ts:${index + 1}`,
+        );
+    assert.ok(modules.includes(`${vendor}/browser-runtime/${name}.js`));
+  }
+  // Runtime modules stay native, so the page holds one instance of each.
+  assert.match(
+    read("browser-runtime/application.js"),
+    /^} from "\.\.\/\.\.\/runtime\/thread\/model\.js";$/m,
+  );
+  // The page's one Lit: the framework imports it rather than carrying a copy.
+  assert.match(read("browser-runtime.js"), /^export \{[^}]*\} from "\.\/lit\.js";$/m);
+  assert.match(
+    read("browser-runtime/snapshot.js"),
+    /^import \{ computed, signal \} from "\.\/signals-core\.js";$/m,
+  );
+  for (const name of modules.filter((name) => !name.endsWith("signals-core.js")))
+    assert.ok(!outputs.get(name).includes("litHtmlVersions"), name);
 });
 
 test("checking stale output refuses it without changing any bytes", async (context) => {
@@ -62,7 +87,7 @@ test("checking stale output refuses it without changing any bytes", async (conte
     await writeFile(destination, bytes);
   }
   await checkOutputs(outputs, scratch);
-  const module = path.join(scratch, outputRoot, "browser-runtime.js");
+  const module = path.join(scratch, vendor, "browser-runtime.js");
   const stale = Buffer.from("export const stale = true;\n");
   await writeFile(module, stale);
   await assert.rejects(
@@ -72,6 +97,10 @@ test("checking stale output refuses it without changing any bytes", async (conte
   assert.deepEqual(await readFile(module), stale);
   await rm(module);
   await assert.rejects(checkOutputs(outputs, scratch), /browser-runtime\.js/);
+  await writeFile(module, outputs.get(`${vendor}/browser-runtime.js`));
+  // A module whose source is gone is stale too.
+  await writeFile(path.join(scratch, vendor, "browser-runtime", "removed.js"), "");
+  await assert.rejects(checkOutputs(outputs, scratch), /browser-runtime\/removed\.js/);
 });
 
 test("the bundle gate reads the parsed module, not its text", () => {

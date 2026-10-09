@@ -10,6 +10,7 @@ import json
 import os
 import re
 import select
+import shlex
 import shutil
 import socket
 import subprocess
@@ -48,6 +49,9 @@ from interact_support import (
     publish,
     read_page_data,
     record_claim,
+    release_codex_command,
+    response_reference,
+    retire_test_services,
     running_http_server,
     spawn_probe,
     thread_records,
@@ -56,6 +60,7 @@ from interact_support import (
 )
 from leaf import activity as activity_model
 from leaf import cli as cli_model
+from leaf import codex_adapter as codex_adapter_model
 from leaf import data as data_model
 from leaf import detached as detached_model
 from leaf import document_reading as document_reading_model
@@ -285,7 +290,11 @@ def test_samples_use_captured_resources_and_independent_event_logs(server, page_
     assert f'data-lf-page-root="{child.removeprefix(server)}"'.encode() in document
     served = structure_model.SourceDocument(document.decode()).tree
     assert "inert" in served.find("body").attrs
+    trace = page_dir / interaction_model.INTERACTIONS_FILE
+    before_housekeeping = trace.read_bytes()
+    assert fetch(child + "/api/news")[0] == 200
     assert fetch(child + "/theme.css") == (200, captured_theme)
+    assert trace.read_bytes() == before_housekeeping
     [module_path] = re.findall(rb'src="([^"]+/page/sample.js)"', document)
     assert module_path == f"{root}/page/sample.js".encode()
     assert fetch(server + module_path.decode()) == (200, module)
@@ -313,6 +322,7 @@ def test_samples_use_captured_resources_and_independent_event_logs(server, page_
     _, raw = fetch(child + "/api/state")
     assert len(json.loads(raw)["events"]) == 1
     assert event_model.read_events(page_dir) == parent_before
+
     status, answer = fetch(
         child + "/api/event",
         layer=generation,
@@ -836,7 +846,7 @@ def test_a_visual_comment_must_name_an_authored_part(server, page_dir):
     }
     status, body = fetch(f"{server}/api/event", data=json.dumps(invalid).encode())
     assert status == 400
-    assert b"known: ['node:A', 'node:B']" in body
+    assert 'known: ["node:A", "node:B"]' in json.loads(body)["error"]
 
 
 def test_a_datum_comment_names_the_source_revision_its_section_displayed(
@@ -1034,17 +1044,20 @@ def test_deferred_data_sends_a_manifest_then_serves_one_exact_payload(server, pa
     )
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None
-    with pytest.raises(data_model.DataError, match="record keys must be unique"):
+    with pytest.raises(
+        data_model.DataError, match="record keys must be unique"
+    ) as repeated:
         data_model.cmd_data_set(
             page_dir,
             "review-patch",
             {
                 "files": [
-                    {"key": "src/a.py", "path": "first", "patch": "one"},
-                    {"key": "src/a.py", "path": "second", "patch": "two"},
+                    {"key": key, "path": "file", "patch": "diff"}
+                    for key in ["a,b", "a", "b", "a,b", "a", "b"]
                 ]
             },
         )
+    assert 'repeated ["a", "a,b", "b"]' in str(repeated.value)
     data_model.cmd_data_set(
         page_dir,
         "review-patch",
@@ -1132,8 +1145,9 @@ def test_historical_deferred_reads_keep_the_document_revision_and_layer(
     ]["generation"]
 
     # Re-vendoring changes the active layer epoch while preserving the data contract.
+    theme = page_dir / "theme.css"
+    theme.write_text(theme.read_text() + "\n/* repair installed edit */\n")
     vendoring_model.cmd_init(page_dir)
-    (page_dir / "index.html").write_text(source.replace("<h1>A</h1>", "<h1>B</h1>"))
     second = revisioning_model.activate_source(page_dir)
     assert second.error is None and second.revision != first.revision
     second_layer = artifact_model.read_revision(page_dir, second.revision).registry[
@@ -1264,7 +1278,7 @@ def test_a_stamped_restatement_remains_the_valid_live_source(server, page_dir):
             "revision": first_revision,
             "widget": "decision",
             "action": "edit",
-            "detail": {"text": "Backfill first."},
+            "detail": {"value": "Backfill first."},
         },
     )
 
@@ -1338,8 +1352,7 @@ def test_server_round_trip(server, page_dir):
     status, _ = fetch(f"{server}/versions/v1.html")
     assert status == 404
     stamped = CliRunner().invoke(
-        cli_model.cli,
-        ["page", "stamp", str(page_dir), "--text", "cut"],
+        cli_model.cli, ["page", "stamp", str(page_dir), "--text", "cut"]
     )
     assert stamped.exit_code == 0, stamped.output
     # The handover address is the live page, not a pinned revision address.
@@ -1451,13 +1464,13 @@ def test_server_round_trip(server, page_dir):
                 "revision": newest,
                 "widget": "feeder-board",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
+                "detail": {"unit": "card-baffle", "value": "col-doing", "rank": "0i"},
             }
         ).encode(),
     )
     assert status == 200
     moved = event_model.read_events(page_dir)[-1]
-    assert moved["author"] == "user" and moved["detail"]["to"] == "col-doing"
+    assert moved["author"] == "user" and moved["detail"]["value"] == "col-doing"
     # A design comment names the control the press landed on beside the widget it is
     # about. The door takes its design intent as posted, and the transcript says which
     # kind of comment it was.
@@ -1713,7 +1726,7 @@ def test_server_round_trip(server, page_dir):
             "kind": "report",
             "widget": "feeder-board",
             "action": "move",
-            "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
+            "detail": {"unit": "card-baffle", "value": "col-doing", "rank": "0i"},
             "revision": 2,
         },
         # Message revisions are agent-authored too. The browser cannot turn the
@@ -1944,7 +1957,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
                 "revision": 2,
                 "widget": "choice",
                 "action": "choose",
-                "detail": {"options": ["flag-first"]},
+                "detail": {"value": ["flag-first"]},
             }
         ).encode(),
     )
@@ -1963,11 +1976,9 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     reply = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "--for",
-            "approval-question",
+            response_reference(page_dir, "approval-question"),
             "--text",
             "Choose the follow-up:",
             "--markup",
@@ -1997,7 +2008,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
                 "revision": 2,
                 "widget": "thread-approval",
                 "action": "choose",
-                "detail": {"options": ["thread-approval-a"]},
+                "detail": {"value": ["thread-approval-a"]},
             }
         ).encode(),
     )
@@ -2275,7 +2286,7 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
         "revision": 1,
         "widget": "delivery",
         "action": "choose",
-        "detail": {"options": ["delivery-now"]},
+        "detail": {"value": ["delivery-now"]},
         "attempt": "attempt-browser-view-1",
     }
 
@@ -2327,7 +2338,7 @@ def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
                     "revision": 1,
                     "widget": "delivery",
                     "action": "choose",
-                    "detail": {"options": [option]},
+                    "detail": {"value": [option]},
                     "attempt": attempt,
                 }
             ).encode(),
@@ -2336,7 +2347,7 @@ def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
 
     latest = json.loads(body)["state"]["browser"]["views"]["1"]["undo"][0]
     assert latest["event"]["id"] == json.loads(body)["state"]["events"][-1]["id"]
-    assert latest["event"]["detail"] == {"options": ["delivery-later"]}
+    assert latest["event"]["detail"] == {"value": ["delivery-later"]}
 
 
 def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
@@ -2376,7 +2387,7 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
             "revision": 1,
             "widget": "picks",
             "action": "choose",
-            "detail": {"options": ["flag-first"]},
+            "detail": {"value": ["flag-first"]},
             "meaning": {
                 "scope": "page",
                 "unit": "picks",
@@ -2539,7 +2550,7 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
     publish(page_dir, 1)
 
     def choose(widget, option):
-        return append_carried_log_record(
+        return append_command(
             page_dir,
             {
                 "kind": "action",
@@ -2547,8 +2558,7 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
                 "revision": 1,
                 "widget": widget,
                 "action": "choose",
-                "detail": {"options": [option]},
-                "meaning": {"scope": "page", "unit": widget, "depends": [widget]},
+                "detail": {"value": [option]},
             },
         )
 
@@ -2558,8 +2568,8 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
     approval = append_carried_log_record(
         page_dir, {"kind": "done", "author": "user", "version": 1}
     )
-    # The fold reads revision 2 from `documents`; it is never written to disk, since
-    # the door refuses to activate a revision that drops a standing decision.
+    # The fold reads both documents directly; admission above captures the sending
+    # revision's operation before the later document drops and restates widgets.
     append_carried_log_record(
         page_dir,
         {
@@ -2676,7 +2686,7 @@ def test_a_comparison_view_uses_the_requested_log_boundary(server, page_dir):
                     "revision": 1,
                     "widget": "delivery",
                     "action": "choose",
-                    "detail": {"options": [option]},
+                    "detail": {"value": [option]},
                     "attempt": attempt,
                 }
             ).encode(),
@@ -2867,7 +2877,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
                 "revision": 1,
                 "widget": "feeder-board",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
+                "detail": {"unit": "card-baffle", "value": "col-doing", "rank": "0i"},
             },
             "unknown action widget",
         ),
@@ -2877,7 +2887,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
                 "revision": 2,
                 "widget": "flow",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
+                "detail": {"unit": "card-baffle", "value": "col-doing", "rank": "0i"},
             },
             "<lf-diagram> does not declare action verb",
         ),
@@ -2887,7 +2897,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
                 "revision": 2,
                 "widget": "feeder-board",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-doing", "rank": 0},
+                "detail": {"unit": "card-baffle", "value": "col-doing", "rank": 0},
             },
             "detail is invalid",
         ),
@@ -2897,7 +2907,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
                 "revision": 2,
                 "widget": "feeder-board",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-doing", "rank": "10"},
+                "detail": {"unit": "card-baffle", "value": "col-doing", "rank": "10"},
             },
             "rank '10' is not a rank key",
         ),
@@ -2916,7 +2926,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
         "revision": 2,
         "widget": "feeder-board",
         "action": "move",
-        "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
+        "detail": {"unit": "card-baffle", "value": "col-doing", "rank": "0i"},
     }
     assert fetch(f"{server}/api/event", data=json.dumps(valid).encode())[0] == 200
 
@@ -2950,7 +2960,7 @@ def test_server_preserves_the_active_vocabulary_when_candidate_registry_is_broke
                 "revision": 1,
                 "widget": "feeder-board",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
+                "detail": {"unit": "card-baffle", "value": "col-doing", "rank": "0i"},
             }
         ).encode(),
     )
@@ -2977,11 +2987,9 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
     reply = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "--for",
-            "c1",
+            response_reference(page_dir, "c1"),
             "--text",
             "Pick one:",
             "--markup",
@@ -3013,7 +3021,7 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
         "kind": "action",
         "revision": 1,
         "action": "choose",
-        "detail": {"options": ["thread-a"]},
+        "detail": {"value": ["thread-a"]},
     }
     status, _ = fetch(
         f"{server}/api/event",
@@ -3026,7 +3034,7 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
             {
                 **choose,
                 "widget": "exhibited-pick",
-                "detail": {"options": ["exhibited-a"]},
+                "detail": {"value": ["exhibited-a"]},
             }
         ).encode(),
     )
@@ -3114,7 +3122,7 @@ def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring
                 "revision": files_model.latest_revision(page_dir),
                 "widget": "local-draft",
                 "action": "edit",
-                "detail": {"text": "New words."},
+                "detail": {"value": "New words."},
             }
         ).encode(),
     )
@@ -3122,7 +3130,7 @@ def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring
     assert status == 200, body
     event = json.loads(body)["state"]["events"][-1]
     assert event["widget"] == "local-draft"
-    assert event["detail"] == {"text": "New words."}
+    assert event["detail"] == {"value": "New words."}
 
 
 def test_concurrent_posts_never_tear_the_log(server, page_dir):
@@ -3148,7 +3156,7 @@ def test_concurrent_posts_never_tear_the_log(server, page_dir):
 
 def test_every_kind_of_user_move_is_named_in_eight_characters(server, page_dir):
     """An id is something the agent reads back and retypes. One user comment
-    shows the agent its id five times over and is answered with `leaf thread reply --for
+    shows the agent its id five times over and is answered with `leaf response reply <answer.ref>
     <id>`, so an id is eight hex characters. No kind is carved out of that: an
     id a harness keys an operation on is unique within this page either way, so the
     harness pairs it with the page rather than being handed a wider id and left to
@@ -3183,7 +3191,7 @@ def test_every_kind_of_user_move_is_named_in_eight_characters(server, page_dir):
                 "revision": 1,
                 "widget": "worker",
                 "action": "choose",
-                "detail": {"options": ["worker-restart"]},
+                "detail": {"value": ["worker-restart"]},
             }
         ).encode(),
     )
@@ -3335,7 +3343,7 @@ def test_unchanged_presence_observation_is_shared_and_file_changes_refresh_it(
     )
     refreshed = presence_model.presence_reading(page_dir)
     assert refreshed == first
-    assert calls == 2
+    assert calls == 1
 
 
 def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
@@ -3382,7 +3390,7 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     assert row["activity"] == expected
     assert row["activity"]["counts"]["pending"] == 1
     assert row["session_cwd"] == "/work/neighbor"
-    assert reads == [neighbor / "service.json", publisher.path]
+    assert reads == [neighbor / "service.json"]
     cleanup_model.write_json(neighbor / "status.json", {"state": "idle"})
     assert presence_model.other_leaves(page_dir) == [row]
     # Shared-home records from an incompatible producer stay absent, including
@@ -3399,6 +3407,76 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
         neighbor / "service.json", {**service, "server_id": "replacement"}
     )
     assert presence_model.other_leaves(page_dir) == []
+
+
+def test_a_pages_own_row_publications_do_not_rescan_its_neighbors(
+    page_dir, monkeypatch
+):
+    """A local writer publishes its row, which is not this page's neighbor input.
+
+    The real producer changes compact activity after status transitions. Twenty
+    own publications must reuse the neighbor observation; another producer's
+    changed row must invalidate it immediately and preserve its new content.
+    """
+    neighbor = machine_model.state_home() / "pages" / "row-neighbor"
+    neighbour_page(neighbor, title="Neighbor")
+    own = server_rows_model.RowPublisher(page_dir, "own-server")
+    own.refresh()
+    calls = []
+    read = presence_model.other_leaves
+
+    def observe(page):
+        calls.append(page)
+        return read(page)
+
+    monkeypatch.setattr(presence_model, "other_leaves", observe)
+    presence_model._neighbor_reading(page_dir)
+    for n in range(20):
+        cleanup_model.write_json(
+            page_dir / "status.json",
+            {"state": "waiting", "detail": str(n), "ts": cleanup_model.now_iso()},
+        )
+        own.refresh()
+        record = files_model.read_json(own.path)
+        # Give every pass a concrete changed canonical producer publication,
+        # even when waiting's detail is absent from the compact activity fold.
+        cleanup_model.write_json(
+            own.path, {**record, "row": {**record["row"], "title": f"Own {n}"}}
+        )
+        presence_model._neighbor_reading(page_dir)
+    assert len(calls) == 1
+    changed = server_rows_model.row_path(neighbor)
+    record = files_model.read_json(changed)
+    cleanup_model.write_json(
+        changed, {**record, "row": {**record["row"], "title": "Changed neighbor"}}
+    )
+    [row] = presence_model._neighbor_reading(page_dir)
+    assert row["title"] == "Changed neighbor"
+    assert len(calls) == 2
+
+
+def test_neighbor_subscription_follows_a_row_directory_created_after_startup(
+    page_dir, tmp_path
+):
+    """A missing rows/ starts with its parent subscription, then subscribes rows/.
+
+    The second publication's exact path proves delivery from the new directory,
+    rather than the synchronous stamp fallback finding it during a later read.
+    """
+    rows = machine_model.state_home() / "rows"
+    assert not rows.exists()
+    assert presence_model.neighbor_candidates() == ()
+    neighbor = tmp_path / "new-neighbor"
+    neighbour_page(neighbor, title="New neighbor")
+    assert presence_model.neighbor_candidates()
+    published = rows / "second.json"
+    cleanup_model.write_json(published, {"page": str(tmp_path / "second")})
+    paths = set()
+    wait_for(
+        lambda: paths.update(presence_model._row_subscription.batch(0)) or paths,
+        lambda delivered: str(published) in delivered,
+        failure="the rows subscription did not receive the second publication",
+    )
 
 
 def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
@@ -4280,7 +4358,7 @@ def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
             "revision": 1,
             "widget": "picks",
             "action": "choose",
-            "detail": {"options": ["flag-first"]},
+            "detail": {"value": ["flag-first"]},
         },
     )
     (page_dir / "index.html").write_text(
@@ -4383,22 +4461,25 @@ def test_a_page_reading_moves_for_a_second_write_in_one_clock_tick(
     assert served_reading.page_reading(page_dir) != before
 
 
-def test_neighbour_discovery_sees_a_page_made_in_one_clock_tick(page_dir, monkeypatch):
-    """A page made in the state home's pages/ after a scan taken in the write clock's
+def test_neighbour_discovery_sees_a_row_made_in_one_clock_tick(page_dir, monkeypatch):
+    """A publication made in rows/ after a scan taken in the write clock's
     tick of the change before it, leaving the directory's size unchanged, is still
     discovered: the scan is keyed on the directory's stamp, and a stamp the second
     change left in place would hide the new page until some later write moved it."""
     written = _coarse_write_clock(monkeypatch)
-    pages = machine_model.state_home() / "pages"
-    (pages / "first").mkdir(parents=True)
-    (pages / "placeholder").write_text("")
-    written(pages)
+    rows = machine_model.state_home() / "rows"
+    rows.mkdir(parents=True, exist_ok=True)
+    cleanup_model.write_json(rows / "first.json", {"page": str(page_dir / "first")})
+    (rows / "placeholder").write_text("")
+    written(rows)
     before = presence_model.neighbor_candidates()
-    (pages / "placeholder").unlink()
-    (pages / "second").mkdir()
-    written(pages)
-    assert (pages / "second").resolve() not in before
-    assert (pages / "second").resolve() in presence_model.neighbor_candidates()
+    (rows / "placeholder").unlink()
+    cleanup_model.write_json(rows / "second.json", {"page": str(page_dir / "second")})
+    written(rows)
+    assert page_dir / "second" not in [page for page, _record in before]
+    assert page_dir / "second" in [
+        page for page, _record in presence_model.neighbor_candidates()
+    ]
 
 
 def test_a_snapshot_holds_declared_data_media_with_the_current_value(
@@ -4468,11 +4549,27 @@ def test_a_snapshot_holds_declared_data_media_with_the_current_value(
     reordered = revisioning_model.activate_source(page_dir)
     assert reordered.error is None and reordered.created
 
-    # A selector change cannot silently discard media from an already bound source.
+    # Revised selectors govern the current snapshot, while an earlier capture keeps
+    # its selected bytes. A producer can supply media for the revised declaration.
     registry["$data"]["contracts"]["test-data"]["resources"] = ["other[].url"]
     registry_path.write_text(json.dumps(registry))
-    refused = revisioning_model.activate_source(page_dir)
-    assert "record declaration, or resources change" in refused.error
+    changed = revisioning_model.activate_source(page_dir)
+    assert changed.error is None and changed.created
+    current = page_snapshot_model.capture_page_snapshot(
+        page_dir,
+        artifact_model.read_revision(page_dir, changed.revision).document,
+        {"revision": changed.revision, "version": None, "url": "/"},
+    )
+    assert current.data_resources == {}
+    assert snapshot.data_resources[urls[1]].data == second.read_bytes()
+    data_model.cmd_data_set(page_dir, "images", {"other": [{"url": urls[0]}]})
+    revised = page_snapshot_model.capture_page_snapshot(
+        page_dir,
+        artifact_model.read_revision(page_dir, changed.revision).document,
+        {"revision": changed.revision, "version": None, "url": "/"},
+    )
+    assert set(revised.data_resources) == {urls[0]}
+    assert revised.data_resources[urls[0]].data == first.read_bytes()
 
 
 def test_a_preview_uses_the_validated_module_graph_after_a_later_edit(page_dir):
@@ -5620,7 +5717,7 @@ def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_d
         "revision": 2,
         "widget": "choice",
         "action": "choose",
-        "detail": {"options": ["flag-first"]},
+        "detail": {"value": ["flag-first"]},
     }
     publisher = threading.Thread(target=run_stamp)
     publisher.start()
@@ -5841,7 +5938,7 @@ def test_sample_fixtures_share_captured_history_but_isolate_child_gestures(
             "kind": "action",
             "widget": "route",
             "action": "choose",
-            "detail": {"options": ["fast"]},
+            "detail": {"value": ["fast"]},
             "revision": 27,
         },
     ]
@@ -5948,3 +6045,38 @@ def test_nested_sample_fixtures_resolve_in_the_immediate_parent_document(
         event["text"] for event in json.loads(fetch(inner + "api/state")[1])["events"]
     ] == ["Nested fixture"]
     assert event_model.read_events(page_dir) == parent_before
+
+
+def test_test_teardown_ends_detached_delivery_before_removing_state(
+    codex_claimed_page, under_codex, codex_env, codex_queue, tmp_path, isolated_session
+):
+    """Stopping the page alone leaves delivery watching its still-owned claim.
+
+    Teardown ends the synthetic harness while coordination files remain, so
+    its detached adapter releases its leases before temporary state disappears.
+    """
+    page = codex_claimed_page
+    program = Path(codex_queue["PATH"].split(os.pathsep)[0]) / "codex"
+    finished = tmp_path / "codex-start-finished"
+    started = under_codex(
+        shlex.join(
+            [*LEAF_COMMAND, "codex", "start", str(page), "--codex-path", str(program)]
+        ),
+        codex_env | codex_queue | {"CODEX_THREAD_ID": "codex-thread"},
+        finished=finished,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    release_codex_command(page, started, finished)
+    out, err = started.communicate(timeout=STATED_TIMEOUT)
+    assert started.returncode == 0, f"{out}{err}"
+    assert codex_adapter_model.adapter_is_live("codex-thread")
+
+    hosting_model.cmd_stop(page)
+    assert not server_model.running_server(page)
+    assert codex_adapter_model.adapter_is_live("codex-thread")
+
+    retire_test_services(tmp_path, isolated_session)
+    assert cleanup_model.session_record("codex-thread")["ended"] is not None
+    assert not codex_adapter_model.adapter_is_live("codex-thread")

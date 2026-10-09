@@ -12,12 +12,19 @@ enter development branches. Installers follow that branch and copy ready files;
 package authors continue to use native JavaScript without a build.
 
 - `browser/` is the TypeScript browser framework, its Node tests, and `build.mjs`,
-  which compiles it and `lit.js`. `browser/shipped.mjs` refuses a module an
+  which compiles each of its modules to one JavaScript module, line for line, and
+  vendors Lit and Signals for it. `browser/shipped.mjs` refuses a module an
   export cannot load and writes each bundle's license notices; every build here passes its
-  output through it. `browser/generated/` holds the source maps and manifest.
-- `vendor.py` rebuilds every other bundle. Where upstream publishes a loadable file
-  it copies it; `pierre/` and `webawesome/` are the inputs of the bundles it has
-  to build.
+  output through it. Branches that change the framework therefore conflict in its
+  output only where their TypeScript conflicts, and `check:browser` confirms a merge
+  equals a rebuild. `runtime-bundle.mjs` compiles the framework into the kernel for
+  delivery.
+- `initial.mjs` builds each package's synchronous initial drawing from its
+  `initial.js` into the one bundle its registry declares with `x-initial`;
+  `build:browser` and `check:browser` include these outputs.
+- `vendor.py` rebuilds every third-party bundle outside the framework, bundling what
+  each consumer needs or adapting an upstream browser module. `pierre/` and
+  `webawesome/` hold the inputs their builders use.
 
 After `npm ci`, both reproduce the tracked bytes, so a diff after a rebuild means the
 lock, a build script, or the registry input changed:

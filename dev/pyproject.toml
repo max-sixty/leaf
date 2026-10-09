@@ -5,12 +5,11 @@
 #
 # It names no dependency on `leaf`, though its modules import it: it always runs
 # beside one, and which one is the caller's choice. `leaf-dev preview --runtime`
-# overlays this package onto another checkout's environment, whose `leaf` it must not
-# replace.
+# runs the selected checkout's worker and `leaf` together in that environment.
 [project]
 name = "leaf-dev"
 version = "0"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
     "click>=8",
     "pillow>=12.1",

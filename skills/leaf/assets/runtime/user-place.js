@@ -10,11 +10,15 @@
    reference is chosen by what the user last named: an item under the pointer or
    holding focus, whichever input came last, then the other, then the items in the
    scroller's visible band (less the sticky headers stuck over each item, `headerInset`, so an
-   item wholly under a stuck heading is not where anyone is reading) from the top down. Only an item whose top stands in the band
-   can be named or lead. Holding a top the user cannot see keeps nothing they see still:
-   the item's growth pushes everything after it, where holding the next item grows it
-   up into the room scrolled past. The item the band's top cuts holds the place only
-   where no item begins in view. Every candidate is recorded, so when the
+   item wholly under a stuck heading is not where anyone is reading) from the top down.
+   Only an item whose top stands in the band can be named or lead by default.
+   A surface may supply a visible `preferred` item
+   whose interior is the active reading, even with its top clipped; it follows named
+   items and precedes the default visible rows. Otherwise, holding a top the user
+   cannot see keeps nothing they see still: the item's growth pushes everything after
+   it, where holding the next item grows it up into the room scrolled past. Without a
+   preferred reading, the item the band's top cuts holds the place only where no item
+   begins in view. Every candidate is recorded, so when the
    first leaves, hides, or is renamed out of `items`, the next one still standing holds
    the place without recovering an old position. A candidate the render replaced is
    handed across to the node now rendered under its identity; that is how a keyed
@@ -30,9 +34,12 @@
    A mutation that spans tasks takes its hold with `take` and ends it with `finish`, which
    corrects once, then follows frame by frame while `following()` says the mutation is
    still running. Such a hold is the sole anchoring authority for its mutation:
-   `overflow-anchor: none` stands on the scroller for the hold's life and leaves on
-   release, so the browser and the hold never compensate the same reflow, and a user's
-   scroll between frames stays theirs. A hold taken while another stands on the same
+   `overflow-anchor: none` stands on the scroller for the hold's life and leaves at the
+   rendering pass after its release, so the browser and the hold never compensate the
+   same reflow, and a user's scroll between frames stays theirs. It leaves at that pass
+   rather than at the release because renders run back to back: one finishing and the
+   next taking its hold in the same script would take the property away and put it back,
+   a write that changes nothing. A hold taken while another stands on the same
    scroller inherits its reference, because a mutation in flight (a fold) has already
    moved whatever the pointer would now name.
 
@@ -43,21 +50,20 @@
    and the scroller's style is never written and taken back in the one task. So `mutate`
    moves no scroller itself: a `focus()` without `preventScroll` or a `scrollIntoView`
    inside it would be read as reflow and undone. */
-import { nextFrame } from "./rendering.js";
+import { cancelRender, nextFrame, nextRender } from "./rendering.js";
 import { headerInset, visibleBand } from "./geometry.js";
-import { focused } from "./keyboard/scopes.js";
 import { pointerAt } from "./pointer.js";
-import { recentPlaceInput } from "./user-intent.js";
+import { recentPlaceInput, focused } from "./focus.js";
 
 // The candidates in the order they may hold the place, each once: an inherited
-// reference, named items in input order, then the visible ones from the lead downward and
-// wrapping to those above it.
-export function placeCandidates({ inherited, named, visible }) {
-  const lead = inherited || named[0] || visible[0];
+// reference, named items in input order, the surface's preferred reading, then the
+// visible ones from the lead downward and wrapping to those above it.
+export function placeCandidates({ inherited, named, preferred, visible }) {
+  const lead = inherited || named[0] || preferred || visible[0];
   const at = visible.indexOf(lead);
   const rest =
     at < 0 ? visible : [...visible.slice(at + 1), ...visible.slice(0, at + 1)];
-  return [...new Set([inherited, ...named, lead, ...rest].filter(Boolean))];
+  return [...new Set([inherited, ...named, preferred, lead, ...rest].filter(Boolean))];
 }
 
 // How far to scroll so a reference whose content offset moved from `was` to `now` stands
@@ -80,7 +86,10 @@ export function placeCorrection({
   return now - was - reflowed;
 }
 
-export function placeKeeper(scroller, { items, identity, active = () => true }) {
+export function placeKeeper(
+  scroller,
+  { items, identity, active = () => true, preferred = () => null },
+) {
   let standing = null;
   const limit = () => Math.max(0, scroller.scrollHeight - scroller.clientHeight);
   // The box a node can hold the place by, or null where it holds nothing.
@@ -111,11 +120,20 @@ export function placeKeeper(scroller, { items, identity, active = () => true }) 
     return replacement ?? null;
   };
 
-  // Native anchoring is off exactly while a hold that spans tasks stands. A same-value
-  // property set and the removal of an absent one write nothing.
+  // Native anchoring is off while a hold that spans tasks stands, and comes back at the
+  // next rendering pass with none standing, before that frame lays anything out. A
+  // same-value property set writes nothing.
+  let returning = 0;
   function claim() {
-    if (standing?.spans) scroller.style.setProperty("overflow-anchor", "none");
-    else scroller.style.removeProperty("overflow-anchor");
+    if (standing?.spans) {
+      cancelRender(returning);
+      returning = 0;
+      scroller.style.setProperty("overflow-anchor", "none");
+    } else if (!returning && scroller.style.getPropertyValue("overflow-anchor"))
+      returning = nextRender(() => {
+        returning = 0;
+        if (!standing?.spans) scroller.style.removeProperty("overflow-anchor");
+      });
   }
 
   function release(hold) {
@@ -183,8 +201,7 @@ export function placeKeeper(scroller, { items, identity, active = () => true }) 
         );
       })
       .sort((a, b) => boxes.get(a).top - boxes.get(b).top);
-    // Only an item beginning in view can be named or lead; the one the band's top cuts
-    // is the last resort.
+    // A named row begins in view. The surface's active reading may begin above it.
     const beginning = visible.filter((node) => boxes.get(node).top >= topFor(node));
     const shown = new Set(visible);
     const pointer = over ? document.elementFromPoint(x, y)?.closest?.(items) : null;
@@ -192,11 +209,13 @@ export function placeKeeper(scroller, { items, identity, active = () => true }) 
     const named = (
       recentPlaceInput() === "pointer" ? [pointer, focus] : [focus, pointer]
     ).filter((node) => beginning.includes(node));
+    const reading = preferred();
     const candidates = placeCandidates({
       inherited: prior?.references.find(
         (candidate) => live(candidate) && shown.has(candidate.node),
       )?.node,
       named,
+      preferred: shown.has(reading) ? reading : null,
       visible: beginning,
     });
     const references = [...new Set([...candidates, ...visible])]

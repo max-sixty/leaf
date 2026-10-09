@@ -6,7 +6,7 @@ working directory. The record is bound to service.server_id, so another server
 incarnation cannot inherit it; the server lease decides whether any row exists.
 Deleting every row only hides neighbors until their next maintenance look.
 
-A per-page producer checks this page's file stamps every 100 ms and live harness,
+A per-page producer subscribes to this page's application writes and checks live harness,
 process and waiter facts every presence-cache interval. Changed inputs or the fold's next
 transition trigger a local transaction and fold; quiet looks never reread the
 log or document. Only changed row content is replaced. Neighbor consumers read
@@ -23,7 +23,9 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from .file_changes import page_changes
 from .files import read_json
+from .page_memory import memory_of
 from .presence import PRESENCE_CACHE_S, live_facts
 from .served_state.reading import page_reading
 from .served_state.service import PageStateService
@@ -57,14 +59,20 @@ def row_path(page_dir: Path) -> Path:
     return state_home_path() / "rows" / f"{page_key(page_dir)}.json"
 
 
-def read_row(page_dir: Path, service: dict) -> dict | None:
+def read_row(page_dir: Path, service: dict, *, record=None) -> dict | None:
     """Read compatible output from this live service's own publication."""
-    record = read_json(row_path(page_dir))
-    if not isinstance(record, dict) or not {"server_id", "row"} <= record.keys():
+    if record is None:
+        record = read_json(row_path(page_dir))
+    if (
+        not isinstance(record, dict)
+        or not {"page", "page_key", "server_id", "row"} <= record.keys()
+    ):
         return None
     row = record["row"]
     if (
         not isinstance(record["server_id"], str)
+        or not isinstance(record["page"], str)
+        or not isinstance(record["page_key"], str)
         or record["server_id"] != service.get("server_id")
         or not isinstance(row, dict)
         or not {"title", "session_cwd", "activity"} <= row.keys()
@@ -87,6 +95,7 @@ class RowPublisher:
 
     def __init__(self, page_dir: Path, server_id: str):
         self.page_dir = page_dir
+        self.memory = memory_of(page_dir)
         self.server_id = server_id
         self.service = PageStateService(page_dir)
         self.reading = None
@@ -101,8 +110,13 @@ class RowPublisher:
         """Publish for this server process's lifetime, withdrawing failed output."""
         try:
             while True:
+                changes = page_changes(self.page_dir)
+                mark = changes.mark()
                 self.refresh()
-                time.sleep(0.1)
+                delay = PRESENCE_CACHE_S
+                if self.transition is not None:
+                    delay = min(delay, max(0.0, self.transition - time.time()))
+                changes.wait(mark, delay)
         except Exception as error:  # noqa: BLE001 - a producer must not die under a live lease
             print(
                 f"leaf server: {self.page_dir}: row publication failed: {error}",
@@ -133,5 +147,13 @@ class RowPublisher:
             datetime.fromisoformat(deadline).timestamp() if deadline else None
         )
         if row != self.row or not self.path.is_file():
-            write_json(self.path, {"server_id": self.server_id, "row": row})
+            write_json(
+                self.path,
+                {
+                    "page": str(self.page_dir),
+                    "page_key": page_key(self.page_dir),
+                    "server_id": self.server_id,
+                    "row": row,
+                },
+            )
             self.row = row

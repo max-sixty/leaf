@@ -173,8 +173,8 @@ def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve
     # The second Ask carries the card presentation, which is where the row's trailing
     # room is contested: its options wear their binding badges at the corner, so the
     # draft's badge is the one that had the edge.
-    page.keyboard.press("a")
-    page.keyboard.press("a")
+    page.keyboard.press("q")
+    page.keyboard.press("q")
     expect(page.locator("#bracket > .lf-another > .lf-key-badge")).to_be_visible()
     shown = page.locator("#bracket > .lf-another").evaluate(
         """el => {
@@ -343,7 +343,7 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
     ]
     assert moves == [
         ("add", {"option": identity, "text": "Insulate the camera battery"}),
-        ("choose", {"options": [identity]}),
+        ("choose", {"value": [identity]}),
     ]
     assert not [
         event for event in events_model.read_events(d) if event["kind"] == "comment"

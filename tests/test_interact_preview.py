@@ -1,8 +1,8 @@
 """Preview input readings and the user handoff's harness connection.
 
 `leaf-dev preview` resolves three things from wherever its source sits: the
-package layer, the media directory, and the set of paths a watcher subscribes
-to. Input tests state a directory tree and ask for those pure readings. The user
+package layer, the companion media and pinned assets, and the paths a watcher
+subscribes to. Input tests exercise those readings and shared page preparation. The user
 handoff crosses the real claim, server and delivery adapter boundaries, without
 opening a browser.
 
@@ -21,10 +21,201 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import pytest
+from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from interact_support import ROOT, STATED_TIMEOUT, declare_idle, fetch, stamp, wait_for
-from leaf import codex_adapter, leases, server, service, session
-from leaf_dev import preview
+from leaf import cli as cli_model
+from leaf import codex_adapter, hosting, leases, server, service, session, state
+from leaf.media import media_name
+from leaf.structure import SourceDocument
+from leaf_dev import page_fixtures, preview
+from leaf_dev.page_fixtures import prepare_page, read_fixture
+
+
+def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
+    tmp_path, under_codex, codex_env, codex_queue
+):
+    """The command returns; unloading its chat keeps the watcher, URL and carrier.
+
+    The copied Codex executable states the desktop ancestry. Its queue endpoint
+    records delivery, while Leaf's detached watcher and HTTP service are real.
+    """
+    source = tmp_path / "review.html"
+    source.write_text(
+        "<!doctype html><html><head><title>Review</title></head><body>"
+        '<main><h1>Review</h1><p id="candidate">Original candidate</p></main>'
+        "</body></html>"
+    )
+    page = tmp_path / "previews" / "review"
+    sid = "desktop-preview"
+    task = under_codex(
+        shlex.join(
+            [
+                sys.executable,
+                "-m",
+                "leaf_dev.preview",
+                "--worker",
+                "--user",
+                "--source",
+                str(source),
+                "--runtime",
+                str(ROOT),
+                "--slot",
+                page.name,
+            ]
+        ),
+        codex_env
+        | codex_queue
+        | {
+            "CODEX_THREAD_ID": sid,
+            "LEAF_PREVIEWS_ROOT": str(page.parent),
+        },
+        app_server=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        output, errors = task.communicate(timeout=STATED_TIMEOUT)
+        assert task.returncode == 0, f"{output}{errors}"
+        url = next(line for line in output.splitlines() if line.startswith("http://"))
+        acquired = service.page_claim(page)["acquisition"]
+        before = state.session_record(sid)
+        ended = subprocess.run(
+            [*LEAF_COMMAND, "session-end"],
+            check=False,
+            input=json.dumps({"hook_event_name": "SessionEnd", "session_id": sid}),
+            env=codex_env,
+            capture_output=True,
+            text=True,
+            timeout=STATED_TIMEOUT,
+        )
+        assert ended.returncode == 0, ended.stderr
+        assert state.session_record(sid)["generation"] == before["generation"]
+        assert state.hook_needed({"hook_event_name": "PostToolUse", "session_id": sid})
+        assert leases.lock_is_held(preview.preview_lease(page))
+        assert server.running_server(page)["url"] == url
+
+        source.write_text(
+            source.read_text().replace("Original candidate", "Revised candidate")
+        )
+        wait_for(
+            lambda: (page / "index.html").read_text(),
+            lambda text: "Revised candidate" in text,
+            failure="the detached preview did not follow its source after unload",
+        )
+        endpoint = urlsplit(url)._replace(path="/api/event").geturl()
+        status, body = fetch(
+            endpoint,
+            data=json.dumps(
+                {
+                    "kind": "comment",
+                    "revision": 1,
+                    "text": "Please revise this candidate",
+                    "attempt": "desktop-after-unload",
+                }
+            ).encode(),
+            token=None,
+        )
+        assert status == 200, body
+        queued = Path(codex_queue["PREVIEW_QUEUE_RECORD"])
+        wait_for(queued.exists, bool, failure="feedback after unload was not queued")
+        assert json.loads(queued.read_text())[:4] == [
+            "queue",
+            "--thread",
+            sid,
+            "--message",
+        ]
+        assert service.page_claim(page)["acquisition"] == acquired
+    finally:
+        if (page / "events.jsonl").exists():
+            hosting.cmd_stop(page)
+            with service.PageTransaction(page) as transaction:
+                transaction.release_claim()
+            wait_for(
+                lambda: leases.lock_is_held(preview.preview_lease(page)),
+                lambda held: not held,
+                failure="the explicitly stopped detached preview kept watching",
+            )
+
+
+def test_abandoned_desktop_preview_publishes_no_claim(
+    tmp_path, spawn, under_codex, codex_env
+):
+    """Outer preview acceptance owns both watcher readiness and HTTP publication."""
+    source = tmp_path / "review.html"
+    source.write_text(
+        "<!doctype html><html><head><title>Review</title></head>"
+        "<body><main><h1>Review</h1></main></body></html>"
+    )
+    page = tmp_path / "previews" / "review"
+    env = codex_env | {
+        "CODEX_THREAD_ID": "abandoned-desktop",
+        "LEAF_PREVIEWS_ROOT": str(page.parent),
+    }
+    preparing = under_codex(
+        shlex.join(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import json, sys; from pathlib import Path; "
+                    "from leaf.harness import session_harness; "
+                    "from leaf.service import prepare_claim; "
+                    "print(json.dumps(prepare_claim(session_harness(), Path(sys.argv[1]))))"
+                ),
+                str(page),
+            ]
+        ),
+        env,
+        app_server=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    output, errors = preparing.communicate(timeout=STATED_TIMEOUT)
+    assert preparing.returncode == 0, f"{output}{errors}"
+    intent = json.loads(output)
+    caller, child = socket.socketpair()
+    task = spawn(
+        [
+            sys.executable,
+            "-m",
+            "leaf_dev.preview",
+            "--worker",
+            "--user",
+            "--source",
+            str(source),
+            "--runtime",
+            str(ROOT),
+            "--slot",
+            page.name,
+            "--prepared-claim",
+            json.dumps(intent),
+            "--handshake",
+            str(child.fileno()),
+        ],
+        env=env,
+        pass_fds=(child.fileno(),),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    child.close()
+    caller.settimeout(STATED_TIMEOUT)
+    try:
+        with caller.makefile("rb") as announced:
+            ready = json.loads(announced.readline())
+        assert "url" in ready, ready
+        assert service.page_claim(page) is None
+        assert not (page / "service.json").exists()
+    finally:
+        caller.close()
+        output, errors = task.communicate(timeout=STATED_TIMEOUT)
+    assert task.returncode == 0, f"{output}{errors}"
+    assert service.page_claim(page) is None
+    assert server.running_server(page) is None
+    assert not leases.lock_is_held(preview.preview_lease(page))
 
 
 def test_a_preview_source_uses_its_checkout_layer_and_media(tmp_path):
@@ -45,10 +236,102 @@ def test_a_preview_source_uses_its_checkout_layer_and_media(tmp_path):
     assert preview.media_source(source) == media
     watched = preview.watch_paths(source, ROOT, [], {})
     assert str(examples / "layer.json") in watched.paths
-    # The layer is told apart from the page's own inputs, because re-vendoring changes
-    # what a revision is as executable code and editing the source does not.
-    assert str(examples / "layer.json") not in watched.layer
-    assert str(ROOT / "uv.lock") in watched.layer
+    assert str(ROOT / "uv.lock") in watched.paths
+
+
+@pytest.mark.parametrize("name", ["how-it-works", "index", "examples"])
+def test_product_previews_prepare_the_authored_layer_and_media(
+    tmp_path, monkeypatch, name
+):
+    """A product preview includes its site furniture and authored images."""
+    source = ROOT / "docs" / f"{name}.html"
+    page = tmp_path / "preview"
+    monkeypatch.chdir(ROOT)
+
+    def run_leaf(*args, input_text=None):
+        result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
+        assert result.exit_code == 0, result.output
+
+    prepare_page(page, read_fixture(source), run_leaf, final_status=None)
+    assert all(
+        (page / reference.removeprefix("/")).is_file()
+        for reference in SourceDocument(source.read_text()).media_refs
+    )
+    registry = json.loads((page / "registry.json").read_text())
+    assert "nav.sitenav" in registry["$idioms"]
+    assert (ROOT / "docs" / "package" / "theme.css").read_text().rstrip() in (
+        page / "theme.css"
+    ).read_text()
+    watched = preview.watch_paths(source, ROOT, [], {})
+    assert str(ROOT / "docs" / "layer.json") in watched.paths
+
+
+@pytest.mark.parametrize("kind", ["image", "css", "inline", "stylesheet", "sample"])
+def test_fixture_media_follows_versions_draft_assets_and_live_edits(
+    tmp_path, monkeypatch, kind
+):
+    """Markup selects media for preparation and refresh, including earlier versions."""
+    source = tmp_path / "source" / "index.html"
+    source.parent.mkdir()
+    (source.parent / "layer.json").write_text("[]")
+    (source.parent / "media").mkdir()
+    (source.parent / "leaf-assets.json").write_text("{}")
+    assets = tmp_path / "draft-assets"
+    assets.mkdir()
+    previous, current, revised, unused = [
+        assets / f"{name}.png" for name in ("previous", "current", "revised", "unused")
+    ]
+    for path in (previous, current, revised, unused):
+        path.write_bytes(path.stem.encode())
+
+    def markup(path, kind=kind):
+        address = f"/media/{media_name(path.read_bytes(), path.suffix)}"
+        head = ""
+        body = f'<img src="{address}" alt="Example">'
+        if kind == "css":
+            head = f"<style>.picture {{background-image:url({address})}}</style>"
+            body = '<div class="picture">Picture</div>'
+        elif kind == "inline":
+            body = f'<div style="background-image:url({address})">Picture</div>'
+        elif kind == "stylesheet":
+            companion = source.with_suffix(".page")
+            companion.mkdir(exist_ok=True)
+            (companion / f"{path.stem}.css").write_text(
+                f".picture {{background-image:url({address})}}"
+            )
+            head = f'<link rel="stylesheet" href="/page/{path.stem}.css">'
+            body = '<div class="picture">Picture</div>'
+        elif kind == "sample":
+            body = (
+                '<lf-sample id="sample" label="Picture">'
+                f'<template data-sample id="sample-content">{body}</template></lf-sample>'
+            )
+        return (
+            f"<!doctype html><html><head><title>Media fixture</title>{head}</head>"
+            f"<body><main><h1>Media fixture</h1>{body}"
+            "</main></body></html>"
+        )
+
+    versions = source.parent / "versions"
+    versions.mkdir()
+    (versions / "index.v1.html").write_text(markup(previous))
+    source.write_text(markup(current))
+    page = tmp_path / "page"
+
+    def run_leaf(*args, input_text=None):
+        result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
+        assert result.exit_code == 0, result.output
+
+    prepare_page(page, read_fixture(source), run_leaf, assets=assets, final_status=None)
+    expected = {
+        media_name(path.read_bytes(), path.suffix) for path in (previous, current)
+    }
+    assert {path.name for path in (page / "media").iterdir()} == expected
+    source.write_text(markup(revised, kind="inline"))
+    monkeypatch.setattr(page_fixtures, "pinned_assets", lambda root: assets)
+    preview.refresh_media(source, page, run_leaf)
+    expected.add(media_name(revised.read_bytes(), revised.suffix))
+    assert {path.name for path in (page / "media").iterdir()} == expected
 
 
 def test_a_preview_subscribes_to_a_root_over_every_input_it_follows():
@@ -71,7 +354,6 @@ def test_a_preview_subscribes_to_a_root_over_every_input_it_follows():
         preview.fixture_seed(source),
     )
 
-    assert watched.layer < watched.paths
     assert [
         path
         for path in sorted(watched.paths)
@@ -82,14 +364,205 @@ def test_a_preview_subscribes_to_a_root_over_every_input_it_follows():
     assert [root for root in watched.roots if ".tmp" in root.parts] == []
     # The example images are a pinned copy under `.tmp`, so their pin stands in.
     assert str(ROOT / "leaf-assets.json") in watched.paths
+    assert ROOT not in watched.roots  # A single assets pin does not watch its checkout.
+
+
+class _ScriptedChanges:
+    """A controlled input stream with the subscription's root-plan boundary."""
+
+    def __init__(self, iterator, watched):
+        self.iterator = iterator
+        self.roots = preview.watch_roots(watched)
+
+    def __next__(self):
+        return next(self.iterator)
+
+    def close(self):
+        self.iterator.close()
+
+    def matches(self, roots):
+        return self.roots == roots
+
+
+def test_preview_publishes_companion_edits_at_its_existing_url(
+    tmp_path, monkeypatch, capsys
+):
+    """A custom widget edit publishes exact inputs without erasing feedback.
+
+    Scripted input batches carry real companion edits through the running preview,
+    its ordinary stamp door and HTTP delivery. Earlier executable resources retain
+    their bytes, and a competing preview edit is refused until reconciled.
+    """
+    from leaf.files import latest_revision, revision_path
+
+    source = tmp_path / "reading.html"
+    source.write_text(
+        "<!doctype html><html><head><title>Reading</title></head>"
+        '<body><main><h1>Reading</h1><lf-reading id="reading"></lf-reading>'
+        "</main></body></html>"
+    )
+    (tmp_path / "layer.json").write_text("[]")
+    companions = source.with_suffix(".page")
+    widgets = companions / "widgets"
+    widgets.mkdir(parents=True)
+    (companions / "registry.json").write_text(
+        json.dumps(
+            {
+                "lf-reading": {
+                    "description": "A reading",
+                    "type": "object",
+                    "properties": {"id": {"type": "string"}},
+                    "required": ["id"],
+                    "additionalProperties": False,
+                    "x-content": "empty",
+                    "x-upgrade": True,
+                }
+            }
+        )
+    )
+    widget = widgets / "lf-reading.js"
+    original = b"export const reading = 'Original';"
+    revised = b"export const reading = 'Revised';"
+    widget.write_bytes(original)
+    page = tmp_path / "preview"
+
+    def changes(watched):
+        assert str(widget) in watched.paths
+        url = next(
+            line
+            for line in capsys.readouterr().out.splitlines()
+            if line.startswith("http://")
+        )
+
+        def at(path):
+            return fetch(urlsplit(url)._replace(path=path).geturl(), token=None)
+
+        def resource(revision):
+            return (
+                "/revisions/"
+                + revision_path(page, revision).stem
+                + "/page/widgets/lf-reading.js"
+            )
+
+        first = latest_revision(page)
+        old_resource = resource(first)
+        assert at(old_resource) == (200, original)
+        status, body = fetch(
+            urlsplit(url)._replace(path="/api/event").geturl(),
+            token=None,
+            data=json.dumps(
+                {
+                    "kind": "comment",
+                    "revision": first,
+                    "text": "Keep this feedback",
+                    "attempt": "preview-companion",
+                }
+            ).encode(),
+        )
+        assert status == 200, body
+        before = (page / "events.jsonl").read_bytes()
+        widget.write_bytes(revised)
+        yield {str(widget)}
+        second = latest_revision(page)
+        assert second > first
+        assert at("/")[0] == 200
+        assert at(resource(second)) == (200, revised)
+        assert at(old_resource) == (200, original)
+        assert (page / "events.jsonl").read_bytes().startswith(before)
+
+        delivered = page / "page/widgets/lf-reading.js"
+        delivered.write_text("export const reading = 'Preview edit';")
+        widget.write_text("export const reading = 'Another source edit';")
+        yield {str(widget)}
+        assert latest_revision(page) == second
+        assert "Preview edit" in delivered.read_text()
+        assert "reconcile" in capsys.readouterr().err
+
+        delivered.write_bytes(revised)
+        yield {str(widget)}
+        assert latest_revision(page) > second
+        assert "Another source edit" in delivered.read_text()
+
+        # Removing a dependency is not published while the widget still imports it.
+        helper = companions / "value.js"
+        helper.write_text("export const value = 'Dependency';")
+        widget.write_text("export { value } from '../value.js';")
+        yield {str(widget), str(helper)}
+        last = latest_revision(page)
+        helper.unlink()
+        yield {str(helper)}
+        assert latest_revision(page) == last
+        assert (page / "page/value.js").is_file()
+        widget.write_bytes(revised)
+        yield {str(widget)}
+        assert latest_revision(page) > last
+        assert not (page / "page/value.js").exists()
+        assert at(old_resource) == (200, original)
+
+        # A module can replace a directory of modules without stale empty folders.
+        group = companions / "components.js"
+        group.mkdir()
+        (group / "value.js").write_text("export const value = 'Grouped';")
+        widget.write_text("export { value } from '../components.js/value.js';")
+        yield {str(widget), str(group / "value.js")}
+        grouped = latest_revision(page)
+        (group / "value.js").unlink()
+        group.rmdir()
+        group.write_text("export const value = 'Single';")
+        widget.write_text("export { value } from '../components.js';")
+        yield {str(widget), str(group)}
+        assert latest_revision(page) > grouped
+        assert (page / "page/components.js").is_file()
+
+    monkeypatch.setattr(
+        preview,
+        "watch_changes",
+        lambda watched: _ScriptedChanges(changes(watched), watched),
+    )
+    with pytest.raises(StopIteration):
+        preview.serve_preview(source, page, ROOT / "bin/leaf", ROOT, False)
+
+
+def test_preview_filters_feedback_before_discovering_inputs(tmp_path, monkeypatch):
+    """Page-side writes must not rediscover the whole installed layer."""
+    source = tmp_path / "reading.html"
+    source.write_text(
+        "<!doctype html><html><head><title>Reading</title></head>"
+        "<body><main><h1>Reading</h1></main></body></html>"
+    )
+    page = tmp_path / "preview"
+    readings = []
+    original = preview.watch_paths
+
+    def read_inputs(*args):
+        watched = original(*args)
+        readings.append(watched)
+        return watched
+
+    def changes(_watched):
+        count = len(readings)
+        for name in ("interactions.jsonl", "user-views.json", "viewed.json"):
+            yield {str(page / name)}
+            assert len(readings) == count
+        source.write_text(source.read_text().replace("Reading</h1>", "Revised</h1>"))
+        yield {str(source)}
+        assert "Revised</h1>" in (page / "index.html").read_text()
+
+    monkeypatch.setattr(preview, "watch_paths", read_inputs)
+    monkeypatch.setattr(
+        preview,
+        "watch_changes",
+        lambda watched: _ScriptedChanges(changes(watched), watched),
+    )
+    with pytest.raises(StopIteration):
+        preview.serve_preview(source, page, ROOT / "bin/leaf", ROOT, False)
 
 
 def test_a_preview_reads_its_watched_inputs_from_the_files_that_exist_now(tmp_path):
-    """Which set a reported path lands in is what decides whether the refresh vendors.
+    """New modules and prior versions arrive under the existing subscription.
 
-    The sets are read from the files as they now stand, so a module added since the
-    last reading is layer, a file beside it that nothing vendors is neither, and a
-    prior version of the source is the page's own.
+    Initialization owns whether an edit changes the layer; the watcher must report
+    every input that could change that reading, including a newly added module.
     """
 
     source = tmp_path / "examples" / "page.html"
@@ -107,18 +580,19 @@ def test_a_preview_reads_its_watched_inputs_from_the_files_that_exist_now(tmp_pa
     def watched():
         return preview.watch_paths(source, runtime, [layer_root], {})
 
-    subscription = watched().roots
-    assert str(existing_script) in watched().layer
+    initial = watched()
+    subscription = initial.roots
+    assert str(existing_script) in watched().paths
     assert str(source) in watched().paths
-    assert str(source) not in watched().layer
 
     ignored = scripts / "README.md"
     ignored.write_text("ignored", encoding="utf-8")
     assert str(ignored) not in watched().paths
 
     added_script = scripts / "added.py"
+    assert initial.relevant(str(added_script))
     added_script.write_text("new", encoding="utf-8")
-    assert str(added_script) in watched().layer
+    assert str(added_script) in watched().paths
 
     added_script.unlink()
     assert str(added_script) not in watched().paths
@@ -126,17 +600,244 @@ def test_a_preview_reads_its_watched_inputs_from_the_files_that_exist_now(tmp_pa
     versions = source.parent / "versions"
     versions.mkdir()
     version = versions / "page.v1.html"
+    assert initial.relevant(str(version))
     version.write_text("version", encoding="utf-8")
     assert str(version) in watched().paths
-    assert str(version) not in watched().layer
 
     widget = widgets / "lf-new.js"
+    assert initial.relevant(str(widget))
     widget.write_text("export {};", encoding="utf-8")
-    assert str(widget.resolve()) in watched().layer
+    assert str(widget.resolve()) in watched().paths
+
+    companions = source.with_suffix(".page")
+    custom = companions / "widgets" / "lf-custom.js"
+    assert initial.relevant(str(custom))
+    custom.parent.mkdir(parents=True)
+    custom.write_text("export {};")
+    assert str(custom) in watched().paths
+    custom.unlink()
+    assert str(custom) not in watched().paths
 
     # None of those arrivals moved the subscription: each landed inside a directory
     # already watched recursively, so the open watcher kept collecting through them.
     assert watched().roots == subscription
+
+
+def test_preview_file_subscription_follows_atomic_replacements(tmp_path):
+    """An assets pin is an exact native watch, including repeated editor renames."""
+    source = tmp_path / "pages/reading.html"
+    source.parent.mkdir()
+    source.write_text("reading")
+    (source.parent / "media").mkdir()
+    pin = tmp_path / "leaf-assets.json"
+    pin.write_text("{}")
+    scripts = tmp_path / "skills/leaf/scripts"
+    scripts.mkdir(parents=True)
+    (tmp_path / "pyproject.toml").write_text("")
+    (tmp_path / "uv.lock").write_text("")
+    watched = preview.watch_paths(source, tmp_path, [], {})
+    assert pin in watched.roots
+    assert tmp_path not in watched.roots
+    changes = preview.watch_changes(watched)
+    try:
+        for value in ("first", "second"):
+            staging = tmp_path / "pin-next.json"
+            staging.write_text(value)
+            staging.replace(pin)
+            wait_for(
+                lambda: next(changes),
+                lambda paths: str(pin) in paths,
+                failure="the preview's native file subscription lost its assets pin",
+            )
+    finally:
+        changes.close()
+
+
+def test_preview_refreshes_replaced_inputs_even_without_a_native_file_batch(
+    tmp_path, monkeypatch
+):
+    """Files can change while the old root watch is revoked before rearming."""
+    directory = tmp_path / "source"
+    directory.mkdir()
+    source = directory / "reading.html"
+    source.write_text(
+        "<!doctype html><html><head><title>Reading</title></head>"
+        "<body><main><h1>Original</h1></main></body></html>"
+    )
+    page = tmp_path / "preview"
+    batches = []
+
+    def replaced_input(_changes):
+        if not batches:
+            original = source.read_text()
+            shutil.rmtree(directory)
+            directory.mkdir()
+            source.write_text(original.replace("Original</h1>", "Revised</h1>"))
+            batches.append(True)
+            return set()  # Only the bounded lifetime wake survives the replacement.
+        assert "Revised</h1>" in (page / "index.html").read_text()
+        raise StopIteration
+
+    monkeypatch.setattr(preview.PreviewChanges, "__next__", replaced_input)
+    with pytest.raises(StopIteration):
+        preview.serve_preview(source, page, ROOT / "bin/leaf", ROOT, False)
+
+
+def test_preview_rearms_a_replaced_native_input_tree(tmp_path):
+    """The selected file paths can stay equal while their native root expires."""
+    tree = tmp_path / "inputs"
+    tree.mkdir()
+    module = tree / "state.py"
+    module.write_text("initial")
+    watched = preview.Watched((tree,), frozenset({str(module)}), frozenset({tree}))
+    changes = preview.watch_changes(watched)
+    try:
+        assert changes.matches(preview.watch_roots(watched))
+        shutil.rmtree(tree)
+        tree.mkdir()
+        module.write_text("replacement")
+        assert not changes.matches(preview.watch_roots(watched))
+        changes.close()
+        changes = preview.watch_changes(watched)
+        module.write_text("later authored edit")
+        wait_for(
+            lambda: next(changes),
+            lambda paths: str(module) in paths,
+            failure="the replacement preview input tree lost later authored edits",
+        )
+    finally:
+        changes.close()
+
+
+def test_preview_tracks_committed_layer_across_refused_source_edits(
+    tmp_path, monkeypatch
+):
+    """Real preparation, vendoring and revision publication consume scripted events.
+
+    The scripted filesystem stream batches real edits without relying on timing.
+    A committed layer survives a later source refusal without being re-vendored on
+    retry. A refused deletion stays a layer change until it can be committed.
+    """
+    import os
+
+    source = tmp_path / "reading.html"
+    source.write_text(
+        "<!doctype html><html><head><title>Reading</title></head>"
+        '<body><main><h1>Reading</h1><p id="reading">Original</p></main></body></html>'
+    )
+    seed = source.with_suffix(".jsonl")
+    seed.write_text("")
+    package = tmp_path / "package"
+    package.mkdir()
+    (package / "registry.json").write_text("{}")
+    theme = package / "theme.css"
+    theme.write_text(":root { --proof: 1; }")
+    (tmp_path / "layer.json").write_text(
+        json.dumps(["./" + os.path.relpath(package, ROOT)])
+    )
+    page = tmp_path / "preview"
+
+    def changes(_watched):
+        def layer():
+            return json.loads((page / "registry.json").read_text())["$layer"]
+
+        before = layer()
+        theme.write_bytes(theme.read_bytes())
+        yield {str(theme)}
+        assert layer()["generation"] == before["generation"]
+
+        original = source.read_text()
+        theme.write_text(":root { --proof: 2; }")
+        source.write_text(
+            original.replace("</main>", "<lf-undefined></lf-undefined></main>")
+        )
+        yield {str(theme), str(source)}
+        committed = layer()
+        assert committed["generation"] != before["generation"]
+        assert (page / "index.html").read_text() == original
+
+        source.write_bytes(source.read_bytes())
+        yield {str(source)}
+        assert layer()["generation"] == committed["generation"]
+
+        theme.unlink()
+        seed.write_text("\n")
+        yield {str(theme), str(seed)}
+        assert layer()["generation"] == committed["generation"]
+
+        seed.write_text("")
+        source.write_text(original.replace("Original", "Revised"))
+        yield {str(seed), str(source)}
+        after = layer()
+        assert after["generation"] != committed["generation"]
+        assert after["fingerprint"] != committed["fingerprint"]
+        assert "Revised" in (page / "index.html").read_text()
+
+    monkeypatch.setattr(
+        preview,
+        "watch_changes",
+        lambda watched: _ScriptedChanges(changes(watched), watched),
+    )
+    with pytest.raises(StopIteration):
+        preview.serve_preview(source, page, ROOT / "bin/leaf", ROOT, False)
+
+
+def test_preview_follows_a_committed_package_after_a_source_refusal(
+    tmp_path, monkeypatch
+):
+    """A failed source edit cannot hide edits to its newly installed package."""
+    import os
+
+    source = tmp_path / "pages/reading.html"
+    source.parent.mkdir()
+    original = (
+        "<!doctype html><html><head><title>Reading</title></head>"
+        "<body><main><h1>Reading</h1></main></body></html>"
+    )
+    source.write_text(original)
+    manifest = source.parent / "layer.json"
+    manifest.write_text("[]")
+    package = tmp_path / "elsewhere/package"
+    package.mkdir(parents=True)
+    (package / "registry.json").write_text("{}")
+    theme = package / "theme.css"
+    theme.write_text(":root { --package-proof: 1; }")
+    selection = "./" + os.path.relpath(package, ROOT)
+    page = tmp_path / "preview"
+    subscriptions = []
+
+    def changes(watched):
+        subscriptions.append(watched)
+        if len(subscriptions) == 1:
+            assert str(theme) not in watched.paths
+            manifest.write_text(json.dumps([selection]))
+            source.write_text(
+                original.replace("</main>", "<lf-undefined></lf-undefined></main>")
+            )
+            yield {str(manifest), str(source)}
+            pytest.fail("Committed package did not rebuild the watch subscription")
+        else:
+            installed = json.loads((page / "registry.json").read_text())["$layer"]
+            assert installed["packages"] == [selection]
+            assert (page / "index.html").read_text() == original
+            assert str(theme) in watched.paths
+            assert any(
+                root == package or root in package.parents for root in watched.roots
+            )
+            theme.write_text(":root { --package-proof: 2; }")
+            yield {str(theme)}
+            after = json.loads((page / "registry.json").read_text())["$layer"]
+            assert after["generation"] != installed["generation"]
+            assert "--package-proof: 2" in (page / "theme.css").read_text()
+
+    monkeypatch.setattr(
+        preview,
+        "watch_changes",
+        lambda watched: _ScriptedChanges(changes(watched), watched),
+    )
+    with pytest.raises(StopIteration):
+        preview.serve_preview(source, page, ROOT / "bin/leaf", ROOT, False)
+    assert len(subscriptions) == 2
 
 
 def test_a_preview_follows_a_linked_package_wherever_its_files_resolve(tmp_path):
@@ -177,7 +878,7 @@ def test_a_preview_follows_a_linked_package_wherever_its_files_resolve(tmp_path)
         (nested, outside_module),
     ):
         watched = preview.watch_paths(source, ROOT, [root], {})
-        assert str(followed.resolve()) in watched.layer, root
+        assert str(followed.resolve()) in watched.paths, root
         assert all(path == path.resolve() for path in watched.roots), watched.roots
         assert [
             path
@@ -218,6 +919,7 @@ def test_a_preview_follows_a_nearer_media_directory_when_one_appears(tmp_path):
     assert str(inherited) in before.paths
     # The directory that does not exist yet is watched, so its arrival is a change.
     assert str(nearer_media) in before.paths
+    assert before.relevant(str(nearer_media / "nearer.png"))
 
     nearer_media.mkdir()
     nearer = nearer_media / "nearer.png"

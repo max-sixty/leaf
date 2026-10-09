@@ -2,17 +2,20 @@
 
    A comment on the page has two boxes: Threads' general box, and the page comment card
    the banner's Comment on the page control hangs from its own foot, its top edge on the
-   banner's and its right edge on the control's. They are one destination: while Threads
+   banner's and its right edge on the control's where that fits the window, moving
+   only far enough to remain inside the window otherwise. The editor takes the room
+   beneath the banner, and the card scrolls if its minimum controls exhaust it.
+   They are one destination: while Threads
    is open its box stands right there, so the control, `c` with nothing to comment on,
    and Resume writing go to that box; otherwise all three open the card. Both boxes are
    wired here, with one hint, one draft (`general`), and one send, so the two never
    differ in what they say or post. In Design mode both comment on the design.
 
-   The card is for starting a thread and nothing after. A send puts it away and flashes
-   Threads, where the new thread now lives, without opening the panel; the Threads count
-   rising is the rest of that answer. A refused send opens the card again on the words
-   the refusal handed back. Threads' own box keeps the user in it after a send, and its
-   thread is revealed in the list.
+   The card starts page threads; their conversations live in Threads. A send leaves
+   focus on the open card and flashes Threads without opening the panel; its count
+   rises for the new thread. `c` enters the card's box again. A refused send returns
+   to the editor only while the user still stands on the card. Threads' own box keeps
+   the user in it after a send, and its thread is revealed in the list.
 
    The card is an auto popover, so a press outside puts it away. Escape is its own row in
    the register, so the shortcut line says whether the words stay. Either way focus goes
@@ -23,6 +26,8 @@
 import { el } from "../widget-elements.js";
 import { iconElement } from "../icons.js";
 import { textField } from "../composing/text-field.js";
+import { focusDestination } from "../focus.js";
+import { retainUserIntent } from "../user-intent.js";
 import {
   loadDraft,
   mirrorDraft,
@@ -34,6 +39,7 @@ import { FLASH_MS, backgroundFlash } from "../motion.js";
 import { keys } from "../keyboard/scopes.js";
 import { commandShortcut } from "../keyboard/control-keys.js";
 import { keeps } from "../keeps.js";
+import { registerReadingRegion } from "../reading-regions.js";
 import {
   BANNER_CONTROL_RANK,
   bannerControlDoor,
@@ -68,6 +74,7 @@ export function createPageComment({
   card.setAttribute("popover", "auto");
   card.setAttribute("role", "dialog");
   card.setAttribute("aria-label", NAME);
+  card.tabIndex = -1;
 
   const input = textField();
   input.name = "comment";
@@ -96,7 +103,7 @@ export function createPageComment({
 
   const openPanelBox = () => {
     setPanel(true);
-    panelBox.focus({ preventScroll: true });
+    focusDestination(panelBox, "move");
   };
   // The control's press is the same `open` as `c`, or a second press putting the card
   // away; opened with the control as its source, the card does not count a press on the
@@ -120,12 +127,13 @@ export function createPageComment({
       // Opened from the control's own place, so Escape hands the user to the control
       // whether a press or a key opened it: the door where the control stands, More's on
       // a phone.
-      bannerControlDoor(control)?.focus({ preventScroll: true });
+      const door = bannerControlDoor(control);
+      if (door) focusDestination(door, "move");
       card.showPopover({ source: control });
     }
     // At once rather than at `toggle`, which comes a task later: the words typed right
     // after the press belong in the box, not to the control or the page's keys.
-    input.focus({ preventScroll: true });
+    focusDestination(input, "move");
   }
   // With Threads open, Comment on the page is the panel's own box.
   function open() {
@@ -162,6 +170,9 @@ export function createPageComment({
   const stops = [];
   function mount(chromeRoot) {
     chromeRoot.append(card);
+    stops.push(
+      registerReadingRegion({ id: "lf-region:page-comment", host: card, body: card }),
+    );
     // `c` reaches this control's press from wherever nothing else is commented on,
     // which is everywhere the control can be pressed, so its name carries the key.
     // Not a `control` on the `c` row: that row answers for every destination, and a
@@ -174,15 +185,14 @@ export function createPageComment({
         showThread(handle.id, { focus: false, flash: false }),
       ),
       wireBox(input, send, (_handle, flight) => {
-        card.hidePopover();
+        focusDestination(card, "return");
+        const mayRestore = retainUserIntent({ source: card, available: cardIsOpen });
         backgroundFlash(threadsToggle, FLASH_MS);
-        // A refusal can come long after the send, while delivery retries. The card opens
-        // again on the words only where the user still stands where the send left them;
-        // anywhere else it would take their keys, and the words wait in the draft for
-        // the control, `c` or Resume writing.
+        // Delivery may refuse long after Send. Restore text entry only while the user
+        // still stands on the card; a later gesture owns its focus and disclosure.
         void Promise.resolve(flight).then((accepted) => {
-          const still = [control, document.body, null].includes(document.activeElement);
-          if (!accepted && still && !panelIsOpen()) showCard();
+          if (!accepted && document.activeElement === card && mayRestore())
+            mayRestore.handoff(showCard);
         });
       }),
     );

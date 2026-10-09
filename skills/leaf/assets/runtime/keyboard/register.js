@@ -25,7 +25,8 @@ import {
   lineOf,
   word,
 } from "./bindings.js";
-import { focused, paintKeys, watchCommandScopes } from "./scopes.js";
+import { focused } from "../focus.js";
+import { paintKeys, watchCommandScopes } from "./scopes.js";
 // Native activation reads declarations without assembling or validating the keyboard
 // during feature construction. Both element and page commands share one control owner.
 watchCommandScopes(() => [
@@ -33,6 +34,7 @@ watchCommandScopes(() => [
   { rows: [...commands.values()] },
 ]);
 import { under } from "../shadow.js";
+import { offlineInteractive } from "../context.js";
 
 export const ELEMENTS = Symbol("the scopes of the focused element");
 const PAGE = Symbol("the page's own keys");
@@ -106,6 +108,12 @@ const PAGE_COMMANDS = [
   "page.move",
   "scroll.move",
   "reading.align.top",
+  "thread.unread.first",
+  "navigation.panel.threads",
+  "navigation.drawer.queue",
+  "navigation.drawer.leaves",
+  "navigation.page-map",
+  "version.open",
   "history.undo",
   // Below the walks that reach one list at a time, because `g` opens a door to all of
   // them: on a narrow window the sequence hides a second way to somewhere the user can
@@ -128,7 +136,7 @@ const commands = new Map();
 const rungs = new Map();
 let resolved = null;
 let validated = false;
-let auxiliaryModality = null;
+let coveringSurface = null;
 
 const place = (where, name) => {
   if (!where.includes(name))
@@ -257,6 +265,9 @@ function assemble() {
 // read of it, by which time every owner stands. The assembled stack is published before
 // that reading, because a row's key set may consult the register on its way to answering.
 export function pageScopes() {
+  // Exports retain widget scopes and the native input claims the dispatcher places
+  // among them. Page navigation and chrome have no surfaces in that document.
+  if (offlineInteractive) return [ELEMENTS];
   resolved ??= assemble();
   if (!validated) {
     validated = true;
@@ -286,7 +297,8 @@ export function touchPresses() {
     ).filter(({ presses }) => presses.length),
   };
 }
-export const universalCommandReference = () => commands.get(COMMAND_REFERENCE);
+export const universalCommandReference = () =>
+  offlineInteractive ? undefined : commands.get(COMMAND_REFERENCE);
 export const textEntryScope = () => scopes.get("text entry")?.[0];
 // What an interaction claiming the whole keyboard still lets through: the one route to
 // another layer, read off the row so a fact about a binding cannot be written where the
@@ -297,7 +309,7 @@ export const allButCommandReference = (binding) =>
 // The auxiliary layer's surface reading, held here because the dispatcher's own closure
 // stops at this register: it resolves a press against the register and the focused scope,
 // and an edge to the surface owner would give it that owner's whole initialization graph.
-export function registerAuxiliaryModality(modality) {
-  auxiliaryModality = modality;
+export function registerCoveringAuxiliarySurface(read) {
+  coveringSurface = read;
 }
-export const coveringAuxiliarySurface = () => auxiliaryModality.coveringSurface();
+export const coveringAuxiliarySurface = () => coveringSurface();

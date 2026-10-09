@@ -9,12 +9,19 @@ import json
 import sys
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import NamedTuple
 
 from .detached import StartRefused
-from .event_log import read_events
-from .files import file_stamp, next_reading, read_json
+from .file_changes import (
+    FileChanges,
+    existing_root,
+    page_change,
+    page_targets,
+)
+from .files import file_stamp, read_json
 from .harness import Harness, claim_harness, session_harness
 from .leases import release_lease, take_lease, waiter_lease_path
 from .locations import path_location, paths_same
@@ -22,6 +29,7 @@ from .machine import state_home
 from .schema import (
     ANSWER_ASK_INSTRUCTION,
     SERVICE_FILE,
+    VIEWED_FILE,
 )
 from .served_state.reading import page_reading
 from .server import running_server
@@ -30,18 +38,18 @@ from .service import (
     claim_page,
     owned_pages,
     read_status,
-    requires_agent_attention,
+    session_claims,
     unacknowledged,
 )
+from .state import SESSION_SUFFIX, session_file
 
 # How often a watch rechecks a live page's server. It is also the longest a watch goes
 # without a pass on a page whose files have not moved: nothing else a pass reads
 # changes on the clock alone.
 REVIVAL_CHECK_S = 5
 
-# How long a turn-end watch holds input that was already pending as the turn ended:
-# the Stop hook running beside it hands such input to the turn it continues, and
-# this is that hook's timeout (`hooks/hooks.json`).
+# How long a normal turn-end watch gives the concurrent Stop hook to carry input:
+# this is that hook's timeout (`hooks/hooks.json`), not evidence of pickup.
 STOP_HOOK_S = 20
 
 
@@ -50,14 +58,14 @@ def cmd_waiting(page_dir: Path, detail: str) -> tuple[dict, list[dict]]:
     (`tasks.put_down`), and return the declaration, with the user moves still owed an
     answer, which the page goes on showing over it."""
     from .revisioning import activate_source
-    from .served_state.page import full_state
+    from .served_state.work import live_work
     from .tasks import put_down
 
     with PageTransaction(page_dir) as page:
         activate_source(page_dir, transaction=page)
         put_down(page)
         status = page.set_status("waiting", detail)
-        return status, full_state(page_dir, page.events)["activity"]["obligations"]
+        return status, live_work(page_dir, page.events).obligations
 
 
 def cmd_idle(page_dir: Path, detail: str) -> dict:
@@ -74,12 +82,13 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
     The check and the transition share the log lock, so an event arriving
     or an acknowledgement advancing the cursor orders against them."""
     from .activity import blocking_obligations, unanswered
-    from .served_state.page import full_state
-    from .tasks import owed_tasks, put_down
+    from .served_state.work import live_work
+    from .tasks import put_down
 
     with PageTransaction(page_dir) as page:
         events = page.events
-        state = full_state(page_dir, events)
+        work = live_work(page_dir, events)
+        state = {**work.presence, "activity": work.activity}
         claim = page.active_claim
         harness = claim_harness(claim) if claim is not None else None
         pending = len(unacknowledged(events, page.cursor))
@@ -105,7 +114,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
             )
         # A task is work the agent still owes, which closing the page would leave
         # standing on a page nobody holds.
-        if tasks := owed_tasks(events):
+        if tasks := work.durable.log.owed:
             named = "; ".join(f"{task['id']} ({task['title']})" for task in tasks)
             sys.exit(
                 f"{len(tasks)} open task{'s' if len(tasks) != 1 else ''}: {named}. "
@@ -146,11 +155,12 @@ class Watch:
     the agent's own move, and `page init` stops a served page to re-vendor it and
     starts it again, so the wait watches a disabled service without reviving it.
 
-    Between passes the watch follows `reading`, the stamps of what a pass reads:
-    the machine's claims, which say which pages the session holds, and each page a
-    pass found. A pass runs when one moves, so an event reaches the watch in a look
-    (`LOOK_S`) rather than on a timer, and a quiet page costs stat calls rather than
-    a locked read of its whole log.
+    Between passes native subscriptions follow this session's claim partition,
+    canonical targets (including prepared claims), lifecycle, and each page a pass
+    found. A subscription is installed before its observation; its generation
+    retains a write landing during the pass. Timed
+    passes check process and lease facts, while a quiet wait performs no repeated
+    page-tree stat scans.
     """
 
     def __init__(self, harness: Harness | None, pages: tuple[Path, ...] = ()):
@@ -165,8 +175,14 @@ class Watch:
         self._revived: set = set()
         self._lost: set = set()
         self._check_at: dict = {}
-        self.claims = state_home() / "claims"
+        self.claims = (
+            session_claims(self.session_id)
+            if self.session_id
+            else state_home() / "claims"
+        )
         self.watched: list[Path] = []
+        self.changes = None
+        self.change_pages = None
 
     def acquire(self) -> bool:
         """Hold the session lease, or every explicitly watched standalone page."""
@@ -190,23 +206,82 @@ class Watch:
                 locations.add(path_location(page))
         return watched
 
-    def reading(self) -> tuple:
-        """The stamps of everything the last pass read: the claims, and its pages."""
-        return (file_stamp(self.claims), *map(_page_reading_or_none, self.watched))
+    def discovery_targets(self) -> set[Path]:
+        """Canonical payloads named by this session's prepared or admitted locators."""
+        if not self.session_id:
+            return set()
+        return {
+            self.claims.parent / locator.name for locator in self.claims.glob("*.json")
+        }
+
+    def reading(self, discovery: set[Path] | None = None) -> tuple:
+        """Stamp discovery and its payloads before a claim can enter the page set."""
+        if discovery is None:
+            discovery = self.discovery_targets()
+        return (
+            file_stamp(self.claims),
+            tuple((target, file_stamp(target)) for target in sorted(discovery)),
+            *map(_page_reading_or_none, self.watched),
+        )
 
     def mark(self) -> tuple:
         """What the next pass starts from, taken before it reads, so a write that
         lands during the pass moves the stamps `await_news` compares against."""
-        return (list(self.watched), self.reading())
+        pages = tuple(self.watched)
+        discovery = self.discovery_targets()
+        targets = discovery | {
+            target for page in pages for target in page_targets(page)
+        }
+        if self.session_id:
+            targets.add(session_file(self.session_id, SESSION_SUFFIX).resolve())
+        roots = {existing_root(self.claims): False}
+        roots.update({existing_root(target.parent): False for target in targets})
+        for page in pages:
+            roots[existing_root(page.parent)] = False
+            roots[existing_root(page)] = True
+        key = (pages, frozenset(targets))
+        if (
+            self.changes is None
+            or key != self.change_pages
+            or not self.changes.matches(roots)
+        ):
+            if self.changes is not None:
+                self.changes.close()
+            self.changes = FileChanges(
+                roots,
+                lambda changed: (
+                    changed == self.claims
+                    or changed.parent == self.claims
+                    or changed in targets
+                    or any(
+                        page_change(page, changed) and changed.name != VIEWED_FILE
+                        for page in pages
+                    )
+                ),
+            )
+            self.change_pages = key
+        # Stamp the subscribed set. A locator added during installation must
+        # differ at the next comparison, so its target is subscribed in turn.
+        return (list(pages), self.reading(discovery), self.changes.mark())
 
     def await_news(self, mark: tuple, timeout: float = REVIVAL_CHECK_S) -> bool:
         """Return True once anything the pass since `mark` read has moved, or False
         after `timeout` with nothing moved. A pass that found a different set of
         pages returns True at once: `mark` stamped the old set."""
-        watched, before = mark
+        watched, before, generation = mark
         if self.watched != watched:
             return True
-        return next_reading(self.reading, before, timeout=timeout) != before
+        deadline = time.monotonic() + timeout
+        while True:
+            if self.reading() != before:
+                return True
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or not self.changes.wait(generation, remaining):
+                return False
+            # Native APIs may coalesce diagnostics with their parent directory,
+            # or deliver pre-subscription changes late. A notification schedules
+            # the authoritative comparison; it is not itself an application write.
+            generation = self.changes.mark()
 
     def tick(self):
         """Yield each page while its ownership and delivery lock is held."""
@@ -314,6 +389,9 @@ class Watch:
         for lease in self.leases:
             release_lease(lease)
         self.leases.clear()
+        if self.changes is not None:
+            self.changes.close()
+            self.changes = None
 
 
 def _page_reading_or_none(page_dir: Path) -> str | None:
@@ -324,12 +402,14 @@ def _page_reading_or_none(page_dir: Path) -> str | None:
         return None
 
 
-class _WatchPass(NamedTuple):
+@dataclass(frozen=True)
+class _WatchPass[DeliveryResult]:
     """What one complete pass observed, or the outcome that ended it early."""
 
     readings: list[PageTick]
     live: list[PageTick]
     outcome: int | None
+    delivered: DeliveryResult | None = None
 
 
 def wait_acknowledgement(harness: Harness | None) -> Callable[[str], str]:
@@ -365,12 +445,12 @@ def delivery_json(reading: PageTick, harness: Harness | None) -> str:
     return json.dumps(payload, ensure_ascii=False)
 
 
-def read_watch_pass(
+def read_watch_pass[DeliveryResult](
     watch: Watch,
     named: Path | None,
-    deliver: Callable[[PageTick], None],
+    deliver: Callable[[PageTick], DeliveryResult],
     ready: Callable[[PageTick], bool] = lambda reading: True,
-) -> _WatchPass:
+) -> _WatchPass[DeliveryResult]:
     """Read pages until this pass completes or one page ends the wait. A batch
     the watch is not `ready` to hand over waits for a later pass."""
     readings = []
@@ -398,8 +478,7 @@ def read_watch_pass(
         # them to the agent whatever became of the leaf, so an idled page still
         # delivers here — it just no longer holds the wait open below.
         if reading.batch and ready(reading):
-            deliver(reading)
-            return _WatchPass(readings, live, 0)
+            return _WatchPass(readings, live, 0, deliver(reading))
         if reading.lost:
             # A session-wide watcher still serves its other leaves. Treat the
             # unavailable page as fatal only when it is the named watch, or when
@@ -452,7 +531,7 @@ def _ended_watch(readings: list[PageTick], page_dir: Path | None) -> int:
     one = len(held) == 1
     names = ", ".join(str(reading.page_dir) for reading in held)
     print(
-        f"the {'leaf' if one else 'leaves'} ended; {names} "
+        f"the {'page' if one else 'pages'} closed; {names} "
         f"{'is' if one else 'are'} idle",
         file=sys.stderr,
     )
@@ -516,85 +595,74 @@ def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
         watch.release()
 
 
-def _log_end(page_dir: Path) -> int:
-    """The last sequence number in a page's log, or 0 for an empty or gone log."""
-    with contextlib.suppress(FileNotFoundError):
-        return max((event["seq"] for event in read_events(page_dir)), default=0)
-    return 0
+def wake_inputs(page: PageTransaction, batch: list[dict]) -> list[dict]:
+    """Select what can wake a hook without changing its immutable receipt batch.
+
+    A settled thread input has already had its meaning answered, even when its
+    delivery was never received. Unsettled inputs read their existing canonical
+    workflow. A completed receipt advances the cursor, so handed input is already
+    absent from this unreceived batch. An opened record without the completed
+    cursor write does not prove delivery. Other admitted attention (including
+    reports, errors, reactions and widget moves) remains
+    transport input, independent of whether it carries a response obligation.
+    """
+    from .served_state.work import live_work
+
+    agent_inputs = {
+        item["input"]
+        for item in live_work(page.page_dir, page.events).durable.workflows
+        if item["next_actor"] == "agent"
+    }
+    pending = []
+    for event in batch:
+        if event["kind"] in {"comment", "reply"} and event["id"] not in agent_inputs:
+            continue
+        pending.append(event)
+    return pending
 
 
 def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str | None:
-    """The session's watch run by the harness's own Stop hook, which the harness starts
-    in the background as each turn ends (`Harness.watches_between_turns`), and
-    what it wakes the session with, or None where it ends without waking it.
+    """Wake for meaningful unreceived input, without treating a log look as pickup.
 
-    It wakes the session for a page with new input, which the prompt hook then
-    hands over as the turn the wake opens begins, and for live pages none of whose
-    servers can be brought back. It ends silently where another watch already
-    holds the session's lease, no page is left to watch, or the harness process that
-    started it has gone (`Harness.process_runs`), leaving the session's input to its
-    `nudge`.
-
-    Input that was already pending as the turn ended waits for the Stop hook
-    beside this one, which hands it to the turn it continues. It is the wake's to
-    carry only once that hook let the turn end over it, or failed to answer within
-    its own timeout. Input arriving later wakes the session at once, between two
-    turns or within one, where it reaches the turn at its next tool result.
-
-    A watch started as the user interrupted the turn wakes only for that later
-    input: the turn the pending input was handed to is the one the user stopped,
-    and their next prompt carries it. Input admitted between the interruption and
-    the watch's first look at the log waits for that prompt too, since nothing
-    records what the stopped turn was handed, unless the harness's `nudge` reaches
-    the session first: until that look no lease is held, so admission nudges."""
+    A normal watch gives the concurrent Stop hook its bounded opportunity to
+    carry input already present at startup. The turn's closing ends that grace;
+    input arriving while the watch runs wakes immediately. A watch after Escape
+    trusts the receipt cursor: input held outside the stopped turn's context can
+    wake, while that turn's received input waits for a prompt.
+    Settled thread input alone never wakes; it remains in the next receipt batch.
+    The session lease and each page transaction retain ownership of delivery,
+    revival and competing-watch decisions.
+    """
+    # Event timestamps have millisecond precision. Include the startup millisecond
+    # in immediate delivery rather than delaying an arrival in that millisecond.
+    began = int(time.time() * 1000) / 1000
+    settled = time.monotonic() + STOP_HOOK_S
     watch = Watch(harness)
-    # Where each page's log stood as the watch first saw it, and when the Stop
-    # hook's answer over what was pending then is due: an event past that point
-    # arrived since. A page claimed while the watch runs is first seen then. The
-    # first look precedes the lease, so the session reads as listening only once
-    # input admitted from then on is input that arrived after it.
-    began: dict[Path, tuple[int, float]] = {}
-
-    def first_sight(page_dir: Path, end: int) -> tuple[int, float]:
-        return began.setdefault(page_dir, (end, time.monotonic() + STOP_HOOK_S))
-
-    for page_dir in owned_pages(harness.session):
-        first_sight(page_dir, _log_end(page_dir))
     if not watch.acquire():
         return None
-    woke = []
 
     def ready(reading: PageTick) -> bool:
-        claim = reading.transaction.active_claim
-        last = reading.batch[-1]["seq"]
-        end, settled = first_sight(reading.page_dir, last)
-        # TODO: read what the stopped turn was handed from its pickups rather than
-        # from where the log stood. Input that arrived mid-run and was never handed
-        # over (Pi holds it until `turn_end`) now waits for the next prompt instead
-        # of waking the session.
+        pending = wake_inputs(reading.transaction, reading.batch)
+        if not pending:
+            return False
         if interrupted:
-            return last > end
-        # TODO: this wakes for pending input the turn already answered without
-        # picking it up, as an agent does after `leaf status` names the move, and
-        # the turn it opens only says so (seen in `verify-claude-code-task`'s
-        # `ending` step).
+            return True
+        claim = reading.transaction.active_claim
         return (
             (claim is not None and claim.get("turn_closed") is not None)
-            or last > end
+            or any(
+                datetime.fromisoformat(event["ts"]).timestamp() >= began
+                for event in pending
+            )
             or time.monotonic() > settled
         )
 
     try:
         while harness.process_runs():
             mark = watch.mark()
-            reading = read_watch_pass(
-                watch, None, lambda tick: woke.append(tick.page_dir), ready
-            )
-            for tick in reading.readings:
-                if tick.page_dir not in began:
-                    first_sight(tick.page_dir, _log_end(tick.page_dir))
-            if woke:
-                return new_input_line(woke[0])
+            reading = read_watch_pass(watch, None, lambda tick: tick.page_dir, ready)
+            if reading.delivered is not None:
+                return new_input_line(reading.delivered)
             if reading.outcome is not None:
                 return "\n".join(
                     f"{tick.page_dir}: server is not running; restart it with "
@@ -611,10 +679,7 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
     # lease is gone, any such input is nudged as admission would have.
     for page_dir in owned_pages(harness.session):
         with contextlib.suppress(FileNotFoundError), PageTransaction(page_dir) as page:
-            if any(
-                requires_agent_attention(event)
-                for event in unacknowledged(page.events, page.cursor)
-            ):
+            if wake_inputs(page, unacknowledged(page.events, page.cursor)):
                 from .event_endpoint import nudge_unwatched
 
                 nudge_unwatched(page)

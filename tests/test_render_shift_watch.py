@@ -2,6 +2,7 @@
 (`shift_watch.js`): a shift without input, and typing that carries its field."""
 
 from datetime import UTC, datetime, timedelta
+from html import escape
 from urllib.parse import quote
 
 import pytest
@@ -79,6 +80,110 @@ def test_typing_may_grow_its_field(browser):
     page = field_page(browser, "grow")
     page.locator("#field").fill("a")
     judge_watches()
+
+
+@pytest.mark.parametrize("nested", [False, True])
+def test_hidden_opaque_frames_drain_without_waiting_for_suppressed_paint(
+    browser, nested
+):
+    """The owner is visible only to the driver, including an ancestor above a child."""
+    child = '<p id="reading">An isolated document.</p>'
+    embedded = f'<iframe sandbox="allow-scripts" srcdoc="{escape(child, quote=True)}"></iframe>'
+    if nested:
+        embedded = f'<iframe hidden srcdoc="{escape(embedded, quote=True)}"></iframe>'
+    else:
+        embedded = embedded.replace("<iframe ", "<iframe hidden ", 1)
+    page = browser.new_page()
+    page.goto("data:text/html," + quote(f"<!doctype html><body>{embedded}</body>"))
+    frame = page.frame_locator("iframe")
+    if nested:
+        frame = frame.frame_locator("iframe")
+    expect(frame.locator("#reading")).to_have_text("An isolated document.")
+    assert frame.locator("#reading").evaluate(
+        "() => !document.hidden && window.frameElement === null"
+    )
+    judge_watches()
+
+    page.locator("iframe").evaluate("element => { element.hidden = false; }")
+    expect(frame.locator("#reading")).to_be_visible()
+    frame.locator("#reading").evaluate(PAINTED)
+    judge_watches()
+
+    # Hide an ancestor after the driver starts a drain whose native paint is held.
+    # Completion must use refreshed visibility rather than the initial true value.
+    page.evaluate("""() => {
+      window.hiddenDuringDrain = false;
+      window.hideDrainingFrame = event => {
+        if (event.data !== 'sensor-draining') return;
+        document.querySelector('iframe').hidden = true;
+        hiddenDuringDrain = true;
+      };
+      addEventListener('message', hideDrainingFrame);
+    }""")
+    frame.locator("#reading").evaluate("""() => {
+      const nativeFrame = lfWatchPlatform.frame;
+      window.restoreFrames = () => { lfWatchPlatform.frame = nativeFrame; };
+      lfWatchPlatform.frame = () => {
+        if (window.lfWatchJudgement && !lfWatchJudgement.complete)
+          top.postMessage('sensor-draining', '*');
+      };
+    }""")
+    reading = frame.locator("#reading").element_handle()
+    child_frame = reading.owner_frame()
+    reading.dispose()
+    try:
+        judge_watches()
+        assert page.evaluate("hiddenDuringDrain") is True
+    finally:
+        child_frame.evaluate("restoreFrames()")
+        page.evaluate("removeEventListener('message', hideDrainingFrame)")
+
+
+def test_hidden_returns_protect_only_the_resumed_reading(browser, serve):
+    """The return boundary ends at presentation, including two rapid absences."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Return boundary",
+                '<div id="above"></div><p id="reading">Read here.</p>',
+            )
+        ),
+    )
+    held = []
+    page.route("**/api/news", lambda route: held.append(route))
+    page.evaluate("""async () => {
+      window.returnBoundary = await window.__lfRuntimeImport('/runtime/reading-continuity.js');
+      window.returnVisibility = 'visible';
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true, get: () => window.returnVisibility,
+      });
+      window.setReturnVisibility = value => {
+        window.returnVisibility = value;
+        document.dispatchEvent(new Event('visibilitychange'));
+      };
+      setReturnVisibility('hidden'); setReturnVisibility('visible');
+      document.getElementById('above').style.height = '40px';
+    }""")
+    paint(page)
+    judge_watches()
+    page.evaluate("""() => {
+      returnBoundary.completeReadingReturn(returnBoundary.readingReturn());
+      // Before its completion frames run, another absence opens another return.
+      setReturnVisibility('hidden'); setReturnVisibility('visible');
+    }""")
+    paint(page)
+    page.evaluate("document.getElementById('above').style.height = '80px'")
+    paint(page)
+    judge_watches()
+    page.evaluate(
+        "returnBoundary.completeReadingReturn(returnBoundary.readingReturn())"
+    )
+    paint(page)
+    page.evaluate("document.getElementById('above').style.height = '120px'")
+    paint(page)
+    judge_watches()
+    consume_browser_errors(page, "moved without input")
 
 
 @pytest.mark.parametrize("cause", ["typing", "passive"])
@@ -431,6 +536,205 @@ def test_control_reflow_stays_inside_its_runtime_region(browser, fault, protecte
         assert any(f"{protected} moved without input" in error for error in errors), (
             errors
         )
+
+
+@pytest.mark.parametrize(
+    "fault, protected",
+    [
+        ("", None),
+        ("sticky_tail", None),
+        ("sticky_extra", "button#reply"),
+        ("prepend", "p#old"),
+        ("old_growth", "button#reply"),
+        ("extra_carry", "button#later"),
+        ("moving_port", "button#reply"),
+        ("outside", "button#outside"),
+        ("outside_runtime", "button#reply"),
+        ("port_outside_runtime", "button#reply"),
+        ("enclosing_text", "button#reply"),
+    ],
+)
+def test_append_reflow_credits_only_its_measured_suffix_growth(
+    browser, fault, protected
+):
+    """An arrival may move its reply and later cards, preserving the transcript."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0;font:16px monospace">'
+            '<div id="port" data-lf-runtime style="width:360px;height:300px;'
+            'padding:5px;box-sizing:border-box;overflow:auto;overflow-anchor:none">'
+            '<section style="overflow:clip">'
+            '<div id="source" data-lf-reflow="append">'
+            '<p id="old" style="margin:0;height:40px">Already reading.</p></div>'
+            '<button id="reply" style="display:block;position:sticky;bottom:0">Reply</button></section>'
+            '<article><p style="margin:0">Another conversation.</p>'
+            '<button id="later">Later thread</button></article></div>'
+            '<button id="outside">Outside the panel</button></body>'
+        )
+    )
+    if fault in {"outside_runtime", "port_outside_runtime"}:
+        page.locator("#port").evaluate(
+            "node => node.removeAttribute('data-lf-runtime')"
+        )
+    if fault == "port_outside_runtime":
+        page.locator("#source").evaluate(
+            "node => node.setAttribute('data-lf-runtime', '')"
+        )
+    if fault == "enclosing_text":
+        page.locator("#port > section").evaluate(
+            "node => node.setAttribute('data-lf-reflow', 'text')"
+        )
+    paint(page)
+    before = page.locator("#old").bounding_box()
+    reply_before = page.locator("#reply").bounding_box()
+    page.evaluate(
+        """fault => {
+          const source = document.getElementById('source');
+          const next = document.createElement('p');
+          next.textContent = 'The newly appended reply.';
+          next.style.cssText = `margin:0;height:${fault.startsWith('sticky_') ? 400 : 40}px`;
+          if (fault === 'prepend') source.prepend(next);
+          else source.append(next);
+          if (fault === 'old_growth') document.getElementById('old').style.height = '60px';
+          if (fault === 'extra_carry') document.getElementById('later').style.marginTop = '7px';
+          if (fault === 'sticky_extra') document.getElementById('reply').style.bottom = '7px';
+          if (fault === 'moving_port') document.getElementById('port').style.marginTop = '7px';
+          if (fault === 'outside') document.getElementById('outside').style.marginTop = '7px';
+        }""",
+        fault,
+    )
+    judge_watches()
+    if not protected:
+        assert page.locator("#old").bounding_box() == before
+        if fault == "sticky_tail":
+            port = page.locator("#port").bounding_box()
+            assert page.locator("#reply").bounding_box()["y"] == (
+                port["y"] + port["height"] - 5 - reply_before["height"]
+            )
+        else:
+            assert page.locator("#reply").bounding_box()["y"] == reply_before["y"] + 40
+    else:
+        errors = consume_browser_errors(page, "moved without input")
+        assert any(f"{protected} moved without input" in error for error in errors), (
+            errors
+        )
+
+
+@pytest.mark.parametrize("overflow", ["visible", "auto"])
+def test_boxless_overflow_does_not_hide_carried_reading(browser, overflow):
+    """Overflow on a display:contents wrapper cannot clip its visible descendants."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0">'
+            f'<div id="wrapper" style="display:contents;overflow:{overflow};padding:10%">'
+            '<div id="above" style="height:40px"></div>'
+            '<button id="target">Reading control</button></div></body>'
+        )
+    )
+    paint(page)
+    assert (
+        page.locator("#wrapper").evaluate("node => node.getClientRects().length") == 0
+    )
+    assert page.locator("#target").bounding_box()["y"] == 40
+    page.locator("#above").evaluate("node => node.style.height = '80px'")
+    judge_watches()
+    assert page.locator("#target").bounding_box()["y"] == 80
+    errors = consume_browser_errors(page, "moved without input")
+    assert any("button#target moved without input" in error for error in errors), errors
+
+
+@pytest.mark.parametrize("bounded", [False, True])
+@pytest.mark.parametrize("position", ["static", "sticky"])
+def test_append_uses_an_actual_scrollport_past_boxless_overflow(
+    browser, bounded, position
+):
+    """A boxless ancestor cannot own append growth; an actual outer scrollport can."""
+    page = browser.new_page()
+    contents = (
+        '<div data-lf-runtime style="display:contents;overflow:auto;padding:10%;'
+        f'position:{position};bottom:0">'
+        '<div id="source" data-lf-reflow="append">'
+        '<p style="height:40px;margin:0">Earlier message.</p></div>'
+        '<button id="target">Reply</button></div>'
+    )
+    if bounded:
+        contents = (
+            '<div data-lf-runtime style="width:360px;height:300px;overflow:auto">'
+            + contents
+            + "</div>"
+        )
+    page.goto(
+        "data:text/html," + quote('<!doctype html><body style="margin:0">' + contents)
+    )
+    paint(page)
+    assert page.locator("#target").bounding_box()["y"] == 40
+    page.evaluate("""() => {
+      const message = document.createElement('p');
+      message.style.cssText = 'height:400px;margin:0';
+      message.textContent = 'The new message.';
+      document.getElementById('source').append(message);
+    }""")
+    judge_watches()
+    assert page.locator("#target").bounding_box()["y"] == 440
+    if not bounded:
+        errors = consume_browser_errors(page, "moved without input")
+        assert any("button#target moved without input" in error for error in errors), (
+            errors
+        )
+
+
+def test_append_reflow_preserves_nested_text_reflow(browser):
+    """A stationary old header may still repack inside its own declared boundary."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0;font:16px monospace">'
+            '<div data-lf-runtime style="width:360px;height:300px;overflow:auto">'
+            '<div id="source" data-lf-reflow="append">'
+            '<div style="height:40px"><div data-lf-reflow="text" '
+            'style="display:flex;width:360px;height:24px">'
+            '<span id="receipt">Waiting</span><span id="time">Today</span>'
+            '</div></div></div><button id="reply">Reply</button></div>'
+        )
+    )
+    paint(page)
+    before = page.locator("#time").bounding_box()
+    page.evaluate("""() => {
+      document.getElementById('receipt').textContent = 'Responded just now';
+      const next = document.createElement('p'); next.textContent = 'New reply';
+      next.style.cssText = 'margin:0;height:40px';
+      document.getElementById('source').append(next);
+    }""")
+    judge_watches()
+    assert page.locator("#time").bounding_box()["x"] > before["x"]
+
+
+def test_append_reflow_does_not_credit_typing_that_carries_its_editor(browser):
+    """The append permission does not weaken the independently retained typing pose."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0">'
+            '<div data-lf-runtime style="width:360px;height:300px;overflow:auto">'
+            '<div id="source" data-lf-reflow="append">'
+            '<p style="margin:0;height:40px">Already reading.</p></div>'
+            '<textarea id="field"></textarea></div>'
+            '<script>document.getElementById("field").addEventListener("beforeinput", () => {'
+            'const next = document.createElement("p"); next.textContent = "New reply";'
+            'next.style.cssText = "margin:0;height:40px";'
+            'document.getElementById("source").append(next); });</script>'
+        )
+    )
+    paint(page)
+    page.locator("#field").fill("a")
+    judge_watches()
+    consume_browser_errors(page, "typing in textarea#field moved textarea#field")
 
 
 CAPPED_METADATA = "".join(
@@ -2784,6 +3088,21 @@ def test_an_unchanged_frame_misses_no_restyle(browser, call):
             page,
             "missed a change to #text in p#unheard (opacity) and to 1 other node:",
         )
+
+
+def test_unavailable_computed_padding_keeps_an_unchanged_reading(browser):
+    """A native media source has no computed padding, even while connected."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html," + quote('<!doctype html><audio><source id="source"></audio>')
+    )
+    assert page.locator("#source").evaluate("""node => {
+      const style = getComputedStyle(node);
+      return [style.paddingTop, style.paddingBottom];
+    }""") == ["", ""]
+    paint(page)
+    page.evaluate(FRAMES, 4)
+    judge_watches()
 
 
 def test_the_verdict_checks_a_change_the_test_ends_on(browser):

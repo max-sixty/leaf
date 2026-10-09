@@ -15,10 +15,12 @@
    Normal element and page command declarations share native button activation. A
    sequence's `control` is a travel destination and arrival seat, not an activation
    declaration; native editing scopes may likewise name only the input's key route.
+   An executable command owns its button's availability through its predicates;
+   disabled attributes are outputs. ARIA refusal retains keyboard standing while
+   activation checks the current command. Withdrawal returns both original attributes.
    Preserve the order of that list because the dispatcher and shortcut bar walk inward to
    outward while the full reference groups the same scopes for reading. */
 import {
-  MODIFIER_KEYS,
   activeRows,
   ariaShortcuts,
   bindings,
@@ -41,9 +43,10 @@ import {
   word,
 } from "./bindings.js";
 import { nativeClaimAt } from "./text-entry.js";
-import { deepFocus } from "../focus.js";
+import { focused, onLabelPress } from "../focus.js";
 import { hostIn, upFrom } from "../shadow.js";
 import { repaint } from "../repaint.js";
+import { keeps } from "../keeps.js";
 
 // The scopes still owed a first paint. A declaration joins here and `reflectShortcuts`
 // takes it out again, so one reading is owed per declaration whether that reading stands
@@ -128,6 +131,13 @@ function buttonCommands() {
   }
   return found;
 }
+// Getter-named buttons may arrive after declaration. Claim their output fields before
+// availability readers project commands; otherwise their initial disabled paint is
+// mistaken for an input until the next frame. Readers may materialize more controls,
+// which the ordinary button pass below then claims and presents.
+function claimButtons() {
+  for (const control of buttonCommands().keys()) claimButton(control);
+}
 function reflectButtons() {
   const commands = buttonCommands();
   for (const ref of scopeRefs) {
@@ -135,8 +145,9 @@ function reflectButtons() {
     if (!control) continue;
     buttonReadings.delete(control);
     if (buttonBaselines.has(control) && !commands.has(control)) {
-      const disabled = buttonBaselines.get(control);
+      const { disabled, ariaDisabled } = buttonBaselines.get(control);
       if (control.disabled !== disabled) control.disabled = disabled;
+      keeps(control, "aria-disabled", ariaDisabled);
       buttonBaselines.delete(control);
       controlAvailabilityOutput(control, BUTTON_AVAILABILITY);
       reflectElementShortcuts(control);
@@ -145,38 +156,67 @@ function reflectButtons() {
     }
   }
   for (const [control, command] of commands) {
-    if (!buttonBaselines.has(control)) buttonBaselines.set(control, control.disabled);
-    controlAvailabilityOutput(control, BUTTON_AVAILABILITY, { disabled: true });
+    claimButton(control);
     const { scope, row, entry } = command;
     const disabled = Boolean(
       (scope.when && !scope.when()) ||
       !commandAvailable(row, entry === row ? null : entry),
     );
-    if (control.disabled !== disabled) control.disabled = disabled;
+    keeps(control, "aria-disabled", disabled ? "true" : null);
     buttonReadings.set(control, command);
     rememberScopedElement(control);
-    if (wiredButtons.has(control)) continue;
-    wiredButtons.add(control);
-    control.addEventListener("click", (event) => {
-      if (event.defaultPrevented || event.button !== 0) return;
-      const command = buttonCommands().get(control);
-      if (!command) return;
-      event.preventDefault();
-      if (
-        (command.scope.when && !command.scope.when()) ||
-        !commandAvailable(
-          command.row,
-          command.entry === command.row ? null : command.entry,
-        )
-      )
-        return;
-      command.row.run(
-        commandBinding(
-          command.row,
-          command.entry === command.row ? null : command.entry,
-        ),
-      );
+    wireButton(control);
+  }
+}
+function claimButton(control) {
+  if (!buttonBaselines.has(control))
+    buttonBaselines.set(control, {
+      disabled: control.disabled,
+      ariaDisabled: control.getAttribute("aria-disabled"),
     });
+  controlAvailabilityOutput(control, BUTTON_AVAILABILITY, {
+    disabled: true,
+    ariaDisabled: true,
+  });
+  if (control.disabled) control.disabled = false;
+  rememberScopedElement(control);
+}
+function wireButton(control) {
+  claimButton(control);
+  if (wiredButtons.has(control)) return;
+  wiredButtons.add(control);
+  control.addEventListener("click", (event) => {
+    if (event.defaultPrevented || event.button !== 0) return;
+    const command = buttonCommands().get(control);
+    if (!command) return;
+    event.preventDefault();
+    if (
+      (command.scope.when && !command.scope.when()) ||
+      !commandAvailable(
+        command.row,
+        command.entry === command.row ? null : command.entry,
+      )
+    )
+      return;
+    command.row.run(
+      commandBinding(command.row, command.entry === command.row ? null : command.entry),
+    );
+  });
+}
+// A button is pressed as soon as it can be reached, which can be before the frame that
+// paints its declaration: a key run in the same task that focused a new thread card
+// clicked a Resolve the paint had not yet wired, and nothing happened. So a declaration
+// wires the buttons it names as elements when it is made. A control named by a getter
+// may not exist yet, and is wired at paint as before; the listener resolves its command
+// at the press either way.
+function wireDeclaredButtons(scope) {
+  if (scope.contextual || scope.sequence) return;
+  for (const row of scope.rows) {
+    if (!row.run || typeof row.routes === "function") continue;
+    for (const entry of row.routes?.length ? row.routes : [row]) {
+      const control = entry.control ?? row.control;
+      if (control instanceof HTMLButtonElement) wireButton(control);
+    }
   }
 }
 
@@ -448,6 +488,7 @@ function attachScope(where, declaration, { validateAtPaint = true } = {}) {
   elementScopes.set(where, scope);
   rememberScopedElement(where);
   if (validateAtPaint) unpainted.add(scope);
+  wireDeclaredButtons(scope);
   paintKeys();
   return scope.rows;
 }
@@ -621,6 +662,7 @@ function reflectElementShortcuts(element) {
 // Ahead of standing content, so an ambiguous declaration is refused under its own title
 // rather than under whichever surface reads its rows first.
 export function reflectFirstScopes() {
+  claimButtons();
   reflectCommandAvailability();
   reflectButtons();
   for (const scope of [...unpainted]) {
@@ -636,6 +678,7 @@ let keysDirty = true;
 export function reflectKeys() {
   if (!keysDirty) return;
   keysDirty = false;
+  claimButtons();
   reflectCommandAvailability();
   reflectButtons();
   pruneScopedElements();
@@ -677,88 +720,29 @@ const spoken = (row) => {
 const FOCUS = "lf-focus";
 const FOCUS_VISIBLE = "lf-focus-visible";
 const FOCUS_WITHIN = "lf-focus-within";
-// A label's mousedown can blur the already-focused element to body, or a containing
-// thread can seat itself, before native activation focuses the control on mouseup. Those
-// intermediate targets are not a new keyboard standing. Keep the prior focus as the
-// JavaScript reading and project its CSS pseudo-classes while the pointer is inside that
-// native transaction. Neither changes DOM focus or prevents pointer default, so a drag can
-// still select a label's authored words.
-let labelPress = null;
-const markLabelPress = (held, pointerId) => {
-  held.classList.toggle(FOCUS, true);
-  const within = [];
-  for (let node = held; node; node = upFrom(node)) {
-    node.classList.toggle(FOCUS_WITHIN, true);
-    within.push(node);
+// A press on a label holds the user on the element they stood on until it lands
+// (focus.js, `focused`). The element keeps the focus pseudo-classes' paint for that
+// press, as classes, since DOM focus has moved through the label's in-between nodes.
+let painted = [];
+onLabelPress((held) => {
+  for (const node of painted) node.classList.remove(FOCUS, FOCUS_VISIBLE, FOCUS_WITHIN);
+  painted = [];
+  if (!held) {
+    repaint();
+    return;
   }
-  if (held.matches(":focus-visible")) held.classList.toggle(FOCUS_VISIBLE, true);
-  labelPress = { held, pointerId, within };
-};
-const finishLabelPress = () => {
-  const press = labelPress;
-  if (!press) return null;
-  labelPress = null;
-  press.held.classList.toggle(FOCUS, false);
-  press.held.classList.toggle(FOCUS_VISIBLE, false);
-  for (const node of press.within) node.classList.toggle(FOCUS_WITHIN, false);
-  repaint();
-  return press;
-};
-document.addEventListener(
-  "pointerdown",
-  (event) => {
-    if (labelPress || !event.isPrimary || event.button !== 0) return;
-    const label = event
-      .composedPath()
-      .find((node) => node?.localName === "label" && node.control);
-    if (!label) return;
-    const active = deepFocus();
-    if (active && active !== document.body) markLabelPress(active, event.pointerId);
-  },
-  true,
-);
-const releaseLabelPress = (event) => {
-  if (!labelPress) return;
-  if ("pointerId" in event && event.pointerId !== labelPress.pointerId) return;
-  finishLabelPress();
-};
-addEventListener("pointerup", releaseLabelPress, true);
-addEventListener("pointercancel", releaseLabelPress, true);
-addEventListener("blur", releaseLabelPress);
+  held.classList.add(FOCUS);
+  if (held.matches(":focus-visible")) held.classList.add(FOCUS_VISIBLE);
+  for (let node = held; node; node = upFrom(node)) {
+    node.classList.add(FOCUS_WITHIN);
+    painted.push(node);
+  }
+});
 
-// A key changes the active input device and ends the pointer's provisional standing. Put
-// physical focus back before the bubbling dispatcher and the platform default run. Text
-// entry then remains the browser's; a platform activation row needs the event-specific
-// target below because the key event itself was aimed at an intermediate focus target.
-const recoveredLabelKeys = new WeakMap();
-document.addEventListener(
-  "keydown",
-  (event) => {
-    const active = deepFocus();
-    if (!labelPress || event.isComposing || MODIFIER_KEYS.includes(event.key)) return;
-    const { held } = finishLabelPress();
-    if (active === held) return;
-    if (!held.isConnected) return;
-    held.focus({ preventScroll: true });
-    if (deepFocus() === held) recoveredLabelKeys.set(event, held);
-  },
-  true,
-);
-
-// Where the user is standing, which is not always what `document.activeElement`
-// answers. Focus inside a shadow tree retargets to the host, while the label transition
-// above can report body or a containing element until its click completes. The register
-// needs the inner element in both cases so its scope stays the one the user is leaving
-// or working.
-export const focused = () => {
-  const active = deepFocus();
-  return labelPress?.held.isConnected ? labelPress.held : active;
-};
 // Document readings want the host of a control staged in a shadow tree. Retarget the
 // logical reading every time, so a label transaction and an ordinary shadow focus take
 // the same path and no painted surface invents its own exception.
 export const documentFocused = () => hostIn(focused(), document);
-export const recoveredLabelFocus = (event) => recoveredLabelKeys.get(event);
 
 // The element scopes covering a node, innermost first — the climb crosses a shadow
 // boundary the way `closest` climbs inside one, so a widget staging its controls in a

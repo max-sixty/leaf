@@ -348,6 +348,34 @@ test("cramped pins remain reachable within their bounds", () => {
     );
     if (input.folds === null) assert.equal(seat.folded, false);
   }
+  // With no clear seat, both the folded toggle and the whole face still fit
+  // vertically in a clipped document or pane, at either edge.
+  for (const bounds of [box(4, 730, 386, 820), box(4, 600, 386, 750)])
+    for (const folds of [null, pair().folds]) {
+      const input = pair({ bounds, cover: crowded, folds });
+      const { rect } = seatOf([input]);
+      assert.ok(
+        rect.top >= bounds.top && rect.bottom <= bounds.bottom,
+        JSON.stringify(rect),
+      );
+    }
+});
+
+test("a held pin is reseated when its bounds shrink", () => {
+  const bounds = box(4, -Infinity, 313, Infinity);
+  for (const folded of [false, true]) {
+    const input = pair({
+      bounds,
+      held: box(267, 736.5, 328, 780.5),
+      folds: folded ? pair().folds : null,
+      folded,
+    });
+    const seat = seatOf([input]);
+    assert.ok(
+      seat.rect.left >= bounds.left && seat.rect.right <= bounds.right,
+      JSON.stringify(seat),
+    );
+  }
 });
 
 test("a folded pin stands only where its opened actions stay inside its bounds", () => {
@@ -411,6 +439,18 @@ test("a folded pin held open keeps its fold, and the others keep to its toggle",
     rect: box(230, 740, 274, 784),
     folded: false,
   });
+});
+
+test("a held folded pin keeps room for its opened actions after its bounds change", () => {
+  const input = pair({
+    bounds: box(200, -Infinity, 386, Infinity),
+    held: box(140, 736.5, 282, 780.5),
+    folded: true,
+  });
+  const seat = seatOf([input]);
+  const openedLeft = seat.rect.right - input.folds.open;
+  assert.ok(openedLeft >= input.bounds.left, JSON.stringify(seat));
+  assert.ok(seat.rect.right <= input.bounds.right, JSON.stringify(seat));
 });
 
 // Two pins by the same run: `first` came at an earlier pass than `second`.

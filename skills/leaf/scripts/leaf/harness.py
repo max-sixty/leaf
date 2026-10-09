@@ -13,6 +13,8 @@ The machine facts a harness rests on live elsewhere: `machine` reads the
 processes running above this one, and `leases` holds the leases a watcher
 proves itself with."""
 
+from __future__ import annotations
+
 import itertools
 import json
 import os
@@ -30,6 +32,7 @@ from typing import ClassVar
 from leaf.files import read_json
 from leaf.leases import adapter_is_live, hooks_ran, step_hook_ran, wait_is_live
 from leaf.machine import ancestry, pid_alive, process_argv
+from leaf.page_memory import Slot
 
 
 @dataclass(frozen=True)
@@ -95,7 +98,7 @@ class Harness:
     hook_delivers: ClassVar[bool] = False
 
     @classmethod
-    def from_claim(cls, claim: dict) -> "Harness":
+    def from_claim(cls, claim: dict) -> Harness:
         """Rebuild the claimant's harness from the record it wrote."""
         return cls(session=claim["id"], agent=claim["agent"])
 
@@ -316,7 +319,7 @@ class ClaudeCodeHarness(EnvironmentHarness):
         return int(pid) if (pid := os.environ.get("CLAUDE_PID")) else None
 
     @classmethod
-    def from_claim(cls, claim: dict) -> "ClaudeCodeHarness":
+    def from_claim(cls, claim: dict) -> ClaudeCodeHarness:
         return cls(session=claim["id"], agent=claim["agent"], job=claim.get("job"))
 
     def watches_between_turns(self) -> bool:
@@ -630,7 +633,7 @@ class EmbeddedHarness(Harness):
     name = "embedded"
 
     @classmethod
-    def from_claim(cls, claim: dict) -> "EmbeddedHarness":
+    def from_claim(cls, claim: dict) -> EmbeddedHarness:
         return cls(session=claim["id"], agent=claim["agent"], pid=claim["pid"])
 
     def lifetime(self) -> dict:
@@ -800,30 +803,25 @@ def claude_code_session_records(session_id: str) -> list[dict]:
     passed over.
 
     Every state read asks this of each claimed page, so a listing is reused for
-    `REGISTRY_READ_S` while the directory's own stamp holds, well inside the
+    at most `REGISTRY_READ_S` while the directory's own stamp holds, well inside the
     presence cache's interval: a record added, removed or atomically replaced
     moves the stamp at once. The listing is the machine's rather than a page's, so
     the process keeps the last one, replaced whole."""
-    global _registry_listing
     sessions = claude_code_sessions()
     try:
         stamp = sessions.stat().st_mtime_ns
     except OSError:
         return []
-    held = _registry_listing
-    if (
-        held is None
-        or held[:2] != (sessions, stamp)
-        or time.monotonic() - held[2] >= REGISTRY_READ_S
-    ):
-        held = (sessions, stamp, time.monotonic(), _registry_records(sessions))
-        _registry_listing = held
-    return [record for record in held[3] if record.get("sessionId") == session_id]
+    records = _registry_listing.get(
+        (sessions, stamp, time.monotonic() // REGISTRY_READ_S),
+        lambda: _registry_records(sessions),
+    )
+    return [record for record in records if record.get("sessionId") == session_id]
 
 
 REGISTRY_READ_S = 1.0
-# (registry directory, its stamp, when it was listed, its records)
-_registry_listing: tuple[Path, int, float, list[dict]] | None = None
+# The machine's registry listing; one time bucket bounds in-place record staleness.
+_registry_listing = Slot()
 
 
 def _registry_records(sessions: Path) -> list[dict]:

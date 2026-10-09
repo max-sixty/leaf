@@ -10,11 +10,11 @@ page and is not a global identifier. The kinds:
 | Kind | Author | Door | Fields | Meaning |
 | --- | --- | --- | --- | --- |
 | `comment` | user or agent | `POST /api/event`, `leaf thread open` | `text`, `drawing`, or `token`; optional `anchor`, `suggestion`, `about: "design"`, `response`, `markup` (CLI only) | opens a question, or with `token` puts a reaction mark on the anchor |
-| `reply` | user or agent | `POST /api/event`, `leaf thread reply` | `parent`; `text` or `token`; agent `responds` when answering; `awaits`, `markup`, and a replacement `anchor` or null detachment (CLI only) | answers the exact named obligation without closing its thread; an agent reply may also replace or remove the thread's current location |
+| `reply` | user or agent | `POST /api/event`, `leaf response reply`, proactive `leaf thread reply` | `parent`; `text` or `token`; agent `responds` when answering; `awaits`, `markup`, and a replacement `anchor` or null detachment (CLI only) | answers the exact named obligation without closing its thread; an agent reply may also replace or remove the thread's current location |
 | `edit` | agent | `leaf thread edit` | `message`, `text` | replaces one message's visible text; the original stays in the log |
 | `read` | user | `POST /api/event` | `messages: [{message, version}]` | records that this page's one user has read exact current or historical agent-content versions; `$events` declares it bookkeeping, so it adds no thread turn or agent work |
-| `thread_title` | agent | `--title` on `leaf thread open`, `reply` or `edit` | `thread`, `title` | names a thread in the panel; latest title wins without adding a turn or settling work |
-| `reanchor` | page | revision activation | `thread`, `revision`, `anchor: {section}` | a quoted passage no longer resolves; retains the open thread at its surviving section without adding a message, answering work or changing attention |
+| `thread_title` | agent | independent first naming or `leaf thread edit --title` | `thread`, `title` | names a thread in the panel; latest title wins without adding a turn or settling work |
+| `reanchor` | page | revision activation | `thread`, `revision`, `anchor: {section} or null` | a passage or visual part no longer resolves; retains the open thread at its surviving section or detaches it without adding a message, answering work or changing attention |
 | `summary` | agent | `leaf thread summarize` | `thread`, `from`, `through`, `text`; optional `label` | folds one contiguous range with optional Markdown in the thread panel; originals stay in the log and remain revealable |
 | `resolve` | user or agent | `POST /api/event`, `leaf thread resolve` | `parent` | closes a thread |
 | `unresolve` | user | `POST /api/event` | `parent` | the user reopens a resolved thread |
@@ -26,7 +26,7 @@ page and is not a global identifier. The kinds:
 | `error` | page | the runtime | | the page reported a failure in front of the user; heard like a report, never counted against the user |
 | `task` | agent | `leaf task open` | `owner` (`agent`, or `user` with `--on user`); `subject`: `{kind: thread, id}` (an open thread, for the agent's own task only), `{kind: widget, id}` (a live page widget, which for the agent's own task declares `x-work` or holds an unsettled move), `{kind: element, id}` (any other element of the page), or `{kind: page}`; `title`; server-stamped `revision` on a widget task | the agent takes on work it owes there, or puts a task on the user; the agent's stands through replies, resolutions, versions and session ends, and the user's until their Done (`tasks.py`) |
 | `task_end` | agent or user | `leaf task end`, `POST /api/event` from a task's Done | `task`, an open task: one in the log, or a thread question's by the asking reply's id; `outcome` (`done`, `failed`, or `dropped`; the user's is `done`); optional `detail` from the agent | ends one open task, as a note that `settles` it does, as its `ends` allows: the agent may end any but an Ask's, which only its widget's answer ends, and the user only one the agent opened on them, since a question ends at their reply or a settling reaction |
-| `start` | agent | `leaf task start`; `leaf thread reply --ephemeral` on a move the agent owes | `item`, a user move the agent owes (its event id) or an open task; the banner's `text`; `turn`, the claimant turn that wrote it, when the poster holds the page | takes the item in hand: a move reads Working and a task runs, until the move is answered, the task ends, or a `put_down` follows; the newest start on an item replaces the one before |
+| `start` | agent | `leaf task start`; addressed progress carries the same declaration in its reply | `item`, a user move the agent owes (its event id) or an open task; the banner's `text`; `turn`, the claimant turn that wrote it, when the poster holds the page | takes the item in hand: a move reads Working and a task runs, until the move is answered, the task ends, or a `put_down` follows; the newest start on an item replaces the one before |
 | `put_down` | agent | `leaf status waiting` and `leaf status idle`, when a start stands | | ends every start before it: the moves they named go back to their delivery stage and the tasks stay open with nothing running (`tasks.item_starts`) |
 | `undo` | user | `POST /api/event` | `undoes` | withdraws one gesture of the user's own (`UNDOABLE_KINDS`: resolve, unresolve, action, done, task_end) |
 
@@ -42,11 +42,12 @@ landed on.
 Activation records a `reanchor` for every affected open thread, even when no reply
 addresses it. The original message retains its quote; `build_threads` reads the
 latest explicit reply transition or automatic reanchor as the current location, and
-keeps the anchor an automatic reanchor moved off as `rewritten_from` until a reply
-places the thread again, so the panel can go on naming the words that changed.
+keeps the old anchor as `rewritten_from` after a section fallback, or `detached_from`
+after detachment, until a reply places the thread again.
 Quoted text that the predecessor's file reading cannot resolve, such as words a
 data projection generates, stays with its runtime owner. An automatic transition
-cannot invent a replacement passage or detach a thread: a reply makes those choices.
+cannot invent a replacement passage; it detaches when the original section is gone.
+A reply can explicitly choose a new passage.
 
 A `drawing` is up to 32 freehand strokes (`strokes`, each a list of points) attached to
 an ordinary comment, and may be that comment's only content. The browser anchors it on
@@ -104,7 +105,7 @@ the same way, from the moment it is sent, and its refusal brings the reaction ba
 ## Authorship and voice
 
 The server stamps every browser-posted event `author=user`. `leaf thread open`,
-`leaf thread reply`, `leaf thread edit`, `leaf page report`, and
+`leaf response reply`, proactive `leaf thread reply`, `leaf thread edit`, `leaf page report`, and
 `page stamp` stamp `author=agent` plus the posting session's own voice: `agent`, its display
 name, and `session`, its harness session id. Several agent sessions can write to one
 page, so the voice is read from the poster's environment rather than from the
@@ -149,7 +150,10 @@ it may land either side of the append; the HTTP transport's one fault boundary
 the browser retries the same attempt.
 
 Transports own only their input boundary: which kinds and fields they accept and
-how they answer retries.
+how they answer retries. Both writers share recorded-effect applicability: selected
+ids must belong to the recording widget, and a position must name an owned unit,
+an admissible destination, and a valid rank in the named revision. Reports name
+page widgets; user actions may also name widgets in frozen thread markup.
 
 Browser POSTs are commands. The append transaction stamps the accepted event with
 server-owned `meaning`; callers cannot send it, and retry identity
@@ -182,8 +186,15 @@ undone: the markup decides the order an undo would have restored. The door refus
 a move made on an older revision whose container the newest one authors
 differently.
 
+Recorded effects own their payload schema (`registry.contract.detail_schema`):
+`detail.value` carries a body's string, an attribute set's ids, or the scalar
+attribute's own schema. Positions require `{unit, value, rank}` for the moved
+item, destination and rank key. `update: true` on an agent verb adds required
+nonempty `detail.text`. Custom verbs without a record keep their declared detail
+schema. All payloads are closed objects.
+
 Dependency identities come from the fold unit and the attribute-set and position
-record fields. Literal detail strings do not become dependencies by matching HTML ids. The log does not freeze ancestry:
+record values. Literal detail strings do not become dependencies by matching HTML ids. The log does not freeze ancestry:
 retraction tests use the current document's containment of those identities.
 A child a `creates` verb adds is that action's fold unit, so it stands on the action's
 own coordinate until the action is undone or retracted. Admission stamps the child tag
@@ -230,12 +241,12 @@ or enter agent delivery. The one-user page assumption is the page's current
 lifecycle, not a per-account scope.
 
 An agent comment opens a question. A substantive reply opens or resumes the thread;
-when its prose leaves another question for the user, `leaf thread reply --awaits`
+when its prose leaves another question for the user, a reply command with `--awaits`
 records `awaits: true`. The browser cannot write that field. A user reply
 always hands the thread back to the agent, so it needs no parallel declaration.
 An agent reply records the delivery event it answers as `responds`, including a
 completed delivery answer whose move was settled during the turn. A proactive
-message (`leaf thread reply <page> <message-id>`, without `--for`) carries no `responds`. Settlement
+message (`leaf thread reply <page> <message-id>`) carries no `responds`. Settlement
 consumes this exact identity rather than log order, so answering older work cannot
 erase newer user input. A substantive reply reopens a resolved thread;
 reactions and harness failure receipts leave its closure standing. A later resolution
@@ -259,21 +270,28 @@ on a board sent in a reply, keeps a delivery receipt and owes no reply, under th
 rule `workflows.py` states for page moves.
 
 An open structural Ask anywhere in an unresolved thread keeps it awaiting the
-user after later prose or a settling reaction. Without one, the latest spoken
-turn determines the prose obligation described above. A user reaction on that
-latest request whose token declares `settles` clears the prose obligation without
-resolving the thread. `served_state/thread.py` owns this precedence.
+user after later prose or a settling reaction. Without one, the latest unanswered
+prose question determines the obligation. Later agent updates leave it standing.
+A user turn answers every question before it; a reaction whose token declares
+`settles` answers only the question it names, so an older unanswered question may
+become current again. Neither answer resolves the thread. `asks.thread_questions`
+owns recognition, content identity and settlement for every prose question,
+including an agent opening comment.
+`work_reading.WorkReading.questions` shares that reading across admission and
+serving: thread attention selects its latest unanswered prompt, and tasks retain
+its settling event for Done history. Widget Asks remain their own reading.
 
 What each thread command does for its user, and when an agent uses it, is
 `../../references/threads.md`. The door and the fold hold these rules behind
 them:
 
-- `edit` revises only a comment or reply whose recorded session matches the posting
-  session, and only its `text`: markup is frozen because a user action may already
+- `edit` revises an agent-authored comment or reply, including a predecessor
+  session's message, and only its `text`: markup is frozen because a user action may already
   rest on a widget in it. The original stays in the log with its id, timestamp,
   author, thread position, and anchor; the panel, wait digests, and the transcript
   fold the latest text onto it and label it edited.
-- `thread_title` names an existing thread with a nonblank, single-line
+- A comment or reply's `title` gives its thread a first name atomically with the
+  message, and leaves an existing name standing. `thread_title` names or renames an existing thread with a nonblank, single-line
   plain-text title of at most 80 characters. The latest title is projected separately
   from messages into browser state and agent context; an unnamed thread has
   a null title and the panel shows three animated dots until the agent names it.
@@ -288,8 +306,9 @@ them:
 - An agent `reply` with `ephemeral: true` is retained progress text. It carries no
   `responds`, `awaits`, markup, failure or anchor transition and participates in no
   semantic turn, work settlement or reopening. Posted to a move the agent owes, it
-  is followed in the same append by a `start` on that move with its text as the
-  line, so progress and work in hand are one write. The next ordinary agent reply in
+  carries `start: {item, turn?}` naming that exact delivered move, with its text
+  as the line. `tasks.start_reading` reads this and explicit starts alike, so
+  progress history and work in hand are one durable fact. The next ordinary agent reply in
   its thread derives empty-prose “Previous updates” folds over the preceding
   uncovered contiguous runs of ephemeral messages, including a single message.
   User messages break those runs and remain outside them. Explicit summaries own
@@ -305,7 +324,7 @@ them:
 - A message body is Markdown, stored as typed and rendered by the page's own vendored
   runtime, so the renderer and the panel's styles version together; raw HTML renders as
   its own characters. A widget in a message rides the `markup` field, whose one door is
-  `leaf thread open`/`leaf thread reply`, where it is validated against the vendored registry; the
+  `leaf thread open` or a reply command, where it is validated against the vendored registry; the
   browser door refuses the field. The door reads a body's Markdown link and image
   destinations, in text and markup alike, and refuses a `/media/…` the page directory
   cannot answer, since the directory holds `/media/<digest>.<ext>` and nothing else.
@@ -322,7 +341,7 @@ deletion could be safe.
 ## Anchors
 
 The user selects a passage and the browser writes the anchor from the selection;
-`leaf thread open`, and `leaf thread reply` when it moves a thread, write the file-confirmable
+`leaf thread open`, and a reply command when it moves a thread, write the file-confirmable
 form from a quote by reading authored HTML through `leaf.passages`. The browser's
 anchor pass applies the matching rules to the DOM. Projected data has no file-side
 value to quote: its browser

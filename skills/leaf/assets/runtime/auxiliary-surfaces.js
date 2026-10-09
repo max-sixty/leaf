@@ -2,10 +2,16 @@
 
    Registered surfaces retain their own rendering and scrollports. Selecting one closes
    the previous surface before opening it; there is no per-surface visibility state.
+   Each declares the window `edge` it stands on, and one selected in place of another on
+   the same edge swaps with it where it stands rather than sliding.
    Every surface stands over the page and takes no room from it, so selecting one never
    changes the page's geometry. A surface whose rows need the first server reading
    declares presentation-time arrival, so its rendering and covering boundary wait for
    that reading.
+
+   Selecting a surface ordinarily keeps the user's place beside it. A navigation
+   activation requests `focus` and enters the surface's declared destination; the
+   surface owner supplies that place once for both covering and beside postures.
 
    A surface either always covers the page or declares that it may stand `beside` it,
    leaving the page live. One that may stand beside covers the page only where it would
@@ -13,11 +19,12 @@
    such surface, as the width the selected one stands at or nothing where it covers
    (theme.css, `--lf-auxiliary-beside`); `standsBeside` is the runtime's one reading of it.
 
-   In the covering posture this owner makes every sibling reading surface inert, dims that
-   entire background, gives the surface modal semantics, and moves focus in only when it was
-   elsewhere in this document. It re-derives those siblings when the live version replaces the authored
-   page. Leaving that posture restores exactly the inert and role state it found; it
-   does not rebuild, hide, or scroll either side.
+   The selected surface is seated in one native dialog, nonmodal beside the page and
+   modal where it covers. Its actual nodes and the chrome foreground permitted above
+   the scrim have permanent homes in that dialog: changing posture never disconnects
+   editors, disclosures, embedded documents or standing native layers. The browser excludes
+   every background subtree, including one a page revision adds. The retained visual
+   scrim stays inside the dialog so page and chrome targeting keep their paint planes.
 
    Travel asks this owner to clear whatever surface hides a destination (`clearFor`),
    so every trip that promises to show one closes the same surfaces by the same rule.
@@ -25,20 +32,32 @@
    A surface that stands under the bottom bar, as a drawer does (its list ends above the
    band's stated height), keeps that band over it in the covering posture too: the band
    is the one always-visible guide to the keys the surface answers, and its More control
-   stays live, so this owner leaves it out of the inert background and marks it
+   stays live, so this owner contains it in the modal foreground and marks it
    `data-lf-over-covering` for the stylesheet to raise it over the scrim and the
    surface. The thread panel carries its own foot, and the band yields to it instead.
 
-   Native inertness owns sequential focus and pointer reach. This owner adds the Tab
-   wrap and programmatic-focus recovery that a non-top-layer surface still needs.
-   Entering the boundary dismisses pre-existing outside popovers. Native dialogs, and
-   popovers deliberately opened after entry, remain available to their top-layer owner. */
+   Native modality owns background pointer and programmatic-focus exclusion. This owner
+   keeps the existing Tab wrap, because native forward Tab can leave for browser chrome,
+   and suppresses native opening focus while a restored sample has no document focus.
+   Boundary focus returns to the retained surface, so delegated focus keeps its reading
+   position. Explicit navigation still enters the surface's declared destination.
+   Entering the covering boundary dismisses pre-existing outside popovers. Native dialogs
+   and popovers opened inside the foreground then join the browser's own layer order. */
 
-import { openPopovers } from "./keyboard/layer-stack.js";
-import { registerAuxiliaryModality } from "./keyboard/register.js";
+import { openPopovers, transitionNativeAncestor } from "./keyboard/layer-stack.js";
+import { registerCoveringAuxiliarySurface } from "./keyboard/register.js";
 import { hides, placeHolder } from "./geometry.js";
 import { under } from "./shadow.js";
-import { deepFocus, tabStops } from "./focus.js";
+import {
+  deepFocus,
+  tabStops,
+  holdFocus,
+  focusDestination,
+  closeLayer,
+  handBack,
+  layerLanding,
+  standingIn,
+} from "./focus.js";
 import { userStore } from "./storage.js";
 import { pagePresented } from "./presentation.js";
 import { keeps, keepsHidden } from "./keeps.js";
@@ -55,7 +74,7 @@ export const standsBeside = () =>
   ) > 0;
 
 export function createAuxiliarySurfaces({
-  chromeRoot,
+  envelope,
   band,
   syncLayout,
   afterChange,
@@ -66,130 +85,82 @@ export function createAuxiliarySurfaces({
   scrim.className = "lf-auxiliary-scrim";
   scrim.hidden = true;
   scrim.setAttribute("aria-hidden", "true");
+  envelope.className = "lf-ui lf-auxiliary-envelope";
+  // Start as an ordinary nonmodal presentation group. Initial `open` markup performs
+  // no dialog focusing steps, so mounting chrome cannot borrow an author's focus.
+  envelope.setAttribute("open", "");
+  envelope.setAttribute("role", "presentation");
+  envelope.append(scrim);
   let active = null;
-  let placingFocus = false;
+  let standing = null;
   let mounted = false;
   let arriving = null;
 
-  const place = (node) => {
-    placingFocus = true;
-    try {
-      node.focus({ preventScroll: true });
-    } finally {
-      placingFocus = false;
-    }
-  };
-  const nativeLayerContains = (node) => node?.closest?.("dialog:modal, :popover-open");
-  const overlay = (node) => node.matches?.("dialog:not(.lf-thread-panel), [popover]");
-  // Every other surface is out of the background: only one is selected, so the rest are
-  // closed, or inert for the length of their exit slide (motion.js). Each surface's own
-  // show and hide own whether it takes presses, and the boundary never records or
-  // restores a state that belongs to them.
-  const background = ({ underBand }) => {
-    const surfaces = new Set([...controllers.values()].map(({ surface }) => surface));
-    const nodes = [];
-    for (const child of document.body.children) {
-      if (child !== chromeRoot) nodes.push(child);
-    }
-    for (const child of chromeRoot.children) {
-      if (
-        !surfaces.has(child) &&
-        child !== scrim &&
-        !overlay(child) &&
-        !(underBand && child === band)
-      )
-        nodes.push(child);
-    }
-    return nodes;
-  };
-
-  // The inert state each background node had before the boundary took it. The map
-  // belongs to the boundary rather than to a surface, so a node the next surface's
-  // boundary also takes stays inert through the handover instead of being restored and
-  // taken again.
-  const suspended = new Map();
-  const syncBackground = (controller) => {
-    const next = new Set(controller ? background(controller) : []);
-    for (const [node, inert] of suspended) {
-      if (next.has(node)) continue;
-      node.toggleAttribute("inert", inert);
-      suspended.delete(node);
-    }
-    for (const node of next) {
-      if (!suspended.has(node)) suspended.set(node, node.inert);
-      node.toggleAttribute("inert", true);
-    }
-  };
-
-  const backgroundMutations = new MutationObserver(() => {
-    if (active) syncBackground(active);
-  });
-
-  // Focus is moved in only from elsewhere in this document. Where the document holds no
-  // focus at all, the user is in another one — the page around a sample, a sibling
-  // sample, another window — and moving it in would pull them back into this frame: four
-  // samples with open panels did so to each other on every frame. The boundary takes the
-  // focus when the document does instead, once the press or key that brought the user
-  // back has put them somewhere. The band a surface stands under stays live beside it.
-  const outside = (controller) =>
-    document.hasFocus() &&
-    !controller.surface.contains(document.activeElement) &&
-    !(controller.underBand && band.contains(document.activeElement));
-  const recover = () => {
-    if (active && outside(active) && !nativeLayerContains(document.activeElement))
-      place(active.focus() ?? active.surface);
-  };
-  const focusMutations = new MutationObserver(recover);
-  addEventListener("focus", () => nextRender(recover));
-
-  // The covering boundary moves in one step, from the surface holding it to `next` or to
-  // none. What both boundaries say — the inert background they share, the scrim, the
-  // band's place — is written once, to where it ends, rather than lifted by one surface
-  // and put back by the next.
-  function cover(next) {
-    if (active === next) return;
+  // The node a surface lands the user on, or the surface itself.
+  const landingIn = (controller) => controller.landing() ?? controller.surface;
+  function seat(selected) {
+    const next = selected?.covers() ? selected : null;
+    if (standing === selected && active === next) return;
     const previous = active;
-    if (previous) {
-      backgroundMutations.disconnect();
-      focusMutations.disconnect();
-      keeps(previous.surface, "role", previous.role);
-      previous.surface.removeAttribute("aria-modal");
-    }
-    active = next;
+    const changedPosture = Boolean(active) !== Boolean(next);
     if (next)
       for (const popover of openPopovers())
         if (!under(popover, next.surface)) popover.hidePopover();
-    syncBackground(next);
-    band.toggleAttribute("data-lf-over-covering", Boolean(next?.underBand));
-    keepsHidden(scrim, !next);
-    if (!next) {
-      delete document.documentElement.dataset.lfCoveringSurface;
-      return;
-    }
-    next.role = next.surface.getAttribute("role");
-    keeps(next.surface, "role", "dialog");
-    keeps(next.surface, "aria-modal", "true");
-    keeps(document.documentElement, "data-lf-covering-surface", next.surface.id);
-    backgroundMutations.observe(document.body, { childList: true });
-    backgroundMutations.observe(chromeRoot, { childList: true });
-    focusMutations.observe(next.surface, { childList: true, subtree: true });
-
-    if (outside(next)) place(next.focus() ?? next.surface);
+    const held = holdFocus(document);
+    closeLayer(
+      () => {
+        if (previous) previous.surface.removeAttribute("data-lf-covered");
+        active = next;
+        standing = selected;
+        keeps(band, "inert", next && !next.underBand ? "" : null);
+        if (next) keeps(next.surface, "data-lf-covered", "");
+        if (changedPosture || !envelope.open) {
+          // Opening a restored sample must not take focus from its containing page.
+          // Native modality still begins while its own focusing steps are suppressed.
+          transitionNativeAncestor(envelope, () => {
+            if (envelope.open) envelope.close();
+            const unfocused = !document.hasFocus();
+            if (unfocused) envelope.inert = true;
+            if (next) envelope.showModal();
+            else envelope.show();
+            if (unfocused) envelope.inert = false;
+          });
+        }
+        band.toggleAttribute("data-lf-over-covering", Boolean(next?.underBand));
+        keepsHidden(scrim, !next);
+        keeps(document.documentElement, "data-lf-covering-surface", next?.surface.id);
+      },
+      seatLanding(next, held),
+    );
   }
+  // Where a re-seat lands the user: back where they stood, or, entering a covering
+  // surface from outside it, on its landing. Either is the layer's return, no arrival.
+  const seatLanding = (next, held) =>
+    layerLanding(() => {
+      const restored = held?.();
+      if (
+        next &&
+        document.hasFocus() &&
+        !restored &&
+        !document.activeElement?.closest(":popover-open")
+      )
+        focusDestination(landingIn(next), "return");
+    });
 
   function registerAuxiliarySurface({
     key,
     surface,
     scroller,
+    edge,
     beside = false,
     underBand = false,
-    focus,
+    landing,
+    opener,
     show,
     hide,
     arrival = "mount",
   }) {
-    // Named for assistive technology as well as by id: in the covering posture this
-    // owner makes the surface a modal dialog, and a dialog needs a name.
+    // The native dialog takes the selected surface's accessible name.
     if (
       !key ||
       !surface?.id ||
@@ -197,12 +168,14 @@ export function createAuxiliarySurfaces({
         surface.hasAttribute("aria-label") || surface.hasAttribute("aria-labelledby")
       ) ||
       !scroller ||
-      !focus ||
+      !edge ||
+      !landing ||
+      !opener ||
       !show ||
       !hide
     )
       throw new Error(
-        "leaf: an auxiliary surface needs a key, an id and an accessible name, a scroller, a focus destination, and visibility callbacks",
+        "leaf: an auxiliary surface needs a key, an id and an accessible name, a scroller, an edge, a focus destination, an opener, and visibility callbacks",
       );
     if (controllers.has(key))
       throw new Error(`leaf: duplicate auxiliary surface ${key}`);
@@ -210,13 +183,14 @@ export function createAuxiliarySurfaces({
       key,
       surface,
       scroller,
+      edge,
       covers: () => !beside || !standsBeside(),
       underBand,
-      focus,
+      landing,
+      opener,
       show,
       hide,
       arrival,
-      role: null,
     };
     controllers.set(key, controller);
     return () => {
@@ -232,7 +206,14 @@ export function createAuxiliarySurfaces({
   let reachQueued = false;
   function sync() {
     const selected = controllers.get(selectedKey);
-    cover(selected && selected !== arriving && selected.covers() ? selected : null);
+    const shown = selected && selected !== arriving ? selected : null;
+    // Selection states the final accessible surface once. Lifting a previous native
+    // boundary before its hide callback is only a mechanical handoff, not a visit to
+    // the idle presentation group between two selected surfaces.
+    keeps(envelope, "role", shown ? null : "presentation");
+    keeps(envelope, "aria-label", shown?.surface.getAttribute("aria-label"));
+    keeps(envelope, "aria-labelledby", shown?.surface.getAttribute("aria-labelledby"));
+    seat(shown);
     if (reachQueued) return;
     reachQueued = true;
     nextRender(() => {
@@ -241,9 +222,13 @@ export function createAuxiliarySurfaces({
     });
   }
 
+  // Closing hands a user who stood in the surface back to its opener, the control that
+  // opens it again (`handBack`, which lets go where none takes them), or wherever the
+  // closer's `land` puts them instead, as the Escape step's `letGo` does. A surface's own
+  // `hide` moves no focus, so the close places the user once (focus.js, `closeLayer`).
   function select(
     key,
-    { remember = true, returnFocus = true, phase = "gesture" } = {},
+    { remember = true, focus = false, phase = "gesture", land } = {},
   ) {
     if (key !== null && !controllers.has(key))
       throw new Error(`leaf: unknown auxiliary surface ${key}`);
@@ -261,15 +246,27 @@ export function createAuxiliarySurfaces({
       !pagePresented()
         ? selected
         : null;
-    // A surface that will cover takes the boundary straight over at `sync`. Otherwise
-    // the boundary lifts before the previous surface hides, so the focus it hands back
-    // lands on a live page.
-    if (!selected || arriving || !selected.covers()) cover(null);
-    previous?.hide({ returnFocus });
-    if (selected && !arriving) selected.show({ phase });
+    // The native boundary lifts before the previous surface hides, so the focus it
+    // hands back lands on a live page. The selected surface takes the boundary at sync.
+    if (!selected || arriving || Boolean(active) !== selected.covers()) seat(null);
+    // Two surfaces on one edge, as Threads and Questions share the right, are two views
+    // of one side panel: selecting one in the other's place swaps them where they stand,
+    // with no slide for either (`swap`).
+    const swap = Boolean(previous && selected && previous.edge === selected.edge);
+    if (previous) {
+      // Read before the hide, which forgets the door a press opened the surface from.
+      const opener = previous.opener();
+      const inside = standingIn(previous.surface);
+      closeLayer(
+        () => previous.hide({ swap }),
+        land ?? (inside && (() => handBack(opener))),
+      );
+    }
+    if (selected && !arriving) selected.show({ phase: swap ? "swap" : phase });
     sync();
     syncLayout();
     afterChange();
+    if (focus && selected && !arriving) focusDestination(landingIn(selected), "move");
     if (remember) userStore.set(AUXILIARY_SURFACE_KEY, key ?? "");
   }
 
@@ -307,7 +304,7 @@ export function createAuxiliarySurfaces({
         const available = tabStops(active.surface);
         if (!available.length) {
           event.preventDefault();
-          place(active.surface);
+          focusDestination(active.surface, "step");
           return;
         }
         const at = available.indexOf(deepFocus());
@@ -316,21 +313,11 @@ export function createAuxiliarySurfaces({
           (event.shiftKey && at === 0)
         ) {
           event.preventDefault();
-          place(event.shiftKey ? available.at(-1) : available[0]);
+          focusDestination(event.shiftKey ? available.at(-1) : available[0], "step");
         }
       },
       true,
     );
-    document.addEventListener("focusin", (event) => {
-      if (
-        !active ||
-        placingFocus ||
-        active.surface.contains(event.target) ||
-        nativeLayerContains(event.target)
-      )
-        return;
-      place(active.focus() ?? active.surface);
-    });
   }
 
   // Travel that promises to show a destination clears the selected surface hiding it:
@@ -347,13 +334,12 @@ export function createAuxiliarySurfaces({
   const selectedSurface = () => controllers.get(selectedKey)?.surface ?? null;
   const coveringSurface = () => active?.surface ?? null;
   const coveringScroller = () => active?.scroller() ?? null;
-  const coveringFocus = () => (active ? (active.focus() ?? active.surface) : null);
+  const coveringFocus = () => (active ? landingIn(active) : null);
   // The keyboard register carries this reading to the dispatcher, whose own closure stops
   // there: a direct edge to this owner would give a key press this owner's whole
   // initialization graph.
-  registerAuxiliaryModality({ coveringSurface });
+  registerCoveringAuxiliarySurface(coveringSurface);
   return {
-    scrim,
     registerAuxiliarySurface,
     select,
     restore,

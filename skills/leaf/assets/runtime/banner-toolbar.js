@@ -9,12 +9,13 @@
  *
  * Three seats partition the run, and measured geometry never changes the partition:
  *
- * - `row`: Threads, and on a desk Approval and Comment on the page, the page's
- *   standing reading loop: reading it, starting a conversation about it, deciding it.
+ * - `row`: Threads, and on a desk Approval, Comment on the page and Questions, the
+ *   page's standing reading loop: reading it, starting a conversation about it,
+ *   deciding it.
  * - `menu`: every secondary action, in one stable seat behind More. On a phone
- *   Approval and Comment on the page join them, so the banner keeps one row: the
- *   status in words, Threads and More. More wears its news dot while the approval
- *   behind it is still open.
+ *   Approval, Comment on the page and Questions join them, so the banner keeps one row:
+ *   the status in words, Threads and More. More wears its news dot while the approval
+ *   or a question behind it is still open.
  * - `gesture`: the next step of something the user is doing right now, such as
  *   commenting on the words a touch just selected, or a finger's way out of the mode it
  *   stands in. It exists only while that gesture or mode holds it, and it is the one
@@ -33,12 +34,13 @@
 import { html, render, repeat } from "../vendor/browser-runtime.js";
 import { el } from "./widget-elements.js";
 import { repaint } from "./repaint.js";
+import { afterScript } from "./rendering.js";
 import {
   deepFocus,
   focusDestination,
+  onStanding,
   readCaret,
   releaseFocus,
-  returningFocus,
 } from "./focus.js";
 import { selectEnds } from "./passages.js";
 
@@ -50,15 +52,17 @@ export const BANNER_CONTROL_RANK = Object.freeze({
   layer: 30,
   leaves: 40,
   latest: 50,
-  queue: 60,
   map: 70,
   // The page's commands a finger reaches here rather than by key (touch-controls.js),
   // among themselves in the shortcut line's order.
   commands: 75,
   blanket: 80,
   versions: 90,
+  keyboard: 95,
   approval: 100,
   pageComment: 105,
+  // Questions and Threads are the two doors to the one side panel, side by side.
+  queue: 107,
   threads: 110,
   // The way out of the mode or picker the user stands in, under a finger.
   steps: 120,
@@ -169,12 +173,13 @@ function holdOpener(node = deepFocus()) {
   };
 }
 overflowBtn.addEventListener("pointerdown", () => holdOpener());
-document.addEventListener("focusout", (event) => {
-  if (event.relatedTarget === overflowBtn) holdOpener(event.composedPath()[0]);
-});
-document.addEventListener("focusin", (event) => {
-  if (event.target !== overflowBtn && !overflowMenu.contains(event.target))
-    opener = null;
+// A key's way onto More holds the place it left. Arriving from nowhere leaves the
+// press's own reading, which saw the selection the press would go on to keep.
+onStanding((node, cause, left) => {
+  if (cause === "drop") return;
+  if (node === overflowBtn) {
+    if (left) holdOpener(left);
+  } else if (!overflowMenu.contains(node)) opener = null;
 });
 export function bannerStanding() {
   const at = deepFocus();
@@ -184,7 +189,7 @@ export function restoreBannerStanding(held) {
   opener = null;
   // Handing the borrowed focus back is the menu's own return, not the user going there.
   if (held?.node?.isConnected && held.node !== document.body)
-    returningFocus(() => focusDestination(held.node, held.caret));
+    focusDestination(held.node, "return", { caret: held.caret });
   else releaseFocus();
   if (held?.ends?.every(([node]) => node.isConnected)) selectEnds(...held.ends);
 }
@@ -211,7 +216,8 @@ function paint() {
   // Where the control stands, not whether it would take a press: a refused Approval
   // is still a Tab stop.
   const door = bannerControlDoor(held.control);
-  (door === held.control ? held.focusTarget : door)?.focus({ preventScroll: true });
+  const place = door === held.control ? held.focusTarget : door;
+  if (place) focusDestination(place, "return");
 }
 
 const focusable = (entry) =>
@@ -223,8 +229,8 @@ const focusable = (entry) =>
 overflowMenu.addEventListener("toggle", (event) => {
   const open = event.newState === "open";
   render(rowTemplate(), bannerActions);
-  if (open && document.activeElement === overflowBtn)
-    menu.find(focusable)?.focusTarget.focus();
+  const first = open && document.activeElement === overflowBtn && menu.find(focusable);
+  if (first) focusDestination(first.focusTarget, "move", { scroll: true });
   if (!open) opener = null;
   repaint();
 });
@@ -300,14 +306,17 @@ export function registerBannerControl({
 
 /**
  * Say whether a control's news is urgent, which puts More's dot up while the control
- * stands behind it. `urgent` is the words More's name adds for it, or null.
+ * stands behind it. `urgent` is the words More's name adds for it, or null. Only the
+ * door's name and dot read it, so several owners marking in one script paint the door
+ * once, when the script ends: an answer that settles the last question and opens the
+ * approval would otherwise take the dot down and put it straight back.
  */
 export function markBannerControl(control, urgent) {
   const prior = controls.get(control);
   if (!prior) throw new TypeError("Banner control is not registered");
   if (prior.urgent === urgent) return;
   replaceEntry(prior, Object.freeze({ ...prior, urgent }));
-  paint();
+  afterScript(paint);
 }
 
 /** Show or hide one retained contribution without changing its registered identity. */
@@ -344,10 +353,10 @@ export function showBannerControls(changes) {
   const removed = moved.find(({ entry, heldFocus }) => heldFocus && !entry.present);
   if (removed) focusAfterRemoval(removed.entry, removed.wasInMenu);
   // The step takes the place of the control focus stood on, so focus takes it too.
-  else if (loopFocus && !visible(loopFocus))
-    moved
-      .find(({ entry }) => entry.present)
-      ?.entry.focusTarget.focus({ preventScroll: true });
+  else if (loopFocus && !visible(loopFocus)) {
+    const step = moved.find(({ entry }) => entry.present);
+    if (step) focusDestination(step.entry.focusTarget, "return");
+  }
 }
 
 export function showNews(control, on) {
@@ -377,7 +386,7 @@ function focusAfterRemoval(entry, wasInMenu) {
     run.findIndex((candidate) => candidate === entry),
   );
   const next = [...run.slice(at), ...run.slice(0, at).reverse()].find(focusable);
-  (next?.focusTarget ?? overflowBtn).focus({ preventScroll: true });
+  focusDestination(next?.focusTarget ?? overflowBtn, "return");
 }
 
 // A secondary control stands behind a door this owner holds shut, so it
@@ -404,10 +413,10 @@ export function bannerControlDoor(control) {
 // hands the user back to the door, and the user stands on the control.
 export function returnToBannerControl(control) {
   if (overflowMenu.contains(control) && !overflowMenu.matches(":popover-open")) {
-    overflowBtn.focus({ preventScroll: true });
+    focusDestination(overflowBtn, "return");
     overflowMenu.showPopover();
   }
-  control.focus({ preventScroll: true });
+  focusDestination(control, "return");
 }
 
 export function dismissBannerControls() {

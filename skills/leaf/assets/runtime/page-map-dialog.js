@@ -6,11 +6,12 @@
    refresh from cancelling a held pointer or moving focus.
    Compact clusters use this same complete dialog for overflow.
 
-   A native dialog delivers `close` after it has hidden the dialog. A close overtaken by a
-   reopen therefore leaves the new opening's target and focus route intact. The Page Map's
-   own Close button returns focus to its invoker. Keyboard departure and record actions
-   place focus synchronously, set `closeOwnsFocus`, and prevent the later close event from
-   overwriting that route.
+   A native dialog delivers `close` after it has hidden the dialog, a task later. A close
+   overtaken by a reopen therefore leaves the new opening's target and focus route intact.
+   Every way out declares its landing as it closes the dialog:
+   cancellation by Escape or Close hands the user back to the opening focus, or
+   their reading position when there was none. Record actions navigate separately.
+   The `close` event places nothing.
 
    The dialog is a list with a search above it. Up and Down walk its rows, Down or Enter
    in the search enters the list at the first match, and a row's Enter is its own press.
@@ -25,7 +26,15 @@
 
 import { nextRender } from "./rendering.js";
 import { blockAt, says } from "./passages.js";
-import { focusDestination, handBack, holdFocus, letGo } from "./focus.js";
+import {
+  closeLayer,
+  focusDestination,
+  focused,
+  handBack,
+  holdFocus,
+  openLayer,
+  openerOf,
+} from "./focus.js";
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 import { iconTemplate } from "./icons.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
@@ -113,8 +122,6 @@ export function createPageMapDialog({
 }) {
   const { targetFor } = inventory;
   let entries = [];
-  let closeOwnsFocus = false;
-  let from = null;
   let target = null;
   let trackedOffers = new Set();
 
@@ -123,12 +130,13 @@ export function createPageMapDialog({
   function activateItem(item, entry) {
     releaseAnnotations?.(entry);
     const destination = annotationFocus?.(entry);
-    leavePageMap();
-    handBack(destination, pageMapInvoker(), bannerControlDoor(versionBtn));
     // A location without a presented annotation lands on its exact authored target.
     // Commands that open a Thread or Ask retain their own navigation capability.
-    if (!destination && targetFor(entry)?.isConnected)
-      focusDestination(targetFor(entry));
+    closeLayer(leavePageMap, () =>
+      !destination && targetFor(entry)?.isConnected
+        ? focusDestination(targetFor(entry), "move")
+        : handBack(destination, pageMapInvoker(), bannerControlDoor(versionBtn)),
+    );
     inventory.activate(item);
   }
 
@@ -171,14 +179,15 @@ export function createPageMapDialog({
             contributionSource(offered).registration.control(key, "map", true),
           )
           .find((candidate) => candidate?.checkVisibility());
-        (revealed ?? control).focus({ preventScroll: true });
+        focusDestination(revealed ?? control, "move");
       });
       return;
     }
-    const returnTo = from;
-    closeOwnsFocus = true;
-    dialog.close();
-    handBack(returnTo);
+    const returnTo = openerOf(dialog);
+    closeLayer(
+      () => dialog.close(),
+      () => handBack(returnTo),
+    );
     contributionSource(offered).registration.activate(record.key, {
       origin: control,
       surface: "map",
@@ -357,10 +366,10 @@ export function createPageMapDialog({
   }
 
   function openPageMap(entry = null, { invoker = null, focusSpill = false } = {}) {
-    const openedFrom = invoker ?? pageMapInvoker();
+    const openedFrom = invoker ?? focused();
     target = entry ? targetFor(entry) : null;
     if (!dialog.open) {
-      from = openedFrom;
+      openLayer(dialog, openedFrom);
       dialogSearch.value = "";
     }
     renderSheet();
@@ -377,7 +386,7 @@ export function createPageMapDialog({
       else if (groupBox.bottom > listBox.bottom)
         dialogList.scrollTop += groupBox.bottom - listBox.bottom;
     }
-    const spilled = focusSpill ? openedFrom.lfFirstSpilledOption : null;
+    const spilled = focusSpill ? openedFrom?.lfFirstSpilledOption : null;
     const destination = focusSpill
       ? [...(group?.querySelectorAll(".lf-page-map-action") ?? [])].find(
           (button) =>
@@ -392,10 +401,11 @@ export function createPageMapDialog({
             ),
         )
       : group?.querySelector(".lf-page-map-action");
-    (
+    focusDestination(
       destination ??
-      (coarsePointer.matches ? (mapRows()[0] ?? dialogClose) : dialogSearch)
-    ).focus({ preventScroll: true });
+        (coarsePointer.matches ? (mapRows()[0] ?? dialogClose) : dialogSearch),
+      "move",
+    );
     paintKeys();
   }
 
@@ -405,8 +415,12 @@ export function createPageMapDialog({
   // its disclosure can use the registration's surface reading to return here.
   function leavePageMap() {
     if (!dialog.open) return;
-    closeOwnsFocus = true;
     dialog.close();
+  }
+
+  function cancelPageMap() {
+    const returnTo = openerOf(dialog);
+    closeLayer(leavePageMap, () => handBack(returnTo));
   }
 
   // The page has the map's keys while the map has entries, open or not, so the command
@@ -423,35 +437,21 @@ export function createPageMapDialog({
       mapHasEntries,
     );
     mapButton.onclick = enterPageMap;
-    // Escape is one step of the page's unwind, and a modal's parent is the page it
-    // stands over, so this press lands the user there. Leaf performs the whole step
-    // rather than letting the platform close the dialog and this owner land the user
-    // from the `close` event: that event arrives a task later, and a user whose next
+    // Escape and Close return to the opening focus or the prior reading position.
+    // Leaf performs the whole step instead of landing the user from the `close` event:
+    // that event arrives a task later, and a user whose next
     // press is `g` would arm the sequence before the focus moved and disarm it on
-    // arrival. The Close button is the other way out and keeps the invoker, the pointer
-    // being already on the control that reopens the dialog.
+    // arrival.
     dialog.addEventListener("cancel", (event) => {
       event.preventDefault();
-      leavePageMap();
-      letGo();
+      cancelPageMap();
     });
     dialog.addEventListener("close", () => {
-      const returnTo = from;
-      const focusOwned = closeOwnsFocus;
-      closeOwnsFocus = false;
       if (dialog.open) return;
-      from = null;
       target = null;
       paintKeys();
-      if (focusOwned) return;
-      handBack(
-        returnTo,
-        pageMapInvoker(),
-        annotationFocus?.(null),
-        bannerControlDoor(versionBtn),
-      );
     });
-    dialogClose.onclick = () => dialog.close();
+    dialogClose.onclick = cancelPageMap;
     root.append(dialog);
     dialogSearch.updateComplete.then(declareSearchKeys);
   }
@@ -471,7 +471,7 @@ export function createPageMapDialog({
           description: "Go from the search to the first entry",
           title: "to the entries",
           when: hasRows,
-          run: () => mapRows()[0].focus(),
+          run: () => focusDestination(mapRows()[0], "move", { scroll: true }),
         },
         {
           id: "map.search.open",

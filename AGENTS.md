@@ -269,8 +269,8 @@ the same underlying response obligations.
 
 The page directory is the durable record and deployment unit: mutable `index.html`,
 immutable revisions, an append-only event log, and one replaceable JSON file per
-external-data source under `data/`, whose source ids keep the contract `data.json`
-records for the page's lifetime. `skills/leaf/scripts/leaf/page-storage.md`
+external-data source under `data/`. `data.json` records each source's current
+contract; a later document may replace that binding. `skills/leaf/scripts/leaf/page-storage.md`
 defines the complete layout.
 
 ### Validate once and share readings
@@ -314,6 +314,12 @@ Before finishing a feature:
   format and phrasing to the agent. Where an agent could read the change more
   than one way, score it with `evals/` before and after (`/developing-leaf`,
   "Score an instruction change").
+
+Local compute is often the bottleneck because several sessions share one machine.
+Before widening a local test selection or increasing parallelism, check current
+CPU use, memory pressure, and other running test suites. Weigh the extra evidence
+against the cost to all sessions; on a busy host, favor focused checks and avoid
+redundant overlapping runs. The required landing gates still have to pass.
 
 Before handing over, run the tests that hold what the change touches; the broad
 selection, `uv run pytest tests`, and `npm run test:runtime` run at landing

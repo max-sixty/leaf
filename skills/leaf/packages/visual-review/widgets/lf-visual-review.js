@@ -24,13 +24,17 @@ import {
   paintKeys,
   PRESS,
   projectData,
+  readingPosture,
   registerReadingRegion,
   relabel,
   scopedMediaUrl,
   setChildren,
+  shownWindow,
   sizeObserver,
   watchData,
   widgetController,
+  focused,
+  standingIn,
 } from "/runtime/widget-api.js";
 
 const CLASSIFICATION = {
@@ -53,6 +57,10 @@ const SCALE = {
   fit: "Fit",
   actual: "100%",
 };
+
+// The smallest scale Fit shrinks a pair to so it fits its pane whole: at it, a captured
+// page's 16px body text stays above 11px.
+const READABLE_SCALE = 0.7;
 
 const SCOPE = {
   focus: "Focus change",
@@ -124,7 +132,6 @@ customElements.define(
         host: this.#evidenceHost,
         body: this.#casesBody,
       });
-      for (const [id, entry] of this.#caseEntries) this.#registerCaseRegion(id, entry);
       this.#sizes = sizeObserver(() => this.#scheduleEvidenceLayout());
       this.#sizes.observe(this);
       for (const stage of this.querySelectorAll(".lf-vr-shot-host"))
@@ -140,10 +147,6 @@ customElements.define(
     disconnectedCallback() {
       this.#threadSurface?.unregister();
       this.#threadSurface = null;
-      for (const entry of this.#caseEntries.values()) {
-        entry.stopReading?.();
-        entry.stopReading = null;
-      }
       this.#sizes?.disconnect();
       this.#sizes = null;
       window.removeEventListener("resize", this.#onResize);
@@ -155,9 +158,7 @@ customElements.define(
 
     // The review composes the layer's pane grammar rather than choosing a posture: a
     // heading, then one evidence pane whose header is the case navigation and whose
-    // body holds the cases. The theme decides whether that body scrolls, from the
-    // workspace the review stands in, so the same boxes fill a bounded root workspace
-    // and flow in a document.
+    // body holds the cases.
     #buildLayout() {
       const header = make("header", "lf-vr-head");
       this.#title = make("h2", "lf-vr-title", "Waiting for a visual run");
@@ -406,43 +407,70 @@ customElements.define(
       const visibleHeights = activeFocus
         ? [activeFocus.height, activeFocus.height]
         : heights;
-      // The theme sizes the stage: the height the pane leaves it where the pane's body
-      // is bounded, and a height from the widget's own width in flow, so a paint-only
-      // inspection control never resizes the evidence and moves the document.
+      // The height a reader sees the pair in at once. Where the evidence pane scrolls on
+      // its own, as in a workspace that fills the window, it is the pane body's, from the
+      // stage's top down, and Fit contains the pair in it. Elsewhere the page scrolls
+      // the review, and it is the window the chrome leaves.
+      const bounded = readingPosture(this.#evidenceHost) === "bounded";
       const stageWidth = entry.shotHost.clientWidth;
-      const stageHeight = entry.shotHost.clientHeight;
-      if (stageHeight <= 0) return;
+      const stageHeight = bounded
+        ? this.#casesBody.clientHeight -
+          (entry.shotHost.getBoundingClientRect().top -
+            this.#casesBody.getBoundingClientRect().top +
+            this.#casesBody.scrollTop) -
+          (entry.shotHost.offsetHeight - entry.shotHost.clientHeight)
+        : shownWindow({ viewport: "layout" }).height;
 
-      const gap = 8;
-      const frameBorder = 2;
-      const labelHeight = 24;
+      const stageStyle = getComputedStyle(entry.shotHost);
+      const gap = parseFloat(stageStyle.getPropertyValue("--lf-vr-gap"));
+      const frameBorder =
+        2 * parseFloat(stageStyle.getPropertyValue("--lf-vr-frame-border"));
+      const labelHeight = parseFloat(
+        stageStyle.getPropertyValue("--lf-vr-label-height"),
+      );
       const sideWidthScale = (stageWidth - gap - 2 * frameBorder) / (2 * width);
       const sideContainScale = Math.min(
         sideWidthScale,
-        (stageHeight - labelHeight) / Math.max(...visibleHeights),
+        (stageHeight - labelHeight - frameBorder) / Math.max(...visibleHeights),
       );
       const stackContainScale = Math.min(
         (stageWidth - frameBorder) / width,
-        (stageHeight - 2 * labelHeight - gap) / (visibleHeights[0] + visibleHeights[1]),
+        (stageHeight - 2 * (labelHeight + frameBorder)) /
+          (visibleHeights[0] + visibleHeights[1]),
       );
       // Geometry chooses the comparison, not another preference for the user to
-      // manage. Wide captures stack so their scan lines remain readable in the scrolling
-      // stage; other pairs take the arrangement with the larger common scale.
+      // manage. Wide captures stack so their scan lines remain readable as the reader
+      // scrolls; other pairs take the arrangement with the larger common scale.
       const wideCapture = width / Math.max(...visibleHeights) >= 1.5;
       const compareLayout =
         wideCapture || stackContainScale >= sideContainScale ? "stack" : "side";
-      const fitScale =
+      const widthScale =
         this.#mode === "compare"
           ? compareLayout === "stack"
             ? (stageWidth - frameBorder) / width
             : sideWidthScale
+          : (stageWidth - frameBorder) / width;
+      // Flip shows one frame under lf-shot's rail of controls.
+      const rail =
+        this.#mode === "flip"
+          ? (shot.querySelector(".lf-shotrail")?.offsetHeight ?? 0)
+          : 0;
+      const containScale =
+        this.#mode === "compare"
+          ? compareLayout === "stack"
+            ? stackContainScale
+            : sideContainScale
           : Math.min(
-              (stageWidth - frameBorder) / width,
-              stageHeight / Math.max(...visibleHeights),
+              widthScale,
+              (stageHeight - rail - frameBorder) / Math.max(...visibleHeights),
             );
-      // A comparison is a reading surface: fit the pair to its available width and let
-      // the bounded stage scroll through its height. Containing both frames vertically
-      // made tall mobile captures unreadably small even when both fit side by side.
+      // Where the evidence pane scrolls on its own, Fit shrinks the pair to fit the
+      // pane, so the reader sees all of it at once, unless that takes it below
+      // `READABLE_SCALE`: a tall mobile capture shrunk to fit whole was unreadably small.
+      // Such a pair takes the width instead and its pane scrolls, as the page does where
+      // the page scrolls the review.
+      const fitScale =
+        bounded && containScale >= READABLE_SCALE ? containScale : widthScale;
       const scale = this.#scale === "actual" ? 1 : Math.min(1, fitScale);
       keeps(this, "data-compare-layout", compareLayout);
       keeps(entry.shotHost, "data-focus-authored", Boolean(focus));
@@ -544,10 +572,8 @@ customElements.define(
       if (this.#evidenceHost.lastChild !== this.#inspector)
         this.#evidenceHost.append(this.#inspector);
       this.#queue.replaceChildren();
-      for (const { shotHost, stopReading } of this.#caseEntries.values()) {
+      for (const { shotHost } of this.#caseEntries.values())
         this.#sizes?.unobserve(shotHost);
-        stopReading?.();
-      }
       this.#caseEntries.clear();
       this.#selected = null;
       this.#paintNavigation();
@@ -570,7 +596,6 @@ customElements.define(
       for (const [id, entry] of this.#caseEntries) {
         if (wanted.has(id)) continue;
         this.#sizes?.unobserve(entry.shotHost);
-        entry.stopReading?.();
         this.#caseEntries.delete(id);
       }
       const options = [];
@@ -690,27 +715,13 @@ customElements.define(
         article,
         option,
         shotHost,
-        stopReading: null,
         record: null,
         index: 0,
         total: 0,
         // The shown lf-shot's `difference`, once it has read its pair.
         difference: undefined,
       };
-      this.#registerCaseRegion(id, entry);
       return entry;
-    }
-
-    #registerCaseRegion(id, entry) {
-      if (entry.stopReading) return;
-      // The case's prose and controls are its furniture; the aligned captures are what
-      // the user pages through. Making that relationship a nested reading region lets
-      // the shared d/u and j/k routes follow the selected case without a package key.
-      entry.stopReading = registerReadingRegion({
-        id: compoundReadingRegionId(this, `case-${id}`),
-        host: entry.article,
-        body: entry.shotHost,
-      });
     }
 
     #updateCase(entry, record, index, total) {
@@ -858,10 +869,15 @@ customElements.define(
     #select(id) {
       if (!this.#caseEntries.has(id)) return;
       const currentEntry = this.#caseEntries.get(this.#selected);
-      const restoreFocus = currentEntry && holdFocus(currentEntry.article);
-      const disposition = restoreFocus
-        ? document.activeElement.closest(".lf-vr-disposition")?.dataset.disposition
-        : null;
+      // A disposition lands on the corresponding one of the case shown now, keyed the
+      // same (focus.js, keyed `holdFocus`); any other control in the case is held where
+      // it stands.
+      const onDisposition = focused()?.closest?.(".lf-vr-disposition");
+      const restoreFocus = !currentEntry
+        ? null
+        : onDisposition && standingIn(currentEntry.article)
+          ? holdFocus(this, { key: "data-disposition" })
+          : holdFocus(currentEntry.article);
       if (id !== this.#selected) this.#scope = "focus";
       this.#selected = id;
       this.#queue.value = id;
@@ -881,11 +897,7 @@ customElements.define(
       // which the hold hands back. A hidden case-local control instead lands on the
       // corresponding disposition — or the primary disposition when it has no
       // counterpart — rather than leaving a keyboard user on the document body.
-      restoreFocus?.(
-        disposition &&
-          selected.article.querySelector(`[data-disposition="${disposition}"]`),
-        selected.article.querySelector(".lf-vr-disposition"),
-      );
+      restoreFocus?.(selected.article.querySelector(".lf-vr-disposition"));
     }
 
     #step(delta) {

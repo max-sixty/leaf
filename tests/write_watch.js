@@ -19,6 +19,12 @@
 // While `window.lfWrites` is an array, every write is also appended to it, numbered by
 // `window.lfWriteStep`, for a test that reads what a gesture wrote (scroll_writes).
 (() => {
+  // An isolated preview is an external document, outside Leaf's DOM-write contract.
+  // Its opaque origin also hides its sandbox flags from this injected script; a
+  // scripting-disabled frame refuses MutationObserver callbacks with console errors.
+  // Keep watching the parent that owns the frame, and leave opaque child DOM alone.
+  if (window !== window.top && globalThis.origin === "null") return;
+
   // An element by its tag, id and classes, one with neither by where it stands, and one
   // in a shadow tree by the tree's host too.
   const place = (node) => {
@@ -50,16 +56,27 @@
     // CodeMirror writes every attribute of its content element when it mounts a view,
     // the tab-size style that element already holds among them.
     /^style on div\.cm-content/,
+    // CodeMirror reapplies this line decoration when the editor view updates, even
+    // when the last line still holds the same words and the class is unchanged.
+    /^class on div\.cm-line\.lf-field-last in shadow of leaf-text/,
     // Web Awesome's components reflect each property onto the attribute it came from
     // as they update, and restate what their own shadow trees hold.
     /^[\w-]+ on wa-/,
     / in shadow of wa-[\w-]+/,
+    // Vis Timeline reuses axis labels and grid nodes but restates their classes
+    // and contents during redraw. Viewer.js similarly reapplies image/canvas
+    // classes and magnifier visibility when an inspected image changes. These
+    // are upstream-owned renderers; Leaf's adapter controls remain watched.
+    /^(?:class|style|title|aria-hidden|children|text) (?:on|of) (?:div|img)\.(?:vis-|viewer-)/,
     // The contents map decides which face it needs, roomy, compact or an open outline,
     // by measuring its labels in each; a label's height is where it wraps in that face.
     /^data-lf-(compact|outline) on lf-toc/,
     // Sortable takes a dragged card's ghost class off and puts it back as the drag
     // crosses into another lane.
     /^class on .*\.lf-ghost/,
+    // PhotoSwipe reasserts its root's zoom and pointer classes while handling
+    // gestures and viewport changes, including when those classes already stand.
+    /^class on div\.pswp(?:\.|$)/,
   ];
   const reported = new Set();
   const report = (what) => {
@@ -80,13 +97,64 @@
   // its pane shows (margin-layout.js, `layoutMarginRows`).
   const tokens = (value) => new Set([...(value ?? "").split(" "), "lf-withheld"]);
   const sameTokens = (a, b) => a.size === b.size && [...a].every((t) => b.has(t));
+  // Native dialog posture and its focusing steps are browser state, not the reflected
+  // `open` attribute. close→showModal changes a nonmodal dialog to modal while `open`
+  // returns to the same value; lending inertness during an opening suppresses the
+  // platform's focus transfer. Track those actual operations until their mutations
+  // arrive, so plain attribute restatements still have no exemption.
+  let dialogTransitions = new WeakMap();
+  const posture = (dialog) =>
+    dialog.matches(":modal") ? "modal" : dialog.open ? "nonmodal" : "closed";
+  for (const method of ["show", "showModal", "close"]) {
+    const native = HTMLDialogElement.prototype[method];
+    HTMLDialogElement.prototype[method] = function (...args) {
+      const before = posture(this);
+      const inert = this.inert;
+      const result = native.apply(this, args);
+      const after = posture(this);
+      if (after !== before) {
+        const transition = dialogTransitions.get(this) ?? { focusedInert: false };
+        transition.focusedInert ||= inert && method !== "close";
+        dialogTransitions.set(this, transition);
+      }
+      return result;
+    };
+  }
+  const nativeTransition = (record) => {
+    const transition = dialogTransitions.get(record.target);
+    return (
+      transition &&
+      (record.attributeName === "open" ||
+        (record.attributeName === "inert" && transition.focusedInert))
+    );
+  };
+  // Residency verifies that authored CSS actually supplies a requested grid shift.
+  // An ignored request is withdrawn in the same reading; every other style member
+  // must remain unchanged. A settled failed placement must not probe again (the
+  // authored-track browser test separately asserts zero subsequent mutations).
+  const columnProbe = ({ record, through }) => {
+    if (record.attributeName !== "style" || record.target !== document.body)
+      return false;
+    const withoutShift = (value) => {
+      const style = document.createElement("div").style;
+      style.cssText = value ?? "";
+      style.removeProperty("--lf-column-shift");
+      return style.cssText;
+    };
+    const before = withoutShift(record.oldValue);
+    return (
+      through.some((value) => value !== record.oldValue) &&
+      through.every((value) => withoutShift(value) === before)
+    );
+  };
   const putBack = ({ record, through }) =>
     (record.attributeName === "tabindex" &&
       record.oldValue === null &&
       through.every((value) => value === "-1")) ||
     (record.attributeName === "class" &&
       record.target.matches(".lf-margin-cluster") &&
-      through.every((value) => sameTokens(tokens(value), tokens(record.oldValue))));
+      through.every((value) => sameTokens(tokens(value), tokens(record.oldValue)))) ||
+    columnProbe({ record, through });
   // An element reference set through reflection (`ariaDetailsElements`, and the rest of
   // the aria-*Elements family) writes an empty attribute whatever the elements are, so
   // an empty value that stays empty says nothing about whether the relation changed.
@@ -101,11 +169,13 @@
       if (
         valueOf(record) === record.oldValue &&
         !reflected(record) &&
+        !nativeTransition(record) &&
         !(through.length && putBack(write))
       )
         report(`${record.attributeName ?? "text"} on ${place(record.target)}`);
     }
     started.clear();
+    dialogTransitions = new WeakMap();
   };
   const watch = (records) => {
     for (const record of records) {

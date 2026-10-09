@@ -15,6 +15,11 @@ a new capability.
 
 ## Public API
 
+Rendering work that reaches a resting state uses `nextRender`, `nextFrame` and
+`cancelRender`. Continuous mechanical motion, such as recording playback, uses
+`nextAnimation` and `cancelAnimation`: it schedules browser frames without holding
+page readiness open. Cancel it when the motion stops or its owner leaves.
+
 `/runtime/widget-api.js` is the whole Leaf API a behavior module gets: a module imports
 only that public helper surface, and does not reach into the runtime's private owners,
 query private chrome, or duplicate a runtime helper inside itself. Resolve canonical
@@ -31,8 +36,14 @@ shadow roots, without changing horizontal offsets.
 Use it for an explicit arrival; entering visible controls and ordinary repainting
 preserve their current reading position.
 
-Registry-declared inline Markdown formats authored text, not strings a module assigns
-with `textContent`. For changing Markdown prose, load the renderer with `loadMarkdown()`
+Registry `x-text-format: inline-markdown` formats direct authored text nodes;
+`markdown` renders a data body's exact source as safe block Markdown. The latter
+is delivered already formatted for first paint and its canonical body record stays
+source, while passages and comments read its visible words. A module adopts the
+prepared `.lf-markdown-body` and uses `paintMarkdown(body, source)` for changing
+block prose. `markdownSourceOffset(body, node, offset)` carries a rendered caret
+back to the exact source. Inline formatting does not interpret strings a module
+assigns with `textContent`. For changing Markdown prose, load the renderer with `loadMarkdown()`
 and paint the current value with `inlineMarkdownFragment()`; repaint that value when
 loading completes. A changing numeric readout keeps surrounding text still with
 tabular numerals and a slot wide enough for its largest value.
@@ -98,7 +109,11 @@ Each helper's header under `runtime/` explains its contract.
 
 A registry-declared widget implements a total, idempotent `renderState(state)`.
 Record user state through `widgetController(owner).dispatch()` with detail matching
-the declared browser schema. Ordinary script-owned elements do not acquire a
+the effect's payload contract in [packages.md, "User state"](packages.md#user-state).
+For a recorded body, attribute, or scalar value, send `detail: {value}`. For a position,
+send `detail: {unit, value, rank}`: the moved element's id, destination container's id,
+and the key from `rankAt`. A verb with no record uses its declared `detail` schema.
+Ordinary script-owned elements do not acquire a
 semantic controller; use the general helpers for their local behavior.
 
 `renderState` receives the state of every declared verb, keyed by verb name, including
@@ -124,7 +139,7 @@ value and must be removed when that value returns.
 
 A widget that declares `x-awaits` says what its answered Ask was answered with: its class
 declares `static answerWords(state, element)`, returning concise words for its row
-under Done in the Queue panel and a queue's row. The Queue panel is experimental and
+under Done in the Questions panel and a queue's row. The Questions panel is experimental and
 expected to change a lot. `state` is the same complete state `renderState`
 receives, and `element` is the widget, for authored markup such as an option's name;
 read nothing the module renders. Leaf calls it only while the Ask is answered, with the
@@ -182,15 +197,19 @@ Layout gives its body a definite height, so a pane that is the body or a direct 
 it may shrink below its content and scrolls its body; a pane inside a section of the
 body, or inside another pane's body, flows with what holds it, and elsewhere every pane
 takes its content's height. Nothing in a module measures a minimum or chooses a
-posture. While the workspace is full-height, the Layout sets `--lf-full-height: 1` on
-`main`, and a widget that should grow to fill the height it is given, such as a
-playground's stage, keys its rules on `@container style(--lf-full-height: 1)`. A behavior
+posture. `--lf-full-height: 1` on a box says its children are given a definite height to
+fill, and it does not inherit: while the workspace is full-height, the Layout sets it on
+`main` for the body and on a grid of panes for its cells. A widget given that height
+keys its rules on `@container style(--lf-full-height: 1)`, which asks the widget's
+parent, fits what it shows to the height, so the reader moves through the workspace
+rather than scrolling it, and sets `--lf-full-height: inherit` on each box that passes
+the height on to its parts, as a playground does down to its panes. A widget deeper in
+the body, in a section or a tab, is not told, and takes its content's height. A behavior
 module that composes regions out of boxes it generates, such as a playground's controls
 beside its preview, takes the pane rules by marking those boxes
 `data-lf-reading-role="pane"` and `data-lf-generated`, with the pane grammar of one
-header, one body, and one footer. A generated pane scrolls its body wherever it stands in
-a full-height workspace, since its widget sizes it, and its widget draws the frame around
-it: the workspace joins only the panes a page wrote into its hairline grid. The
+header, one body, and one footer. A generated pane scrolls its body where its widget
+passes the height on to it, and its widget draws the frame around it: the workspace joins only the panes a page wrote into its hairline grid. The
 attributes are the module's to write and never an author's, since `page check` refuses `data-lf-` markup. Keep the
 package theme to placement inside that grammar, such as track sizes and chrome; a
 package copy of the full-height rules is a second posture decision that drifts from the
@@ -201,9 +220,13 @@ words the render gate pairs with the file.
 the body that scrolls it whenever the theme makes it scroll. The host makes focus in a
 pane's header or footer select that pane. Register from `connectedCallback` and call
 the returned cleanup from `disconnectedCallback`, so a reconnect can claim the same id.
+Separately scrolling apparatus adds `apparatusFor: ownerId`, naming an already live
+region: focus there still selects that owner for reading, while `scrollerFor(node)`
+names the apparatus's own physical scrollport. Dispose both registrations with their
+DOM owners.
 `readingPosture(node)` is `bounded` exactly while the region's body is its own
 scroller, and `watchReadingRegionTransitions(listener)` receives a `shift` when a
-region's scroller changes without a gesture; the continuity owner records the user's
+shown region's scroller or width changes without a gesture; the continuity owner records the user's
 place as they scroll and restores it there.
 
 A compound widget whose parts scroll independently registers each with
@@ -275,12 +298,19 @@ the properties that change on a descendant layout box.
 
 ## Focus, motion, and travel
 
-A module that puts the user somewhere calls `focusDestination(element)` rather than
-`element.focus()`, wherever that place is not already a control. It lends the element the
-tab stop a control has for exactly as long as it holds it, so the browser's own Tab order
-continues from there and no `tabindex` is left on the page behind the user. What needs
-it is a widget's own Escape step landing them back in the thing it took them out of: the
-patch a file filter belongs to, the exhibit a box was about.
+A module that puts the user somewhere calls `focusDestination(element, cause)` rather
+than `element.focus()`, which the lint refuses. The cause says what moved them, and
+every reader of where the user stands acts on it: `"move"` for a route taking them
+somewhere, such as a walk to the next row or a box opened to type in; `"return"` for
+putting them back, such as a widget's own Escape step landing them in the thing it took
+them out of, or a re-render handing them to the control that replaced the one they
+stood on; `"step"` for a widget's own Tab loop; and `"press"` for landing on a control
+to press it on the user's behalf. A return marked as a move reads as
+the user arriving, and releases news or opens options they never went to. The call
+lends an element that is not a control the tab stop a control has for exactly as long
+as it holds it, so the browser's own Tab order continues from there and no `tabindex` is
+left on the page behind the user. It keeps the page still unless `{ scroll: true }` asks
+the browser to bring the element into view.
 
 A module that moves, hides, or replaces nodes the user may be standing in, as a reorder or
 a re-render does, calls `holdFocus(scope)` before the change and the function it returns
@@ -288,7 +318,19 @@ after it. Moving a focused node drops its focus to the page body; the returned f
 puts the user back on that node, with its caret, or on the first drawn stand-in it is
 passed, such as the replacement keyed on the same identity. It does nothing once focus was
 placed elsewhere in the meantime, and `holdFocus` returns `null` where the user stands
-outside `scope`.
+outside `scope`. A list of keyed items passes `holdFocus(list, { key })`, naming the
+attribute each item carries: the restore then lands on the item keyed the same, or the
+nearest that survived, and on the control in it like the one the user stood on.
+
+A widget's own layer, such as a list it opens over its contents, records where it was
+opened from with `openLayer(layer)` as it opens, which reads where the user stands, and
+closes with `closeLayer(close, land)`: `close` hides it, and `land` puts a user who stood
+in it where the close takes them, usually `handBack(openerOf(layer))`, which lets go onto
+the page where the opener is gone. Readers of where the user stands hear only where they
+end up. The layer's Escape is a command row like any other key. A group
+reached by its own arrows offers one Tab stop with `rove(items, stop)`. `standingIn(scope)`
+says whether the user stands in a scope, across shadow trees, and `whenLeft(element, leave)`
+runs `leave` once when they move off an element.
 
 A module that takes the user to a thread calls `openThread(id, {focus})`
 with the Thread's `id`. It opens the thread where the page shows it, inline beside
@@ -350,6 +392,12 @@ the module can already draw is drawn in the gesture rather than after a wait.
 A temporary yellow cue calls `backgroundFlash(element, ms)`. It supplies only the
 starting tint; the browser fades to the element's live CSS background, including any
 hover or theme change during the cue, and shares `motion`'s gates and cleanup.
+
+A mechanical surface that must stop motion before a review gesture is handled uses
+`onUserInput(callback)`. The shared input owner calls it synchronously during capture
+for pointer, key, input, wheel, touch and window blur events; the callback observes and
+does not claim the event. Filter the events belonging to the surface and release the
+returned subscription when it disconnects. Keyboard commands still use `commands()`.
 
 A module implementing its own navigation captures `retainUserIntent()` in the gesture
 that starts it, before its
@@ -474,7 +522,10 @@ draw a visual part it shows only in another state, opens its containing disclosu
 the addressed element, updates the fragment, and announces the supplied `success` or
 `missing` message. Commands at that focus use the datum's identity. A lazy target may implement
 `lfRevealDatum(key)` to return its hydration promise and `lfDataDatum(key)` to map a
-semantic key to the rendered projected element.
+semantic key to the rendered projected element. When that key is a source location
+rather than the datum's durable identity, translate it to the durable key and read
+`projectedDatum(widget, key)`: it returns the unique current projected element, or
+`null` when missing or ambiguous, including after a reveal replaced its node.
 
 ### Indicating (experimental)
 
@@ -507,8 +558,8 @@ Declare ordinary local bindings in `keys` and explicitly forwardable aliases in
 the enclosing Ask's opening and its associated margin controls and threads. A route can
 declare its own `contextKeys`; an ordinary key on another route is never forwarded.
 Numbers are widget choices, not an Ask allocation: options own their stable numeric
-assignments, and a swipe deck declares Pass as `1` and Keep as `2`. The page owns `a`
-and `Shift+a` navigation between Asks. Do not assign numbers based on currently available
+assignments, and a swipe deck declares Pass as `1` and Keep as `2`. The page owns `q`
+and `Shift+q` navigation between Asks. Do not assign numbers based on currently available
 actions: disabling `1` must not turn `2` into a different action.
 
 ```javascript
@@ -542,14 +593,23 @@ Set `decision: true` and provide `control` when a command starts, advances, answ
 revises the Ask containing `source`. This semantic role neither assigns a binding nor
 makes ordinary keys forwardable. A numeric command need not be a Decision. Forwarding
 retains the original source, scope, row, and route identity, rechecks their current
-availability, and invokes the original callback or native control. Replacing or removing
+availability, and invokes the original callback or native control. On a native button
+with `run`, the command owns availability: express every condition in the row, route or
+scope's `when` predicate. Leaf paints `aria-disabled` and guards activation, so a refused
+press keeps focus; the button's own `disabled` attributes are outputs. A disabled
+fieldset still constrains the button. Associated editors, non-button controls and
+run-less declarations retain their native and ARIA constraints. Replacing or removing
 the source attachment withdraws its old routes. A nearer widget owns its declared keys;
 an unavailable implemented binding reserves its key against a different outer meaning.
 
 Declare `bindingBadge` on a row or route to request an inline shortcut hint, whether or
-not the command is a Decision. An element names an empty face the widget positions;
-`null` requests a badge at the control's corner. Each supplied face belongs to one
-action. The shared keyboard presenter writes its first reachable binding while the
+not the command is a Decision. An element names an empty face the widget positions
+outside every rendered native button; descendants through shadow roots or assigned
+slots are rejected. The presenter gives each lent
+face the persistent `lf-binding-seat` class, whose shared style keeps it absolutely
+positioned even when empty or restored. Position that seat beside its control using
+its holder and offsets; filling it must not move the control. `null` requests a badge
+at the control's corner. Each supplied face belongs to one action. The shared keyboard presenter writes its first reachable binding while the
 whole face is connected, visible, and uncovered; a reachable Ask alias takes precedence
 over an intrinsic binding for the same command. Otherwise it paints a corner badge at
 the visible control. Commands without `bindingBadge` do not request an inline hint.
@@ -687,9 +747,11 @@ if (once(this)) watchData(this, "builds", (snapshot) => render(snapshot));
 The callback receives `null` while the source has no readable value, otherwise a clone
 of `{source, contract, revision, updated, value, origin}`. `revision` identifies the
 value itself, so a renderer can distinguish two writes even when their wall clock
-timestamps coincide. It runs immediately and again when that source revision changes.
-A value that fails its contract is delivered as `null`; `page state` and `page check`
-report why.
+timestamps coincide. The callback runs immediately and again when the source's
+contract, revision, or validity changes. An incompatible contract or unreadable
+value delivers `null`, clearing the previous rendering. The subscription stays
+active and recovers when a readable value returns. `page state` and `page check`
+report invalid values; an incompatible subscriber reports the contract it requires.
 Register once for the element. Leaf pauses the subscription when its owner leaves and
 delivers the newest snapshot when it returns, even if its revision is unchanged.
 Moving the owner within one DOM mutation batch retains the subscription. The returned
@@ -713,7 +775,12 @@ grace, the same bound the page's own activity reads. For another
 rounded time reading, use `clockValue((now) => reading)`, whose `now` argument is the
 calibrated server-now value in milliseconds. For a paint outside these
 subscriptions, wrap it with `clocked(element, paint)` and call the returned function
-where state changes; call its `.stop()` on disconnect. Time reads after an `await`
+where state changes; call its `.stop()` on disconnect. If painting is scheduled by a
+presenter, pass its synchronous claim as the third argument,
+`clocked(element, paint, invalidate)`. A clock change calls `invalidate`; the scheduled
+pass calls the function returned by `clocked`, capturing fresh time readings.
+The claim's return is ignored; the presenter owns its completion and failure. Until that paint runs,
+the previous readings remain subscribed. Time reads after an `await`
 belong in a separate synchronous `clocked` paint. The timer does not reapply state or
 redeliver unchanged data to keep a timestamp current.
 
@@ -732,6 +799,9 @@ changed text, preserving native selections in text the source kept. Keep indepen
 stateful controls outside that subtree.
 
 After placing the nodes, annotate their words with `projectData(root, datums, {snapshot})`.
+Commit visible words and their snapshot labels in the same synchronous turn,
+before awaiting later resource settlement. Until replacement words are mounted,
+the previous words retain their previous snapshot's provenance.
 The root is an id-bearing seat. Each datum is `{node, key, label?, identity?, origin?}`;
 its node must already stand under that root, including inside a declared shadow stage.
 Leaf validates the coordinates and marks readable data rather than authored prose;

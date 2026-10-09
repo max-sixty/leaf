@@ -1,6 +1,7 @@
 # Added with `--title` on `thread reply` and `page state <page> <id>` for a thread's
 # history (#1374). Base at 69bee09a8 ran a separate `leaf thread title` (0 of 3);
 # the change 3 of 3. No other case fell across all 16 run at once, x3 per arm.
+# Match the subcommand so a resolved launcher such as "$LEAF" also counts.
 description: thread-named-in-its-reply
 metadata:
   purpose: 'Threads reference: an untitled thread is named by `--title` on the reply that answers it,
@@ -11,7 +12,7 @@ vars:
   prompt: |
     You own a live Leaf page at ~/.local/state/leaf/pages/cache-plan, a plan for the
     session cache. A `leaf wait` just printed a delivery. Its one event is a user
-    reply, id 7c41d0e2, in thread 3fa1c2d9, which has no title yet. The thread is
+    reply, id 7c41d0e2, in thread 3fa1c2d9, which has no title yet. Its answer is `{kind: reply, writer: agent, ref: "7f20c3d9:0:7c41d0e2"}`. The thread is
     long: the delivery's digest of it shows the opening comment and the last few
     messages, with `elided: 9`. The user wrote:
 
@@ -24,27 +25,16 @@ vars:
     Write the exact commands you run now, in order, including the full text of the
     reply. Nothing here can run them, so reply with the commands.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-threads
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/threads\.md
 - type: regex
   metric: titles-in-the-reply
-  value: leaf thread reply\b(?:[^\n]|\\\n)*--title\b
+  value: \bresponse reply\b(?:[^\n]|\\\n)*--title\b
 - type: llm-rubric
   metric: judgment
   value: |
     Read the commands. Pass only if all three hold. First, the earlier messages are
     read with `leaf page state <page> 3fa1c2d9` (or the same command naming
     7c41d0e2), optionally paged with `--after`, before the reply. Second, the answer
-    is one `leaf thread reply` naming the event (`--for 7c41d0e2`, or relying on the
-    single outstanding reply), and it or a progress update (`--ephemeral`) posted
+    is one `leaf response reply` naming the exact reference `7f20c3d9:0:7c41d0e2`, and it or a progress update (`--ephemeral`) posted
     before it carries `--title` with a few words naming the thread's subject; that
     progress update may come before the read. Third, no separate command names the
     thread: fail on any `leaf thread title`, `leaf thread read`, or `leaf page

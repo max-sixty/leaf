@@ -15,6 +15,7 @@ from leaf.projection import (
     page_reading,
     with_action,
 )
+from leaf.registry.contract import state_definition
 from leaf.thread_context import thread_structure
 
 
@@ -31,13 +32,37 @@ class AdmissionReadings:
         self._pages: dict = {}
 
     @cached_property
+    def log(self):
+        from .tasks import TaskReading
+
+        return TaskReading(self.events)
+
+    @cached_property
+    def work(self):
+        from .work_reading import WorkReading
+
+        revisions = self.view.revisions
+        return WorkReading(
+            self.events,
+            self.registry,
+            self.page(revisions[-1]) if revisions else None,
+            thread=self.thread,
+            log=self.log,
+        )
+
+    @cached_property
     def thread(self):
-        return frozen_thread_reading(self.events, self.registry)
+        return frozen_thread_reading(
+            self.events, self.registry, withdrawn=self.log.withdrawn
+        )
 
     def page(self, revision: int):
         if revision not in self._pages:
             self._pages[revision] = page_reading(
-                self.view.reading(revision, self.registry), self.events, revision
+                self.view.reading(revision, self.registry),
+                self.events,
+                revision,
+                withdrawn=self.log.withdrawn,
             )
         return self._pages[revision]
 
@@ -47,32 +72,27 @@ def direct_dependencies(event: dict, spec: dict) -> list[str]:
     detail = event["detail"]
     owner = event["widget"]
     unit = owner if spec["unit"] == "widget" else detail[spec["unit"]]
-    fields = []
-    record = spec.get("record") or {}
-    if record.get("kind") in {"attribute", "position"}:
-        fields.append(record["value"])
     dependencies = [owner, unit]
-    for field in fields:
-        value = detail.get(field)
-        if value is not None:
-            dependencies.extend(value if isinstance(value, list) else [value])
+    if (spec.get("record") or {}).get("kind") in {"attribute", "position"}:
+        value = detail["value"]
+        dependencies.extend(value if isinstance(value, list) else [value])
     return dependencies
 
 
-def state_meaning(event: dict, entry: dict, scope: str) -> dict:
+def state_meaning(event: dict, entry: dict, scope: str, origin: str) -> dict:
     """Resolve one validated verb using its sending document's declaration.
 
-    Only what a registry-free reader cannot recover from the event is stored: the
-    fold unit, the identities the declared record fields name, and a created
-    child's tag. The owner and verb are the event's `widget` and `action`, and the
-    scope with the event's revision names its document (`events.event_coordinate`,
-    `events.event_document`)."""
+    The event records the fold unit, direct dependencies, created child tag,
+    and the semantic definition of the operation. The scope with its revision
+    names the sending document. A later registry may change that operation;
+    the old event remains history instead of being read as the new operation."""
     spec = entry["x-state"][event["action"]]
     dependencies = direct_dependencies(event, spec)
     meaning = {
         "scope": scope,
         "unit": dependencies[1],
         "depends": sorted(set(dependencies)),
+        "state": state_definition(origin, entry, spec),
     }
     # A created child's unit is new, so no document may yet hold it. Stamping its
     # tag lets registry-free readers keep the action resting on it regardless.
@@ -138,7 +158,7 @@ def admit_widget_event(sender, event: dict, readings: AdmissionReadings) -> dict
         scope = "thread"
     entry = registry[record["tag"]]
     admitted = dict(event)
-    admitted["meaning"] = state_meaning(event, entry, scope)
+    admitted["meaning"] = state_meaning(event, entry, scope, record["tag"])
     position = entry["x-state"][event["action"]].get("record") or {}
     if position.get("kind") == "position":
         # The authored units the rank lies among, in their order on the sending
@@ -150,40 +170,8 @@ def admit_widget_event(sender, event: dict, readings: AdmissionReadings) -> dict
         byid = reading.document.by_id if scope == "page" else reading.by_id
         admitted["meaning"]["among"] = authored_positions(
             event["widget"], position, byid, reading.spoken, registry
-        )[event["detail"][position["value"]]]
+        )[event["detail"]["value"]]
     answers, closes = answer_meaning(sender, record, admitted, readings)
     if answers:
         admitted["meaning"]["answer"] = closes
     return admitted
-
-
-def admitted_contract_error(
-    event: dict, page, thread, registry: dict, recorded_registry: dict, *, recorded_page
-) -> str | None:
-    """Reject a candidate registry that would read one admitted command differently.
-
-    The stored meaning already fixes the identities admission derived, so no
-    candidate can move those. What folds still read through the vocabulary is the
-    verb's declaration — its fold unit, which decides the shape its state takes,
-    its record form, created child, or update field — and that
-    must stay what the event's own captured registry said. The
-    candidate side comes from the document being checked, except that thread widgets
-    live in their frozen markup for the page's whole lifetime.
-    """
-    if event_document(event)["kind"] == "page":
-        record = page.by_id[event["widget"]]
-        recorded = recorded_page.by_id[event["widget"]]
-    else:
-        record = recorded = thread.by_id[event["widget"]]
-    entry = registry[record["tag"]]
-    before = recorded_registry[recorded["tag"]]["x-state"][event["action"]]
-    after = entry["x-state"][event["action"]]
-    for field, label in (
-        ("unit", "fold unit"),
-        ("record", "record form"),
-        ("creates", "creates declaration"),
-        ("update", "update field"),
-    ):
-        if before.get(field) != after.get(field):
-            return f"{event['kind']} {event['id']} changes its admitted {label}"
-    return None

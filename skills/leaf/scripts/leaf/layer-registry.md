@@ -78,21 +78,17 @@ disappears. A rejected or unchanged re-vendor preserves its running server and
 layer, so neither triggers a reload. Source files carry neither
 script, and an export no supervisor.
 
-`registry.json` remains the source of truth for the current custom vocabulary and
-its explanations; this contract does not mirror that inventory.
+## Composition stamps
 
-Each composition that ends in a vocabulary also writes two facts for the browser to
-read rather than derive (`registry/layer.py`, `stamp_composition`): `$decisions`, the
-deciding x-state verb of every widget that has one and the member tags each of its
-outcomes retires, which the declarations imply; and `$marks`, the declarations a
-stylesheet reads, each with the attribute it is painted as, the attribute an
-occurrence overrides it with, whether it holds in a thread's message, and whether an
-idiom may declare it (`schema.py`, `DECLARED_MARKS`). `page init` stamps them into the layer, and a page's
-composition stamps them again over the page's own declarations, overwriting any
-declared `$decisions` or `$marks`. The browser reads the first rather than walking
-`x-state` and `x-retired-when` a second time, and paints a message's marks from the
-second, which delivery paints into a page's document from the same table.
+Every composition writes two facts the browser reads instead of deriving
+(`registry/layer.stamp_composition`):
 
-The append transaction records the fold unit and direct dependencies in an action or
-report's `meaning`. Identity-bearing detail fields come from the declared fold unit
-and attribute-set or position record; arbitrary detail strings carry no identity.
+- `$decisions`, each widget's deciding `x-state` verb and the member tags each of its
+  outcomes retires;
+- `$marks`, each declaration a stylesheet reads, with the attribute it is painted as,
+  the attribute an occurrence overrides it with, and whether it holds in a thread
+  message, and whether an idiom may declare it (`schema.DECLARED_MARKS`).
+
+`page init` stamps them into the layer, and a page's composition stamps them again
+over its own declarations, overwriting any declared `$decisions` or `$marks`.
+Delivery paints a page document's marks from the same table.

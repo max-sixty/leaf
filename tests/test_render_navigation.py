@@ -9,7 +9,7 @@ from interact_support import append_carried_log_record, element_declaration
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import server as server_model
-from leaf.render_checks import one_frame, rendered
+from leaf.render_checks import one_frame, rendered, wait_until_ready
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -9075,7 +9075,7 @@ def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
     page.keyboard.press("?")
     page.keyboard.press("?")
     edit = page.locator('.lf-command-reference-command[data-lf-command="draft.edit"]')
-    expect(edit).to_have_text("Edit…")
+    expect(edit).to_have_text("Edit")
     edit.click()
     expect(page.locator("#note leaf-text")).to_be_focused()
 
@@ -9084,9 +9084,7 @@ def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
     expect(save).to_be_focused()
     page.keyboard.press("?")
     assert active_digit_bindings(page) == "1–2"
-    expect(save).to_have_attribute(
-        "aria-keyshortcuts", "Enter Meta+Enter Control+Enter Escape 1"
-    )
+    expect(save).to_have_attribute("aria-keyshortcuts", "Meta+Enter Control+Enter 1")
     page.keyboard.press("?")
     cancel = page.locator(
         '.lf-command-reference-command[data-lf-command="draft.cancel"]'
@@ -14086,7 +14084,7 @@ def test_typing_in_a_selected_comment_wins_over_page_shortcuts(browser, serve):
 
 
 def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser, serve):
-    """Every durable editor inserts a newline with Shift+Enter and submits with Enter."""
+    """The composer sends with Enter; the draft saves with its advertised Mod+Enter."""
     html = TARGETS_PAGE.replace(
         "</main>", '<lf-draft id="plan"><pre>Ship it.</pre></lf-draft></main>'
     )
@@ -14127,8 +14125,11 @@ def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser,
     expect(editor).to_have_js_property(
         "value", "Save through the visible control.\nKeep the second line."
     )
+    expect(editor).to_have_attribute(
+        "aria-keyshortcuts", "Meta+Enter Control+Enter Escape"
+    )
     with sending(page, "the draft shortcut"):
-        page.keyboard.press("Enter")
+        page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator("#plan .lf-draft-body")).to_contain_text(
         "Keep the second line."
     )
@@ -15834,6 +15835,136 @@ def test_an_ask_in_a_reply_is_where_the_user_stands_once_answered(browser, serve
     page.keyboard.press("1")
     round_trip(page)
     expect(page.locator("#cache-disk")).not_to_have_attribute("chosen", "")
+
+
+def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, serve):
+    """One persistent policy covers page keys, contextual digits and their hints."""
+    page = open_page(browser, serve(FEATURE_GALLERY))
+    reference = page.locator(".lf-command-reference")
+    setting = page.get_by_role("checkbox", name="Quick keyboard shortcuts", exact=True)
+    note = page.locator("#bg-shortcut-note")
+    button = page.locator("#bg-shortcut-focus-note")
+    sample = page.locator("#bg-local-shortcuts")
+
+    def settings():
+        page.locator(".lf-banner-more").click()
+        page.get_by_role("button", name="Keyboard shortcuts", exact=True).click()
+        expect(reference).to_be_visible()
+
+    sample.focus()
+    expect(button).to_have_attribute("aria-keyshortcuts", "1")
+    page.keyboard.press("1")
+    expect(note).to_be_focused()
+    page.keyboard.type("c ? 1 T")
+    expect(note).to_have_value("c ? 1 T")
+    settings()
+    expect(setting).to_be_checked()
+    expect(setting).to_have_accessible_description(
+        "Use letters, numbers and symbols for Leaf actions."
+    )
+    # The preference itself is reachable by Tab and native Space.
+    page.get_by_role("combobox", name="Search commands").press("Shift+Tab")
+    expect(setting).to_be_focused()
+    setting.press("Space")
+    expect(setting).not_to_be_checked()
+    comment = reference.locator('tr[data-lf-command="comment.create"]')
+    expect(comment.locator("kbd")).to_have_count(0)
+    # Turning a binding off leaves its command actionable in the reference.
+    page.get_by_role("combobox", name="Search commands").fill("Comment on the page")
+    comment.get_by_role("button", name="Comment on the page", exact=True).click()
+    field = page.get_by_role("textbox", name="Comment on the page", exact=True)
+    expect(field).to_be_focused()
+    page.keyboard.type("Sent with quick shortcuts off")
+    page.keyboard.press("ControlOrMeta+Enter")
+    expect(field).to_be_hidden()
+    told(page)
+    assert any(
+        event.get("text") == "Sent with quick shortcuts off"
+        for event in events_model.read_events(serve.page_dir)
+    )
+    page.keyboard.press("Escape")
+    rendered(page)
+
+    sample.focus()
+    expect(button).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
+    for key in ("1", "c", "?", "Shift+t", "g", "Shift+t"):
+        page.keyboard.press(key)
+    rendered(page)
+    expect(sample).to_be_focused()
+    expect(reference).to_be_hidden()
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("go to")
+    expect(button).not_to_have_attribute("title", re.compile(r"\(1\)"))
+    settings()
+    page.get_by_role("combobox", name="Search commands").fill("Select element")
+    reference.locator('tr[data-lf-command="target.picker.open"]').get_by_role(
+        "button"
+    ).click()
+    rendered(page)
+    expect(page.locator(".lf-target-picker-hint")).to_have_count(0)
+    expect(page.locator(".lf-live")).not_to_contain_text("type one of")
+    page.keyboard.press("a")
+    expect(page.locator(".lf-fab-input")).to_be_hidden()
+    page.keyboard.press("Tab")
+    expect(page.locator(".lf-live")).to_contain_text("Press Enter to choose")
+    expect(page.locator(".lf-live")).not_to_contain_text("Hint ")
+    native_target = page.locator('[data-lf-hint-native="Enter"]')
+    expect(native_target).to_be_visible()
+    expect(native_target).not_to_have_attribute("data-lf-hint-code")
+    expect(native_target.locator("kbd")).to_have_text("⏎")
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(native_target).to_have_count(0)
+    page.keyboard.press("Escape")
+    rendered(page)
+    street = page.locator("#bg-choice-street")
+    trail = page.locator("#bg-choice-trail")
+    street.locator(".lf-pick").focus()
+    expect(page.locator("#bg-choice")).not_to_have_attribute(
+        "aria-keyshortcuts", re.compile(r"(?:^| )1(?: |$)")
+    )
+    page.keyboard.press("1")
+    rendered(page)
+    expect(street).not_to_have_attribute("chosen", "")
+    street.locator(".lf-pick").focus()
+    page.keyboard.press("ArrowDown")
+    expect(trail.locator(".lf-pick")).to_be_focused()
+    page.keyboard.press("Space")
+    expect(trail).to_have_attribute("chosen", "")
+    button.focus()
+    button.press("Enter")
+    expect(note).to_be_focused()
+    note.press("End")
+    page.keyboard.type(" native")
+    expect(note).to_have_value("c ? 1 T native")
+
+    page.reload()
+    wait_until_ready(page)
+    sample.focus()
+    page.keyboard.press("1")
+    rendered(page)
+    expect(sample).to_be_focused()
+    settings()
+    expect(setting).not_to_be_checked()
+    setting.check()
+    page.keyboard.press("Escape")
+    street.locator(".lf-pick").focus()
+    expect(page.locator("#bg-choice")).to_have_attribute(
+        "aria-keyshortcuts", re.compile(r"(?:^| )1(?: |$)")
+    )
+    page.keyboard.press("1")
+    expect(street).to_have_attribute("chosen", "")
+    sample.focus()
+    expect(button).to_have_attribute("aria-keyshortcuts", "1")
+    page.keyboard.press("1")
+    expect(note).to_be_focused()
+
+    settings()
+    page.get_by_role("combobox", name="Search commands").fill("Select element")
+    reference.locator('tr[data-lf-command="target.picker.open"]').get_by_role(
+        "button"
+    ).click()
+    expect(page.locator(".lf-target-picker-hint").first).to_be_visible()
+    page.keyboard.press("Escape")
 
 
 def test_the_reference_keeps_its_count_line_whole_above_the_results(browser, serve):

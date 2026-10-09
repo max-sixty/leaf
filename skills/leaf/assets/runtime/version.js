@@ -172,6 +172,7 @@ const PRIVATE_REVISION_PARAM = "_leaf-revision";
 // early runtime state for page source. An activation can then replace exactly that share
 // without erasing the presentation, layout, and mode facts the surviving runtime owns.
 function authoredAttributes(root) {
+  root = document.documentElement.lfInitial.authoredShell(root);
   const attributes = new Map();
   for (const { name, value } of root.attributes) {
     if (name.startsWith("data-lf-")) continue;
@@ -1325,7 +1326,8 @@ export function createVersionController({
             : null;
         })
       : draftEditingDestination(draftEditing);
-    if (!replyThread && input) mayRestore.handoff(() => focusDestination(input));
+    if (!replyThread && input)
+      mayRestore.handoff(() => focusDestination(input, "return"));
     if (mayRestore()) restoreDraftEditing(draftEditing, input);
   }
 

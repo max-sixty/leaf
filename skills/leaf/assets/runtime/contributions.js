@@ -14,6 +14,7 @@ import {
   contributionContains,
   forgetContributionControls,
 } from "./contribution-controls.js";
+import { focusDestination } from "./focus.js";
 const text = (value) => String(value ?? "").trim();
 // A registration publishes its data once per update. Both projections use those
 // same records; only this registry resolves their live activation capability.
@@ -109,7 +110,7 @@ export function registerContribution({ key, target, source = target, read, activ
     const key = owedFocus;
     owedFocus = null;
     offered.focusRequest = null;
-    if (key != null) registration.focus(key);
+    if (key != null) registration.focus(key, "move");
   };
   // An explicit arrival materializes the current surface before its retained control
   // is read. The request is mechanical and never enters the immutable contribution.
@@ -151,7 +152,7 @@ export function registerContribution({ key, target, source = target, read, activ
       const focusCurrentSurface = (key) =>
         arrive(key, context.surface ?? null, (destination) => {
           if (context.focus) return context.focus(key);
-          destination.focus({ preventScroll: true });
+          focusDestination(destination, "return");
           return true;
         });
       const activationContext = {
@@ -170,9 +171,11 @@ export function registerContribution({ key, target, source = target, read, activ
       activate();
       return true;
     },
-    focus(entryKey, surface = null) {
+    // Puts the user on the entry's control, saying what moved them (focus.js,
+    // `focusDestination`).
+    focus(entryKey, cause, surface = null) {
       return arrive(entryKey, surface, (destination) => {
-        destination.focus({ preventScroll: true });
+        focusDestination(destination, cause);
         return true;
       });
     },

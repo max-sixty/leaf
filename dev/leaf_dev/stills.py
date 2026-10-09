@@ -114,6 +114,13 @@ def threads_panel(page: Page) -> None:
     )
 
 
+def screenshot_comparison(page: Page) -> None:
+    """Reach the comparison rail's standalone endpoint controls."""
+    page.get_by_role("tab", name="Page & layout", exact=True).click()
+    # Anchor the unchanged guide, so a taller rail does not recenter the entire capture.
+    page.locator("#bg-shot-guide").scroll_into_view_if_needed()
+
+
 def image_preview(page: Page) -> None:
     """Inspect the gallery's pasted screenshot through the shared image viewer."""
     threads_panel(page)
@@ -442,6 +449,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         card_reply_resolved,
         threads_panel,
         image_preview,
+        screenshot_comparison,
         panel_by_keyboard,
         composer,
         composer_long,
@@ -552,6 +560,14 @@ class State:
 
 
 STATES = (
+    State("screenshot-comparison", "developer/feature-gallery", screenshot_comparison),
+    State(
+        "screenshot-comparison-phone",
+        "developer/feature-gallery",
+        screenshot_comparison,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("image-preview", "developer/feature-gallery", image_preview),
     State(
         "image-preview-dark", "developer/feature-gallery", image_preview, scheme="dark"

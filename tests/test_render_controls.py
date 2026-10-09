@@ -63,6 +63,7 @@ from render_cases_navigation import (
     DIFF_PAGE,
     _publish,
     actions,
+    go_to_address,
 )
 from render_cases_widgets import (
     SCROLLED,
@@ -110,6 +111,74 @@ from render_harness import (
 )
 
 pytestmark = pytest.mark.nightly
+
+
+@pytest.mark.parametrize("touch", [False, True])
+def test_native_disclosure_inherits_the_offered_control_target(browser, serve, touch):
+    """A native disclosure gets the same press target without a widget-specific rule."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=touch
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Native disclosure",
+                """<h1>Comparison</h1>
+<details id="comparison"><p>Inspection controls.</p></details>
+<script type="module">
+import {offer} from '/runtime/widget-api.js';
+const summary = offer('summary', '', 'Inspect comparison');
+summary.id = 'inspect';
+document.querySelector('#comparison').prepend(summary);
+</script>""",
+            )
+        ),
+        context=context,
+    )
+    control = page.locator("#inspect")
+    before = control.bounding_box()
+    floor = 44 if touch else 24
+    assert min(before["width"], before["height"]) >= floor - 0.5, before
+    control.click()
+    expect(page.locator("#comparison")).to_have_attribute("open", "")
+    assert control.bounding_box() == before
+    control.press("Space")
+    expect(page.locator("#comparison")).not_to_have_attribute("open", "")
+    assert control.bounding_box() == before
+
+
+def test_offered_native_targets_keep_their_navigation_meaning(browser, serve):
+    """An offered disclosure or link keeps its native Go-to arrival, not a generic press."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Native routes",
+                """<h1>Comparison</h1>
+<details id="comparison"><p>Inspection controls.</p></details>
+<p id="destination">Destination evidence.</p>
+<script type="module">
+import {offer} from '/runtime/widget-api.js';
+const summary = offer('summary', '', 'Inspect comparison');
+summary.id = 'inspect';
+document.querySelector('#comparison').prepend(summary);
+const link = offer('a', '', 'Evidence');
+link.id = 'evidence';
+link.href = '#destination';
+document.querySelector('main').append(link);
+</script>""",
+            )
+        ),
+    )
+    summary = page.locator("#inspect")
+    go_to_address(page, "Fold", "inspect")
+    expect(summary).to_be_focused()
+    expect(page.locator("#comparison")).to_have_attribute("open", "")
+    page.keyboard.press("Enter")
+    expect(page.locator("#comparison")).not_to_have_attribute("open", "")
+    go_to_address(page, "Link", "evidence")
+    expect(page).to_have_url(re.compile(r"#destination$"))
 
 
 @pytest.mark.parametrize("width", [390, 1440])
@@ -976,7 +1045,7 @@ def test_restoring_question_focus_can_execute_its_command_in_the_same_turn(
         """async () => {
           const {focusDestination} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const {executeCommand} = await window.__lfRuntimeImport('/runtime/keyboard/dispatch.js');
-          focusDestination(document.getElementById('question'));
+          focusDestination(document.getElementById('question'), 'move');
           const executed = executeCommand('probe.action-10');
           return {executed, held: document.activeElement.id,
             output: document.querySelector('#probe output').textContent};
@@ -1362,6 +1431,49 @@ LIVE_SAMPLES_PAGE = leaf_page(
 </lf-sample>
 """,
 )
+
+
+def test_a_live_revision_mounts_and_resets_its_new_sample(browser, serve):
+    """An arriving sample allocates from its own revision before that revision paints."""
+    page = open_page(browser, live_url(serve(LIVE_SAMPLES_PAGE)))
+    addition = """
+<lf-sample id="arriving-practice" label="New practice">
+  <template id="arriving-source" data-sample>
+    <h1 id="arrival-heading">Practice added in the revision</h1>
+  </template>
+</lf-sample>
+"""
+    revised = LIVE_SAMPLES_PAGE.replace("</main>", addition + "</main>")
+    with page.expect_request("**/api/samples") as allocation:
+        _publish(serve.page_dir, 2, revised, "Add another practice page.")
+    sample = page.locator("#arriving-practice")
+    expect(sample.frame_locator("iframe").locator("#arrival-heading")).to_have_text(
+        "Practice added in the revision"
+    )
+    wait_until_ready(page)
+    child_url = sample.locator("iframe").get_attribute("src")
+
+    # A later revision keeps this exact node and its template. Reset must retain
+    # the source coordinate it arrived with rather than borrow the newer reading.
+    _publish(
+        serve.page_dir,
+        3,
+        revised.replace("Practice without changing this page", "Practice together"),
+        "Revise the surrounding explanation.",
+    )
+    expect(page.locator("#host-heading")).to_have_text("Practice together")
+    wait_until_ready(page)
+    reset = sample.get_by_role("button", name="Reset", exact=True)
+    with page.expect_request("**/api/samples") as replacement:
+        reset.click()
+    assert replacement.value.header_value("Leaf-View-Revision") == (
+        allocation.value.header_value("Leaf-View-Revision")
+    )
+    expect(sample.locator("iframe")).not_to_have_attribute("src", child_url)
+    expect(sample.frame_locator("iframe").locator("#arrival-heading")).to_have_text(
+        "Practice added in the revision"
+    )
+    wait_until_ready(page)
 
 
 def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
@@ -8879,6 +8991,17 @@ HAND_BACK = """async (step) => {
     open.focus();
     shut.hidden = false;
   }
+  if (step === 'user pressed another key') {
+    handBack(shut);
+    document.dispatchEvent(new KeyboardEvent('keydown', {key: 'x', bubbles: true}));
+    shut.hidden = false;
+  }
+  if (step === 'user landed and let go') {
+    handBack(shut);
+    open.focus();
+    open.blur();
+    shut.hidden = false;
+  }
   await frame();
   await frame();
   const at = document.activeElement;
@@ -8892,10 +9015,11 @@ def test_a_closing_layer_hands_the_user_back_to_the_first_place_that_takes_them(
     """Every closer names where the user goes back to, most particular first, and
     `handBack` lands them on the first that takes focus. A place still in the document
     gets the next frame, for a close whose own paint still hides it, unless the user
-    moved first. With nowhere to go the user is let go on the block they are reading,
-    so their next Tab carries on from it: not from the closed layer, which is where the
-    browser left them, and not from the top of the document, which is where focusing
-    the body would. The body is nowhere, for an opener read while nothing held focus."""
+    moved, let go after a landing, or pressed another key first. With nowhere to go
+    the user is let go on the block they are reading, so their next Tab carries on
+    from it: not from the closed layer, which is where the browser left them, and
+    not from the top of the document, which is where focusing the body would. The
+    body is nowhere, for an opener read while nothing held focus."""
     page = open_page(browser, serve(LONG_PAGE))
     landed = {
         step: page.evaluate(HAND_BACK, step)
@@ -8903,12 +9027,16 @@ def test_a_closing_layer_hands_the_user_back_to_the_first_place_that_takes_them(
             "first that lands",
             "shown by the next frame",
             "user moved on",
+            "user pressed another key",
+            "user landed and let go",
         ]
     }
     assert landed == {
         "first that lands": "open",
         "shown by the next frame": "shut",
         "user moved on": "open",
+        "user pressed another key": "body",
+        "user landed and let go": "body",
     }
     for step in ["nothing to land on", "body"]:
         assert page.evaluate(HAND_BACK, step) == "body"

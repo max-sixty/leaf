@@ -138,17 +138,11 @@
   outline-offset: calc(-1 * var(--focus-ring-w));
   border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
   color: var(--ink); box-shadow: 0 8px 24px var(--shade); }
-/* Existing controls delay delivery feedback so a quick answer causes no busy flash.
-   New messages already show the gesture's result and start unconfirmed: they are
-   dim from insertion until admission (marks.css). Accessibility's
-   aria-busy describes both waits, but does not give them the same visual timing.
-   Neither treatment changes geometry or obscures the message's workflow. */
-[aria-busy="true"] {
+/* Delay action-control feedback so a quick answer causes no busy flash.
+   aria-busy also marks reading content (messages, drafts, and uploading editors):
+   their text stays readable, and their receipt or progress cursor carries the wait. */
+:is(button, [role="button"])[aria-busy="true"] {
   animation: lf-runtime-4f3c2a8d-working 140ms linear 200ms both;
-}
-[aria-busy="true"],
-[aria-busy="true"] :is(button, [role="button"]) {
-  cursor: progress;
 }
 /* Holding ⌥ changes what a click means, and nothing on the page said so — the sequence's
    whole cost is that it is invisible. Two things say it, and the division matters:
@@ -183,15 +177,16 @@
    widget wears. The chrome holds itself out instead, from inside its own scope. */
 body:is(.lf-aiming, [data-lf-design-mode]) { cursor: default; }
 body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item { cursor: pointer; }
-/* Every non-chrome point on the page accepts a drawing press. The crosshair therefore
-   belongs to the whole document plane; an aim box adds semantic context where one is
-   available but no longer decides whether the drag can begin. */
+/* Page words accept drawing presses; runtime surfaces and widget offers keep their
+   controls usable. An aim box adds semantic context where one is available. */
 html[data-lf-draw-mode],
 html[data-lf-draw-mode] body { cursor: crosshair; touch-action: none; }
 html[data-lf-draw-mode] main,
 html[data-lf-draw-mode] main * { cursor: crosshair !important; }
 html[data-lf-draw-mode] main [data-lf-runtime],
-html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
+html[data-lf-draw-mode] main [data-lf-runtime] *,
+html[data-lf-draw-mode] main [data-lf-offer],
+html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
 /* The glyphs of the reactions standing on a target — a margin entry per reaction,
    revealing a separately named removal action. */
 .lf-react-mark { text-align: center; }
@@ -285,13 +280,15 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   @media print { :scope { display: none; } }
   /* The details shelf rests where its notes' focused faces stand. It stands after the
      whole page, so a note focused while it rested in flow would scroll the page to the
-     chrome's end; fixed, focus moves nothing. */
-  .lf-details-shelf { position: fixed; top: calc(var(--lf-banner-h) + 6px); left: 8px; }
+     chrome's end; fixed, focus moves nothing. Its stacking context owns the escaped
+     controls' layer so page headers cannot cover a focused face inside it. */
+  .lf-details-shelf { position: fixed; z-index: var(--lf-z-escaped-control);
+    top: calc(var(--lf-banner-h) + 6px); left: 8px; }
   /* A picture's response proxies stand on the details shelf rather than as a role written
      onto the provider's drawing. Resting, each is a conventional clipped control; focus
      gives it a skip-link-style face under the banner. */
   .lf-visual-action { pointer-events: none; }
-  .lf-visual-action:focus-visible { position: fixed; z-index: var(--lf-z-escaped-control);
+  .lf-visual-action:focus-visible { position: fixed;
     top: calc(var(--lf-banner-h) + 6px); left: 8px;
     width: auto; height: auto; max-width: calc(100vw - 16px); padding: 6px 10px;
     overflow: visible; clip-path: none; pointer-events: auto; white-space: normal;
@@ -686,7 +683,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      pointer is over stays the one that looks pressable. */
   .lf-version-row[aria-current] .lf-version-num { color: var(--accent); font-weight: 600; }
   .lf-version-num { white-space: nowrap; }
-  .lf-version-note { color: var(--muted); font-size: var(--t-6); }
+  /* Notes are arbitrary agent text, including source URLs and artifact ids. Let
+     those runs break inside the note so they neither widen the grid nor escape
+     a row sharing its width with Compare. */
+  .lf-version-note { color: var(--muted); font-size: var(--t-6);
+    overflow-wrap: anywhere; }
   .lf-version-row:hover .lf-version-note { color: var(--ink-2); }
   /* The comparison a row offers: mark what changed between that version and the one
      being read. It draws its own box rather than waiting for a hover to draw one,
@@ -1462,6 +1463,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     padding: max(10px, var(--lf-safe-top)) max(12px, var(--lf-safe-right)) 10px max(12px, var(--lf-safe-left));
     border-bottom: 1px solid var(--rule); }
   .lf-media-viewer-actions { display: flex; align-items: center; gap: 12px; }
+  .lf-media-viewer-original { display: inline-flex; align-items: center; justify-content: center; }
   .lf-media-viewer-zoom { min-width: 4em; }
   .lf-media-viewer-stage { position: relative; min-width: 0; min-height: 0; overflow: hidden;
     display: grid; place-items: center; background: var(--paper); }
@@ -1477,6 +1479,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     gap: 12px; margin-bottom: 8px; }
   .lf-command-reference-title { font-weight: 600; }
   .lf-command-reference-close { flex: none; }
+  .lf-command-reference-preference { display: grid; grid-template-columns: auto 1fr;
+    align-items: center; column-gap: 8px; row-gap: 2px; margin: 4px 0 12px; flex: none; }
+  .lf-command-reference-preference input { margin: 0; }
+  .lf-command-reference-preference small { grid-column: 2; color: var(--muted);
+    font-size: var(--t-6); }
   .lf-command-reference-search { width: 100%; box-sizing: border-box; font: inherit; padding: 7px 9px;
     border: 1px solid var(--border-2); border-radius: var(--r); background: var(--paper);
     color: var(--ink); }

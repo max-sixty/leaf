@@ -20,7 +20,8 @@ test("prepared kernels preserve native packages, shared state, and stampable gen
     "runtime/widget-api.js": 'export { state } from "./state.js";',
     "runtime/check-api.js": 'export { state } from "./state.js";',
     "runtime/interaction-gallery-frame.js": 'export { state } from "./state.js";',
-    "runtime/media.js": 'export { state } from "./state.js";',
+    "runtime/media.js":
+      'export { state } from "./state.js"; export { rendered } from "../vendor/browser-runtime.js";',
     "runtime/layer-client.js":
       'export { layerGeneration } from "./layer-generation.js";',
     "runtime/layer-generation.js":
@@ -36,12 +37,23 @@ test("prepared kernels preserve native packages, shared state, and stampable gen
     "vendor/example.js": 'export { state } from "/runtime/vendor-bridge.js";',
     "vendor/lit.js": "export const html = (strings) => strings.join('');\n",
     "vendor/browser-runtime.js":
-      'import { html } from "./lit.js";\n\nexport function render(value) {\n  return html([value]);\n}\n',
+      'export { rendered } from "./browser-runtime/render.js";\n',
+    "vendor/browser-runtime/render.js":
+      'import { html } from "../lit.js";\nimport { state } from "../../runtime/state.js";\n\nexport const rendered = () => html([state]);\n',
   };
   try {
     for (const [path, source] of Object.entries(sources)) {
       await mkdir(dirname(join(layer, path)), { recursive: true });
       await writeFile(join(layer, path), source);
+    }
+    // Preparation copies the tracked tree to the output before bundling it.
+    for (const path of [
+      "vendor/lit.js",
+      "vendor/browser-runtime.js",
+      "vendor/browser-runtime/render.js",
+    ]) {
+      await mkdir(dirname(join(output, path)), { recursive: true });
+      await writeFile(join(output, path), sources[path]);
     }
     await bundleDistribution(layer, output);
     await writeFile(join(output, "package.json"), '{"type":"module"}');
@@ -65,14 +77,10 @@ test("prepared kernels preserve native packages, shared state, and stampable gen
       files.some((path) => path.startsWith("widgets/")),
       false,
     );
-    // Upstream vendor modules stay native; the readable framework ships minified.
-    assert.deepEqual(files.filter((path) => path.startsWith("vendor/")).sort(), [
-      "vendor/browser-runtime.js",
-      "vendor/lit.js",
-    ]);
-    assert.match(
-      await readFile(join(output, "vendor/browser-runtime.js"), "utf8"),
-      /^import\{html as (\w+)\}from"\.\/lit\.js";function (\w+)\(\w+\)\{return \1\(\[\w+\]\)\}export\{\2 as render\};\n$/,
+    // The kernel absorbs the framework; upstream vendor modules stay native.
+    assert.deepEqual(
+      files.filter((path) => path.startsWith("vendor/")),
+      ["vendor/lit.js"],
     );
     assert.match(
       await readFile(join(output, "leaf.js"), "utf8"),
@@ -103,6 +111,10 @@ test("prepared kernels preserve native packages, shared state, and stampable gen
       javascript.join("\n").split('"__LEAF_LAYER_GENERATION__"').length - 1,
       1,
     );
+    // The framework shares the runtime's one state instance and the page's one Lit.
+    assert.equal(javascript.join("\n").split("clicks:0").length - 1, 1);
+    assert.match(javascript.join("\n"), /from"\/vendor\/lit\.js"/);
+    assert.doesNotMatch(javascript.join("\n"), /browser-runtime/);
   } finally {
     await rm(temporary, { recursive: true });
   }

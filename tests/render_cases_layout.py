@@ -164,7 +164,7 @@ def arrival_findings(browser, url):
         # the former design-decision example, and buys this nothing.
         page.goto(url, wait_until="load")
         render_checks_model.wait_until_ready(page)
-    except PlaywrightTimeout, render_checks_model.PageNotReady:
+    except (PlaywrightTimeout, render_checks_model.PageNotReady):
         return [
             "[arrivals] the page never came up unarranged, so nothing could be "
             "arranged — "
@@ -179,7 +179,7 @@ def arrival_findings(browser, url):
         try:
             page.reload(wait_until="load")
             render_checks_model.wait_until_ready(page)
-        except PlaywrightTimeout, render_checks_model.PageNotReady:
+        except (PlaywrightTimeout, render_checks_model.PageNotReady):
             found.append(
                 f"[{restore_case['name']}] the page never finished coming up — "
                 + ("; ".join([*errors, *notices]) or "and no console error says why")
@@ -960,8 +960,9 @@ FOCUS_IN_PAGE = """() => {
 # check is for survives untouched — a stray pick writes `chosen` on the option and a
 # stray tab switch moves the panels' attributes, both of them authored rather than
 # generated, and structure is compared either way.
-# The page as a press leaves it. Where the pointer is resting and the projection Leaf
-# paints above descendants are not authored state, so neither belongs in this reading.
+# The page as a press leaves it. Where the pointer is resting, the projection Leaf
+# paints above descendants, and the generated binding seat are not authored state,
+# so none belongs in this reading.
 PAGE_MARKUP = r"""() => [...document.body.children]
     .filter((n) => !n.classList.contains("lf-chrome"))
     .map((n) => {
@@ -969,7 +970,7 @@ PAGE_MARKUP = r"""() => [...document.body.children]
         for (const g of c.querySelectorAll("[data-lf-gen]")) g.textContent = "";
         if (c.dataset && c.dataset.lfGen !== undefined) c.textContent = "";
         for (const el of [c, ...c.querySelectorAll("*")]) {
-            el.classList?.remove("lf-mark-hover", "lf-projected-mark");
+            el.classList?.remove("lf-mark-hover", "lf-projected-mark", "lf-binding-seat");
             // The name a margin row anchors by, which the layout writes on whatever
             // target a row comes to stand by, on its own schedule rather than a press's.
             if (el.style?.anchorName) {

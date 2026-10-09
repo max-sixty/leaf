@@ -5,6 +5,7 @@ import io
 import json
 import re
 from datetime import datetime, timedelta
+from itertools import pairwise
 
 import pytest
 from click.testing import CliRunner
@@ -2570,6 +2571,43 @@ def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
     expect(viewer).to_be_hidden()
     expect(media_open).to_be_focused()
     assert (serve.page_dir / "media" / "051bee487bfb5d13.png").read_bytes() == pixels
+
+
+@pytest.mark.parametrize("touch", [False, True])
+def test_original_image_link_has_a_standalone_target(browser, serve, touch):
+    context = browser.new_context(
+        viewport={"width": 320, "height": 720}, has_touch=touch
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Image",
+                '<h1>Image</h1><a id="image" href="/media/051bee487bfb5d13.png"><img src="/media/051bee487bfb5d13.png" alt="Image"></a>',
+            )
+        ),
+        context=context,
+    )
+    page.locator("#image").click()
+    viewer = page.get_by_role("dialog", name="Image preview")
+    expect(viewer).to_be_visible()
+    original = viewer.get_by_role("link", name="Original")
+    box = original.bounding_box()
+    floor = 44 if touch else 24
+    assert min(box["width"], box["height"]) >= floor - 0.5, box
+    neighbours = viewer.locator(".lf-media-viewer-actions > *")
+    boxes = [node.bounding_box() for node in neighbours.all()]
+    for left, right in pairwise(boxes):
+        assert left["x"] + left["width"] <= right["x"], boxes
+    original.focus()
+    with page.expect_popup() as opened:
+        original.press("Enter")
+    popup = opened.value
+    assert "/media/051bee487bfb5d13.png" in popup.url
+    popup.close()
+    page.keyboard.press("Escape")
+    expect(viewer).to_be_hidden()
+    expect(page.locator("#image")).to_be_focused()
 
 
 @pytest.mark.parametrize("offline", [False, True])
@@ -10899,11 +10937,12 @@ def test_a_scaled_floating_draft_keeps_its_room_when_its_passage_scrolls_away(
 
 
 @pytest.mark.parametrize("surface", ["composer", "composer-widget", "composer-panel"])
-def test_pending_message_headers_match_their_bodies(browser, serve, surface):
-    """Delivery follows complete messages, including in a shadow-root thread.
+def test_pending_messages_stay_readable_through_admission(browser, serve, surface):
+    """Delivery receipts distinguish sends without fading their readable content.
 
     Hold both user messages before admission, then admit each separately. Headers
-    and bodies must share each message's delivery paint through both transitions.
+    and bodies stay fully opaque in ordinary and shadow-root threads while each
+    message's busy state follows its own admission.
     """
     page, _box, send, _after, reply = pressed_send_surface(browser, serve, surface)
     held = []
@@ -10953,16 +10992,35 @@ def test_pending_message_headers_match_their_bodies(browser, serve, surface):
               return {
                 headers: [...root.querySelectorAll('.lf-msg-head')].map(opacity),
                 bodies: [...root.querySelectorAll('.lf-msg-body')].map(opacity),
+                pending: [...root.querySelectorAll('.lf-msg')].map(node =>
+                  node.getAttribute('aria-busy') === 'true'),
+                pendingCursors: [...root.querySelectorAll('.lf-msg[aria-busy="true"] .lf-msg-body')]
+                  .map(node => getComputedStyle(node).cursor),
               };
             }"""
         )
 
-    assert reading() == {"headers": [0.5, 0.5], "bodies": [0.5, 0.5]}
+    assert reading() == {
+        "headers": [1, 1],
+        "bodies": [1, 1],
+        "pending": [True, True],
+        "pendingCursors": ["progress", "progress"],
+    }
     held.pop().continue_()
     holding(page, held, 1, "the reply following its admitted root")
     rendered(page)
-    assert reading() == {"headers": [1, 0.5], "bodies": [1, 0.5]}
+    assert reading() == {
+        "headers": [1, 1],
+        "bodies": [1, 1],
+        "pending": [False, True],
+        "pendingCursors": ["progress"],
+    }
     held.pop().continue_()
     page.unroute("**/api/event", hold)
     round_trip(page)
-    assert reading() == {"headers": [1, 1], "bodies": [1, 1]}
+    assert reading() == {
+        "headers": [1, 1],
+        "bodies": [1, 1],
+        "pending": [False, False],
+        "pendingCursors": [],
+    }

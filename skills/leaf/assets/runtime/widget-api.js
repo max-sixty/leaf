@@ -21,7 +21,12 @@ export async function mountSample(frame, options) {
 export { dressSamples, wear } from "./dress.js";
 
 export { USER_VIEW_RESTORE_CASES } from "./restore-state.js";
-export { ADDRESSABLE, addressableLabel, addressableWord } from "./anchor-resolution.js";
+export {
+  ADDRESSABLE,
+  addressableLabel,
+  addressableWord,
+  projectedDatum,
+} from "./anchor-resolution.js";
 // The name Threads, the margin, and reactions give a comment's anchor.
 export { anchorLabel } from "./thread/messages.js";
 // The page's `main`, or the body of the message whose markup a node stands in.
@@ -83,6 +88,8 @@ export { repaint } from "./repaint.js";
 export {
   afterScript,
   cancelRender,
+  cancelAnimation,
+  nextAnimation,
   nextFrame,
   nextRender,
   sizeObserver,
@@ -183,7 +190,7 @@ export {
 } from "./target-references.js";
 export { projectData } from "./application.js";
 export { copyCodeBlock } from "./code-copy.js";
-export { retainUserIntent } from "./user-intent.js";
+export { onUserInput, retainUserIntent } from "./user-intent.js";
 export { keepView, openingView, tabStore } from "./storage.js";
 export {
   ensureSyntaxLanguage,

@@ -41,7 +41,6 @@ from render_harness import (
     REPLY_HOST_PAGE,
     SAMPLE_MARKUP,
     SAMPLE_TEXT,
-    SETTLED_PAGE,
     consume_browser_errors,
     example_media,
     leaf_page,
@@ -51,6 +50,7 @@ from render_harness import (
     primed,
     resized,
     scroll_settled,
+    select,
     shortcut_bar_text,
 )
 
@@ -109,38 +109,29 @@ def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
     )
 
 
-def test_the_gate_passes_a_page_whose_collapsed_cards_lie_on_each_other(browser, serve):
-    """Words drawn on other words is a question about the screen, and a collapse is the
-    page being asked to take words off it. The cards behind a settled row wear
-    hidden="until-found" so find-in-page still reaches them, which is content-visibility
-    rather than display, and checkVisibility answers for neither: they read as drawn, and
-    each reports the box it last laid out in, so all three land on one another. That is
-    the collapse working, and COVERED_WORDS says why it is held out.
-
-    On a fresh load whether they report at all is a coin, which is no basis for a test.
-    Opening the row and closing it again settles it: the cards lay out for real, and the
-    boxes they keep afterwards are that layout."""
-    url = serve(SETTLED_PAGE)
+def test_the_gate_passes_collapsed_words_that_overlap_when_visible(browser, serve):
+    """Collapsing overlapping words removes them from the gate's screen reading."""
+    url = serve(
+        leaf_page(
+            "collapsed words",
+            '<h1>Collapsed words</h1><div id="collapsed" hidden="until-found">'
+            '<p style="position:absolute;top:100px;left:100px;margin:0">First hidden line</p>'
+            '<p style="position:absolute;top:100px;left:100px;margin:0">Second hidden line</p>'
+            "</div>",
+        )
+    )
     page = open_page(browser, url)
-    row = page.locator("#transport .lf-settled")
-    card = page.locator("#transport #opt-lax")
-
-    row.click()
-    expect(card).to_be_visible()
-    row.click()
-    expect(card).to_be_hidden()
-
-    # The gate's own reading, taken here rather than left to render_version: that opens a
-    # fresh page, which is the coin again, and this page is the one holding the layout the
-    # cards kept. Then the same named reading with its collapsed-content hold disabled.
-    held, reported = (
-        render_checks_model.evaluate_probe(page, "coveredWords"),
-        render_checks_model.evaluate_probe(page, "coveredWords", {"holdHidden": False}),
+    collapsed = page.locator("#collapsed")
+    collapsed.evaluate("node => node.removeAttribute('hidden')")
+    expect(collapsed.locator("p").first).to_be_visible()
+    visible = render_checks_model.evaluate_probe(page, "coveredWords")
+    assert any("hidden line" in found for found in visible), (
+        "the visible lines fell on nobody, so a gate that never looked would pass this too"
     )
-    assert held == []
-    assert any("opt-" in found for found in reported), (
-        "the cards fell on nobody, so a gate that never looked would pass this too"
-    )
+    collapsed.evaluate("node => node.setAttribute('hidden', 'until-found')")
+    expect(collapsed.locator("p").first).to_be_hidden()
+
+    assert render_checks_model.evaluate_probe(page, "coveredWords") == []
     page.close()
     assert render_gate_model.render_version(browser, url).failures == []
 
@@ -507,6 +498,46 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
     )
     assert rendered.returncode == 0, rendered.stderr
     assert "render checks passed" in rendered.stdout
+
+
+@pytest.mark.parametrize("touch", [False, True])
+def test_shot_captions_have_disjoint_targets_inside_their_rail(browser, serve, touch):
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=touch
+    )
+    page = open_page(
+        browser,
+        serve(SHOT_PAGE, media={SHOT_SRC[n]: d for n, d in SHOTS.items()}),
+        context=context,
+    )
+    rail = page.locator("lf-shot .lf-shotrail")
+    caps = rail.locator(".lf-shotcap")
+    rail.scroll_into_view_if_needed()
+    floor = 44 if touch else 24
+    boxes = [cap.bounding_box() for cap in caps.all()]
+    bounds = rail.bounding_box()
+    assert len(boxes) == 2
+    for box in boxes:
+        assert min(box["width"], box["height"]) >= floor - 0.5, box
+        assert box["y"] >= bounds["y"]
+        assert box["y"] + box["height"] <= bounds["y"] + bounds["height"]
+    assert boxes[0]["x"] + boxes[0]["width"] <= boxes[1]["x"]
+    for index, position in [(0, "100"), (1, "0")]:
+        cap = caps.nth(index)
+        cap.click()
+        expect(page.locator("lf-shot wa-comparison")).to_have_attribute(
+            "position", position
+        )
+        assert cap.bounding_box() == boxes[index]
+    # The captions remain selectable words, rather than native buttons that swallow a drag.
+    box = boxes[0]
+    select(
+        page,
+        (box["x"] + 5, box["y"] + box["height"] / 2),
+        (box["x"] + box["width"] - 5, box["y"] + box["height"] / 2),
+    )
+    assert "before" in page.evaluate("getSelection().toString()").lower()
+    expect(page.locator("lf-shot wa-comparison")).to_have_attribute("position", "0")
 
 
 def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):

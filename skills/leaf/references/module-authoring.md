@@ -15,6 +15,11 @@ a new capability.
 
 ## Public API
 
+Rendering work that reaches a resting state uses `nextRender`, `nextFrame` and
+`cancelRender`. Continuous mechanical motion, such as recording playback, uses
+`nextAnimation` and `cancelAnimation`: it schedules browser frames without holding
+page readiness open. Cancel it when the motion stops or its owner leaves.
+
 `/runtime/widget-api.js` is the whole Leaf API a behavior module gets: a module imports
 only that public helper surface, and does not reach into the runtime's private owners,
 query private chrome, or duplicate a runtime helper inside itself. Resolve canonical
@@ -282,12 +287,19 @@ the properties that change on a descendant layout box.
 
 ## Focus, motion, and travel
 
-A module that puts the user somewhere calls `focusDestination(element)` rather than
-`element.focus()`, wherever that place is not already a control. It lends the element the
-tab stop a control has for exactly as long as it holds it, so the browser's own Tab order
-continues from there and no `tabindex` is left on the page behind the user. What needs
-it is a widget's own Escape step landing them back in the thing it took them out of: the
-patch a file filter belongs to, the exhibit a box was about.
+A module that puts the user somewhere calls `focusDestination(element, cause)` rather
+than `element.focus()`, which the lint refuses. The cause says what moved them, and
+every reader of where the user stands acts on it: `"move"` for a route taking them
+somewhere, such as a walk to the next row or a box opened to type in; `"return"` for
+putting them back, such as a widget's own Escape step landing them in the thing it took
+them out of, or a re-render handing them to the control that replaced the one they
+stood on; `"step"` for a widget's own Tab loop; and `"press"` for landing on a control
+to press it on the user's behalf. A return marked as a move reads as
+the user arriving, and releases news or opens options they never went to. The call
+lends an element that is not a control the tab stop a control has for exactly as long
+as it holds it, so the browser's own Tab order continues from there and no `tabindex` is
+left on the page behind the user. It keeps the page still unless `{ scroll: true }` asks
+the browser to bring the element into view.
 
 A module that moves, hides, or replaces nodes the user may be standing in, as a reorder or
 a re-render does, calls `holdFocus(scope)` before the change and the function it returns
@@ -357,6 +369,12 @@ the module can already draw is drawn in the gesture rather than after a wait.
 A temporary yellow cue calls `backgroundFlash(element, ms)`. It supplies only the
 starting tint; the browser fades to the element's live CSS background, including any
 hover or theme change during the cue, and shares `motion`'s gates and cleanup.
+
+A mechanical surface that must stop motion before a review gesture is handled uses
+`onUserInput(callback)`. The shared input owner calls it synchronously during capture
+for pointer, key, input, wheel, touch and window blur events; the callback observes and
+does not claim the event. Filter the events belonging to the surface and release the
+returned subscription when it disconnects. Keyboard commands still use `commands()`.
 
 A module implementing its own navigation captures `retainUserIntent()` in the gesture
 that starts it, before its
@@ -481,7 +499,10 @@ draw a visual part it shows only in another state, opens its containing disclosu
 the addressed element, updates the fragment, and announces the supplied `success` or
 `missing` message. Commands at that focus use the datum's identity. A lazy target may implement
 `lfRevealDatum(key)` to return its hydration promise and `lfDataDatum(key)` to map a
-semantic key to the rendered projected element.
+semantic key to the rendered projected element. When that key is a source location
+rather than the datum's durable identity, translate it to the durable key and read
+`projectedDatum(widget, key)`: it returns the unique current projected element, or
+`null` when missing or ambiguous, including after a reveal replaced its node.
 
 ### Indicating (experimental)
 

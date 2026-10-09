@@ -28,7 +28,7 @@
     "x-content": "markup",
     "x-ask-surface": true,
     "x-upgrade": false,
-    "x-example": "<section id=\"storage-section\">\n  <lf-ask id=\"storage-decision\">\n    <h2>What should a full store do?</h2>\n    <p>The beta never reached the cap. This decides what the first workspace at it sees.</p>\n    <lf-options id=\"full-store\" choose>\n      <lf-option id=\"store-evict\"><lf-chip>editing: continues</lf-chip><lf-chip tone=\"ok\">recommended</lf-chip><strong>Drop the oldest documents</strong> Editing continues. <em>My take: this keeps work moving without losing server data.</em></lf-option>\n      <lf-option id=\"store-stop\"><lf-chip>editing: paused</lf-chip><strong>Pause offline editing</strong> Nothing leaves.</lf-option>\n    </lf-options>\n  </lf-ask>\n</section>"
+    "x-example": "<section id=\"storage-section\">\n  <lf-ask id=\"storage-decision\">\n    <h2>What should a full store do?</h2>\n    <p>The beta never reached the cap. This decides what the first workspace at it sees.</p>\n    <lf-options id=\"full-store\" choose>\n      <lf-option id=\"store-evict\"><small class=\"tag\">editing: continues</small><small class=\"tag ok\">recommended</small><strong>Drop the oldest documents</strong> Editing continues. <em>My take: this keeps work moving without losing server data.</em></lf-option>\n      <lf-option id=\"store-stop\"><small class=\"tag\">editing: paused</small><strong>Pause offline editing</strong> Nothing leaves.</lf-option>\n    </lf-options>\n  </lf-ask>\n</section>"
   },
   "lf-gloss": {
     "description": "A short explanation the reader can open beside a phrase without leaving its sentence.",
@@ -182,7 +182,7 @@
     "x-bound": "start",
     "x-history": true,
     "x-upgrade": true,
-    "x-initial": "/vendor/lf-tree-initial.js",
+    "x-initial": "/vendor/lf-activity-initial.js",
     "x-example": "<section id=\"recent\">\n  <h2>Recent activity</h2>\n  <lf-activity id=\"page-activity\"></lf-activity>\n</section>"
   },
   "lf-options": {
@@ -273,11 +273,11 @@
         "unit": "widget"
       }
     },
-    "x-example": "<lf-ask id=\"run-status-decision\">\n  <h2>Where should run status appear?</h2>\n  <p>Both choices preserve the existing run detail.</p>\n  <lf-options id=\"run-status\" choose>\n    <lf-option id=\"rs-column\">\n      <lf-chip>effort: low</lf-chip><lf-chip tone=\"warn\">risk: med</lf-chip><lf-chip tone=\"ok\">recommended</lf-chip>\n      <strong>Status on the run list</strong> One join; failures are visible without a click.\n      <figure id=\"rs-column-fig\">\n        <svg class=\"drawing\" width=\"240\" viewBox=\"0 0 240 56\" role=\"img\" aria-labelledby=\"rs-column-t\">\n          <title id=\"rs-column-t\">Each run row ends in its status</title>\n          <rect class=\"frame\" x=\"1\" y=\"1\" width=\"238\" height=\"54\" rx=\"4\"/>\n          <rect class=\"line\" x=\"12\" y=\"14\" width=\"150\" height=\"6\" rx=\"3\"/><circle class=\"ok\" cx=\"222\" cy=\"17\" r=\"5\"/>\n          <rect class=\"line\" x=\"12\" y=\"36\" width=\"150\" height=\"6\" rx=\"3\"/><circle class=\"danger\" cx=\"222\" cy=\"39\" r=\"5\"/>\n        </svg>\n      </figure>\n    </lf-option>\n    <lf-option id=\"rs-leave\">\n      <lf-chip>effort: none</lf-chip><lf-chip tone=\"ok\">risk: low</lf-chip>\n      <strong>Leave the list alone</strong> No work; failures stay one click away.\n      <figure id=\"rs-leave-fig\">\n        <svg class=\"drawing\" width=\"240\" viewBox=\"0 0 240 56\" role=\"img\" aria-labelledby=\"rs-leave-t\">\n          <title id=\"rs-leave-t\">Run rows carry no status</title>\n          <rect class=\"frame\" x=\"1\" y=\"1\" width=\"238\" height=\"54\" rx=\"4\"/>\n          <rect class=\"line\" x=\"12\" y=\"14\" width=\"150\" height=\"6\" rx=\"3\"/><circle class=\"ghost\" cx=\"222\" cy=\"17\" r=\"5\"/>\n          <rect class=\"line\" x=\"12\" y=\"36\" width=\"150\" height=\"6\" rx=\"3\"/><circle class=\"ghost\" cx=\"222\" cy=\"39\" r=\"5\"/>\n        </svg>\n      </figure>\n    </lf-option>\n  </lf-options>\n</lf-ask>"
+    "x-example": "<lf-ask id=\"run-status-decision\">\n  <h2>Where should run status appear?</h2>\n  <p>Both choices preserve the existing run detail.</p>\n  <lf-options id=\"run-status\" choose>\n    <lf-option id=\"rs-column\">\n      <small class=\"tag\">effort: low</small><small class=\"tag warn\">risk: med</small><small class=\"tag ok\">recommended</small>\n      <strong>Status on the run list</strong> One join; failures are visible without a click.\n      <figure id=\"rs-column-fig\">\n        <svg class=\"drawing\" width=\"240\" viewBox=\"0 0 240 56\" role=\"img\" aria-labelledby=\"rs-column-t\">\n          <title id=\"rs-column-t\">Each run row ends in its status</title>\n          <rect class=\"frame\" x=\"1\" y=\"1\" width=\"238\" height=\"54\" rx=\"4\"/>\n          <rect class=\"line\" x=\"12\" y=\"14\" width=\"150\" height=\"6\" rx=\"3\"/><circle class=\"ok\" cx=\"222\" cy=\"17\" r=\"5\"/>\n          <rect class=\"line\" x=\"12\" y=\"36\" width=\"150\" height=\"6\" rx=\"3\"/><circle class=\"danger\" cx=\"222\" cy=\"39\" r=\"5\"/>\n        </svg>\n      </figure>\n    </lf-option>\n    <lf-option id=\"rs-leave\">\n      <small class=\"tag\">effort: none</small><small class=\"tag ok\">risk: low</small>\n      <strong>Leave the list alone</strong> No work; failures stay one click away.\n      <figure id=\"rs-leave-fig\">\n        <svg class=\"drawing\" width=\"240\" viewBox=\"0 0 240 56\" role=\"img\" aria-labelledby=\"rs-leave-t\">\n          <title id=\"rs-leave-t\">Run rows carry no status</title>\n          <rect class=\"frame\" x=\"1\" y=\"1\" width=\"238\" height=\"54\" rx=\"4\"/>\n          <rect class=\"line\" x=\"12\" y=\"14\" width=\"150\" height=\"6\" rx=\"3\"/><circle class=\"ghost\" cx=\"222\" cy=\"17\" r=\"5\"/>\n          <rect class=\"line\" x=\"12\" y=\"36\" width=\"150\" height=\"6\" rx=\"3\"/><circle class=\"ghost\" cx=\"222\" cy=\"39\" r=\"5\"/>\n        </svg>\n      </figure>\n    </lf-option>\n  </lf-options>\n</lf-ask>"
   },
   "lf-option": {
     "description": "One alternative in a decision, shown as a compact label or a card with supporting evidence.",
-    "x-instructions": "Lead a card with matching lf-chip comparison labels naming the facts that distinguish the alternatives, then a `<strong>` title and a sentence naming its consequence. Mark the option you recommend with `<lf-chip>recommended</lf-chip>` after its comparison labels, and give the reason in prose. chosen records the user's pick. Where alternatives differ in arrangement, structure, or mechanism, draw each with an svg.drawing thumbnail in the same frame, alike except where they differ. Add paragraphs or a fact rail when the face alone cannot support the choice. A bare label suits an alternative needing no further case. Direct text uses inline Markdown; use HTML children for block content. A for target must remain useful independently of the decision and does not supply the option's words. Rewriting a picked option needs restated; read $restated for when to rewrite instead of correcting beside the Ask.",
+    "x-instructions": "Lead a card with matching small.tag comparison labels naming the facts that distinguish the alternatives, then a `<strong>` title and a sentence naming its consequence. Mark the option you recommend with `<small class=\"tag ok\">recommended</small>` after its comparison labels, and give the reason in prose. chosen records the user's pick. Where alternatives differ in arrangement, structure, or mechanism, draw each with an svg.drawing thumbnail in the same frame, alike except where they differ. Add paragraphs or a fact rail when the face alone cannot support the choice. A bare label suits an alternative needing no further case. Direct text uses inline Markdown; use HTML children for block content. A for target must remain useful independently of the decision and does not supply the option's words. Rewriting a picked option needs restated; read $restated for when to rewrite instead of correcting beside the Ask.",
     "type": "object",
     "properties": {
       "id": {
@@ -304,188 +304,6 @@
       "for": {}
     },
     "x-upgrade": false
-  },
-  "lf-chip": {
-    "description": "A short comparison label above an option or variant title, optionally colored by the author’s judgment.",
-    "x-instructions": "Put the same comparison chips in the same order before each sibling's `<strong>` title. Name the facts the alternatives differ on rather than applying a fixed facet vocabulary. A recommended chip expresses advice rather than the user’s choice. Use a dl.facts rail for a comparison needing longer explanations. Apply tone only when its judgment helps: a repeated color on every chip distinguishes nothing.",
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
-      "tone": {
-        "type": "string"
-      }
-    },
-    "additionalProperties": false,
-    "x-owners": ["lf-option", "lf-variant"],
-    "x-content": "markup",
-    "x-inline": true,
-    "x-tone": "tone",
-    "x-upgrade": false
-  },
-  "lf-milestones": {
-    "description": "A schedule of planned stages with status markers.",
-    "x-space": "column",
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      }
-    },
-    "additionalProperties": false,
-    "x-content": "members",
-    "x-upgrade": false,
-    "x-example": "<lf-milestones>\n  <lf-milestone id=\"m-survey\" status=\"done\" when=\"week 1\">\n    <strong>Survey the sites</strong> Map sun and squirrel routes.\n  </lf-milestone>\n  <lf-milestone id=\"m-build\" status=\"active\" when=\"weeks 2-3\" tags=\"wood,solar\">\n    <strong>Build the feeders</strong> Two classic, two heated.\n  </lf-milestone>\n  <lf-milestone id=\"m-install\" status=\"planned\" when=\"week 4\">\n    <strong>Install and watch</strong>\n  </lf-milestone>\n</lf-milestones>"
-  },
-  "lf-milestone": {
-    "description": "One scheduled milestone with a status and optional time label.",
-    "x-instructions": "Lead with a `<strong>` title and follow with prose. Use when for the schedule label.",
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
-      "status": {
-        "enum": ["planned", "active", "done", "blocked"]
-      },
-      "when": {
-        "type": "string"
-      },
-      "tags": {
-        "type": "string",
-        "pattern": "^[a-z0-9-]+(,[a-z0-9-]+)*$"
-      }
-    },
-    "required": ["id", "status"],
-    "additionalProperties": false,
-    "x-owners": ["lf-milestones"],
-    "x-content": "markup",
-    "x-paints": ["status"],
-    "x-upgrade": true
-  },
-  "lf-chronology": {
-    "description": "A chronology of observed facts and interventions, such as an incident timeline.",
-    "x-space": "column",
-    "x-instructions": "Write entries in the intended reading order, oldest or newest first, and bound the chronology at the end containing its newest entry.",
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      }
-    },
-    "additionalProperties": false,
-    "x-content": "members",
-    "x-upgrade": false,
-    "x-example": "<lf-chronology>\n  <lf-chronology-entry id=\"e-alert\" at=\"09:14\" kind=\"warning\">\n    <strong>Feeder camera offline</strong> Battery alert from the north feeder.\n  </lf-chronology-entry>\n  <lf-chronology-entry id=\"e-swap\" at=\"09:40\" kind=\"intervention\">\n    <strong>Battery swapped</strong>\n  </lf-chronology-entry>\n  <lf-chronology-entry id=\"e-ok\" at=\"09:41\" kind=\"observation\">\n    <strong>Camera back</strong> Feed resumed.\n  </lf-chronology-entry>\n</lf-chronology>"
-  },
-  "lf-chronology-entry": {
-    "description": "One observed event in a chronology, with a time label and kind.",
-    "x-instructions": "Lead with a `<strong>` title and follow with prose. Use at for the time label.",
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
-      "at": {
-        "type": "string"
-      },
-      "kind": {
-        "enum": ["observation", "intervention", "warning", "failure"]
-      }
-    },
-    "required": ["id"],
-    "additionalProperties": false,
-    "x-owners": ["lf-chronology"],
-    "x-content": "markup",
-    "x-says": {
-      "at": "before"
-    },
-    "x-paints": ["kind"],
-    "x-upgrade": false
-  },
-  "lf-compare": {
-    "description": "Labeled variants presented for comparison without asking the user to choose.",
-    "x-instructions": "Use a dl.facts rail after each variant's label when aligned comparison facts are useful. Block content in a variant stacks the group into rows; terse variants can sit side by side.",
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      }
-    },
-    "additionalProperties": false,
-    "x-content": "members",
-    "x-upgrade": false,
-    "x-example": "<lf-compare>\n  <lf-variant id=\"v-cedar\"><strong>Cedar</strong> Weathers silver; no sealant.</lf-variant>\n  <lf-variant id=\"v-pine\"><strong>Pine</strong> Cheaper; seal it yearly.</lf-variant>\n</lf-compare>"
-  },
-  "lf-variant": {
-    "description": "One labeled variant in a comparison, with prose or widgets as its evidence.",
-    "x-instructions": "Lead with a `<strong>` label, then place its evidence and explanation inside the variant.",
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      }
-    },
-    "required": ["id"],
-    "additionalProperties": false,
-    "x-owners": ["lf-compare"],
-    "x-content": "markup",
-    "x-upgrade": false
-  },
-  "lf-metric": {
-    "description": "A headline number with a label, optional change, and a judgment of whether that change is good.",
-    "x-instructions": "Write the label as element text and the headline number in value. Give delta its sign. Set direction only when you can say whether an increase or decrease is good; otherwise the delta remains neutral. Place metric tiles in a layout-tiles block.",
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
-      "value": {
-        "type": "string"
-      },
-      "delta": {
-        "type": "string",
-        "pattern": "^[+-].+$"
-      },
-      "direction": {
-        "enum": ["up-good", "up-bad"]
-      }
-    },
-    "required": ["id", "value"],
-    "additionalProperties": false,
-    "x-content": "markup",
-    "x-says": {
-      "value": "before",
-      "delta": "after"
-    },
-    "x-upgrade": false,
-    "x-example": "<div class=\"layout-tiles\">\n  <lf-metric id=\"k-visits\" value=\"312\" delta=\"+41\" direction=\"up-good\">daily visits</lf-metric>\n  <lf-metric id=\"k-refills\" value=\"2.1/wk\" delta=\"+0.4\" direction=\"up-bad\">refills</lf-metric>\n  <lf-metric id=\"k-species\" value=\"14\">species seen</lf-metric>\n</div>"
-  },
-  "lf-tree": {
-    "description": "A file tree rendered from indented text, with optional change counts.",
-    "x-instructions": "Write one node per line inside the pre, indent children deeper, mark directories with a trailing /, and add trailing +N/-N tokens for change badges. HTML-escape & before < and >.",
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      }
-    },
-    "required": ["id"],
-    "additionalProperties": false,
-    "x-content": "data",
-    "x-upgrade": true,
-    "x-initial": "/vendor/lf-tree-initial.js",
-    "x-example": "<lf-tree id=\"feeder-tree\"><pre>\nfeeders/\n  mount.py  +2 -2\n  schedule.py  +1\n  sites/\n    north.toml\n</pre></lf-tree>"
   },
   "lf-code": {
     "description": "A source-code excerpt with syntax coloring, highlighted lines, and line-anchored remarks.",
@@ -776,7 +594,7 @@
     },
     "x-exhibit": true,
     "x-upgrade": true,
-    "x-example": "<lf-sample id=\"spec-gear\" label=\"next season's kit\">\n  <lf-options>\n    <lf-option id=\"sp-paper\"><lf-chip>effort: low</lf-chip><strong>Paper maps</strong> Nothing to charge.</lf-option>\n    <lf-option id=\"sp-gps\"><lf-chip>effort: med</lf-chip><lf-chip tone=\"ok\">recommended</lf-chip><strong>Dedicated GPS</strong> Offline maps, week-long battery. <em>My take: this is the better field tool.</em></lf-option>\n  </lf-options>\n</lf-sample>"
+    "x-example": "<lf-sample id=\"spec-gear\" label=\"next season's kit\">\n  <lf-options>\n    <lf-option id=\"sp-paper\"><small class=\"tag\">effort: low</small><strong>Paper maps</strong> Nothing to charge.</lf-option>\n    <lf-option id=\"sp-gps\"><small class=\"tag\">effort: med</small><small class=\"tag ok\">recommended</small><strong>Dedicated GPS</strong> Offline maps, week-long battery. <em>My take: this is the better field tool.</em></lf-option>\n  </lf-options>\n</lf-sample>"
   },
   "lf-pane": {
     "description": "A reading region with an optional header and footer, independently scrollable inside a full-height workspace.",

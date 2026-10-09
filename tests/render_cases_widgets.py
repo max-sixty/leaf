@@ -77,10 +77,9 @@ PICTURE_PAGE = leaf_page(
 graph LR
   A --> B
 </pre></lf-diagram>
-<lf-tree id="tree"><pre>
-feeders/
+<lf-code id="tree"><pre><code>feeders/
   mount.py  +2 -2
-</pre></lf-tree>
+</code></pre></lf-code>
 """,
 )
 PART_DIAGRAM_PAGE = leaf_page(
@@ -923,13 +922,12 @@ graph LR
   <lf-column id="e2" label="Done"></lf-column>
 </lf-board>
 <div class="layout-tiles" id="nums">
-  <lf-metric id="me1" value="410ms">p95, with the path it measures
+  <dl id="me1" class="panel"><dt>p95, with the path it measures
     <lf-diagram id="in-metric"><pre>
 graph LR
   A[request] --> B[queue]
   B --> C[worker]
-</pre></lf-diagram>
-  </lf-metric>
+</pre></lf-diagram></dt><dd><strong>410ms</strong></dd></dl>
 </div>
 <lf-tasks id="plan">
   <lf-task id="t-outer" status="active"><strong>Rebuild the feeders</strong>
@@ -1192,19 +1190,6 @@ OWN_MARGIN_FURNITURE = WIDE_AND_NARROW_PAGE.replace(
     '<main class="layout-column">',
     "<main class=\"layout-column\">\n<div id='own-rail' style='position: absolute; left: 100%;"
     " margin-left: 22px; top: 0; width: 160px; height: 600px'>Mine.</div>",
-)
-# One reply holding both answers to the question the block-content lists ask: chips are
-# set among the words, a paragraph is not. The pair is the point — the stacking rule
-# reaching neither group would read as a pass on the first half alone.
-INLINE_REPLY_MARKUP = (
-    '<lf-compare id="rp-terse">'
-    '<lf-variant id="rp-redis"><lf-chip>a service</lf-chip>Redis</lf-variant>'
-    '<lf-variant id="rp-cookie"><lf-chip>no service</lf-chip>Signed cookie</lf-variant>'
-    "</lf-compare>"
-    '<lf-compare id="rp-argued">'
-    '<lf-variant id="rp-keep"><p>Keep the store, and the operator that comes with it.</p></lf-variant>'
-    '<lf-variant id="rp-drop"><p>Drop it, and read sessions off the cookie alone.</p></lf-variant>'
-    "</lf-compare>"
 )
 # The two things on this page that want a margin, on one page and level with each other.
 # The note is written immediately before the board so they share a band of the page rather

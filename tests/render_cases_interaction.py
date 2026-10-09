@@ -97,44 +97,44 @@ STACKED_OPTIONS_PAGE = leaf_page(
 <h1 id="h">Clip storage</h1>
 <lf-ask id="stacked-decision"><h2>Where should clips live?</h2>
 <lf-options id="stacked" choose>
-  <lf-option id="st-sd"><lf-chip>effort: low</lf-chip><lf-chip tone="danger">risk: high</lf-chip>
+  <lf-option id="st-sd"><small class="tag">effort: low</small><small class="tag danger">risk: high</small>
     <strong>SD card only</strong>
     <dl class="facts"><dt>Keeps</dt><dd>nine days</dd><dt>Retrieval</dt><dd>a ladder</dd></dl>
     <p>Clips stay on the camera's card and overwrite oldest-first.</p>
   </lf-option>
-  <lf-option id="st-pi" ><lf-chip>effort: med</lf-chip><lf-chip>risk: low</lf-chip>
+  <lf-option id="st-pi" ><small class="tag">effort: med</small><small class="tag">risk: low</small>
     <strong>Pi in the shed</strong>
     <dl class="facts"><dt>Keeps</dt><dd>a season</dd><dt>Retrieval</dt><dd>the couch</dd></dl>
     <p>A nightly pull over the garden wifi; the link is the weak span.</p>
   </lf-option>
 </lf-options></lf-ask>
 <lf-options id="terse">
-  <lf-option id="t-paper"><lf-chip>effort: low</lf-chip><lf-chip>risk: high</lf-chip><strong>Paper maps</strong> Nothing
+  <lf-option id="t-paper"><small class="tag">effort: low</small><small class="tag">risk: high</small><strong>Paper maps</strong> Nothing
   to charge.</lf-option>
-  <lf-option id="t-gps"><lf-chip>£240</lf-chip><lf-chip>a week of battery</lf-chip><lf-chip>resellable if the season ends early</lf-chip><strong>GPS</strong> A week of
+  <lf-option id="t-gps"><small class="tag">£240</small><small class="tag">a week of battery</small><small class="tag">resellable if the season ends early</small><strong>GPS</strong> A week of
   battery.</lf-option>
 </lf-options>
-<lf-compare id="pair">
-  <lf-variant id="cv-cedar"><strong>Cedar</strong>
+<div id="pair" class="layout-tiles">
+  <section id="cv-cedar" class="panel"><strong>Cedar</strong>
     <dl class="facts"><dt>Seal</dt><dd>never</dd></dl>
-    <p>Weathers silver; no sealant, no schedule.</p></lf-variant>
-  <lf-variant id="cv-pine"><strong>Pine</strong>
+    <p>Weathers silver; no sealant, no schedule.</p></section>
+  <section id="cv-pine" class="panel"><strong>Pine</strong>
     <dl class="facts"><dt>Seal</dt><dd>yearly</dd></dl>
-    <p>Cheaper up front; seal it every autumn.</p></lf-variant>
-</lf-compare>
-<lf-compare id="terse-pair">
-  <lf-variant id="cv-oiled"><strong>Oiled</strong> Darker, and a spring job.</lf-variant>
-  <lf-variant id="cv-bare"><strong>Bare</strong> Silver by June.</lf-variant>
-</lf-compare>
-<lf-compare id="spread">
-  <lf-variant id="cv-oak"><strong>Oak</strong> Heavy.</lf-variant>
-  <lf-variant id="cv-ash"><strong>Ash</strong> Pale, and it moves in damp, so a board
+    <p>Cheaper up front; seal it every autumn.</p></section>
+</div>
+<div id="terse-pair" class="layout-tiles">
+  <section id="cv-oiled" class="panel"><strong>Oiled</strong> Darker, and a spring job.</section>
+  <section id="cv-bare" class="panel"><strong>Bare</strong> Silver by June.</section>
+</div>
+<div id="spread" class="layout-tiles">
+  <section id="cv-oak" class="panel"><strong>Oak</strong> Heavy.</section>
+  <section id="cv-ash" class="panel"><strong>Ash</strong> Pale, and it moves in damp, so a board
     laid in March stands proud of the one beside it by June and the fixings work
-    loose over the winter after that.</lf-variant>
-  <lf-variant id="cv-elm"><strong>Elm</strong> Scarce.</lf-variant>
-  <lf-variant id="cv-yew"><strong>Yew</strong> Slow.</lf-variant>
-  <lf-variant id="cv-fir"><strong>Fir</strong> Cheap, and it rots at the ground.</lf-variant>
-</lf-compare>
+    loose over the winter after that.</section>
+  <section id="cv-elm" class="panel"><strong>Elm</strong> Scarce.</section>
+  <section id="cv-yew" class="panel"><strong>Yew</strong> Slow.</section>
+  <section id="cv-fir" class="panel"><strong>Fir</strong> Cheap, and it rots at the ground.</section>
+</div>
 """,
 )
 # A heading-first Ask in every shape its choice group takes: cards, rows, and a settled
@@ -181,7 +181,7 @@ ASK_PAGE = leaf_page(
 <lf-ask id="jobs-decision"><h2>Which jobs are worth starting?</h2>
 <lf-options id="jobs" choose multiple>
   <lf-option id="job-mounts" for="sec-mounts">Replace the <code>M8</code> mounts</lf-option>
-  <lf-option id="job-heater" for="sec-heater"><lf-chip tone="ok">reversible</lf-chip>Heat the bird bath</lf-option>
+  <lf-option id="job-heater" for="sec-heater"><small class="tag ok">reversible</small>Heat the bird bath</lf-option>
   <lf-option id="job-camera">Neither — the camera first</lf-option>
 </lf-options></lf-ask>
 <section id="sec-mounts"><h2>The mounts</h2><p id="mounts-p">Plastic, and one came
@@ -283,7 +283,7 @@ CHIP_PAGE = leaf_page(
 <p id="intro">The store is <span class="tag">experimental</span> for now.</p>
 <lf-ask id="picks-decision"><h2>Should we keep the store?</h2>
 <lf-options id="picks" choose>
-  <lf-option id="p-keep"><lf-chip>reversible</lf-chip><strong>Keep the store</strong></lf-option>
+  <lf-option id="p-keep"><small class="tag">reversible</small><strong>Keep the store</strong></lf-option>
 </lf-options></lf-ask>
 <lf-tasks id="plan">
   <lf-task id="t-camera" status="active" owner="finch"><strong>Mount the camera</strong></lf-task>
@@ -294,10 +294,10 @@ PAINTED_PAGE = leaf_page(
     "painted",
     """
 <h1 id="h">What the paint says</h1>
-<lf-chronology id="tl">
-  <lf-chronology-entry id="e-dark" at="09:12" kind="failure"><strong>Feed stopped</strong>
-  The north camera went dark and the alert never fired.</lf-chronology-entry>
-</lf-chronology>
+<ol id="tl">
+  <li id="e-dark"><time>09:12</time> <small>failure</small> <strong>Feed stopped</strong>
+  The north camera went dark and the alert never fired.</li>
+</ol>
 <lf-tasks id="plan">
   <lf-task id="t-baffles" status="blocked" owner="finch"><strong>Fit squirrel baffles</strong>
   Waiting on the brackets.</lf-task>
@@ -408,13 +408,11 @@ REBUILT_INLINE_PAGE = leaf_page(
     "stores",
     """
 <h1 id="h">Session store</h1>
-<lf-compare id="cmp-stores">
-  <lf-variant id="v-service"
-    ><lf-suggestion id="sug-store"><lf-old>Redis</lf-old><lf-new>Valkey</lf-new></lf-suggestion
-    >, one hop from the app</lf-variant
-  >
-  <lf-variant id="v-cookie">A signed cookie, with nothing to run</lf-variant>
-</lf-compare>
+<div id="cmp-stores" class="layout-tiles">
+  <section id="v-service" class="panel"><lf-suggestion id="sug-store"><lf-old>Redis</lf-old><lf-new>Valkey</lf-new></lf-suggestion
+    >, one hop from the app</section>
+  <section id="v-cookie" class="panel">A signed cookie, with nothing to run</section>
+</div>
 """,
 )
 SWAP_PAGE = leaf_page(
@@ -542,11 +540,11 @@ ASKS_PAGE = leaf_page(
 <lf-options id="exhibited">
   <lf-option id="exh-paper"><strong>Paper maps</strong></lf-option>
 </lf-options>
-<lf-milestones id="rail">
-  <lf-milestone id="m-survey" status="done"><strong>Survey the sites</strong></lf-milestone>
-  <lf-milestone id="m-build" status="active"><strong>Build the feeders</strong></lf-milestone>
-  <lf-milestone id="m-install" status="blocked"><strong>Install and watch</strong></lf-milestone>
-</lf-milestones>
+<ol id="rail">
+  <li id="m-survey"><small>done</small> <strong>Survey the sites</strong></li>
+  <li id="m-build"><small>active</small> <strong>Build the feeders</strong></li>
+  <li id="m-install"><small>blocked</small> <strong>Install and watch</strong></li>
+</ol>
 <lf-sample id="spec" label="a decision">
   <lf-options id="spec-opts" choose>
     <lf-option id="spec-paper"><strong>Paper maps</strong></lf-option>

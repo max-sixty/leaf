@@ -45,7 +45,6 @@ from render_cases_widgets import (
     DRAWN_PAST_A_RAIL_PAGE,
     FRAMED_SCROLLER_PAGE,
     FRAMED_WIDE_PAGE,
-    INLINE_REPLY_MARKUP,
     LATE_MARGIN_PAGE,
     LATE_MARGIN_WIDGET,
     LONG_CHAIN_PAGE,
@@ -1221,7 +1220,7 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
     url = serve(PICTURE_PAGE)
     registry = json.loads((serve.page_dir / "registry.json").read_text())
     assert registry["lf-diagram"]["x-visual"], "this test needs the shipped declaration"
-    registry["lf-tree"]["x-visual"] = "whole"  # a widget core has never heard of
+    registry["lf-code"]["x-visual"] = "whole"  # a widget core has never heard of
     (serve.page_dir / "registry.json").write_text(json.dumps(registry))
     page = open_page(browser, url)
 
@@ -2830,72 +2829,10 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
     )
 
 
-def test_a_widget_in_a_reply_is_still_set_among_the_words(browser, serve):
-    """Whether a widget stands in an inline run is true of it wherever it renders, which
-    is what separates that mark from the width model beside it: the room a wide widget
-    spends is the document's and stays behind, while a chip quoted into a reply is as much
-    a word there as on the page. The lists that decision whether a slot or a variant holds block
-    content invert HTML's phrasing content, and every custom element falls outside a
-    platform set — so with the mark withheld here, an exhibition the agent quotes to
-    compare two stores would stack into rows in the panel and nowhere else.
-
-    Asked of the group's own display rather than of its cells' geometry, because a
-    420px panel has no room for two columns either way: the stacking rule is what
-    replaces the grid, and it is visible whatever the user has drawn the panel to."""
-    url = serve(REPLY_HOST_PAGE)
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "c-stores",
-            "author": "user",
-            "revision": 1,
-            "text": "What did the two stores cost us?",
-        },
-    )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "id": "r-stores",
-            "author": "agent",
-            "parent": "c-stores",
-            "revision": 1,
-            "text": "Side by side:",
-            "markup": INLINE_REPLY_MARKUP,
-        },
-    )
-    page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    page.locator(".lf-thread-summary").first.click()
-    panel_settled(page)
-    expect(page.locator("#rp-terse")).to_be_visible()
-
-    forms = page.evaluate("""() => Object.fromEntries(
-        ['rp-terse', 'rp-argued'].map(id => {
-            const group = document.getElementById(id);
-            return [id, { group: getComputedStyle(group).display,
-                          variant: getComputedStyle(group.firstElementChild).display,
-                          marked: [...group.querySelectorAll('lf-chip')]
-                              .every(chip => chip.hasAttribute('data-lf-inline')) }];
-        }))""")
-    assert forms["rp-terse"]["marked"], (
-        "a chip in a reply was left unmarked, so the panel reads it as block content"
-    )
-    assert (forms["rp-terse"]["group"], forms["rp-terse"]["variant"]) == (
-        "grid",
-        "block",
-    ), f"a chip-led exhibition stacked in the panel: {forms['rp-terse']}"
-    assert (forms["rp-argued"]["group"], forms["rp-argued"]["variant"]) == (
-        "block",
-        "flow-root",
-    ), f"the stacking rule never reached the panel at all: {forms['rp-argued']}"
-
-
 def test_a_message_carries_the_marks_a_page_would_except_its_room(browser, serve):
     """A message's markup renders in the panel and never passes through delivery, so the
     runtime paints its marks as it renders them, and paints what delivery would paint on
-    the same markup on a page: a quoted sample is an exhibit, a chip sets among words,
+    the same markup on a page: a quoted sample is an exhibit, a gloss sets among words,
     and an occurrence's own `data-bound` holds its height. The room is the one mark left
     behind, even where an occurrence asks for it with `data-width`: it is the page's to
     give, and the panel's width bounds a message."""
@@ -2920,7 +2857,7 @@ def test_a_message_carries_the_marks_a_page_would_except_its_room(browser, serve
             "revision": 1,
             "text": "Here it is, with the log:",
             "markup": '<lf-sample id="rp-quoted" label="the old copy">'
-            "<p>Sessions <lf-chip>draft</lf-chip> live in Redis.</p></lf-sample>"
+            '<p>Sessions <lf-gloss tip="Still under review.">draft</lf-gloss> live in Redis.</p></lf-sample>'
             '<pre id="rp-log" data-bound="end">one\ntwo\nthree</pre>'
             '<section id="rp-room" data-width="wide"><p>Wide on a page.</p></section>',
         },
@@ -2932,7 +2869,7 @@ def test_a_message_carries_the_marks_a_page_would_except_its_room(browser, serve
     expect(page.locator("#rp-quoted")).to_be_visible()
 
     marks = page.evaluate("""() => Object.fromEntries(
-        [['sample', '#rp-quoted'], ['chip', '#rp-quoted lf-chip'], ['log', '#rp-log'],
+        [['sample', '#rp-quoted'], ['gloss', '#rp-quoted lf-gloss'], ['log', '#rp-log'],
          ['room', '#rp-room']].map(([name, selector]) => {
             const el = document.querySelector(selector);
             return [name, Object.fromEntries(
@@ -2942,7 +2879,7 @@ def test_a_message_carries_the_marks_a_page_would_except_its_room(browser, serve
         }))""")
     assert marks == {
         "sample": {"data-lf-exhibit": ""},
-        "chip": {"data-lf-inline": ""},
+        "gloss": {"data-lf-inline": ""},
         "log": {"data-lf-bound": "end"},
         "room": {},
     }, marks

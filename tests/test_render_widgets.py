@@ -2473,16 +2473,16 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
             ),
         ),
         (
-            '<lf-metric id="lp-k-traffic" value="25%">candidate traffic</lf-metric>',
-            '<lf-metric id="lp-k-traffic" value="100%">target traffic</lf-metric>',
+            '<dl id="lp-k-traffic" class="panel"><dt>candidate traffic</dt><dd><strong>25%</strong></dd></dl>',
+            '<dl id="lp-k-traffic" class="panel"><dt>target traffic</dt><dd><strong>100%</strong></dd></dl>',
         ),
         (
-            'id="lp-k-checks" value="4 of 5" delta="-1" direction="up-good"',
-            'id="lp-k-checks" value="5 of 5"',
+            '<dl id="lp-k-checks" class="panel"><dt>checks passing</dt><dd><strong>4 of 5</strong> <small>change: -1</small></dd></dl>',
+            '<dl id="lp-k-checks" class="panel"><dt>checks passing</dt><dd><strong>5 of 5</strong></dd></dl>',
         ),
         (
-            '<lf-milestone id="lp-step-checks" status="blocked" when="now">',
-            '<lf-milestone id="lp-step-checks" status="done" when="14:25">',
+            '<li id="lp-step-checks"><small class="tag danger">blocked · now</small>',
+            '<li id="lp-step-checks"><small class="tag ok">done · 14:25</small>',
         ),
         (
             (
@@ -2492,8 +2492,8 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
             "<strong>Pass release checks</strong> All five production checks pass.",
         ),
         (
-            '<lf-milestone id="lp-step-promote" status="planned">',
-            '<lf-milestone id="lp-step-promote" status="active" when="now">',
+            '<li id="lp-step-promote"><small class="tag">planned</small>',
+            '<li id="lp-step-promote"><small class="tag warn">active · now</small>',
         ),
         (
             "Four checks pass. One blocks promotion.",
@@ -2511,7 +2511,7 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
     # The example's line wrapping is layout, not content: match each passage across
     # whatever whitespace the source wraps it with.
     for before, after in revisions:
-        pattern = r"\s+".join(map(re.escape, before.split()))
+        pattern = r"\s+".join(map(re.escape, before.split())).replace("><", r">\s*<")
         incorporated, count = re.subn(
             pattern, lambda _, after=after: after, incorporated, count=1
         )
@@ -2524,10 +2524,10 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
     wait_for_revision(page, stamp["version"])
     expect(page.locator("#lp-lede")).to_contain_text("expanding")
     expect(page.locator("#lp-current-state")).to_contain_text("Promoting to 100%")
-    expect(page.locator("#lp-k-traffic")).to_have_attribute("value", "100%")
-    expect(page.locator("#lp-k-checks")).to_have_attribute("value", "5 of 5")
-    expect(page.locator("#lp-step-checks")).to_have_attribute("status", "done")
-    expect(page.locator("#lp-step-promote")).to_have_attribute("status", "active")
+    expect(page.locator("#lp-k-traffic dd strong")).to_have_text("100%")
+    expect(page.locator("#lp-k-checks dd strong")).to_have_text("5 of 5")
+    expect(page.locator("#lp-step-checks > small")).to_have_text("done · 14:25")
+    expect(page.locator("#lp-step-promote > small")).to_have_text("active · now")
     expect(page.locator("#lp-checks-note")).to_have_text(
         "All five checks pass. Promotion is running."
     )
@@ -2827,78 +2827,6 @@ PLAYGROUND_PAGE = leaf_page(
 </lf-ask>
 """,
 )
-
-
-def test_a_milestone_marker_is_centred_on_its_title(browser, serve):
-    source = leaf_page(
-        "milestone marker alignment",
-        """
-<h1>Release plan</h1>
-<style>
-#rail { width: 160px; }
-#publish { --lf-timeline-rule: 4px; }
-#publish::before { width: 22px; height: 22px; border-width: 3px; }
-</style>
-<lf-milestones id="rail">
-  <lf-milestone id="publish" status="active"><strong>Publish the release after validation</strong></lf-milestone>
-</lf-milestones>
-""",
-    )
-    page = open_page(browser, serve(source))
-    centres = page.locator("#publish").evaluate(
-        """item => {
-          const titleNode = item.querySelector(':scope > strong');
-          const title = titleNode.getBoundingClientRect();
-          const lineHeight = parseFloat(getComputedStyle(titleNode).lineHeight);
-          const box = item.getBoundingClientRect();
-          const marker = getComputedStyle(item, '::before');
-          const border = marker.boxSizing === 'content-box'
-            ? parseFloat(marker.borderTopWidth) + parseFloat(marker.borderBottomWidth)
-            : 0;
-          return {
-            title: title.top + lineHeight / 2,
-            titleLines: title.height / lineHeight,
-            spineX: box.left + parseFloat(getComputedStyle(item).borderLeftWidth) / 2,
-            markerX: box.left + parseFloat(getComputedStyle(item).borderLeftWidth)
-              + parseFloat(marker.left) + parseFloat(marker.width) / 2
-              + new DOMMatrix(marker.transform === 'none' ? undefined : marker.transform).m41,
-            marker: box.top + parseFloat(marker.top)
-              + (parseFloat(marker.height) + border) / 2
-              + new DOMMatrix(marker.transform === 'none' ? undefined : marker.transform).m42,
-          };
-        }"""
-    )
-    assert centres["titleLines"] >= 2, centres
-    assert centres["markerX"] == pytest.approx(centres["spineX"], abs=0.1), centres
-    assert centres["marker"] == pytest.approx(centres["title"], abs=0.5), centres
-
-
-@pytest.mark.parametrize("timestamp", ['at="09:14"', 'at=""', ""])
-def test_a_chronology_marker_follows_its_first_visible_line(browser, serve, timestamp):
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "chronology marker alignment",
-                f"""<h1>Observed events</h1><lf-chronology id="history">
-<lf-chronology-entry id="observed" {timestamp}><strong>Work started</strong>
-The team began validation.</lf-chronology-entry></lf-chronology>""",
-            )
-        ),
-    )
-    centres = page.locator("#observed").evaluate(
-        """item => {
-          const box = item.getBoundingClientRect(), marker = getComputedStyle(item, '::after');
-          const label = item.querySelector('[data-lf-said="at"]');
-          const first = label && label.getClientRects().length ? label : item;
-          const line = first.getBoundingClientRect().top
-            + parseFloat(getComputedStyle(first).lineHeight) / 2;
-          const matrix = new DOMMatrix(marker.transform === 'none' ? undefined : marker.transform);
-          return {line, marker: box.top + parseFloat(marker.top)
-            + parseFloat(marker.height) / 2 + matrix.m42};
-        }"""
-    )
-    assert centres["marker"] == pytest.approx(centres["line"], abs=0.1), centres
 
 
 def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, serve):
@@ -4880,8 +4808,8 @@ def test_a_comment_on_a_gloss_reopens_its_explanation(browser, serve):
 
 MOTION_SAMPLE_CONTENT = """
 <lf-code id="card-code" language="python"><pre>print("retained")</pre></lf-code>
-<lf-tree id="card-tree"><pre>root/
-└── retained.txt</pre></lf-tree>
+<pre id="card-tree">root/
+└── retained.txt</pre>
 <lf-sample id="card-sample" label="Current sample">
   <template id="card-sample-page" data-sample>
     <h2>Painted sample</h2>
@@ -7580,44 +7508,24 @@ def test_a_moved_change_takes_its_controls_with_it(browser, serve):
 # change, and a collapsed container reports its content's last rendered geometry
 # rather than nothing at all — so a row that trusted a measurement would hang in
 # the margin deciding a change nobody can see.
-def test_a_terse_compare_keeps_its_side_by_side_grid(browser, serve):
-    """An exhibition is looked across where a decision is read down: terse variants
-    share a row while block content stacks the group. Which children count as block
-    is the phrasing-set inversion, and its one hazard is an inline widget — a
-    chip-led pair must not stack, which is why the stylesheet's list excludes the
-    marker the runtime paints from x-inline and this reads the shipped page to prove
-    the grid actually held. It is the whole chain in one assertion: a declaration
-    unpainted, a marker unread, or a selector naming the wrong attribute all arrive
-    here as two variants that stacked."""
-    page = open_page(
-        browser,
-        serve(Path(__file__).parent.parent / "examples/developer/feature-gallery.html"),
-    )
-    top = "el => el.getBoundingClientRect().top"
-    assert page.locator("#bg-variant-paper").evaluate(top) == page.locator(
-        "#bg-variant-screen"
-    ).evaluate(top), "chip-led terse variants must share a row"
-    assert page.locator("#bg-variant-paper-detail").evaluate(top) != page.locator(
-        "#bg-variant-screen-detail"
-    ).evaluate(top), "block-content variants must stack"
 
 
 def test_an_undone_suggestion_stays_inline_among_the_words(browser, serve):
-    """An undone suggestion retains its inline presentation and the surrounding comparison layout."""
-    page = open_page(browser, serve(REBUILT_INLINE_PAGE))
-    form = "() => getComputedStyle(document.getElementById('cmp-stores')).display"
-    assert page.evaluate(form) == "grid", (
-        "the exhibition stacked before anything was decided, so this proves nothing"
+    """A declared inline widget keeps suggestion slots inline, including after undo."""
+    source = REBUILT_INLINE_PAGE.replace(
+        "<lf-new>Valkey</lf-new>",
+        '<lf-new><lf-gloss id="replacement-name" tip="A Redis-compatible store.">Valkey</lf-gloss></lf-new>',
     )
-
+    page = open_page(browser, serve(source))
+    form = "() => getComputedStyle(document.querySelector('#sug-store lf-new')).display"
+    expect(page.locator("#replacement-name")).to_have_attribute("data-lf-inline", "")
+    assert page.evaluate(form) == "inline"
     page.locator("[data-lf-margin-for='sug-store'] .lf-sug-accept").click()
     round_trip(page)
     expect(page.locator("#sug-store lf-old")).to_be_hidden()
     undo(page)
     expect(page.locator("#sug-store lf-old")).to_be_visible()
-    assert page.evaluate(form) == "grid", (
-        "the rebuilt suggestion lost its inline mark, so the exhibition stacked"
-    )
+    assert page.evaluate(form) == "inline"
 
 
 def test_a_block_change_emphasizes_the_words_that_moved(browser, serve):
@@ -11227,62 +11135,6 @@ def test_a_body_the_module_cannot_draw_says_why_over_its_source(browser, serve):
             page.wait_for_timeout(25)
         assert len(reported) == 1 and reported[0].startswith(report), reported
         assert said[chart_id] in reported[0], reported
-
-
-def test_a_tree_draws_its_wrapped_hierarchy_before_runtime_upgrade(browser, serve):
-    """First paint uses the real nested rows, so long paths and badges cannot move
-    the paragraph the reader has already reached when the runtime starts."""
-    source = leaf_page(
-        "File tree",
-        '<h1>File changes</h1><lf-tree id="paths"><pre>root/\n'
-        "  very_long_file_name_with_many_identifiers_and_no_break_opportunities_in_a_long_path.py +245 -93\n"
-        "  nested/\n    deeper/\n"
-        "      one_more_long_descriptive_file_name_with_no_whitespace_breaks.toml +3\n"
-        '</pre></lf-tree><p id="after-tree">Review the file changes.</p>',
-    )
-    measure = """() => Object.fromEntries(['paths', 'after-tree'].map(id => {
-      const r = document.getElementById(id).getBoundingClientRect();
-      return [id, {x:r.x, y:r.y, width:r.width, height:r.height}];
-    }))"""
-    for width in (320, 420, 1200):
-        context = browser.new_context(viewport={"width": width, "height": 900})
-        page = context.new_page()
-        boot = []
-        page.route("**/leaf.js", lambda route, _request, boot=boot: boot.append(route))
-        try:
-            with page.expect_request("**/leaf.js"):
-                page.goto(serve(source), wait_until="commit")
-            displayed(page)
-            first = page.evaluate(measure)
-            expect(page.locator("#paths li")).to_have_count(5)
-            page.evaluate(
-                "window.__firstTreeName = document.querySelector('#paths li > span')"
-            )
-            assert boot, "the runtime was not held"
-            boot.pop().continue_()
-            wait_until_ready(page)
-            assert page.evaluate(measure) == first, (width, first)
-            assert page.evaluate(
-                "window.__firstTreeName === document.querySelector('#paths li > span')"
-            ), "upgrade must retain the selectable drawing"
-            assert (
-                page.evaluate("""() => document.documentElement.lfInitial
-              .reading(document.getElementById('paths')).querySelector('pre').textContent""")
-                == (
-                    "root/\n"
-                    "  very_long_file_name_with_many_identifiers_and_no_break_opportunities_in_a_long_path.py +245 -93\n"
-                    "  nested/\n    deeper/\n"
-                    "      one_more_long_descriptive_file_name_with_no_whitespace_breaks.toml +3\n"
-                )
-            )
-            expect(page.locator("#paths .lf-tree-badge")).to_have_text(
-                ["+245", "-93", "+3"]
-            )
-            assert root_overflow(page) == 0
-        finally:
-            for route in boot:
-                route.continue_()
-            page.unroute_all(behavior="wait")
 
 
 def test_a_chart_body_is_plot_code_that_reads_the_width_it_is_drawn_at(browser, serve):

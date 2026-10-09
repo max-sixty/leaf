@@ -5977,8 +5977,8 @@ def test_only_a_declared_widget_work_seat_is_admitted(page_dir, target):
     version = page_dir / "index.html"
     version.write_text(
         PAGE.replace(
-            "<lf-chip>effort: low</lf-chip>",
-            '<lf-chip id="effort">effort: low</lf-chip>',
+            '<small class="tag">effort: low</small>',
+            '<lf-gloss id="effort" tip="A short task.">effort: low</lf-gloss>',
         )
     )
     publish(page_dir)

@@ -2008,7 +2008,11 @@ def test_a_widget_data_input_is_one_complete_contract(page_dir, change, message)
         ("<div>", True, "must be one element"),
         ("<div><span>0</div>", True, "must be one element"),
         ('<div><span id="count">0</span></div>', True, "no id"),
-        ("<div><lf-chip>0</lf-chip></div>", True, "may not hold <lf-chip>"),
+        (
+            '<div><lf-gloss tip="Zero">0</lf-gloss></div>',
+            True,
+            "may not hold <lf-gloss>",
+        ),
         ({"as": "lf-nothing"}, True, "declares no x-prepaint markup"),
     ],
 )
@@ -2661,7 +2665,7 @@ def test_check_refuses_malformed_registry_extensions(page_dir, key, value):
     ("mutate", "message"),
     [
         (
-            lambda registry: registry["lf-chip"].update({"x-work": True}),
+            lambda registry: registry["lf-gloss"].update({"x-work": True}),
             "declares x-work but is inline",
         ),
         (
@@ -3531,16 +3535,16 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
     ("tag", "key", "value", "missing"),
     [
         (
-            "lf-chronology-entry",
+            "lf-gloss",
             "x-says",
-            {"at": "before", "colour": "after"},
+            {"tip": "after", "colour": "after"},
             "colour",
         ),
         ("lf-option", "x-refers", {"for": {}, "about": {}}, "about"),
         ("lf-task", "x-paints", ["status", "urgency"], "urgency"),
         ("lf-code", "x-lines", ["hi", "upto"], "upto"),
         ("lf-code", "x-language", "dialect", "dialect"),
-        ("lf-chip", "x-tone", "shade", "shade"),
+        ("lf-column", "x-tone", "shade", "shade"),
     ],
 )
 def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
@@ -4488,7 +4492,7 @@ def test_check_rejects_an_unknown_authored_width(page_dir):
 
 def test_check_takes_a_stated_height_only_on_a_widget_that_draws_into_its_box(page_dir):
     """`data-height` states the box of a widget whose declaration says it draws into one
-    (x-height), in whole CSS pixels. A chart takes it; a table and a tree take the
+    (x-height), in whole CSS pixels. A chart takes it; a table and a code block take the
     height of what they hold, so the attribute there would clip their words."""
     chart = '<lf-chart id="c" data-height="{}"><pre>{{ariaLabel: "x", marks: []}}</pre></lf-chart>'
     (page_dir / "index.html").write_text(
@@ -4502,7 +4506,7 @@ def test_check_takes_a_stated_height_only_on_a_widget_that_draws_into_its_box(pa
             "<h2>Plan</h2>"
             + chart.format("240px")
             + '<table data-height="80"><tr><td>A</td></tr></table>'
-            + '<lf-tree id="t" data-height="80"><pre>src/</pre></lf-tree>',
+            + '<lf-code id="t" data-height="80"><pre>src/</pre></lf-code>',
         )
     )
     result = check(page_dir)
@@ -4514,7 +4518,7 @@ def test_check_takes_a_stated_height_only_on_a_widget_that_draws_into_its_box(pa
     assert "<table data-height> (line 9) states the height of a widget" in (
         result.output
     )
-    assert "<lf-tree> takes the height of what it holds" in result.output
+    assert "<lf-code> takes the height of what it holds" in result.output
 
 
 def test_check_takes_a_page_s_width_from_a_layout_and_not_from_data_width(page_dir):

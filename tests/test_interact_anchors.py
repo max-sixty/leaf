@@ -1740,21 +1740,20 @@ def test_an_unhonored_edit_outlives_a_republish(page_dir):
 
 def test_a_widgets_x_says_attribute_is_quotable_like_any_other_passage(page_dir):
     """renderSaid puts these words in the DOM, so the anchor pass can find them and this
-    has to offer them — otherwise a metric's own number is the one thing on the page
+    has to offer them — otherwise an attribute's own words are the one thing on the page
     Claude can't point at. Both edges the registry can give one are here: the option's
-    chip band opens the element, and the metric's delta closes it."""
+    chip band opens the element, and the gloss's tip closes it."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             '  <lf-diagram id="flow">',
-            '  <lf-metric id="k-visits" value="312" delta="+41"'
-            ' direction="up-good">daily visits</lf-metric>\n'
+            '  <lf-gloss id="k-visits" tip="312 daily visits">Traffic</lf-gloss>\n'
             '  <lf-diagram id="flow">',
         )
     )
     published(page_dir)
     for quote, section in (
         ("risk: low Backfill first", "backfill-first"),
-        ("daily visits +41", "k-visits"),
+        ("Traffic 312 daily visits", "k-visits"),
     ):
         result = comment(page_dir, "--quote", quote, "--text", "x")
         assert result.exit_code == 0, result.output

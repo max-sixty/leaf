@@ -484,14 +484,10 @@ FENCED_CAPTURE_PAGE = leaf_page(
     "fenced capture",
     """
 <h1 id="h">Roadmap</h1>
-<lf-milestones>
-  <lf-milestone id="gate-milestone" status="active" when="week-1" tags="wood,solar">
-    <strong>Build feeders</strong> Two classic models.
-  </lf-milestone>
-</lf-milestones>
+<lf-sample id="gate-milestone" label="active · week-1 · wood · solar"><strong>Build feeders</strong> Two classic models.</lf-sample>
 <p id="after-milestone">Ready next.</p>
 <lf-options id="fence-options">
-  <lf-option id="fence-option"><lf-chip>effort: low</lf-chip><lf-chip>risk: high</lf-chip>
+  <lf-option id="fence-option"><small class="tag">effort: low</small><small class="tag">risk: high</small>
     <strong>Classic feeder</strong> Easy to clean.
   </lf-option>
 </lf-options>

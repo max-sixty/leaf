@@ -1308,11 +1308,10 @@ def test_check_rejects_widget_violations(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace(
             '<a href="https://example.test/jobs/backfill.py#L88"><code>jobs/backfill.py:88</code></a>',
-            '<lf-metric id="bad-metric" value="1"/>'
+            '<lf-gloss tip="A short explanation"/>'
             "<figure/>"
             "<lf-bogus></lf-bogus>"
-            '<lf-chronology id="bad-chronology">'
-            '<lf-chronology-entry id="stray-chronology-entry" kind="medium">S</lf-chronology-entry></lf-chronology>'
+            '<lf-column id="bad-tone" label="S" tone="medium"></lf-column>'
             '<lf-option id="stray"><strong>S</strong></lf-option>'
             '<lf-diagram id="Bad_ID"><pre>graph LR</pre><em>x</em></lf-diagram>'
             '<lf-diagram id="bare-body">graph LR</lf-diagram>',
@@ -1325,7 +1324,8 @@ def test_check_rejects_widget_violations(page_dir):
     # any non-void tag, not only on the vocabulary's.
     assert out.count("self-closing") == 2
     assert "unknown widget" in out
-    assert '"medium" is not one of' in out
+    assert '<lf-column tone="medium">' in out
+    assert "not a tone this page's layer paints" in out
     assert "must be a direct member of <lf-options>" in out
     assert "'id' is a required property" in out
     assert "does not match" in out  # id pattern
@@ -1359,18 +1359,18 @@ def test_a_widget_that_declares_a_language_is_checked_by_that_alone(page_dir):
     $languages on the strength of the declaration. A thirteenth widget that colors
     something — a terminal transcript, a diff — is covered without the lint moving."""
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-tree"]["properties"]["dialect"] = {"type": "string"}
-    registry["lf-tree"]["x-language"] = "dialect"
+    registry["lf-gloss"]["properties"]["dialect"] = {"type": "string"}
+    registry["lf-gloss"]["x-language"] = "dialect"
     (page_dir / "registry.json").write_text(json.dumps(registry))
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
-            '<h2>Plan</h2>\n<lf-tree id="t" dialect="lisp"><pre>\nfeeders/\n</pre></lf-tree>',
+            '<h2>Plan</h2>\n<lf-gloss tip="Feeder layout" dialect="lisp">feeders</lf-gloss>',
         )
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert '<lf-tree dialect="lisp">' in result.output
+    assert '<lf-gloss dialect="lisp">' in result.output
     assert "not a language this page's layer speaks" in result.output
 
 
@@ -1608,19 +1608,15 @@ def test_a_tone_the_layer_cannot_paint_is_refused_where_the_author_can_still_fix
     page_dir,
 ):
     """The same failure a misspelt language has, and caught for the same reason: a
-    tone nothing matches paints nothing, so the chip renders neutral on a page that
+    tone nothing matches paints nothing, so the column renders neutral on a page that
     otherwise looks perfectly well. The user cannot see it — they never knew it
     was meant to be red — so the only party who can still fix it is whoever wrote
     the word, and the lint is where they are told. This is the whole difference
     between the attribute and a class, which nothing checks.
 
-    Every widget taking a tone reads it from the one list: a board column as well as
-    a chip."""
+    Every widget taking a tone reads it from the one list."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
-            '<lf-option id="flag-first">',
-            '<lf-option id="flag-first"><lf-chip tone="dangre">risk: high</lf-chip>',
-        ).replace(
             "</section>",
             '<lf-board id="board"><lf-column id="blocked" label="Blocked"'
             ' tone="dangre"></lf-column></lf-board></section>',
@@ -1634,8 +1630,7 @@ def test_a_tone_the_layer_cannot_paint_is_refused_where_the_author_can_still_fix
         for line in output.splitlines()
         if "not a tone this page's layer paints" in line
     ]
-    assert len(refused) == 2
-    assert any("<lf-chip" in line for line in refused)
+    assert len(refused) == 1
     assert any("<lf-column" in line for line in refused)
     assert "'ok', 'warn', 'danger'" in output
 
@@ -1647,26 +1642,40 @@ def test_a_tone_the_layer_cannot_paint_is_refused_where_the_author_can_still_fix
     assert check(page_dir).exit_code == 0
 
 
-def test_a_chip_is_admissible_in_both_its_owners(page_dir):
-    """x-owners is a list because one element can belong to two owners, and a chip
-    is written in a lf-option and in a lf-variant — the same shape either side of the
-    decision. Neither is special-cased anywhere: the nesting check reads the list."""
+def test_a_member_is_admissible_in_each_declared_owner(page_dir):
+    """A package member can belong to different families without validator changes."""
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["lf-label"] = {
+        "description": "A package's shared label.",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": False,
+        "x-content": "markup",
+        "x-upgrade": False,
+        "x-owners": ["lf-option", "lf-card"],
+    }
+    registry_path.write_text(json.dumps(registry))
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<lf-options>",
-            '<lf-compare id="cmp"><lf-variant id="v-a"><lf-chip tone="ok">cheap</lf-chip>'
-            "<strong>A</strong> One.</lf-variant></lf-compare>\n  <lf-options>",
+            '<lf-board id="labels"><lf-column id="labels-column" label="Ideas">'
+            '<lf-card id="labels-card"><lf-label>cheap</lf-label>A</lf-card>'
+            "</lf-column></lf-board><lf-options>",
+        ).replace(
+            '<lf-option id="flag-first">',
+            '<lf-option id="flag-first"><lf-label>small</lf-label>',
         )
     )
     assert check(page_dir).exit_code == 0, check(page_dir).output
 
     # And refused where neither holder is its parent, naming both.
     (page_dir / "index.html").write_text(
-        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2><lf-chip>stray</lf-chip>")
+        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2><lf-label>stray</lf-label>")
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert "must be a direct member of <lf-option> or <lf-variant>" in result.output
+    assert "must be a direct member of <lf-option> or <lf-card>" in result.output
 
 
 def test_pane_grammar_follows_the_declared_role_across_packages(page_dir):
@@ -1795,31 +1804,11 @@ def test_retired_question_and_recommendation_attributes_are_rejected(page_dir):
     assert "'recommended' was unexpected" in result.output
 
 
-def test_milestones_compose(page_dir):
-    nested = """<lf-milestones>
-    <lf-milestone id="m-one" status="done" when="week 1"><strong>Survey</strong> Sites.</lf-milestone>
-    <lf-milestone id="m-two" status="active" tags="wood,solar"><strong>Build</strong></lf-milestone>
-  </lf-milestones>
-<lf-options>"""
-    (page_dir / "index.html").write_text(PAGE.replace("<lf-options>", nested))
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<lf-options>",
-            '<lf-milestone id="m-stray" status="done"><strong>X</strong></lf-milestone><lf-options>',
-        )
-    )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "must be a direct member of <lf-milestones>" in result.output
-
-
 def test_tabs_validate_and_compose(page_dir):
     tabs = """<lf-tabs id="ws">
   <lf-tab id="ws-ingest" label="Ingest"><p>Pipeline notes.</p></lf-tab>
   <lf-tab id="ws-search" label="Search">
-    <lf-metric id="k-lat" value="118 ms"></lf-metric>
+    <dl id="k-lat" class="panel"><dt></dt><dd><strong>118 ms</strong></dd></dl>
   </lf-tab>
 </lf-tabs>
 <lf-options>"""
@@ -2573,7 +2562,7 @@ def test_check_rejects_an_id_containing_whitespace(page_dir):
 def test_unreferenced_ids_and_widget_items_may_leave_the_page(page_dir):
     publish(page_dir)
     without_item = PAGE.replace(
-        '      <lf-option id="backfill-first"><lf-chip>effort: med</lf-chip><lf-chip>risk: low</lf-chip>\n'
+        '      <lf-option id="backfill-first"><small class="tag">effort: med</small><small class="tag">risk: low</small>\n'
         "        <strong>Backfill first</strong> Verify, then flip. <em>My take: do this first.</em>\n"
         "      </lf-option>\n",
         "",
@@ -4688,14 +4677,21 @@ def test_page_inspection_places_cards_among_identified_siblings(page_dir):
     """A layer can add idless column content without changing card indexes."""
     registry_file = page_dir / "registry.json"
     registry = json.loads(registry_file.read_text())
-    registry["lf-chip"]["x-owners"].append("lf-column")
+    registry["lf-label"] = {
+        "description": "An inline label.",
+        "type": "object",
+        "properties": {},
+        "x-content": "markup",
+        "x-upgrade": False,
+        "x-owners": ["lf-column"],
+    }
     registry_file.write_text(json.dumps(registry))
     board = (
         '<lf-board id="reading-board">'
         '<lf-column id="reading-todo" label="To do">'
         '<lf-card id="reading-a">A</lf-card></lf-column>'
         '<lf-column id="reading-done" label="Done">'
-        "<lf-chip>Already reviewed</lf-chip>"
+        "<lf-label>Already reviewed</lf-label>"
         '<lf-card id="reading-b">B</lf-card></lf-column></lf-board>'
     )
     (page_dir / "index.html").write_text(before_choice(PAGE, board))
@@ -5167,7 +5163,8 @@ def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
         },
     )
     edited = live.replace(
-        "Fastest to ship.", "A revised recommendation. <lf-chip>Recommended</lf-chip>"
+        "Fastest to ship.",
+        'A revised recommendation. <small class="tag">Recommended</small>',
     ).replace('id="o-stage"', 'id="o-stage" chosen')
     source.write_text(PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + edited))
     assert stamp(page_dir, "revise recommendation").exit_code == 0

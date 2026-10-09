@@ -211,7 +211,9 @@ caret, so omit it when ordinary motion and caret behavior are the evidence.
 
 `uv run leaf-dev stills` compares HEAD with the merge base with `main` and crops
 each changed catalogue state into a before/after pair. Commit first, since it
-compares commits. Include pages at rest and states reached by interaction,
+compares commits. For changes to the examples themselves, add `--authored` so
+each arm reads its own committed markup and companions; the default shares the
+current source to isolate runtime changes. Include pages at rest and states reached by interaction,
 including focus states where layout can cover a focus ring. Add missing states
 to `STATES` rather than driving them by hand.
 

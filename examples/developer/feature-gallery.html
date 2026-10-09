@@ -8,6 +8,26 @@
     />
     <meta name="lf-review" content="sign-off" />
     <style>
+      #bg-metrics > dl {
+        margin: 0;
+        padding: var(--sp-3);
+        border: 1px solid var(--rule);
+        border-radius: var(--r);
+        background: var(--card);
+      }
+      #bg-metrics dt {
+        color: var(--muted);
+        font: 600 var(--t-6)/1.3 var(--sans);
+      }
+      #bg-metrics dd {
+        margin: var(--sp-1) 0 0;
+        font: 600 var(--t-2)/1.2 var(--sans);
+        overflow-wrap: anywhere;
+      }
+      #bg-metrics dd small {
+        font: 500 var(--t-6)/1.3 var(--sans);
+      }
+
       .bg-feature-detail {
         color: var(--ink-2);
         font-weight: 400;
@@ -1708,12 +1728,12 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               ><span class="bg-feature-detail">: charts and structured views</span>
             </h2>
             <p id="bg-default-guide">
-              These shipped widgets use synthetic data so each feature has a focused
-              example.
+              These widgets and page-owned HTML compositions use synthetic data so each
+              has a focused example.
             </p>
 
             <section id="bg-metrics-and-chart">
-              <p class="eyebrow bg-feature-elements">lf-metric · lf-chart</p>
+              <p class="eyebrow bg-feature-elements">dl · lf-chart</p>
               <h3>
                 <strong>Metrics</strong> and <strong>Chart</strong
                 ><span class="bg-feature-detail">: values and trends</span>
@@ -1729,19 +1749,18 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </p>
               <div id="bg-metrics-room">
                 <div id="bg-metrics" class="layout-tiles">
-                  <lf-metric
-                    id="bg-metric-complete"
-                    value="12"
-                    delta="+3"
-                    direction="up-good"
-                    >checks complete</lf-metric
-                  >
-                  <lf-metric id="bg-metric-open" value="2" delta="-1" direction="up-bad"
-                    >open failures</lf-metric
-                  >
-                  <lf-metric id="bg-metric-neutral" value="4 min"
-                    >sample duration</lf-metric
-                  >
+                  <dl id="bg-metric-complete" class="panel">
+                    <dt>checks complete</dt>
+                    <dd><strong>12</strong> <small>change: +3</small></dd>
+                  </dl>
+                  <dl id="bg-metric-open" class="panel">
+                    <dt>open failures</dt>
+                    <dd><strong>2</strong> <small>change: -1</small></dd>
+                  </dl>
+                  <dl id="bg-metric-neutral" class="panel">
+                    <dt>sample duration</dt>
+                    <dd><strong>4 min</strong></dd>
+                  </dl>
                 </div>
               </div>
               <div id="bg-charts" data-width="wide">
@@ -1750,7 +1769,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
 {
   ariaLabel: "Checks complete by run: baseline 4, 7, 9; candidate 5, 9, 12",
   marginBottom: 40,
-  x: {label: "run", ticks: 3},
+  x: {label: "run", ticks: [1, 2, 3], tickFormat: "d"},
   y: {grid: true, label: "checks complete"},
   color: {legend: true, range: ["var(--series-1)", "var(--series-2)"]},
   marks: [
@@ -1863,7 +1882,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
 
             <section id="bg-code-and-tree">
               <p class="eyebrow bg-feature-elements">
-                lf-code · lf-gloss · lf-note · lf-tree
+                lf-code · lf-gloss · lf-note · pre
               </p>
               <h3>
                 <strong>Code</strong>, <strong>Gloss</strong>, <strong>Note</strong>,
@@ -1879,11 +1898,11 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 >. Hover the term, then move into its explanation; the card stays open
                 while you read it. Code adds line numbers and Notes, and quotes an
                 excerpt under its file's own numbers with an elided row where it skips;
-                Tree shows file structure. Use “Copy code” on the right of either block
-                below, or <kbd>Tab</kbd> to it and press <kbd>Enter</kbd>. The clipboard
-                keeps the code's whitespace and leaves out line numbers and Notes. Bash
-                separates commands, arguments, and flags with the same syntax colors as
-                a diff.
+                A native preformatted block shows file structure. Use “Copy code” on the
+                right of either code block below, or <kbd>Tab</kbd> to it and press
+                <kbd>Enter</kbd>. The clipboard keeps the code's whitespace and leaves
+                out line numbers and Notes. Bash separates commands, arguments, and
+                flags with the same syntax colors as a diff.
               </p>
               <pre
                 id="bg-plain-code"
@@ -1905,8 +1924,8 @@ def seat(guest):
                   >The seating chart, loaded once.</lf-note
                 >
               </lf-code>
-              <lf-tree id="bg-tree">
-                <pre>
+
+              <pre id="bg-tree">
 gallery/
   index.html  +20 -1
   data.json  +2
@@ -1916,41 +1935,40 @@ gallery/
     evidence/
       rendered_first_paint_checkpoints_with_readable_path_names.json  +245 -93
 </pre>
-              </lf-tree>
+
               <p id="bg-tree-after">
-                At a narrow width, the nested filename and its change badges wrap. This
-                paragraph stays in place when the tree upgrades.
+                The native preformatted block preserves the hierarchy and change counts;
+                scroll horizontally to read long paths.
               </p>
             </section>
 
             <section id="bg-neutral-comparison">
-              <p class="eyebrow bg-feature-elements">
-                lf-compare · lf-variant · lf-chip
-              </p>
+              <p class="eyebrow bg-feature-elements">section · small</p>
               <h3>
                 <strong>Compare</strong>, <strong>Variants</strong>, and
                 <strong>Chips</strong
                 ><span class="bg-feature-detail">: parallel alternatives</span>
               </h3>
               <aside class="sidenote" id="bg-compare-note">
-                Short variants share a row. Paragraphs make the alternatives stack.
+                The page puts short alternatives in a row and longer explanations below.
                 Narrow the window to see this note return to the text flow.
               </aside>
               <p id="bg-compare-guide">
-                Compare gives each Variant the same frame. Chips label short attributes.
+                Ordinary sections compare alternatives. Small labels carry their
+                attributes.
               </p>
-              <lf-compare id="bg-compare">
-                <lf-variant id="bg-variant-paper">
-                  <lf-chip id="bg-chip-power">power: none</lf-chip
-                  ><lf-chip tone="ok">weight: low</lf-chip>
+              <div id="bg-compare" class="layout-tiles">
+                <section id="bg-variant-paper" class="panel">
+                  <small id="bg-chip-power" class="tag">power: none</small
+                  ><small class="tag ok">weight: low</small>
                   <strong>Paper map</strong> Easy to annotate and fold.
-                </lf-variant>
-                <lf-variant id="bg-variant-screen">
-                  <lf-chip>power: daily</lf-chip
-                  ><lf-chip tone="warn">weight: medium</lf-chip>
+                </section>
+                <section id="bg-variant-screen" class="panel">
+                  <small class="tag">power: daily</small
+                  ><small class="tag warn">weight: medium</small>
                   <strong>Tablet map</strong> Searchable and backlit.
-                </lf-variant>
-              </lf-compare>
+                </section>
+              </div>
               <table id="bg-route-distances">
                 <caption>
                   Route distances — numeric columns align on the right
@@ -1972,78 +1990,68 @@ gallery/
                   </tr>
                 </tbody>
               </table>
-              <lf-compare id="bg-compare-prose">
-                <lf-variant id="bg-variant-paper-detail">
+              <div id="bg-compare-prose">
+                <section id="bg-variant-paper-detail" class="panel">
                   <strong>Paper on the trail</strong>
                   <p>
                     Mark the route before leaving. The map stays readable when the
                     battery runs out.
                   </p>
-                </lf-variant>
-                <lf-variant id="bg-variant-screen-detail">
+                </section>
+                <section id="bg-variant-screen-detail" class="panel">
                   <strong>Screen at a junction</strong>
                   <p>
                     Search the nearest stop and update the route. Carry enough power for
                     the return journey.
                   </p>
-                </lf-variant>
-              </lf-compare>
+                </section>
+              </div>
             </section>
 
             <section id="bg-plans-and-history">
-              <p class="eyebrow bg-feature-elements">
-                lf-milestones · lf-milestone · lf-chronology · lf-chronology-entry
-              </p>
+              <p class="eyebrow bg-feature-elements">ol · small · time</p>
               <h3>
                 <strong>Milestones</strong> and <strong>Chronology</strong
                 ><span class="bg-feature-detail">: state and history</span>
               </h3>
               <p id="bg-plans-guide">
-                Milestones show planned, active, and completed work. A Chronology orders
-                entries by time.
+                A list shows planned, active, and completed work. Another orders entries
+                by time.
               </p>
-              <lf-milestones id="bg-milestones">
-                <lf-milestone id="bg-milestone-survey" status="done" when="morning">
+              <h4 id="bg-work-plan">Planned work</h4>
+              <ol id="bg-milestones">
+                <li id="bg-milestone-survey">
+                  <small class="tag ok">done · morning</small>
                   <strong>Survey the route</strong> Marked the crossings.
-                </lf-milestone>
-                <lf-milestone
-                  id="bg-milestone-walk"
-                  status="active"
-                  when="afternoon"
-                  tags="sample,route"
-                >
+                </li>
+                <li id="bg-milestone-walk">
+                  <small class="tag warn">active · afternoon · sample · route</small>
                   <strong>Walk the route</strong> Checking the covered section.
-                </lf-milestone>
-                <lf-milestone id="bg-milestone-report" status="planned" when="next">
+                </li>
+                <li id="bg-milestone-report">
+                  <small class="tag">planned · next</small>
                   <strong>Write the note</strong>
-                </lf-milestone>
-              </lf-milestones>
-              <lf-chronology id="bg-chronology">
-                <lf-chronology-entry id="bg-chronology-alert" at="09:14" kind="warning">
+                </li>
+              </ol>
+              <h4 id="bg-event-history">Observed events</h4>
+              <ol id="bg-chronology">
+                <li id="bg-chronology-alert">
+                  <time>09:14</time> <small class="tag warn">warning</small>
                   <strong>Rain started</strong> The open path became slippery.
-                </lf-chronology-entry>
-                <lf-chronology-entry
-                  id="bg-chronology-closed"
-                  at="09:18"
-                  kind="failure"
-                >
+                </li>
+                <li id="bg-chronology-closed">
+                  <time>09:18</time> <small class="tag danger">failure</small>
                   <strong>Path closed</strong> Standing water blocked the crossing.
-                </lf-chronology-entry>
-                <lf-chronology-entry
-                  id="bg-chronology-switch"
-                  at="09:20"
-                  kind="intervention"
-                >
+                </li>
+                <li id="bg-chronology-switch">
+                  <time>09:20</time> <small class="tag">intervention</small>
                   <strong>Route changed</strong> The sample moved under cover.
-                </lf-chronology-entry>
-                <lf-chronology-entry
-                  id="bg-chronology-clear"
-                  at="09:42"
-                  kind="observation"
-                >
+                </li>
+                <li id="bg-chronology-clear">
+                  <time>09:42</time> <small class="tag">observation</small>
                   <strong>Walk resumed</strong>
-                </lf-chronology-entry>
-              </lf-chronology>
+                </li>
+              </ol>
             </section>
 
             <section id="bg-activity-feed">

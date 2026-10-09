@@ -146,11 +146,11 @@
 
             <lf-diagram
               id="arch"
-              data-height="370"
+              data-height="770"
               parts="node:Harness node:Agent node:Watcher node:Leaf node:CLI node:Server node:Dir node:Browser"
             >
               <pre>
-flowchart LR
+flowchart TD
   accTitle: Harness, Leaf and browser
   accDescr: The agent runs leaf commands and edits the page; the page server answers the browser over HTTP; Leaf's hook, extension or adapter carries new moves back to the agent as a delivery. The page directory sits beside the commands and server.
   subgraph Harness["harness"]

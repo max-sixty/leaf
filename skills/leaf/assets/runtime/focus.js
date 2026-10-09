@@ -541,8 +541,8 @@ for (const type of ["pointerdown", "keydown", "input", "wheel", "touchstart"])
 // Where the caret stood, as a key went down, in each box the key went down in, before
 // the box's own handling moved it. A command whose meaning hangs on the caret's place,
 // as ↑ from the start of a box walks out of it, reads this rather than the caret the
-// field has already moved by the time the command's row is asked. It holds for that
-// key's dispatch alone.
+// field has already moved by the time the command's row is asked. It holds until the
+// task after the key's, so a row read outside a key falls back to the live caret.
 let keyCarets = null;
 onUserInput((event) => {
   if (event.type !== "keydown") return;

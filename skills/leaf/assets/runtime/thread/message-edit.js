@@ -148,8 +148,6 @@ export class MessageEditor {
   #putAside;
   #reveal;
   #settling = null;
-  // Where the caret stood when ↑ went down, while it is down: the editor's own ↑ moves
-  // it to the start from anywhere on the first line before the key's binding reads it.
 
   constructor(
     id,

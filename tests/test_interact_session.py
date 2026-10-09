@@ -9799,8 +9799,18 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
 
     # Input pending as the turn ends is the other Stop hook's to hand to the turn
     # it continues; once that hook lets the turn end over it, the watch wakes.
+    # Date it before the watch's startup millisecond: input within that millisecond
+    # deliberately wakes immediately, regardless of which call ran first.
     append_carried_log_record(
-        claimed, {"kind": "comment", "author": "user", "text": "before"}
+        claimed,
+        {
+            "kind": "comment",
+            "author": "user",
+            "text": "before",
+            "ts": (datetime.now().astimezone() - timedelta(seconds=1)).isoformat(
+                timespec="milliseconds"
+            ),
+        },
     )
     outcome = []
     watch = watching(outcome)

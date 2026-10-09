@@ -3,8 +3,9 @@
  * Native modality owns isolation, focus and the Tab loop. Pointer drags set a rectangle;
  * arrows move it and Shift+arrows resize it, so capturing never requires a drag. The
  * selected pixels stay in viewport coordinates until confirmation, when SnapDOM takes
- * a document-coordinate crop of the live DOM, excluding only this dialog. SnapDOM owns
- * cloning, shadow trees, styles, fonts, SVG and rasterization; Leaf owns no renderer.
+ * a document-coordinate crop of the live DOM, excluding the selector and its shortcut
+ * bar. SnapDOM owns cloning, shadow trees, styles, fonts, SVG and rasterization;
+ * Leaf owns no renderer.
  * The crop is approximate browser rendering, not privileged access to screen pixels.
  * Known missing images refuse capture instead of attaching a placeholder.
  *
@@ -168,7 +169,7 @@ export function captureRegion({ parent, visibleTargets, openComposerWithMedia })
         const image = await snapdom(document.body, {
           clip,
           dpr: window.devicePixelRatio,
-          exclude: ".lf-region-capture",
+          exclude: ".lf-region-capture, .lf-shortcut-bar",
           excludeMode: "remove",
           invalidate: true,
           reconcile: true,

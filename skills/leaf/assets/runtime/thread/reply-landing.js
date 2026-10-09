@@ -27,7 +27,7 @@
    the turn the user was reading, even when it is not the latest one. A separate
    transcript opened for reading shows its latest turn (`showLatestTurn`). */
 import { landingBand, seenRect, shownBox } from "../geometry.js";
-import { focused } from "../keyboard/scopes.js";
+import { focused } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { scrollerFor, scrollersOf } from "../reading-regions.js";
@@ -144,9 +144,8 @@ export function scrollThreadIntoView(
 // Taken as the user sends: once the page has drawn the new turn above the box, land the
 // thread around the box the user sent from, so the turn's end shows with the box, unless
 // a newer gesture has taken the user away from `standing`. That is where the send left
-// them: the thread or seat holding the box by default, or the page element a reply in
-// the margin card hands them to (`landSent`). A box the send removed has handed the user
-// on already.
+// them: the conversation's card or title (`landSent`), or the seat holding a persistent
+// box. A box the send removed has handed the user on already.
 // The sent turn lands without animation: fitting can change the transcript's room in
 // the next update, and an in-flight pixel destination would outlive the room it named.
 // The geometry owner then preserves the landed end while it fits that room.

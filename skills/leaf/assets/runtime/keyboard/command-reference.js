@@ -50,13 +50,12 @@ import {
   keySequenceTemplate,
   neutralStates,
 } from "./presentation.js";
-import { handBack, tabStops, focusDestination } from "../focus.js";
+import { handBack, tabStops, focusDestination, focused } from "../focus.js";
 import { closeControl } from "../widget-elements.js";
 import { keeps } from "../keeps.js";
 import { ELEMENTS, pageScope, pageScopes } from "./register.js";
 import { EVERYTHING } from "./text-entry.js";
 import {
-  focused,
   merge,
   pruneScopedElements,
   scopeRefs,

@@ -95,14 +95,8 @@ import {
   universalCommandReference,
 } from "./register.js";
 import { EVERYTHING, nativeClaimAt } from "./text-entry.js";
-import { takesLetters } from "../focus.js";
-import {
-  focused,
-  recoveredLabelFocus,
-  scopesAt,
-  scopesFor,
-  scopeIdentity,
-} from "./scopes.js";
+import { takesLetters, focused, recoveredLabelFocus } from "../focus.js";
+import { scopesAt, scopesFor, scopeIdentity } from "./scopes.js";
 import { nativeLayers } from "./layer-stack.js";
 import { shadowHost, under, excludedByInert } from "../shadow.js";
 

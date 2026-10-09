@@ -658,7 +658,9 @@ def test_page_round_trip(browser, serve):
     # drag is aimed at and takes the pointer. A user sees the card and dismisses it;
     # a test that skipped the dismissal would be dragging under a sheet, which is a
     # scene about the margin rather than the seam below.
-    page.keyboard.press("Escape")  # off the target the send landed on, and its card
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
+    page.keyboard.press("Escape")  # from the sent card to its passage
+    page.keyboard.press("Escape")  # off the passage, dismissing its card
     expect(page.locator(".lf-margin-thread")).to_be_hidden()
     # Drag the card between columns through the pointer path — the seam where
     # the vendored SortableJS meets the runtime, which is where drags break.
@@ -5440,7 +5442,7 @@ def test_executable_revision_routes_one_editor_among_visible_reply_mirrors(
     wait_for_revision(page, 2)
     current = page.evaluate(
         """async()=>{
-      const {focused}=await window.__lfRuntimeImport('/runtime/keyboard/scopes.js');
+      const {focused}=await window.__lfRuntimeImport('/runtime/focus.js');
       const el=focused();
       return {tag:el.tagName,value:el.value,caret:[el.selectionStart,el.selectionEnd,el.selectionDirection]};
     }"""

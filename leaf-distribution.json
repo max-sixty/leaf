@@ -1,7 +1,7 @@
 {
   "producer": {
-    "commit": "959bf39d59b1",
-    "committed": "2026-10-09T16:21:12-07:00",
+    "commit": "79ea0ca178c6",
+    "committed": "2026-10-09T16:24:20-07:00",
     "dirty": false
   },
   "runtime_paths": [
@@ -24,6 +24,7 @@
     "annotation-overlay/margin-layout.js",
     "annotation-overlay/margin-placement.js",
     "annotation-overlay/margin-projection.js",
+    "annotation-overlay/thread-preview.js",
     "annotation-overlay/visual-mark-paint.js",
     "annotation-view.js",
     "application.js",

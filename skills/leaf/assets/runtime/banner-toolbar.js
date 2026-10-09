@@ -55,6 +55,7 @@ export const BANNER_CONTROL_RANK = Object.freeze({
   session: 10,
   preview: 20,
   layer: 30,
+  share: 35,
   leaves: 40,
   latest: 50,
   map: 70,

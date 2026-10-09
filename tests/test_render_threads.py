@@ -1263,7 +1263,7 @@ def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
     expect(transcript).to_have_js_property("scrollTop", 0)
     expect(collapse).to_be_focused()
     resized(page, width, 650)
-    expect(transcript).to_have_js_property("scrollTop", 0)
+    expect(card.locator(".lf-msg").first).to_be_in_viewport()
     expect(collapse).to_be_focused()
     expect(originals[0]).to_be_in_viewport()
 

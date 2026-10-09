@@ -243,11 +243,14 @@ def test_held_news_keeps_an_agent_header_and_resizes_its_notice(browser, serve):
       const hit = news.getRootNode().elementFromPoint(
         notice.left + notice.width / 2, notice.top + notice.height / 2);
       return {width: notice.width, hit: news.contains(hit),
+        noticeBottom: notice.bottom,
+        bodyTop: thread.querySelector('.lf-msg-body').getBoundingClientRect().top,
         noticeRight: notice.right, reactionLeft: reaction.left,
         reactionRight: reaction.right, resolveLeft: resolve.left};
     }""")
     assert allocation["width"] >= 28, allocation
     assert allocation["hit"], allocation
+    assert allocation["noticeBottom"] <= allocation["bodyTop"], allocation
     assert allocation["noticeRight"] <= allocation["reactionLeft"], allocation
     assert allocation["reactionRight"] <= allocation["resolveLeft"], allocation
     news.click()

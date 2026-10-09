@@ -1113,8 +1113,8 @@ export class ThreadView {
     }
   }
 
-  // The panel's resolved title keeps its state label as the reopening action.
-  // Other surfaces use Reopen or the completed check in Resolve's place.
+  // The panel's resolved title keeps its status allocation for the Reopen action.
+  // Other surfaces use Reopen or the labeled check in Resolve's place.
   #settlement(model, header = false) {
     const state = model.settlement;
     const reopen = state.kind === "unresolve";
@@ -1151,9 +1151,11 @@ export class ThreadView {
     }
     render(
       header
-        ? model.resolvedBy || "Resolved"
+        ? state.word
         : state.icon
-          ? iconTemplate("check", "lf-action-icon")
+          ? html`${iconTemplate("check", "lf-action-icon")}<span
+              >${model.folding ? "Resolved" : state.word}</span
+            >`
           : state.label,
       button,
     );

@@ -356,12 +356,13 @@ summary { align-content: center; }
           border-top: 1px solid var(--rule); pointer-events: none; }
 /* Every conversation shares its reading edge, including a floating draft. The
    field subtracts its border; messages and metadata take the full inset. */
-:root, .lf-page-thread, .lf-thread { --lf-thread-text-inset: 13px; }
+:root, .lf-page-thread, .lf-thread { --lf-thread-text-inset: 13px;
+          --lf-thread-resolve-width: max(calc(7 * var(--t-6)), var(--aim-floor)); }
 .lf-thread-transcript { min-width: 0; padding-inline: var(--lf-thread-text-inset) 0; }
 /* Conversation flow is separate from the outer flex body that retains reply room. */
 .lf-thread-content { display: flow-root; min-width: 0;
           anchor-scope: --lf-thread-headline;
-          --lf-thread-action-room: max(28px, var(--aim-floor));
+          --lf-thread-action-height: max(28px, var(--aim-floor));
           --lf-thread-notice-room: max(28px, var(--aim-floor));
           --lf-thread-reaction-room: 0px; }
 /* A semantic separator draws its boundary without sizing the transcript. */
@@ -378,7 +379,8 @@ summary { align-content: center; }
 .lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) { margin-top: 0; }
 /* Every message header holds the same control-height row, including sticky margin
    heads. Thread actions and reactions must not change its metadata-to-body gap.
-   An author may ellipsize while time and receipt use their own intrinsic room. */
+   Names keep their natural width up to two fifths of the row; metadata takes the
+   rest, so a long receipt cannot abbreviate a short author such as “You”. */
 .lf-msg-head { display: flex; align-items: center; gap: var(--sp-2);
           min-block-size: max(28px, var(--aim-floor)); box-sizing: border-box;
           min-width: 0; overflow: hidden; white-space: nowrap;
@@ -386,7 +388,7 @@ summary { align-content: center; }
 .lf-msg-head .lf-msg-meta { flex: 0 1 auto; overflow: hidden; }
 .lf-msg-head .lf-msg-sending { min-width: 0; overflow: hidden;
           text-overflow: ellipsis; }
-.lf-msg-head b { flex: 0 1 auto; min-width: 0; overflow: hidden;
+.lf-msg-head b { flex: 0 0 auto; max-inline-size: 40%; min-width: 0; overflow: hidden;
           text-overflow: ellipsis; font-size: var(--lf-msg-name-size);
           font-weight: 600; color: var(--ink); }
 /* A checkpoint is agent-written reading context, followed by the retained originals
@@ -435,22 +437,22 @@ summary { align-content: center; }
    a message header, its reaction control, or the full-width body below it. */
 .lf-thread-controls { position: absolute; position-anchor: --lf-thread-headline;
           inset-inline-start: anchor(left); inset-block-start: anchor(center); translate: 0 -50%;
-          inline-size: calc(anchor-size(width) + var(--lf-thread-action-room) + var(--sp-2));
-          block-size: var(--lf-thread-action-room);
+          inline-size: calc(anchor-size(width) + var(--lf-thread-resolve-width) + var(--sp-2));
+          block-size: var(--lf-thread-action-height);
           display: flex; align-items: center; pointer-events: none;
           font-size: var(--t-6); }
 .lf-thread-controls > * { pointer-events: auto; }
 .lf-thread-content:has(> .lf-thread-controls) > .lf-thread-transcript
   > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-msg-head {
           anchor-name: --lf-thread-headline;
-          margin-inline-end: calc(var(--lf-thread-action-room) + var(--sp-2));
+          margin-inline-end: calc(var(--lf-thread-resolve-width) + var(--sp-2));
           padding-inline-end: calc(var(--lf-thread-notice-room) + var(--sp-2) + var(--lf-thread-reaction-room)); }
 .lf-thread-content:has(> .lf-thread-controls) > .lf-thread-transcript
   > .lf-thread-checkpoint:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
   > .lf-summary-checkpoint > .lf-summary-header {
           anchor-name: --lf-thread-headline;
-          min-height: var(--lf-thread-action-room); box-sizing: border-box;
-          margin-inline-end: calc(var(--lf-thread-action-room) + var(--sp-2));
+          min-height: var(--lf-thread-action-height); box-sizing: border-box;
+          margin-inline-end: calc(var(--lf-thread-resolve-width) + var(--sp-2));
           padding-inline-end: calc(var(--lf-thread-notice-room) + var(--sp-2)); }
 .lf-thread-content:has(> .lf-thread-controls):has(> .lf-thread-transcript
   > .lf-msg.agent:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-react-strip) {
@@ -461,16 +463,16 @@ summary { align-content: center; }
 .lf-thread-meta-actions { display: inline-flex; flex: none; align-items: center;
           gap: 4px; margin-inline-start: auto; }
 .lf-thread-controls > .lf-thread-meta-actions {
-          min-height: var(--lf-thread-action-room); }
+          min-height: var(--lf-thread-action-height); }
 .lf-thread-controls > .lf-thread-news {
           position: absolute;
           inset-inline-start: calc(var(--lf-thread-news-start, 0px) + var(--sp-2));
           inline-size: var(--lf-reserved-width, max-content);
           max-inline-size: max(0px, min(
-            calc(100% - var(--lf-thread-news-start, 0px) - 2 * var(--sp-2) - var(--lf-thread-action-room) - var(--lf-thread-reaction-room)),
+            calc(100% - var(--lf-thread-news-start, 0px) - 2 * var(--sp-2) - var(--lf-thread-resolve-width) - var(--lf-thread-reaction-room)),
             calc(var(--lf-thread-news-visible-end, 100%) - var(--lf-thread-news-start, 0px) - var(--sp-2))));
           box-sizing: border-box; min-width: 0;
-          min-height: var(--lf-thread-action-room);
+          min-height: var(--lf-thread-action-height);
           overflow: hidden; text-overflow: ellipsis;
           white-space: nowrap; text-align: start; }
 /* Unread and held news share one text face in chrome and declared widget trees.
@@ -765,7 +767,7 @@ button.lf-thread-notice:is(:focus-visible, .lf-focus-visible) { outline: var(--f
           padding-inline-end: var(--lf-react-row); }
 }
 .lf-msg-meta { display: flex; align-items: baseline; gap: var(--sp-2); min-width: 0; }
-.lf-msg-sending { color: var(--muted); font-weight: 600; white-space: nowrap; }
+.lf-msg-sending { color: var(--muted); white-space: nowrap; }
 .lf-msg-sending::before { content: "\00b7"; margin-inline-end: 6px;
           color: var(--muted-2); }
 .lf-msg-meta > time { flex: none; }
@@ -939,10 +941,9 @@ button.lf-thread-notice:is(:focus-visible, .lf-focus-visible) { outline: var(--f
 .lf-close-action { border: 0; background: transparent;
           color: var(--muted); }
 .lf-close-action:hover { background: var(--chip); color: var(--ink); }
-/* Send and resolve are the two glyph actions: a bare glyph in the action's own ink,
-   whose ::before is a 28px disc that stays clear at rest and takes the action's tint
-   on hover. The hit box around the disc is the icon-action floor above. The glyph's
-   ink outranks the .lf-ui face by coming later. */
+/* Send paints its readiness inside a constant hit box. Resolve names its durable
+   action beside the check, distinct from the message's delivery receipt. Its width
+   is the same allocation the first header reserves, including while settling. */
 .lf-compose-submit, .lf-resolve.lf-icon-action { border: 0; background: transparent;
           box-shadow: none; }
 :is(.lf-compose-submit, .lf-resolve.lf-icon-action)::before { content: "";
@@ -952,11 +953,19 @@ button.lf-thread-notice:is(:focus-visible, .lf-focus-visible) { outline: var(--f
           box-shadow: none; }
 .lf-compose-submit { position: absolute; z-index: 1; inset-inline-end: 6px;
           inset-block-end: 6px; color: var(--accent); }
+.lf-compose-submit:not(:disabled, [aria-disabled="true"]) { color: var(--paper); }
+.lf-compose-submit:not(:disabled, [aria-disabled="true"])::before {
+          background: var(--accent); border-radius: 50%; }
 .lf-compose-submit:not(:disabled, [aria-disabled="true"]):hover::before {
-          background: var(--accent-tint); }
+          background: color-mix(in srgb, var(--accent) 85%, var(--ink)); }
 .lf-compose-submit:is(:disabled, [aria-disabled="true"]) { opacity: 1; color: var(--muted); }
-.lf-resolve.lf-icon-action { position: relative; flex: none; margin-inline-start: auto;
-          color: var(--ink); }
+.lf-resolve.lf-icon-action, .lf-reopen.lf-icon-action {
+          position: relative; flex: none; margin-inline-start: auto;
+          inline-size: var(--lf-thread-resolve-width); min-inline-size: var(--lf-thread-resolve-width);
+          display: inline-flex; justify-content: center; gap: 4px;
+          font: var(--t-6)/var(--lf-ui-lh) var(--sans); color: var(--muted); }
+.lf-resolve.lf-icon-action::before { inset: 0; inline-size: auto; block-size: auto; }
+.lf-resolve.lf-icon-action > span { position: relative; z-index: 1; }
 .lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover { color: var(--ok-ink); }
 .lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover::before {
           background: var(--ok-tint); }

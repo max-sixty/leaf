@@ -89,10 +89,10 @@ import {
   setNoticeContext,
 } from "../notifications.js";
 import { repaint } from "../repaint.js";
-import { focusDestination } from "../focus.js";
 import { walkPosition } from "../walk-position.js";
 import { declareBottomBar } from "../geometry.js";
 import { pagePresented } from "../presentation.js";
+import { focusDestination } from "../focus.js";
 import {
   BANNER_CONTROL_RANK,
   bannerControlDoor,
@@ -337,7 +337,7 @@ keyboardSettings.type = "button";
 keyboardSettings.addEventListener("click", () => {
   dismissBannerControls();
   const door = bannerControlDoor(keyboardSettings);
-  if (door) focusDestination(door, "move");
+  if (door) focusDestination(door, "return");
   openCompleteReference();
 });
 registerBannerControl({

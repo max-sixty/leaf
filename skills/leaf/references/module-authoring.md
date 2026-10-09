@@ -307,7 +307,19 @@ after it. Moving a focused node drops its focus to the page body; the returned f
 puts the user back on that node, with its caret, or on the first drawn stand-in it is
 passed, such as the replacement keyed on the same identity. It does nothing once focus was
 placed elsewhere in the meantime, and `holdFocus` returns `null` where the user stands
-outside `scope`.
+outside `scope`. A list of keyed items passes `holdFocus(list, { key })`, naming the
+attribute each item carries: the restore then lands on the item keyed the same, or the
+nearest that survived, and on the control in it like the one the user stood on.
+
+A widget's own layer, such as a list it opens over its contents, records where it was
+opened from with `openLayer(layer)` as it opens, which reads where the user stands, and
+closes with `closeLayer(close, land)`: `close` hides it, and `land` puts a user who stood
+in it where the close takes them, usually `handBack(openerOf(layer))`, which lets go onto
+the page where the opener is gone. Readers of where the user stands hear only where they
+end up. The layer's Escape is a command row like any other key. A group
+reached by its own arrows offers one Tab stop with `rove(items, stop)`. `standingIn(scope)`
+says whether the user stands in a scope, across shadow trees, and `whenLeft(element, leave)`
+runs `leave` once when they move off an element.
 
 A module that takes the user to a thread calls `openThread(id, {focus})`
 with the Thread's `id`. It opens the thread where the page shows it, inline beside

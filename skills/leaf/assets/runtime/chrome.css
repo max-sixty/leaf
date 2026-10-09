@@ -1111,32 +1111,6 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   .lf-thread-compact > .lf-thread-content > .lf-thread-transcript
     > .lf-thread-checkpoint:nth-child(1 of .lf-msg, .lf-thread-checkpoint) .lf-summary-header {
     min-height: max(28px, var(--aim-floor)); align-items: center; }
-  /* A checkpoint is agent-written reading context, followed by the retained originals
-     it covers. One disclosure beside that context controls the entire range. */
-  .lf-thread-checkpoint { margin-block: 16px; }
-  /* The bracket joins the disclosure to exactly the messages it will hide. */
-  .lf-thread-checkpoint[data-expanded="true"] { position: relative; }
-  .lf-thread-checkpoint[data-expanded="true"]::before { content: ""; position: absolute;
-    inset-block: 4px; inset-inline-start: -10px; width: 6px;
-    border: 1px solid var(--muted-2); border-inline-end: 0; pointer-events: none; }
-  .lf-summary-checkpoint { padding-block: 4px; }
-  /* Keep the context label readable when the disclosure needs another line. */
-  .lf-summary-header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
-  .lf-summary-label { min-width: 0; overflow-wrap: anywhere; color: var(--muted); font: 500 11px/1.3 var(--sans); }
-  .lf-summary-text { color: var(--ink-2); font-size: var(--t-5); line-height: 1.5;
-    overflow-wrap: anywhere; user-select: text; }
-  .lf-summary-text > :first-child { margin-top: 0; }
-  .lf-summary-text > :last-child { margin-bottom: 0; }
-  .lf-summary-expand { min-height: var(--aim-floor); max-inline-size: 100%; flex-shrink: 0; border: 0;
-    padding: 4px 0; background: transparent; color: var(--accent); font: 600 11px/1.4 var(--sans);
-    cursor: pointer; }
-  .lf-summary-required { margin-top: 6px; color: var(--turn-ink); font: 600 11px/1.4 var(--sans); }
-  .lf-summary-originals { min-width: 0; padding-inline-start: 12px; }
-  .lf-summary-originals[hidden] { display: none; }
-  .lf-summary-originals > .lf-msg { margin-block: 16px; }
-  .lf-summary-expand:is(:focus-visible, .lf-focus-visible) {
-    outline: var(--focus-ring); --lf-focus-ring: summary-fold;
-    outline-offset: calc(-1 * var(--focus-ring-w)); }
   /* The reply box stands on the inset the quote and messages share, the column the
      find box also stands on. Standing wider so its draft began at the sent messages'
      text edge put the one bordered field in the list 7px past every other box on both

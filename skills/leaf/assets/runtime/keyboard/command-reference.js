@@ -50,7 +50,16 @@ import {
   keySequenceTemplate,
   neutralStates,
 } from "./presentation.js";
-import { handBack, tabStops, focusDestination, focused } from "../focus.js";
+import {
+  handBack,
+  tabStops,
+  focusDestination,
+  focused,
+  closeLayer,
+  openLayer,
+  openerOf,
+  rove,
+} from "../focus.js";
 import { closeControl } from "../widget-elements.js";
 import { keeps } from "../keeps.js";
 import { ELEMENTS, pageScope, pageScopes } from "./register.js";
@@ -181,7 +190,6 @@ function declaredStack(origin) {
 
 let commandRoutesAtOpen = new Map();
 let commandReferenceIsOpen = false;
-let commandReferenceOrigin = null;
 let commandReferenceInvoke = null;
 
 const EMPTY_CATALOG = Object.freeze({
@@ -243,7 +251,7 @@ const spokenReferenceSteps = (row, route, steps, declared) => {
 // Evaluate every dynamic declaration once while opening. Search never calls back into the
 // register, and rendered records retain no executable command or liveness function.
 function captureCommandReferenceCatalog() {
-  const referenceScopes = declaredStack(commandReferenceOrigin)
+  const referenceScopes = declaredStack(openerOf(commandReferenceDialog))
     .map((scope) => {
       const inScope = userIn(scope) || scope.liveInCommandReference;
       const rows = scope.rows
@@ -578,7 +586,6 @@ function activateCommandEntry(entry) {
 
 function commandEntryTemplate(entry, promoted = false, shown = true) {
   const selected = commandReferenceView.selectedCommandId === entry.id;
-  const tabStop = commandReferenceView.tabStopCommandId === entry.id;
   const action = entry.actionable
     ? html`<button
         type="button"
@@ -592,7 +599,6 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
         ]
           .filter(Boolean)
           .join(" ")}
-        .tabIndex=${tabStop ? 0 : -1}
         title=${entry.available ? "Run command" : entry.unavailableMessage}
         @click=${() => activateCommandEntry(entry)}
         .textContent=${entry.title}
@@ -783,6 +789,12 @@ function presentCommandReference() {
   updateCommandReferenceView();
   presentCommandReferenceClose();
   render(commandReferenceTemplate(), commandReferenceDialog);
+  // The results are one roving group: Tab reaches the selected command, or the first,
+  // and the arrows walk the rest (focus.js, `rove`).
+  rove(
+    commandReferenceDialog.querySelectorAll(".lf-command-reference-command"),
+    commandButton(commandReferenceView.tabStopCommandId),
+  );
 }
 
 function readCommandReferenceSearch(event) {
@@ -807,7 +819,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
   const preserveSelection = fresh && Boolean(pageSelection());
   const handingBack =
     !open && restoreFocus && commandReferenceDialog.contains(focused());
-  const restore = handingBack ? commandReferenceOrigin : null;
+  const restore = handingBack ? openerOf(commandReferenceDialog) : null;
   if (fresh) {
     commandReferenceInvoke = invokeCommand;
     for (const popover of openPopovers())
@@ -821,8 +833,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
     // and the user who opened the reference four screens down would Tab from there.
     // A popover opened while nothing held focus lets go as it closes (layer-stack.js),
     // so that user reads as standing on `body` here too.
-    const at = focused();
-    commandReferenceOrigin = at === document.body ? null : at;
+    openLayer(commandReferenceDialog);
     commandRoutesAtOpen = availableCommandRoutes({ commands: true });
   }
   commandReferenceIsOpen = open;
@@ -845,31 +856,38 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
   }
   commandReferenceDialog.classList.toggle("open", open);
   if (open && !commandReferenceDialog.open) commandReferenceDialog.showModal();
-  else if (!open && commandReferenceDialog.open) commandReferenceDialog.close();
-  // A closed dialog's search box keeps focus until the browser's next focus fixup, so the
-  // repaint below would read the user as still typing there, and the shortcut bar would
-  // keep the More it hands back to standing down. Release it with the dialog.
-  if (!open && commandReferenceDialog.contains(document.activeElement))
-    document.activeElement.blur();
-
-  // The results are a real overflow region and must enter the modal Tab loop.
-  if (open) reachScrollers(commandReferenceDialog);
-  if (open)
-    focusDestination(
-      commandReferenceDialog.querySelector(
-        preserveSelection
-          ? ".lf-command-reference-close"
-          : ".lf-command-reference-search",
-      ),
-      "move",
-    );
-  repaint();
   // The reference is a bounded interaction rather than a level of the page: it claims the
   // whole keyboard while it stands and hands the user back itself, to the control the
   // press displaced, or to the page where that control has gone — the layer it stood in
   // may have closed under the user while the reference was up — which is where a user
-  // who pressed `?` from the page was all along.
-  if (handingBack) handBack(restore);
+  // who pressed `?` from the page was all along. A closed dialog's search box keeps focus
+  // until the browser's next focus fixup, so the repaint below would read the user as
+  // still typing there, and the shortcut bar would keep the More it hands back to
+  // standing down: the close releases it with the dialog, and hands the user back once
+  // its repaint has drawn that More again.
+  if (!open) {
+    closeLayer(
+      () => {
+        if (commandReferenceDialog.open) commandReferenceDialog.close();
+        if (commandReferenceDialog.contains(document.activeElement))
+          document.activeElement.blur();
+        repaint();
+      },
+      handingBack && (() => handBack(restore)),
+    );
+    return;
+  }
+  // The results are a real overflow region and must enter the modal Tab loop.
+  reachScrollers(commandReferenceDialog);
+  focusDestination(
+    commandReferenceDialog.querySelector(
+      preserveSelection
+        ? ".lf-command-reference-close"
+        : ".lf-command-reference-search",
+    ),
+    "move",
+  );
+  repaint();
 }
 
 export function moveCommandReferenceFocus(dir) {

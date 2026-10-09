@@ -66,6 +66,21 @@
         margin: 0;
       }
 
+      #bg-framed-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--sp-3);
+        padding: var(--sp-3);
+        border: 1px solid var(--rule);
+        background: var(--card);
+        --lf-block-frame: 1;
+        --lf-holds-edge: 1;
+      }
+
+      #bg-framed-row > p {
+        flex: 1 1 14rem;
+      }
+
       /* The summary beside the log at one part to two, from bases of 14rem and 28rem,
          so the two stack below 696px. */
       #bg-run {
@@ -896,7 +911,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 data-view="updates"
                 aria-pressed="false"
               >
-                Previous updates
+                Progress messages
               </button>
               <label for="bg-panel-width">Sample width</label>
               <select id="bg-panel-width" class="field">
@@ -928,8 +943,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   keeps its earlier decisions in a summary.
                 </p>
                 <p id="bg-thread-updates">
-                  <strong>Previous updates.</strong> Open the folded checks above the
-                  answer. These ephemeral updates folded when the answer arrived.
+                  <strong>Progress messages.</strong> Show the folded checks from the
+                  answer’s header, then hide them again.
                 </p>
               </template>
             </lf-sample>
@@ -995,13 +1010,17 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               short conversation directly; in a long conversation it stays visible while
               you scroll. Send a reply: focus stays on the conversation card or its
               title, including in the floating card. Press <kbd>c</kbd> to write again;
-              <kbd>Escape</kbd> leaves a floating card for its page target. While you
-              write in a short thread, an arriving reply waits behind “new reply” until
-              you open it. Switch to another browser tab, have the agent add a reply,
-              then return: held replies and the first refreshed reply appear
+              <kbd>Escape</kbd> leaves a floating card for its page target. With a panel
+              thread open and its reply editor idle, have the agent append a message: it
+              appears immediately, moving Reply and later cards down while the existing
+              messages keep their place. Repeat with an answer taller than the panel:
+              the previous reading stays in view rather than jumping to the end. While
+              you write in a short thread, an arriving reply waits behind “new reply”
+              until you open it. Switch to another browser tab, have the agent add a
+              reply, then return: held replies and the first refreshed reply appear
               automatically with the usual arrival tint. Your draft and caret stay in
-              the same editor. Leave this page visible beside another window and focus
-              that window: new replies still wait behind the notice.
+              the same editor. Leave this page visible beside another window while
+              composing and focus that window: new replies still wait behind the notice.
             </p>
             <p id="bg-thread-notices">
               <strong>New information.</strong> Have the agent add a message after the
@@ -1183,10 +1202,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 the disclosure.
               </p>
               <p id="bg-thread-updates">
-                <strong>Previous updates.</strong> The ephemeral schedule checks fold
+                <strong>Progress messages.</strong> The ephemeral schedule checks fold
                 automatically when their final answer arrives, without adding a digest.
-                Choose “Previous updates” in the practice page, then expand the folded
-                checks with a press or Enter.
+                Choose “Progress messages” in the practice page, then use “Show 2
+                progress messages” beside the answer’s timestamp with a press or Enter.
               </p>
               <p id="bg-thread-unread">
                 <strong>Unread replies.</strong> The seeded agent replies start unread.
@@ -2265,6 +2284,20 @@ gallery/
                 after="/media/051bee487bfb5d13.png"
               ></lf-shot>
             </section>
+          </section>
+
+          <section id="bg-frame-edges">
+            <h2>Framed rows</h2>
+            <p>
+              This row draws its own frame and declares that its items keep their
+              margins. Both paragraphs start at the same height and leave equal space
+              below them. Narrow the window to stack them: each item keeps the same
+              spacing when the row wraps.
+            </p>
+            <div id="bg-framed-row">
+              <p>Preview checks run before the release.</p>
+              <p>Delivery checks run after the release.</p>
+            </div>
           </section>
 
           <section id="bg-layout-family">

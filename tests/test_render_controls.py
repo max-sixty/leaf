@@ -1610,13 +1610,13 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
         if view == "updates":
             card = frame.locator(f'.lf-thread[data-id="{thread}"]')
             checkpoint = card.locator(".lf-thread-checkpoint")
-            expect(checkpoint.locator(".lf-summary-label")).to_have_text(
-                "Previous updates"
-            )
+            expect(checkpoint.locator(".lf-summary-label")).to_have_count(0)
             expect(checkpoint.locator(".lf-summary-text")).to_have_count(0)
             earlier = checkpoint.locator(".lf-summary-originals")
             expect(earlier).to_be_hidden()
-            expand = checkpoint.get_by_role("button", name="Show 2 earlier messages")
+            expand = card.get_by_role("button", name="Show 2 progress messages")
+            page.locator("#bg-panel-sample").scroll_into_view_if_needed()
+            expect(expand).to_be_in_viewport()
             expand.focus()
             page.keyboard.press("Enter")
             expect(earlier).to_be_visible()
@@ -1624,10 +1624,9 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
             expect(earlier).to_contain_text(
                 "Checking the break and closing discussion."
             )
-            collapse = checkpoint.get_by_role(
-                "button", name="Collapse 2 earlier messages"
-            )
+            collapse = card.get_by_role("button", name="Hide 2 progress messages")
             expect(collapse).to_be_focused()
+            expect(collapse).to_be_in_viewport()
             page.keyboard.press("Enter")
             expect(earlier).to_be_hidden()
             expect(
@@ -6854,9 +6853,9 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
         },
     )
     told(page)
-    page.locator('.lf-thread[data-id="c-diff"]').get_by_role(
-        "button", name="1 new reply", exact=True
-    ).click()
+    expect(page.locator('.lf-thread[data-id="c-diff"] .lf-thread-news')).to_have_count(
+        0
+    )
     page.wait_for_function(
         """() => {
         const d = document.querySelector('#rp-diff');

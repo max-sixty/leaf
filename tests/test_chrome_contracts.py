@@ -1148,9 +1148,10 @@ def test_incoming_reply_follows_a_selected_thread_before_later_cards(
     card.locator(".lf-msg").last.evaluate(
         "el => el.scrollIntoView({block: 'start', behavior: 'instant'})"
     )
-    # Reading later cards takes the composer away from its pinned edge, so a reply
-    # that would move it waits behind its notice and leaves the later card still.
+    # Naming a later card transfers the reading anchor to it. The idle thread still
+    # draws appended replies immediately, without moving that later reading.
     later = page.locator(f'.lf-thread[data-id="{selected}"] + .lf-thread')
+    later.locator(".lf-thread-summary").hover()
     reading_later = later.evaluate("el => el.getBoundingClientRect().top")
     also_visible = append_carried_log_record(
         serve.page_dir,
@@ -1159,15 +1160,15 @@ def test_incoming_reply_follows_a_selected_thread_before_later_cards(
             "author": "agent",
             "agent": "Codex",
             "parent": selected,
-            "text": "This short answer waits while I read later cards.",
+            "text": "This short answer arrives while I read later cards.",
         },
     )
     page.evaluate(
         "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
     )
     arriving = card.locator(f'.lf-msg[data-mid="{also_visible["id"]}"]')
-    expect(arriving).to_have_count(0)
-    expect(card.get_by_role("button", name="1 new reply", exact=True)).to_be_visible()
+    expect(arriving).to_have_count(1)
+    expect(card.locator(".lf-thread-news")).to_have_count(0)
     assert later.evaluate("el => el.getBoundingClientRect().top") == pytest.approx(
         reading_later, abs=2
     )

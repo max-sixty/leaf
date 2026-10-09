@@ -114,6 +114,29 @@ def threads_panel(page: Page) -> None:
     )
 
 
+def progress_messages(page: Page) -> None:
+    """The completed answer and the disclosure of its interim checks."""
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Threads", exact=True
+    ).click()
+    page.locator('#bg-panel-presets [data-view="updates"]').click()
+    frame = page.frame_locator("#bg-panel-sample iframe")
+    frame.locator(
+        '.lf-thread[data-id="bg-progress-question"] .lf-summary-expand'
+    ).wait_for(state="visible")
+    # Capture the reading after the sample's initial unread-news notice has left.
+    frame.locator(".lf-notice.show").wait_for(state="hidden")
+    page.locator("#bg-panel-sample").scroll_into_view_if_needed()
+
+
+def progress_messages_expanded(page: Page) -> None:
+    """Retained progress, opened from the answer's disclosure."""
+    progress_messages(page)
+    page.frame_locator("#bg-panel-sample iframe").locator(
+        '.lf-thread[data-id="bg-progress-question"] .lf-summary-expand'
+    ).click()
+
+
 def screenshot_comparison(page: Page) -> None:
     """Reach the comparison rail's standalone endpoint controls."""
     page.get_by_role("tab", name="Page & layout", exact=True).click()
@@ -253,6 +276,17 @@ def code_note(page: Page) -> None:
     """The first code block with a note, the note in view."""
     page.locator("lf-code pre lf-note").first.evaluate(
         "note => note.scrollIntoView({block: 'center'})"
+    )
+
+
+def frame_edges(page: Page) -> None:
+    """The drawn row's parallel paragraphs, with their declared margins intact."""
+    page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
+        "Page & layout", exact=True
+    ).click()
+    settle(page)
+    page.locator("#bg-frame-edges").evaluate(
+        "el => el.scrollIntoView({block: 'start'})"
     )
 
 
@@ -447,6 +481,8 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         card_reply_large,
         card_reply_resolved,
         threads_panel,
+        progress_messages,
+        progress_messages_expanded,
         image_preview,
         screenshot_comparison,
         panel_by_keyboard,
@@ -461,6 +497,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         ask_by_keyboard,
         card_grabbed,
         code_note,
+        frame_edges,
         theme_hierarchy,
         wide_passage,
         multiline_passage,
@@ -553,6 +590,19 @@ class State:
 
 
 STATES = (
+    State("progress-messages", "developer/feature-gallery", progress_messages),
+    State(
+        "progress-messages-expanded",
+        "developer/feature-gallery",
+        progress_messages_expanded,
+    ),
+    State(
+        "progress-messages-touch",
+        "developer/feature-gallery",
+        progress_messages,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("screenshot-comparison", "developer/feature-gallery", screenshot_comparison),
     State(
         "screenshot-comparison-phone",
@@ -619,6 +669,7 @@ STATES = (
         touch=True,
     ),
     State("gallery-tabs", "developer/feature-gallery", at_rest),
+    State("frame-edges", "developer/feature-gallery", frame_edges),
     State("gallery-theme", "developer/feature-gallery", theme_hierarchy),
     State(
         "gallery-theme-dark",

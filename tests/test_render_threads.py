@@ -184,6 +184,7 @@ def test_held_news_keeps_an_agent_header_and_resizes_its_notice(browser, serve):
     panel_settled(page)
     thread = page.locator(f'.lf-thread[data-id="{root}"]')
     focus_panel_thread(thread)
+    thread.locator("leaf-text").focus()
     message = thread.locator(".lf-msg").first
     message.hover()
     reaction = message.locator(".lf-react-trigger")
@@ -1029,8 +1030,9 @@ def test_previous_updates_can_fold_without_summary_prose(browser, serve, width):
 
 
 @pytest.mark.parametrize("surface", ["panel", "inline"])
+@pytest.mark.parametrize("interleaved", [False, True])
 def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
-    browser, serve, surface
+    browser, serve, surface, interleaved
 ):
     """The answer and its fold arrive together; originals remain a keyboard route."""
     url = serve(SEATED_QUESTION_PAGE)
@@ -1043,6 +1045,26 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
         for_event=root,
         ephemeral=True,
     )
+    owed = root
+    if interleaved:
+        intervening = append_command(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "user",
+                "parent": root,
+                "text": "Check the mount too.",
+            },
+        )
+        owed = intervening["id"]
+        thread_model.post_reply(
+            serve.page_dir,
+            owed,
+            "Checking the mount.",
+            None,
+            for_event=owed,
+            ephemeral=True,
+        )
 
     def show(page):
         if surface == "panel":
@@ -1054,6 +1076,8 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
         return page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
 
     page = open_page(browser, url)
+    if surface == "inline":
+        resized(page, 390, 844)
     card = show(page)
     identity = "data-mid" if surface == "panel" else "data-event"
     original = card.locator(f'.lf-msg[{identity}="{progress["id"]}"]')
@@ -1065,10 +1089,10 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
 
     answer = thread_model.post_reply(
         serve.page_dir,
-        root,
+        owed,
         "The schedule works.",
         None,
-        for_event=root,
+        for_event=owed,
     )
     told(page)
     notice = card.get_by_role("button", name="1 new reply", exact=True)
@@ -1085,16 +1109,45 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     notice.click()
     expect(card.locator(f'.lf-msg[{identity}="{answer["id"]}"]')).to_be_visible()
     checkpoint = card.locator(".lf-thread-checkpoint")
-    expect(checkpoint.locator(".lf-summary-label")).to_have_text("Previous updates")
+    expect(checkpoint.locator(".lf-summary-label")).to_have_count(0)
     expect(checkpoint.locator(".lf-summary-text")).to_have_count(0)
     expect(original).to_be_visible()
 
     # A fresh reading starts folded, independent of the live reader's protected focus.
     fresh = open_page(browser, url)
+    if surface == "inline":
+        resized(fresh, 390, 844)
     fresh_card = show(fresh)
     fresh_original = fresh_card.locator(f'.lf-msg[{identity}="{progress["id"]}"]')
     expect(fresh_original).to_be_hidden()
-    expand = fresh_card.get_by_role("button", name="Show 1 earlier message", exact=True)
+    count = 2 if interleaved else 1
+    noun = "messages" if interleaved else "message"
+    expand = fresh_card.get_by_role(
+        "button", name=f"Show {count} progress {noun}", exact=True
+    )
+    answer_header = fresh_card.locator(
+        f'.lf-msg[{identity}="{answer["id"]}"] > .lf-msg-head'
+    )
+    expect(answer_header.get_by_role("button")).to_have_count(1)
+    expect(expand).to_have_attribute("aria-expanded", "false")
+    expect(fresh_card.locator(".lf-summary-label")).to_have_count(0)
+    time_box = answer_header.locator("time").bounding_box()
+    control_box = expand.bounding_box()
+    if surface == "panel":
+        assert (
+            control_box["y"] <= time_box["y"] < control_box["y"] + control_box["height"]
+        )
+    else:
+        header_box = answer_header.bounding_box()
+        assert header_box["x"] <= control_box["x"]
+        assert (
+            control_box["x"] + control_box["width"]
+            <= header_box["x"] + header_box["width"]
+        )
+    if interleaved:
+        expect(
+            fresh_card.get_by_text("Check the mount too.", exact=True)
+        ).to_be_visible()
     expand.focus()
     fresh.keyboard.press("Shift+Tab")
     fresh.keyboard.press("Tab")
@@ -1103,11 +1156,118 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     fresh.keyboard.press("Enter")
     expect(fresh_original).to_be_visible()
     expect(fresh_original).to_contain_text("Checking the camera.")
+    if interleaved:
+        expect(
+            fresh_card.get_by_text("Checking the mount.", exact=True)
+        ).to_be_visible()
     collapse = fresh_card.get_by_role(
-        "button", name="Collapse 1 earlier message", exact=True
+        "button", name=f"Hide {count} progress {noun}", exact=True
     )
+    expect(collapse).to_be_in_viewport()
     collapse.press("Enter")
     expect(fresh_original).to_be_hidden()
+    if interleaved:
+        expect(fresh_card.get_by_text("Checking the mount.", exact=True)).to_be_hidden()
+
+
+@pytest.mark.parametrize(("width", "touch"), [(390, False), (311, True)])
+def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
+    browser, serve, width, touch
+):
+    """A narrow floating card keeps the full disclosure beside shared-target controls."""
+    url = serve(PANEL_PAGE)
+    roots = [
+        panel_comment(serve.page_dir, text, {"section": "lede"})
+        for text in ("Check the schedule.", "Check the camera.", "Check the mount.")
+    ]
+    root = roots[0]
+    progress = [
+        thread_model.post_reply(
+            serve.page_dir, root, text, None, for_event=root, ephemeral=True
+        )
+        for text in (
+            "I'm checking the afternoon schedule against the break.",
+            "The three sessions take two hours. I'm checking whether the discussion still fits.",
+            "The room is available until five. That leaves enough time for the break.",
+        )
+    ]
+    thread_model.post_reply(
+        serve.page_dir,
+        root,
+        "Three sessions, a fifteen-minute break, and the closing discussion fit before five.",
+        None,
+        for_event=root,
+    )
+    context = browser.new_context(
+        viewport={"width": width, "height": 670}, has_touch=touch, is_mobile=touch
+    )
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-margin-marker").first.click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    card = preview.locator(f'.lf-page-thread[data-thread="{root}"]')
+    for _ in roots[1:]:
+        if card.count():
+            break
+        preview.get_by_role("button", name="Previous thread", exact=True).click()
+    expect(card).to_be_visible()
+    expect(preview.locator(".lf-margin-preview-position")).to_have_text("1/3")
+    originals = [
+        card.locator(f'.lf-msg[data-event="{message["id"]}"]') for message in progress
+    ]
+    for original in originals:
+        expect(original).to_be_hidden()
+
+    def expect_unclipped_words(control):
+        expect(control).to_be_visible()
+        expect(control).to_be_in_viewport(ratio=1)
+        geometry = control.evaluate("""control => {
+          const range = document.createRange();
+          range.selectNodeContents(control);
+          const words = [...range.getClientRects()].filter(box => box.width && box.height);
+          const clipped = [];
+          for (let node = control; node; node = node.parentElement) {
+            if (!/^(hidden|clip|auto|scroll)$/.test(getComputedStyle(node).overflowX)) continue;
+            const box = node.getBoundingClientRect();
+            if (words.some(word => word.left < box.left - 1 || word.right > box.right + 1))
+              clipped.push({class: node.className, left: box.left, right: box.right});
+          }
+          return {words: words.length, clipped};
+        }""")
+        assert geometry["words"] > 0, geometry
+        assert geometry["clipped"] == [], geometry
+
+    expand = card.get_by_role("button", name="Show 3 progress messages", exact=True)
+    expect_unclipped_words(expand)
+    expand.focus()
+    page.keyboard.press("Shift+Tab")
+    page.keyboard.press("Tab")
+    expect(expand).to_be_focused()
+    assert expand.evaluate("node => node.matches(':focus-visible')")
+    page.keyboard.press("Enter")
+    for original in originals:
+        expect(original).to_be_visible()
+    collapse = card.get_by_role("button", name="Hide 3 progress messages", exact=True)
+    expect(collapse).to_be_focused()
+    expect_unclipped_words(collapse)
+    page.keyboard.press("Enter")
+    for original in originals:
+        expect(original).to_be_hidden()
+    expect(expand).to_be_focused()
+    expect_unclipped_words(expand)
+
+    # A newer reading gesture supersedes that landing even while focus stays on Hide.
+    page.keyboard.press("Enter")
+    expect_unclipped_words(collapse)
+    transcript = card.locator(":scope > .lf-thread-transcript")
+    transcript.hover()
+    page.mouse.wheel(0, -1000)
+    expect(transcript).to_have_js_property("scrollTop", 0)
+    expect(collapse).to_be_focused()
+    resized(page, width, 650)
+    expect(card.locator(".lf-msg").first).to_be_in_viewport()
+    expect(collapse).to_be_focused()
+    expect(originals[0]).to_be_in_viewport()
 
 
 def test_a_summary_gathering_the_message_the_user_is_on_keeps_them_on_it(
@@ -3209,9 +3369,6 @@ def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, se
         },
     )
     told(page)
-    page.locator(f'.lf-thread[data-id="{root}"]').get_by_role(
-        "button", name="1 new reply", exact=True
-    ).click()
     workflow = page.locator(f'.lf-msg[data-mid="{later["id"]}"] .lf-msg-sending')
     expect(workflow).to_have_text("Sent")
     assert workflow.evaluate(
@@ -3288,6 +3445,49 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
         news.click()
     expect(card.locator(".lf-msg").filter(has_text="Cache is done")).to_be_visible()
     expect(page.locator("#fb-done > #fb-cache")).to_be_visible()
+
+
+@pytest.mark.watch_shifts
+@pytest.mark.parametrize("reply_size", ["short", "tall"])
+def test_an_idle_open_panel_thread_shows_appended_replies(browser, serve, reply_size):
+    """An append moves the idle reply and later cards, preserving existing messages.
+
+    Even an answer taller than the panel must leave the previous reading in place;
+    following the end is reserved for a reply row that was already pinned.
+    """
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Keep the discussion here.")
+    later = panel_comment(serve.page_dir, "A later conversation.")
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
+    focus_panel_thread(thread)
+    message = thread.locator(".lf-msg").first
+    field = thread.locator("leaf-text")
+    following = page.locator(f'.lf-threads > .lf-thread[data-id="{later}"]')
+    rendered(page)
+    before = {
+        "message": message.bounding_box(),
+        "reply": field.bounding_box(),
+        "following": following.bounding_box(),
+        "scroll": page.locator(".lf-threads").evaluate("list => list.scrollTop"),
+    }
+    words = "The answer arrived without another click."
+    if reply_size == "tall":
+        words = "\n\n".join([words] * 30)
+    reply = append_agent_reply(serve.page_dir, root, words)
+    told(page)
+    expect(thread.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_be_visible()
+    expect(thread.locator(".lf-thread-news")).to_have_count(0)
+    rendered(page)
+    assert message.bounding_box() == before["message"]
+    assert field.bounding_box()["y"] > before["reply"]["y"]
+    assert following.bounding_box()["y"] > before["following"]["y"]
+    assert (
+        page.locator(".lf-threads").evaluate("list => list.scrollTop")
+        == before["scroll"]
+    )
 
 
 @pytest.mark.parametrize("contents", ["short", "long"])
@@ -4060,7 +4260,7 @@ def test_walking_to_a_thread_shows_the_replies_it_held(
 
 def test_a_dialog_handing_the_user_back_to_a_thread_is_no_arrival(browser, serve):
     """A layer that closes hands the user back to where they stood. The command
-    reference opened from a thread holding a reply, and closed with Escape, returns
+    reference opened from a thread with an unfinished draft, and closed with Escape, returns
     them to the thread's title, which they never left, so the reply stays held behind
     its notice."""
     url = serve(PANEL_PAGE)
@@ -4072,6 +4272,7 @@ def test_a_dialog_handing_the_user_back_to_a_thread_is_no_arrival(browser, serve
     summary = thread.locator(".lf-thread-summary")
     if thread.get_attribute("open") is None:
         summary.click()
+    write(thread.locator("leaf-text"), "An unfinished reply.")
     summary.focus()
     reply = append_carried_log_record(
         serve.page_dir,
@@ -6765,7 +6966,6 @@ def test_a_thread_reopened_mid_fold_folds_again_when_it_settles(browser, serve):
         },
     )
     told(page)
-    thread.get_by_role("button", name="1 new reply", exact=True).click()
     expect(thread.locator(".lf-msg")).to_have_count(2)
 
     focus_panel_thread(page.locator(f'.lf-thread[data-id="{c1}"]'))
@@ -11130,3 +11330,55 @@ def test_pending_messages_stay_readable_through_admission(browser, serve, surfac
         "pending": [False, False],
         "pendingCursors": [],
     }
+
+
+@pytest.mark.watch_shifts
+@pytest.mark.parametrize("reading", ["open-transcript", "later-card"])
+def test_appended_replies_keep_the_panel_reading_when_the_open_title_is_clipped(
+    browser, serve, reading
+):
+    """The open transcript holds the reading unless the reader names a later card.
+
+    A card-level anchor chosen only from visible titles instead scrolls old messages
+    away to hold the next title. Agent and other-tab user appends share the same rule.
+    """
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "\n\n".join(["Reading the existing conversation."] * 5)
+    )
+    later = [
+        panel_comment(serve.page_dir, f"Later conversation {i}.") for i in range(18)
+    ]
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
+    focus_panel_thread(thread)
+    listing = page.locator(".lf-threads")
+    listing.hover()
+    page.mouse.wheel(0, 90)
+    scroll_settled(page)
+    following = page.locator(f'.lf-threads > .lf-thread[data-id="{later[0]}"]')
+    if reading == "later-card":
+        following.locator(":scope > .lf-thread-summary").hover()
+        reference = following
+    else:
+        page.mouse.move(100, 100)
+        reference = thread.locator(".lf-msg").first
+    rendered(page)
+    band = listing.bounding_box()
+    original = thread.locator(".lf-msg").first.bounding_box()
+    assert thread.bounding_box()["y"] < band["y"]
+    assert original["y"] + original["height"] > band["y"]
+    editor = thread.locator("leaf-text").bounding_box()
+    assert editor["y"] + editor["height"] < band["y"] + band["height"] - 1
+    before = reference.bounding_box()
+    for append in (append_agent_reply, append_user_reply):
+        reply = append(
+            serve.page_dir, root, "New material here.\n\nAnother paragraph follows."
+        )
+        told(page)
+        expect(thread.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_have_count(1)
+        expect(thread.locator(".lf-thread-news")).to_have_count(0)
+        rendered(page)
+        assert reference.bounding_box() == before

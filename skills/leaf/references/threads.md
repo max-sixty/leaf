@@ -179,8 +179,9 @@ takes that move in hand, as `leaf task start` does, with the update as its
 [Conversation handoff](conversation-loop.md#when-to-write), "When to write", makes
 the first one your first command after a delivery. A proactive progress update
 names a thread with no response due. The updates stay visible until the
-next non-ephemeral agent reply in that thread, then fold under “Previous updates”
-without summary prose. The original messages remain available to expand and edit.
+next non-ephemeral agent reply in that thread, then fold behind “Show N progress
+messages” beside that reply’s timestamp. The original messages remain available
+to expand and edit.
 Intervening user messages remain visible; separate runs of updates fold separately.
 One update can fold on its own. An explicit summary can cover those updates instead.
 

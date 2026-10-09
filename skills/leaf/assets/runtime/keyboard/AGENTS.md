@@ -75,6 +75,9 @@ browser's order.
 - A selected destination (thread, Ask, heading) has a let-go step back to the
   document, through `letGo`, which lands on the visible block rather than an
   earlier chrome invoker.
+- Cancelling Page Map with Escape or its Close control returns to the opening
+  focus, or to the prior reading position when there is no opener. Activating a
+  selected destination navigates there instead of taking that cancellation route.
 - A thread in the margin card has the element it is about as its parent.
 
 Bounded interactions (Go-to, target hints, page search, reactions, the command

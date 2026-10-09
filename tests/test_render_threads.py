@@ -2435,6 +2435,18 @@ def test_comment_on_the_page_starts_a_thread_from_a_card_under_the_banner(
     )
     assert [round(edge) for edge in hung] == [0, 0], hung
 
+    # The editor and Send share the only frame. The popover ends at that frame's
+    # focused paint, rather than adding a padded box around the comment box.
+    edges = card.evaluate("""el => {
+      const card = el.getBoundingClientRect();
+      const field = el.querySelector('.lf-compose-field');
+      const box = field.getBoundingClientRect();
+      const ring = parseFloat(getComputedStyle(field).outlineWidth);
+      return [box.left - ring - card.left, box.right + ring - card.right,
+              box.top - ring - card.top, box.bottom + ring - card.bottom];
+    }""")
+    assert edges == pytest.approx([0, 0, 0, 0]), edges
+
     # A crowded toolbar can put the anchor left of the space the card needs.
     # Native placement then uses the window, and returns to the anchor when it fits.
     original_viewport = page.viewport_size

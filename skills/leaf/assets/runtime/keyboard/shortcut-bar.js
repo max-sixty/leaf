@@ -89,6 +89,7 @@ import {
   setNoticeContext,
 } from "../notifications.js";
 import { repaint } from "../repaint.js";
+import { focusDestination } from "../focus.js";
 import { walkPosition } from "../walk-position.js";
 import { declareBottomBar } from "../geometry.js";
 import { pagePresented } from "../presentation.js";
@@ -335,7 +336,8 @@ const keyboardSettings = el("button", "lf-btn", "Keyboard shortcuts");
 keyboardSettings.type = "button";
 keyboardSettings.addEventListener("click", () => {
   dismissBannerControls();
-  bannerControlDoor(keyboardSettings)?.focus({ preventScroll: true });
+  const door = bannerControlDoor(keyboardSettings);
+  if (door) focusDestination(door, "move");
   openCompleteReference();
 });
 registerBannerControl({

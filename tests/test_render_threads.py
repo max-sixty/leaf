@@ -2411,7 +2411,7 @@ def test_comment_on_the_page_starts_a_thread_from_a_card_under_the_banner(
     }""")
     expect(box).to_have_js_property("value", draft)
     resized(page, original_viewport["width"], original_viewport["height"])
-    card.get_by_role("button", name="Remove pasted image 1", exact=True).click()
+    card.get_by_role("button", name="Remove attached image 1", exact=True).click()
 
     count = toggle.get_attribute("data-lf-count")
     write(box, "Does the plan cover the self-hosted runners?")
@@ -2573,8 +2573,8 @@ def test_a_diff_outlet_keeps_the_shared_attachment_controls(browser, serve):
     field = bar.locator("leaf-text")
     pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
     paste_image(field, pixels)
-    image_open = bar.get_by_role("button", name="View pasted image 1", exact=True)
-    remove = bar.get_by_role("button", name="Remove pasted image 1", exact=True)
+    image_open = bar.get_by_role("button", name="View attached image 1", exact=True)
+    remove = bar.get_by_role("button", name="Remove attached image 1", exact=True)
     expect(image_open.locator("img")).to_be_visible()
     expect(bar.locator(".lf-composer-media-item")).to_have_css(
         "border-radius", button_radius(page)
@@ -2662,7 +2662,7 @@ def test_a_phone_editor_inside_a_marked_widget_keeps_pointer_entry(browser, serv
     expect(field).to_be_focused()
     pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
     paste_image(field, pixels)
-    page.get_by_role("button", name="View pasted image 1", exact=True).click()
+    page.get_by_role("button", name="View attached image 1", exact=True).click()
     viewer = page.get_by_role("dialog", name="Image preview")
     expect(viewer).to_be_visible()
     page.keyboard.press("Escape")
@@ -2678,7 +2678,7 @@ def test_a_phone_editor_inside_a_marked_widget_keeps_pointer_entry(browser, serv
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["kind"] == "comment"
     assert sent["anchor"] == first["anchor"]
-    assert sent["text"] == words + "\n\n![Pasted image](/media/051bee487bfb5d13.png)"
+    assert sent["text"] == words + "\n\n![Attached image](/media/051bee487bfb5d13.png)"
     assert "about" not in sent
 
 
@@ -2708,7 +2708,7 @@ def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
 
     paste_image(reply, pixels)
 
-    image_markdown = "![Pasted image](/media/051bee487bfb5d13.png)"
+    image_markdown = "![Attached image](/media/051bee487bfb5d13.png)"
     expect(reply).to_have_js_property("value", "")
     draft_image = thread.locator(".lf-composer-media img")
     expect(draft_image).to_be_visible()
@@ -2775,7 +2775,7 @@ def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
     expect(viewer.locator("img")).to_have_attribute(
         "src", "/media/051bee487bfb5d13.png"
     )
-    expect(viewer.locator("img")).to_have_attribute("alt", "Pasted image")
+    expect(viewer.locator("img")).to_have_attribute("alt", "Attached image")
     # Native close notification arrives after its gesture. An image opened before that
     # notification belongs to the new opening and keeps both its pixels and focus.
     reopened = media_open.evaluate(
@@ -2987,7 +2987,7 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(
         })"""
     )
     assert layout == {"display": "flex", "overflowX": "auto", "scrolls": True}
-    shelf.get_by_role("button", name="Remove pasted image 2").click()
+    shelf.get_by_role("button", name="Remove attached image 2").click()
     rendered(page)
     expect(shelf).to_be_visible()
     expect(shelf.locator(":scope > .lf-composer-media-item")).to_have_count(3)
@@ -2996,16 +2996,16 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(
     assert shelf.locator(".lf-composer-media-remove").evaluate_all(
         "buttons => buttons.map(button => button.getAttribute('aria-label'))"
     ) == [
-        "Remove pasted image 1",
-        "Remove pasted image 2",
-        "Remove pasted image 3",
+        "Remove attached image 1",
+        "Remove attached image 2",
+        "Remove attached image 3",
     ]
     assert shelf.locator(".lf-composer-media-open").evaluate_all(
         "buttons => buttons.map(button => button.getAttribute('aria-label'))"
     ) == [
-        "View pasted image 1",
-        "View pasted image 2",
-        "View pasted image 3",
+        "View attached image 1",
+        "View attached image 2",
+        "View attached image 3",
     ]
     page.keyboard.press("Escape")
     expect(page.locator(".lf-composer")).to_be_hidden()
@@ -3016,9 +3016,9 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(
     assert shelf.locator(".lf-composer-media-remove").evaluate_all(
         "buttons => buttons.map(button => button.getAttribute('aria-label'))"
     ) == [
-        "Remove pasted image 1",
-        "Remove pasted image 2",
-        "Remove pasted image 3",
+        "Remove attached image 1",
+        "Remove attached image 2",
+        "Remove attached image 3",
     ]
     with sending(page, "the retained image draft"):
         page.keyboard.press("ControlOrMeta+Enter")
@@ -3029,7 +3029,7 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(
     ]
     assert len(comments) == 1, comments
     sent = comments[0]
-    image_markdown = "![Pasted image](/media/051bee487bfb5d13.png)"
+    image_markdown = "![Attached image](/media/051bee487bfb5d13.png)"
     assert sent["kind"] == "comment"
     assert sent["text"].splitlines() == [
         image_markdown,
@@ -11346,3 +11346,222 @@ def test_appended_replies_keep_the_panel_reading_when_the_open_title_is_clipped(
         expect(thread.locator(".lf-thread-news")).to_have_count(0)
         rendered(page)
         assert reference.bounding_box() == before
+
+
+CAPTURE_PAGE = leaf_page(
+    "Capture a page region",
+    """<h1>Capture a page region</h1>
+<section id="capture-target" aria-label="Area to inspect">
+  <lf-capture-art id="capture-art"></lf-capture-art>
+  <p id="capture-copy">The green area and blue diagram belong to this passage.</p>
+</section>""",
+    head="""<style>
+      #capture-target { margin-top:700px; margin-bottom:700px; position:relative;
+        width:min(600px,100%); height:300px; background:rgb(10,150,30); }
+      #capture-art { display:block; position:absolute; left:20px; top:30px;
+        width:160px; height:100px; }
+      #capture-copy { position:absolute; left:20px; right:20px; top:190px; }
+    </style>""",
+)
+
+
+def capture_page(browser, serve, *, touch=False):
+    """A scrolled passage with real SVG paint inside a declared shadow widget."""
+    declaration, _ = _shadow_tree_widget("lf-capture-art")
+    module = """
+import {shadowStage} from '/runtime/widget-api.js';
+customElements.define('lf-capture-art', class extends HTMLElement {
+  connectedCallback() {
+    if (this.shadowRoot) return;
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', '160');
+    svg.setAttribute('height', '100');
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('width', '160');
+    rect.setAttribute('height', '100');
+    rect.setAttribute('fill', 'rgb(30,80,240)');
+    svg.append(rect);
+    shadowStage(this, [svg]);
+  }
+});
+"""
+    context = browser.new_context(
+        viewport={"width": 390 if touch else 1200, "height": 844 if touch else 900},
+        has_touch=touch,
+        is_mobile=touch,
+        device_scale_factor=2,
+    )
+    page = open_page(
+        browser,
+        serve(
+            CAPTURE_PAGE,
+            layer_registry={"lf-capture-art": declaration},
+            layer_widgets={"lf-capture-art.js": module},
+        ),
+        context=context,
+    )
+    page.locator("#capture-target").scroll_into_view_if_needed()
+    scroll_settled(page)
+    assert page.evaluate("scrollY") > 0
+    return page
+
+
+def open_capture_area(page, *, touch=False):
+    """Enter the screenshot tool through its ordinary page-control route."""
+    more = page.get_by_role("button", name="More page controls", exact=True)
+    capture = page.get_by_role("button", name="Capture area", exact=True)
+    if touch:
+        more.tap()
+        capture.tap()
+    else:
+        more.click()
+        capture.click()
+    dialog = page.get_by_role("dialog", name="Capture area", exact=True)
+    expect(dialog).to_be_visible()
+    return dialog
+
+
+def test_a_region_capture_keeps_scrolled_shadow_pixels_and_its_comment_anchor(
+    browser, serve
+):
+    page = capture_page(browser, serve)
+    target = page.locator("#capture-target").bounding_box()
+    left, top = int(target["x"]) + 10, int(target["y"]) + 10
+    dialog = open_capture_area(page)
+    page.mouse.move(left, top)
+    page.mouse.down()
+    page.mouse.move(left + 360, top + 170, steps=5)
+    page.mouse.up()
+    selection = dialog.locator(".lf-region-selection")
+    expect(selection).to_be_visible()
+    page.keyboard.press("ArrowRight")
+    page.keyboard.press("Shift+ArrowDown")
+    selected = selection.bounding_box()
+    assert selected["x"] == pytest.approx(left + 10)
+    assert selected["y"] == pytest.approx(top)
+    assert selected["width"] == pytest.approx(360)
+    assert selected["height"] == pytest.approx(180)
+
+    with page.expect_response(lambda response: response.url.endswith("/api/media")):
+        page.keyboard.press("Enter")
+    expect(dialog).to_be_hidden()
+    attachment = page.locator(".lf-composer-media-item img")
+    expect(attachment).to_be_visible()
+    media_url = attachment.get_attribute("src")
+    pixels = (serve.page_dir / media_url.lstrip("/")).read_bytes()
+    image = Image.open(io.BytesIO(pixels)).convert("RGB")
+    assert image.size == (720, 360)
+    assert image.getpixel((40, 80)) == (30, 80, 240)
+    assert image.getpixel((440, 280)) == (10, 150, 30)
+    field = page.locator(".lf-fab-bar leaf-text")
+    expect(field).to_be_focused()
+    write(field, "Inspect this captured diagram.")
+    with sending(page, "the anchored screenshot comment"):
+        field.press("ControlOrMeta+Enter")
+    sent = events_model.read_events(serve.page_dir)[-1]
+    assert sent["kind"] == "comment"
+    assert sent["anchor"]["section"] == "capture-target"
+    assert media_url in sent["text"]
+    assert "Inspect this captured diagram." in sent["text"]
+    page.reload()
+    wait_until_ready(page)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-thread[data-id="{sent["id"]}"]')
+    thread.locator(".lf-thread-summary").click()
+    expect(thread.locator(".lf-message-media img")).to_have_attribute("src", media_url)
+    assert (serve.page_dir / media_url.lstrip("/")).read_bytes() == pixels
+
+
+def test_touch_capture_can_cancel_and_reopen_before_attaching(browser, serve):
+    page = capture_page(browser, serve, touch=True)
+    before = events_model.read_events(serve.page_dir)
+    before_media = sorted((serve.page_dir / "media").iterdir())
+    dialog = open_capture_area(page, touch=True)
+    dialog.get_by_role("button", name="Cancel", exact=True).tap()
+    expect(dialog).to_be_hidden()
+    expect(page.locator(".lf-composer-media-item")).to_have_count(0)
+    assert events_model.read_events(serve.page_dir) == before
+    assert sorted((serve.page_dir / "media").iterdir()) == before_media
+    dialog = open_capture_area(page, touch=True)
+    page.keyboard.press("Escape")
+    expect(dialog).to_be_hidden()
+    expect(page.locator(".lf-composer-media-item")).to_have_count(0)
+    dialog = open_capture_area(page, touch=True)
+    target = page.locator("#capture-target").bounding_box()
+    left, top = int(target["x"]) + 10, int(target["y"]) + 20
+    touch = page.context.new_cdp_session(page)
+    try:
+        for kind, points in (
+            ("touchStart", [{"x": left, "y": top}]),
+            ("touchMove", [{"x": left + 180, "y": top + 130}]),
+            ("touchEnd", []),
+        ):
+            touch.send(
+                "Input.dispatchTouchEvent", {"type": kind, "touchPoints": points}
+            )
+    finally:
+        touch.detach()
+    expect(dialog.locator(".lf-region-selection")).to_be_visible()
+    with page.expect_response(lambda response: response.url.endswith("/api/media")):
+        dialog.get_by_role("button", name="Attach capture", exact=True).tap()
+    expect(dialog).to_be_hidden()
+    attachment = page.locator(".lf-composer-media-item img")
+    expect(attachment).to_be_visible()
+    image = Image.open(serve.page_dir / attachment.get_attribute("src").lstrip("/"))
+    assert image.size == (360, 260)
+    assert events_model.read_events(serve.page_dir) == before
+
+
+@pytest.mark.parametrize("change", ["resize", "revision"])
+def test_a_region_capture_anchors_the_page_as_it_stands_at_confirmation(
+    browser, serve, change
+):
+    """The selector's own modal must not freeze the target inventory or geometry."""
+    source = leaf_page(
+        "Capture after the page changes",
+        "<h1>Capture current content</h1>"
+        '<section id="capture-first" class="capture-zone">First area</section>'
+        '<section id="capture-second" class="capture-zone">Second area</section>',
+        head="""<style>
+          .capture-zone { position:fixed; top:240px; width:180px; height:120px;
+            background:rgb(10,150,30); }
+          #capture-first, #capture-revised { left:100px; }
+          #capture-second { left:650px; }
+          @media (max-width:1000px) {
+            #capture-first { left:650px; }
+            #capture-second { left:100px; }
+          }
+        </style>""",
+    )
+    context = browser.new_context(viewport={"width": 1200, "height": 900})
+    page = open_page(browser, live_url(serve(source)), context=context)
+    dialog = open_capture_area(page)
+    if change == "resize":
+        resized(page, 900, 900)
+        expected = "capture-second"
+    else:
+        stamp_page(
+            serve.page_dir,
+            source.replace('id="capture-first"', 'id="capture-revised"'),
+            "Replace the first capture area",
+        )
+        told(page)
+        expected = "capture-revised"
+    expect(dialog).to_be_visible()
+    target = page.locator(f"#{expected}").bounding_box()
+    page.mouse.move(target["x"] + 20, target["y"] + 20)
+    page.mouse.down()
+    page.mouse.move(target["x"] + 100, target["y"] + 80)
+    page.mouse.up()
+    with page.expect_response(lambda response: response.url.endswith("/api/media")):
+        page.keyboard.press("Enter")
+    expect(dialog).to_be_hidden()
+    expect(page.locator(".lf-composer-media-item img")).to_be_visible()
+    field = page.locator(".lf-fab-bar leaf-text")
+    expect(field).to_be_focused()
+    with sending(page, "the capture of the current page target"):
+        field.press("ControlOrMeta+Enter")
+    comment = events_model.read_events(serve.page_dir)[-1]
+    assert comment["kind"] == "comment"
+    assert comment["anchor"]["section"] == expected

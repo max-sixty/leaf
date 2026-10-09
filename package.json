@@ -36,6 +36,7 @@
     "@shikijs/core": "4.5.0",
     "@shikijs/engine-javascript": "4.5.0",
     "@shikijs/langs": "4.5.0",
+    "@zumer/snapdom": "3.3.0",
     "acorn": "8.18.0",
     "agentic-mermaid": "0.4.1",
     "amaro": "1.2.1",

@@ -120,6 +120,7 @@ const PAGE_COMMANDS = [
   // already get to, where a walk it crowded out would be the only one.
   "navigation.go-to.open",
   "draw.mode.enter",
+  "capture.region.open",
   "design.mode.enter",
   "annotations.toggle",
   // The reference's own binding. Its place here is nominal: renderShortcutBar gives it the

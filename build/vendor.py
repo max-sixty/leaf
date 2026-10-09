@@ -183,6 +183,24 @@ def build_photoswipe(work: Path) -> list[Path]:
     return [out]
 
 
+def build_snapdom(work: Path) -> list[Path]:
+    """Browser-native DOM rasterization, loaded only when capturing a page region."""
+    out = ASSETS / "vendor/snapdom.esm.js"
+    (work / "entry.mjs").write_text(
+        'export { snapdom } from "@zumer/snapdom";\n', encoding="utf-8"
+    )
+    esbuild(
+        "entry.mjs",
+        "--bundle",
+        "--format=esm",
+        "--minify",
+        "--legal-comments=inline",
+        f"--outfile={out}",
+        cwd=work,
+    )
+    return [out]
+
+
 def build_codemirror(work: Path) -> list[Path]:
     """CodeMirror 6 is the editor inside every runtime composer (`leaf-text`).
 
@@ -481,6 +499,7 @@ def build_trace_images(work: Path) -> list[Path]:
 
 
 BUILDS: dict[str, Callable[[Path], list[Path]]] = {
+    "snapdom": build_snapdom,
     "trace-timeline": build_trace_timeline,
     "trace-images": build_trace_images,
     "markdown": build_markdown,

@@ -50,6 +50,7 @@ import {
 import { createResponseSurface } from "./runtime/composing/surface.js";
 import { createPassageSelection } from "./runtime/composing/capture.js";
 import { createDrawingController } from "./runtime/composing/drawing.js";
+import { createRegionCapture } from "./runtime/composing/region-capture.js";
 import { createDrawingInk } from "./runtime/composing/drawing-ink.js";
 import { createAim } from "./runtime/composing/aim.js";
 import {
@@ -738,6 +739,11 @@ drawing = createDrawingController({
   paintDrawings: drawingPaint.paint,
   shiftDrawingPaint: drawingPaint.shifted,
   repaint,
+});
+createRegionCapture({
+  parent: chromeForeground,
+  visibleTargets: targets.visibleTargets,
+  openComposerWithMedia: selectionComposer.openComposerWithMedia,
 });
 
 layout = createChromeLayout({

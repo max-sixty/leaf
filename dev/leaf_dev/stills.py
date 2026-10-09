@@ -723,6 +723,7 @@ STATES = (
     State("plan-go-to", "review-a-plan", go_to, viewport=(1024, 768)),
     State("plan-narrow", "review-a-plan", at_rest, viewport=(360, 740)),
     State("plan-touch", "review-a-plan", at_rest, viewport=(390, 844), touch=True),
+    State("plan-more", "review-a-plan", more_menu),
     State(
         "plan-more-touch", "review-a-plan", more_menu, viewport=(390, 844), touch=True
     ),

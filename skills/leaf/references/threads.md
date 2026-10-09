@@ -69,8 +69,11 @@ leaf response reply <answer.ref> --text "…"
 leaf response reply <answer.ref> < reply.md
 ```
 
-A user may paste an image into any thread text box, and a delivered message that
-carries one says how to read it. To send one, run `leaf page media <page> <file>` and
+A user may paste an image into any thread text box, or choose **Capture area** in
+the page's More controls to attach a selected part of the page to an anchored
+comment. A capture preserves the selected visual state as image evidence; its anchor
+names the nearby page content. A delivered message that carries an image says how
+to read it. To send one, run `leaf page media <page> <file>` and
 write the `path` it prints as an ordinary Markdown image in the message's text. The door
 refuses a `/media/…` link or image the page directory cannot answer, in text as in
 markup, because the log is append-only and a broken image posted to it stays broken;

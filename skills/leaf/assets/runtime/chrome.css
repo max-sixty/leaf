@@ -273,6 +273,28 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
    marked itself lf-live — this block's name for the visually-hidden live region —
    and every tabbed page clipped to a pixel.) */
 @scope (.lf-chrome) {
+  /* A native modal isolates the selection gesture; its chrome is omitted from the crop. */
+  .lf-region-capture { position: fixed; inset: 0; box-sizing: border-box;
+    width: 100%; height: 100%; max-width: none; max-height: none; margin: 0;
+    padding: 0; border: 0; background: transparent; color: var(--ink);
+    overflow: hidden; overscroll-behavior: contain; cursor: crosshair;
+    touch-action: none; user-select: none; }
+  .lf-region-capture::backdrop { background: transparent; }
+  .lf-region-selection { position: absolute; box-sizing: border-box;
+    border: 2px solid var(--accent); outline: 1px solid var(--paper);
+    box-shadow: 0 0 0 100vmax rgb(0 0 0 / 40%); pointer-events: none; }
+  .lf-region-toolbar { position: absolute; inset-inline: 12px;
+    bottom: max(12px, env(safe-area-inset-bottom)); width: fit-content;
+    max-width: calc(100% - 24px); margin-inline: auto; box-sizing: border-box;
+    padding: 12px 16px; border: 1px solid var(--border-2); border-radius: var(--r);
+    background: var(--card); box-shadow: var(--shadow); cursor: default;
+    text-align: center; }
+  .lf-region-toolbar p { margin: 0 0 8px; font: 13px/1.4 var(--sans);
+    text-wrap: pretty; }
+  .lf-region-status { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .lf-region-actions { display: flex; gap: 8px; justify-content: center; }
+  .lf-region-actions .lf-btn { min-height: 44px; }
+
   /* The layer is the runtime's, not the document's, so it never prints — one rule
      for all of it, rather than each piece remembering. :scope is the container
      itself, which is why this can't be written at document level without widening

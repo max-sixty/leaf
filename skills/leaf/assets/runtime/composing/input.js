@@ -2,7 +2,7 @@ import { rememberWriting } from "../drafts.js";
 import { keys, paintKeys } from "../keyboard/scopes.js";
 import { keeps, keepsHidden, keepsText } from "../keeps.js";
 import { advertisesKeys, submitBindings, submitLabel } from "../keyboard/bindings.js";
-import { readPastedMedia, scopedMediaUrl, writePastedMedia } from "../media.js";
+import { readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "../media.js";
 import { announce, notice } from "../notifications.js";
 import { iconElement } from "../icons.js";
 import { drawingThumbnail } from "./drawing-ink.js";
@@ -19,20 +19,21 @@ import { focusDestination, focused } from "../focus.js";
 // Shift+Enter inserts a line, the field's own binding; on touch keyboards Enter does too.
 // Mod+Enter remains another route to submit. The field grows with its words, within the
 // room supplied by floating placement; script does not derive its height from its text. When the surface
-// accepts images, a paste uploads bytes to page media; one that does not says so in a
-// notice, so no box answers a pasted picture with silence. The draft keeps the resulting
+// accepts images, a paste or capture uploads bytes to page media; one that does not says
+// so in a notice, so no box answers an image with silence. The draft keeps the resulting
 // Markdown, while the field shows only the user's words and a thumbnail projection.
 // An upload completion changes that draft; it is not another typing or focus gesture.
 // The field retains focus while read-only, and completion preserves wherever the user
-// has moved since the paste.
+// has moved since the attachment began.
 // So the box holds more than its .value, and wire() returns the seam that says so:
-// sync.value() reads the complete draft, sync.load() replaces it — a stored record, a
-// draft mirrored from another tab, or the emptiness a send leaves — and sync() says the
-// box's standing changed. Outside this module, .value is the user's words alone and
+// sync.value() reads the complete draft, sync.addMedia() attaches images, sync.load()
+// replaces it — a stored record, a draft mirrored from another tab, or the emptiness a
+// send leaves — and sync() says the box's standing changed. Outside this module,
+// .value is the user's words alone and
 // nothing writes it.
 // The submit binding owns the shortcut spelling used by the placeholder and tooltip.
 //
-// What the box holds changes in the turn that changes it: the words and pasted images
+// What the box holds changes in the turn that changes it: the words and attached images
 // (the field's own value, which its caret and every reader after the writer depend on),
 // and whether a send or upload is under way. What that looks like is painted once per
 // frame, in the runtime's one standing paint (repaint.js): the send button's name, its
@@ -44,14 +45,14 @@ import { focusDestination, focused } from "../focus.js";
 // change first shows in, so the button and placeholder never trail the words.
 const inputDrafts = new WeakMap();
 
-const MEDIA_SHELF_TAG = "leaf-pasted-media-shelf";
+const MEDIA_SHELF_TAG = "leaf-attached-media-shelf";
 
-// What the draft carries beside its words: the drawing a stroke attached, then each pasted
+// What the draft carries beside its words: the drawing a stroke attached, then each attached
 // image. Each shows itself rather than its transport and each comes off with its own
 // control, so nothing rides along with a comment unseen or beyond the user's reach. The
 // drawing also takes back its last stroke here: the route a pointer or a finger has to
 // that, wherever the composer stands.
-class PastedMediaShelf extends LitElement {
+class AttachedMediaShelf extends LitElement {
   static properties = {
     model: { attribute: false },
   };
@@ -128,14 +129,14 @@ class PastedMediaShelf extends LitElement {
               type="button"
               class="lf-media-open lf-composer-media-open"
               data-lf-media-url=${url}
-              aria-label=${`View pasted image ${index + 1}`}
+              aria-label=${`View attached image ${index + 1}`}
             >
               <img src=${url} alt="" />
             </button>
             <button
               type="button"
               class="lf-composer-media-remove"
-              aria-label=${`Remove pasted image ${index + 1}`}
+              aria-label=${`Remove attached image ${index + 1}`}
               @click=${() => this.actions.removeMedia(index)}
             >
               ×
@@ -148,7 +149,7 @@ class PastedMediaShelf extends LitElement {
 }
 
 if (!customElements.get(MEDIA_SHELF_TAG))
-  customElements.define(MEDIA_SHELF_TAG, PastedMediaShelf);
+  customElements.define(MEDIA_SHELF_TAG, AttachedMediaShelf);
 
 // A wired field's visible value omits generated image Markdown. Readers outside
 // this module ask through this seam for the complete draft; an unwired box keeps
@@ -197,7 +198,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       icon = "send",
       altBtn = null,
       altSend = null,
-      // `true` to take a pasted image; otherwise the sentence the user is told instead.
+      // `true` to take an attached image; otherwise the sentence the user is told instead.
       allowsMedia = () => true,
       busy = () => false,
       hasContent = (raw) => Boolean(raw),
@@ -235,10 +236,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     mediaShelf.setAttribute("role", "group");
     mediaShelf.setAttribute("aria-label", "Attachments");
     field.before(mediaShelf);
-    let pastedMedia = [];
-    const draftValue = () => writePastedMedia(ta.value, pastedMedia);
+    let attachedMedia = [];
+    const draftValue = () => writeAttachedMedia(ta.value, attachedMedia);
     const removeMedia = (index) => {
-      pastedMedia.splice(index, 1);
+      attachedMedia.splice(index, 1);
       renderMedia();
       draftChanged();
       rememberWriting(ta);
@@ -247,7 +248,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // ⌘Z and ⌘⇧Z walk the whole draft in the order it changed. The words have the field's
     // own history, and each change to what the shelf holds beside them takes a step in
     // that history, whichever control made it: a stroke, a press on the shelf, Draw
-    // mode's undo, a pasted image. A step is one part of the shelf, the drawing or the
+    // mode's undo, an attached image. A step is one part of the shelf, the drawing or the
     // images, and taking it back or redoing it puts that part as it stood. What reaches
     // the box from outside is where its history stands rather than a step in it: a draft
     // loaded whole (`hydrate`), or one the box takes up afresh (`sync.arrive`), so no step
@@ -268,13 +269,13 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     };
     const putMedia = (media) => {
       shelfSeen = { ...shelfSeen, media };
-      pastedMedia = [...media];
+      attachedMedia = [...media];
       renderMedia();
       draftChanged();
     };
     const renderMedia = () => {
       const drawn = drawing?.read() ?? null;
-      const media = [...pastedMedia];
+      const media = [...attachedMedia];
       if (shelfSeen && !sameDrawing(drawn, shelfSeen.drawing)) {
         const before = shelfSeen.drawing;
         ta.record(
@@ -293,7 +294,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       mediaShelf.present(
         Object.freeze({
           drawing: drawn,
-          media: pastedMedia.map((path, index) =>
+          media: attachedMedia.map((path, index) =>
             Object.freeze({ index, url: scopedMediaUrl(path) }),
           ),
         }),
@@ -314,8 +315,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       );
     };
     const hydrate = (value) => {
-      const restored = readPastedMedia(value);
-      pastedMedia = restored.paths;
+      const restored = readAttachedMedia(value);
+      attachedMedia = restored.paths;
       ta.value = restored.text;
       ta.restartHistory();
       shelfSeen = null;
@@ -384,21 +385,21 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       refresh();
     };
     // sync() asks for the paint of what the box holds. It is not how a draft gets in:
-    // what the user would miss is the words and the pasted images together, and the
+    // what the user would miss is the words and the attached images together, and the
     // images show only in the shelf, so a caller writing .value states half a draft.
     // Emptying a box that way left an image standing in a box the runtime then read as
     // still holding something — the box said "draft kept" over a comment it had just
     // sent, and the picture rode into the next passage's draft.
     const sync = () => refresh();
     sync.value = draftValue;
-    sync.hasMedia = () => pastedMedia.length > 0;
+    sync.hasMedia = () => attachedMedia.length > 0;
     // The box takes up the draft it now stands on as it is, with a history of its own:
     // another draft, or this one as another tab left it. The caller's next paint shows
     // it, and shows any change made to it since as a step of that history.
     sync.arrive = () => {
       arrivals += 1;
       ta.restartHistory();
-      shelfSeen = { drawing: drawing?.read() ?? null, media: [...pastedMedia] };
+      shelfSeen = { drawing: drawing?.read() ?? null, media: [...attachedMedia] };
     };
     // The one way a draft enters from outside: the complete value, words and image Markdown
     // together, as the store holds it. Writing .value moves a focused caret to its end, so a
@@ -441,61 +442,60 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     });
     ta.addEventListener("focus", () => readBoxPlace(ta));
     ta.addEventListener("lf-before-edit", () => readBoxPlace(ta), { capture: true });
+    // Paste and page capture enter through the same command. It owns delivery and the
+    // whole draft's history, and refuses a second upload while the first owns the field.
+    // The arrival generation prevents an image reaching another draft when the floating
+    // composer moves to another passage before its bytes reach the server.
+    sync.addMedia = async (images) => {
+      if (!images.length || sending || uploading || busy()) return false;
+      const allowed = allowsMedia();
+      if (allowed !== true) {
+        notice(allowed);
+        return false;
+      }
+      rememberWriting(ta);
+      const wasReadOnly = ta.readOnly;
+      uploading = true;
+      ta.readOnly = true;
+      ta.setAttribute("aria-busy", "true");
+      refresh();
+      notice(images.length === 1 ? "Adding image…" : `Adding ${images.length} images…`);
+      const attachedAt = arrivals;
+      try {
+        const paths = await Promise.all(images.map((image) => uploadMedia(image)));
+        if (paths.some((path) => path === null)) return false;
+        if (arrivals !== attachedAt) {
+          notice("Image not added — the comment moved before it finished uploading");
+          return false;
+        }
+        attachedMedia.push(...paths);
+        renderMedia();
+        draftChanged();
+        notice(images.length === 1 ? "Image added" : `${images.length} images added`);
+        return true;
+      } catch (error) {
+        notice(`Could not add image — ${error?.message ?? error}`);
+        return false;
+      } finally {
+        uploading = false;
+        ta.readOnly = wasReadOnly;
+        ta.removeAttribute("aria-busy");
+        refresh();
+      }
+    };
     // The composer owns picture admission. Capture declines the field's ordinary text
     // paste before CodeMirror handles it; a direct editor without this owner keeps the
     // clipboard's text even when the payload also contains a picture.
     ta.addEventListener(
       "paste",
-      async (event) => {
+      (event) => {
         const images = [...(event.clipboardData?.items ?? [])]
           .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
           .map((item) => item.getAsFile())
           .filter(Boolean);
         if (!images.length) return;
         event.preventDefault();
-        // A refusal is a sentence, so every box that will not take a picture says why it
-        // will not. A silent one reads as a paste that worked — the same failure the empty
-        // send below is written against — and the box that stayed silent was the one whose
-        // caller declined images outright rather than the one that declines them in a mode.
-        const allowed = allowsMedia();
-        if (allowed !== true) {
-          notice(allowed);
-          return;
-        }
-
-        // Keep the current words visible while the bounded local upload runs. Send remains
-        // reachable but inert and exposes the same busy state through aria-disabled.
-        rememberWriting(ta);
-        const wasReadOnly = ta.readOnly;
-        uploading = true;
-        ta.readOnly = true;
-        ta.setAttribute("aria-busy", "true");
-        refresh();
-        notice(
-          images.length === 1 ? "Adding image…" : `Adding ${images.length} images…`,
-        );
-        const pastedAt = arrivals;
-        try {
-          const paths = await Promise.all(images.map((image) => uploadMedia(image)));
-          if (paths.some((path) => path === null)) return;
-          // A box that took up another draft while the picture uploaded is no longer the
-          // draft it was pasted into, and the picture is not this one's.
-          if (arrivals !== pastedAt) {
-            notice("Image not added — the comment moved before it finished uploading");
-            return;
-          }
-          pastedMedia.push(...paths);
-          renderMedia();
-          draftChanged();
-          notice(images.length === 1 ? "Image added" : `${images.length} images added`);
-        } catch (error) {
-          notice(`Could not add image — ${error?.message ?? error}`);
-        } finally {
-          uploading = false;
-          ta.readOnly = wasReadOnly;
-          ta.removeAttribute("aria-busy");
-          refresh();
-        }
+        void sync.addMedia(images);
       },
       { capture: true },
     );

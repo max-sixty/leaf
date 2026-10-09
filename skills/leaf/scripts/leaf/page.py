@@ -42,7 +42,6 @@ def instruction_selection(
             continue
         selected_widgets.add(tag)
         entry = declarations[tag]
-        pending.extend(entry.get("x-required-members", {}))
         if example := entry.get("x-example"):
             pending.extend(
                 node["tag"]

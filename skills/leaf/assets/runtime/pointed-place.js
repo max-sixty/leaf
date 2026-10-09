@@ -21,7 +21,7 @@
    A point belongs to one comment. The composing surface holds a draft's point while the
    box is up; a send hands its point over under its thread's key (`threadKey`, the
    attempt that survives the log's answer), with the row's words as a passage
-   (`rangeAnchor`), the identity the page already resolves quotes by. Comments pointed at
+   (`anchorForRange`), the identity the page already resolves quotes by. Comments pointed at
    one row share that row's key, the first one's, so they stand as one margin row.
 
    Anchor paint's pass is the one writer of the points (`placePoints`, beside its

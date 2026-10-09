@@ -2902,14 +2902,14 @@ def test_verbatim_wrapper_owns_prose_and_order_but_not_nested_widget_rendering(
 
 
 def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
-    browser, serve, tmp_path, monkeypatch
+    browser, serve, tmp_path, monkeypatch, declared_reading_package
 ):
     """Bug-back for the other thing a declaration promises: that the words arrive. Both
     word passes stop at a shadow boundary on purpose — which widgets the page holds is
     the document's question — so an element a module stages into its own tree keeps its
     declarations and gets neither pass, and the failure is silence: no error, no missing
     box, nothing a reading of the drawn page can tell from an attribute with nothing to
-    say. Here a project widget stages an <lf-chronology-entry>, whose declaration names both keys, and
+    say. Here a project widget stages a declared child, whose declaration names both keys, and
     the gate is asked for each.
 
     A staged element rather than a module that wipes its own body after the passes have
@@ -2934,10 +2934,10 @@ def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
         "  class extends HTMLElement {\n"
         "    connectedCallback() {\n"
         "      if (!once(this)) return;\n"
-        '      const staged = document.createElement("lf-chronology-entry");\n'
-        '      staged.id = "staged-chronology-entry";\n'
-        '      staged.setAttribute("at", "09:00");\n'
-        '      staged.setAttribute("kind", "failure");\n'
+        '      const staged = document.createElement("lf-reading");\n'
+        '      staged.id = "staged-reading";\n'
+        '      staged.setAttribute("label", "09:00");\n'
+        '      staged.setAttribute("state", "failure");\n'
         '      staged.textContent = "The feeder stopped.";\n'
         "      shadowStage(this, [staged]);\n"
         "    }\n"
@@ -2950,7 +2950,7 @@ def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
     ).failures
 
     assert any('never says "09:00"' in f for f in failures), failures
-    assert any('paints kind="failure" and says nothing' in f for f in failures), (
+    assert any('paints state="failure" and says nothing' in f for f in failures), (
         failures
     )
 
@@ -3752,6 +3752,56 @@ def test_a_still_page_comes_back_from_every_journey_as_it_was(browser, serve, so
     assert failed == {}, "\n\n".join(
         f"{journey}:\n" + "\n".join(found) for journey, found in failed.items()
     )
+
+
+def test_working_prose_density_yields_to_component_spacing(browser, serve):
+    """Density supplies prose defaults without defeating a component's own rhythm."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Working prose and component rhythm",
+                """<style>@layer lf-base {
+.component-line { margin: 0; }
+.component-cell { padding: 3px; }
+}</style>
+<section class="density-working">
+  <p>First paragraph.</p>
+  <h2 id="prose-heading">Ordinary heading</h2>
+  <p id="prose-paragraph">Ordinary paragraph.</p>
+  <div style="display:grid;gap:8px">
+    <h2 class="component-line">Component title</h2>
+    <h3 class="component-line">Component subject</h3>
+    <h4 class="component-line">Component detail</h4>
+    <p class="component-line">Component status</p>
+    <ul class="component-line"><li class="component-line">Component item</li></ul>
+    <table><tr><th class="component-cell">Label</th>
+      <td class="component-cell">Value</td></tr></table>
+  </div>
+  <p>Last paragraph.</p>
+</section>""",
+            )
+        ),
+    )
+    reading = page.evaluate(
+        """() => {
+          const margin = node => {
+            const s = getComputedStyle(node);
+            return [parseFloat(s.marginBlockStart), parseFloat(s.marginBlockEnd)];
+          };
+          return {
+            heading: margin(document.querySelector('#prose-heading')),
+            paragraph: margin(document.querySelector('#prose-paragraph')),
+            components: [...document.querySelectorAll('.component-line')].map(margin),
+            cells: [...document.querySelectorAll('.component-cell')]
+              .map(node => getComputedStyle(node).paddingBlock),
+          };
+        }"""
+    )
+    assert reading["heading"] == [18, 6], reading
+    assert reading["paragraph"] == [6, 6], reading
+    assert all(margin == [0, 0] for margin in reading["components"]), reading
+    assert reading["cells"] == ["3px", "3px"], reading
 
 
 def test_frame_edges_pass_through_whatever_stands_at_them(browser, serve):

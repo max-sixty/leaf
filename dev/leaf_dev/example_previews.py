@@ -121,7 +121,9 @@ def refresh_previews() -> None:
         staging = Path(raw_site)
         assets = bootstrap_assets(staging / "assets")
         site = staging / "site"
-        site_build.build_examples(site, assets=assets)
+        # `serve_examples` runs this checkout's website adapter, which serves only the
+        # pages this checkout's Leaf vendored.
+        site_build.build_examples(site, site_build.checkout_leaf(), assets=assets)
         browser = playwright.chromium.launch()
         try:
             with serve_examples(site) as origin:
@@ -152,6 +154,7 @@ def refresh_previews() -> None:
         checkout = stage("examples", captures, Path(raw))
         site_build.build(
             site_build.OUT,
+            site_build.prepared_leaf(site_build.OUT),
             assets=checkout.path,
             source_markup=catalog_updates(checkout.path),
         )

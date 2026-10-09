@@ -167,7 +167,8 @@ kind of task goes in `/developing-leaf`.
 ### The install runs this tree
 
 Consumer installers follow the CI-built `prepared` Git branch. The browser kernel
-is compiled there; development branches keep its source modules. Installation,
+is compiled there; development branches keep its source modules. The leaf.page
+container runs the same preparation, which `leaf-dev site` builds beside the site. Installation,
 page authoring, custom packages, and export require no browser build or npm command.
 `dev/leaf_dev/distribution.py` owns preparation and publication.
 
@@ -330,12 +331,12 @@ pre-commit do not reach. Both landing paths run all of them: a pull request in i
 each command. `wt hook pre-merge` runs that local gate without landing, on a committed
 tree, since the bundle check fails on any uncommitted change. The website's delivery
 checks — the site build, the Worker's dry-run deploy, and
-`leaf-dev verify-site wrangler` — run on a pull request and in `publish-site` before it
+`leaf-dev verify-site website-worker` — run on a pull request and in `publish-site` before it
 deploys, not in `wt merge`.
 
 For a change that can alter browser startup, compare base and candidate at the
 boundary it affects: served previews for a runtime change,
-`leaf-dev verify-site wrangler` for site delivery, Worker routing, or containers.
+`leaf-dev verify-site website-worker` for site delivery, Worker routing, or containers.
 Read the comparison as a phase profile: document receipt, widget upgrade,
 authoritative presentation, and the requests and bytes loaded by presentation.
 Compare requests and bytes directly; elapsed time is diagnostic. A change that

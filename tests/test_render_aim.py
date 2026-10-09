@@ -15,9 +15,12 @@ from interact_support import (
     declare_idle,
     wait_for,
 )
+from leaf import anchor_capture as anchor_capture_model
 from leaf import data as data_model
 from leaf import event_log as events_model
+from leaf import passages as passages_model
 from leaf import service as service_model
+from leaf import structure as structure_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.served_state import context as served_context
 from leaf.validation import compatibility as validation_model
@@ -101,6 +104,7 @@ from render_harness import (
     stamp_page,
     stored_draft_text,
     told,
+    wait_for_revision,
     write,
 )
 
@@ -245,7 +249,7 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     expect(preview).to_be_visible()
     page.evaluate("() => (window.__lfForceMarginRender = false)")
     expect(preview.get_by_text("Carry this comment into its thread.")).to_be_visible()
-    expect(target).to_be_focused()
+    expect(preview.locator(".lf-page-thread")).to_be_focused()
     message = preview.locator(".lf-msg-body").first
     expect(preview.locator(".lf-page-thread")).to_have_attribute(
         "data-thread", admitted["id"]
@@ -381,14 +385,15 @@ def test_an_aimed_comment_keeps_its_place_with_the_questions_panel_open(
 @pytest.mark.parametrize(
     "width,panel_open", [(1440, False), (1440, True), (390, False)]
 )
-def test_a_growing_text_comment_keeps_its_passage_clear_without_changing_sides(
+def test_a_growing_text_comment_keeps_its_side_and_the_page_still(
     browser, serve, width, panel_open
 ):
-    """A passage and its growing editor remain visible together.
+    """A growing editor keeps its side and stays in the window, and the page stays put.
 
-    Without a horizontal rail, the compact field first uses a side with visible room.
-    It keeps that side while growing and moves the reading region only
-    enough to reveal itself. Its corners keep the first and last line readable after the capsule becomes an editor.
+    Without a horizontal rail, the compact field first uses a side with visible room,
+    clear of its passage. It keeps that side while growing, inside the window, and never
+    scrolls the page. Its corners keep the first and last line readable after the
+    capsule becomes an editor.
     """
     page = open_page(
         browser,
@@ -444,9 +449,7 @@ def test_a_growing_text_comment_keeps_its_passage_clear_without_changing_sides(
     rendered(page)
     expanded = field.bounding_box()
     assert page.locator(".lf-fab-bar").get_attribute("data-lf-placement") == placement
-    assert page.evaluate(clear), (
-        "the growing composer covers the passage it comments on"
-    )
+    assert page.evaluate("scrollY") == before_scroll
     assert expanded["width"] > compact["width"]
     assert expanded["height"] > compact["height"] * 5
     assert expanded["x"] >= 0 and expanded["x"] + expanded["width"] <= width
@@ -459,17 +462,6 @@ def test_a_growing_text_comment_keeps_its_passage_clear_without_changing_sides(
             expanded["x"] + expanded["width"]
             < page.locator(".lf-thread-panel").bounding_box()["x"]
         )
-    if placement == "bottom-start":
-        assert page.evaluate("scrollY") > before_scroll
-        revealed_scroll = page.evaluate("scrollY")
-        page.mouse.move(8, 450)
-        page.mouse.wheel(0, -200)
-        page.wait_for_function("before => scrollY < before", arg=revealed_scroll)
-        scroll_settled(page)
-        assert page.evaluate("scrollY") < revealed_scroll
-        expect(page.locator(".lf-fab-bar")).to_have_attribute(
-            "data-lf-placement", placement
-        )
     page.mouse.move(8, 450)
     page.mouse.wheel(0, 300)
     page.wait_for_function("() => scrollY >= 300")
@@ -480,7 +472,9 @@ def test_a_growing_text_comment_keeps_its_passage_clear_without_changing_sides(
 
 
 def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser, serve):
-    """The stable vertical choice reads both the visible band and scroll travel."""
+    """The stable vertical choice reads both the visible band and scroll travel. Growing
+    past the room shown above, the box slides over its passage rather than scrolling the
+    page, and a scroll then carries it with the passage."""
     passage = (
         "A passage near the end of its page has more reachable room above it. "
         + "Its full block must keep the same room while the viewport clips it. " * 5
@@ -528,15 +522,10 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
     )
     rendered(page)
     expect(bar).to_have_attribute("data-lf-placement", "top-start")
-    assert page.evaluate("scrollY") < before_scroll
-    boxes = page.evaluate(
-        """() => {
-          const passage = document.getElementById('passage').getBoundingClientRect();
-          const bar = document.querySelector('.lf-fab-bar').getBoundingClientRect();
-          return {passageTop: passage.top, barBottom: bar.bottom};
-        }"""
-    )
-    assert boxes["barBottom"] <= boxes["passageTop"], boxes
+    assert page.evaluate("scrollY") == before_scroll
+    offset = """() => document.querySelector('.lf-fab-bar').getBoundingClientRect().top
+      - document.getElementById('passage').getBoundingClientRect().top"""
+    grown = page.evaluate(offset)
     last_scroll = page.evaluate("scrollY")
     maximum_scroll = page.evaluate(
         "document.scrollingElement.scrollHeight - innerHeight"
@@ -553,8 +542,7 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
         last_scroll = moved
     assert paragraph.evaluate("node => node.getBoundingClientRect().top < 48")
     expect(bar).to_have_attribute("data-lf-plane", "page")
-    away = bar.bounding_box()
-    assert away["y"] + away["height"] < 0, away
+    assert page.evaluate(offset) == pytest.approx(grown, abs=1)
     expect(field).to_be_focused()
 
 
@@ -865,6 +853,59 @@ def test_a_side_comment_at_the_window_s_foot_rises_only_as_far_as_it_must(
     rendered(page)
     assert field.evaluate("node => node.scrollHeight > node.clientHeight")
     assert page.evaluate(SIDE_COMMENT)["bottom"] <= foot + 0.5
+
+
+@pytest.mark.parametrize("placement, at", [("bottom-start", 0.15), ("top-start", 0.5)])
+def test_typing_moves_the_comment_box_and_leaves_the_page_still(
+    browser, serve, placement, at
+):
+    """A box under or over its passage that outgrows the room on its side moves inside
+    the window, across the passage if it must, and the page stays where the user put it.
+    The user reported the page scrolling under their keys as the box grew (the box then
+    asked the page to make room for each new line)."""
+    words = "The reviewer weighs each claim against the evidence offered so far. " * 3
+    paragraphs = "".join(f'<p id="p{n}">{words}</p>' for n in range(30))
+    page = open_page(browser, serve(leaf_page("Typing room", paragraphs)))
+    resized(page, 900, 700)
+    passage = page.locator("#p12")
+    passage.evaluate(
+        f"""node => scrollBy({{
+          top: node.getBoundingClientRect().top - innerHeight * {at},
+          behavior: 'instant'
+        }})"""
+    )
+    rendered(page)
+    passage.click(modifiers=["Alt"], position={"x": 40, "y": 10})
+    field = open_compact_comment(page)
+    bar = page.locator(".lf-fab-bar")
+    assert bar.get_attribute("data-lf-placement") == placement
+    window = page.evaluate(
+        """async () => {
+          const {top, bottom} = (await window.__lfRuntimeImport('/runtime/geometry.js'))
+            .shownWindow({gap: 8});
+          return {top, bottom, scroll: scrollY};
+        }"""
+    )
+    start = bar.bounding_box()
+    lines = [f"Line {n} of a comment that keeps growing" for n in range(22)]
+    for line in lines:
+        page.keyboard.type(line)
+        page.keyboard.press("Shift+Enter")
+        rendered(page)
+        box = bar.bounding_box()
+        assert page.evaluate("scrollY") == window["scroll"], (line, box)
+        assert box["y"] >= window["top"] - 0.5, (line, box, window)
+        assert box["y"] + box["height"] <= window["bottom"] + 0.5, (line, box, window)
+    expect(field).to_have_js_property("value", "\n".join(lines) + "\n")
+    assert bar.get_attribute("data-lf-placement") == placement
+    grown = bar.bounding_box()
+    # Grown past the room its side showed, so it moved rather than the page.
+    room = (
+        window["bottom"] - start["y"]
+        if placement == "bottom-start"
+        else start["y"] + start["height"] - window["top"]
+    )
+    assert grown["height"] > room, (start, grown, window)
 
 
 def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):
@@ -2311,8 +2352,95 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     expect(page.locator(".lf-legend-box")).to_have_count(0)
 
 
+@pytest.mark.parametrize(
+    ("mode", "route"),
+    [
+        (None, "pointer"),
+        (None, "keyboard"),
+        ("l", "pointer"),
+        ("l", "keyboard"),
+        ("w", "pointer"),
+    ],
+    ids=[
+        "content-pointer",
+        "content-keyboard",
+        "design-pointer",
+        "design-keyboard",
+        "draw",
+    ],
+)
+def test_target_picker_selects_in_the_standing_comment_mode(
+    browser, serve, mode, route
+):
+    """Target selection nests inside Design; Draw retains the page for ink."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Comment modes", '<h1>Modes</h1><p id="subject">Pick this passage.</p>'
+            )
+        ),
+    )
+    if mode:
+        page.keyboard.press(mode)
+    page.keyboard.press("s")
+    hints = page.locator(".lf-target-picker-hint")
+    if mode == "w":
+        expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
+        expect(hints).to_have_count(0)
+        return
+    expect(hints.first).to_be_visible()
+    if mode == "l":
+        expect(
+            page.locator('.lf-legend-box[data-for="subject"] .lf-legend-tag')
+        ).to_be_hidden()
+        page.keyboard.press("Escape")
+        expect(hints).to_have_count(0)
+        expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+        expect(
+            page.locator('.lf-legend-box[data-for="subject"] .lf-legend-tag')
+        ).to_be_visible()
+        page.keyboard.press("s")
+        expect(hints.first).to_be_visible()
+    if route == "keyboard":
+        said = page.locator(".lf-live")
+        for _ in range(10):
+            previous = said.text_content()
+            page.keyboard.press("Tab")
+            expect(said).not_to_have_text(previous)
+            expect(said).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
+            if "Pick this passage." in said.text_content():
+                break
+        else:
+            pytest.fail("The passage was missing from the target map")
+        page.keyboard.press("Enter")
+    else:
+        page.locator("#subject").click()
+    expect(hints).to_have_count(0)
+    if mode == "l":
+        expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    write(page.locator(".lf-fab-input"), "Keep this passage aligned.")
+    with sending(page, "the selected element comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    event = next(
+        e
+        for e in reversed(events_model.read_events(serve.page_dir))
+        if e["kind"] == "comment"
+    )
+    assert event["anchor"] == {"section": "subject"}
+    assert event.get("about") == ("design" if mode == "l" else None)
+    if mode == "l":
+        page.keyboard.press("Escape")
+        expect(page.locator(".lf-thread-panel")).to_be_hidden()
+        expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+        page.keyboard.press("Escape")
+        expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
+
+
+@pytest.mark.parametrize("route", ["direct", "picker-pointer", "picker-keyboard"])
+@pytest.mark.parametrize("role", ["slider", "button"])
 def test_design_mode_owns_every_platform_control_from_the_shared_boundary(
-    browser, serve
+    browser, serve, route, role
 ):
     """Design mode captures controls from the runtime's full platform list.
 
@@ -2321,28 +2449,52 @@ def test_design_mode_owns_every_platform_control_from_the_shared_boundary(
     An unnamed disclosure is the fail-closed control: even without a durable comment
     target, its activation must not leak through the active mode.
     """
+    control_markup = (
+        '<span role="slider" tabindex="0" aria-label="Volume" '
+        'aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">50</span>'
+        if role == "slider"
+        else '<button aria-label="Volume">Adjust volume</button>'
+    )
     page = open_page(
         browser,
         serve(
             leaf_page(
                 "design controls",
-                '<h1>Controls</h1><section id="volume">'
-                '<span role="slider" tabindex="0" aria-label="Volume" '
-                'aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">50</span>'
-                "</section>"
+                '<h1>Controls</h1><section id="volume">' + control_markup + "</section>"
                 "<details><summary>More controls</summary><p>Hidden</p></details>",
             )
         ),
     )
     page.keyboard.press("l")
-    slider = page.get_by_role("slider", name="Volume")
-    slider.hover()
+    control = page.get_by_role(role, name="Volume")
+    control.evaluate(
+        "el => el.addEventListener('click', () => el.dataset.activated = 'yes')"
+    )
+    if route != "direct":
+        page.keyboard.press("s")
+        expect(page.locator(".lf-target-picker-hint").first).to_be_visible()
+    control.hover()
     expect(page.locator(".lf-inspect")).to_have_text("Volume · section · volume")
     page.keyboard.down("Alt")
     expect(page.locator(".lf-inspect")).to_have_text("Volume · section · volume")
     page.keyboard.up("Alt")
-    slider.click()
-    expect(page.locator("#lf-composer-quote")).to_have_text(
+    if route == "picker-keyboard":
+        said = page.locator(".lf-live")
+        for _ in range(10):
+            previous = said.text_content()
+            page.keyboard.press("Tab")
+            expect(said).not_to_have_text(previous)
+            expect(said).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
+            if "Volume ·" in said.text_content():
+                break
+        else:
+            pytest.fail("The control part was missing from the Design target map")
+        page.keyboard.press("Enter")
+    else:
+        control.click()
+    expect(control).not_to_have_attribute("data-activated", "yes")
+    expect(page.locator(".lf-target-picker-hint")).to_have_count(0)
+    expect(page.locator("#lf-composer-quote")).to_contain_text(
         "design · Volume · section · volume"
     )
     page.keyboard.press("Escape")
@@ -2359,6 +2511,249 @@ def test_design_mode_owns_every_platform_control_from_the_shared_boundary(
     assert disclosure.evaluate("el => el.open"), (
         "Design mode swallowed the disclosure's keyboard activation"
     )
+
+
+@pytest.mark.parametrize(
+    ("generated", "route"), [(False, "pointer"), (False, "keyboard"), (True, "pointer")]
+)
+def test_repeated_design_control_names_keep_context_without_inventing_identity(
+    browser, serve, generated, route
+):
+    """Native words disambiguate controls; anonymous chrome keeps only its owner."""
+    control = '<button aria-label="Delete row">Remove</button>' if not generated else ""
+    rows = "".join(f"<p>{name} {control}</p>" for name in ["api", "web", "worker"])
+    page = open_page(
+        browser,
+        live_url(
+            serve(
+                leaf_page(
+                    "Repeated controls",
+                    '<h1>Rows</h1><section id="rows"><h2>Release rows</h2>'
+                    + rows
+                    + "</section>",
+                )
+            )
+        ),
+    )
+    if generated:
+        page.evaluate("""async () => {
+          const {offer} = await import('/runtime/widget-api.js');
+          for (const row of document.querySelectorAll('#rows p')) {
+            const button = offer('button', '', 'Remove');
+            button.setAttribute('aria-label', 'Delete row');
+            row.append(button);
+          }
+        }""")
+    page.keyboard.press("l")
+    page.keyboard.press("s")
+    inventory = page.evaluate("""async () => {
+      const {aimTargets, resolveAnchor} = await import('/runtime/anchor-resolution.js');
+      const {pageText} = await import('/runtime/passages.js');
+      return aimTargets({design: true}).filter(t => t.anchor.section === 'rows' && t.anchor.part).map(t => t.capture ? t.capture() : t).map(t => ({
+        anchor: t.anchor, label: t.label, resolution: (() => { const resolved = resolveAnchor(t.anchor, pageText()); return {exact: resolved?.exact, status: resolved?.status}; })()
+      }));
+    }""")
+    assert len(inventory) == 3
+    assert all(item["anchor"]["part"] == "Delete row" for item in inventory)
+    assert all(
+        item["resolution"]
+        == {"exact": not generated, "status": "fallback" if generated else "exact"}
+        for item in inventory
+    )
+    if generated:
+        assert all("quote" not in item["anchor"] for item in inventory)
+    else:
+        assert (
+            len({json.dumps(item["anchor"], sort_keys=True) for item in inventory}) == 3
+        )
+        assert all(item["anchor"]["quote"] == "Remove" for item in inventory)
+        assert "after …" in inventory[1]["label"]
+        assert "web" in inventory[1]["label"]
+    if route == "keyboard":
+        said = page.locator(".lf-live")
+        for _ in range(10):
+            previous = said.text_content()
+            page.keyboard.press("Tab")
+            expect(said).not_to_have_text(previous)
+            expect(said).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
+            if (
+                f": {inventory[1]['label']}. Press Enter to choose."
+                in said.text_content()
+            ):
+                break
+        else:
+            pytest.fail("The middle control lost its spoken context")
+        page.keyboard.press("Enter")
+    else:
+        page.get_by_role("button", name="Delete row").nth(1).click()
+    write(page.locator(".lf-fab-input"), "Keep this row.")
+    with sending(page, "the repeated-control comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    event = next(
+        e
+        for e in reversed(events_model.read_events(serve.page_dir))
+        if e["kind"] == "comment"
+    )
+    assert event["anchor"] == inventory[1]["anchor"]
+    assert event["about"] == "design"
+    if generated:
+        card = page.locator(f'.lf-thread[data-id="{event["id"]}"]')
+        expect(card.locator(".lf-msg-text")).to_contain_text("Keep this row.")
+        # Replacing the authored owner retires its generated controls as their producer
+        # would. The same owner id now holds just one native matching control.
+        revised = leaf_page(
+            "Repeated controls",
+            '<h1>Rows</h1><article id="rows"><h2>Release rows</h2><p>web <button aria-label="Delete row">Remove</button></p></article>',
+        )
+        stamp = stamp_page(serve.page_dir, revised, "Keep the remaining row")
+        wait_for_revision(page, stamp["revision"])
+        expect(
+            page.locator("main #rows").get_by_role("button", name="Delete row")
+        ).to_have_count(1)
+        resolution = page.evaluate(
+            """async anchor => {
+          const {resolveAnchor} = await import('/runtime/anchor-resolution.js');
+          const {pageText} = await import('/runtime/passages.js');
+          const result = resolveAnchor(anchor, pageText());
+          return {exact: result.exact, status: result.status, owner: result.element.id};
+        }""",
+            event["anchor"],
+        )
+        assert resolution == {"exact": False, "status": "fallback", "owner": "rows"}
+        expect(card.locator(".lf-msg-text")).to_contain_text("Keep this row.")
+
+
+@pytest.mark.parametrize("kind", ["button", "select"])
+@pytest.mark.parametrize("route", ["pointer", "keyboard"])
+def test_design_control_context_must_resolve_to_visible_words(
+    browser, serve, kind, route
+):
+    """Distant control context resolves; hidden native option words stay fallbacks."""
+    if kind == "button":
+        part, role = "Delete flag", "button"
+        controls = "".join(
+            "<article><h3>"
+            + name
+            + '</h3><p>Owned by the platform team and reviewed weekly.</p><button aria-label="Delete flag">Remove</button><p>Changes apply after the next deploy finishes.</p></article>'
+            for name in ["checkout", "search", "export"]
+        )
+    else:
+        part, role = "Region", "combobox"
+        controls = "".join(
+            "<p>"
+            + name
+            + ' <select aria-label="Region"><option>us-east</option><option>eu-west</option></select></p>'
+            for name in ["Primary", "Backup"]
+        )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Control words",
+                '<h1>Controls</h1><section id="controls"><h2>Controls</h2>'
+                + controls
+                + "</section>",
+            )
+        ),
+    )
+    page.keyboard.press("l")
+    page.keyboard.press("s")
+    inventory = page.evaluate("""async () => {
+      const {aimTargets} = await import('/runtime/anchor-resolution.js');
+      return aimTargets({design:true}).filter(t => t.anchor.part).map(t => t.anchor);
+    }""")
+    assert len(inventory) == (3 if kind == "button" else 2)
+    assert all(anchor == {"section": "controls", "part": part} for anchor in inventory)
+    if route == "pointer":
+        page.get_by_role(role, name=part).nth(1).click()
+    else:
+        said = page.locator(".lf-live")
+        matched = 0
+        for _ in range(10):
+            before = said.text_content()
+            page.keyboard.press("Tab")
+            expect(said).not_to_have_text(before)
+            expect(said).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
+            if part in said.text_content():
+                matched += 1
+            if matched == 2:
+                break
+        else:
+            pytest.fail("The second anonymous control has no keyboard seat")
+        page.keyboard.press("Enter")
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_in_viewport()
+    write(field, "Review this control.")
+    with sending(page, "the anonymous control comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    event = next(
+        e
+        for e in reversed(events_model.read_events(serve.page_dir))
+        if e["kind"] == "comment"
+    )
+    if kind == "button":
+        assert event["anchor"]["quote"] == "Remove"
+        assert len(event["anchor"]["prefix"]) > 24
+    else:
+        assert event["anchor"] == {"section": "controls", "part": part}
+    expect(
+        page.locator(f'.lf-thread[data-id="{event["id"]}"] .lf-msg-text')
+    ).to_contain_text("Review this control.")
+
+
+@pytest.mark.parametrize("route", ["input", "label", "keyboard"])
+def test_design_label_and_input_are_one_control(browser, serve, route):
+    """A native label's larger hit area selects the same control as its input."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Label identity",
+                '<h1>Options</h1><section id="options"><h2>Options</h2><label><input type="radio" name="treatment" value="a">A</label><label><input type="radio" name="treatment" value="b">B</label></section>',
+            )
+        ),
+    )
+    page.keyboard.press("l")
+    page.keyboard.press("s")
+    inventory = page.evaluate("""async () => {
+      const {aimTargets} = await import('/runtime/anchor-resolution.js');
+      return aimTargets({design:true}).filter(t => t.anchor.part === 'A').map(t => t.anchor);
+    }""")
+    assert inventory == [{"section": "options", "part": "A"}]
+    captured = page.evaluate("""async () => {
+      const {aimTargetAt} = await import('/runtime/anchor-resolution.js');
+      return aimTargetAt(document.querySelector('#options input'),{design:true}).anchor;
+    }""")
+    assert captured["quote"] == "A"
+    if route == "keyboard":
+        said = page.locator(".lf-live")
+        for _ in range(10):
+            before = said.text_content()
+            page.keyboard.press("Tab")
+            expect(said).not_to_have_text(before)
+            expect(said).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
+            if re.search(r"^Hint [a-z]+: A ·", said.text_content()):
+                break
+        else:
+            pytest.fail("The radio lost its keyboard seat")
+        page.keyboard.press("Enter")
+        expect(page.locator("#lf-composer-quote")).to_contain_text("A ·")
+    elif route == "label":
+        page.locator("#options label").first.click(position={"x": 30, "y": 10})
+    else:
+        page.get_by_role("radio", name="A", exact=True).click()
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_in_viewport()
+    write(field, "Keep the larger label target.")
+    with sending(page, "the labelled control comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    event = next(
+        e
+        for e in reversed(events_model.read_events(serve.page_dir))
+        if e["kind"] == "comment"
+    )
+    assert event["anchor"] == captured
+    expect(page.get_by_role("radio", name="A", exact=True)).not_to_be_checked()
 
 
 def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, serve):
@@ -4253,7 +4648,7 @@ def _drawn_on(section):
         "revision": 1,
         "anchor": {"section": section},
         "drawing": {
-            "format": "leaf-drawing/2",
+            "format": "leaf-drawing/3",
             "strokes": [[[-20, -10], [200, 30], [420, 60]]],
             "box": [400, 40],
             "viewport": [1280, 720],
@@ -4532,3 +4927,1120 @@ def test_each_legend_box_stays_on_what_it_names_without_a_pass(browser, serve):
         offsets,
     )
     assert moved == [["p3", -1, -1]], moved
+
+
+@pytest.mark.parametrize("distance", [8, 64, 256])
+def test_selected_words_grow_context_until_the_exact_span_resolves(
+    browser, serve, distance
+):
+    """Capture grows to the semantic boundary, rather than another correctness cap."""
+    filler = "shared " * distance
+    markup = leaf_page(
+        "Repeated passages",
+        '<h1>Runs</h1><section id="runs"><h2>Run log</h2>'
+        + "".join(
+            f"<article><h3>{name}</h3><p>{filler}passed {filler}</p></article>"
+            for name in ["Alpha", "Beta", "Gamma"]
+        )
+        + "</section>",
+    )
+    page = open_page(browser, serve(markup))
+    captured = page.evaluate("""async () => {
+      const A = await import('/runtime/anchor-resolution.js');
+      const P = await import('/runtime/passages.js');
+      const text = document.querySelectorAll('#runs p')[1].firstChild;
+      const start = text.data.indexOf('passed');
+      const range = document.createRange();
+      range.setStart(text, start); range.setEnd(text, start+6);
+      const anchor = A.anchorForRange(range);
+      const resolved = A.resolveAnchor(anchor, P.pageText());
+      const wanted = P.spanIn(P.pageText(), P.segmentsIn(range));
+      const found = resolved && P.spanIn(P.pageText(), resolved.segments);
+      return {anchor, wanted, found};
+    }""")
+    assert captured["wanted"] == captured["found"]
+    if distance == 256:
+        assert len(captured["anchor"]["prefix"]) > 96
+    passages = passages_model.page_passages(structure_model.SourceDocument(markup))
+    offset = anchor_capture_model.resolve_quote(passages, captured["anchor"])
+    assert offset == [m.start() for m in re.finditer("passed", passages.text)][1]
+
+
+def test_a_wordless_range_captures_its_element_without_detached_quote(browser, serve):
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Empty range",
+                '<h1>Controls</h1><button id="icon" aria-label="Settings"></button>',
+            )
+        ),
+    )
+    captured = page.evaluate("""async () => {
+      const A = await import('/runtime/anchor-resolution.js');
+      const element = document.querySelector('#icon');
+      const range = document.createRange();range.selectNodeContents(element);
+      return A.anchorForRange(range);
+    }""")
+    assert captured == {"section": "icon"}
+
+
+@pytest.mark.parametrize("change", [None, "text", "replacement", "revision"])
+def test_a_detached_selection_still_has_a_live_writable_composer(
+    browser, serve, change
+):
+    """The native Range owns composition geometry; saved ambiguity stays detached."""
+    page = open_page(
+        browser,
+        live_url(
+            serve(
+                leaf_page(
+                    "Repeated fenced passages",
+                    '<h1>Runs</h1><section id="runs"><p>Repeated passed text.</p><p>Repeated passed text.</p></section><div style="height:2000px"></div>',
+                )
+            )
+        ),
+    )
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    anchor = page.evaluate("""async () => {
+      const P = await import('/runtime/passages.js');
+      const A = await import('/runtime/anchor-resolution.js');
+      const owner = document.querySelector('#runs');
+      P.fencePassageParts(owner);
+      const text = owner.querySelectorAll('p')[1].firstChild;
+      const range = document.createRange();
+      const start = text.data.indexOf('passed');
+      range.setStart(text, start); range.setEnd(text, start+6);
+      const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range);
+      const anchor = A.anchorForRange(range);
+      if (A.resolveAnchor(anchor, P.pageText()) !== null) throw Error('fixture must stay ambiguous');
+      return anchor;
+    }""")
+    assert anchor["detached"] is True
+    page.keyboard.press("c")
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    expect(field).to_be_in_viewport()
+    write(field, "Review the second occurrence.")
+    page.set_viewport_size({"width": 1000, "height": 800})
+    expect(field).to_be_in_viewport()
+    expect(field).to_be_focused()
+    # Recovery uses the same native Range that placed this editor, even though its
+    # semantic anchor remains detached.
+    page.evaluate("window.scrollTo(0, 500)")
+    expect(field).not_to_be_in_viewport()
+    page.evaluate("""async () => {
+      const {bringBackSurfaceOf} = await import('/runtime/off-flow.js');
+      bringBackSurfaceOf(document.querySelector('.lf-fab-input'), 'instant');
+    }""")
+    expect(field).to_be_in_viewport()
+    if change == "revision":
+        page.keyboard.press("Escape")
+        source = (serve.page_dir / "index.html").read_text()
+        source = source.replace(
+            "<p>Repeated passed text.</p><p>Repeated passed text.</p>",
+            "<p>Repeated passed text.</p><p>Replacement passage.</p>",
+        )
+        stamp = stamp_page(serve.page_dir, source, "Replace the selected occurrence")
+        wait_for_revision(page, stamp["revision"])
+        field = page.locator(".lf-fab-input")
+    elif change:
+        before = page.evaluate(
+            """async change => {
+          const {bringBackSurfaceOf} = await import('/runtime/off-flow.js');
+          window.scrollTo(0, 500);
+          const paragraph = document.querySelectorAll('#runs p')[1];
+          if (change === 'text') paragraph.firstChild.data = 'Repeated failed text.';
+          else {
+            const replacement = document.createElement('p');
+            replacement.textContent = 'Replacement passage.';
+            paragraph.replaceWith(replacement);
+          }
+          const before = scrollY;
+          bringBackSurfaceOf(document.querySelector('.lf-fab-input'), 'instant');
+          await new Promise(requestAnimationFrame);
+          await new Promise(requestAnimationFrame);
+          return {before, after: scrollY};
+        }""",
+            change,
+        )
+        assert before["after"] == before["before"]
+        assert page.evaluate(
+            """async anchor => {
+          const A = await import('/runtime/anchor-resolution.js');
+          const P = await import('/runtime/passages.js');
+          return A.resolveAnchor(anchor, P.pageText()) === null;
+        }""",
+            anchor,
+        )
+    if change:
+        # Losing the Range never abandons the editor's words or durable uncertainty.
+        page.keyboard.press("Escape")
+        page.keyboard.press("g")
+        page.keyboard.press("i")
+        expect(field).to_be_focused()
+        expect(field).to_be_in_viewport()
+        expect(field).to_have_js_property("value", "Review the second occurrence.")
+    with sending(page, "the detached quoted comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    event = next(
+        e
+        for e in reversed(events_model.read_events(serve.page_dir))
+        if e["kind"] == "comment"
+    )
+    assert event["anchor"] == anchor
+    assert page.evaluate(
+        """async anchor => {
+      const {resolveAnchor} = await import('/runtime/anchor-resolution.js');
+      const {pageText} = await import('/runtime/passages.js');
+      return resolveAnchor(anchor, pageText()) === null;
+    }""",
+        anchor,
+    )
+    if change == "revision":
+        page.locator(".lf-thread-filter-toggle").click()
+        unplaced = page.locator(
+            '[data-filter-kind="unplaced"][data-filter-value="unplaced"]'
+        )
+        expect(unplaced).to_have_text("Not located (1)")
+        unplaced.click()
+        expect(page.locator(".lf-thread-view-summary")).to_contain_text("Not located")
+        expect(page.locator(".lf-thread:not([hidden])")).to_have_count(1)
+    assert errors == []
+
+
+def test_design_hint_faces_follow_controls_and_their_native_labels(browser, serve):
+    """A hint stands above its own face, including wrapping and stacked labels."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Control hint faces",
+                '<h1>Controls</h1><section id="controls" style="padding:80px">'
+                '<div style="display:flex;gap:8px;margin-bottom:80px"><button>Reset</button><button>Copy instruction</button><button>Apply treatment</button></div>'
+                '<label style="display:inline-block;padding:8px"><input type="radio" name="choice" aria-label="Choice A">Choice A</label>'
+                '<label style="display:inline-block;padding:8px"><input type="radio" name="choice" aria-label="Choice B">Choice B</label>'
+                '<div style="margin-top:80px"><label for="stacked">Stacked label</label><br><input id="stacked" aria-label="Stacked input"></div>'
+                "</section>",
+            )
+        ),
+    )
+    page.set_viewport_size({"width": 1400, "height": 1200})
+    page.keyboard.press("l")
+    page.keyboard.press("s")
+    said = page.locator(".lf-live")
+    seen = set()
+    heard = []
+    names = {
+        "Reset",
+        "Copy instruction",
+        "Apply treatment",
+        "Choice A",
+        "Choice B",
+        "Stacked input",
+    }
+    for _ in range(12):
+        before = said.text_content()
+        page.keyboard.press("Tab")
+        expect(said).not_to_have_text(before)
+        expect(said).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
+        heard.append(said.text_content())
+        name = next(
+            (
+                name
+                for name in names
+                if f": {name} ·" in said.text_content()
+                or f": control: {name}." in said.text_content()
+            ),
+            None,
+        )
+        if not name:
+            continue
+        seen.add(name)
+        control = page.get_by_role(
+            "radio"
+            if name.startswith("Choice")
+            else "textbox"
+            if name == "Stacked input"
+            else "button",
+            name=name,
+            exact=True,
+        )
+        face = control.evaluate("""control => {
+          const boxes = [control, ...(control.labels ?? [])].map(n => n.getBoundingClientRect());
+          return {left: Math.min(...boxes.map(b => b.left)), top: Math.min(...boxes.map(b => b.top))};
+        }""")
+        hint = page.locator(".lf-target-picker-hint.lf-current").bounding_box()
+        assert abs(hint["x"] - face["left"]) < 1
+        assert hint["y"] + hint["height"] <= face["top"]
+        if seen == names:
+            break
+    assert seen == names, heard
+
+
+@pytest.mark.parametrize("kind", ["checkbox", "select"])
+@pytest.mark.parametrize("route", ["pointer", "keyboard"])
+def test_design_captures_a_repeated_controls_real_associated_label(
+    browser, serve, kind, route
+):
+    """A native label supplies visible evidence; its ARIA name alone does not."""
+    native = (
+        '<input type="checkbox">'
+        if kind == "checkbox"
+        else "<select><option>Enabled</option></select>"
+    )
+    rows = "".join(
+        f"<p>{name} <label>Notify me {native}</label></p>"
+        for name in ["Primary", "Backup"]
+    )
+    page = open_page(
+        browser,
+        live_url(
+            serve(
+                leaf_page(
+                    "Label capture",
+                    '<h1>Settings</h1><section id="settings"><h2>Notifications</h2>'
+                    + rows
+                    + "</section>",
+                )
+            )
+        ),
+    )
+    page.keyboard.press("l")
+    page.keyboard.press("s")
+    inventory = page.evaluate("""async () => {
+      const A = await import('/runtime/anchor-resolution.js');
+      const P = await import('/runtime/passages.js');
+      return A.aimTargets({design:true}).filter(t => t.anchor.part).map(t => t.capture()).map(t => ({anchor:t.anchor, label:t.label, exact:A.resolveAnchor(t.anchor,P.pageText())?.exact}));
+    }""")
+    assert len(inventory) == 2
+    assert all(t["exact"] and t["anchor"]["quote"] == "Notify me" for t in inventory)
+    assert inventory[0]["anchor"] != inventory[1]["anchor"]
+    if route == "pointer":
+        page.locator("main label").nth(1).click()
+    else:
+        said = page.locator(".lf-live")
+        for _ in range(10):
+            previous = said.text_content()
+            page.keyboard.press("Tab")
+            expect(said).not_to_have_text(previous)
+            expect(said).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
+            if (
+                f": {inventory[1]['label']}. Press Enter to choose."
+                in said.text_content()
+            ):
+                break
+        else:
+            pytest.fail("Associated label context did not reach the picker")
+        page.keyboard.press("Enter")
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    expect(field).to_have_attribute("aria-label", re.compile("design · Notify me"))
+    write(field, "Review this notification setting.")
+    with sending(page, "the native label comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    event = next(
+        e
+        for e in reversed(events_model.read_events(serve.page_dir))
+        if e["kind"] == "comment"
+    )
+    assert event["anchor"] == inventory[1]["anchor"]
+    if kind == "checkbox":
+        expect(page.locator("main input").nth(1)).not_to_be_checked()
+
+
+def test_design_spoken_context_does_not_borrow_a_neighbours_face(browser, serve):
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Control names",
+                '<h1>Settings</h1><section id="settings"><h2>Settings</h2><p>Find settings <input aria-label="Search flags"> <button aria-label="Close dialog">×</button></p></section>',
+            )
+        ),
+    )
+    labels = page.evaluate("""async () => {
+      const {aimTargets} = await import('/runtime/anchor-resolution.js');
+      const {anchorLabel} = await import('/runtime/thread/messages.js');
+      return aimTargets({design:true}).filter(t => t.anchor.part).map(t => ({hint:t.label, ordinary:anchorLabel(t.anchor), design:anchorLabel(t.anchor,'design')}));
+    }""")
+    assert "×" not in labels[0]["hint"]
+    assert "Find settings" in labels[0]["hint"]
+    assert "Search flags" in labels[0]["ordinary"]
+    assert "Search flags" in labels[0]["design"]
+    assert "Close dialog" in labels[1]["ordinary"]
+    page.keyboard.press("l")
+    page.keyboard.press("s")
+    page.get_by_role("textbox", name="Search flags").click()
+    expect(page.locator(".lf-fab-input")).to_have_attribute(
+        "aria-label", re.compile("design · Search flags")
+    )
+
+
+def test_design_can_comment_on_a_generated_tab_with_a_repeated_summary(browser, serve):
+    """The named tab remains a usable fallback without inventing exact quote ownership."""
+    page = open_page(
+        browser,
+        live_url(
+            serve(
+                leaf_page(
+                    "Queue",
+                    '<h1>Queue</h1><lf-tabs id="queue" list="side"><lf-tab id="first" label="Primary" summary="pages"><p>Primary evidence.</p></lf-tab><lf-tab id="second" label="Backup" summary="pages"><p>Backup evidence.</p></lf-tab></lf-tabs>',
+                )
+            )
+        ),
+    )
+    page.keyboard.press("l")
+    tab = page.get_by_role("tab", name="Backup", exact=True)
+    expect(tab).to_have_attribute("aria-controls", "second")
+    tab.locator(".lf-tab-summary").click()
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    expect(field).to_have_attribute("aria-label", re.compile("design · Backup"))
+    write(field, "Clarify this summary.")
+    with sending(page, "the tab design comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    event = next(
+        e
+        for e in reversed(events_model.read_events(serve.page_dir))
+        if e["kind"] == "comment"
+    )
+    assert event["anchor"] == {"section": "queue", "part": "Backup"}
+    assert event["about"] == "design"
+    source = (serve.page_dir / "index.html").read_text()
+    passages = passages_model.page_passages(structure_model.SourceDocument(source))
+    assert (
+        anchor_capture_model.resolve_quote(
+            passages, {**event["anchor"], "quote": "Backup pages"}
+        )
+        is None
+    )
+    expect(
+        page.locator(f'.lf-thread[data-id="{event["id"]}"] .lf-msg-text')
+    ).to_contain_text("Clarify this summary.")
+    assert page.evaluate(
+        """async anchor => {
+      const A=await import('/runtime/anchor-resolution.js');
+      const P=await import('/runtime/passages.js');
+      const target=A.resolveAnchor(anchor,P.pageText());
+      return target.exact===false && target.status==='fallback';
+    }""",
+        event["anchor"],
+    )
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    stamp = stamp_page(
+        serve.page_dir,
+        source.replace("Backup evidence.", "Revised backup evidence."),
+        "Revise the tab content",
+    )
+    wait_for_revision(page, stamp["revision"])
+    assert page.evaluate(
+        """async anchor => {
+      const A=await import('/runtime/anchor-resolution.js');
+      const P=await import('/runtime/passages.js');
+      const target=A.resolveAnchor(anchor,P.pageText());
+      return target.exact===false && target.status==='fallback';
+    }""",
+        event["anchor"],
+    )
+
+
+@pytest.mark.parametrize("shape", ["table", "inline", "clipped"])
+def test_design_control_speech_uses_its_captured_context_and_visible_label(
+    browser, serve, shape
+):
+    if shape == "table":
+        rows = (
+            "<table><tbody>"
+            + "".join(
+                f'<tr><td>{name}</td><td><label><input type="checkbox"> Notify me</label></td></tr>'
+                for name in ["Primary", "Backup"]
+            )
+            + "</tbody></table>"
+        )
+    elif shape == "inline":
+        rows = "".join(
+            f'<p><label><input type="checkbox"> <b>Notify</b> me</label> about the {name} release.</p>'
+            for name in ["Primary", "Backup"]
+        )
+    else:
+        rows = "".join(
+            f'<p>{name} <label><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap">Notify me</span><input type="checkbox"></label></p>'
+            for name in ["Primary", "Backup"]
+        )
+    page = open_page(
+        browser,
+        live_url(
+            serve(
+                leaf_page(
+                    "Control context",
+                    '<h1>Settings</h1><section id="settings"><h2>Notifications</h2>'
+                    + rows
+                    + "</section>",
+                )
+            )
+        ),
+    )
+    page.keyboard.press("l")
+    page.keyboard.press("s")
+    inventory = page.evaluate("""async () => {
+      const A=await import('/runtime/anchor-resolution.js');const P=await import('/runtime/passages.js');
+      return A.aimTargets({design:true}).filter(t=>t.anchor.part).map(t=>t.capture()).map(t=>({anchor:t.anchor, label:t.label, exact:A.resolveAnchor(t.anchor,P.pageText())?.exact}));
+    }""")
+    assert len(inventory) == 2
+    if shape == "clipped":
+        assert all(
+            not item["exact"] and "quote" not in item["anchor"] for item in inventory
+        )
+    else:
+        assert all(
+            item["exact"] and item["anchor"]["quote"] == "Notify me"
+            for item in inventory
+        )
+        assert inventory[0]["anchor"] != inventory[1]["anchor"]
+    if shape == "table":
+        assert "after …Settings Notifications Primary" in inventory[0]["label"]
+        assert "after …gs " not in inventory[0]["label"]
+    said = page.locator(".lf-live")
+    heard = []
+    for _ in range(10):
+        previous = said.text_content()
+        page.keyboard.press("Tab")
+        expect(said).not_to_have_text(previous)
+        expect(said).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
+        heard.append(said.text_content())
+        if f": {inventory[1]['label']}. Press Enter to choose." in heard[-1]:
+            break
+    else:
+        pytest.fail(f"The Backup control's context was not announced: {heard}")
+    page.keyboard.press("Enter")
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    write(field, "Clarify this notification control.")
+    with sending(page, "the contextual control comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    event = next(
+        e
+        for e in reversed(events_model.read_events(serve.page_dir))
+        if e["kind"] == "comment"
+    )
+    assert event["anchor"] == inventory[1]["anchor"]
+    expect(page.locator("main input").nth(1)).not_to_be_checked()
+
+
+@pytest.mark.parametrize("route", ["pointer", "keyboard"])
+def test_a_unique_anonymous_control_captures_its_visible_face(browser, serve, route):
+    page = open_page(
+        browser,
+        live_url(
+            serve(
+                leaf_page(
+                    "Control face",
+                    '<h1>Settings</h1><section id="controls" style="padding:80px"><label><input type="radio" name="choice" aria-label="Choice A">Choice A</label> <label><input type="radio" name="choice" aria-label="Choice B">Choice B</label><div style="height:400px"></div></section>',
+                )
+            )
+        ),
+    )
+    page.keyboard.press("l")
+    control = page.get_by_role("radio", name="Choice B")
+    target = page.evaluate("""async () => {
+      const A=await import('/runtime/anchor-resolution.js');const P=await import('/runtime/passages.js');
+      const target=A.aimTargetAt(document.querySelector('[aria-label="Choice B"]'),{design:true});
+      const resolved=A.resolveAnchor(target.anchor,P.pageText());
+      return {anchor:target.anchor,label:target.label,exact:resolved.exact};
+    }""")
+    assert target["exact"] and target["anchor"]["quote"] == "Choice B"
+    assert target["anchor"]["part"] == "Choice B"
+    if route == "pointer":
+        control.click()
+    else:
+        page.keyboard.press("s")
+        said = page.locator(".lf-live")
+        for _ in range(8):
+            previous = said.text_content()
+            page.keyboard.press("Tab")
+            expect(said).not_to_have_text(previous)
+            expect(said).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
+            if f": {target['label']}. Press Enter to choose." in said.text_content():
+                break
+        else:
+            pytest.fail("The Choice B control was not offered")
+        page.keyboard.press("Enter")
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    expect(control).not_to_be_checked()
+    field_box, control_box = field.bounding_box(), control.bounding_box()
+    assert abs(field_box["y"] - control_box["y"]) < 100
+    write(field, "Clarify Choice B.")
+    with sending(page, "the selected control's visible face"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    event = next(
+        e
+        for e in reversed(events_model.read_events(serve.page_dir))
+        if e["kind"] == "comment"
+    )
+    assert event["anchor"] == target["anchor"]
+    source = (serve.page_dir / "index.html").read_text()
+    passages = passages_model.page_passages(structure_model.SourceDocument(source))
+    assert anchor_capture_model.resolve_quote(passages, event["anchor"]) is not None
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    stamp = stamp_page(
+        serve.page_dir,
+        source.replace("<h1>Settings</h1>", "<h1>Updated settings</h1>"),
+        "Revise the page around the retained control",
+    )
+    wait_for_revision(page, stamp["revision"])
+    page.keyboard.press("Shift+t")
+    card = page.locator(".lf-margin-thread .lf-page-thread")
+    expect(card).to_be_visible()
+    expect(card).to_contain_text("Clarify Choice B.")
+    assert abs(card.bounding_box()["y"] - control.bounding_box()["y"]) < 100
+
+
+@pytest.mark.parametrize("kind", ["editable", "focusable"])
+@pytest.mark.parametrize("route", ["pointer", "keyboard"])
+def test_design_regions_keep_distinct_comments_and_ordinary_interaction(
+    browser, serve, kind, route
+):
+    """Regions have names of their own; native editing values are not identity."""
+    attrs = (
+        'contenteditable="true" role="textbox"'
+        if kind == "editable"
+        else 'tabindex="0"'
+    )
+    names = (
+        ["First editor", "Backup editor"]
+        if kind == "editable"
+        else ["Draft region", "Draft region"]
+    )
+    markup = leaf_page(
+        "Design regions",
+        '<h1>Drafts</h1><section id="drafts">'
+        f'<div {attrs} aria-label="{names[0]}">First draft</div>'
+        f'<div {attrs} aria-label="{names[1]}">Backup draft</div>'
+        f'<div id="authored-editor" {attrs}>Authored draft</div></section>',
+    )
+    page = open_page(browser, live_url(serve(markup)))
+    regions = page.locator("#drafts > div")
+    regions.nth(1).evaluate(
+        "el=>el.addEventListener('click',()=>el.dataset.activated='yes')"
+    )
+    page.keyboard.press("Escape")
+    page.locator("h1").click()
+    page.keyboard.press("l")
+    targets = page.evaluate("""async () => {
+      const A=await import('/runtime/anchor-resolution.js');
+      const P=await import('/runtime/passages.js');
+      const inventory=A.aimTargets({design:true});
+      return [...document.querySelectorAll('#drafts > div')].map(el=>{
+        const t=A.aimTargetAt(el,{design:true});
+        return {anchor:t.anchor,label:t.label,
+          exact:A.resolveAnchor(t.anchor,P.pageText()).exact,
+          offered:inventory.some(i=>i.controlElement===el)};
+      });
+    }""")
+    assert all(target["offered"] for target in targets)
+    assert targets[0]["anchor"] != targets[1]["anchor"]
+    assert targets[2]["anchor"] == {"section": "authored-editor"}
+    if kind == "editable":
+        assert [t["anchor"] for t in targets[:2]] == [
+            {"section": "drafts", "part": name} for name in names
+        ]
+        assert not any(t["exact"] for t in targets[:2])
+    else:
+        assert all(t["exact"] for t in targets[:2])
+        assert [t["anchor"]["quote"] for t in targets[:2]] == [
+            "First draft",
+            "Backup draft",
+        ]
+    if route == "pointer":
+        regions.nth(1).click()
+    else:
+        page.keyboard.press("s")
+        said = page.locator(".lf-live")
+        for _ in range(10):
+            previous = said.text_content()
+            page.keyboard.press("Tab")
+            expect(said).not_to_have_text(previous)
+            expect(said).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
+            if (
+                f": {targets[1]['label']}. Press Enter to choose."
+                in said.text_content()
+            ):
+                break
+        else:
+            pytest.fail("The sibling region was missing from the Design picker")
+        page.keyboard.press("Enter")
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    expect(regions.nth(1)).not_to_have_attribute("data-activated", "yes")
+    write(field, "Clarify this editor.")
+    with sending(page, "the selected sibling region"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    event = next(
+        e
+        for e in reversed(events_model.read_events(serve.page_dir))
+        if e["kind"] == "comment"
+    )
+    assert event["anchor"] == targets[1]["anchor"]
+    if kind == "focusable":
+        passages = passages_model.page_passages(structure_model.SourceDocument(markup))
+        assert anchor_capture_model.resolve_quote(passages, event["anchor"]) is not None
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
+    source = (serve.page_dir / "index.html").read_text()
+    stamp = stamp_page(
+        serve.page_dir,
+        source.replace("<h1>Drafts</h1>", "<h1>Revised drafts</h1>"),
+        "Revise around the editors",
+    )
+    wait_for_revision(page, stamp["revision"])
+    resolved = page.evaluate(
+        """async anchor=>{
+      const A=await import('/runtime/anchor-resolution.js');
+      const P=await import('/runtime/passages.js');
+      const r=A.resolveAnchor(anchor,P.pageText());
+      return {exact:r.exact,status:r.status};
+    }""",
+        event["anchor"],
+    )
+    assert resolved["exact"] is (kind == "focusable")
+    regions.nth(1).click(position={"x": 12, "y": 8})
+    expect(regions.nth(1)).to_be_focused()
+    if kind == "editable":
+        regions.nth(1).press("End")
+        regions.nth(1).press_sequentially(" edited")
+        expect(regions.nth(1)).to_have_text("Backup draft edited")
+    expect(field).to_be_hidden()
+
+
+@pytest.mark.parametrize("editable", ["true", "plaintext-only"])
+def test_automatic_design_capture_never_borrows_mutable_editor_context(
+    browser, serve, editable
+):
+    """Static neighbours stay file-readable; unnamed edited values never name parts."""
+    markup = leaf_page(
+        "Editing fences",
+        '<h1>Review</h1><section id="controls">'
+        "<button>Save</button>"
+        f'<div contenteditable="{editable}">Draft words</div>'
+        "<button>Save</button>"
+        f'<div contenteditable="{editable}" role="textbox">Backup words</div>'
+        '<div contenteditable="true" aria-label="Equal editor">Alpha words</div>'
+        '<div contenteditable="true" aria-label="Equal editor">Beta words</div>'
+        "</section>",
+    )
+    page = open_page(browser, live_url(serve(markup)))
+    editor = page.locator("#controls > div").first
+    editor.click()
+    editor.press("End")
+    editor.press_sequentially(" plus my notes")
+    reading = page.evaluate("""async()=>{
+      const A=await import('/runtime/anchor-resolution.js');
+      const P=await import('/runtime/passages.js');
+      return [...document.querySelectorAll('#controls > *')].map(el=>{
+        const t=A.aimTargetAt(el,{design:true});
+        return {anchor:t.anchor,exact:A.resolveAnchor(t.anchor,P.pageText()).exact};
+      });
+    }""")
+    passages = passages_model.page_passages(structure_model.SourceDocument(markup))
+    for target in (reading[0], reading[2]):
+        assert "my notes" not in json.dumps(target["anchor"])
+        if target["exact"]:
+            assert (
+                anchor_capture_model.resolve_quote(passages, target["anchor"])
+                is not None
+            )
+        else:
+            assert target["anchor"] == {"section": "controls", "part": "Save"}
+    assert reading[1]["anchor"] == reading[3]["anchor"] == {"section": "controls"}
+    assert (
+        reading[4]["anchor"]
+        == reading[5]["anchor"]
+        == {"section": "controls", "part": "Equal editor"}
+    )
+    assert not reading[4]["exact"] and not reading[5]["exact"]
+    # An actual native selection still carries observed words and a writable live
+    # editor. The automatic file-readable route does not restrict a user's Range.
+    box = editor.bounding_box()
+    select(
+        page,
+        (box["x"] + 2, box["y"] + box["height"] / 2),
+        (box["x"] + 240, box["y"] + box["height"] / 2),
+    )
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_visible()
+    write(field, "Keep this manually selected text.")
+    with sending(page, "the edited native selection"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    event = next(
+        e
+        for e in reversed(events_model.read_events(serve.page_dir))
+        if e["kind"] == "comment"
+    )
+    assert "plus my notes" in event["anchor"]["quote"]
+    assert event["text"] == "Keep this manually selected text."
+
+
+def test_design_regions_quote_their_own_words_without_nested_controls(browser, serve):
+    markup = leaf_page(
+        "Region faces",
+        '<h1>Review</h1><section id="regions">'
+        '<div tabindex="0" aria-label="Scroller">Own prose <button>Run action</button> tail words</div>'
+        '<div role="listbox" aria-label="Fruit"><div role="option">Apple</div><div role="option">Pear</div></div>'
+        "</section>",
+    )
+    page = open_page(browser, live_url(serve(markup)))
+    targets = page.evaluate("""async()=>{
+      const A=await import('/runtime/anchor-resolution.js');
+      return [...document.querySelectorAll('#regions > div')].map(el=>A.aimTargetAt(el,{design:true}).anchor);
+    }""")
+    assert targets[0]["part"] == "Scroller"
+    assert targets[0]["quote"] in ("Own prose", "tail words")
+    assert targets[1] == {"section": "regions", "part": "Fruit"}
+    passages = passages_model.page_passages(structure_model.SourceDocument(markup))
+    assert anchor_capture_model.resolve_quote(passages, targets[0]) is not None
+
+
+@pytest.mark.parametrize("route", ["pointer", "keyboard"])
+def test_design_named_pictures_share_pointer_and_picker_identity(browser, serve, route):
+    markup = leaf_page(
+        "Pictures",
+        '<h1>Pictures</h1><section id="pictures">'
+        '<svg aria-label="Revenue chart" width="80" height="40"><rect width="80" height="40" fill="teal"/></svg>'
+        '<figure aria-label="Cost chart"><svg width="80" height="40"><rect width="80" height="40" fill="tomato"/></svg></figure>'
+        '<svg width="80" height="40"><rect width="80" height="40" fill="gold"/></svg>'
+        '<button aria-label="Open chart"><svg width="80" height="40"><rect width="80" height="40" fill="green"/></svg></button>'
+        '<div tabindex="0" aria-label="Chart region"><svg aria-label="Region chart" width="80" height="40"><rect width="80" height="40" fill="blue"/></svg></div>'
+        '<img alt="Margin chart" width="80" height="40" src="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2280%22 height=%2240%22%3E%3Crect width=%2280%22 height=%2240%22 fill=%22teal%22/%3E%3C/svg%3E">'
+        "</section>",
+    )
+    page = open_page(browser, live_url(serve(markup)))
+    page.keyboard.press("l")
+    targets = page.evaluate("""async()=>{
+      const A=await import('/runtime/anchor-resolution.js');
+      const inv=A.aimTargets({design:true});
+      return [...document.querySelectorAll('#pictures svg, #pictures img')].map(el=>{
+        const t=A.aimTargetAt(el,{design:true});
+        return {anchor:t.anchor,label:t.label,
+          offered:inv.some(i=>(i.controlElement??i.element)===(t.controlElement??t.element))};
+      });
+    }""")
+    assert [t["anchor"] for t in targets] == [
+        {"section": "pictures", "part": "Revenue chart"},
+        {"section": "pictures", "part": "Cost chart"},
+        {"section": "pictures"},
+        {"section": "pictures", "part": "Open chart"},
+        {"section": "pictures", "part": "Region chart"},
+        {"section": "pictures", "part": "Margin chart"},
+    ]
+    assert all(t["offered"] for t in targets)
+    if route == "pointer":
+        page.locator("#pictures > figure svg").click()
+    else:
+        page.keyboard.press("s")
+        said = page.locator(".lf-live")
+        heard = []
+        for _ in range(12):
+            previous = said.text_content()
+            page.keyboard.press("Tab")
+            expect(said).not_to_have_text(previous)
+            expect(said).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
+            heard.append(said.text_content())
+            if (
+                f": {targets[1]['label']}. Press Enter to choose."
+                in said.text_content()
+            ):
+                break
+        else:
+            pytest.fail(f"The named picture was missing from Design's picker: {heard}")
+        page.keyboard.press("Enter")
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    expect(page.locator("#lf-composer-quote")).to_contain_text("Cost chart")
+    write(field, "Clarify the cost chart.")
+    with sending(page, "the named picture"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    event = next(
+        e
+        for e in reversed(events_model.read_events(serve.page_dir))
+        if e["kind"] == "comment"
+    )
+    assert event["anchor"] == targets[1]["anchor"]
+
+
+@pytest.mark.parametrize("editable", ["true", "plaintext-only"])
+def test_native_editing_cells_share_file_and_browser_passage_fences(
+    browser, serve, editable
+):
+    markup = leaf_page(
+        "Reading cells",
+        '<h1>Review</h1><p id="cells">Before '
+        f'<span contenteditable="{editable}">Editable <em>inline</em> '
+        '<span contenteditable="false">Readonly <b>island</b> '
+        '<span contenteditable="true">Nested value</span> Endreadonly</span> Endedit</span> After '
+        "<svg><text>Vector <tspan>words</tspan> here</text></svg></p>",
+    )
+    page = open_page(browser, live_url(serve(markup)))
+    quotes = [
+        "Before Editable",
+        "Editable inline",
+        "inline Readonly",
+        "Readonly island",
+        "island Nested",
+        "Nested value",
+        "value Endreadonly",
+        "Endreadonly Endedit",
+        "Endedit After",
+        "Vector words here",
+    ]
+    browser_found = page.evaluate(
+        """async quotes=>{
+      const P=await import('/runtime/passages.js');
+      return quotes.map(quote=>P.findQuote(P.pageText(),quote,{section:'cells'},document.querySelector('#cells')).length>0);
+    }""",
+        quotes,
+    )
+    passages = passages_model.page_passages(structure_model.SourceDocument(markup))
+    file_found = [
+        anchor_capture_model.resolve_quote(
+            passages, {"section": "cells", "quote": quote}
+        )
+        is not None
+        for quote in quotes
+    ]
+    assert (
+        browser_found
+        == file_found
+        == [False, True, False, True, False, True, False, False, False, True]
+    )
+    # The editable attribute changes the indexed reading even without a text change.
+    page.locator("#cells > span").evaluate(
+        "el=>el.setAttribute('contenteditable','false')"
+    )
+    assert page.evaluate("""async()=>{
+      const P=await import('/runtime/passages.js');
+      return P.findQuote(P.pageText(),'Before Editable',{section:'cells'},document.querySelector('#cells')).length>0;
+    }""")
+
+
+def test_a_native_cross_cell_selection_sends_its_quote_without_claiming_location(
+    browser, serve
+):
+    markup = leaf_page(
+        "Cross-cell selection",
+        '<h1>Review</h1><p id="cross-cell">Before field '
+        '<span contenteditable="true">Editor words</span> After field.</p>',
+    )
+    page = open_page(browser, live_url(serve(markup)))
+    passage = page.locator("#cross-cell")
+    box = passage.bounding_box()
+    select(
+        page,
+        (box["x"] + 2, box["y"] + box["height"] / 2),
+        (box["x"] + box["width"] - 2, box["y"] + box["height"] / 2),
+    )
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_visible()
+    observed = page.evaluate("""async()=>{
+      const A=await import('/runtime/anchor-resolution.js');
+      const P=await import('/runtime/passages.js');
+      return A.anchorForRange(P.pageRange(getSelection()));
+    }""")
+    assert observed["quote"] == "Before field Editor words After field."
+    assert observed["detached"] is True
+    write(field, "Keep this entire selection in the comment.")
+    with sending(page, "the native cross-cell quotation"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    event = next(
+        e
+        for e in reversed(events_model.read_events(serve.page_dir))
+        if e["kind"] == "comment"
+    )
+    assert event["anchor"] == observed
+    assert event["text"] == "Keep this entire selection in the comment."
+    passages = passages_model.page_passages(structure_model.SourceDocument(markup))
+    assert anchor_capture_model.resolve_quote(passages, event["anchor"]) is None
+    assert page.evaluate(
+        """async anchor=>{
+      const A=await import('/runtime/anchor-resolution.js');
+      const P=await import('/runtime/passages.js');
+      return A.resolveAnchor(anchor,P.pageText()) === null;
+    }""",
+        event["anchor"],
+    )
+    expect(page.locator(".lf-thread-panel")).to_contain_text(
+        "Before field Editor words After field."
+    )
+
+
+@pytest.mark.parametrize("authored", [None, "-1", "0"])
+def test_borrowed_scroll_stops_leave_code_selection_and_marks_with_their_owners(
+    browser, serve, authored
+):
+    """Reachable code is prose; only an authored working region owns its click."""
+    attrs = "" if authored is None else f' tabindex="{authored}"'
+    markup = leaf_page(
+        "Code reachability",
+        '<h1>Review code</h1><section id="snippets">'
+        f'<pre id="code"{attrs} style="width:260px"><code>'
+        "alpha_function_name = compute_the_overly_long_value(first_argument, second_argument, third_argument)"
+        "</code></pre></section>",
+    )
+    page = open_page(browser, live_url(serve(markup)))
+    code = page.locator("#code")
+    expect(code).to_have_attribute("tabindex", "0")
+    borrowed = authored != "0"
+    if borrowed:
+        expect(code).to_have_attribute("data-lf-lent-reach-stop", "")
+    else:
+        expect(code).not_to_have_attribute("data-lf-lent-reach-stop", "")
+    assert code.evaluate("""async el=>{
+      const {WORKS}=await import('/runtime/control-selectors.js');
+      return el.matches(WORKS);
+    }""") is (not borrowed)
+    if borrowed:
+        page.keyboard.press("Escape")
+        page.locator("h1").click()
+        page.keyboard.press("l")
+        box = page.locator("#code code").bounding_box()
+        start = (box["x"] + 2, box["y"] + 8)
+        end = (box["x"] + 130, box["y"] + 8)
+        select(page, start, end)
+        field = page.locator(".lf-fab-input")
+        expect(field).to_be_visible()
+        selected = page.evaluate("getSelection().toString()")
+        assert "alpha" in selected
+        write(field, "Clarify this code.")
+        with sending(page, "the selected code in Design"):
+            page.keyboard.press("ControlOrMeta+Enter")
+        page.keyboard.press("Escape")
+        page.keyboard.press("Escape")
+        page.locator("h1").click()
+        page.mouse.click(start[0] + 30, start[1])
+        dialog = page.get_by_role("dialog")
+        expect(dialog).to_be_visible()
+        expect(dialog).to_contain_text("Clarify this code.")
+        reply = dialog.get_by_role("textbox", name="Reply")
+        reply.click()
+        expect(reply).to_be_focused()
+        page.keyboard.press("Escape")
+    # Retiring scrolling and the code-copy claim returns authored focus state.
+    code.evaluate("""async el=>{
+      el.style.overflow='visible';
+      const words=el.querySelector('code');
+      words.replaceWith(...words.childNodes);
+      const {reachScrollers}=await import('/runtime/reach.js');
+      reachScrollers(el);
+    }""")
+    expect(code).not_to_have_attribute("data-lf-lent-reach-stop", "")
+    if authored is None:
+        expect(code).not_to_have_attribute("tabindex", "0")
+    else:
+        expect(code).to_have_attribute("tabindex", authored)
+
+
+def test_releasing_a_claimed_stop_keeps_another_owners_focus_value(browser, serve):
+    markup = leaf_page(
+        "Reach ownership",
+        '<h1>Review</h1><pre id="code"><code>alpha_function_name</code></pre>',
+    )
+    page = open_page(browser, live_url(serve(markup)))
+    expect(page.locator("#code")).to_have_attribute("data-lf-lent-reach-stop", "")
+    transferred = page.locator("#code").evaluate("""async el=>{
+      const {releaseReachStop}=await import('/runtime/reach.js');
+      el.setAttribute('tabindex','5');
+      releaseReachStop(el);
+      return {value:el.getAttribute('tabindex'),borrowed:el.hasAttribute('data-lf-lent-reach-stop')};
+    }""")
+    assert transferred == {"value": "5", "borrowed": False}
+
+
+def test_native_textarea_defaults_never_supply_design_passage_context(browser, serve):
+    markup = leaf_page(
+        "Native values",
+        '<h1>Review fields</h1><section id="fields">'
+        '<p id="guidance">Stable surrounding field guidance.</p>'
+        "<textarea>Original draft words.</textarea>"
+        '<textarea aria-label="Notes">Other draft words.</textarea>'
+        "<button>Publish draft</button><p>Further stable guidance.</p></section>",
+    )
+    page = open_page(browser, live_url(serve(markup)))
+    fields = page.locator("textarea")
+
+    def capture():
+        return page.evaluate("""async()=>{
+          const A=await import('/runtime/anchor-resolution.js');
+          const P=await import('/runtime/passages.js');
+          return {
+            fields:[...document.querySelectorAll('textarea')].map(el=>{
+              const target=A.aimTargetAt(el,{design:true});
+              return {anchor:target.anchor,label:target.label,
+                exact:A.resolveAnchor(target.anchor,P.pageText()).exact,
+                says:P.textNodesUnder(el).map(s=>s.node.data).join('')};
+            }),
+            button:A.aimTargetAt(document.querySelector('#fields button'),{design:true}).anchor,
+            words:P.pageText().raw,
+          };
+        }""")
+
+    before = capture()
+    fields.nth(0).fill("Changed live value.")
+    fields.nth(1).fill("Changed named value.")
+    after = capture()
+    assert before == after
+    assert [field["anchor"] for field in after["fields"]] == [
+        {"section": "fields", "part": "textarea"},
+        {"section": "fields", "part": "Notes"},
+    ]
+    assert not any(field["exact"] for field in after["fields"])
+    assert all(field["says"] == "" for field in after["fields"])
+    for words in (
+        "Original draft words.",
+        "Other draft words.",
+        "Changed live value.",
+        "Changed named value.",
+    ):
+        assert words not in after["words"]
+        assert all(words not in field["label"] for field in after["fields"])
+    passages = passages_model.page_passages(structure_model.SourceDocument(markup))
+    for quote in ("Original draft words.", "Other draft words."):
+        assert (
+            anchor_capture_model.resolve_quote(
+                passages, {"section": "fields", "quote": quote}
+            )
+            is None
+        )
+    assert anchor_capture_model.resolve_quote(passages, after["button"]) is not None
+    assert (
+        anchor_capture_model.resolve_quote(
+            passages,
+            {"section": "guidance", "quote": "Stable surrounding field guidance."},
+        )
+        is not None
+    )
+    page.locator("h1").click()
+    page.keyboard.press("l")
+    fields.nth(0).click()
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    write(field, "Clarify this field.")
+    with sending(page, "the anonymous native field"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    event = next(
+        e
+        for e in reversed(events_model.read_events(serve.page_dir))
+        if e["kind"] == "comment"
+    )
+    assert event["anchor"] == after["fields"][0]["anchor"]
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    fields.nth(0).click()
+    expect(fields.nth(0)).to_be_focused()
+    fields.nth(0).press("End")
+    fields.nth(0).press_sequentially(" still editable")
+    expect(fields.nth(0)).to_have_value("Changed live value. still editable")

@@ -28,6 +28,8 @@
  * A parent that reuses the aligned frames under another inspector sets
  * `data-lf-shot-controls="off"`; lf-shot then withdraws its commands and margin action
  * and leaves the native checkbox as the flip.
+ * Accessible descriptions update in place when alt changes, retaining the current
+ * comparison choice and its focused control. A different image pair is a new shot.
  * Commentary about the change belongs in authored prose around the widget. */
 import {
   PRESS,
@@ -82,15 +84,13 @@ customElements.define(
       this.#settleDifference = resolve;
     });
 
-    static observedAttributes = ["data-lf-shot-controls"];
+    static observedAttributes = ["alt", "data-lf-shot-controls"];
 
     connectedCallback() {
       if (!once(this)) {
         this.#offer();
         return;
       }
-      const alt = this.getAttribute("alt");
-      this.#alt = alt;
       const shots = [];
 
       const rail = document.createElement("div");
@@ -99,7 +99,6 @@ customElements.define(
       for (const state of ["before", "after"]) {
         const caption = selectableOffer("button", "lf-shotcap");
         caption.dataset.lfState = state;
-        caption.ariaLabel = `${state} — ${alt}`;
         relabel(caption, state, { says: true });
         this.#captions.set(state, caption);
         rail.append(caption);
@@ -115,7 +114,6 @@ customElements.define(
         const img = document.createElement("img");
         const source = this.getAttribute(state);
         img.src = isCanonicalMediaUrl(source) ? scopedMediaUrl(source) : source;
-        img.alt = `${state}: ${alt}`;
         shots.push(img);
         frame.append(img);
         this.#frames.push(frame);
@@ -125,7 +123,6 @@ customElements.define(
       const box = offer("input", "lf-shotflip", undefined, "checkbox");
       this.#box = box;
       box.name = "comparison";
-      box.ariaLabel = `Compare before and after — ${alt}`;
       for (const [state, caption] of this.#captions) {
         caption.addEventListener("click", () => this.#show(state));
         commands(caption, "On a screenshot", [
@@ -134,11 +131,9 @@ customElements.define(
             keys: PRESS,
             title: `show ${state}`,
 
-            // The frame already shown has nothing for this press to do, so the line
-            // does not name it there.
-            when: () =>
-              this.dataset.lfShotControls !== "off" &&
-              this.#position() !== (state === "after" ? 100 : 0),
+            // Selectable captions own activation even at the selected endpoint:
+            // Space must not fall through to the browser's page scrolling.
+            when: () => this.dataset.lfShotControls !== "off",
             run: () => caption.click(),
           },
         ]);
@@ -163,7 +158,7 @@ customElements.define(
       ]);
       commands(box, this.#flip);
       this.append(box);
-      this.#paint();
+      this.#paintAlt();
       this.#offer();
       // A visual-review run creates shots after authored descriptor capture. Its
       // authored controller explicitly owns that generated child's preparation;
@@ -189,8 +184,23 @@ customElements.define(
       this.#margin = null;
     }
 
-    attributeChangedCallback() {
-      if (!this.isConnected) return;
+    #paintAlt() {
+      this.#alt = this.getAttribute("alt");
+      for (const [state, caption] of this.#captions)
+        keeps(caption, "aria-label", `${state} — ${this.#alt}`);
+      for (const frame of this.#frames)
+        frame.querySelector("img").alt = `${frame.dataset.lfState}: ${this.#alt}`;
+      keeps(this.#box, "aria-label", `Compare before and after — ${this.#alt}`);
+      this.#paint();
+      this.#margin?.update();
+    }
+
+    attributeChangedCallback(name) {
+      if (!this.isConnected || !this.#box) return;
+      if (name === "alt") {
+        this.#paintAlt();
+        return;
+      }
       this.#syncComparison();
       this.#requestComparison();
       this.#offer();

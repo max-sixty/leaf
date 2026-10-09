@@ -57,7 +57,7 @@ const FACETS = Object.freeze([
     choice("subject", "content", "Content"),
     choice("subject", "design", "Design"),
   ]),
-  group("gone", "Placement", [choice("gone", "gone", "No longer here")]),
+  group("unplaced", "Placement", [choice("unplaced", "unplaced", "Not located")]),
 ]);
 
 const ORDER = group("order", "Order", [
@@ -73,7 +73,7 @@ export const DEFAULT_INTENT = Object.freeze({
   waiting: "all",
   scope: "all",
   subject: "all",
-  onlyGone: false,
+  onlyUnplaced: false,
 });
 const labelFor = (kind, value) =>
   FACETS.find((facet) => facet.kind === kind)?.choices.find(
@@ -131,12 +131,13 @@ const matchesScope = (reading, thread) =>
 const matchesSubject = (reading, thread) =>
   reading.subject === "all" ||
   (reading.subject === "design") === (thread.root.about === "design");
-const matchesGone = (reading, _thread, place) => !reading.onlyGone || place.gone;
+const matchesUnplaced = (reading, _thread, place) =>
+  !reading.onlyUnplaced || place.unplaced;
 
 // Set one predicate. Counts describe that named subset, while a press on its active
 // control clears it. Both paths share status transitions and their waiting reset.
 export function transition(reading, kind, value) {
-  const changes = kind === "gone" ? { onlyGone: value } : { [kind]: value };
+  const changes = kind === "unplaced" ? { onlyUnplaced: value } : { [kind]: value };
   if (kind === "status" && value === "resolved") changes.waiting = "all";
   if (kind === "waiting" && value !== "all" && reading.status === "resolved")
     changes.status = "open";
@@ -151,7 +152,7 @@ const includesThread = (reading, thread, place) =>
   matchesWaiting(reading, thread) &&
   matchesScope(reading, thread) &&
   matchesSubject(reading, thread) &&
-  matchesGone(reading, thread, place);
+  matchesUnplaced(reading, thread, place);
 
 const count = (rows, predicate) => rows.filter(predicate).length;
 const entryReading = (declaration, selected, amount, disabled, hidden = false) =>
@@ -162,7 +163,7 @@ const entryReading = (declaration, selected, amount, disabled, hidden = false) =
 // broadens the results rather than changing what its label counts.
 function presentationReading(reading, threads, shown, places) {
   const rows = threads.map((thread) => ({ thread, place: places.get(thread) }));
-  const anyGone = rows.some(({ place }) => place.gone);
+  const anyUnplaced = rows.some(({ place }) => place.unplaced);
   const baseline = threads.filter((thread) => matchesStatus(reading, thread)).length;
   const lifecycle = reading.status === "all" ? "" : `${reading.status} `;
   const amount =
@@ -174,7 +175,7 @@ function presentationReading(reading, threads, shown, places) {
       : `On ${reading.waiting === "user" ? "you" : "agent"}`,
     reading.scope !== "all" ? labelFor("scope", reading.scope) : null,
     reading.subject !== "all" ? labelFor("subject", reading.subject) : null,
-    reading.onlyGone ? labelFor("gone", "gone") : null,
+    reading.onlyUnplaced ? labelFor("unplaced", "unplaced") : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -195,13 +196,13 @@ function presentationReading(reading, threads, shown, places) {
       choices: Object.freeze(
         facet.choices.map((declaration) => {
           const selected =
-            facet.kind === "gone"
-              ? reading.onlyGone
+            facet.kind === "unplaced"
+              ? reading.onlyUnplaced
               : reading[facet.kind] === declaration.value;
           const destination = transition(
             reading,
             facet.kind,
-            facet.kind === "gone" ? true : declaration.value,
+            facet.kind === "unplaced" ? true : declaration.value,
           );
           const switched = count(rows, ({ thread, place }) =>
             includesThread(destination, thread, place),
@@ -212,7 +213,7 @@ function presentationReading(reading, threads, shown, places) {
             selected,
             switched,
             !selected && !recovery && !switched,
-            facet.kind === "gone" && !anyGone && !selected,
+            facet.kind === "unplaced" && !anyUnplaced && !selected,
           );
         }),
       ),
@@ -234,7 +235,7 @@ function presentationReading(reading, threads, shown, places) {
       reading.waiting === "all" &&
       reading.scope === "all" &&
       reading.subject === "all" &&
-      !reading.onlyGone
+      !reading.onlyUnplaced
     ),
     groups: Object.freeze([order, ...renderedGroups]),
     userAvailable,
@@ -250,7 +251,7 @@ function presentationReading(reading, threads, shown, places) {
 function emptyReading(reading) {
   return reading.finding
     ? `No ${reading.status === "all" ? "" : `${reading.status} `}threads match “${reading.finding}”.`
-    : reading.scope !== "all" || reading.subject !== "all" || reading.onlyGone
+    : reading.scope !== "all" || reading.subject !== "all" || reading.onlyUnplaced
       ? "No threads match these filters."
       : reading.waiting === "user"
         ? "Nothing is waiting on you."
@@ -291,7 +292,7 @@ export function createThreadNarrowing({ view, listRoot, readThreads, ready, repa
     intent.waiting !== "all" ||
     intent.scope !== "all" ||
     intent.subject !== "all" ||
-    intent.onlyGone;
+    intent.onlyUnplaced;
   // Capture intent once for each list candidate. Its rows, summary and facets all
   // derive from the same reading.
   const model = (threads, places) => narrowingReading(intent, threads, places);
@@ -324,7 +325,7 @@ export function createThreadNarrowing({ view, listRoot, readThreads, ready, repa
     const next = transition(
       intent,
       kind,
-      kind !== "gone" && intent[kind] === value ? "all" : value,
+      kind !== "unplaced" && intent[kind] === value ? "all" : value,
     );
     if (next === intent) return;
     intent = next;

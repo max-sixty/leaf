@@ -82,6 +82,10 @@ stylesheet's, a Layout's or the page's, which the runtime reads rather than deci
 The Questions panel is experimental and expected to change a lot: it replaced the Asks
 drawer to try one place for both queues (`runtime/queue-panel.js`).
 
+The current Threads panel is unsatisfactory and being reconsidered. Defer
+refinements to its existing layout and interaction design; carry those findings
+into the design reconsideration instead of polishing a surface that may go away.
+
 Widgets in ordinary document flow grow with their content by default. Internal
 vertical scrolling needs a task that benefits from keeping a region in view while
 its contents move, or a live stream whose newest entry the reader follows; being
@@ -157,7 +161,13 @@ cut off, since a scroller shows no edge until it is scrolled.
 A change the user requested may reflow the
 content it replaces, shown as motion the eye can follow. A hover, focus, or
 keyboard reveal never changes the space given to its ancestors or siblings. Typing
-may grow its field at the edge its layout grows, but never carries the field. The
+may grow its field at the edge its layout grows, but never carries the field. A box
+that floats over the page, as the comment box and the thread card do, grows inside the
+window as the user types, toward whichever edge still has room, and never scrolls the
+page to make room for its growth (`comment-placement.js`), though one a scroll carried away still comes back for
+the words typed into it (`off-flow.js`). Only a field in flow, which cannot move apart
+from the page, keeps its controls in view as a browser keeps a caret in view
+(`reply-landing.js`). The
 suite's browser fixture watches ordinary tests and nightly tests marked `watch_shifts`
 for a protected box moving on screen without input, news landing just after a press included,
 or typing carrying its field (`tests/shift_watch.js`).
@@ -288,7 +298,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Annotation inventory and controls | `annotation-inventory.js`, `annotation-view.js`, `contributions.js`, `contribution-controls.js`, `inline-contributions.js` |
 | Annotation records and Page Map | `margin-model.js`, `margin-map-model.js`, `page-map-dialog.js`, `pointed-place.js` |
 | Physical annotation presentation | `../packages/default/runtime/annotation-overlay/` |
-| Passages and target identity | `passages.js`, `text-alignment.js`, `anchor-coordinate.js`, `target-references.js`, `resolved-target.js`, `anchor-resolution.js` |
+| Passages and target identity | `passages.js`, `text-alignment.js`, `anchor-coordinate.js`, `resolved-target.js`, `anchor-resolution.js` |
 | Anchor placement, decoration and travel | `anchor-placement.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js`, `indication.js` |
 | Banner and approvals | `banner*.js` |
 | Drawers and neighboring pages | `drawers.js`, `queue-panel.js`, `queue-list.js`, `live-leaves*.js` |

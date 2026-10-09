@@ -1,7 +1,7 @@
 """Calibrate the screenshot judge on the authored triage-board example.
 
-The shipped triage board shows seven defect cards and a header count of open
-defects. The `seeded` scenario's header claims eight; the `clean` control claims
+The shipped triage board shows seven defect cards and a status tile counting open
+defects. The `seeded` scenario's status tile claims eight; the `clean` control claims
 seven. Each sample shows the judge that grades authored pages one page, and
 `rubrics` asks the same question of both: whether the displayed total equals the
 cards. Seeded passes only when the judge says no, so a judge that agrees with
@@ -11,6 +11,7 @@ general page acceptance or judge reliability.
 
 from pathlib import Path
 
+import turbohtml
 from leaf.harness import ClaudeCodeHarness
 
 from leaf_dev import ROOT
@@ -24,7 +25,7 @@ blocks release because the next migration would apply account credits twice. Kee
 all seven defects visible with their priorities, show the total open count, and let
 me move cards. The release cut is Thursday, two days away."""
 
-# The open count each scenario's header claims.
+# The open count each scenario's status tile claims.
 CASES = {"seeded": 8, "clean": 7}
 COUNT = (
     "Open every screenshot the output lists. A region with its own scroll shows "
@@ -35,12 +36,15 @@ COUNT = (
 
 
 def fixture(total: int) -> str:
-    """The actual authored triage example with one controlled header count."""
-    source = (ROOT / "examples/triage-board.html").read_text()
-    marker = 'id="count-open" value="7"'
-    if source.count(marker) != 1:
-        raise ValueError("Triage reader calibration needs its declared count metric")
-    return source.replace(marker, f'id="count-open" value="{total}"')
+    """The actual authored triage example with one controlled open count."""
+    document = turbohtml.parse((ROOT / "examples/triage-board.html").read_text())
+    counts = document.select("#count-open dd strong")
+    if len(counts) != 1:
+        raise ValueError(
+            "Triage reader calibration needs its native open-count reading"
+        )
+    counts[0].set_text(str(total))
+    return document.serialize()
 
 
 def rubrics(scenario: str) -> list[dict]:

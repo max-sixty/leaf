@@ -97,44 +97,44 @@ STACKED_OPTIONS_PAGE = leaf_page(
 <h1 id="h">Clip storage</h1>
 <lf-ask id="stacked-decision"><h2>Where should clips live?</h2>
 <lf-options id="stacked" choose>
-  <lf-option id="st-sd"><lf-chip>effort: low</lf-chip><lf-chip tone="danger">risk: high</lf-chip>
+  <lf-option id="st-sd"><small class="tag">effort: low</small><small class="tag danger">risk: high</small>
     <strong>SD card only</strong>
     <dl class="facts"><dt>Keeps</dt><dd>nine days</dd><dt>Retrieval</dt><dd>a ladder</dd></dl>
     <p>Clips stay on the camera's card and overwrite oldest-first.</p>
   </lf-option>
-  <lf-option id="st-pi" ><lf-chip>effort: med</lf-chip><lf-chip>risk: low</lf-chip>
+  <lf-option id="st-pi" ><small class="tag">effort: med</small><small class="tag">risk: low</small>
     <strong>Pi in the shed</strong>
     <dl class="facts"><dt>Keeps</dt><dd>a season</dd><dt>Retrieval</dt><dd>the couch</dd></dl>
     <p>A nightly pull over the garden wifi; the link is the weak span.</p>
   </lf-option>
 </lf-options></lf-ask>
 <lf-options id="terse">
-  <lf-option id="t-paper"><lf-chip>effort: low</lf-chip><lf-chip>risk: high</lf-chip><strong>Paper maps</strong> Nothing
+  <lf-option id="t-paper"><small class="tag">effort: low</small><small class="tag">risk: high</small><strong>Paper maps</strong> Nothing
   to charge.</lf-option>
-  <lf-option id="t-gps"><lf-chip>£240</lf-chip><lf-chip>a week of battery</lf-chip><lf-chip>resellable if the season ends early</lf-chip><strong>GPS</strong> A week of
+  <lf-option id="t-gps"><small class="tag">£240</small><small class="tag">a week of battery</small><small class="tag">resellable if the season ends early</small><strong>GPS</strong> A week of
   battery.</lf-option>
 </lf-options>
-<lf-compare id="pair">
-  <lf-variant id="cv-cedar"><strong>Cedar</strong>
+<div id="pair" class="layout-tiles">
+  <section id="cv-cedar" class="panel"><strong>Cedar</strong>
     <dl class="facts"><dt>Seal</dt><dd>never</dd></dl>
-    <p>Weathers silver; no sealant, no schedule.</p></lf-variant>
-  <lf-variant id="cv-pine"><strong>Pine</strong>
+    <p>Weathers silver; no sealant, no schedule.</p></section>
+  <section id="cv-pine" class="panel"><strong>Pine</strong>
     <dl class="facts"><dt>Seal</dt><dd>yearly</dd></dl>
-    <p>Cheaper up front; seal it every autumn.</p></lf-variant>
-</lf-compare>
-<lf-compare id="terse-pair">
-  <lf-variant id="cv-oiled"><strong>Oiled</strong> Darker, and a spring job.</lf-variant>
-  <lf-variant id="cv-bare"><strong>Bare</strong> Silver by June.</lf-variant>
-</lf-compare>
-<lf-compare id="spread">
-  <lf-variant id="cv-oak"><strong>Oak</strong> Heavy.</lf-variant>
-  <lf-variant id="cv-ash"><strong>Ash</strong> Pale, and it moves in damp, so a board
+    <p>Cheaper up front; seal it every autumn.</p></section>
+</div>
+<div id="terse-pair" class="layout-tiles">
+  <section id="cv-oiled" class="panel"><strong>Oiled</strong> Darker, and a spring job.</section>
+  <section id="cv-bare" class="panel"><strong>Bare</strong> Silver by June.</section>
+</div>
+<div id="spread" class="layout-tiles">
+  <section id="cv-oak" class="panel"><strong>Oak</strong> Heavy.</section>
+  <section id="cv-ash" class="panel"><strong>Ash</strong> Pale, and it moves in damp, so a board
     laid in March stands proud of the one beside it by June and the fixings work
-    loose over the winter after that.</lf-variant>
-  <lf-variant id="cv-elm"><strong>Elm</strong> Scarce.</lf-variant>
-  <lf-variant id="cv-yew"><strong>Yew</strong> Slow.</lf-variant>
-  <lf-variant id="cv-fir"><strong>Fir</strong> Cheap, and it rots at the ground.</lf-variant>
-</lf-compare>
+    loose over the winter after that.</section>
+  <section id="cv-elm" class="panel"><strong>Elm</strong> Scarce.</section>
+  <section id="cv-yew" class="panel"><strong>Yew</strong> Slow.</section>
+  <section id="cv-fir" class="panel"><strong>Fir</strong> Cheap, and it rots at the ground.</section>
+</div>
 """,
 )
 # A heading-first Ask in every shape its choice group takes: cards, rows, and a settled
@@ -181,7 +181,7 @@ ASK_PAGE = leaf_page(
 <lf-ask id="jobs-decision"><h2>Which jobs are worth starting?</h2>
 <lf-options id="jobs" choose multiple>
   <lf-option id="job-mounts" for="sec-mounts">Replace the <code>M8</code> mounts</lf-option>
-  <lf-option id="job-heater" for="sec-heater"><lf-chip tone="ok">reversible</lf-chip>Heat the bird bath</lf-option>
+  <lf-option id="job-heater" for="sec-heater"><small class="tag ok">reversible</small>Heat the bird bath</lf-option>
   <lf-option id="job-camera">Neither — the camera first</lf-option>
 </lf-options></lf-ask>
 <section id="sec-mounts"><h2>The mounts</h2><p id="mounts-p">Plastic, and one came
@@ -216,11 +216,11 @@ SEATED_QUESTION_PAGE = leaf_page(
     "seated question",
     """
 <h1 id="h">Three jobs</h1>
-<lf-command id="hub" label="Before the frost">
-  <lf-task id="jobs" status="active" talk><strong>Which jobs are worth starting?</strong>
+<lf-test-plan id="hub" label="Before the frost">
+  <lf-test-task id="jobs" status="active" talk><strong>Which jobs are worth starting?</strong>
   The mounts came down in January, the bird bath froze eleven mornings, and the camera
-  is still in its box.</lf-task>
-</lf-command>
+  is still in its box.</lf-test-task>
+</lf-test-plan>
 """,
 )
 
@@ -283,26 +283,21 @@ CHIP_PAGE = leaf_page(
 <p id="intro">The store is <span class="tag">experimental</span> for now.</p>
 <lf-ask id="picks-decision"><h2>Should we keep the store?</h2>
 <lf-options id="picks" choose>
-  <lf-option id="p-keep"><lf-chip>reversible</lf-chip><strong>Keep the store</strong></lf-option>
+  <lf-option id="p-keep"><small class="tag">reversible</small><strong>Keep the store</strong></lf-option>
 </lf-options></lf-ask>
-<lf-tasks id="plan">
-  <lf-task id="t-camera" status="active" owner="finch"><strong>Mount the camera</strong></lf-task>
-</lf-tasks>
+<dl class="facts"><dt>Owner</dt><dd id="owner-fact"><span class="tag">finch</span></dd></dl>
 """,
 )
 PAINTED_PAGE = leaf_page(
     "painted",
     """
 <h1 id="h">What the paint says</h1>
-<lf-chronology id="tl">
-  <lf-chronology-entry id="e-dark" at="09:12" kind="failure"><strong>Feed stopped</strong>
-  The north camera went dark and the alert never fired.</lf-chronology-entry>
-</lf-chronology>
-<lf-tasks id="plan">
-  <lf-task id="t-baffles" status="blocked" owner="finch"><strong>Fit squirrel baffles</strong>
-  Waiting on the brackets.</lf-task>
-</lf-tasks>
+<lf-test-signal id="painted" status="blocked"><strong>Fit squirrel baffles</strong>
+  Waiting on the brackets.</lf-test-signal>
 """,
+).replace(
+    "</head>",
+    "<style>lf-test-signal[status=blocked] { color: #9d2525; }</style></head>",
 )
 SETTLED_ASK_PAGE = ASK_PAGE.replace(
     '<lf-options id="jobs" choose multiple>',
@@ -408,13 +403,11 @@ REBUILT_INLINE_PAGE = leaf_page(
     "stores",
     """
 <h1 id="h">Session store</h1>
-<lf-compare id="cmp-stores">
-  <lf-variant id="v-service"
-    ><lf-suggestion id="sug-store"><lf-old>Redis</lf-old><lf-new>Valkey</lf-new></lf-suggestion
-    >, one hop from the app</lf-variant
-  >
-  <lf-variant id="v-cookie">A signed cookie, with nothing to run</lf-variant>
-</lf-compare>
+<div id="cmp-stores" class="layout-tiles">
+  <section id="v-service" class="panel"><lf-suggestion id="sug-store"><lf-old>Redis</lf-old><lf-new>Valkey</lf-new></lf-suggestion
+    >, one hop from the app</section>
+  <section id="v-cookie" class="panel">A signed cookie, with nothing to run</section>
+</div>
 """,
 )
 SWAP_PAGE = leaf_page(
@@ -510,26 +503,26 @@ ASKS_PAGE = leaf_page(
   <lf-old><p id="refill-was">Refill every feeder each morning.</p></lf-old>
   <lf-new><p id="refill-now">Refill a feeder when its camera says so.</p></lf-new>
 </lf-suggestion>
-<lf-tasks id="plan">
-  <lf-task id="t-mounts" status="done"><strong>Replace the mounts</strong></lf-task>
-  <lf-task id="t-baffles" status="review" owner="finch"><strong>Fit squirrel baffles</strong>
+<lf-test-tasks id="plan">
+  <lf-test-task id="t-mounts" status="done"><strong>Replace the mounts</strong></lf-test-task>
+  <lf-test-task id="t-baffles" status="review" owner="finch"><strong>Fit squirrel baffles</strong>
     <lf-ask id="t-baffles-decision"><h2>Are the baffles ready?</h2>
       <lf-options id="t-baffles-review" choose>
         <lf-option id="t-baffles-approve"><strong>Approve</strong></lf-option>
         <lf-option id="t-baffles-revise"><strong>Request changes</strong></lf-option>
       </lf-options>
     </lf-ask>
-  </lf-task>
-  <lf-task id="t-bath" status="blocked"><strong>Heat the bird bath</strong>
+  </lf-test-task>
+  <lf-test-task id="t-bath" status="blocked"><strong>Heat the bird bath</strong>
     <lf-ask id="t-bath-decision"><h2>How should the bath proceed?</h2>
       <lf-options id="t-bath-choice" choose>
         <lf-option id="t-bath-wait"><strong>Wait for the transformer</strong></lf-option>
         <lf-option id="t-bath-skip"><strong>Leave it unheated</strong></lf-option>
       </lf-options>
     </lf-ask>
-  </lf-task>
-  <lf-task id="t-camera" status="active"><strong>Mount the camera</strong></lf-task>
-</lf-tasks>
+  </lf-test-task>
+  <lf-test-task id="t-camera" status="active"><strong>Mount the camera</strong></lf-test-task>
+</lf-test-tasks>
 <lf-ask id="honored-decision"><h2>Which gate design?</h2>
 <lf-options id="honored" choose>
   <lf-option id="hon-tiers" chosen><strong>Two-tier gates</strong></lf-option>
@@ -542,11 +535,11 @@ ASKS_PAGE = leaf_page(
 <lf-options id="exhibited">
   <lf-option id="exh-paper"><strong>Paper maps</strong></lf-option>
 </lf-options>
-<lf-milestones id="rail">
-  <lf-milestone id="m-survey" status="done"><strong>Survey the sites</strong></lf-milestone>
-  <lf-milestone id="m-build" status="active"><strong>Build the feeders</strong></lf-milestone>
-  <lf-milestone id="m-install" status="blocked"><strong>Install and watch</strong></lf-milestone>
-</lf-milestones>
+<ol id="rail">
+  <li id="m-survey"><small>done</small> <strong>Survey the sites</strong></li>
+  <li id="m-build"><small>active</small> <strong>Build the feeders</strong></li>
+  <li id="m-install"><small>blocked</small> <strong>Install and watch</strong></li>
+</ol>
 <lf-sample id="spec" label="a decision">
   <lf-options id="spec-opts" choose>
     <lf-option id="spec-paper"><strong>Paper maps</strong></lf-option>
@@ -680,11 +673,11 @@ ROOM_WIDGETS = """<lf-board id="{id}-b">
     <lf-card id="{id}-mounts"><strong>South mounts</strong></lf-card>
   </lf-column>
 </lf-board>
-<lf-roster id="{id}-r">
-  <lf-agent id="{id}-wren" state="working">
+<lf-test-roster id="{id}-r">
+  <lf-test-worker id="{id}-wren" state="working">
     <strong>wren</strong> Fitting the brackets.
-  </lf-agent>
-</lf-roster>"""
+  </lf-test-worker>
+</lf-test-roster>"""
 
 # Which element holds each room, and the custom property the theme spends it through.
 ROOMS = [("-b", "--lf-grip-room"), ("-r", "--lf-state-room")]
@@ -744,12 +737,12 @@ THREAD_DIFF_PAGE = leaf_page(
     """
 <h1 id="cd-h">Bracket order</h1>
 <p id="cd-lede">The south pair is up and drawing traffic.</p>
-<lf-command id="cd-command" label="Bracket extras">
-  <lf-task id="cd-q" status="active" talk>
+<lf-test-plan id="cd-command" label="Bracket extras">
+  <lf-test-task id="cd-q" status="active" talk>
     <strong>Which extras go in?</strong>
     <p>Choose between a seed tray and a second pole.</p>
-  </lf-task>
-</lf-command>
+  </lf-test-task>
+</lf-test-plan>
 """,
 )
 LIVE_READING = (
@@ -991,12 +984,12 @@ REPORT_PAGE = leaf_page(
     "reports",
     """
 <h1 id="h">The feeders</h1>
-<lf-tasks id="plan">
-  <lf-task id="t-feeders" status="active" owner="wren"><strong>Rebuild the feeders</strong>
-    <lf-task id="t-mounts" status="done"><strong>Replace the mounts</strong></lf-task>
-    <lf-task id="t-parser" status="active"><strong>Fit squirrel baffles</strong></lf-task>
-  </lf-task>
-</lf-tasks>
+<lf-test-tasks id="plan">
+  <lf-test-task id="t-feeders" status="active" owner="wren"><strong>Rebuild the feeders</strong>
+    <lf-test-task id="t-mounts" status="done"><strong>Replace the mounts</strong></lf-test-task>
+    <lf-test-task id="t-parser" status="active"><strong>Fit squirrel baffles</strong></lf-test-task>
+  </lf-test-task>
+</lf-test-tasks>
 """,
 )
 COMMAND_HUB_EXAMPLE = next(
@@ -1009,12 +1002,12 @@ ROSTER_PAGE = leaf_page(
     "fleet",
     """
 <h1 id="h">The aviary crew</h1>
-<lf-roster id="crew">
-  <lf-agent id="ag-wren" state="working">
-    <strong>wren</strong> The feeders.</lf-agent>
-  <lf-agent id="ag-finch" state="idle"><strong>finch</strong> Free.</lf-agent>
-  <lf-agent id="ag-siskin" state="working"><strong>siskin</strong> Has never reported.</lf-agent>
-</lf-roster>
+<lf-test-roster id="crew">
+  <lf-test-worker id="ag-wren" state="working">
+    <strong>wren</strong> The feeders.</lf-test-worker>
+  <lf-test-worker id="ag-finch" state="idle"><strong>finch</strong> Free.</lf-test-worker>
+  <lf-test-worker id="ag-siskin" state="working"><strong>siskin</strong> Has never reported.</lf-test-worker>
+</lf-test-roster>
 """,
 )
 
@@ -1085,12 +1078,12 @@ STANDING_PAGE = leaf_page(
   <lf-column id="ab-doing" label="Doing"><lf-card id="ab-importer"><strong>Wire the importer</strong></lf-card></lf-column>
   <lf-column id="ab-done" label="Done"><lf-card id="ab-notes"><strong>Draft the notes</strong></lf-card></lf-column>
 </lf-board>
-<lf-tasks id="ab-plan">
-  <lf-task id="ab-baffles" status="active" owner="wren"><strong>Fit the baffles</strong></lf-task>
-</lf-tasks>
-<lf-roster id="ab-crew">
-  <lf-agent id="ab-wren" state="working"><strong>wren</strong> The importer.</lf-agent>
-</lf-roster>
+<lf-test-tasks id="ab-plan">
+  <lf-test-task id="ab-baffles" status="active" owner="wren"><strong>Fit the baffles</strong></lf-test-task>
+</lf-test-tasks>
+<lf-test-roster id="ab-crew">
+  <lf-test-worker id="ab-wren" state="working"><strong>wren</strong> The importer.</lf-test-worker>
+</lf-test-roster>
 <lf-draft id="ab-email"><pre>The words as this version authored them.</pre></lf-draft>
 <lf-suggestion id="ab-sug-410">
   <lf-old><p id="ab-404">The retired response is a plain 404.</p></lf-old>
@@ -1101,14 +1094,10 @@ STANDING_PAGE = leaf_page(
   <lf-new><p>Access logs are kept for 90 days.</p></lf-new>
 </lf-suggestion>
 <lf-ask id="ab-triage-decision"><h2>Which edge cases survive?</h2>
-<lf-swipe-deck id="ab-triage">
-  <lf-swipe-pile id="ab-queue" verdict="unseen">
-    <lf-swipe-card id="ab-expiry"><strong>Buffer expiry writes</strong></lf-swipe-card>
-    <lf-swipe-card id="ab-capacity"><strong>Partition capacity</strong></lf-swipe-card>
-  </lf-swipe-pile>
-  <lf-swipe-pile id="ab-pass" verdict="pass"></lf-swipe-pile>
-  <lf-swipe-pile id="ab-keep" verdict="keep"></lf-swipe-pile>
-</lf-swipe-deck></lf-ask>
+<lf-options id="ab-triage" choose multiple>
+  <lf-option id="ab-expiry"><strong>Buffer expiry writes</strong></lf-option>
+  <lf-option id="ab-capacity"><strong>Partition capacity</strong></lf-option>
+</lf-options></lf-ask>
 <lf-ask id="ab-card-decision"><h2>How should the cutover note look?</h2>
 <lf-playground id="ab-card" submit-label="Use these settings">
   <lf-playground-control name="radius" label="Corner radius" kind="range" value="12" min="0" max="24" step="1" unit="px"></lf-playground-control>
@@ -1134,10 +1123,6 @@ diff --git a/ab/bracket.py b/ab/bracket.py
 +    return "steel"
 </pre></lf-diff>
 <lf-visual-review id="ab-visual" source="ab-run"></lf-visual-review>
-<lf-ask id="ab-target-decision"><h2>How should the release card change?</h2>
-<lf-targeting id="ab-target">
-  <lf-target-preview id="ab-target-preview"><section id="ab-release-card"><strong>Release notes</strong></section></lf-target-preview>
-</lf-targeting></lf-ask>
 """,
 )
 
@@ -1159,39 +1144,13 @@ STANDING_ACTIONS = [
     ("ab-email", "edit", {"value": "The words as the user rewrote them."}),
     ("ab-sug-410", "decide", {"outcome": "accept"}),
     ("ab-sug-logs", "decide", {"outcome": "reject"}),
-    ("ab-triage", "swipe", {"unit": "ab-expiry", "value": "ab-pass", "rank": "i"}),
-    ("ab-triage", "swipe", {"unit": "ab-capacity", "value": "ab-keep", "rank": "i"}),
+    ("ab-triage", "choose", {"value": ["ab-capacity"]}),
+    ("ab-triage", "answer", {}),
     ("ab-patch", "review", {"file": "ab/bracket.py", "reviewed": True}),
     (
         "ab-visual",
         "review",
         {"case": "status-column", "disposition": "looks-right"},
-    ),
-    (
-        "ab-target",
-        "submit",
-        {
-            "targets": [
-                {
-                    "key": "target-1",
-                    "name": "Release card",
-                    "scope": "element",
-                    "className": None,
-                    "reference": {"kind": "id", "id": "ab-release-card"},
-                    "label": "<section#ab-release-card>",
-                    "text": "Release notes",
-                }
-            ],
-            "changes": [
-                {
-                    "id": "change-1",
-                    "target": "target-1",
-                    "kind": "style",
-                    "property": "padding",
-                    "value": "24px",
-                }
-            ],
-        },
     ),
     (
         "ab-card",

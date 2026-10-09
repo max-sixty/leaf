@@ -86,8 +86,8 @@ so several views or tabs would need no merging.
 </lf-ask>
 ```
 
-`lf-ask` declares a `set` verb with a `value` record, as command-hub's
-`lf-task` declares `status`. A board drop logs
+`lf-ask` declares a `set` verb with a `value` record, as the Atlas page's
+`lf-atlas-task` declares `status`. A board drop logs
 `{"widget": "rail-ask", "action": "set", "detail": {"value": "next"}, "via": "plan"}`.
 
 Open within C: where rank is written back when a revision reorders subjects

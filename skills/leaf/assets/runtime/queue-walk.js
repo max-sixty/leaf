@@ -30,7 +30,7 @@
    walk's origin. The user stands on an item when they stand in its Ask, in its thread
    (`threadHere`), or in its widget or element, and the press steps off it. Standing on
    a task Done ends, `x` is that Done, a step on the banner's row under a finger
-   (`endTask`): the user's `task_end`, which leaves the queue in the turn it is pressed.
+   (`queue-api.js`, `done`): the user's `task_end`, which leaves the queue in the turn it is pressed.
 
    Page order is each item's place in the document: an Ask's own element, or its
    thread's passage for an Ask seated in a thread; a thread's passage; the widget a move
@@ -48,9 +48,10 @@ import { coarsePointer } from "./pointer.js";
 import { askHolding, placeOf, walkOrigin } from "./standing-target.js";
 import { elementById, inChrome } from "./passages.js";
 import { hostIn, inUi, under } from "./shadow.js";
-import { allAsks } from "./asks/model.js";
-import { endsByDone, taskNoun } from "./queues.js";
-import { readApplication, watchSemantic } from "./semantic-state.js";
+import { readAsks } from "./asks/model.js";
+import { readQueues, queueItemKey } from "./queue-api.js";
+import { taskNoun } from "./queues.js";
+import { watchSemantic } from "./semantic-state.js";
 import { retainUserIntent } from "./user-intent.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 
@@ -96,7 +97,7 @@ export function createQueueWalk({
   arrive,
   readableDestination,
   announce,
-  post,
+  actions,
 }) {
   // The element a stop stands at on the page, if it has one.
   const stopElement = (stop) =>
@@ -110,7 +111,7 @@ export function createQueueWalk({
     const placed = [];
     const loose = [];
     const listed = new Set();
-    for (const item of readApplication().effective.queues.onYou) {
+    for (const item of readQueues().onYou) {
       const stop = stopOf(item);
       // Two items arrived at in one place, such as two tasks on one thread, are one
       // stop.
@@ -218,7 +219,7 @@ export function createQueueWalk({
   // rows return the user to one to review or revise it.
   function arriveAt(stop) {
     if (stop.kind === "ask") {
-      const record = allAsks().find((ask) => ask.id === stop.id);
+      const record = readAsks().all.find((ask) => ask.id === stop.id);
       return record ? arriveAtAsk(record) : Promise.resolve(false);
     }
     if (stop.kind === "thread") return arriveAtThread(stop.id);
@@ -260,8 +261,8 @@ export function createQueueWalk({
   // The task Done ends where the user stands on `stop`.
   const doneAt = (stop) =>
     stop
-      ? (readApplication().effective.queues.onYou.find(
-          (item) => endsByDone(item) && sameStop(stopOf(item), stop),
+      ? (readQueues().onYou.find(
+          (item) => item.offers.done && sameStop(stopOf(item), stop),
         ) ?? null)
       : null;
 
@@ -284,23 +285,21 @@ export function createQueueWalk({
       return shownFor;
     }
     shownFor =
-      readApplication().effective.queues.onYou.find(
-        (item) => item.id === shownFor?.id && endsByDone(item),
-      ) ?? null;
+      readQueues().onYou.find((item) => item.id === shownFor?.id && item.offers.done) ??
+      null;
     return shownFor;
   }
 
   // The user's Done on a task on them: their `task_end`, through the one append door.
   // The task leaves their queue in the turn they press it (`application.ts`).
   function endTask(id) {
-    void post({ kind: "task_end", task: id, outcome: "done" });
-    announce("Done");
+    return actions.done(queueItemKey({ kind: "task", id }));
   }
 
-  const offered = () => readApplication().effective.queues.onYou.length > 0;
+  const offered = () => readQueues().onYou.length > 0;
   const doneable = () =>
-    readApplication()
-      .effective.queues.onYou.filter(endsByDone)
+    readQueues()
+      .onYou.filter((item) => item.offers.done)
       .map((item) => item.id)
       .join(" ");
   let wasOffered = false;
@@ -376,5 +375,5 @@ export function createQueueWalk({
   // stands (queue-panel.js).
   const next = () => walk(1);
 
-  return { mount, arriveAtItem, endTask, next };
+  return { mount, arriveAtItem, next };
 }

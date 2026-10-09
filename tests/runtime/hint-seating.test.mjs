@@ -41,7 +41,7 @@ test("a chip drawn on another is seated below it", () => {
 
 test("a chip below its target is centred under it and clears it", () => {
   const target = box(200, 50, 100, 20);
-  assert.deepEqual(seat([{ start: chip(0, 0), target, belowTarget: true }]), [
+  assert.deepEqual(seat([{ start: chip(0, 0), target, placement: "below" }]), [
     { left: 240, top: 72 },
   ]);
 });
@@ -62,5 +62,27 @@ test("a chip over the key line sits beside it on a wide target, and above it on 
   ]);
   assert.deepEqual(seat([{ start: chip(100, 770), target: narrow }], { lineBox }), [
     { left: 100, top: 742 },
+  ]);
+});
+
+test("before-target chips stay outside the words, including when the window clamps them", () => {
+  assert.deepEqual(
+    seat([
+      { start: chip(100, 100), target: box(100, 100, 200, 20), placement: "before" },
+    ]),
+    [{ left: 78, top: 100 }],
+  );
+  const target = box(0, 100, 200, 20);
+  assert.deepEqual(seat([{ start: chip(0, 100), target, placement: "before" }]), [
+    { left: 2, top: 82 },
+  ]);
+});
+
+test("control chips sit above their own left edge", () => {
+  const target = box(800, 400, 120, 30);
+  // The chip's CSS centres its face on the seat. Its measured start already carries
+  // that translation; outside placement follows the target edge rather than it.
+  assert.deepEqual(seat([{ start: chip(790, 392), target, placement: "above" }]), [
+    { left: 800, top: 382 },
   ]);
 });

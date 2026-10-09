@@ -1,6 +1,9 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <style>
+      @import url("/page/theme.css");
+    </style>
     <title>Command hub: Atlas importer rewrite</title>
     <meta
       name="description"
@@ -16,8 +19,8 @@
           Get the new importer through one shadow week with no unexplained variance. The
           tree lists goals of the importer rewrite. The lead is assigned to the whole
           rewrite, an area owner to one branch, and a specialist to a single task. Open
-          a goal to inspect its disposable workers and their worktrees, answer beside
-          the goal that stopped, and use
+          a worker to inspect its latest report and worktree, answer beside the goal
+          that stopped, and use
           <em>Send &amp; pause</em>
           when the thread itself should keep new workers away until you resolve it.
         </p>
@@ -25,58 +28,82 @@
 
       <section class="panel" id="hub-tree">
         <h2>Plan</h2>
-        <lf-command
+        <lf-atlas-plan
           id="hub-plan"
           label="One clean shadow week"
           phase="week 3 of 6"
-          readings="hub-readings"
+          overview="hub-readings"
         >
-          <lf-agent id="atlas-lead" state="working">
-            <strong>atlas-lead</strong> Coordinates the whole rewrite: routes decisions,
-            watches progress, and changes focus wherever the tree needs it. Its
-            placement is the project-wide remit; it does not pretend to have one leaf
-            assignment.
-          </lf-agent>
-          <lf-task id="goal-ground" status="done" when="weeks 1–2">
+          <lf-atlas-worker id="atlas-lead" state="working"
+            ><details>
+              <summary>
+                <strong>atlas-lead</strong><output class="atlas-worker-state"></output>
+              </summary>
+              <div class="atlas-worker-body">
+                <p class="atlas-worker-report"></p>
+                Coordinates the whole rewrite: routes decisions, watches progress, and
+                changes focus wherever the tree needs it. Its placement is the
+                project-wide remit; it does not pretend to have one leaf assignment.
+              </div>
+            </details></lf-atlas-worker
+          >
+          <lf-atlas-task id="goal-ground" status="done" when="weeks 1–2">
             <strong>Groundwork</strong>
-            <lf-task id="ground-corpus" status="done">
+            <lf-atlas-task id="ground-corpus" status="done">
               <strong>Snapshot the import corpus</strong> Nine months pinned by content
               hash.
-            </lf-task>
-            <lf-task id="ground-harness" status="done">
+            </lf-atlas-task>
+            <lf-atlas-task id="ground-harness" status="done">
               <strong>Build the replay harness</strong> Old and new importer over the
               same corpus.
-            </lf-task>
-            <lf-task id="ground-schema" status="done">
+            </lf-atlas-task>
+            <lf-atlas-task id="ground-schema" status="done">
               <strong>Map the legacy schema</strong> Every downstream field has an
               owner.
-            </lf-task>
-          </lf-task>
+            </lf-atlas-task>
+          </lf-atlas-task>
 
-          <lf-task id="goal-parser" status="active" when="week 3" talk>
+          <lf-atlas-task id="goal-parser" status="active" when="week 3" talk>
             <strong>Replace the XML parser</strong>
-            Two workers own separate worktrees; the whole row opens both. The stalled
-            dedupe leaf filed itself around this goal rather than turning a worker into
-            a pet.
-            <lf-agent id="w-1" state="working" on="parser-declarations">
-              <strong>w-1</strong> Parser area owner; focused now on declarations and
-              entity boundaries, but responsible for this whole branch of the plan.
-              <lf-worktree id="tree-w-1" source="atlas-worktrees"></lf-worktree>
-            </lf-agent>
-            <lf-task id="parser-declarations" status="active">
+            Two workers own separate worktrees; open each worker to inspect its
+            evidence. The stalled dedupe leaf filed itself around this goal rather than
+            turning a worker into a pet.
+            <lf-atlas-worker id="w-1" state="working" on="parser-declarations"
+              ><details>
+                <summary>
+                  <strong>w-1</strong><output class="atlas-worker-state"></output>
+                </summary>
+                <div class="atlas-worker-body">
+                  <p class="atlas-worker-report"></p>
+                  Parser area owner; focused now on declarations and entity boundaries,
+                  but responsible for this whole branch of the plan.
+                  <lf-atlas-tree id="tree-w-1" source="atlas-worktrees"></lf-atlas-tree>
+                </div></details
+            ></lf-atlas-worker>
+            <lf-atlas-task id="parser-declarations" status="active">
               <strong>Declarations and entities</strong> Three new corpus cases remain.
-              <lf-task id="parser-stream" status="done">
+              <lf-atlas-task id="parser-stream" status="done">
                 <strong>Streaming core</strong> Constant memory over the full corpus.
-              </lf-task>
-              <lf-task id="parser-cdata" status="active">
+              </lf-atlas-task>
+              <lf-atlas-task id="parser-cdata" status="active">
                 <strong>CDATA edge cases</strong> Eleven legacy exports replay cleanly.
-                <lf-agent id="w-2" state="working" on="parser-cdata">
-                  <strong>w-2</strong> CDATA specialist: escaped-markup corpus cases.
-                  <lf-worktree id="tree-w-2" source="atlas-worktrees"></lf-worktree>
-                </lf-agent>
-              </lf-task>
-            </lf-task>
-            <lf-task
+                <lf-atlas-worker id="w-2" state="working" on="parser-cdata"
+                  ><details>
+                    <summary>
+                      <strong>w-2</strong><output class="atlas-worker-state"></output>
+                    </summary>
+                    <div class="atlas-worker-body">
+                      <p class="atlas-worker-report"></p>
+                      CDATA specialist: escaped-markup corpus cases.
+                      <lf-atlas-tree
+                        id="tree-w-2"
+                        source="atlas-worktrees"
+                      ></lf-atlas-tree>
+                    </div></details
+                ></lf-atlas-worker>
+              </lf-atlas-task>
+            </lf-atlas-task>
+            <lf-atlas-task
               id="parser-dedupe"
               status="blocked"
               stopped-at="2026-08-21T08:12:00-07:00"
@@ -84,11 +111,21 @@
               <strong>Deduplicate the corpus snapshot</strong> Three hours of worker
               activity produced no commit. Last worktree:
               <a href="#tree-w-5">atlas/dedupe-attempt</a>.
-              <lf-agent id="w-5" state="reaped" on="parser-dedupe">
-                <strong>w-5</strong> Dedupe specialist, reaped after three hours without
-                a commit; its branch and evidence remain inspectable.
-                <lf-worktree id="tree-w-5" source="atlas-worktrees"></lf-worktree>
-              </lf-agent>
+              <lf-atlas-worker id="w-5" state="reaped" on="parser-dedupe"
+                ><details>
+                  <summary>
+                    <strong>w-5</strong><output class="atlas-worker-state"></output>
+                  </summary>
+                  <div class="atlas-worker-body">
+                    <p class="atlas-worker-report"></p>
+                    Dedupe specialist, reaped after three hours without a commit; its
+                    branch and evidence remain inspectable.
+                    <lf-atlas-tree
+                      id="tree-w-5"
+                      source="atlas-worktrees"
+                    ></lf-atlas-tree>
+                  </div></details
+              ></lf-atlas-worker>
               <lf-ask id="decision-dedupe-region">
                 <h3>What should the host do with the stalled work?</h3>
                 <lf-options id="decision-dedupe" choose>
@@ -111,8 +148,8 @@
                   </lf-option>
                 </lf-options>
               </lf-ask>
-            </lf-task>
-            <lf-task
+            </lf-atlas-task>
+            <lf-atlas-task
               id="parser-zero"
               status="active"
               stopped-at="2026-08-21T08:46:00-07:00"
@@ -133,24 +170,33 @@
                   </lf-option>
                 </lf-options>
               </lf-ask>
-            </lf-task>
-          </lf-task>
+            </lf-atlas-task>
+          </lf-atlas-task>
 
-          <lf-task id="goal-schema" status="active" when="week 3" talk>
+          <lf-atlas-task id="goal-schema" status="active" when="week 3" talk>
             <strong>Reconcile schema and ledger</strong> Two goals and the nightly wait
             behind the schema choice.
-            <lf-task
+            <lf-atlas-task
               id="schema-choice"
               status="review"
               stopped-at="2026-08-21T07:20:00-07:00"
             >
               <strong>Choose the additive schema</strong> Both columns are nullable; the
               migration and reverse path are green.
-              <lf-agent id="w-8" state="waiting" on="schema-choice">
-                <strong>w-8</strong> Schema-choice specialist: migration and
-                reconciliation evidence.
-                <lf-worktree id="tree-w-8" source="atlas-worktrees"></lf-worktree>
-              </lf-agent>
+              <lf-atlas-worker id="w-8" state="waiting" on="schema-choice"
+                ><details>
+                  <summary>
+                    <strong>w-8</strong><output class="atlas-worker-state"></output>
+                  </summary>
+                  <div class="atlas-worker-body">
+                    <p class="atlas-worker-report"></p>
+                    Schema-choice specialist: migration and reconciliation evidence.
+                    <lf-atlas-tree
+                      id="tree-w-8"
+                      source="atlas-worktrees"
+                    ></lf-atlas-tree>
+                  </div></details
+              ></lf-atlas-worker>
               <lf-ask id="decision-schema-region">
                 <h3>What should the host do with the schema branch?</h3>
                 <lf-options id="decision-schema" choose>
@@ -167,11 +213,11 @@
                   </lf-option>
                 </lf-options>
               </lf-ask>
-            </lf-task>
-            <lf-task id="schema-backfill" status="planned" needs="schema-choice">
+            </lf-atlas-task>
+            <lf-atlas-task id="schema-backfill" status="planned" needs="schema-choice">
               <strong>Backfill reconciliation fields</strong>
-            </lf-task>
-            <lf-task
+            </lf-atlas-task>
+            <lf-atlas-task
               id="ledger-fixture"
               status="active"
               needs="schema-choice"
@@ -189,32 +235,41 @@
 Paste the complete CSV row here. Remove customer_name and billing_email before saving.</pre>
                 </lf-draft>
               </lf-ask>
-            </lf-task>
-            <lf-task
+            </lf-atlas-task>
+            <lf-atlas-task
               id="ledger-variance"
               status="planned"
               needs="schema-choice ledger-fixture"
             >
               <strong>Nightly variance report</strong> Unreachable until both inputs
               stand.
-            </lf-task>
-          </lf-task>
+            </lf-atlas-task>
+          </lf-atlas-task>
 
-          <lf-task id="goal-api" status="active" when="week 4" talk>
+          <lf-atlas-task id="goal-api" status="active" when="week 4" talk>
             <strong>Publish the parser contract</strong> Review the branch, not its
             author. A line comment routes to a fresh evidence worker and stays anchored
             here.
-            <lf-task
+            <lf-atlas-task
               id="api-shape"
               status="review"
               stopped-at="2026-08-21T10:35:00-07:00"
             >
               <strong>Review the public result type</strong>
-              <lf-agent id="w-3" state="waiting" on="api-shape">
-                <strong>w-3</strong> Public-contract specialist: result types and
-                compatibility tests.
-                <lf-worktree id="tree-w-3" source="atlas-worktrees"></lf-worktree>
-              </lf-agent>
+              <lf-atlas-worker id="w-3" state="waiting" on="api-shape"
+                ><details>
+                  <summary>
+                    <strong>w-3</strong><output class="atlas-worker-state"></output>
+                  </summary>
+                  <div class="atlas-worker-body">
+                    <p class="atlas-worker-report"></p>
+                    Public-contract specialist: result types and compatibility tests.
+                    <lf-atlas-tree
+                      id="tree-w-3"
+                      source="atlas-worktrees"
+                    ></lf-atlas-tree>
+                  </div></details
+              ></lf-atlas-worker>
               <lf-ask id="decision-api-region">
                 <h3>What should the host do with atlas/public-api?</h3>
                 <lf-options id="decision-api" choose>
@@ -234,26 +289,26 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
                   </lf-option>
                 </lf-options>
               </lf-ask>
-            </lf-task>
-            <lf-task id="api-errors" status="planned" needs="api-shape">
+            </lf-atlas-task>
+            <lf-atlas-task id="api-errors" status="planned" needs="api-shape">
               <strong>Map structured failures</strong>
-            </lf-task>
-            <lf-task id="api-sdk" status="planned" needs="api-shape">
+            </lf-atlas-task>
+            <lf-atlas-task id="api-sdk" status="planned" needs="api-shape">
               <strong>Regenerate the SDK fixture</strong>
-            </lf-task>
-          </lf-task>
+            </lf-atlas-task>
+          </lf-atlas-task>
 
-          <lf-task id="goal-docs" status="done" when="week 3">
+          <lf-atlas-task id="goal-docs" status="done" when="week 3">
             <strong>Document the operator path</strong>
-            <lf-task id="docs-runbook" status="done">
+            <lf-atlas-task id="docs-runbook" status="done">
               <strong>Write the replica runbook</strong>
-            </lf-task>
-            <lf-task id="docs-rollback" status="done">
+            </lf-atlas-task>
+            <lf-atlas-task id="docs-rollback" status="done">
               <strong>Write rollback and evidence capture</strong>
-            </lf-task>
-          </lf-task>
+            </lf-atlas-task>
+          </lf-atlas-task>
 
-          <lf-task
+          <lf-atlas-task
             id="goal-cutover"
             status="planned"
             when="weeks 5–6"
@@ -263,22 +318,44 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
           >
             <strong>Cut over the nightly</strong> This goal is visibly downstream of
             both schema and ledger evidence.
-            <lf-task
+            <lf-atlas-task
               id="cutover-shadow"
               status="planned"
               needs="ledger-variance api-shape"
             >
               <strong>Shadow both importers for one week</strong>
-            </lf-task>
-            <lf-task id="cutover-swap" status="planned" needs="cutover-shadow">
+            </lf-atlas-task>
+            <lf-atlas-task id="cutover-swap" status="planned" needs="cutover-shadow">
               <strong>Swap with the old path behind a flag</strong>
-            </lf-task>
-          </lf-task>
-        </lf-command>
+            </lf-atlas-task>
+          </lf-atlas-task>
+        </lf-atlas-plan>
       </section>
 
       <aside id="hub-rail">
-        <lf-command-readings id="hub-readings"></lf-command-readings>
+        <section class="panel atlas-overview" id="hub-readings">
+          <h2>Current work</h2>
+          <p class="atlas-progress">
+            <output data-atlas-count="progress">Plan loading</output>
+          </p>
+          <dl class="facts">
+            <dt>Running</dt>
+            <dd><output data-atlas-count="running">0</output></dd>
+            <dt>Workers</dt>
+            <dd><output data-atlas-count="workers">0</output></dd>
+            <dt>Quiet</dt>
+            <dd><output data-atlas-count="quiet">0</output></dd>
+            <dt>Stopped</dt>
+            <dd><output data-atlas-count="stopped">0</output></dd>
+          </dl>
+          <button type="button" class="button atlas-refresh" disabled>
+            Show updates
+          </button>
+          <details class="atlas-stopped">
+            <summary>Stopped work</summary>
+            <ul></ul>
+          </details>
+        </section>
         <section class="panel" id="hub-record">
           <h2>Record</h2>
           <p>

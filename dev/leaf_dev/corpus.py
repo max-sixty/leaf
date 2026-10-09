@@ -18,6 +18,7 @@ import shutil
 import sys
 
 import click
+from leaf.registry.layer import merge_layer_declarations
 from leaf.structure import SourceDocument
 from leaf.thread_context import sample_events, thread_ids
 
@@ -54,8 +55,6 @@ PUBLIC_TABS = [
 # underlying widget and thread states already stand in the feature gallery.
 DEVELOPER_TABS = [
     (EXAMPLES_DIR / "developer" / "feature-gallery.html", "Core features"),
-    (EXAMPLES_DIR / "developer" / "swipe-gallery.html", "Swipe package"),
-    (EXAMPLES_DIR / "developer" / "targeting-gallery.html", "Targeting package"),
     (
         EXAMPLES_DIR / "developer" / "visual-review-gallery.html",
         "Visual review package",
@@ -153,8 +152,9 @@ def build() -> str:
         text = source.read_text(encoding="utf-8")
         parsed = SourceDocument(text)
         if parsed.css.strip():
+            css = "\n".join(line.rstrip() for line in parsed.css.splitlines())
             authored_assets.append(
-                f"<!-- {source.name} authored styles -->\n<style>{parsed.css}</style>"
+                f"<!-- {source.name} authored styles -->\n<style>{css}</style>"
             )
         authored_assets.extend(
             f"<!-- {source.name} authored script -->\n<script"
@@ -164,6 +164,9 @@ def build() -> str:
             )
             + f">{script['body']}</script>"
             for script in parsed.inline_scripts
+            # Scripts inside main already travel with its body. Hoisting them
+            # as well duplicates identities and the samples' event sources.
+            if script["early_head"]
         )
         for i in ["corpus-" + stem] + parsed.all_ids:
             if i in owner:
@@ -215,6 +218,10 @@ def build_page() -> dict[str, bytes]:
         }
         if not owned:
             continue
+        merge_layer_declarations(
+            declarations,
+            {key: entry for key, entry in registry.items() if key.startswith("$")},
+        )
         for tag, entry in owned.items():
             if tag in declarations:
                 sys.exit(f"corpus examples both declare {tag!r}")
@@ -222,6 +229,9 @@ def build_page() -> dict[str, bytes]:
         for path in sorted(page.rglob("*")):
             name = path.relative_to(page).as_posix()
             if not path.is_file() or name == "registry.json":
+                continue
+            if name == "theme.css":
+                files[name] = files.get(name, b"") + b"\n" + path.read_bytes()
                 continue
             if name in files and files[name] != path.read_bytes():
                 sys.exit(f"corpus examples contribute conflicting page file {name!r}")

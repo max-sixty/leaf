@@ -133,7 +133,9 @@
 .lf-trace-moment-time { color: var(--muted); font-size: var(--t-6); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .lf-trace-moment-hint { margin: 0; color: var(--muted); font-size: var(--t-6); }
 .lf-trace-tooltip { pointer-events: none; --max-width: min(38ch, calc(100vw - 32px)); white-space: normal; --wa-tooltip-background-color: var(--ink); --wa-tooltip-content-color: var(--paper); --wa-tooltip-font-size: var(--t-6); --wa-tooltip-line-height: 1.5; color: var(--wa-tooltip-content-color); font-size: var(--wa-tooltip-font-size); line-height: var(--wa-tooltip-line-height); }
-.lf-trace-toolbar { position: sticky; top: var(--lf-top); z-index: 3; background: var(--paper); padding-block: var(--sp-1); margin-block-end: var(--sp-2); display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2); }
+/* A sticky header: its controls stand its top padding below where it sticks, which
+ * the layer's focus margin reads (`--lf-head-inset`, kernel shadow.css). */
+.lf-trace-toolbar { position: sticky; top: var(--lf-top); --lf-head-inset: var(--sp-1); z-index: 3; background: var(--paper); padding-block: var(--sp-1); margin-block-end: var(--sp-2); display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2); }
 .lf-trace-transport, .lf-trace-zoom-controls:not([hidden]) { display: flex; align-items: center; gap: var(--sp-1); }
 .lf-trace-zoom-controls { margin-inline-start: auto; }
 .lf-trace-transport-button { display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2); flex: 0 0 auto; min-inline-size: var(--lf-trace-control-size); block-size: var(--lf-trace-control-size); padding: 0 var(--sp-2); border: 0; border-radius: var(--r); background: none; color: var(--ink); font: 500 var(--t-6)/1 var(--sans); cursor: pointer; }
@@ -153,7 +155,7 @@
 .lf-trace-tooltip::part(base) { pointer-events: none; --show-duration: 0ms; --hide-duration: 0ms; }
 .lf-trace-canvas { --lf-drawing: 1; position: relative; inline-size: 100%; block-size: 100%; margin-inline: auto; overflow: hidden; border: 1px solid var(--border-2); box-sizing: border-box; background: var(--paper-2, var(--paper)); }
 .lf-trace-canvas > img { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; object-fit: contain; border: 0; }
-.lf-trace-canvas .viewer-container { background: var(--paper-2, var(--paper)); }
+.lf-trace-canvas .viewer-container { background: var(--paper-2, var(--paper)); touch-action: pan-y; }
 .lf-trace-canvas .viewer-canvas { touch-action: pan-y; }
 .lf-trace-canvas .viewer-canvas img { max-inline-size: none; border: 0; margin: 0; }
 .lf-trace-image-tools:not([hidden]) { display: flex; align-items: center; gap: var(--sp-1); flex-wrap: wrap; margin-block: var(--sp-2) 0; }

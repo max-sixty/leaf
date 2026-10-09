@@ -1568,9 +1568,9 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
     source = (
         leaf_page(
             "Inline task thread",
-            '<h1 id="title">Before the frost</h1><lf-command id="jobs" label="Jobs">'
-            '<lf-task id="bracket" status="active" talk>'
-            "<strong>Which jobs can share a visit?</strong></lf-task></lf-command>",
+            '<h1 id="title">Before the frost</h1><lf-test-plan id="jobs" label="Jobs">'
+            '<lf-test-task id="bracket" status="active" talk>'
+            "<strong>Which jobs can share a visit?</strong></lf-test-task></lf-test-plan>",
         )
         if surface == "inline"
         else ASK_PAGE
@@ -1873,23 +1873,32 @@ def test_native_modality_keeps_its_exposed_controls_in_place(
 
 @pytest.mark.parametrize("sticky", [False, True])
 @pytest.mark.parametrize("carry", [False, True])
+@pytest.mark.parametrize("slotted", [False, True])
 def test_typing_keeps_native_scroll_ownership_without_crediting_local_carry(
-    browser, sticky, carry
+    browser, sticky, carry, slotted
 ):
     position = "position:sticky;top:0" if sticky else ""
+    reading = f"""<div style="height:150px"></div>
+<header style="{position};height:50px">
+<textarea id="field" style="position:relative;top:0;display:block" rows="1"></textarea>
+</header><div style="height:700px">Following reading</div>"""
+    if slotted:
+        reading = f"""<div id="host"><section slot="reading">{reading}</section></div>
+<script>host.attachShadow({{mode:'open'}}).innerHTML =
+  '<div id="scroller" style="height:300px;overflow:auto;width:400px"><slot name="reading"></slot></div>';
+const scroller=host.shadowRoot.getElementById('scroller');</script>"""
+    else:
+        reading = f'<div id="scroller" style="height:300px;overflow:auto;width:400px">{reading}</div>'
     page = browser.new_page()
     page.goto(
         "data:text/html,"
         + quote(f"""<!doctype html><body style="margin:0">
-<div id="scroller" style="height:300px;overflow:auto;width:400px">
-<div style="height:150px"></div>
-<header style="{position};height:50px">
-<textarea id="field" style="position:relative;top:0;display:block" rows="1"></textarea>
-</header><div style="height:700px">Following reading</div></div>
+{reading}
 <p id="evidence" style="position:absolute;left:10px;top:400px">Painted source</p>
 <script>field.addEventListener('beforeinput', () => {{
   scroller.scrollTop += 6;
-  {'field.style.top = "20px"; evidence.style.left = "30px";' if carry else ""}
+  evidence.style.left = "30px";
+  {'field.style.top = "20px";' if carry else ""}
 }})</script></body>""")
     )
     page.evaluate("amount => scroller.scrollTop = amount", 170 if sticky else 100)

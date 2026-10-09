@@ -58,9 +58,11 @@
    window's top, in the window's plane, until the element's foot passes it. A surface whose
    `clear` has not stood in the boundary since its side was chosen, as after a resize
    that left what it is about out of the window, stays in the window until it has.
-   Under or over, a surface taller than the room shown there first has the reading
-   region scroll to make it (`makeRoom`), as far as it can, so it stands clear of what
-   it is about rather than sliding across it.
+   Growing never scrolls the page. A surface that outgrows the room on its side slides
+   inside the boundary, over its passage or element if it must, and once it fills the
+   boundary scrolls its own content. Only a card opening under or over its target
+   scrolls the reading region, as far as it can, to make the room it needs (`makeRoom`),
+   so it opens clear of that target.
 
    A surface may hold one edge at an offset of its own choosing (`hold`), in client
    pixels from its line: `row` beside, and under or over the edge of `clear` it stands
@@ -109,7 +111,31 @@ import { floatingGeometry } from "./floating.js";
 
 // One fresh mechanical reading for the editor and the card it becomes. Resolving the
 // durable subject or passage remains with the caller; both surfaces read its boxes here.
-export function commentAttachment({ target, point = null, passage = null }) {
+export function commentAttachment({
+  target,
+  point = null,
+  passage = null,
+  boundary = null,
+}) {
+  // A detached draft keeps its original semantic coordinate and uses the existing
+  // unanchored window posture. A window seat is geometry, never a replacement anchor.
+  if (!target) {
+    const element = document.documentElement;
+    const extent = boundary ?? commentBoundary();
+    return {
+      element,
+      contextNode: element,
+      geometry: floatingGeometry([element]),
+      clear: null,
+      extent,
+      row: extent.top,
+      lastRow: extent.top,
+      column: null,
+      margin: null,
+      region: null,
+      scroller: effectiveScroller(element),
+    };
+  }
   const context = point ?? passage?.contextNode ?? target;
   const element = point ?? target;
   const geometry = floatingGeometry([element, context]);
@@ -213,7 +239,7 @@ function roomTravel(side, scroller) {
 
 // The room on `side` of `extent` the page can make: what shows there plus the scroll
 // travel `scroller` has left that way, never more than the boundary holds.
-export function reachableRoom(side, extent, boundary, scroller) {
+function reachableRoom(side, extent, boundary, scroller) {
   const shown =
     side === "top"
       ? extent.top - boundary.top - COMMENT_GAP

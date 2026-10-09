@@ -319,19 +319,6 @@ def test_an_export_first_paints_its_widgets_at_their_presented_boxes(
         leaf_page(
             "Exported",
             TAB_SETS
-            + """
-<lf-milestones>
-  <lf-milestone id="build" status="active" when="weeks 2-3" tags="wood,solar">
-    <strong>Build the feeders</strong> Two classic, two heated.
-  </lf-milestone>
-</lf-milestones>
-<lf-tree id="tree"><pre>
-feeders/
-  mount.py  +2 -2
-  sites/
-    north.toml
-</pre></lf-tree>
-"""
             + INITIAL_DRAWING_PAGE.replace('id="title"', 'id="drawing-title"').replace(
                 'id="after"', 'id="drawing-after"'
             ),
@@ -380,8 +367,6 @@ feeders/
     assert {
         "views",
         "more",
-        "build",
-        "tree",
         "drawing",
         "faces-one",
         "faces-two",

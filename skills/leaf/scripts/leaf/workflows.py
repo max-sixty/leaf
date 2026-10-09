@@ -40,7 +40,7 @@ changes outstanding Asks, pending answers, work in hand or approval; delivery ke
 that decision even after these workflows settle.
 
 A user move on a widget whose own Ask the user has not finished answering — a
-pick before the Done its group declares, a swipe before the deck's queue is empty —
+pick before the Done its group declares, a move before a queue is empty —
 has not been handed over yet, so it is no workflow at all: the user is still
 composing the answer, and the finishing move carries the receipt. Once the Ask is
 answered, every move on that widget is owed (`asks.part_of_ask`).

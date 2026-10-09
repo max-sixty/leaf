@@ -8,7 +8,6 @@ import { createThreadListView } from "./thread-list-view.js";
 import { createThreadNarrowingView } from "./narrowing-view.js";
 import { under } from "../shadow.js";
 import { declareOccluder } from "../geometry.js";
-import { textField } from "../composing/text-field.js";
 
 let nextPanelId = 0;
 
@@ -42,13 +41,7 @@ export function createThreadPanelElements({
   threadsBox.setAttribute("aria-label", "Threads");
   const threadsFrame = el("div", "lf-threads-frame");
   threadsFrame.append(threadsBox);
-  const generalRow = el("div", "lf-general");
-  const generalInput = textField();
-  generalInput.name = "comment";
-  const generalSend = el("button", "lf-btn", "Send");
-  generalRow.append(generalInput, generalSend);
   const panelFoot = el("div", "lf-thread-panel-foot");
-  panelFoot.append(generalRow);
   // The body can scroll when its controls alone exhaust the window. The resize
   // grip belongs to the outer panel, so that fallback never clips its hit box.
   const panelBody = el("div", "lf-thread-panel-body");
@@ -74,12 +67,6 @@ export function createThreadPanelElements({
         // Header and View keep selecting the list. Its outer region also owns the
         // scroll that brings the list into view when the panel body is exhausted.
         registerReadingRegion({ id, host: panelBody, body: threadsBox }),
-        registerReadingRegion({
-          id: compoundReadingRegionId(panel, "composer"),
-          host: panelFoot,
-          body: panelFoot,
-          apparatusFor: id,
-        }),
       ];
       stopReadingRegion = () => {
         for (const stop of stops) stop();
@@ -98,8 +85,6 @@ export function createThreadPanelElements({
     narrowingView,
     findInput,
     threadsBox,
-    generalInput,
-    generalSend,
     panelFoot,
     inPanel: (panelIsOpen) => panelIsOpen() && under(focused(), panel),
     mountOverlay,

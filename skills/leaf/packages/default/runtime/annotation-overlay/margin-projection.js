@@ -160,7 +160,7 @@ import { chromeRoot, chromeForeground } from "/runtime/chrome.js";
 import { versionBtn } from "/runtime/version-picker.js";
 import { motion, scrollBehavior } from "/runtime/motion.js";
 import { askHolding, declareSide, placeOf } from "/runtime/standing-target.js";
-import { allAsks } from "/runtime/asks/model.js";
+import { readAsks } from "/runtime/asks/model.js";
 import { closestAcross, inChrome } from "/runtime/passages.js";
 import { visualAt } from "/runtime/anchor-resolution.js";
 import { paintTrace } from "/runtime/target-paint.js";
@@ -819,7 +819,9 @@ export function createMarginProjection({
         if (!position || !stillCurrent()) return;
         previewArriving = false;
         if (previewMessageViewport) {
-          const body = previewList.querySelector(".lf-msg > .lf-msg-body");
+          const body = previewList.querySelector(
+            ".lf-msg > .lf-msg-body > .lf-msg-text",
+          );
           if (body && body !== previewMessageViewport.body) {
             previewMessageViewport.stopRegion?.();
             body.scrollTop = previewMessageViewport.scroll;
@@ -2349,7 +2351,7 @@ export function createMarginProjection({
       return;
     const host = closestAcross(active, "[data-lf-margin-for]");
     // Working an Ask keeps its decisions clear; explicit discussion remains open.
-    if (askHolding(allAsks(), placeOf(active))) {
+    if (askHolding(readAsks().all, placeOf(active))) {
       const entry = threadEntryAt(active);
       if (previewOpen() && (previewAccompanies || previewEntry?.key !== entry?.key))
         closePreview();

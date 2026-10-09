@@ -85,9 +85,8 @@
   };
   const GEOMETRY =
     /^(transform|translate|scale|rotate|inset|top|left|right|bottom|width|height|margin|padding)/;
-  // An element's parent in the composed tree, crossing from a shadow root to its host.
-  const up = (node) =>
-    node.parentNode instanceof ShadowRoot ? node.parentNode.host : node.parentNode;
+  // Use the runtime's rendered ancestry, including forwarding slots and shadow hosts.
+  const up = renderedParent;
   // Decorative media is not an independent reading. Hidden accessibility trees
   // include hoisted target paint and icon faces; their retained text/controls are
   // still measured separately, so this declaration cannot hide a moved button.

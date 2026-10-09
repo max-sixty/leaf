@@ -420,7 +420,8 @@ def foreign_runtime(page_dir: Path, layer: dict) -> str | None:
     contract: the state a server sends and the probe modules the render gate serves
     beside the page's runtime. Served by another Leaf, the page breaks in the
     browser on every read, in a way that reads as a defect in the page. Every page
-    server, the gate's included, refuses on this one reading (`http.page_endpoint`).
+    server, the gate's and the website's included, refuses on this one reading
+    (`http.page_endpoint`, `leaf_website.page_binding`).
 
     It compares only the runtime's modules (`payload_runtime_fingerprint`), so a
     contract change made on the Python side alone passes it. A page vendored before

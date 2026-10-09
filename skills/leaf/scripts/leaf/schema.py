@@ -275,17 +275,6 @@ _ATTRIBUTE_LIST = {
     "minItems": 1,
 }
 _ATTRIBUTE_NAME = {"type": "string", "pattern": f"^{HTML_NAME}$"}
-CHILDREN_SCHEMA = {
-    "type": "object",
-    "minProperties": 1,
-    "propertyNames": {"pattern": f"^{WIDGET_NAME}$"},
-    "additionalProperties": {
-        "type": "object",
-        "properties": {"one-each": {"type": "string", "pattern": f"^{HTML_NAME}$"}},
-        "required": ["one-each"],
-        "additionalProperties": False,
-    },
-}
 EXTENSION_SCHEMA = {
     "type": "object",
     "properties": {
@@ -300,7 +289,6 @@ EXTENSION_SCHEMA = {
             "required": ["when"],
             "additionalProperties": False,
         },
-        "x-required-members": CHILDREN_SCHEMA,
         "x-content": {"enum": ["markup", "members", "data", "empty"]},
         "x-text-format": {"enum": ["inline-markdown", "markdown"]},
         "x-data": DATA_INPUTS_SCHEMA,

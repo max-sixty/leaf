@@ -44,7 +44,7 @@ import {
 } from "./bindings.js";
 import { nativeClaimAt } from "./text-entry.js";
 import { focused, onLabelPress } from "../focus.js";
-import { hostIn, upFrom } from "../shadow.js";
+import { hostIn, renderedParent } from "../shadow.js";
 import { repaint } from "../repaint.js";
 import { keeps } from "../keeps.js";
 
@@ -580,7 +580,7 @@ function scopesWithin(root, activeOnly) {
     const scoped = ref.deref();
     if (!scoped?.isConnected) continue;
     let inside = false;
-    for (let node = scoped; node; node = upFrom(node))
+    for (let node = scoped; node; node = renderedParent(node))
       if (node === root) {
         inside = true;
         break;
@@ -733,7 +733,7 @@ onLabelPress((held) => {
   }
   held.classList.add(FOCUS);
   if (held.matches(":focus-visible")) held.classList.add(FOCUS_VISIBLE);
-  for (let node = held; node; node = upFrom(node)) {
+  for (let node = held; node; node = renderedParent(node)) {
     node.classList.add(FOCUS_WITHIN);
     painted.push(node);
   }
@@ -753,7 +753,7 @@ export function scopesFor(node) {
   const found = [];
   const seen = new Set();
   const collect = (start) => {
-    for (let a = start; a; a = upFrom(a)) {
+    for (let a = start; a; a = renderedParent(a)) {
       for (const scope of [...scopesAt(a), ...contexts.filter(({ el }) => el === a)]) {
         const identity = scopeIdentity(scope);
         if (seen.has(identity)) continue;

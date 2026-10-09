@@ -9180,7 +9180,12 @@ def test_a_card_beside_an_element_scrolled_past_its_top_waits_at_the_windows_top
     leaves with it. On an Ask's options, the binding badge the banner holds in stands
     in the window's plane too, for the same reason."""
     comment = {**COMMENT_ON_ASK, "anchor": {"section": target}}
-    page = open_page(browser, serve(ASK_PAGE, events=[comment]))
+    # Give the last Ask room to pass above the viewport before scroll reaches the
+    # document's end; the fixture otherwise stops with #bracket still visible.
+    source = ASK_PAGE.replace(
+        "</main>", '<div style="height: 800px" aria-hidden="true"></div></main>'
+    )
+    page = open_page(browser, serve(source, events=[comment]))
     resized(page, 1440, 600)
     marker = page.locator(f'[data-lf-margin-for="{target}"] .lf-margin-marker')
     marker.evaluate(
@@ -9200,7 +9205,8 @@ def test_a_card_beside_an_element_scrolled_past_its_top_waits_at_the_windows_top
     }"""
 
     def scroll_by(by):
-        page.evaluate("by => document.scrollingElement.scrollBy(0, by)", by)
+        page.mouse.wheel(0, by)
+        scroll_settled(page)
         rendered(page)
         return page.evaluate(reading, target)
 
@@ -9214,6 +9220,7 @@ def test_a_card_beside_an_element_scrolled_past_its_top_waits_at_the_windows_top
     at = page.evaluate(reading, target)
     assert at["card"] == pytest.approx(at["window"], abs=0.5), at
     at = scroll_by(at["bottom"] - at["window"] + 20)
+    assert at["bottom"] < at["window"], at
     expect(card).to_have_attribute("data-lf-plane", "page")
     assert at["card"] == pytest.approx(at["bottom"], abs=0.5), at
 
@@ -11661,7 +11668,7 @@ def test_observed_scroll_retains_the_seat_of_a_constrained_target(
               const source = position === 'fixed' ? document : host;
               return await new Promise(resolve => {
                 source.addEventListener('scroll', () => requestAnimationFrame(() =>
-                  resolve({top: parseFloat(row.style.top), scrollY,
+                  resolve({top: row.getBoundingClientRect().top,
                     withheld: row.classList.contains('lf-withheld')})), {once: true});
                 if (position === 'fixed') window.scrollTo(0, scroll);
                 else host.scrollTop = scroll;
@@ -11674,7 +11681,63 @@ def test_observed_scroll_retains_the_seat_of_a_constrained_target(
         assert after["offset"] == pytest.approx(before["offset"], abs=1), after
         assert after["hit"] and not after["withheld"], after
         assert not first["withheld"], first
-        assert first["top"] - first["scrollY"] == pytest.approx(after["top"], abs=1)
+        assert first["top"] == pytest.approx(after["top"], abs=1)
+
+
+def test_distant_margin_coordinates_follow_small_moves_without_restatement(
+    browser, serve
+):
+    """Document coordinates retain layout precision beyond CSS length serialization."""
+    page = open_page(browser, serve(PANEL_PAGE))
+    resized(page, 1280, 900)
+    page.evaluate(
+        """async () => {
+          const {contributionEntry, registerContribution} =
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const main = document.querySelector('main');
+          main.dataset.lfMargin = 'none';
+          const space = document.createElement('div');
+          space.style.cssText = 'position: relative; height: 1400000px';
+          const target = document.createElement('p');
+          target.id = 'distant-margin-target';
+          target.textContent = 'A distant passage';
+          target.style.cssText = 'position: absolute; left: 40px; top: var(--target-y);'
+            + 'width: 300px; height: 30px; margin: 0';
+          target.style.setProperty('--target-y', '1234567.578125px');
+          space.append(target); main.append(space);
+          const contribution = registerContribution({key: 'distant', target,
+            read: () => ({entries: [contributionEntry({key: 'distant',
+              glyph: '!', label: 'Distant controls'})]}), activate: () => {}});
+          window.__distantMargin = {target, contribution};
+        }"""
+    )
+    page.locator("#distant-margin-target").scroll_into_view_if_needed()
+    rendered(page)
+    reading = """() => {
+      const {target, contribution} = window.__distantMargin;
+      const row = contribution.control('distant', 'margin').closest('.lf-margin-cluster');
+      return {target: target.getBoundingClientRect().top, row: row.getBoundingClientRect().top};
+    }"""
+    before = page.evaluate(reading)
+    for delta in (1, 2, 4):
+        page.locator("#distant-margin-target").evaluate(
+            "(target, y) => target.style.setProperty('--target-y', `${y}px`)",
+            1234567.578125 + delta,
+        )
+        page.wait_for_function(
+            """expected => {
+              const {contribution} = window.__distantMargin;
+              const row = contribution.control('distant', 'margin').closest('.lf-margin-cluster');
+              return row.getBoundingClientRect().top === expected;
+            }""",
+            arg=before["row"] + delta,
+        )
+        after = page.evaluate(reading)
+        assert after["target"] - before["target"] == delta, after
+    # The shared browser write watch rejects any unchanged style during these passes.
+    for _ in range(3):
+        page.evaluate("window.dispatchEvent(new Event('resize'))")
+        rendered(page)
 
 
 def test_signed_scroll_motion_survives_unobserved_extent_changes(browser, serve):

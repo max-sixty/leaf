@@ -41,7 +41,7 @@ export const upFrom = (node) => node?.parentElement ?? shadowHost(node?.getRootN
 // remains excluded. Read node kind rather than realm-specific Element: a sample asks
 // this of the frame its containing document holds too.
 export function excludedByInert(node) {
-  for (let owner = node; owner; owner = upFrom(owner)) {
+  for (let owner = node; owner; owner = renderedParent(owner)) {
     if (owner.inert) return true;
     if (owner.nodeType === Node.ELEMENT_NODE && owner.matches(":modal")) break;
   }
@@ -50,6 +50,11 @@ export function excludedByInert(node) {
 // The same step through the tree as rendered: a node slotted into a shadow tree renders
 // inside its slot, so the slot is where it is scrolled and ordered, not its light parent.
 export const renderedParent = (node) => node?.assignedSlot ?? upFrom(node);
+// Containment in the rendered tree includes slots and their shadow ancestors.
+export const renderedUnder = (node, root) => {
+  for (let at = node; at; at = renderedParent(at)) if (at === root) return true;
+  return false;
+};
 
 // Which layer a node stands in — the runtime's chrome, a declared label, or the
 // document — is asked by every reading that climbs out of a widget, so it is answered

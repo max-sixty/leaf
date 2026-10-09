@@ -23,7 +23,7 @@
    destination to use as the user's current place. */
 import { documentFocused } from "./keyboard/scopes.js";
 import { elementById, inChrome } from "./passages.js";
-import { allAsks } from "./asks/model.js";
+import { readAsks } from "./asks/model.js";
 import { hostIn, under } from "./shadow.js";
 import { pageReadingBlock } from "./reading-place.js";
 
@@ -60,10 +60,11 @@ export function placeOf(node) {
   if (!at || at === document.body) return null;
   // An Ask is the user's current action wherever it is rendered. A source-linked
   // presentation may otherwise stand in authored flow as well as fixed chrome.
-  if (askHolding(allAsks(), at)) return at;
+  if (askHolding(readAsks().all, at)) return at;
   for (const side of sides) {
     const place = side(at);
-    if (place) return inChrome(place) && !askHolding(allAsks(), place) ? null : place;
+    if (place)
+      return inChrome(place) && !askHolding(readAsks().all, place) ? null : place;
   }
   return inChrome(at) ? null : at;
 }
@@ -81,6 +82,6 @@ export const walkOrigin = () => hostIn(standingPlace() ?? pageReadingBlock(), do
 // The Ask the user stands in, answered or not: where letting go lands, and the extent
 // of what `c` counts as the element they stand at.
 export function heldAsk(node = documentFocused()) {
-  const ask = askHolding(allAsks(), placeOf(node));
+  const ask = askHolding(readAsks().all, placeOf(node));
   return ask ? elementById(ask.id) : null;
 }

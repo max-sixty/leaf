@@ -19,6 +19,15 @@ opening comment's `id`, in the record `leaf thread open` prints. `leaf page stat
 <page> <id>`, `leaf thread reply`, `edit` and `resolve`, and `leaf task open` all
 take the id of any message in the thread.
 
+A browser selection can identify actual words mechanically without distinguishing
+which repeated passage they came from. Such a comment retains its quote and carries
+`anchor.detached: true`: the selected occurrence was not identified at capture, so
+later uniqueness cannot establish that it survived. Its transcript says **passage
+not identified**, and the panel's **Not located** filter includes it. The user can
+still write, recover, and send that comment. This capture fact differs from a thread
+explicitly detached by a revision, which has a null current anchor and records its
+prior coordinate in `detached_from`.
+
 Title a thread with `--title` on the command that first handles it: the `open` that
 starts it, or, for an untitled thread the user opened, the reply that answers it,
 which a delivered message in it asks for. Choose a few words that identify its
@@ -139,7 +148,7 @@ leaf response reply <answer.ref> --detach --text "Removed this; the thread no lo
 The reply records the active revision and its anchor transition atomically. The opening
 comment keeps its original anchor in the event log. The panel keeps a
 detached thread open, its passage link marked as gone from this version, and the
-**No longer here** filter lists it. `page state` reports its
+**Not located** filter lists it. `page state` reports its
 null current anchor and the prior anchor as `detached_from`. A later reply may move it
 to a genuine replacement. Open a new thread for a different subject.
 

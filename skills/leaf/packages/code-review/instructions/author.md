@@ -12,8 +12,11 @@ the difference. Keep shared steps recognizable and label additions, removals,
 and changed relationships. Changes in one drawing or a matched before/after pair
 can make the comparison readable without reconstructing two unrelated diagrams.
 
-Choose evidence for the question: `diagram` for behavior or structure, `diff` for
-the exact patch and its call-tree diff, and `pr-review` for a captured pull-request
-brief. Standard code, table, and disclosure elements can carry a focused invariant,
-test result, or remaining uncertainty. Set `lf-diff`'s `review` attribute when the
-user needs to inspect every file, and use an Ask when a specific decision is owed.
+Choose evidence for the question: `diagram` for behavior or structure, and `diff`
+for the exact patch and its call-tree diff. Compose a pull-request brief with
+native headings, tables and disclosures: identify the repository, reviewed
+revision, author, checks and source link. Bind external evidence through a
+page-owned data adapter when it must refresh. Standard code, table, and disclosure
+elements can carry a focused invariant, test result, or remaining uncertainty.
+Set `lf-diff`'s `review` attribute when the user needs to inspect every file, and
+use an Ask when a specific decision is owed.

@@ -393,8 +393,8 @@ def card_body(page, says):
     while they read the comment, and where nothing presses.
 
     Low on the card *as the user sees it*: the list scrolls, so the last card's own
-    bottom can sit below the scroller and behind the panel's foot. A point read off the
-    card's rect alone lands on the general box there, which hovers no card at all. A
+    bottom can sit below the scroller. A point read off the card's rect alone lands
+    outside the list there, which hovers no card at all. A
     card below the list's fold, as every card after an open one is, is scrolled to
     first, as the user's hand would. Read once the panel has finished sliding in, which
     is where the user's hand finds it."""
@@ -484,14 +484,10 @@ FENCED_CAPTURE_PAGE = leaf_page(
     "fenced capture",
     """
 <h1 id="h">Roadmap</h1>
-<lf-milestones>
-  <lf-milestone id="gate-milestone" status="active" when="week-1" tags="wood,solar">
-    <strong>Build feeders</strong> Two classic models.
-  </lf-milestone>
-</lf-milestones>
+<lf-sample id="gate-milestone" label="active · week-1 · wood · solar"><strong>Build feeders</strong> Two classic models.</lf-sample>
 <p id="after-milestone">Ready next.</p>
 <lf-options id="fence-options">
-  <lf-option id="fence-option"><lf-chip>effort: low</lf-chip><lf-chip>risk: high</lf-chip>
+  <lf-option id="fence-option"><small class="tag">effort: low</small><small class="tag">risk: high</small>
     <strong>Classic feeder</strong> Easy to clean.
   </lf-option>
 </lf-options>

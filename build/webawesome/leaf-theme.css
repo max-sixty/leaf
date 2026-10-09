@@ -1,18 +1,14 @@
 /* Leaf tokens keep every third-party control in the active page theme. */
 :is(
-  wa-color-picker,
   wa-copy-button,
   wa-comparison,
-  wa-switch,
   wa-radio-group,
   wa-radio,
   wa-slider,
   wa-tooltip,
   wa-select,
   wa-option,
-  wa-input,
-  wa-textarea,
-  wa-number-input
+  wa-input
 ) {
   color-scheme: inherit;
   --wa-font-family-body: var(--sans);
@@ -47,11 +43,11 @@
   --wa-form-control-value-color: var(--ink);
 }
 
-/* The field inside each of these is the vendor's native input or textarea, in a shadow
+/* The vendor's native input sits in a shadow
    root the layer's own field floor (shadow.css) does not reach, so the same floor
    is passed in as the size the vendor sets its value in: never under --entry-floor,
    and never smaller than the type around it. */
-:is(wa-input, wa-textarea, wa-number-input) {
+wa-input {
   --wa-form-control-background-color: var(--card);
   --wa-form-control-value-font-size: max(var(--entry-floor), 1em);
 }
@@ -73,7 +69,7 @@
    it is drawn — theme.css states the same for the layer's own rules, and these two are
    the vendored controls that animate their outline. Naming the properties that stay
    leaves the vendor's own durations and easing to it. */
-:is(wa-input, wa-textarea, wa-number-input)::part(base),
+wa-input::part(base),
 wa-select::part(combobox) {
   transition-property: background-color, border-color;
 }
@@ -83,7 +79,7 @@ wa-select::part(combobox) {
    drawn and named on the field's own part: --lf-focus-ring does not inherit, and the
    layer credits a ring to the rule that names it. Leaf enables none of the buttons the
    field can carry beside its input, so focus inside it is focus in the input. */
-:is(wa-input, wa-textarea, wa-number-input):focus-within::part(base) {
+wa-input:focus-within::part(base) {
   outline: var(--focus-ring);
   --lf-focus-ring: text-entry;
 }

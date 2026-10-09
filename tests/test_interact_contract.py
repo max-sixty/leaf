@@ -4167,7 +4167,7 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
             service_model.unacknowledged(transaction.events, transaction.cursor),
         )
     queued = codex_model.offer_delivery(
-        path, files_model.read_json(path), turn_replies=False
+        path, codex_model.read_record(path), transport="queue"
     )
     delivery_model.cmd_delivery_read(queued.payload["id"])
     read = capsys.readouterr().out

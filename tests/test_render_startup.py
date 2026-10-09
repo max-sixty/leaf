@@ -2578,6 +2578,7 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
 
     modules = sorted(p for p in asked if p.startswith("/widgets/"))
     assert modules == [
+        "/widgets/activity-view.js",
         "/widgets/lf-activity.js",
         "/widgets/lf-board.js",
     ], modules

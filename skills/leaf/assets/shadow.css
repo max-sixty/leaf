@@ -631,7 +631,7 @@ button.lf-thread-notice:is(:focus-visible, .lf-focus-visible) { outline: var(--f
 /* The outline chip: the kernel's chip geometry (the chip tokens in theme.css's :root)
    with a hairline edge on the card, the compact label the chrome and the thread
    surfaces share, stated here and nowhere else. It is not the default package's
-   lf-chip, whose face is the filled .tag, so it is named for the edge it adds. It
+   a label, whose face is the filled .tag, so it is named for the edge it adds. It
    stands in this file because a thread seated in a declared widget tree is out of
    every document selector's reach, and drew the platform's button instead: on the
    dark scheme its ButtonFace grey put the muted word at 1.86:1.

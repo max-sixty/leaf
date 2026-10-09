@@ -358,9 +358,11 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
             var(--hi-tint) calc(var(--lf-msg-arrival) * 100%), var(--lf-msg-rest-ground));
           background-color: var(--lf-msg-ground); }
 .lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) { margin-top: 0; }
-/* All message headers share one shrinking policy, including sticky margin heads.
+/* Every message header holds the same control-height row, including sticky margin
+   heads. Thread actions and reactions must not change its metadata-to-body gap.
    An author may ellipsize while time and receipt use their own intrinsic room. */
-.lf-msg-head { display: flex; align-items: baseline; gap: var(--sp-2);
+.lf-msg-head { display: flex; align-items: center; gap: var(--sp-2);
+          min-block-size: max(28px, var(--aim-floor)); box-sizing: border-box;
           min-width: 0; overflow: hidden; white-space: nowrap;
           font-size: var(--t-6); --lf-msg-name-size: 13px; }
 .lf-msg-head .lf-msg-meta { flex: 0 1 auto; overflow: hidden; }
@@ -390,8 +392,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-thread-content:has(> .lf-thread-controls) > .lf-thread-transcript
   > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-msg-head {
           anchor-name: --lf-thread-headline;
-          min-height: var(--lf-thread-action-room); align-items: center;
-          box-sizing: border-box;
           margin-inline-end: calc(var(--lf-thread-action-room) + var(--sp-2));
           padding-inline-end: calc(var(--lf-thread-notice-room) + var(--sp-2) + var(--lf-thread-reaction-room)); }
 .lf-thread-content:has(> .lf-thread-controls) > .lf-thread-transcript
@@ -706,16 +706,12 @@ button.lf-thread-notice:is(:focus-visible, .lf-focus-visible) { outline: var(--f
 @media (hover: none) {
   .lf-react-strip > .lf-react-trigger { opacity: 1; }
 }
-/* Under a finger the trigger takes the aim floor, and with no hover to reveal it, it
-   stands on every reply for good; either way it is more than an overlay on the corner
-   can hold. Hung there at the floor's size it covered the last words of the reply's
-   first line at 360px, so the head row it stands beside holds its height and the
-   trigger stands in that row. Its words and trigger share the header's centre. */
+/* Under a finger the always-visible reaction takes the aim floor. The common
+   header row already holds its height; reserve its inline room here too. */
 @media (pointer: coarse), (hover: none) {
   .lf-msg.agent > .lf-msg-head {
           --lf-react-row: max(26px, var(--aim-floor));
-          box-sizing: border-box; min-height: var(--lf-react-row);
-          align-items: center; padding-inline-end: var(--lf-react-row); }
+          padding-inline-end: var(--lf-react-row); }
 }
 .lf-msg-meta { display: flex; align-items: baseline; gap: var(--sp-2); min-width: 0; }
 .lf-msg-sending { color: var(--muted); font-weight: 600; white-space: nowrap; }

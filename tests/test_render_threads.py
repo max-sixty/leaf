@@ -85,33 +85,60 @@ pytestmark = pytest.mark.nightly
 OPEN_TITLE = ".lf-threads > .lf-thread:not([hidden])[open] > .lf-thread-summary"
 
 
-def test_panel_thread_actions_share_the_first_message_header(browser, serve):
+@pytest.mark.parametrize("touch", [False, True])
+@pytest.mark.parametrize("surface", ["panel", "margin"])
+def test_thread_actions_share_consistently_sized_message_headers(
+    browser, serve, touch, surface
+):
     """Independent thread actions take the first header's spare inline room.
 
-    Keeping a message's header inside it must not give Resolve an otherwise empty
-    row above it. The message body keeps the conversation's full reading width.
+    Controls must not give the opening message a different metadata-to-body gap
+    from later user and agent messages. Every header holds the input's target floor,
+    and each body keeps the conversation's full reading width.
     """
     url = serve(PANEL_PAGE)
-    root = panel_comment(serve.page_dir, "testing")
+    root = panel_comment(serve.page_dir, "testing", {"section": "lede"})
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": root,
+            "revision": 1,
+            "text": "Another thought on the same passage.",
+        },
+    )
     append_agent_reply(serve.page_dir, root, "Testing received successfully.")
-    page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    card = page.locator(f'.lf-thread[data-id="{root}"]')
-    focus_panel_thread(card)
+    context = browser.new_context(has_touch=touch, is_mobile=touch)
+    page = open_page(browser, url, context=context)
+    if surface == "panel":
+        page.locator(".lf-threads-toggle").click()
+        panel_settled(page)
+        card = page.locator(f'.lf-thread[data-id="{root}"]')
+        focus_panel_thread(card)
+    else:
+        page.locator(".lf-margin-marker").first.click()
+        card = page.locator(".lf-margin-preview .lf-page-thread")
+        expect(card).to_be_visible()
     for width in (1440, 390):
         resized(page, width, 900)
         rendered(page)
         geometry = card.evaluate(
             """card => {
               const box = selector => card.querySelector(selector).getBoundingClientRect();
-              const title = box('.lf-thread-summary');
+              const title = (card.querySelector('.lf-thread-head') ??
+                card.querySelector('.lf-thread-summary'))?.getBoundingClientRect();
               const head = box('.lf-msg-head');
               const action = box('.lf-resolve');
               const body = box('.lf-msg-body');
               const center = box => box.top + box.height / 2;
               return {
-                headerGap: head.top - title.bottom,
+                headerGap: title ? head.top - title.bottom : null,
+                messageGaps: [...card.querySelectorAll('.lf-msg')].map(message => {
+                  const name = message.querySelector('.lf-msg-head b').getBoundingClientRect();
+                  const body = message.querySelector('.lf-msg-body').getBoundingClientRect();
+                  return body.top - name.bottom;
+                }),
                 centers: [center(head), center(action)],
                 headRight: head.right, actionLeft: action.left,
                 bodyLeft: body.left, headLeft: head.left,
@@ -120,7 +147,12 @@ def test_panel_thread_actions_share_the_first_message_header(browser, serve):
             }"""
         )
         assert abs(geometry["centers"][0] - geometry["centers"][1]) < 1, geometry
-        assert 0 <= geometry["headerGap"] <= 12, geometry
+        if geometry["headerGap"] is not None:
+            assert 0 <= geometry["headerGap"] <= 12, geometry
+        assert len(geometry["messageGaps"]) == 3, geometry
+        assert max(geometry["messageGaps"]) - min(geometry["messageGaps"]) < 0.01, (
+            geometry
+        )
         assert geometry["headRight"] <= geometry["actionLeft"], geometry
         assert geometry["bodyLeft"] == geometry["headLeft"], geometry
         assert geometry["bodyRight"] >= geometry["actionRight"], geometry
@@ -2163,7 +2195,7 @@ def test_comment_on_the_page_starts_a_thread_from_a_card_under_the_banner(
     browser, serve
 ):
     """The banner's Comment on the page starts a page thread with Threads shut: a card
-    hangs flush from the control, and its send puts the card away and flashes Threads,
+    hangs flush from the control, and its send keeps focus on it and flashes Threads,
     whose count takes the new thread, without opening the panel. `c` on the floor goes
     to the same card, and with Threads open both go to Threads' own box instead."""
     page = open_page(browser, serve(LONG_PAGE))
@@ -2231,7 +2263,7 @@ def test_comment_on_the_page_starts_a_thread_from_a_card_under_the_banner(
         "Does the plan cover the self-hosted runners?",
         None,
     )
-    assert not card.evaluate(is_open)
+    assert card.evaluate(is_open)
     assert toggle.evaluate("t => t.getAnimations().length") == 1, (
         "Threads did not flash"
     )
@@ -2239,6 +2271,11 @@ def test_comment_on_the_page_starts_a_thread_from_a_card_under_the_banner(
     assert not page.locator(".lf-thread-panel").evaluate(
         "p => p.classList.contains('open')"
     )
+    expect(card).to_be_focused()
+    page.keyboard.press("c")
+    expect(box).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(card).to_be_hidden()
     expect(control).to_be_focused()
 
     page.locator("main").click(position={"x": 4, "y": 4})
@@ -2254,7 +2291,7 @@ def test_comment_on_the_page_starts_a_thread_from_a_card_under_the_banner(
     page.keyboard.press("Escape")
     assert not card.evaluate(is_open)
 
-    # A refused send opens the card again on the words it handed back.
+    # A refused send restores the editor on the words it handed back.
     page.route(
         "**/api/event",
         lambda route: route.fulfill(
@@ -2280,6 +2317,41 @@ def test_comment_on_the_page_starts_a_thread_from_a_card_under_the_banner(
     expect(general).to_be_focused()
     expect(general).to_have_js_property("value", "Kept for later")
     assert not card.evaluate(is_open)
+
+
+def test_a_refused_page_comment_respects_newer_reading_input(browser, serve):
+    """A late refusal restores words without taking focus after a newer wheel gesture."""
+    page = open_page(browser, serve(LONG_PAGE))
+    page.locator(".lf-page-comment").click()
+    card = page.locator(".lf-page-comment-card")
+    box = card.locator("leaf-text")
+    write(box, "Keep my place while delivery finishes.")
+    held = []
+
+    def hold(route):
+        if route.request.post_data_json.get("kind") == "comment":
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.route("**/api/event", hold)
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the page comment before refusal")
+    expect(card).to_be_focused()
+    page.mouse.move(300, 550)
+    page.mouse.wheel(0, 350)
+    page.wait_for_function("scrollY > 0")
+    expect(card).to_be_focused()
+    held.pop().fulfill(
+        status=400,
+        json={"ok": False, "final": True, "error": "refused before append"},
+    )
+    expect(box).to_have_js_property("value", "Keep my place while delivery finishes.")
+    expect(card).to_be_focused()
+    page.unroute("**/api/event", hold)
+    assert all("400" in error for error in take_browser_errors(page))
+    page.keyboard.press("c")
+    expect(box).to_be_focused()
 
 
 def test_comment_on_the_page_stands_in_more_on_a_phone(browser, serve):
@@ -9497,12 +9569,11 @@ def pressed_send_surface(browser, serve, surface):
                 holder = page.locator(".lf-general")
                 box = holder.locator("leaf-text")
         send = holder.locator(".lf-compose-submit")
-        # A send in the margin card, a reply's or the comment that opens it, leaves the
-        # user on the element the card is about; a panel reply on its thread's title;
-        # the panel's general box stays to take more.
+        # Every conversation send leaves focus on its card or title. The panel's
+        # general box stays to take more.
         after = {
-            "card": page.locator("#how-store"),
-            "composer": page.locator("#how-cap"),
+            "card": holder.locator(".lf-page-thread"),
+            "composer": page.locator(".lf-margin-preview .lf-page-thread"),
             "composer-panel": page.locator(
                 ".lf-thread", has_text="Sent from the box."
             ).locator(":scope > .lf-thread-summary"),
@@ -9710,8 +9781,7 @@ def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface
     the user where Enter would, never on the button, where the next letters fall on
     nothing. A box that stays to take more keeps them in it, typing on. A reply, or the
     comment that starts a thread, finishes what they were writing: they stand on the
-    thread, or on the element the margin card is about with the card still up, and `c`
-    writes the follow-up."""
+    thread's card or title on every surface, and `c` writes the follow-up."""
     page, box, send, after, reply = pressed_send_surface(browser, serve, surface)
     if surface.startswith("composer"):
         hold_pending_thread_presentation(page)

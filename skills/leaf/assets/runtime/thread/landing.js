@@ -30,18 +30,12 @@
    out is the thread it belongs to whichever of them put the user in it, and the
    panel's own general box hands back to the Threads list. A page-owned first-message seat
    has no standing place of its own; a widget control that explicitly enters its box
-   supplies the caller-owned return target through `landInThread`. A send from a
-   thread's box leaves it the same way, onto the thread, except in the margin card,
-   whose thread stands for the element it is about (`landSent`). */
+   supplies the caller-owned return target through `landInThread`. Sending leaves
+   focus on the conversation's card or title on every surface (`landSent`). Returning
+   to the page is a separate navigation gesture. */
 import { landingBand, seenRect, shownBox, shownWindow } from "../geometry.js";
 import { documentFocused, focused } from "../keyboard/scopes.js";
-import {
-  focusDestination,
-  handingBack,
-  onStanding,
-  takesLetters,
-  whenLeft,
-} from "../focus.js";
+import { focusDestination, onStanding, takesLetters, whenLeft } from "../focus.js";
 import { under } from "../shadow.js";
 import { scrollBehavior } from "../motion.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
@@ -206,7 +200,8 @@ pageScope("text entry", {
         document.activeElement.blur();
         const target = back?.target ?? panelList;
         if (!target) return;
-        if (!target.matches?.(THREAD)) return target.focus();
+        if (!target.matches?.(THREAD))
+          return focusDestination(target, "return", { scroll: true });
         standOnThread(target);
       },
     },
@@ -215,10 +210,12 @@ pageScope("text entry", {
 
 // Coming back out of a thread's box onto the thread, by Escape or by a send, is no
 // arrival. A thread too tall to show whole is already on screen around the box, and
-// landing its title would take the user away from the turn they were answering.
+// landing its title would take the user away from the turn they were answering, so it
+// is a `return` the list leaves where it is. One that fits is a `move`, which the list
+// lands whole in view (`onStanding` below) as the browser's own scroll brings its title.
 export function standOnThread(thread) {
-  if (fitsWhole(thread)) return focusThread(thread);
-  handingBack(() => focusThread(thread, { preventScroll: true }));
+  if (fitsWhole(thread)) return focusThread(thread, "move", { scroll: true });
+  focusThread(thread, "return");
 }
 
 // A thread's own keys, live wherever the user stands in one: the card, the message a
@@ -391,7 +388,7 @@ export function wireThreadLanding(threadsBox) {
     if (!shouldLand) return;
     const thread = standing() ?? pressedThread;
     if (thread && !reachedForWords(thread)) {
-      if (standing() !== thread) focusThread(thread, { preventScroll: true });
+      if (standing() !== thread) focusThread(thread, "move");
       // The press's click may reflow the list and takes its hold from this geometry.
       land(thread, "instant", threadsBox);
     }
@@ -485,8 +482,8 @@ async function showThreadNow(id, focus, flash, revealThread, threadsBox, mayArri
     const destination =
       node === thread ? threadFocusDestination(thread, { focus }) : node;
     mayArrive.handoff(() => {
-      if (destination === thread) focusThread(thread, { preventScroll: true });
-      else destination.focus({ preventScroll: true });
+      if (destination === thread) focusThread(thread, "move");
+      else focusDestination(destination, "move");
     });
   }
   const directThread = node === thread && thread.contains(focused());
@@ -548,12 +545,7 @@ export function accompanyThread(ids, threadsBox) {
   });
 }
 
-export function createThreadLanding({
-  setPanel,
-  revealThread,
-  threadsBox,
-  cardTarget,
-}) {
+export function createThreadLanding({ setPanel, revealThread, threadsBox }) {
   const landIn = (destination) => {
     const prepared = prepareLanding(destination);
     if (!prepared) return false;
@@ -566,7 +558,7 @@ export function createThreadLanding({
     // view it is already as shown as it can be: a thread standing in for the control
     // its render took away jumped to its head, 700px past where the user had pressed.
     bringBackSurfaceOf(box);
-    box.focus({ preventScroll: true });
+    focusDestination(box, "move");
     const shown = shownBox(box);
     const visible = seenRect(box, new Map());
     const room = shownWindow();
@@ -585,16 +577,9 @@ export function createThreadLanding({
     return true;
   };
   const landInThread = (box, route = null) => landIn({ box, route });
-  // Where a sent reply or first comment leaves the user: out of the box, standing on the
-  // thread, or, for a thread in the margin card, on the element the thread is about, with
-  // the card still up (`cardTarget`, the card's own step out). A user who sends is
-  // usually done with the thread until the agent answers, so they move on from there
-  // without Escaping out of the box first.
-  const landSent = (thread) => {
-    const target = cardTarget?.(thread);
-    if (target) focusDestination(target);
-    else standOnThread(thread);
-  };
+  // Sending ends text entry while keeping the user in the conversation. Every surface
+  // uses its thread's focus stop; leaving the card belongs to navigation, not Send.
+  const landSent = standOnThread;
   const showThread = (
     id,
     {

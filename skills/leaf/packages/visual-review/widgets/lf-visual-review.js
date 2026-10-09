@@ -29,6 +29,7 @@ import {
   paintKeys,
   PRESS,
   projectData,
+  readingPosture,
   registerReadingRegion,
   relabel,
   scopedMediaUrl,
@@ -62,6 +63,10 @@ const SCALE = {
   fit: "Fit",
   actual: "100%",
 };
+
+// The smallest scale Fit shrinks a pair to so it fits its pane whole: at it, a captured
+// page's 16px body text stays above 11px.
+const READABLE_SCALE = 0.7;
 
 const SCOPE = {
   focus: "Focus change",
@@ -136,7 +141,10 @@ customElements.define(
       });
       this.#sizes = sizeObserver(() => this.#scheduleEvidenceLayout());
       this.#sizes.observe(this);
-      for (const stage of this.querySelectorAll(".lf-vr-shot-host"))
+      this.#sizes.observe(this.#casesBody);
+      for (const stage of this.querySelectorAll(
+        ".lf-vr-shot-host, .lf-vr-case-head, .lf-vr-toolbar-slot",
+      ))
         this.#sizes.observe(stage);
       window.addEventListener("resize", this.#onGeometryChange);
       this.#threadSurface ??= placeThreads(this, (targets) =>
@@ -418,10 +426,19 @@ customElements.define(
       const visibleHeights = activeFocus
         ? [activeFocus.height, activeFocus.height]
         : heights;
-      // The stage is as tall as the captures and the page scrolls through them, so the
-      // window the chrome leaves is the height a reader sees at once.
+      // The height a reader sees the pair in at once. Where the evidence pane scrolls on
+      // its own, as in a workspace that fills the window, it is the pane body's, from the
+      // stage's top down, and Fit contains the pair in it. Elsewhere the page scrolls
+      // the review, and it is the window the chrome leaves.
+      const bounded = readingPosture(this.#evidenceHost) === "bounded";
       const stageWidth = entry.shotHost.clientWidth;
-      const stageHeight = shownWindow({ viewport: "layout" }).height;
+      const stageHeight = bounded
+        ? this.#casesBody.clientHeight -
+          (entry.shotHost.getBoundingClientRect().top -
+            this.#casesBody.getBoundingClientRect().top +
+            this.#casesBody.scrollTop) -
+          (entry.shotHost.offsetHeight - entry.shotHost.clientHeight)
+        : shownWindow({ viewport: "layout" }).height;
 
       const stageStyle = getComputedStyle(entry.shotHost);
       const gap = parseFloat(stageStyle.getPropertyValue("--lf-vr-gap"));
@@ -446,15 +463,33 @@ customElements.define(
       const wideCapture = width / Math.max(...visibleHeights) >= 1.5;
       const compareLayout =
         wideCapture || stackContainScale >= sideContainScale ? "stack" : "side";
-      const fitScale =
+      const widthScale =
         this.#mode === "compare"
           ? compareLayout === "stack"
             ? (stageWidth - frameBorder) / width
             : sideWidthScale
           : (stageWidth - frameBorder) / width;
-      // A comparison is a reading surface: fit the pair to its available width and
-      // scroll through its height. Containing both frames vertically made tall mobile
-      // captures unreadably small even when both fit side by side.
+      // Flip shows one frame under lf-shot's rail of controls.
+      const rail =
+        this.#mode === "flip"
+          ? (shot.querySelector(".lf-shotrail")?.offsetHeight ?? 0)
+          : 0;
+      const containScale =
+        this.#mode === "compare"
+          ? compareLayout === "stack"
+            ? stackContainScale
+            : sideContainScale
+          : Math.min(
+              widthScale,
+              (stageHeight - rail - frameBorder) / Math.max(...visibleHeights),
+            );
+      // Where the evidence pane scrolls on its own, Fit shrinks the pair to fit the
+      // pane, so the reader sees all of it at once, unless that takes it below
+      // `READABLE_SCALE`: a tall mobile capture shrunk to fit whole was unreadably small.
+      // Such a pair takes the width instead and its pane scrolls, as the page does where
+      // the page scrolls the review.
+      const fitScale =
+        bounded && containScale >= READABLE_SCALE ? containScale : widthScale;
       const scale = this.#scale === "actual" ? 1 : Math.min(1, fitScale);
       keeps(this, "data-compare-layout", compareLayout);
       keeps(entry.shotHost, "data-focus-authored", Boolean(focus));
@@ -563,7 +598,7 @@ customElements.define(
         });
         restoreFocus?.(() => {
           if (!this.#selected) return false;
-          this.#landOnEvidence();
+          this.#landOnEvidence("return");
           return true;
         });
       } catch (error) {
@@ -579,8 +614,11 @@ customElements.define(
       if (this.#evidenceHost.lastChild !== this.#inspector)
         this.#evidenceHost.append(this.#inspector);
       this.#queue.replaceChildren();
-      for (const { shotHost } of this.#caseEntries.values())
+      for (const { shotHost, article } of this.#caseEntries.values()) {
         this.#sizes?.unobserve(shotHost);
+        this.#sizes?.unobserve(article.querySelector(".lf-vr-case-head"));
+        this.#sizes?.unobserve(article.querySelector(".lf-vr-toolbar-slot"));
+      }
       this.#caseEntries.clear();
       this.#selected = null;
       this.#paintNavigation();
@@ -603,6 +641,8 @@ customElements.define(
       for (const [id, entry] of this.#caseEntries) {
         if (wanted.has(id)) continue;
         this.#sizes?.unobserve(entry.shotHost);
+        this.#sizes?.unobserve(entry.article.querySelector(".lf-vr-case-head"));
+        this.#sizes?.unobserve(entry.article.querySelector(".lf-vr-toolbar-slot"));
         this.#caseEntries.delete(id);
       }
       const options = [];
@@ -722,6 +762,8 @@ customElements.define(
       const toolbar = make("div", "lf-vr-toolbar-slot", null, false);
       const shotHost = make("div", "lf-vr-shot-host");
       this.#sizes?.observe(shotHost);
+      this.#sizes?.observe(heading);
+      this.#sizes?.observe(toolbar);
       const threadOutlet = make("section", "lf-vr-thread-outlet lf-ui");
       threadOutlet.dataset.lfGen = "1";
       threadOutlet.setAttribute("aria-label", "Threads on this visual case");
@@ -908,10 +950,10 @@ customElements.define(
       paintKeys();
       // Keep a surviving queue or shared inspector control. A hidden case-local
       // destination hands the reader to the new case's evidence exactly once.
-      if (land) this.#landOnEvidence();
+      if (land) this.#landOnEvidence("move");
       else
         restoreFocus?.(() => {
-          this.#landOnEvidence();
+          this.#landOnEvidence("move");
           return true;
         });
     }
@@ -943,11 +985,11 @@ customElements.define(
       this.#select(next.id, true);
     }
 
-    #landOnEvidence() {
+    #landOnEvidence(cause) {
       const heading = this.#caseEntries
         .get(this.#selected)
         .article.querySelector(".lf-vr-case-title");
-      focusDestination(heading);
+      focusDestination(heading, cause);
       const header = heading.closest(".lf-vr-case-head");
       scrollIntoReadingBand(header, header, "start", scrollBehavior());
     }

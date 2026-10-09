@@ -1,5 +1,5 @@
 /* Focus readings shared by thread paint and commands. */
-import { focusDestination, holdStanding } from "../focus.js";
+import { focusDestination, holdStanding, forwardFocus } from "../focus.js";
 import { shownBox } from "../geometry.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { focused } from "../keyboard/scopes.js";
@@ -14,8 +14,12 @@ import { replyAvailable, replyControlDestination } from "./replies.js";
 // so their established root remains the destination.
 export const threadFocusStop = (thread) =>
   thread.querySelector(":scope > summary:not([hidden])") ?? thread;
-export function focusThread(thread, options) {
-  threadFocusStop(thread).focus(options);
+export function focusThread(thread, cause, options) {
+  focusDestination(threadFocusStop(thread), cause, options);
+}
+// The Threads list handing the focus it is gaining on to the open thread's title.
+export function forwardToThread(thread) {
+  forwardFocus(threadFocusStop(thread));
 }
 
 export const threadReplyInput = (thread) => {
@@ -128,7 +132,7 @@ export async function replyDestination(
   const thread = shown instanceof Element ? closestAcross(shown, THREAD) : null;
   const control = thread && destination(thread);
   if (!control || focused() !== shown || !mayReply()) return null;
-  if (control !== shown) mayReply.handoff(() => focusDestination(control));
+  if (control !== shown) mayReply.handoff(() => focusDestination(control, "move"));
   return focused() === control && mayReply() ? control : null;
 }
 

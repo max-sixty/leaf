@@ -2,23 +2,29 @@
  * Leaf owns comments. Browsing is local mechanical state, not an event-log fold.
  * Action phases, native images, and saved-tree nodes have archive-scoped coordinates.
  * A phase prefers its checkpoint PNG, otherwise the latest same-page frame at or
- * before that time. Pixel comments name the actual image; semantic comments name a
+ * before that time. Recording-wide operations use the latest capture in their
+ * stream, preserving its real page and timestamp in the caption and comments.
+ * Each stream has one chronological overview containing all its operations and
+ * captures; only recordings with multiple pages expose page filters. Browser and
+ * context operations remain in the overview, never become a fabricated page.
+ * Pixel comments name the actual image; semantic comments name a
  * saved tree path. Sequential image/tree captures never imply exact pixel alignment.
  * Evidence grows in document flow; a bounded point inspector follows it. Authored bookmarks
  * use the same archive coordinates as comments and derive their capture times.
  * Vis Timeline owns collision stacking, pan and time zoom; Viewer.js owns image
  * inspection. Native buttons keep every moment independently keyboard reachable;
  * blank timeline space only pans, so a released drag never selects a capture.
+ * Incremental Vis item updates retain native controls and keyboard focus through resize.
  * One chronological collection gives the timeline, list and selected readout their
  * shared numbers. Pixel projection follows the displayed image under pan and zoom.
- * The ruler uses the stream origin; Vis fits empty boundary padding around controls
- * without inventing captured stops. Its fitted overview bounds pan and zoom; playback
+ * The ruler starts at the stream origin; Vis measures room for the final controls
+ * without inventing captured stops. That overview bounds pan and zoom; playback
  * retains the chosen time window, while explicit point navigation reveals its destination. One cursor
  * scrubs native captures; playback includes frames at their recorded timing and pauses
  * on manual navigation, hiding or retirement. Captured frames can join that
  * same timeline. Initial selection prefers its first nonempty saved tree, then
  * its first image; empty earlier stops stay navigable. Following a visual part restores its exact
- * stop and page. Visible source choices use the shared Web Awesome radio group;
+ * stop and its recording or page scope. Visible choices use the shared Web Awesome radio group;
  * source switching and timeline stepping have separate keyboard focus. Scope choices
  * and the bounded, always-visible Moments list keep evidence at a stable origin. The timeline sits directly above the capture; image
  * inspection controls follow it. One page-sized viewport reserves empty and captured
@@ -27,7 +33,7 @@
  * Point metadata and saved-element disclosure scroll inside their own region, so
  * playback cannot move surrounding page controls. Registered nested reading regions
  * and phase-keyed reading places retain saved-tree inspection through empty frames.
- * Page-scoped inspection state
+ * Scope-specific inspection state
  * outlives the image and timeline renderers. Image replacement is atomic: one pending Viewer
  * prepares offscreen while the committed pixels, caption and comment identity stay
  * together; viewed and decoded pixels commit before the retired surface leaves. */
@@ -46,6 +52,7 @@ import {
   restorePlace,
   keepsHidden,
   el,
+  focusDestination,
   focused,
   holdFocus,
   keeps,
@@ -66,10 +73,11 @@ import {
 
 // Reuse the default package’s selected WebAwesome controls, already shipped with Leaf.
 await import("../vendor/webawesome.esm.js");
-const [{ Timeline, css: timelineCss }, { Viewer, css: imageCss }] = await Promise.all([
-  import("../vendor/timeline.esm.js"),
-  import("../vendor/images.esm.js"),
-]);
+const [{ Timeline, DataSet, css: timelineCss }, { Viewer, css: imageCss }] =
+  await Promise.all([
+    import("../vendor/timeline.esm.js"),
+    import("../vendor/images.esm.js"),
+  ]);
 // Dependency styles apply only inside recording widgets. Keeping them in their
 // module makes the same presentation available in an offline export.
 if (!document.querySelector("#lf-trace-library-styles")) {
@@ -136,7 +144,7 @@ customElements.define(
     #origins = new Map();
     #imageSizes = new Map();
     #trace = null;
-    #page = null;
+    #scope = null;
     #selected = null;
     #intermediates = false;
     #stopReading = null;
@@ -151,10 +159,11 @@ customElements.define(
     #bookmarks = [];
     #moments = [];
     #chosenBookmark = null;
-    #boundsByPage = new Map();
+    #boundsByScope = new Map();
     #rail = null;
+    #railData = null;
     #railScope = null;
-    #railPage = null;
+    #railViewScope = null;
     #railReady = false;
     #railFollow = false;
     #railSignature = null;
@@ -164,6 +173,7 @@ customElements.define(
     #applyingPictureView = false;
     #picture = null;
     #pictureId = null;
+    #pictureScope = null;
     #railResize = null;
     #railFrame = 0;
     #railWidth = null;
@@ -342,8 +352,8 @@ customElements.define(
       this.append(this.waiting);
       this.controls = offer("div", "lf-trace-controls");
       this.sources = offer("wa-radio-group", "lf-trace-sources");
-      this.sources.name = `${this.id}-page`;
-      this.sources.label = "Recorded page or API stream";
+      this.sources.name = `${this.id}-scope`;
+      this.sources.label = "Recording scope";
       this.sources.size = "s";
       this.sources.orientation = "horizontal";
       this.framesToggle = offer("input", "lf-trace-frames", undefined, "checkbox");
@@ -391,7 +401,6 @@ customElements.define(
       this.markers.setAttribute("role", "group");
       this.markers.setAttribute("aria-label", "Timeline moments");
       this.timeline.append(this.markers);
-      this.timelineClock = el("p", "lf-trace-timeline-clock");
       this.momentHint = el(
         "p",
         "lf-trace-moment-hint",
@@ -400,7 +409,7 @@ customElements.define(
       const stepper = offer("div", "lf-trace-stepper");
       stepper.append(this.timeline);
       const choices = offer("div", "lf-trace-choices");
-      choices.append(this.sources, this.viewer);
+      choices.append(this.sources);
       this.positionLabel = el("span", "lf-trace-position");
       this.selectionLabel = el("span", "lf-trace-selection");
       const position = el("div", "lf-trace-position-row");
@@ -426,7 +435,7 @@ customElements.define(
         },
       );
       const options = el("div", "lf-trace-options");
-      options.append(this.bookmarkSummary, framesLabel);
+      options.append(this.bookmarkSummary, this.viewer);
       this.bookmarks.prepend(options);
       this.zoomControls = el("div", "lf-trace-zoom-controls");
       this.zoomControls.setAttribute("role", "group");
@@ -454,12 +463,9 @@ customElements.define(
       this.zoomIn.onclick = () => zoom("zoomIn");
       this.zoomOut.onclick = () => zoom("zoomOut");
       this.zoomReset.onclick = () => this.#resetRail();
-      this.controls.append(
-        choices,
-        this.bookmarks,
-        this.momentHint,
-        this.timelineClock,
-      );
+      const help = el("div", "lf-trace-help");
+      help.append(framesLabel, this.momentHint);
+      this.controls.append(choices, this.bookmarks, help);
       this.clock = el("p", "lf-trace-clock");
       this.readout = el("p", "lf-trace-readout", "Waiting for a Playwright recording.");
       this.actionDetails = el("p", "lf-trace-action");
@@ -474,7 +480,9 @@ customElements.define(
       this.fullSize = offer("a", "lf-trace-full-image", "Open full-size image");
       this.fullSize.target = "_blank";
       this.fullSize.rel = "noopener noreferrer";
-      this.imageHost.append(this.imageViewport, this.captureCaption, this.fullSize);
+      const captureFooter = el("div", "lf-trace-capture-footer");
+      captureFooter.append(this.captureCaption, this.fullSize);
+      this.imageHost.append(this.imageViewport, captureFooter);
       this.imageTools = el("div", "lf-trace-image-tools");
       const imageZoomIn = offer("button", "lf-btn", "+");
       const imageZoomOut = offer("button", "lf-btn", "−");
@@ -516,15 +524,15 @@ customElements.define(
       metadata.tabIndex = 0;
       metadata.setAttribute("role", "group");
       metadata.setAttribute("aria-label", "Selected point details");
-      // Variable checkpoint descriptions follow the commentable action and phase,
-      // so wrapping a readout cannot move a retained target during playback.
+      // A single-line position summary precedes checkpoint fields. Empty frames
+      // retain those fields' extent below the summary, keeping their targets stable.
       metadata.append(
         this.treeDetails,
         this.clock,
+        this.readout,
         this.actionDetails,
         this.phaseHeading,
         this.error,
-        this.readout,
       );
       this.evidence.append(this.imageHost, this.imageTools, metadata);
       this.body.append(toolbar, stepper, this.evidence);
@@ -572,8 +580,8 @@ customElements.define(
         },
       ]);
       this.sources.addEventListener("change", () => {
-        if (this.#page === this.sources.value) return;
-        this.#selectPage(this.sources.value);
+        if (this.#scope === this.sources.value) return;
+        this.#selectScope(this.sources.value);
         this.#draw();
       });
       this.framesToggle.addEventListener("change", () => {
@@ -611,27 +619,30 @@ customElements.define(
     #nodeId(action, phase, node) {
       return `${this.#phaseId(action, phase)}-node-${hex(node.path)}`;
     }
+    #includes(stream, pageId) {
+      const page = this.#trace?.pages.find((page) => page.id === this.#scope);
+      return page
+        ? stream === page.stream && pageId === page.id
+        : stream === this.#scope;
+    }
     #actions() {
-      if (!this.#trace || !this.#page) return [];
-      const page = this.#trace.pages.find((page) => page.id === this.#page);
-      if (page)
-        return this.#trace.actions.filter(
+      return (
+        this.#trace?.actions.filter(
           (action) =>
-            action.stream === page.stream &&
-            (action.pageId === page.id ||
-              Object.values(action.phases).some((phase) => phase.pageId === page.id)),
-        );
-      return this.#trace.actions.filter(
-        (action) =>
-          `${action.stream}-calls` === this.#page &&
-          action.pageId === null &&
-          !Object.keys(action.phases).length,
+            this.#includes(action.stream, action.pageId) ||
+            Object.values(action.phases).some((phase) =>
+              this.#includes(action.stream, phase.pageId),
+            ),
+        ) ?? []
       );
     }
     #frames() {
       return (
         this.#trace?.images
-          .filter((image) => image.pageId === this.#page && image.kind === "frame")
+          .filter(
+            (image) =>
+              this.#includes(image.stream, image.pageId) && image.kind === "frame",
+          )
           .sort((a, b) => a.timestamp - b.timestamp) ?? []
       );
     }
@@ -640,8 +651,8 @@ customElements.define(
       for (const action of this.#actions())
         for (const phase of this.#phases(action)) {
           const checkpoint = action.phases[phase];
-          const page = checkpoint?.pageId ?? action.pageId ?? `${action.stream}-calls`;
-          if (page !== this.#page) continue;
+          if (!this.#includes(action.stream, checkpoint?.pageId ?? action.pageId))
+            continue;
           points.push({
             id: this.#phaseId(action, phase),
             action,
@@ -675,14 +686,13 @@ customElements.define(
         (phase?.imageId
           ? this.#trace.images.find((image) => image.id === phase.imageId)
           : null);
-      if (!image && pageId)
+      if (!image && action)
         image =
           this.#trace.images
             .filter(
               (image) =>
-                image.pageId === pageId &&
                 image.stream === action.stream &&
-                image.kind === "frame" &&
+                (!pageId || (image.pageId === pageId && image.kind === "frame")) &&
                 image.timestamp <= point.timestamp,
             )
             .sort((a, b) => a.timestamp - b.timestamp)
@@ -786,17 +796,19 @@ customElements.define(
       const oldArchive = this.#trace?.archive.sha256;
       this.#snapshot = snapshot;
       this.#trace = snapshot?.value ?? null;
-      this.#boundsByPage.clear();
+      this.#boundsByScope.clear();
       this.#origins = this.#trace ? streamOrigins(this.#trace) : new Map();
-      // Reserve the page's recorded extent across differently sized/cropped
-      // filmstrip encodings. Viewer fits each original inside this stable canvas.
+      // Every recording/page scope reserves its complete captured extent, including
+      // earlier empty stops. Viewer fits each original inside this stable canvas.
       this.#imageSizes = new Map();
       for (const image of this.#trace?.images ?? []) {
-        const extent = this.#imageSizes.get(image.pageId);
-        this.#imageSizes.set(image.pageId, {
-          width: Math.max(extent?.width ?? 0, image.width),
-          height: Math.max(extent?.height ?? 0, image.height),
-        });
+        for (const scope of [image.pageId, image.stream]) {
+          const extent = this.#imageSizes.get(scope);
+          this.#imageSizes.set(scope, {
+            width: Math.max(extent?.width ?? 0, image.width),
+            height: Math.max(extent?.height ?? 0, image.height),
+          });
+        }
       }
       this.classList.toggle("lf-rendered", this.#trace !== null);
       if (oldArchive !== this.#trace?.archive.sha256) {
@@ -808,7 +820,7 @@ customElements.define(
         this.#nodes.clear();
         this.#treePlaces.clear();
         this.#treeScope = null;
-        this.#page = null;
+        this.#scope = null;
         this.#selected = null;
         this.#chosenBookmark = null;
         this.#intermediates = false;
@@ -816,19 +828,21 @@ customElements.define(
         setChildren(this.treeList, []);
       }
       if (this.#trace) {
-        const choices = this.#pageChoices();
-        this.#drawPages(choices);
-        if (!choices.some(([id]) => id === this.#page))
-          this.#page = choices[0]?.[0] ?? null;
+        const choices = this.#scopeChoices();
+        this.#drawScopes(choices);
+        if (!choices.some(([id]) => id === this.#scope))
+          this.#scope = choices[0]?.[0] ?? null;
         keeps(this.viewer, "href", this.#trace.viewerUrl);
         this.#indexTargets();
-        const scopeOrder = new Map(choices.map(([id], index) => [id, index]));
+        const scopeOrder = new Map(
+          this.#trace.streams.map((stream, index) => [stream.id, index]),
+        );
         this.#moments = this.#bookmarks
           .map((member) => this.#moment(member))
           .toSorted(
             (a, b) =>
-              (scopeOrder.get(a.page) ?? Infinity) -
-                (scopeOrder.get(b.page) ?? Infinity) || a.time - b.time,
+              (scopeOrder.get(a.stream) ?? Infinity) -
+                (scopeOrder.get(b.stream) ?? Infinity) || a.time - b.time,
           )
           .map((moment, index) => ({ ...moment, number: index + 1 }));
         setChildren(this.bookmarkList, [
@@ -838,35 +852,34 @@ customElements.define(
       } else {
         this.#targets.clear();
         this.#moments = [];
-        this.#drawPages([]);
+        this.#drawScopes([]);
       }
       this.#draw();
       restore?.(this.sources);
     }
 
-    #pageChoices() {
-      const choices = this.#trace.pages.map((page) => [
-        page.id,
-        this.#pageLabel(page.id),
-      ]);
-      for (const [index, stream] of this.#trace.streams.entries()) {
-        if (
-          this.#trace.actions.some(
-            (action) =>
-              action.stream === stream.id &&
-              action.pageId === null &&
-              !Object.keys(action.phases).length,
-          )
-        )
-          choices.push([
-            `${stream.id}-calls`,
-            `API calls${this.#trace.streams.length > 1 ? ` · Stream ${index + 1}` : ""}`,
-          ]);
-      }
-      return choices;
+    #scopeChoices() {
+      return this.#trace.streams.flatMap((stream, index) => {
+        const pages = this.#trace.pages.filter((page) => page.stream === stream.id);
+        return [
+          [
+            stream.id,
+            this.#trace.streams.length > 1
+              ? `Stream ${index + 1}`
+              : pages.length > 1
+                ? "All pages"
+                : "Recording",
+          ],
+          ...(pages.length > 1
+            ? pages.map((page) => [page.id, this.#pageLabel(page.id)])
+            : []),
+        ];
+      });
     }
 
-    #drawPages(choices) {
+    #drawScopes(choices) {
+      keepsHidden(this.sources, choices.length < 2);
+      keepsHidden(this.sources.parentElement, choices.length < 2);
       const prior = new Map(
         [...this.sources.children].map((choice) => [choice.value, choice]),
       );
@@ -882,52 +895,69 @@ customElements.define(
       );
     }
 
-    #scopeView(page = this.#page) {
-      let view = this.#scopeViews.get(page);
+    #scopeView(scope = this.#scope) {
+      let view = this.#scopeViews.get(scope);
       if (!view) {
         view = {};
-        this.#scopeViews.set(page, view);
+        this.#scopeViews.set(scope, view);
       }
       return view;
     }
 
-    #selectPage(page) {
-      if (page === this.#page) return;
+    #selectScope(scope) {
+      if (scope === this.#scope) return;
       this.#pause(false);
       Object.assign(this.#scopeView(), {
         selected: this.#selected,
         intermediates: this.#intermediates,
       });
-      this.#page = page;
+      this.#cancelPicture();
+      this.#scope = scope;
       const saved = this.#scopeView();
       this.#selected = saved.selected ?? null;
       this.#intermediates = saved.intermediates ?? false;
     }
 
+    #targetScope(stream, pageId) {
+      return pageId &&
+        this.#trace.pages.filter((page) => page.stream === stream).length > 1
+        ? pageId
+        : stream;
+    }
+
     #indexTargets() {
       this.#targets.clear();
       for (const action of this.#trace.actions) {
-        const page =
-          action.pageId ??
-          Object.values(action.phases)[0]?.pageId ??
-          `${action.stream}-calls`;
+        const firstPhase = this.#phases(action)[0];
+        const pageId = action.pageId;
+        const firstPageId = action.phases[firstPhase]?.pageId ?? pageId;
+        const scope = this.#targetScope(action.stream, firstPageId);
         this.#targets.set(this.#id("action", action.id), {
           action,
-          page,
-          phase: this.#phases(action)[0],
+          scope,
+          pageId: firstPageId,
+          phase: firstPhase,
           label: action.title,
         });
         for (const phase of this.#phases(action)) {
           this.#targets.set(this.#phaseId(action, phase), {
             action,
-            page: action.phases[phase]?.pageId ?? page,
+            pageId: action.phases[phase]?.pageId ?? pageId,
+            scope: this.#targetScope(
+              action.stream,
+              action.phases[phase]?.pageId ?? pageId,
+            ),
             phase,
             label: `${action.title} · ${PHASES[phase]}`,
           });
           for (const node of action.phases[phase]?.tree?.nodes ?? [])
             this.#targets.set(this.#nodeId(action, phase, node), {
               action,
-              page: action.phases[phase]?.pageId ?? page,
+              pageId: action.phases[phase]?.pageId ?? pageId,
+              scope: this.#targetScope(
+                action.stream,
+                action.phases[phase]?.pageId ?? pageId,
+              ),
               phase,
               node,
               label: `${action.title} · ${PHASES[phase]} · ${nodeName(node)} · path ${node.path}`,
@@ -937,7 +967,8 @@ customElements.define(
       for (const image of this.#trace.images)
         this.#targets.set(this.#id("image", image.id), {
           image,
-          page: image.pageId,
+          pageId: image.pageId,
+          scope: this.#targetScope(image.stream, image.pageId),
           label: `${this.#pageLabel(image.pageId)} · ${image.kind === "frame" ? "Captured frame" : `${PHASES[image.phase]} checkpoint`} · ${this.#time(image.timestamp, image.stream)}`,
         });
     }
@@ -962,7 +993,10 @@ customElements.define(
       if (!selected) return;
       const target = this.#targets.get(id);
       this.#chosenBookmark = bookmark;
-      this.#selectPage(target.page);
+      // Following a point already present in the overview keeps that overview.
+      // A page filter changes only when it cannot display the exact destination.
+      if (!this.#includes(target.image?.stream ?? target.action.stream, target.pageId))
+        this.#selectScope(target.scope);
       this.#selected = selected;
       if (target.image?.kind === "frame") this.#intermediates = true;
       if (target.node) keeps(this.treeDetails, "open", "");
@@ -972,26 +1006,27 @@ customElements.define(
 
     #stream() {
       return (
-        this.#trace?.pages.find((page) => page.id === this.#page)?.stream ??
-        this.#trace?.streams.find((stream) => `${stream.id}-calls` === this.#page)?.id
+        this.#trace?.pages.find((page) => page.id === this.#scope)?.stream ??
+        this.#trace?.streams.find((stream) => stream.id === this.#scope)?.id
       );
     }
     #bounds() {
-      if (this.#boundsByPage.has(this.#page)) return this.#boundsByPage.get(this.#page);
+      if (this.#boundsByScope.has(this.#scope))
+        return this.#boundsByScope.get(this.#scope);
       const start = this.#origins.get(this.#stream())?.start ?? 0;
       let end = start;
       for (const point of this.#checkpoints()) {
         end = Math.max(end, point.timestamp);
       }
       for (const image of this.#trace?.images ?? []) {
-        if (image.pageId !== this.#page) continue;
+        if (!this.#includes(image.stream, image.pageId)) continue;
         end = Math.max(end, image.timestamp);
       }
       const bounds = {
         start,
         end,
       };
-      this.#boundsByPage.set(this.#page, bounds);
+      this.#boundsByScope.set(this.#scope, bounds);
       return bounds;
     }
     #moment(member) {
@@ -999,7 +1034,7 @@ customElements.define(
       const capture = target?.image ?? target?.action?.phases[target.phase];
       return {
         ...member,
-        page: target?.page,
+        scope: target?.scope,
         stream: target?.image?.stream ?? target?.action?.stream,
         time:
           capture?.timestamp ??
@@ -1024,17 +1059,17 @@ customElements.define(
     #fitPicture() {
       if (!this.#picture?.viewed) return;
       const image = this.#trace.images.find((image) => image.id === this.#pictureId);
-      this.#scopeView(image.pageId).image = null;
+      this.#scopeView().image = null;
       this.#applyPictureView(this.#picture, image);
       this.#imageZoom();
       this.#parts.update();
     }
 
-    #rememberPictureView(viewer, image) {
+    #rememberPictureView(viewer) {
       if (viewer !== this.#picture || this.#applyingPictureView) return;
       const width = viewer.element.parentElement.clientWidth;
       const { width: pixels, x, y } = viewer.imageData;
-      this.#scopeView(image.pageId).image = {
+      this.#scopeView(this.#pictureScope).image = {
         width: pixels / width,
         x: x / width,
         y: y / width,
@@ -1043,10 +1078,10 @@ customElements.define(
 
     #applyPictureView(viewer, image) {
       const canvas = viewer.element.parentElement;
-      const view = this.#scopeView(image.pageId).image;
+      const view = this.#scopeView().image;
       this.#applyingPictureView = true;
       try {
-        // Capture encodings differ in native size. Page-relative extent and origin
+        // Capture encodings differ in native size. Scope-relative extent and origin
         // preserve the inspection across them, empty points, and container resizing.
         const ratio = view
           ? (view.width * canvas.clientWidth) / image.width
@@ -1081,6 +1116,7 @@ customElements.define(
       this.#picture?.destroy();
       this.#picture = null;
       this.#pictureId = null;
+      this.#pictureScope = null;
     }
 
     #drawPicture(image) {
@@ -1091,6 +1127,10 @@ customElements.define(
       }
       if (this.#pendingPicture?.image.id !== image.id) this.#cancelPicture();
       if (this.#pictureId === image.id) {
+        if (this.#pictureScope !== this.#scope && this.#picture?.viewed) {
+          this.#applyPictureView(this.#picture, image);
+          this.#pictureScope = this.#scope;
+        }
         keeps(this.imageHost, "aria-busy", null);
         this.#imageZoom();
         return;
@@ -1118,7 +1158,7 @@ customElements.define(
         keeps(this.imageHost, "aria-busy", null);
         return;
       }
-      const pending = { image, figure, viewer: null };
+      const pending = { image, figure, viewer: null, scope: this.#scope };
       this.#pendingPicture = pending;
       keeps(this.imageHost, "aria-busy", "true");
       const current = () => this.#pendingPicture === pending;
@@ -1129,6 +1169,7 @@ customElements.define(
           const retired = this.#picture;
           this.#picture = viewer;
           this.#pictureId = image.id;
+          this.#pictureScope = pending.scope;
           this.#pendingPicture = null;
           keeps(this.imageHost, "aria-busy", null);
           figure.classList.remove("lf-trace-image-pending");
@@ -1185,11 +1226,11 @@ customElements.define(
               }, failed);
             },
             moved: () => {
-              this.#rememberPictureView(pending.viewer, image);
+              this.#rememberPictureView(pending.viewer);
               this.#parts.update();
             },
             zoomed: () => {
-              this.#rememberPictureView(pending.viewer, image);
+              this.#rememberPictureView(pending.viewer);
               this.#imageZoom();
               this.#parts.update();
             },
@@ -1208,11 +1249,11 @@ customElements.define(
     #limitRail(rail) {
       // Vis's initial-draw callback can arrive after its instance is retired.
       if (rail !== this.#rail) return;
-      // Vis measures the whole recording plus the actual button widths. That
-      // fitted overview is also the navigation boundary, including its padding.
-      const { min, max } = rail.getItemRange();
+      // Vis measures room for the final button. The stream's zero is the hard
+      // left boundary, including when fitting, panning, zooming or resizing.
+      const { max } = rail.getItemRange();
       const { start, end } = rail.getWindow();
-      rail.setOptions({ min, max, zoomMax: +max - +min });
+      rail.setOptions({ min: 0, max, zoomMax: +max });
       rail.setWindow(start, end, { animation: false });
     }
 
@@ -1232,23 +1273,27 @@ customElements.define(
       // Destroy cancels library redraws; superseded preparation must settle too.
       for (const done of this.#railWaiters) done();
       if (this.#rail) {
-        this.#scopeView(this.#railPage).window = this.#rail.getWindow();
+        this.#scopeView(this.#railViewScope).window = this.#rail.getWindow();
         this.#rail.destroy();
       }
       this.#rail = null;
+      this.#railData = null;
       this.#railReady = false;
       this.#railFollow = false;
     }
 
     #railItems(available) {
       const bounds = this.#bounds();
+      const duration = Math.max(1, bounds.end - bounds.start);
+      const extent = this.#rail ? +this.#rail.getItemRange().max : duration;
+      const halfControl = this.#controlSize() / 2;
       // The passive interval supplies the actual recording extent, not another
       // stop. Vis fits both that extent and the measured moment-button widths.
       return [
         {
           id: "recording-extent",
           start: 0,
-          end: Math.max(1, bounds.end - bounds.start),
+          end: duration,
           type: "background",
           content: "",
         },
@@ -1257,19 +1302,28 @@ customElements.define(
           start: moment.time - bounds.start,
           content: String(moment.number),
           type: "box",
+          // Near zero, Vis anchors the box after its native time instead of
+          // centering half its control outside the recording. Interior boxes
+          // retain their centered alignment; resizing recomputes this choice.
+          align:
+            (moment.time - bounds.start) * this.timeline.clientWidth <
+            halfControl * extent
+              ? "left"
+              : "center",
         })),
       ];
     }
 
     #buildRail(available) {
-      this.#railPage = this.#page;
+      this.#railViewScope = this.#scope;
       const window = this.#scopeView().window;
+      this.#railData = new DataSet(this.#railItems(available));
       let rail;
       const ready = this.#waitRail((resolve) => {
-        this.#rail = rail = new Timeline(this.markers, this.#railItems(available), {
+        this.#rail = rail = new Timeline(this.markers, this.#railData, {
           rtl: getComputedStyle(this).direction === "rtl",
           autoResize: false,
-          height: "200px",
+          height: "100%",
           verticalScroll: true,
           showCurrentTime: false,
           onInitialDrawComplete: () => {
@@ -1279,6 +1333,7 @@ customElements.define(
             // Constructor start/end uses a separate deferred range-change latch.
             if (window) rail.setWindow(window.start, window.end, { animation: false });
             this.#railReady = true;
+            this.#drawMoments();
             this.#drawCursor(this.#railFollow);
             this.#railFollow = false;
             resolve();
@@ -1289,9 +1344,15 @@ customElements.define(
           selectable: false,
           orientation: "top",
           zoomKey: "ctrlKey",
+          min: 0,
           zoomMin: 1,
           snap: null,
-          margin: { item: 8, axis: 12 },
+          // The cursor owns a full control row below the ruler; stacked moments
+          // begin after it, so scrubbing never covers a tick or another target.
+          margin: {
+            item: Number.parseFloat(getComputedStyle(this).getPropertyValue("--sp-2")),
+            axis: this.#controlSize(),
+          },
           format: {
             minorLabels: (date) =>
               `${(+date / 1000).toFixed(+date % 10 ? 3 : +date % 1000 ? 2 : 0)} s`,
@@ -1340,14 +1401,17 @@ customElements.define(
       };
       rail.on("timechange", (event) => scrub(event, false));
       rail.on("timechanged", (event) => scrub(event, true));
+      rail.on("changed", () => this.#placeCursorHandle());
     }
 
     #drawMoments() {
       const moments = this.#moments;
-      const available = moments.filter((moment) => moment.page === this.#page);
-      const unavailable = moments.filter((moment) => !moment.page);
+      const available = moments.filter(
+        (moment) => moment.scope === this.#scope || moment.stream === this.#scope,
+      );
+      const unavailable = moments.filter((moment) => !moment.scope);
       keepsHidden(this.bookmarkList, !moments.length);
-      this.bookmarkList.style.blockSize = `${Math.min(3, moments.length) * 46}px`;
+      this.style.setProperty("--lf-trace-moment-rows", Math.min(3, moments.length));
       keepsHidden(this.markers, !this.#trace || !this.#items().length);
       this.markers.classList.toggle("lf-trace-readonly", quoted(this));
       keepsHidden(this.momentHint, !this.#trace || !this.#items().length);
@@ -1358,9 +1422,9 @@ customElements.define(
       );
       keepsHidden(this.bookmarkSummary, !moments.length);
       for (const moment of moments) {
-        const visible = moment.page === this.#page || !moment.page;
+        const visible = available.includes(moment) || !moment.scope;
         keepsHidden(moment.button, !visible);
-        keeps(moment.button, "disabled", !moment.page || quoted(this) ? "" : null);
+        keeps(moment.button, "disabled", !moment.scope || quoted(this) ? "" : null);
         if (!moment.button.firstElementChild) {
           moment.button.append(
             el("span", "lf-trace-moment-number"),
@@ -1371,7 +1435,7 @@ customElements.define(
         const [number, label, time] = moment.button.children;
         keepsText(number, String(moment.number));
         keepsText(label, moment.label);
-        const momentTime = moment.page
+        const momentTime = moment.scope
           ? this.#time(moment.time, moment.stream)
           : "Unavailable";
         keepsText(time, momentTime);
@@ -1381,13 +1445,13 @@ customElements.define(
           `Moment ${moment.number} · ${moment.label} · ${momentTime}`,
         );
         const selected =
-          !!moment.page &&
+          !!moment.scope &&
           this.#destination(moment.target) === this.#selected &&
           (!this.#chosenBookmark || this.#chosenBookmark === moment.button);
         keeps(moment.button, "aria-current", selected ? "true" : null);
       }
       if (!this.#trace) return;
-      const scope = `${this.#trace.archive.sha256}:${this.#page}`;
+      const scope = `${this.#trace.archive.sha256}:${this.#scope}`;
       if (scope !== this.#railScope) {
         this.#closeRail();
         this.#railScope = scope;
@@ -1400,7 +1464,11 @@ customElements.define(
           pin = offer("button", "lf-trace-marker");
           // Vis claims pointer defaults for its gestures. The embedded native
           // control still owns focus, including tooltip blur/re-arm behavior.
-          pin.addEventListener("pointerdown", () => pin.focus({ preventScroll: true }));
+          pin.addEventListener("pointerdown", () => focusDestination(pin, "press"));
+          pin.addEventListener("focus", () => {
+            if (pin.matches(":focus-visible"))
+              this.#rail?.focus(moment.number, { zoom: false, animation: false });
+          });
           pin.append(el("span"));
           const anchor = el("span", "lf-trace-moment-anchor");
           anchor.append(pin);
@@ -1436,12 +1504,21 @@ customElements.define(
       if (!this.timeline.clientWidth) return;
       const created = !this.#rail;
       if (created) this.#buildRail(available);
-      const signature = available.map((m) => `${m.number}:${m.time}`).join("|");
+      const signature = `${this.timeline.clientWidth}|${available
+        .map((moment) => `${moment.number}:${moment.time}`)
+        .join("|")}`;
       if (!created && signature !== this.#railSignature) {
-        this.#rail.setItems(this.#railItems(available));
+        const items = this.#railItems(available);
+        const ids = new Set(items.map((item) => item.id));
+        this.#railData.remove(this.#railData.getIds().filter((id) => !ids.has(id)));
+        // Replacing the dataset detaches every native button and drops focus.
+        // Updating existing items lets Vis restack and align their intact nodes.
+        this.#railData.update(items);
         this.#limitRail(this.#rail);
       }
-      this.#railSignature = signature;
+      // Initial fit measures the library's final extent. Its completion pass
+      // refines edge alignment once, then playback reads this unchanged input.
+      this.#railSignature = created ? null : signature;
       this.#drawCursor();
     }
     #drawCursor(follow = false) {
@@ -1464,6 +1541,38 @@ customElements.define(
         (time < +window.start || time > +window.end)
       )
         this.#rail.moveTo(time, { animation: false });
+      this.#placeCursorHandle();
+    }
+
+    #controlSize() {
+      return Number.parseFloat(
+        getComputedStyle(this).getPropertyValue("--lf-trace-control-size"),
+      );
+    }
+
+    #placeCursorHandle() {
+      const cursor = this.markers.querySelector(".vis-custom-time");
+      const center = this.markers.querySelector(".vis-panel.vis-center");
+      if (!cursor || !center) return;
+      // Read Vis's actual cursor position, keeping its time coordinate intact.
+      // Only the handle moves inward at an edge; its full hit region stays usable.
+      const line = cursor.getBoundingClientRect();
+      const rail = center.getBoundingClientRect();
+      const halfControl = this.#controlSize() / 2;
+      cursor.style.setProperty("--lf-trace-cursor-axis", `${rail.top - line.top}px`);
+      const middle = line.left + line.width / 2;
+      const left = middle - rail.left;
+      const right = rail.right - middle;
+      const shift = (half) =>
+        left < 0 || right < 0
+          ? 0
+          : Math.max(0, half - left) - Math.max(0, half - right);
+      cursor.style.setProperty(
+        "--lf-trace-cursor-hit-shift",
+        `${shift(halfControl)}px`,
+      );
+      const halfCap = Number.parseFloat(getComputedStyle(cursor, "::before").width) / 2;
+      cursor.style.setProperty("--lf-trace-cursor-cap-shift", `${shift(halfCap)}px`);
     }
 
     #draw() {
@@ -1489,8 +1598,8 @@ customElements.define(
       if (treeChanged && this.#treeScope && this.treeDetails.open)
         this.#treePlaces.set(this.#treeScope, capturePlace(treeRegion));
       this.#selected = point?.id ?? null;
-      if (this.sources.value !== (this.#page ?? ""))
-        this.sources.value = this.#page ?? "";
+      if (this.sources.value !== (this.#scope ?? ""))
+        this.sources.value = this.#scope ?? "";
       keeps(this.sources, "disabled", !this.#trace || quoted(this) ? "" : null);
       this.framesToggle.checked =
         this.#frames().length > 0 &&
@@ -1541,16 +1650,11 @@ customElements.define(
       this.#drawMoments();
       keepsHidden(this.viewer, !this.#trace);
       keepsHidden(this.clock, !this.#origins.has(this.#stream()));
-      keepsHidden(this.timelineClock, !this.#origins.has(this.#stream()));
-      const selectedStream =
-        this.#trace?.pages.find((page) => page.id === this.#page)?.stream ??
-        this.#trace?.streams.find((stream) => `${stream.id}-calls` === this.#page)?.id;
-      const origin = this.#origins.get(selectedStream);
+      const origin = this.#origins.get(this.#stream());
       const clockLabel =
         origin && origin.recordedStart !== null && origin.recordedStart === origin.start
           ? "Elapsed since recording started"
           : "Elapsed from first captured event";
-      keepsText(this.timelineClock, clockLabel);
       keepsText(
         this.clock,
         this.#trace?.streams.length > 1
@@ -1589,10 +1693,11 @@ customElements.define(
             : ["actions", actionIndex],
         );
       }
+
       const reading = !this.#trace
         ? "Waiting for a Playwright recording."
         : !items.length
-          ? "No recorded checkpoints or frames in this page or stream."
+          ? "No recorded checkpoints or frames in this recording scope."
           : `Timeline point ${position + 1} of ${items.length}`;
       keepsText(this.readout, reading);
       if (image) {
@@ -1642,7 +1747,7 @@ customElements.define(
               },
             ]);
           canvas.addEventListener("pointerdown", () =>
-            canvas.focus({ preventScroll: true }),
+            focusDestination(canvas, "press"),
           );
           canvas.append(img, status);
           figure.append(canvas);
@@ -1660,9 +1765,9 @@ customElements.define(
           String(this.#imageSizes.get(image.pageId).width),
         );
       }
-      // The page's viewport exists even before its first captured image.
+      // The scope's viewport exists even before its first captured image.
       // Pixel surfaces can arrive or retire without changing review geometry.
-      const extent = this.#imageSizes.get(this.#page);
+      const extent = this.#imageSizes.get(this.#scope);
       this.imageViewport.style.aspectRatio = extent
         ? `${extent.width} / ${extent.height}`
         : "";

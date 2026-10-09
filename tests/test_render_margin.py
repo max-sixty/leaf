@@ -11,6 +11,7 @@ from axe_playwright_python.sync_playwright import Axe
 from click.testing import CliRunner
 from interact_support import (
     append_carried_log_record,
+    append_command,
     declare_idle,
     newest_move,
     record_claim,
@@ -3582,6 +3583,115 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
     assert_icon_only(focused)
 
 
+def test_every_pin_entry_shares_its_face_and_keeps_its_behavior(browser, serve):
+    """The pin face marks placement; status, actions and disclosures keep their meanings."""
+    source = leaf_page(
+        "Pin controls",
+        """
+<h1>Pin controls</h1>
+<p id="discussion">Check the feeder schedule.</p>
+<p>Schedule:
+  <lf-suggestion id="schedule">
+    <lf-old>Refill each morning.</lf-old>
+    <lf-new>Refill when the camera shows it half-empty.</lf-new>
+  </lf-suggestion>
+</p>
+<lf-board id="packing">
+  <lf-column id="ready" label="Ready">
+    <lf-card id="map"><strong>Print the workshop map</strong></lf-card>
+    <lf-card id="signs"><strong>Pack the direction signs</strong></lf-card>
+  </lf-column>
+</lf-board>
+""",
+    ).replace("<body>", '<body data-rail="none">')
+    events = [
+        _comment_on("discussion"),
+        _comment_on("schedule"),
+    ]
+    url = serve(source, events=events)
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "packing",
+            "action": "move",
+            "detail": {"unit": "map", "value": "ready", "rank": "z"},
+        },
+    )
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    cluster = page.locator('[data-lf-margin-for="schedule"]')
+    accept = cluster.locator(".lf-sug-accept")
+    more = cluster.locator(":scope > .lf-margin-more")
+    thread = page.locator('[data-lf-margin-for="discussion"] .lf-margin-marker')
+    status = page.locator('.lf-margin-entry[data-lf-kinds="sent"]')
+    read_face = """control => {
+      const style = getComputedStyle(control);
+      const icon = control.querySelector('.lf-margin-entry-icon, .lf-margin-entry-glyph');
+      return {
+        radius: style.borderRadius,
+        background: style.backgroundColor,
+        border: [style.borderTopWidth, style.borderTopColor],
+        shadow: style.boxShadow,
+        ink: getComputedStyle(icon).color,
+      };
+    }"""
+
+    for scheme in ("light", "dark"):
+        page.emulate_media(color_scheme=scheme)
+        page.mouse.move(0, 0)
+        margins_laid_out(page)
+        controls = (status, accept, thread, more)
+        faces = []
+        for control in controls:
+            expect(control).to_be_visible()
+            expect(control.locator("xpath=..")).to_have_attribute(
+                "data-lf-place", "pin"
+            )
+            faces.append(control.evaluate(read_face))
+        assert faces == [faces[0]] * len(faces), faces
+        assert faces[0]["radius"] == "50% 50% 50% 3px", faces[0]
+        assert faces[0]["background"] == token_colour(page, "--pin-fill"), faces[0]
+        assert faces[0]["border"] == ["2px", token_colour(page, "--paper")], faces[0]
+        assert faces[0]["ink"] == "rgb(255, 255, 255)", faces[0]
+        status.hover()
+        assert status.evaluate(read_face) == faces[0]
+        page.mouse.move(0, 0)
+
+        more.click()
+        reject = cluster.locator(".lf-sug-reject")
+        expect(reject).to_be_visible()
+        page.mouse.move(0, 0)
+        page.keyboard.press("Tab")
+        assert reject.evaluate(read_face) == faces[0]
+        page.keyboard.press("Escape")
+
+    expect(status).to_have_attribute("data-lf-behavior", "status")
+    assert status.evaluate(
+        "control => control.localName === 'span' && control.tabIndex < 0"
+    )
+    expect(status).to_have_css("cursor", "default")
+    before = events_model.read_events(serve.page_dir)
+    status.click()
+    assert events_model.read_events(serve.page_dir) == before
+
+    thread.focus()
+    thread.press("Enter")
+    expect(page.locator(".lf-margin-preview")).to_contain_text(events[0]["text"])
+    page.keyboard.press("Escape")
+    more.click()
+    with sending(page, "reject the suggestion from its pin"):
+        reject.press("Enter")
+    expect(page.locator("#schedule")).to_have_attribute("data-lf-state", "reject")
+    with sending(page, "undo the suggestion rejection"):
+        page.keyboard.press("z")
+    with sending(page, "accept the suggestion from its pin"):
+        accept.click()
+    expect(page.locator("#schedule")).to_have_attribute("data-lf-state", "accept")
+
+
 def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_entries(
     browser, serve
 ):
@@ -5832,6 +5942,62 @@ LONG_THREAD = [
 ]
 
 
+@pytest.mark.parametrize("long", [False, True], ids=["fitting", "overflowing"])
+def test_floating_thread_chains_scrolling_to_its_page(browser, serve, long):
+    """A floating thread scrolls its turns, then the document at either edge.
+
+    A fitting transcript must not swallow the wheel just because it could scroll
+    with more messages. This also protects overflowing threads at their boundaries.
+    """
+    source = leaf_page(
+        "Scroll a contextual thread",
+        '<div style="height: 80vh"></div>'
+        '<p id="open">Review the open questions.</p>'
+        '<div style="height: 180vh"></div>',
+    )
+    page = open_page(
+        browser, serve(source, events=LONG_THREAD if long else [LONG_THREAD_ROOT])
+    )
+    resized(page, 1440, 900)
+    page.locator("#open").scroll_into_view_if_needed()
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_be_visible()
+    transcript = card.locator(".lf-thread-transcript")
+    room = transcript.evaluate("node => node.scrollHeight - node.clientHeight")
+    assert (room > 0) == long
+
+    if long:
+        transcript.evaluate(
+            "node => node.scrollTop = (node.scrollHeight - node.clientHeight) / 2"
+        )
+        before = transcript.evaluate("node => node.scrollTop")
+        page_at = page.evaluate("scrollY")
+        transcript.hover()
+        page.mouse.wheel(0, -80)
+        page.wait_for_function(
+            "([node, before]) => node.scrollTop < before",
+            arg=[transcript.element_handle(), before],
+        )
+        scroll_settled(page, ".lf-margin-preview .lf-thread-transcript")
+        assert page.evaluate("scrollY") == page_at
+
+    for direction in (-1, 1):
+        transcript.evaluate(
+            "(node, direction) => node.scrollTop = direction < 0 ? 0 : node.scrollHeight",
+            direction,
+        )
+        transcript.hover()
+        page_at = page.evaluate("scrollY")
+        page.mouse.wheel(0, direction * 80)
+        page.wait_for_function(
+            "([before, direction]) => (scrollY - before) * direction > 20",
+            arg=[page_at, direction],
+        )
+        scroll_settled(page)
+        expect(card).to_be_visible()
+
+
 def open_long_thread(browser, serve, height=900):
     """The long thread's margin card, which opens on its latest message, scrolled
     partway back up."""
@@ -6840,12 +7006,9 @@ def test_a_new_anchored_comment_keeps_the_users_thread_view(
         preview_box = preview.bounding_box()
         assert preview_box["x"] >= 0, preview_box
         assert preview_box["x"] + preview_box["width"] <= width, preview_box
-    # The send leaves the user on the thread's title in the panel, or on the passage
-    # the card is about.
+    # The send leaves the user on the thread's title in the panel, or on its card.
     focus_target = (
-        thread.locator(":scope > .lf-thread-summary")
-        if panel_open
-        else page.locator("#mounts-p")
+        thread.locator(":scope > .lf-thread-summary") if panel_open else thread
     )
     expect(focus_target).to_be_focused()
     if panel_open:
@@ -6896,9 +7059,8 @@ def test_a_comment_sent_from_a_control_is_left_by_the_levels_it_opened(
 
     `c` opens the box on whatever the user is standing in without moving them off it,
     and the send leaves them where the comment became a thread: the thread's place in a
-    panel that was already open, or, with a card it puts up, the target that card is
-    about. The thread hands them to the surface holding it. The control `c` was pressed
-    from is not a landing.
+    panel that was already open, or the card it puts up. The thread hands them to the
+    surface holding it. The control `c` was pressed from is not a landing.
     """
     page = open_page(browser, serve(ASK_PAGE))
     resized(page, 1440, 900)
@@ -6923,18 +7085,18 @@ def test_a_comment_sent_from_a_control_is_left_by_the_levels_it_opened(
             threads.locator(f'.lf-thread[data-id="{sent["id"]}"] > .lf-thread-summary')
         ).to_be_focused()
     else:
-        # A card's thread stands for the target it is about: the send lands there, and
-        # the card stays beside it until the user lets go of that.
         expect(
             preview.locator(f'.lf-page-thread[data-thread="{sent["id"]}"]')
-        ).to_be_visible()
-        assert page.evaluate(ON_THE_PAGE)
+        ).to_be_focused()
 
     page.keyboard.press("Escape")
     if panel_open:
         # In Threads the thread's Escape is the panel's, which closes it.
         expect(threads).not_to_have_class(re.compile(r"\bopen\b"))
     else:
+        expect(preview).to_be_visible()
+        assert page.evaluate(ON_THE_PAGE)
+        page.keyboard.press("Escape")
         expect(preview).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
 
@@ -6968,9 +7130,8 @@ def seeded_thread(page, page_dir, passage):
     with sending(page, f"the comment on {passage}"):
         page.keyboard.press("ControlOrMeta+Enter")
     sent = events_model.read_events(page_dir)[-1]
-    # The send lands on the passage, and letting go of it takes the card.
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
+    leave_card_by_its_target(page)
     return sent
 
 
@@ -7201,9 +7362,7 @@ def test_a_card_stays_its_press_to_take_off_when_it_moves_on(browser, serve, ent
         page.keyboard.type("A third thought.")
         with sending(page, "the comment from the control"):
             page.keyboard.press("ControlOrMeta+Enter")
-        # The send lands on the target the new card is about.
-        expect(card).to_be_visible()
-        assert page.evaluate(ON_THE_PAGE)
+        expect(card).to_be_focused()
     shown = card.get_attribute("data-thread")
 
     page.keyboard.press("t")
@@ -7685,14 +7844,11 @@ def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
     with sending(page, "the reply"):
         send.click()
     expect(preview).to_contain_text("Sent")
-    # The send leaves the user on the element the card is about, the card still up, and
-    # the card holds under the pressed Send. An answer arriving then extends it downward,
+    # The send leaves the user on the card, holding it under the pressed Send.
+    # An answer arriving then extends it downward,
     # holding its top, as a turn arriving while the user reads does.
     rendered(page)
-    about = marker.evaluate(
-        "node => node.closest('[data-lf-margin-for]').dataset.lfMarginFor"
-    )
-    expect(page.locator(f"#{about}")).to_be_focused()
+    expect(preview.locator(".lf-page-thread")).to_be_focused()
     expect(preview).to_be_visible()
     assert send.evaluate(
         "button => button.getBoundingClientRect().top"
@@ -8056,8 +8212,8 @@ def test_an_agent_reply_into_an_open_card_cues_only_its_own_words(browser, serve
 @pytest.mark.parametrize("size", [(1200, 900), (800, 520)])
 def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size, how):
     """The sent turn joins the transcript above the box the user sent it from, and the
-    send leaves the user on the element the card is about with the card still up. The
-    send ends the drafting, and the card read that as leave to choose its spot again,
+    send leaves the user on the card. The send ends the drafting, and the card once
+    read that as leave to choose its spot again,
     flipping sides under the pointer; the reply row stays where the press was."""
     page, preview, editor = drafting_in_a_short_card(browser, serve, *size)
     before = preview.evaluate(DRAFTING_CARD)
@@ -8079,7 +8235,7 @@ def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size,
     expect(preview.locator(".lf-msg").last).to_contain_text("words")
     expect(preview.locator(".lf-msg").last).to_have_attribute("aria-busy", "true")
     rendered(page)
-    expect(page.locator("#open")).to_be_focused()
+    expect(preview.locator(".lf-page-thread")).to_be_focused()
     assert preview.evaluate(DRAFTING_CARD) == before
 
     # Admission names the same turn; its later sizing passes still hold the pressed row.
@@ -10576,12 +10732,57 @@ def test_a_row_behind_an_inactive_tab_is_withheld(browser, serve):
     expect(row).to_be_visible()
 
 
+def test_a_touch_pin_stays_inside_a_non_scrolling_sample(browser, serve):
+    """A content-height sample keeps the complete finger-sized receipt in its frame."""
+    source = leaf_page(
+        "A receipt inside a block sample",
+        """
+<lf-sample id="practice" label="Packing list">
+  <template id="practice-page" data-sample data-rail="none" data-sample-events="history">
+    <lf-board id="packing">
+      <lf-column id="ready" label="Ready">
+        <lf-card id="map"><strong>Print the workshop map</strong></lf-card>
+        <lf-card id="signs"><strong>Pack the direction signs</strong></lf-card>
+      </lf-column>
+    </lf-board>
+  </template>
+</lf-sample>
+""",
+        head="""
+<script id="history" type="application/json">
+  [{"kind":"action","author":"user","widget":"packing","action":"move",
+    "detail":{"unit":"map","value":"ready","rank":"z"}}]
+</script>
+""",
+    )
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, serve(source), context=context)
+    status = page.frame_locator("#practice iframe").locator(
+        '.lf-margin-entry[data-lf-kinds="sent"]'
+    )
+    expect(status).to_be_visible()
+    reading = status.evaluate("""pin => ({
+      rect: pin.getBoundingClientRect().toJSON(),
+      height: innerHeight,
+      overflow: getComputedStyle(document.documentElement).overflowY,
+      touch: matchMedia('(pointer: coarse)').matches,
+    })""")
+    assert reading["touch"] and reading["overflow"] == "hidden", reading
+    assert reading["rect"]["height"] >= 44, reading
+    assert (
+        0 <= reading["rect"]["top"] < reading["rect"]["bottom"] <= reading["height"]
+    ), reading
+
+
 def test_the_feature_gallery_shows_a_pin_on_a_wide_figure_and_o_hides_it(
     browser, serve
 ):
     """The gallery's rail-and-pins sample: a comment on the schedule, which is wider
     than the column, stands on it as a pin while the prose beside it keeps the rail, and
-    `o` hides the pin while the rail stays."""
+    `o` hides the pin while the rail stays. The quiet-status example starts with
+    a visible receipt, without requiring a practice gesture to create it."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 1440, 900)
     page.locator("#bg-gallery-tabs").get_by_role("tab", name="Page & layout").click()
@@ -10598,6 +10799,29 @@ def test_the_feature_gallery_shows_a_pin_on_a_wide_figure_and_o_hides_it(
     expect(rail.first).to_be_visible()
     page.keyboard.press("o")
     expect(pin).to_be_visible()
+
+    sample = page.locator("#bg-margin-layer-status")
+    sample.scroll_into_view_if_needed()
+    child = sample.frame_locator("iframe")
+    status = child.locator('.lf-margin-entry[data-lf-kinds="sent"]')
+    expect(status).to_be_visible()
+    expect(status.locator("..")).to_have_attribute("data-lf-place", "pin")
+    expect(
+        child.get_by_role("button", name="Questions: 0 waiting on you")
+    ).to_be_visible()
+    expect(child.get_by_role("button", name="Open threads: 0")).to_be_visible()
+    for width in (720, 390):
+        resized(page, width, 900)
+        sample.scroll_into_view_if_needed()
+        expect(status).to_be_visible()
+        assert status.evaluate(
+            """el => {
+              const r = el.getBoundingClientRect();
+              const board = document.querySelector('lf-board');
+              return r.left >= 0 && r.right <= innerWidth && r.top >= 0
+                && r.bottom <= innerHeight && board.scrollWidth <= board.clientWidth;
+            }"""
+        )
 
 
 def test_a_pane_row_withheld_at_load_stands_once_its_target_scrolls_in(browser, serve):
@@ -11437,7 +11661,7 @@ def test_observed_scroll_retains_the_seat_of_a_constrained_target(
               const source = position === 'fixed' ? document : host;
               return await new Promise(resolve => {
                 source.addEventListener('scroll', () => requestAnimationFrame(() =>
-                  resolve({top: parseFloat(row.style.top), scrollY,
+                  resolve({top: row.getBoundingClientRect().top,
                     withheld: row.classList.contains('lf-withheld')})), {once: true});
                 if (position === 'fixed') window.scrollTo(0, scroll);
                 else host.scrollTop = scroll;
@@ -11450,7 +11674,63 @@ def test_observed_scroll_retains_the_seat_of_a_constrained_target(
         assert after["offset"] == pytest.approx(before["offset"], abs=1), after
         assert after["hit"] and not after["withheld"], after
         assert not first["withheld"], first
-        assert first["top"] - first["scrollY"] == pytest.approx(after["top"], abs=1)
+        assert first["top"] == pytest.approx(after["top"], abs=1)
+
+
+def test_distant_margin_coordinates_follow_small_moves_without_restatement(
+    browser, serve
+):
+    """Document coordinates retain layout precision beyond CSS length serialization."""
+    page = open_page(browser, serve(PANEL_PAGE))
+    resized(page, 1280, 900)
+    page.evaluate(
+        """async () => {
+          const {contributionEntry, registerContribution} =
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const main = document.querySelector('main');
+          main.dataset.lfMargin = 'none';
+          const space = document.createElement('div');
+          space.style.cssText = 'position: relative; height: 1400000px';
+          const target = document.createElement('p');
+          target.id = 'distant-margin-target';
+          target.textContent = 'A distant passage';
+          target.style.cssText = 'position: absolute; left: 40px; top: var(--target-y);'
+            + 'width: 300px; height: 30px; margin: 0';
+          target.style.setProperty('--target-y', '1234567.578125px');
+          space.append(target); main.append(space);
+          const contribution = registerContribution({key: 'distant', target,
+            read: () => ({entries: [contributionEntry({key: 'distant',
+              glyph: '!', label: 'Distant controls'})]}), activate: () => {}});
+          window.__distantMargin = {target, contribution};
+        }"""
+    )
+    page.locator("#distant-margin-target").scroll_into_view_if_needed()
+    rendered(page)
+    reading = """() => {
+      const {target, contribution} = window.__distantMargin;
+      const row = contribution.control('distant', 'margin').closest('.lf-margin-cluster');
+      return {target: target.getBoundingClientRect().top, row: row.getBoundingClientRect().top};
+    }"""
+    before = page.evaluate(reading)
+    for delta in (1, 2, 4):
+        page.locator("#distant-margin-target").evaluate(
+            "(target, y) => target.style.setProperty('--target-y', `${y}px`)",
+            1234567.578125 + delta,
+        )
+        page.wait_for_function(
+            """expected => {
+              const {contribution} = window.__distantMargin;
+              const row = contribution.control('distant', 'margin').closest('.lf-margin-cluster');
+              return row.getBoundingClientRect().top === expected;
+            }""",
+            arg=before["row"] + delta,
+        )
+        after = page.evaluate(reading)
+        assert after["target"] - before["target"] == delta, after
+    # The shared browser write watch rejects any unchanged style during these passes.
+    for _ in range(3):
+        page.evaluate("window.dispatchEvent(new Event('resize'))")
+        rendered(page)
 
 
 def test_signed_scroll_motion_survives_unobserved_extent_changes(browser, serve):

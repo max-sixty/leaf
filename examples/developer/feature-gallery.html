@@ -298,6 +298,21 @@
         }
       }
     </style>
+    <script id="bg-margin-layer-status-history" type="application/json">
+      [
+        {
+          "kind": "action",
+          "author": "user",
+          "widget": "bg-margin-layer-packing",
+          "action": "move",
+          "detail": {
+            "unit": "bg-margin-layer-map",
+            "value": "bg-margin-layer-ready",
+            "rank": "z"
+          }
+        }
+      ]
+    </script>
     <script id="bg-window-history" type="application/json">
       [
         {
@@ -515,6 +530,17 @@
                 <label>Sample note <input id="bg-shortcut-note" type="text" /></label>
               </div>
             </section>
+            <section id="bg-keyboard-preference">
+              <h3>Quick keyboard shortcuts</h3>
+              <p>
+                Open <strong>More → Keyboard shortcuts</strong> and turn off
+                <strong>Quick keyboard shortcuts</strong>. Letters, numbers and symbols
+                now keep their ordinary meaning: <kbd>c</kbd> leaves the page alone, and
+                the note sample above loses its <kbd>1</kbd> hint. Its button and text
+                field still work with Tab, Enter and Space. Reload to check the
+                preference stays off, then turn it on to restore the hints and keys.
+              </p>
+            </section>
             <p id="bg-core-controls-guide">
               The banner also shows <strong>Threads</strong>, the
               <strong>Versions</strong> menu, <strong>Page Map</strong> (<kbd>g</kbd>
@@ -695,12 +721,13 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <p id="bg-page-comment-card-guide">
                 With Threads shut, press the comment symbol beside Threads on the
                 banner, or press <kbd>c</kbd> with nothing selected. A card hangs from
-                the symbol; write a sentence and send it. The card goes away and Threads
-                flashes yellow, its count one higher, while the panel stays shut; the
-                new thread is in Threads. <kbd>Escape</kbd> or a click elsewhere also
-                puts the card away, keeping what you wrote for the next time it opens.
-                With Threads open, the same press goes to its own “Comment on the page”
-                box. On a phone, “Comment on the page” is in “More page controls”.
+                the symbol; write a sentence and send it. Focus stays on the open card
+                and Threads flashes yellow, its count one higher, while the panel stays
+                shut; the new thread is in Threads. Press <kbd>c</kbd> to write again.
+                <kbd>Escape</kbd> or a click elsewhere puts the card away, keeping what
+                you wrote for the next time it opens. With Threads open, the same press
+                goes to its own “Comment on the page” box. On a phone, “Comment on the
+                page” is in “More page controls”.
               </p>
             </section>
 
@@ -966,12 +993,15 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               you” also names the action owed. Each thread has a short title chosen by
               the agent; open one to read the full messages beneath it. Reply follows a
               short conversation directly; in a long conversation it stays visible while
-              you scroll. While you write in a short thread, an arriving reply waits
-              behind “new reply” until you open it. Switch to another browser tab, have
-              the agent add a reply, then return: held replies and the first refreshed
-              reply appear automatically with the usual arrival tint. Your draft and
-              caret stay in the same editor. Leave this page visible beside another
-              window and focus that window: new replies still wait behind the notice.
+              you scroll. Send a reply: focus stays on the conversation card or its
+              title, including in the floating card. Press <kbd>c</kbd> to write again;
+              <kbd>Escape</kbd> leaves a floating card for its page target. While you
+              write in a short thread, an arriving reply waits behind “new reply” until
+              you open it. Switch to another browser tab, have the agent add a reply,
+              then return: held replies and the first refreshed reply appear
+              automatically with the usual arrival tint. Your draft and caret stay in
+              the same editor. Leave this page visible beside another window and focus
+              that window: new replies still wait behind the notice.
             </p>
             <p id="bg-thread-notices">
               <strong>New information.</strong> Have the agent add a message after the
@@ -1442,23 +1472,89 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               does. Delivery statuses below report what already happened without
               offering another press.
             </p>
-            <h3>
+            <h3 id="bg-margin-layer">
               <strong>Rail and pins</strong
-              ><span class="bg-feature-detail"
-                >: where a marker stands, and hiding them</span
-              >
+              ><span class="bg-feature-detail">: annotations beside their targets</span>
             </h3>
             <p id="bg-margin-layer-guide">
-              <strong>Two postures; nothing moves.</strong> A marker beside prose stands
-              in the rail, 22px past the column. The schedule below is wider than the
-              column and carries a comment, so its marker stands on the schedule as a
-              pin at its top-right. Narrow the window until the room beside the column
-              no longer holds the rail, about 960px, and every marker becomes a pin.
-              Press <kbd>o</kbd> to hide what is drawn over the page, the pins and the
-              passage marks; the rail stays, and nothing on the page moves. Press it
-              again to bring them back. On a touch screen, open “More page controls” and
-              choose “Hide annotations”, then “Show annotations”.
+              Leaf places threads, unanswered Asks, actions, changes, and delivery or
+              work status beside the content they concern. With enough room beside the
+              reading column, their controls stand in the rail. Where the rail is
+              absent, the same controls appear as pins near their targets on the page.
+              Every annotation uses the same filled teardrop face as a pin. Its glyph
+              and label keep their meaning: a Thread opens a conversation, Accept acts
+              on a suggestion, and Sent reports delivery. Targets inside scrolling panes
+              or extending into the rail also use pins. Related controls share a compact
+              group; “More options” opens additional controls. When space is tight, a
+              group can fold to one pin; opening it reveals its controls over the page.
+              A workflow status can appear on an existing control, as the samples above
+              show.
             </p>
+            <p id="bg-margin-layer-placement">
+              Pins sit clear of text and controls when nearby space permits. In a
+              crowded view they can overlap content. They reserve no space, so their
+              arrival, removal, or expansion leaves the page's layout unchanged. The
+              schedule below extends beyond the column and carries a thread, so its
+              Thread control already appears as a pin. Open it, or use the suggestion's
+              “Accept” and “Reject” controls above. Narrow the window below about 960px
+              to remove this page's rail and inspect those same controls beside their
+              targets.
+            </p>
+            <p id="bg-margin-layer-visibility">
+              Press <kbd>o</kbd> to hide pins and passage marks while reading the
+              content beneath them. Controls in the rail stay visible, and nothing on
+              the page moves. Press it again to bring the annotations back. On a touch
+              screen, open “More page controls” and choose “Hide annotations”, then
+              “Show annotations”.
+            </p>
+            <p id="bg-margin-layer-actions-guide">
+              <strong>Action pins without a rail.</strong> This practice page has no
+              rail. The suggestion's “Accept” and “Reject” controls appear as pins
+              beside the proposed wording. Choose either, then use “Undo” to restore the
+              suggestion. These annotations work without a thread or an Ask.
+            </p>
+            <lf-sample id="bg-margin-layer-actions" label="suggestion without a rail">
+              <template id="bg-margin-layer-actions-page" data-sample data-rail="none">
+                <p id="bg-margin-layer-actions-copy">
+                  The sample workshop will meet
+                  <lf-suggestion id="bg-margin-layer-suggestion"
+                    ><lf-old>outside by the fountain.</lf-old
+                    ><lf-new>under the station canopy.</lf-new></lf-suggestion
+                  >
+                </p>
+              </template>
+            </lf-sample>
+            <p id="bg-margin-layer-status-guide">
+              <strong>Quiet status pins without a rail.</strong> This sample starts with
+              a recorded card move. The small upward arrow beside “Print the workshop
+              map” says “Sent” on hover: the move was recorded, with nothing for you to
+              answer. After two minutes without pickup, it becomes “Waiting for pickup”;
+              Reset starts a fresh example. Queued, Picked up, and Working follow the
+              same placement rule. When a target already has a control, that control can
+              carry the status instead of adding a separate pin.
+            </p>
+            <lf-sample
+              id="bg-margin-layer-status"
+              label="delivery status without a rail"
+            >
+              <template
+                id="bg-margin-layer-status-page"
+                data-sample
+                data-rail="none"
+                data-sample-events="bg-margin-layer-status-history"
+              >
+                <lf-board id="bg-margin-layer-packing">
+                  <lf-column id="bg-margin-layer-ready" label="Ready">
+                    <lf-card id="bg-margin-layer-map"
+                      ><strong>Print the workshop map</strong></lf-card
+                    >
+                    <lf-card id="bg-margin-layer-signs"
+                      ><strong>Pack the direction signs</strong></lf-card
+                    >
+                  </lf-column>
+                </lf-board>
+              </template>
+            </lf-sample>
             <figure id="bg-margin-layer-figure" data-width="available">
               <table id="bg-margin-layer-table">
                 <thead>

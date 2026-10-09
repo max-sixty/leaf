@@ -1,7 +1,8 @@
 /* A visual run is one active-case review: a heading, then one evidence pane whose
  * header is the case navigation. Disposition follows the evidence and supporting
- * capture facts follow it. The stage is as tall as its captures, so the page scrolls
- * through the evidence rather than a smaller box inside the review. */
+ * capture facts follow it. The stage is as tall as its captures. In a document the page
+ * scrolls through them; in a workspace that fills the window the evidence pane does,
+ * and Fit sizes the captures to the pane (lf-visual-review.js). */
 :scope:is(lf-visual-review) {
   --lf-block-frame: 1;
   display: grid;
@@ -16,14 +17,16 @@
   container-type: inline-size;
 }
 
-/* Full-height (a workspace Layout gives it a definite height to fill, `--lf-full-height`),
- * the review takes that height rather than its content's, so its evidence row takes what
- * the heading leaves and the pane's body scrolls. */
+/* Told it has a definite height to fill (`--lf-full-height`, layouts.css), as a
+ * full-height workspace's body is, the review takes that height rather than its
+ * content's and tells its evidence pane so: the evidence row takes what the heading
+ * leaves, and the pane's body scrolls what Fit cannot fit (lf-visual-review.js). */
 @media screen {
   @container style(--lf-full-height: 1) {
     :scope:is(lf-visual-review) {
       min-block-size: 0;
       margin-block: 0;
+      --lf-full-height: inherit;
     }
   }
 }
@@ -506,6 +509,13 @@
   }
 
   .lf-vr-shot-host[data-focus-active="true"] .lf-shotframe {
+    height: var(--lf-vr-focus-height);
+  }
+
+  /* Flip's comparison takes the whole capture's shape (lf-shot), which on a focus crop
+     left empty room under the crop as tall as the rest of the capture. */
+  .lf-vr-shot-host[data-focus-active="true"] .lf-shotcomparison {
+    aspect-ratio: auto;
     height: var(--lf-vr-focus-height);
   }
 

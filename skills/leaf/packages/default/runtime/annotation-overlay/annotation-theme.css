@@ -22,6 +22,7 @@
 .lf-margin-carrier { position: fixed; left: 0; top: 0; width: 0; height: 0; z-index: 2;
     position-visibility: always; }
 .lf-margin-cluster { position: absolute; z-index: 2;
+    left: var(--lf-margin-x, 0px); top: var(--lf-margin-y, 0px);
     display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
     padding-right: var(--focus-ring-room); pointer-events: auto; }
 /* Keep a new row measurable, but unpainted until layout gives it a posture. */
@@ -62,44 +63,36 @@
 .lf-margin-more { letter-spacing: .04em; }
 .lf-margin-marker[hidden] { display: none; }
 .lf-margin-options [data-lf-margin-entry-overflow] { display: none; }
-/* A pin's marker is filled where a rail marker is paper: it stands on the block it is
+/* Every annotation has the same filled pin face when it stands on the block it is
    about, over the block's own words, so it is a solid teardrop pointing into the block
    with a paper edge that parts it from whatever it covers. It is smaller than a rail
    marker with a mouse, because it covers what it stands on, and keeps the full aim floor
    under a finger, so what the user sees is what they press.
 
    The fill is the pin, so the states a rail marker paints on its paper take the pin's
-   attention color: a thread on the user has a green fill, while every other thread
-   stays blue. Work progress keeps the same fill and reports its stage in words.
-   A read-only status keeps the rail's paper face, since a fill would say
-   it can be pressed. The pin supplies its ink through --lf-entry-ink, so the shared
-   entry states retain it while package themes can still override their paint. */
+   attention color: an annotation on the user has a green fill; other pins stay blue.
+   Shape and fill identify placement, not whether a press acts, opens context, or does
+   nothing. Glyphs and labels retain each entry's meaning; only interactive entries
+   respond to a press or darken on hover. Overflow and revealed actions use this same
+   face. The pin supplies its ink through --lf-entry-ink, so the shared entry states
+   retain it while package themes can still override their paint. */
 .lf-margin-cluster[data-lf-place="pin"] { --margin-entry: max(26px, var(--aim-floor)); }
-/* A pin folded for want of room wears the marker's face on its toggle, the kind it folds
-   (margin-model.js, `clusterProjection`), so it reads as what it stands for. */
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker,
-.lf-margin-cluster[data-lf-place="pin"][data-lf-folded] > .lf-margin-entry.lf-margin-more {
-  border-radius: 50% 50% 50% 3px; }
-.lf-margin-cluster[data-lf-place="pin"][data-lf-folded] > .lf-margin-entry.lf-margin-more,
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:not([data-lf-behavior="status"]) {
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry {
+  border-radius: 50% 50% 50% 3px;
   --lf-pin-edge: var(--paper);
   border: 2px solid var(--lf-pin-edge);
   background: var(--lf-pin-face, var(--pin-fill)); --lf-entry-ink: #fff;
   box-shadow: 0 1px 2px var(--shade), 0 3px 8px var(--shade); }
-.lf-margin-cluster[data-lf-place="pin"][data-lf-folded] > .lf-margin-entry.lf-margin-more
-  > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph),
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:not([data-lf-behavior="status"])
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry
   > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
   color: var(--lf-entry-ink); inline-size: 14px; block-size: 14px; }
-.lf-margin-cluster[data-lf-place="pin"][data-lf-folded] > .lf-margin-entry.lf-margin-more:is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"]),
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:not([data-lf-behavior="status"]):is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"], [data-lf-target-selected]) {
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry:not([data-lf-behavior="status"]):is(button, [role="button"]):is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"], [data-lf-target-selected]) {
   border-color: var(--lf-pin-edge); }
-.lf-margin-cluster[data-lf-place="pin"][data-lf-folded] > .lf-margin-entry.lf-margin-more:is(:hover, [aria-expanded="true"]),
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:not([data-lf-behavior="status"]):is(:hover, [aria-expanded="true"]) {
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry:not([data-lf-behavior="status"]):is(button, [role="button"]):is(:hover, [aria-expanded="true"]):not([aria-disabled="true"]):not(:disabled) {
   background: color-mix(in srgb, var(--lf-pin-face, var(--pin-fill)) 82%, #000); }
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker[data-lf-turn="user"] {
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry[data-lf-turn="user"] {
   --lf-pin-face: var(--pin-on-user); }
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker[data-lf-unread]::after {
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry[data-lf-unread]::after {
   box-shadow: 0 0 0 2px var(--paper); }
 .lf-margin-receipt { color: var(--ink-2); font-weight: 600; }
 .lf-margin-receipt[data-lf-margin-receipt="negative"] { color: var(--danger-ink); }

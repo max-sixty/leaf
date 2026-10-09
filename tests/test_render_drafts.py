@@ -658,7 +658,9 @@ def test_page_round_trip(browser, serve):
     # drag is aimed at and takes the pointer. A user sees the card and dismisses it;
     # a test that skipped the dismissal would be dragging under a sheet, which is a
     # scene about the margin rather than the seam below.
-    page.keyboard.press("Escape")  # off the target the send landed on, and its card
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
+    page.keyboard.press("Escape")  # from the sent card to its passage
+    page.keyboard.press("Escape")  # off the passage, dismissing its card
     expect(page.locator(".lf-margin-thread")).to_be_hidden()
     # Drag the card between columns through the pointer path — the seam where
     # the vendored SortableJS meets the runtime, which is where drags break.
@@ -1073,7 +1075,7 @@ def test_a_draft_forwards_edit_save_and_cancel_without_consuming_native_digits(
         question.evaluate(
             """async element => {
               const {focusDestination} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-              focusDestination(element);
+              focusDestination(element, 'move');
             }"""
         )
         expect(question).to_be_focused()

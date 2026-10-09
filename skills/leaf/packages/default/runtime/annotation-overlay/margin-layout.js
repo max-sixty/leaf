@@ -6,8 +6,11 @@
    in the rail, the strip beside `main` where the room there holds one, or as a pin over the
    page by its target, seated where it covers no words when there is room for it
    (`seatPins`). The stylesheet places each row from what this pass writes on it
-   (theme.css, at .lf-margin-cluster): its posture as `data-lf-place`, its seat as
-   `left` and `top`, including the push packing gives it. Scrolling moves a row with its target on the compositor, whether the
+   (annotation-theme.css, at .lf-margin-cluster): its posture as `data-lf-place`, its
+   seat as `--lf-margin-x` and `--lf-margin-y`, including the push packing gives it.
+   These measured coordinates keep their full layout precision in custom properties;
+   ordinary length serialization would round distant document positions before comparing
+   them. Scrolling moves a row with its target on the compositor, whether the
    document scrolls or a pane does, with no pass at all.
    Resize deliveries settle placement before their native paint; deferring that pass
    to the next frame would show a row at its stale seat after its target changed.
@@ -725,6 +728,11 @@ function standFolded(row, fold, on) {
 // square the row's height, beside the gaps and the focus ring's room the row keeps.
 function seatPins(standing, { bands, shell, pinInset, retainSeats }) {
   const main = marginColumn();
+  // A scrollable document can reveal seats beyond the viewport. A root whose
+  // overflow prevents user scrolling cannot, so its window bounds the search.
+  const rootBounds = /^(hidden|clip)$/.test(getComputedStyle(pageScroller).overflowY)
+    ? shownWindow({ viewport: "layout" })
+    : null;
   const pins = [];
   for (const entry of standing) {
     const { read } = entry;
@@ -797,7 +805,7 @@ function seatPins(standing, { bands, shell, pinInset, retainSeats }) {
             bottom: (end.top + end.bottom + height) / 2,
           }
         : homeAt(size);
-    const within = stop === pageScroller ? null : contentBox(stop);
+    const within = stop === pageScroller ? rootBounds : contentBox(stop);
     // A board or table can clip the target across without owning its reading region.
     // Search only the room it shows; otherwise the nearest clear spot can leave the
     // scroller and targetShown withholds an otherwise reachable action.
@@ -879,7 +887,8 @@ export function unregisterMarginRow(row) {
   if (row) {
     row.classList.toggle("lf-withheld", false);
     row.removeAttribute("data-lf-place");
-    for (const property of ["left", "top"]) row.style.removeProperty(property);
+    for (const property of ["--lf-margin-x", "--lf-margin-y"])
+      setStyle(row, property, null);
     pushes.delete(row);
     folded.delete(row);
   }
@@ -1314,13 +1323,13 @@ export function layoutMarginRows({ retainSeats = false } = {}) {
         "left",
         carrierAxes.get(carrier) === "xy" ? from("left", read.carrierBox.left) : "0px",
       );
-      setStyle(row, "left", `${left}px`);
-      setStyle(row, "top", `${top}px`);
+      setStyle(row, "--lf-margin-x", layoutPx(left));
+      setStyle(row, "--lf-margin-y", layoutPx(top));
       carryScroll(row, []);
       continue;
     }
-    setStyle(row, "left", `${left + scrollX}px`);
-    setStyle(row, "top", `${top + scrollY}px`);
+    setStyle(row, "--lf-margin-x", layoutPx(left + scrollX));
+    setStyle(row, "--lf-margin-y", layoutPx(top + scrollY));
     const carried = laneMotions.get(read.scroller) ?? [];
     // The rail's horizontal coordinate belongs to the column. Nested scrollports
     // move its target's vertical coordinate alone; compensate the lane's horizontal

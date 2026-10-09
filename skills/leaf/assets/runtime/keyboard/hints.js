@@ -10,7 +10,8 @@
    names, and the map is read and seated again once the scroll settles, so a target
    arriving mid-scroll is named at rest rather than on the frame it appears.
    A candidate is revalidated against a fresh reading before it is taken, so a target
-   that left the scene cannot be worked by a stale label.
+   that left the scene cannot be worked by a stale label. Disabled character routes
+   remove their chips and spoken codes; the target inventory and Tab/Enter walk remain.
 
    What the members are, what a chip says, what taking one does, and where chrome stands
    belong to the caller. Everything above is here once.
@@ -22,7 +23,9 @@
    opaque hint has no meaning once its face is hidden, so collisions are spread rather
    than removed. Geometry belongs to each caller and is passed in so this module
    introduces no ownership cycle through the shortcut bar. */
-import { render } from "../../vendor/browser-runtime.js";
+import { bindingEnabled, spell } from "./bindings.js";
+import { html, render } from "../../vendor/browser-runtime.js";
+import { keySequenceModel, keySequenceTemplate } from "./presentation.js";
 import { clamp, overlaps, overlapsAcross } from "../rect.js";
 import { chipSeats } from "./chip-seats.js";
 import { scrolling, watchScrollEnds } from "../arrivals.js";
@@ -264,6 +267,17 @@ export function createHintSession({
   const seats = chipSeats(layer);
 
   const hinted = () => candidates.filter(({ code }) => code.startsWith(prefix));
+  const enabled = (candidate) => [...candidate.code].every(bindingEnabled);
+  const shown = (plan) => enabled(plan.candidate) || plan.candidate === hinted()[at];
+  const nativeTake = keySequenceModel([spell("Enter")], undefined, ["Enter"]);
+  const face = (plan) =>
+    plan.candidate && !enabled(plan.candidate)
+      ? html`<span
+          class=${`lf-key-hint lf-current${plan.model.className.includes(" lf-in") ? " lf-in" : ""}`}
+          data-lf-hint-native="Enter"
+          >${keySequenceTemplate(nativeTake)}</span
+        >`
+      : template(plan.model);
 
   // Every way the map is replaced whole puts the user back at its head, with no letters
   // typed and nothing heard. Whether the page is moving is a fact about the page rather
@@ -332,7 +346,9 @@ export function createHintSession({
     );
     const said = words.describe(target);
     const stop = /[.!?]$/.test(said) ? "" : ".";
-    announce(`Hint ${target.code}: ${said}${stop} Press Enter to ${words.take}.`);
+    announce(
+      `${enabled(target) ? `Hint ${target.code}: ` : ""}${said}${stop} Press Enter to ${words.take}.`,
+    );
     repaint();
   }
 
@@ -348,10 +364,11 @@ export function createHintSession({
   }
 
   function draw(extraPlans, codedPlans) {
+    codedPlans = codedPlans.filter(shown);
     const plans = [...extraPlans, ...codedPlans];
     const drawn = plans.map((plan) => {
       const seat = seats.seat(plan.model.key);
-      render(template(plan.model), seat);
+      render(face(plan), seat);
       return {
         seat,
         element: plan.candidate ? identity(plan.candidate) : null,
@@ -383,11 +400,11 @@ export function createHintSession({
     if (scrolling()) {
       const plans = [
         ...extras(),
-        ...layout(hinted(), { current: hinted()[at], reading: scene() }),
+        ...layout(hinted(), { current: hinted()[at], reading: scene() }).filter(shown),
       ];
       for (const plan of plans) {
         const seat = seats.standing(plan.model.key);
-        if (seat) render(template(plan.model), seat);
+        if (seat) render(face(plan), seat);
       }
       seats.keepOnly(new Set(plans.map(({ model }) => model.key)));
       return;
@@ -424,6 +441,7 @@ export function createHintSession({
   // page's own repaint door says holds at every scroll position, no list's membership
   // moving with the page.
   function mount() {
+    document.addEventListener("lf-keyboard-preference", invalidate);
     watchScrollEnds(() => {
       if (!armed) return;
       stale = true;

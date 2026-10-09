@@ -117,6 +117,7 @@ import {
   widgetController,
   worksInside,
   wrote,
+  focusDestination,
 } from "/runtime/widget-api.js";
 
 // What an option is called, in either form: its title where it leads with one, and its
@@ -472,7 +473,7 @@ customElements.define(
           title: "Another option",
           description: "Write another option",
           when: () => this.#available("choose"),
-          run: () => this.#addition.input.focus(),
+          run: () => focusDestination(this.#addition.input, "move", { scroll: true }),
         });
       if (this.#done)
         answerRows.push({

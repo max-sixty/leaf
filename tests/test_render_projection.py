@@ -1724,16 +1724,48 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
 
 
 def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
-    """A focused review is a wide page, not prose followed by a narrow widget.
+    """A focused review is a workspace, not prose followed by a narrow widget.
 
-    The case picker never taxes the evidence width, the disposition follows
-    the pixels, and a tall mobile pair keeps its authored focus width side by side in an
-    evidence stage as tall as the pair, which the page scrolls through. Capture facts
-    follow the comparison rather than delaying it.
+    The case picker never taxes the evidence width, and disposition follows the
+    pixels. The review fills the window; Fit shrinks a mobile pair to fit its pane
+    when the captured text remains readable, otherwise the pane scrolls the pair.
+    Capture facts follow the comparison rather than delaying it.
     """
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
-    resized(page, 1366, 768)
+    resized(page, 1440, 900)
     widget = page.locator("#visual-review-run")
+    fit_reading = """node => {
+          const body = node.querySelector('.lf-vr-cases');
+          const frames = [...node.querySelectorAll(
+            '.lf-vr-case:not([hidden]) .lf-shotframe')];
+          return {bodyBottom: body.getBoundingClientRect().bottom,
+                  framesBottom: Math.max(...frames.map(
+                    frame => frame.getBoundingClientRect().bottom)),
+                  image: frames[0].querySelector('img').getBoundingClientRect().width,
+                  page: document.scrollingElement.scrollHeight - innerHeight};
+        }"""
+    contained = widget.evaluate(fit_reading)
+    assert contained["framesBottom"] <= contained["bodyBottom"] + 0.5, contained
+    assert 0.7 * 350 < contained["image"] < 350, contained
+    assert contained["page"] <= 0, contained
+    widget.get_by_text("Inspect comparison", exact=True).click()
+    page.wait_for_function(
+        """node => {
+          const body = node.querySelector('.lf-vr-cases').getBoundingClientRect();
+          return [...node.querySelectorAll('.lf-vr-case:not([hidden]) .lf-shotframe')]
+            .every(frame => frame.getBoundingClientRect().bottom <= body.bottom + 0.5);
+        }""",
+        arg=widget.element_handle(),
+    )
+    opened = widget.evaluate(fit_reading)
+    assert opened["image"] < contained["image"], opened
+    widget.get_by_text("Inspect comparison", exact=True).click()
+    page.wait_for_function(
+        "(args) => args.node.querySelector('.lf-vr-case:not([hidden]) img')"
+        ".getBoundingClientRect().width === args.width",
+        arg={"node": widget.element_handle(), "width": contained["image"]},
+    )
+    resized(page, 1366, 600)
     widget.get_by_text("Inspect comparison", exact=True).click()
     gallery_scope = widget.get_by_role("radiogroup", name="Scope")
     expect(gallery_scope).to_be_visible()
@@ -1764,6 +1796,9 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     assert case_image_width == pytest.approx(350, abs=1), geometry
     assert widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host").evaluate(
         "node => node.scrollHeight <= node.clientHeight + 1"
+    )
+    assert widget.locator(".lf-vr-cases").evaluate(
+        "node => node.scrollHeight > node.clientHeight"
     )
     assert geometry["support"]["top"] >= geometry["evidence"]["bottom"]
     case = widget.locator(".lf-vr-case:not([hidden])")
@@ -1861,29 +1896,65 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     )
 
 
+def test_a_visual_review_inside_a_section_of_a_workspace_flows(browser, serve):
+    """Only a review the workspace gives a height fills it. In a section of the body it is
+    not told it has one (`--lf-full-height` does not inherit), so it takes its content's
+    height with its pair at the stage's width, the body scrolls it, and it settles:
+    sized from its own pane, it grew a little on each pass."""
+    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
+    resized(page, 1440, 900)
+    widget = page.locator("#visual-review-run")
+    expect(widget.locator(".lf-vr-case:not([hidden]) lf-shot")).to_be_visible()
+    widget.evaluate(
+        """review => {
+          const section = document.createElement('section');
+          const intro = document.createElement('p');
+          intro.textContent = 'An intro paragraph before the review.';
+          review.before(section);
+          section.append(intro, review);
+        }"""
+    )
+    reading = """review => ({
+      image: review.querySelector('.lf-vr-case:not([hidden]) .lf-shotframe img')
+        .getBoundingClientRect().width,
+      paneScrolls: getComputedStyle(review.querySelector('.lf-vr-cases')).overflowY,
+    })"""
+    rendered(page)
+    first = widget.evaluate(reading)
+    page.wait_for_timeout(500)
+    rendered(page)
+    assert widget.evaluate(reading) == first == {"image": 350, "paneScrolls": "visible"}
+
+
 def test_visual_review_fits_frames_using_the_authored_spacing(browser, serve):
-    """Fitting and the painted frame tracks agree when spacing is authored in rem."""
+    """Fitting and the painted frame tracks agree when spacing is authored in rem: the
+    frames stand a rem apart, and where the page scrolls the review, in a window too
+    short for the workspace to fill, the pair takes the stage's whole width."""
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     widget = page.locator("#visual-review-run")
     widget.locator(".lf-vr-shot-host").evaluate_all(
         "nodes => nodes.forEach(node => node.style.setProperty('--sp-2', '1rem'))"
     )
-    resized(page, 760, 800)
-    expect(widget).to_have_attribute("data-compare-layout", "side")
-    geometry = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host").evaluate(
-        """host => {
-          const shot = host.querySelector('lf-shot');
-          const frames = [...shot.querySelectorAll('.lf-shotframe')]
-            .map(frame => frame.getBoundingClientRect());
-          return {available: host.clientWidth, width: shot.getBoundingClientRect().width,
-                  gap: frames[1].left - frames[0].right,
-                  rem: parseFloat(getComputedStyle(document.documentElement).fontSize),
-                  overflow: host.scrollWidth - host.clientWidth};
-        }"""
-    )
-    assert geometry["gap"] == pytest.approx(geometry["rem"], abs=0.1), geometry
+    for height in (800, 470):
+        resized(page, 760, height)
+        expect(widget).to_have_attribute("data-compare-layout", "side")
+        geometry = widget.locator(
+            ".lf-vr-case:not([hidden]) .lf-vr-shot-host"
+        ).evaluate(
+            """host => {
+              const shot = host.querySelector('lf-shot');
+              const frames = [...shot.querySelectorAll('.lf-shotframe')]
+                .map(frame => frame.getBoundingClientRect());
+              return {available: host.clientWidth,
+                      width: shot.getBoundingClientRect().width,
+                      gap: frames[1].left - frames[0].right,
+                      rem: parseFloat(getComputedStyle(document.documentElement).fontSize),
+                      overflow: host.scrollWidth - host.clientWidth};
+            }"""
+        )
+        assert geometry["gap"] == pytest.approx(geometry["rem"], abs=0.1), geometry
+        assert geometry["overflow"] == 0, geometry
     assert geometry["width"] == pytest.approx(geometry["available"], abs=0.1), geometry
-    assert geometry["overflow"] == 0, geometry
 
 
 def test_visual_review_discloses_focus_without_distorting_unsupported_browsers(
@@ -2014,7 +2085,10 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     expect(card).to_have_css("opacity", "1")
     rendered(page)
     assert card.bounding_box()["x"] == pytest.approx(before["x"], abs=1)
+    expect(card.locator(".lf-page-thread")).to_be_focused()
     page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(card).to_be_hidden()
     page.locator(".lf-margin-marker").click()
     expect(card).to_have_css("opacity", "1")
     rendered(page)

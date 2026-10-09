@@ -1145,7 +1145,9 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
     )
     monkeypatch.setattr(verify_site, "ROOT", root)
     monkeypatch.setattr(verify_site, "BUILD_SITE", [sys.executable, str(build_site)])
-    monkeypatch.setattr(verify_site, "SERVE_SITE", [sys.executable, str(serve_site)])
+    monkeypatch.setattr(
+        verify_site, "serve_site", lambda install: [sys.executable, str(serve_site)]
+    )
     monkeypatch.setenv("CODEX_HOME", str(host_home))
     monkeypatch.setenv("LEAF_CODEX_APP_SERVER", "unix:///another-session.sock")
     with (
@@ -3646,6 +3648,30 @@ def test_attention_is_recorded_for_each_page_on_a_shared_server(page_dir, tmp_pa
             )
 
 
+def test_the_website_refuses_a_page_another_leaf_vendored(page_dir, tmp_path):
+    """The container serves only pages its own Leaf's runtime vendored, as every page
+    server does; a site built by another Leaf breaks in the browser otherwise."""
+    site = tmp_path / "site"
+    published = site / "examples" / "decision"
+    published.parent.mkdir(parents=True)
+    shutil.copytree(page_dir, published)
+    registry_path = published / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["$layer"]["runtime"] = f"sha256:{'0' * 64}"
+    registry_path.write_text(json.dumps(registry))
+    write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
+    httpd = LeafHTTPServer(("127.0.0.1", 0), website_server.site_endpoint(site))
+    root = f"http://127.0.0.1:{httpd.server_address[1]}/examples/decision"
+    with (
+        running_http_server(httpd),
+        pytest.raises(urllib.error.HTTPError) as refused,
+    ):
+        get(f"{root}/api/state")
+    assert refused.value.code == 500
+    told = json.loads(refused.value.read())["error"]
+    assert "vendored from another Leaf's runtime" in told
+
+
 def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeypatch):
     site = tmp_path / "site"
     published = site / "examples" / "decision"
@@ -4126,7 +4152,9 @@ def test_the_preview_generator_bootstraps_a_new_catalog_entry(tmp_path, monkeypa
 
     assets = example_previews.bootstrap_assets(tmp_path / "assets")
     site = tmp_path / "site"
-    example_previews.site_build.build_examples(site, assets=assets)
+    example_previews.site_build.build_examples(
+        site, example_previews.site_build.checkout_leaf(), assets=assets
+    )
 
     assert (
         assets / "examples" / "example-ideas-to-implement.jpg"

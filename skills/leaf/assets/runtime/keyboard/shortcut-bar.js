@@ -51,6 +51,7 @@
    no additional current row, the first activation opens the reference directly. The
    native control also opens it directly. */
 import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
+import { focusDestination } from "../focus.js";
 
 import {
   activeRows,
@@ -335,7 +336,8 @@ const keyboardSettings = el("button", "lf-btn", "Keyboard shortcuts");
 keyboardSettings.type = "button";
 keyboardSettings.addEventListener("click", () => {
   dismissBannerControls();
-  bannerControlDoor(keyboardSettings)?.focus({ preventScroll: true });
+  const door = bannerControlDoor(keyboardSettings);
+  if (door) focusDestination(door, "return");
   openCompleteReference();
 });
 registerBannerControl({

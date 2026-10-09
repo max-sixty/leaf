@@ -537,6 +537,26 @@ const input = (event) => {
 };
 for (const type of ["pointerdown", "keydown", "input", "wheel", "touchstart"])
   addEventListener(type, input, { capture: true, passive: true });
+
+// Where the caret stood, as a key went down, in each box the key went down in, before
+// the box's own handling moved it. A command whose meaning hangs on the caret's place,
+// as ↑ from the start of a box walks out of it, reads this rather than the caret the
+// field has already moved by the time the command's row is asked. It holds for that
+// key's dispatch alone.
+let keyCarets = null;
+onUserInput((event) => {
+  if (event.type !== "keydown") return;
+  const carets = new Map();
+  for (const node of event.composedPath()) {
+    const caret = node instanceof Element && readCaret(node);
+    if (caret) carets.set(node, caret);
+  }
+  keyCarets = carets;
+  setTimeout(() => {
+    if (keyCarets === carets) keyCarets = null;
+  });
+});
+export const caretAtKey = (node) => keyCarets?.get(node) ?? null;
 addEventListener("blur", (event) => {
   if (event.target !== window) return;
   input(event);

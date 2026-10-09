@@ -64,7 +64,7 @@ import {
   watchDraft,
 } from "../drafts.js";
 import { TEXT_FIELD } from "../control-selectors.js";
-import { focusDestination } from "../focus.js";
+import { caretAtKey, focusDestination } from "../focus.js";
 import { PENDING } from "./identity.js";
 import { keys } from "../keyboard/scopes.js";
 import { announce, notice } from "../notifications.js";
@@ -150,7 +150,6 @@ export class MessageEditor {
   #settling = null;
   // Where the caret stood when ↑ went down, while it is down: the editor's own ↑ moves
   // it to the start from anywhere on the first line before the key's binding reads it.
-  #upFromStart = null;
 
   constructor(
     id,
@@ -257,12 +256,16 @@ export class MessageEditor {
             "From the start of an unchanged box, edit your message before this one",
           title: "edit previous message",
           // A walk passes over words as they stand: words the user changed hold ↑ for
-          // the caret, as a reply box holding words does, until Save or Escape.
-          when: () =>
-            (this.#upFromStart ??
-              (this.input.selectionStart === 0 && this.input.selectionEnd === 0)) &&
-            unchanged() &&
-            Boolean(previous()),
+          // the caret, as a reply box holding words does, until Save or Escape. It
+          // starts where the caret stood as the key went down, before the field's own ↑
+          // took it to the start of a first line; a held ↑'s repeats run no row.
+          when: () => {
+            const [start, end] = caretAtKey(this.input) ?? [
+              this.input.selectionStart,
+              this.input.selectionEnd,
+            ];
+            return start === 0 && end === 0 && unchanged() && Boolean(previous());
+          },
           run: () => {
             const before = previous();
             putAside();
@@ -290,18 +293,6 @@ export class MessageEditor {
     );
     cancel.addEventListener("mousedown", (event) => event.preventDefault());
     cancel.addEventListener("click", () => close());
-    this.input.addEventListener(
-      "keydown",
-      (event) => {
-        if (event.key === "ArrowUp")
-          this.#upFromStart =
-            this.input.selectionStart === 0 && this.input.selectionEnd === 0;
-      },
-      { capture: true },
-    );
-    this.input.addEventListener("keyup", (event) => {
-      if (event.key === "ArrowUp") this.#upFromStart = null;
-    });
     this.#stop = mirrorDraft(this.input, sync, ctx, { retained: true, blank: said });
   }
 

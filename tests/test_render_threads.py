@@ -11399,8 +11399,9 @@ def test_the_keyboard_walks_up_through_the_users_messages_to_rewrite_one(
     browser, serve
 ):
     """↑ from the thread's empty reply box opens the user's latest message, and ↑ from
-    the start of an open rewrite opens their message before it. The Edit control is
-    for a pointer or a finger, so it takes no Tab stop in the thread."""
+    the start of an open rewrite opens their message before it; a held ↑ stops at the
+    start, since its repeats are the one press that took the caret there. The Edit
+    control is for a pointer or a finger, so it takes no Tab stop in the thread."""
     url = serve(THREAD_DIFF_PAGE)
     d = serve.page_dir
     first = append_carried_log_record(
@@ -11442,8 +11443,11 @@ def test_the_keyboard_walks_up_through_the_users_messages_to_rewrite_one(
     )
     expect(latest).to_be_focused()
     # ↑ on the box's first line goes to its start, as in any box, and ↑ from there on.
-    page.keyboard.press("ArrowUp")
+    page.keyboard.down("ArrowUp")
+    page.keyboard.down("ArrowUp")
+    page.keyboard.up("ArrowUp")
     expect(latest).to_be_focused()
+    expect(latest).to_have_js_property("selectionStart", 0)
     page.keyboard.press("ArrowUp")
     earlier = thread.locator(
         f'.lf-msg[data-mid="{first["id"]}"] .lf-msg-editor leaf-text'

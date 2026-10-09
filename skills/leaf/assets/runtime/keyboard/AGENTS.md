@@ -55,10 +55,10 @@ browser's order.
   returns to its thread, and the thread to the panel's rungs, which clear narrowing
   before closing.
 - A reply, or the first comment that starts a thread, leaves the user standing on
-  the thread once sent. A thread in the margin card leaves them on the element it
-  is about, with the card still up, so one Escape takes the card down and moving
-  elsewhere needs none. The page comment card, which only starts a thread, goes
-  away on its send, as on Escape, handing them back to the control it hangs from.
+  the thread's card or title once sent, including in the margin. Send never returns
+  focus to the page; Escape follows the card's usual route back to its target.
+  The page comment card also stays open and focused after Send; `c` writes again,
+  and Escape closes it and returns to the control it hangs from.
   A box that stays open for more messages, such as a seat's, keeps the user in it.
 - Threads selects one thread whenever it shows any, and focus on the list is focus
   on that thread's title: `g T`, and an Escape from its find box, land there.

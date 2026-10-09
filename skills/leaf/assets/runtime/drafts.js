@@ -79,8 +79,7 @@
 import { runtime } from "./context.js";
 import { PENDING } from "./thread/identity.js";
 import { draftStore } from "./storage.js";
-import { focused } from "./keyboard/scopes.js";
-import { focusDestination, readCaret } from "./focus.js";
+import { focusDestination, readCaret, focused } from "./focus.js";
 import { notice } from "./notifications.js";
 import { retainUserIntent } from "./user-intent.js";
 

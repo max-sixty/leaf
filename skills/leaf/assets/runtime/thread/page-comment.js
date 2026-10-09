@@ -9,12 +9,12 @@
    no box of its own: it is where a thread lives once started, not where one starts, and
    the card hangs over it when it is open. In Design mode the box comments on the design.
 
-   The card is for starting a thread and nothing after. A send puts it away and flashes
-   Threads, where the new thread now lives, without opening the panel; the Threads count
-   rising is the rest of that answer, and an open panel reveals the thread in its list.
-   A refused send opens the card again on the words the refusal handed back. A revision
-   arriving while the user writes in the card opens it again through its Resume writing
-   route (drafts.js).
+   The card starts page threads; their conversations live in Threads. A send leaves
+   focus on the open card and flashes Threads without opening the panel; its count
+   rises for the new thread, and an open panel reveals the thread in its list. `c`
+   enters the card's box again. A refused send returns to the editor only while the
+   user still stands on the card. A revision arriving while the user writes in the card
+   opens it again through its Resume writing route (drafts.js).
 
    The card is an auto popover, so a press outside puts it away. Escape is its own row in
    the register, so the shortcut line says whether the words stay. Either way focus goes
@@ -27,6 +27,8 @@
 import { el } from "../widget-elements.js";
 import { iconElement } from "../icons.js";
 import { textField } from "../composing/text-field.js";
+import { focusDestination } from "../focus.js";
+import { retainUserIntent } from "../user-intent.js";
 import { loadDraft, mirrorDraft, saveDraft, sendMessage } from "../drafts.js";
 import { FLASH_MS, backgroundFlash } from "../motion.js";
 import { keys } from "../keyboard/scopes.js";
@@ -39,7 +41,6 @@ import {
   dismissBannerControls,
   registerBannerControl,
 } from "../banner-toolbar.js";
-import { focusDestination } from "../focus.js";
 
 const NAME = "Comment on the page";
 
@@ -65,6 +66,7 @@ export function createPageComment({
   card.setAttribute("popover", "auto");
   card.setAttribute("role", "dialog");
   card.setAttribute("aria-label", NAME);
+  card.tabIndex = -1;
 
   const input = textField();
   input.name = "comment";
@@ -149,18 +151,17 @@ export function createPageComment({
           return (flight = createPageComment(event));
         });
         if (!handle) return;
-        card.hidePopover();
+        focusDestination(card, "return");
+        const mayRestore = retainUserIntent({ source: card, available: cardIsOpen });
         // Open, Threads shows the thread where it lands, as it does an anchored comment's
-        // (composing/selection.js); the user stays where the card left them.
+        // (composing/selection.js); the user stays on the card.
         if (panelIsOpen()) void showThread(handle.id, { focus: false, flash: false });
         backgroundFlash(threadsToggle, FLASH_MS);
-        // A refusal can come long after the send, while delivery retries. The card opens
-        // again on the words only where the user still stands where the send left them;
-        // anywhere else it would take their keys, and the words wait in the draft for
-        // the control, `c` or Resume writing.
+        // Delivery may refuse long after Send. Restore text entry only while the user
+        // still stands on the card; a later gesture owns its focus and disclosure.
         void Promise.resolve(flight).then((accepted) => {
-          const still = [control, document.body, null].includes(document.activeElement);
-          if (!accepted && still) open();
+          if (!accepted && document.activeElement === card && mayRestore())
+            mayRestore.handoff(open);
         });
       },
     });

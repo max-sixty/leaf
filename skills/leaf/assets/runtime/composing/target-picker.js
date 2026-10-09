@@ -17,11 +17,10 @@ import {
   segmentBlock,
 } from "../passages.js";
 import { bannerFoot, shownBox, shownParts } from "../geometry.js";
-import { focused } from "../keyboard/scopes.js";
 import { repaint } from "../repaint.js";
 import { anchorFor } from "../anchor-names.js";
 import { paintSet } from "../target-paint-geometry.js";
-import { handBack, releaseFocus, focusDestination } from "../focus.js";
+import { handBack, releaseFocus, focusDestination, focused } from "../focus.js";
 import {
   createHintSession,
   HINT_KEYS,

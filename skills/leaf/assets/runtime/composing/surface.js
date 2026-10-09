@@ -117,8 +117,9 @@ import {
   letGo,
   takesLetters,
   focusDestination,
+  focused,
 } from "../focus.js";
-import { commandScope, focused, projectCommandScope } from "../keyboard/scopes.js";
+import { commandScope, projectCommandScope } from "../keyboard/scopes.js";
 import { shadowHost, under } from "../shadow.js";
 import { nativeLayers } from "../keyboard/layer-stack.js";
 import { heldAsk } from "../standing-target.js";

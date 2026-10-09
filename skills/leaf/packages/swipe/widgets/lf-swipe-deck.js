@@ -22,8 +22,9 @@
  * controls or sample frames. Native moves retain their state; `motion` makes the
  * preview still under reduced motion and during initial state projection. */
 import {
-  dragging,
   commands,
+  dragging,
+  focusDestination,
   holdFocus,
   keeps,
   keepsHidden,
@@ -31,14 +32,13 @@ import {
   layoutChanged,
   motion,
   motionPreview,
-  once,
   offer,
+  once,
   paintKeys,
   quoted,
   rankAt,
   widgetController,
   worksInside,
-  focusDestination,
 } from "/runtime/widget-api.js";
 
 const VERDICTS = {

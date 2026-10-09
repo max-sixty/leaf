@@ -2,10 +2,11 @@
    page policy around a real input (transient modes and the expanded shortcut bar), and presses the keys
    the prepaint bootstrap held before presentation once the page presents. */
 import { dispatchKey } from "./dispatch.js";
-import { MODIFIER_KEYS, quickShortcuts } from "./bindings.js";
+import { MODIFIER_KEYS } from "../control-selectors.js";
+import { quickShortcuts } from "./bindings.js";
 import { beforeShortcutCommand } from "./shortcut-bar.js";
-import { claimsEsc, focused, paintKeys } from "./scopes.js";
-import { onStanding, takesLetters, typesText } from "../focus.js";
+import { claimsEsc, paintKeys } from "./scopes.js";
+import { onStanding, takesLetters, typesText, focused } from "../focus.js";
 import { nextFrame } from "../rendering.js";
 import { PRESENTATION } from "../presentation.js";
 export function mountKeyboard({

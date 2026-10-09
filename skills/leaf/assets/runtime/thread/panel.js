@@ -5,11 +5,11 @@
    button is the banner's, so opening by pointer leaves the user outside, and `g T`, `t`,
    Tab or a click on a thread is what puts them in. The thread scope draws one step further
    in, so its rows shadow these. Every page has this scope. */
-import { focused, keys } from "../keyboard/scopes.js";
+import { keys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
 import { runtime } from "../context.js";
 import { pagePresented } from "../presentation.js";
-import { focusDestination } from "../focus.js";
+import { focusDestination, focused } from "../focus.js";
 import { rowWalk } from "../walk-position.js";
 
 export function createThreadPanelKeys({

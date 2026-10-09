@@ -467,8 +467,46 @@ OVER_ITS_CONTAINER = LONG_PAGE.replace(
     "overflow: hidden'>"
     "<div id='over-by-far' style='position: absolute; left: 0; width: 600px'>Four "
     "hundred over that one.</div></div></div></div>"
+    "<div id='html-drawing' style='--lf-drawing: 1; width: 120px; overflow: hidden'>"
+    "<div id='drawing-pixels' style='width: 300px; height: 30px; background: coral'>"
+    "</div><lf-test-drawing-control id='clipped-drawing'></lf-test-drawing-control>"
+    "<lf-test-drawing-control id='clean-drawing'>"
+    "</lf-test-drawing-control></div>"
+    "<div id='drawing-holder' style='width: 120px; overflow: hidden'>"
+    "<div id='outside-viewport' style='--lf-drawing: 1; width: 180px; overflow: hidden'>"
+    "<div style='width: 300px; height: 30px; background: coral'></div></div></div>"
     "\n</main>",
+).replace(
+    "</head>",
+    "<style>lf-test-drawing-control { display: block; width: 90px; }"
+    "#clipped-drawing { width: 200px; }</style></head>",
 )
+DRAWING_CONTROL_LAYER = {
+    "lf-test-drawing-control": {
+        "description": "A native offered control inside a drawing viewport.",
+        "type": "object",
+        "properties": {"id": {"type": "string"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-upgrade": True,
+        "x-example": '<lf-test-drawing-control id="control"></lf-test-drawing-control>',
+    }
+}
+DRAWING_CONTROL_WIDGETS = {
+    "lf-test-drawing-control.js": """
+import { once, offer } from '/runtime/widget-api.js';
+customElements.define('lf-test-drawing-control', class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    const control = offer('button', 'drawing-control', 'Inspect');
+    control.id = `${this.id}-control`;
+    control.style.width = '100%';
+    this.append(control);
+  }
+});
+"""
+}
 # A scroller the page wrote and did not position, beside one it did. The commented
 # words stand at the far end of the first, since a word laid out against the page from
 # the near end lands inside the window and escapes nothing anyone can measure.

@@ -8167,6 +8167,58 @@ def test_the_g_chord_opens_an_empty_page_map(browser, serve):
     expect(sheet.locator(".lf-page-map-action")).to_have_count(0)
 
 
+@pytest.mark.parametrize("route", ["Escape", "Close"])
+@pytest.mark.parametrize("nested", [False, True])
+def test_page_map_cancellation_returns_to_its_opener_without_moving_the_reading(
+    browser, serve, route, nested
+):
+    content = (
+        '<div style="height:900px"></div><button id="reading-control">Reading control</button>'
+        '<div style="height:900px"></div>'
+    )
+    if nested:
+        content = (
+            f'<div id="reading" style="height:350px;overflow:auto">{content}</div>'
+        )
+    page = open_page(browser, serve(leaf_page("Map return", content)))
+    page.locator("#reading-control").focus()
+    page.locator("#reading-control").scroll_into_view_if_needed()
+    reading = """() => ({page: document.scrollingElement.scrollTop,
+      nested: document.querySelector('#reading')?.scrollTop ?? 0})"""
+    before = page.evaluate(reading)
+    page.locator(".lf-page-map-toggle").evaluate("node => node.click()")
+    sheet = page.get_by_role("dialog", name="Page Map", exact=True)
+    expect(sheet).to_be_visible()
+    if route == "Escape":
+        page.keyboard.press("Escape")
+    else:
+        sheet.get_by_role("button", name="Close Page Map").click()
+    expect(sheet).to_be_hidden()
+    expect(page.locator("#reading-control")).to_be_focused()
+    assert page.evaluate(reading) == before
+
+
+@pytest.mark.parametrize("route", ["Escape", "Close"])
+def test_page_map_cancellation_without_an_opener_keeps_the_scrolled_reading(
+    browser, serve, route
+):
+    page = open_page(browser, serve(LONG_PAGE))
+    page.evaluate("() => document.getElementById('p40').scrollIntoView()")
+    page_at_rest(page)
+    before = page.evaluate("() => document.scrollingElement.scrollTop")
+    page.locator(".lf-page-map-toggle").evaluate("node => node.click()")
+    sheet = page.get_by_role("dialog", name="Page Map", exact=True)
+    expect(sheet).to_be_visible()
+    if route == "Escape":
+        page.keyboard.press("Escape")
+    else:
+        sheet.get_by_role("button", name="Close Page Map").click()
+    expect(sheet).to_be_hidden()
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == before
+    page.keyboard.press("Tab")
+    assert not page.evaluate(STANDING)["isFirstStop"]
+
+
 def test_generated_hints_refresh_to_the_visible_scene_after_scroll(browser, serve):
     """Scroll changes the map at rest without letting an old letter act elsewhere."""
     page = open_page(

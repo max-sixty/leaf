@@ -661,6 +661,57 @@ def test_a_key_pressed_before_presentation_runs_once_the_page_presents(
     expect(echo).to_have_count(0)
 
 
+@pytest.mark.parametrize("stage", ["module", "state"])
+def test_disabled_quick_shortcuts_are_not_held_before_presentation(
+    browser, serve, stage
+):
+    """The saved preference applies before either bootstrap or controller can act."""
+    url = serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD])
+    page = open_page(browser, url)
+    page.locator(".lf-banner-more").click()
+    page.get_by_role("button", name="Keyboard shortcuts", exact=True).click()
+    page.get_by_role("checkbox", name="Quick keyboard shortcuts").uncheck()
+    page.keyboard.press("Escape")
+    held, release = _hold_startup(page, stage)
+    page.reload(wait_until="commit")
+    holding(page, held, 1, f"the {stage} request")
+    expect(page.locator("#said")).to_be_visible()
+    page.keyboard.press("t")
+    expect(page.locator(".lf-held-keys")).to_have_count(0)
+    release()
+    wait_until_ready(page)
+    expect(page.locator('[data-thread="held-thread"]:focus')).to_have_count(0)
+    expect(page.locator(".lf-held-keys")).to_have_count(0)
+
+
+def test_disabling_quick_shortcuts_discards_keys_already_held(browser, serve):
+    """A preference change before replay must also withdraw an already captured trip."""
+    page = browser.new_page(viewport={"width": 1400, "height": 900})
+    watched(page)
+    # The queue has transferred to the controller, but its first frame has not run.
+    page.add_init_script(
+        """document.addEventListener('lf-presentation', () => queueMicrotask(() =>
+          document.documentElement.lfKeyboard.setQuick(false)));"""
+    )
+    held, release = _hold_startup(page, "state")
+    page.goto(serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD]), wait_until="commit")
+    holding(page, held, 1, "the first state read")
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+T")
+    try:
+        expect(page.locator(".lf-held-keys kbd")).to_have_text(["g", "T"])
+    finally:
+        release()
+    wait_until_ready(page)
+    expect(page.locator(".lf-held-keys")).to_have_count(0)
+    expect(page.locator("body")).not_to_have_attribute(
+        "data-lf-auxiliary-surface", "threads"
+    )
+    page.keyboard.press("t")
+    expect(page.locator('[data-thread="held-thread"]:focus')).to_have_count(0)
+
+
 def test_a_key_pressed_while_held_keys_run_waits_its_turn(browser, serve):
     """Presentation hands the held keys over and presses them a frame apart, so a key
     arriving between the handover and the first press has to queue behind them: `g`

@@ -148,11 +148,9 @@ export function createAskView({
   // node, so materialize the existing thread projection there rather than
   // narrowing the semantic inventory to what happens to be in the DOM.
   //
-  // Only an Ask that has to be built is waited for. One whose nodes already stand is
-  // looked up at once, so the arrival that follows still runs inside the gesture that
-  // asked for it: what it does to the page, such as widening a narrowing that hides
-  // the Ask's thread and clearing the words searched for, is that key's or press's
-  // doing, in its own turn.
+  // Bulk answers reuse standing nodes and materialize only those not built yet.
+  // Explicit arrivals reveal the addressed frozen turn, then use the canonical
+  // destination policy to select and present its current reader.
   //
   // An Ask a held turn carries has no node until its thread shows what it holds
   // (held-news.js), and that release draws before `showHeld` returns.
@@ -163,6 +161,7 @@ export function createAskView({
   };
   const unbuilt = (ask, { target, source }) => (!target || !source) && ask.thread;
   async function materializeAsk(ask, intent = null) {
+    reachAsk(ask);
     await openPageThread(ask.thread, {
       focus: false,
       travel: false,

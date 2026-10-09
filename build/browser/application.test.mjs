@@ -601,6 +601,16 @@ test("a local send's workflow takes the served workflow's shape", () => {
     [move.subject, move.thread, move.holds_thread, move.coordinate],
     [{ kind: "widget", id: "choice" }, null, false, coordinate],
   );
+  app.release(new Set(["move"]));
+  for (const event of [
+    { kind: "done", version: 1 },
+    { kind: "resolve", parent: "root" },
+  ]) {
+    app.enqueue({ ...event, attempt: "other" }, "now");
+    app.refuse("other");
+    assert.deepEqual(app.read().effective.workflows, []);
+    app.release(new Set(["other"]));
+  }
   // Every field the server sends but the undelivered-only ones it has no reading of.
   const { quiet: _quiet, dropped: _dropped, ...served } = servedWorkflow();
   assert.deepEqual(Object.keys(move).sort(), Object.keys(served).sort());

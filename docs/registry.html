@@ -151,7 +151,6 @@
           <a href="#x-prepaint"><code>x-prepaint</code></a>
           <a href="#x-reading-role"><code>x-reading-role</code></a>
           <a href="#x-refers"><code>x-refers</code></a>
-          <a href="#x-required-members"><code>x-required-members</code></a>
           <a href="#x-retired-when"><code>x-retired-when</code></a>
           <a href="#x-says"><code>x-says</code></a>
           <a href="#x-shadow"><code>x-shadow</code></a>
@@ -648,26 +647,6 @@
                   <code>indicate</code> to reach the named widget, which each resolves
                   in the owner's own authored document first (its message's markup, for
                   a widget in a reply) and then in the page.
-                </p>
-              </details>
-            </div>
-          </section>
-          <section class="reference-entry" id="x-required-members">
-            <h3><code>x-required-members</code></h3>
-            <div class="reference-copy">
-              <p>Required role-complete members.</p>
-              <details class="reference-more">
-                <summary aria-label="Full x-required-members contract">
-                  Full contract
-                </summary>
-                <p>
-                  Each member names a direct child element declaration, and
-                  <code>one-each</code> names that member's required string-enum
-                  attribute. A compound owner must contain exactly one such member for
-                  every enum value, so a package can declare fixed semantic slots
-                  without teaching Leaf its tags or roles. The owner uses
-                  <code>x-content: members</code>, and the member names the owner in
-                  <code>x-owners</code>.
                 </p>
               </details>
             </div>

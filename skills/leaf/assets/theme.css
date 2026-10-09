@@ -1741,7 +1741,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   --lf-block-frame: 1;
 }
 
-/* Board and swipe motion carry a compact card label without duplicating its live
+/* Board motion carries a compact card label without duplicating its live
  * controls. The motion owner sets position and travel; this face stays bounded. */
 .lf-motion-preview {
   box-sizing: border-box; max-width: 24rem; max-height: 3.5rem;

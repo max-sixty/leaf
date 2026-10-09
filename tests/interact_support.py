@@ -26,6 +26,7 @@ import urllib.request
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
+from copy import deepcopy
 from functools import cache
 from pathlib import Path
 
@@ -182,6 +183,21 @@ def model_layer(*packages: str) -> dict:
     is asking for the same registry. Nothing may mutate what this returns.
     """
     return compatibility_model.incoming_registry(layer_model.layer_inputs(packages))
+
+
+def queue_board_registry(registry: dict) -> dict:
+    """A page-owned queue asks until all cards leave its Queued column.
+
+    Extend the board's position verb with a completion condition to exercise
+    answers spanning units without a presentation-specific package.
+    """
+    registry = deepcopy(registry)
+    registry["lf-board"]["x-awaits"] = {
+        "answered": {
+            "move": {"empty": {"within": "lf-column", "when": {"label": ["Queued"]}}}
+        }
+    }
+    return registry
 
 
 class ModelPage:
@@ -502,12 +518,12 @@ graph LR
 # lf-diagram and lf-diff declarations out of the vendored registry, so the selection
 # names the packages those three now travel in. The template cache is keyed by this
 # same list, so a page built for one selection is never handed to another.
-PAGE_PACKAGES = ("command-hub", "diagram", "diff", "swipe")
+PAGE_PACKAGES = ("command-hub", "diagram", "diff")
 
 
 @pytest.fixture
 def page_dir(tmp_path, monkeypatch, initialized_page):
-    """A mutable page with the default, Command Hub, diagram, diff and swipe vocabularies."""
+    """A mutable page with the default, Command Hub, diagram and diff vocabularies."""
     monkeypatch.chdir(tmp_path)  # resolve fixture package paths
     d = tmp_path / "page"
 

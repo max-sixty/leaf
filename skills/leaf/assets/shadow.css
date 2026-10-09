@@ -53,8 +53,8 @@
  *
  * It cannot live in runtime/chrome.css, which is adopted and so cascades after all of
  * them: the same declarations there beat every component's own rule, and .lf-ref drew
- * ink at 14px where it asked for muted at 11.5px while .lf-worktree-head and
- * .lf-swipe-progress drew sans where they asked for mono. Nothing catches that, because
+ * ink at 14px where it asked for muted at 11.5px while a widget
+ * asking for mono drew sans. Nothing catches that, because
  * no test and no browser gate reads a rule that never applied.
  *
  * The rest of the face is stated too, at no weight at all. A page's own rules select no

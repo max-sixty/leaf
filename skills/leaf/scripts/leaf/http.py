@@ -630,7 +630,7 @@ class PageEndpoint:
         """Read one bounded image body without allocating from an untrusted length."""
         try:
             length = int(self.headers.get("Content-Length", ""))
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             self.body_unread = True
             return b"", "invalid Content-Length"
         if length < 1:

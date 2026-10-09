@@ -338,6 +338,16 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
     );
     return;
   }
+  // Repeated passage words may have no unique anchor. In that case the live
+  // focused control is still a precise place in this document; a section's
+  // opening is only a fallback for a reading with no such destination.
+  if (
+    standing &&
+    under(standing, region?.body ?? document.querySelector("body > main"))
+  ) {
+    scrollIntoReadingBand(standing, standing, "nearest", "instant");
+    return;
+  }
   const section = targetElement(resolveAnchor({ section: view.section }, text));
   if (section) {
     reveal(section, currentIntent);

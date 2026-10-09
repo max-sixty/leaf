@@ -1,33 +1,26 @@
 /** Build the browser graph once, shared by website and prepared installations.
  *
  * Entry URLs are delivery boundaries; every other private module can move into
- * shared chunks. Installations retain native package widgets and vendor modules,
- * whose absolute URLs resolve through the revision's import map. The generation
- * module stays native so page init can stamp it without rebuilding any chunk.
- * Website captures already carry their generation and preserve authored module
- * locations while bundling widgets. Both minify the framework modules
- * `build/browser/build.mjs` commits readable; the rest of the vendor directory ships
- * as upstream published it. Neither path runs on a user's machine.
+ * shared chunks. Both paths keep vendor modules native, at their public URL however
+ * a runtime module names them, so a page loads one Lit, and each runtime module a
+ * vendor module imports stays an entry at its own URL. Installations also retain
+ * native package widgets, whose absolute URLs resolve through the revision's import
+ * map, and the generation module, so page init can stamp it without rebuilding any
+ * chunk. Website captures already carry their generation and preserve authored
+ * module locations while bundling widgets. Both compile the framework
+ * `build/browser/build.mjs` commits as native modules into the kernel and drop its
+ * files, since only runtime modules import it. Neither path runs on a user's machine.
  */
 
-import {
-  cp,
-  mkdir,
-  mkdtemp,
-  readFile,
-  readdir,
-  realpath,
-  rm,
-  writeFile,
-} from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rm } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
-import { build, transform } from "esbuild";
+import { build } from "esbuild";
 import { parse } from "acorn";
 
-import { frameworkModules } from "./browser/build.mjs";
+import { frameworkPaths, inFramework } from "./browser/build.mjs";
 
 export const runtimeEntries = [
   "leaf.js",
@@ -50,13 +43,50 @@ function layerPath(path, assetRoot) {
   return /^\/(?:runtime|vendor|widgets)\//.test(path) ? path.slice(1) : null;
 }
 
+/** Whether a layer module is served as committed rather than compiled into the kernel.
+ *
+ * Page modules and vendor modules always are; installations also keep package widgets
+ * and the generation module native. The framework is not: the kernel absorbs it with
+ * the runtime it imports.
+ */
+function native(local, assetRoot) {
+  if (local.startsWith("page/")) return true;
+  if (local.startsWith("vendor/")) return !inFramework(local);
+  return !assetRoot && (local === GENERATION || local.startsWith("widgets/"));
+}
+
+/** Where a module reads its own URL, as source ranges in order. */
+function moduleUrlReads(source) {
+  const ranges = [];
+  const visit = (node) => {
+    if (
+      node.type === "MemberExpression" &&
+      node.object.type === "MetaProperty" &&
+      !node.computed &&
+      node.property.name === "url"
+    ) {
+      ranges.push([node.start, node.end]);
+      return;
+    }
+    for (const value of Object.values(node))
+      for (const child of [value].flat())
+        if (typeof child?.type === "string") visit(child);
+  };
+  visit(parse(source, { ecmaVersion: "latest", sourceType: "module" }));
+  return ranges.sort(([a], [b]) => a - b);
+}
+
 /** Native modules' kernel imports are graph boundaries, not extra implementations. */
-async function nativeRuntimeEntries(layerRoot) {
+async function nativeRuntimeEntries(layerRoot, assetRoot) {
   const entries = new Set();
   for (const directory of ["vendor", "widgets"]) {
     const root = join(layerRoot, directory);
     for (const name of await readdir(root, { recursive: true })) {
-      if (!name.endsWith(".js")) continue;
+      if (
+        !name.endsWith(".js") ||
+        !native(browserPath(join(directory, name)), assetRoot)
+      )
+        continue;
       const path = join(root, name);
       // Shipped vendor modules permit only static local imports (shipped.mjs).
       // Package modules' static declarations carry the same public API edge.
@@ -68,7 +98,7 @@ async function nativeRuntimeEntries(layerRoot) {
         if (!node.source) continue;
         const specifier = node.source.value;
         const local = specifier.startsWith("/")
-          ? layerPath(specifier, null)
+          ? layerPath(specifier, assetRoot)
           : specifier.startsWith(".")
             ? browserPath(relative(layerRoot, resolve(dirname(path), specifier)))
             : null;
@@ -83,48 +113,37 @@ async function nativeRuntimeEntries(layerRoot) {
 export async function bundleRuntime(layerRoot, entries, outputRoot, assetRoot = null) {
   const inPlace = resolve(outputRoot) === resolve(layerRoot);
   layerRoot = await realpath(layerRoot);
+  entries = [
+    ...new Set([...entries, ...(await nativeRuntimeEntries(layerRoot, assetRoot))]),
+  ];
   const entryPoints = Object.fromEntries(
     entries.map((path) => [path.slice(0, -3), join(layerRoot, path)]),
   );
   const modules = {
     name: "leaf-module-boundaries",
     setup(builder) {
-      builder.onResolve({ filter: /^\// }, ({ kind, path }) => {
+      // Authored and package modules must share the runtime's existing instance.
+      // Native modules, which every page loads at their public URL, stay outside the
+      // graph whether an import names them rooted or relative.
+      builder.onResolve({ filter: /^[./]/ }, ({ kind, importer, path }) => {
         if (kind === "entry-point") return null;
-        const local = layerPath(path, assetRoot);
-        // Authored and package modules must share the runtime's existing instance.
-        // Their page dependencies and vendor imports retain their public URL.
-        return local &&
-          !local.startsWith("vendor/") &&
-          !local.startsWith("page/") &&
-          (assetRoot || (local !== GENERATION && !local.startsWith("widgets/")))
-          ? { path: join(layerRoot, local) }
-          : { external: true, path };
+        const rooted = path.startsWith("/");
+        const local = rooted
+          ? layerPath(path, assetRoot)
+          : browserPath(relative(layerRoot, resolve(dirname(importer), path)));
+        if (local === null) return { external: true, path };
+        if (local.startsWith("../")) return null;
+        if (!native(local, assetRoot)) return { path: join(layerRoot, local) };
+        return { external: true, path: rooted ? path : `${assetRoot ?? ""}/${local}` };
       });
       if (assetRoot) {
         builder.onLoad({ filter: /\.js$/ }, async ({ path }) => {
-          const source = await readFile(path, "utf8");
+          let contents = await readFile(path, "utf8");
           const publicPath = `${assetRoot}/${browserPath(relative(layerRoot, path))}`;
-          return {
-            contents: source.replaceAll(
-              "import.meta.url",
-              `new URL(${JSON.stringify(publicPath)}, location.origin).href`,
-            ),
-            loader: "js",
-          };
-        });
-      } else {
-        builder.onResolve({ filter: /^\./ }, ({ importer, path }) => {
-          const local = browserPath(
-            relative(layerRoot, resolve(dirname(importer), path)),
-          );
-          if (
-            local === GENERATION ||
-            local.startsWith("vendor/") ||
-            local.startsWith("widgets/")
-          )
-            return { external: true, path: `/${local}` };
-          return null;
+          const url = `new URL(${JSON.stringify(publicPath)}, location.origin).href`;
+          for (const [start, end] of moduleUrlReads(contents).reverse())
+            contents = contents.slice(0, start) + url + contents.slice(end);
+          return { contents, loader: "js" };
         });
       }
     },
@@ -154,18 +173,8 @@ export async function bundleRuntime(layerRoot, entries, outputRoot, assetRoot = 
       );
     }
     await cp(staging, outputRoot, { force: true, recursive: true });
-    for (const path of frameworkModules) {
-      const { code } = await transform(await readFile(join(layerRoot, path), "utf8"), {
-        format: "esm",
-        legalComments: "eof",
-        minify: true,
-      });
-      const target = join(outputRoot, path);
-      // A captured file may be a hard link another revision shares.
-      await rm(target, { force: true });
-      await mkdir(dirname(target), { recursive: true });
-      await writeFile(target, code);
-    }
+    for (const path of frameworkPaths)
+      await rm(join(outputRoot, path), { force: true, recursive: true });
   } finally {
     await rm(staging, { force: true, recursive: true });
   }
@@ -176,13 +185,7 @@ export async function bundleDistribution(layerRoot, outputRoot) {
   layerRoot = await realpath(layerRoot);
   await bundleRuntime(
     layerRoot,
-    [
-      ...new Set([
-        ...runtimeEntries,
-        "runtime/annotation-overlay/index.js",
-        ...(await nativeRuntimeEntries(layerRoot)),
-      ]),
-    ],
+    [...runtimeEntries, "runtime/annotation-overlay/index.js"],
     outputRoot,
   );
   await mkdir(join(outputRoot, "runtime"), { recursive: true });

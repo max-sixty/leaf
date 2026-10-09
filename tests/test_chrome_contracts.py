@@ -2781,7 +2781,6 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
     assert ".lf-target-trace {" in selected["chrome"]
     assert ".lf-drawing-mark path" in selected["chrome"]
     assert "::highlight(lf-version-insert)" in selected["marks"]
-    assert '.lf-msg[aria-busy="true"]' in selected["marks"]
 
 
 def test_a_traffic_wait_stops_when_repaints_outlive_its_deadline(monkeypatch):

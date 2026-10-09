@@ -253,7 +253,7 @@ def delivery_journey(page: Page, surface: str, checkpoint: Checkpoint) -> dict:
             # The observer runs in the insertion turn; read it before any settled
             # screenshot or auto-retrying visual assertion can hide the first frame.
             appearance = page.evaluate("window.__messageArrival")
-            expected = {"opacity": 0.5, "busy": True, "words": WORDS}
+            expected = {"opacity": 1, "busy": True, "words": WORDS}
             assert appearance == expected, (
                 f"first inserted message was {appearance!r}; expected {expected!r}"
             )

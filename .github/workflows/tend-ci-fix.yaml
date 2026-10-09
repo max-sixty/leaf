@@ -10,7 +10,7 @@
 name: tend-ci-fix
 on:
   workflow_run:
-    workflows: ["ci", "publish-site", "publish-queue-recovery"]
+    workflows: ["ci", "publish-site"]
     types: [completed]
     branches: ["main"]
 

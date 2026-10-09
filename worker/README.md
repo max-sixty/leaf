@@ -98,25 +98,6 @@ WHERE blob6 = '239383829012'
 ORDER BY timestamp
 ```
 
-## Deployment queue recovery
-
-`publish-site` serializes deployments and lets a running deployment finish. Its job
-timeout starts only when a runner starts, so an abandoned queued run can otherwise
-hold the concurrency group indefinitely. `publish-queue-recovery` checks that queue on
-main pushes, every fifteen minutes, and manual dispatch. It cancels only queued runs
-whose latest `deploy-site` job is over an hour old and has no runner or started
-steps, after re-reading both run and job state. A fresh retry keeps its own queue
-age. Running jobs and environment approval waits remain intact.
-After cancellation settles, an existing successor keeps its place; an empty queue
-gets a dispatch of current main. Recovery runs independently of the publish group
-and uses only GitHub's scoped `GITHUB_TOKEN`, with no Cloudflare credentials.
-
-If the public release trails main, inspect the `publish-site` queue and the latest
-`publish-queue-recovery` job summary in GitHub Actions. The summary links every run it
-cancels or preserves. A refused cancellation, cancellation that does not settle, or
-failed dispatch makes recovery fail visibly; approval waits and runner capacity still
-require their own resolution.
-
 ## Credentials
 
 Leaf uses three Cloudflare tokens, one for each holder. None is stored in this

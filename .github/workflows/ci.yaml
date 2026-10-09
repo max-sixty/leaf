@@ -116,9 +116,6 @@ jobs:
       - name: 🧪 Runtime folds
         run: npm run test:runtime
 
-      - name: Check website publish queue recovery
-        run: node --test .github/scripts/*.test.mjs
-
       - name: Check eval assertions without model calls
         run: npm ci --prefix evals && npm test --prefix evals
 

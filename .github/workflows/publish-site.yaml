@@ -43,7 +43,8 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+  # A new main push replaces an earlier publish even when it is stuck before a runner starts.
+  cancel-in-progress: true
 
 jobs:
   deploy-site:

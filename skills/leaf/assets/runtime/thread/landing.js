@@ -30,9 +30,9 @@
    out is the thread it belongs to whichever of them put the user in it, and the
    panel's own general box hands back to the Threads list. A page-owned first-message seat
    has no standing place of its own; a widget control that explicitly enters its box
-   supplies the caller-owned return target through `landInThread`. A send from a
-   thread's box leaves it the same way, onto the thread, except in the margin card,
-   whose thread stands for the element it is about (`landSent`). */
+   supplies the caller-owned return target through `landInThread`. Sending leaves
+   focus on the conversation's card or title on every surface (`landSent`). Returning
+   to the page is a separate navigation gesture. */
 import { landingBand, seenRect, shownBox, shownWindow } from "../geometry.js";
 import { documentFocused, focused } from "../keyboard/scopes.js";
 import { focusDestination, onStanding, takesLetters, whenLeft } from "../focus.js";
@@ -545,12 +545,7 @@ export function accompanyThread(ids, threadsBox) {
   });
 }
 
-export function createThreadLanding({
-  setPanel,
-  revealThread,
-  threadsBox,
-  cardTarget,
-}) {
+export function createThreadLanding({ setPanel, revealThread, threadsBox }) {
   const landIn = (destination) => {
     const prepared = prepareLanding(destination);
     if (!prepared) return false;
@@ -582,16 +577,9 @@ export function createThreadLanding({
     return true;
   };
   const landInThread = (box, route = null) => landIn({ box, route });
-  // Where a sent reply or first comment leaves the user: out of the box, standing on the
-  // thread, or, for a thread in the margin card, on the element the thread is about, with
-  // the card still up (`cardTarget`, the card's own step out). A user who sends is
-  // usually done with the thread until the agent answers, so they move on from there
-  // without Escaping out of the box first.
-  const landSent = (thread) => {
-    const target = cardTarget?.(thread);
-    if (target) focusDestination(target, "return");
-    else standOnThread(thread);
-  };
+  // Sending ends text entry while keeping the user in the conversation. Every surface
+  // uses its thread's focus stop; leaving the card belongs to navigation, not Send.
+  const landSent = standOnThread;
   const showThread = (
     id,
     {

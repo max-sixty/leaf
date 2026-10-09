@@ -3228,12 +3228,16 @@ def test_reader_state_observes_behavior_without_freezing_the_dom(browser, serve)
 
     # A real closed-root editor exposes its source through its public field API,
     # even while focus is elsewhere and accessibility only reports the host.
-    page.goto(serve(leaf_page("Reader state", "<button>Continue</button>")))
-    wait_until_ready(page)
-    page.set_content(
-        '<button>Continue</button><leaf-text aria-label="Draft" '
-        'style="display:block;width:400px;height:70px"></leaf-text>'
+    page.goto(
+        serve(
+            leaf_page(
+                "Reader state",
+                '<button>Continue</button><leaf-text aria-label="Draft" '
+                'style="display:block;width:400px;height:70px"></leaf-text>',
+            )
+        )
     )
+    wait_until_ready(page)
     draft = page.locator('leaf-text[aria-label="Draft"]')
     draft.evaluate(
         "field => { field.value = 'kept words'; field.setSelectionRange(2, 5, 'backward'); }"

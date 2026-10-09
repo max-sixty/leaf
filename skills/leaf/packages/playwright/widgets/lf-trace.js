@@ -227,18 +227,18 @@ customElements.define(
         if (this.#picture?.viewed) {
           const canvas = this.#picture.element.parentElement;
           const viewer = this.#picture.viewer;
-          if (
-            viewer.clientWidth !== canvas.clientWidth ||
-            viewer.clientHeight !== canvas.clientHeight
-          ) {
+          const resized =
+            viewer.clientWidth !== canvas.offsetWidth ||
+            viewer.clientHeight !== canvas.offsetHeight;
+          if (resized) {
             this.#picture.resize();
+            const image = this.#trace.images.find(
+              (image) => image.id === this.#pictureId,
+            );
+            this.#applyPictureView(this.#picture, image);
+            this.#imageZoom();
+            this.#parts.update();
           }
-          const image = this.#trace.images.find(
-            (image) => image.id === this.#pictureId,
-          );
-          this.#applyPictureView(this.#picture, image);
-          this.#imageZoom();
-          this.#parts.update();
         }
         if (!widthChanged || !rail || rail !== this.#rail) return;
         const redraw = this.#waitRail((done) => {
@@ -1168,6 +1168,9 @@ customElements.define(
           if (!current()) return;
           const retired = this.#picture;
           this.#picture = viewer;
+          // Leaf owns container resize so unchanged window signals leave the
+          // inspected image alone. Viewer otherwise refits it on every signal.
+          if (viewer) window.removeEventListener("resize", viewer.onResize);
           this.#pictureId = image.id;
           this.#pictureScope = pending.scope;
           this.#pendingPicture = null;

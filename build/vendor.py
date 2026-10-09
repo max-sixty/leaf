@@ -452,6 +452,7 @@ def build_trace_library(work: Path, library: str) -> list[Path]:
     out.parent.mkdir(exist_ok=True)
     entry = (
         'export { Timeline } from "vis-timeline/esnext/esm/vis-timeline-graph2d.js";\n'
+        'export { DataSet } from "vis-data/esnext/esm/vis-data.js";\n'
         'export { default as css } from "vis-timeline/styles/vis-timeline-graph2d.css";\n'
         if library == "timeline"
         else 'export { default as Viewer } from "viewerjs/dist/viewer.esm.js";\n'

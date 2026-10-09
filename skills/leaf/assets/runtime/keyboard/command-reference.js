@@ -26,6 +26,10 @@ import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
 
 import {
   bindings,
+  declaredBindings,
+  bindingEnabled,
+  quickShortcuts,
+  setQuickShortcuts,
   clampedRow,
   commandPresentations,
   contextBindings,
@@ -259,8 +263,9 @@ function captureCommandReferenceCatalog() {
         .map(({ row, sequence: prefix }) => {
           const sequence = [...(word(prefix) ?? [])];
           const declared = [...allBindings(row)];
-          const referenceRow = { ...row, keys: declared };
-          const rowBindings = [...bindings(row)];
+          const shownBindings = declared.filter(bindingEnabled);
+          const referenceRow = { ...row, keys: shownBindings };
+          const rowBindings = [...declaredBindings(row)];
           const baseTitle = titleOf(row);
           const baseDescription = descriptionOf(row);
           return {
@@ -271,7 +276,9 @@ function captureCommandReferenceCatalog() {
             referenceRow,
             baseTitle,
             baseDescription,
-            familySteps: [...sequence, ...completeRowSteps(referenceRow)],
+            familySteps: shownBindings.length
+              ? [...sequence, ...completeRowSteps(referenceRow)]
+              : [],
             presentations: commandPresentations(row, declared, {
               includeUnavailable: true,
             }).map(({ id, route }) => ({
@@ -344,11 +351,12 @@ function captureCommandReferenceCatalog() {
           route?.description !== undefined
             ? descriptionOf(route)
             : rowInfo.baseDescription;
-        const steps = [
-          ...rowInfo.sequence,
-          ...completeRowSteps(rowInfo.referenceRow, route),
-        ];
-        const alternatives = route ? [route.binding] : rowInfo.declared;
+        const alternatives = (route ? [route.binding] : rowInfo.declared).filter(
+          bindingEnabled,
+        );
+        const steps = alternatives.length
+          ? [...rowInfo.sequence, ...completeRowSteps(rowInfo.referenceRow, route)]
+          : [];
         const isAvailable = executable.has(id);
         const spokenSteps = spokenReferenceSteps(
           rowInfo.row,
@@ -714,6 +722,26 @@ function commandReferenceTemplate() {
       <div class="lf-command-reference-title">Command reference</div>
       ${commandReferenceClose}
     </div>
+    <label class="lf-command-reference-preference">
+      <input
+        type="checkbox"
+        name="quick-keyboard-shortcuts"
+        autocomplete="off"
+        .checked=${quickShortcuts()}
+        aria-labelledby="lf-quick-keyboard-label"
+        aria-describedby="lf-quick-keyboard-help"
+        @change=${(event) => {
+          setQuickShortcuts(event.currentTarget.checked);
+          commandReferenceCatalog = captureCommandReferenceCatalog();
+          presentCommandReference();
+          repaint();
+        }}
+      />
+      <span id="lf-quick-keyboard-label">Quick keyboard shortcuts</span>
+      <small id="lf-quick-keyboard-help"
+        >Use letters, numbers and symbols for Leaf actions.</small
+      >
+    </label>
     <input
       type="search"
       name="shortcut-search"
@@ -806,7 +834,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
     // A popover opened while nothing held focus lets go as it closes (layer-stack.js),
     // so that user reads as standing on `body` here too.
     openLayer(commandReferenceDialog);
-    commandRoutesAtOpen = availableCommandRoutes();
+    commandRoutesAtOpen = availableCommandRoutes({ commands: true });
   }
   commandReferenceIsOpen = open;
   if (fresh) {

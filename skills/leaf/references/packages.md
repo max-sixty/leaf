@@ -205,9 +205,7 @@ in it takes the page's room and a table in it keeps to its content. The trim fol
 first or last child, so a wrapper between the frame and the margin it trims declares
 nothing. A box that lays its children
 out side by side (a flex row, a grid) declares `--lf-holds-edge: 1`, so the trim stops at
-it rather than taking one item's margin and leaving the others'. This applies both
-when the row draws its own frame and when it stands at an enclosing frame's edge;
-its children keep their margins, and the row still bounds wide content.
+it rather than taking one item's margin and leaving the others'.
 
 Delivery paints declared layout facts into the served document as `[data-lf-inline]`,
 `[data-lf-space]`, `[data-lf-bound]`, `[data-lf-height]`, `[data-lf-exhibit]`, and

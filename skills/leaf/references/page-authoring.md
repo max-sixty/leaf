@@ -196,20 +196,6 @@ whose arrangement no Layout fits writes its own grid or flex rules on its own bo
 Where a Layout fits, use it rather than rebuilding it, since its tracks already hold
 the widths and wrapping every page needs.
 
-### Spacing and content edges
-
-Keep separation between selectable blocks outside their boxes, using margins or a
-parent's `gap`. Padding belongs inside a box when the design calls for an inset.
-Declare `--lf-block-frame: 1` in a rule that adds padding, border, or a tinted field;
-Leaf then trims the first and last content margins, so a heading's default margin
-does not add to the inset. A transparent grouping that needs the same edge trimming
-uses `--lf-block-frame: trim`. The complete frame contract is in `packages.md`,
-"A theme change".
-
-`page check --render` reports trapped child margins and uneven trimming in rows as
-advice, naming the box and the measured extra space. Review these readings against
-the intended spacing before handing over the page.
-
 ### A wide page
 
 When the regions are the page rather than exhibits in an argument — a board with its

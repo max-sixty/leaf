@@ -2902,14 +2902,14 @@ def test_verbatim_wrapper_owns_prose_and_order_but_not_nested_widget_rendering(
 
 
 def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
-    browser, serve, tmp_path, monkeypatch
+    browser, serve, tmp_path, monkeypatch, declared_reading_package
 ):
     """Bug-back for the other thing a declaration promises: that the words arrive. Both
     word passes stop at a shadow boundary on purpose — which widgets the page holds is
     the document's question — so an element a module stages into its own tree keeps its
     declarations and gets neither pass, and the failure is silence: no error, no missing
     box, nothing a reading of the drawn page can tell from an attribute with nothing to
-    say. Here a project widget stages an <lf-chronology-entry>, whose declaration names both keys, and
+    say. Here a project widget stages a declared child, whose declaration names both keys, and
     the gate is asked for each.
 
     A staged element rather than a module that wipes its own body after the passes have
@@ -2934,10 +2934,10 @@ def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
         "  class extends HTMLElement {\n"
         "    connectedCallback() {\n"
         "      if (!once(this)) return;\n"
-        '      const staged = document.createElement("lf-chronology-entry");\n'
-        '      staged.id = "staged-chronology-entry";\n'
-        '      staged.setAttribute("at", "09:00");\n'
-        '      staged.setAttribute("kind", "failure");\n'
+        '      const staged = document.createElement("lf-reading");\n'
+        '      staged.id = "staged-reading";\n'
+        '      staged.setAttribute("label", "09:00");\n'
+        '      staged.setAttribute("state", "failure");\n'
         '      staged.textContent = "The feeder stopped.";\n'
         "      shadowStage(this, [staged]);\n"
         "    }\n"
@@ -2950,7 +2950,7 @@ def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
     ).failures
 
     assert any('never says "09:00"' in f for f in failures), failures
-    assert any('paints kind="failure" and says nothing' in f for f in failures), (
+    assert any('paints state="failure" and says nothing' in f for f in failures), (
         failures
     )
 

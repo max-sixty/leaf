@@ -6767,17 +6767,7 @@ def test_a_walk_down_the_queue_stops_clear_of_the_shortcut_bar_text(browser, ser
 
 
 def test_a_run_with_nothing_to_break_on_stays_inside_the_box_holding_it(browser, serve):
-    """Text that cannot wrap does not stop at the edge of its box; it paints straight on
-    over whatever the layout put beside it, and nothing about the boxes says so — every
-    rect is exactly where it should be. A twelve-character metric value ran 287px out of a
-    138px card, and a phone's 372px column is narrower than half the paths this product's
-    prose is made of.
-
-    Told it may break a word, the browser will also break one that was never meant to come
-    apart: the tree's module spaces its badges by margin and writes no whitespace between
-    them, so a line is one word to the breaker, and it split a two-character badge down the
-    middle and drew half the chip on each line. Read at a phone's width, where the column
-    has the least to give and each of the three is at its worst."""
+    """Native values and prose paths wrap within their allocated boxes at phone width."""
     page = open_page(browser, serve(UNBREAKABLE_PAGE))
     resized(page, 420, 900)
     inside = """(id) => {
@@ -6795,9 +6785,6 @@ def test_a_run_with_nothing_to_break_on_stays_inside_the_box_holding_it(browser,
     assert page.evaluate(inside, "p-token") <= 0, (
         "a path in prose paints outside the column"
     )
-    torn = """() => [...document.querySelectorAll('.lf-tree-badge')]
-                      .map((b) => b.getClientRects().length)"""
-    assert page.evaluate(torn) == [1, 1], "a badge is one chip, and it was drawn as two"
 
 
 def test_a_scroll_box_inside_a_widgets_shadow_tree_takes_the_keyboard(browser, serve):

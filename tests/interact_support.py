@@ -479,10 +479,10 @@ PAGE = """<!doctype html>
   <lf-ask id="plan-choice-decision">
     <h3>Which plan should lead?</h3>
     <lf-options>
-      <lf-option id="flag-first"><lf-chip>effort: low</lf-chip><lf-chip>risk: med</lf-chip>
+      <lf-option id="flag-first"><small class="tag">effort: low</small><small class="tag">risk: med</small>
         <strong>Flag first</strong> Ship dark.
       </lf-option>
-      <lf-option id="backfill-first"><lf-chip>effort: med</lf-chip><lf-chip>risk: low</lf-chip>
+      <lf-option id="backfill-first"><small class="tag">effort: med</small><small class="tag">risk: low</small>
         <strong>Backfill first</strong> Verify, then flip. <em>My take: do this first.</em>
       </lf-option>
     </lf-options>
@@ -1922,6 +1922,24 @@ def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
             packages_model.starter_widget_module(tag)
         )
     return declaration
+
+
+@pytest.fixture
+def declared_reading_package(tmp_path, monkeypatch):
+    """A module-free vocabulary for shared said-word and painted-fact contracts."""
+    monkeypatch.chdir(tmp_path)
+    package = tmp_path / ".leaf"
+    add_test_widget(package, "lf-reading")
+    registry_path = package / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    reading = registry["lf-reading"]
+    reading["properties"].update(
+        {"label": {"type": "string"}, "state": {"type": "string"}}
+    )
+    reading["x-says"] = {"label": "before"}
+    reading["x-paints"] = ["state"]
+    registry_path.write_text(json.dumps(registry))
+    return "./.leaf"
 
 
 def element_declaration(tag: str, *, upgrade: bool = False) -> dict:

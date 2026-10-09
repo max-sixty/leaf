@@ -151,7 +151,7 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
     assert abs(rails[0]["x"] - rails[1]["x"]) < 1, "rails align down the group"
 
     title = page.locator("#st-sd > strong").bounding_box()
-    chips = page.locator("#st-sd > lf-chip")
+    chips = page.locator("#st-sd > small.tag")
     expect(chips).to_have_text(["effort: low", "risk: high"])
     # `tone` is the author's judgement about one answer, so it lands on the chip that
     # declares it and nowhere else — the arrangement this replaced tinted whichever chip
@@ -189,18 +189,6 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
     assert paper["y"] + paper["height"] <= gps["y"], "terse options stack too"
     assert gps["width"] > terse["width"] * 0.95, "a terse card takes the whole column"
 
-    # lf-compare is the same shape without the decision, and follows it for block
-    # content; an exhibition is looked across, so its terse form keeps the grid.
-    cedar = page.locator("#cv-cedar").bounding_box()
-    pine = page.locator("#cv-pine").bounding_box()
-    assert cedar["y"] + cedar["height"] <= pine["y"], "substantial variants stack too"
-    rail = page.locator("#cv-cedar > dl.facts").bounding_box()
-    assert rail["x"] > cedar["x"] + cedar["width"] / 2, "a variant's facts dock right"
-    oiled = page.locator("#cv-oiled").bounding_box()
-    bare = page.locator("#cv-bare").bounding_box()
-    assert abs(oiled["y"] - bare["y"]) < 1, "terse variants keep the side-by-side grid"
-    assert oiled["x"] + oiled["width"] <= bare["x"], "terse variants share the row"
-
     # Crowd the generated selection state's opening band at phone width. Its room is
     # held before the pick and excludes every line rather than hanging off whichever
     # chip comes last, so wrapping metadata cannot enter the chip's corner.
@@ -208,7 +196,8 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
     page.locator("#st-sd > strong").evaluate(
         """title => {
             for (const text of ['recommended', 'owner: platform', 'phase: design']) {
-                const chip = document.createElement('lf-chip');
+                const chip = document.createElement('small');
+                chip.className = 'tag';
                 chip.textContent = text;
                 title.before(chip);
             }
@@ -236,7 +225,7 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
     # is still reachable. Last, because the width moves every box read above.
     page.set_viewport_size({"width": 400, "height": 900})
     gps = page.locator("#t-gps").bounding_box()
-    long_chips = page.locator("#t-gps > lf-chip")
+    long_chips = page.locator("#t-gps > small.tag")
     expect(long_chips).to_have_count(3)
     wrapped = [long_chips.nth(i).bounding_box() for i in range(3)]
     assert wrapped[-1]["y"] > wrapped[0]["y"], (
@@ -245,50 +234,6 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
     for chip in wrapped:
         assert chip["x"] + chip["width"] <= gps["x"] + gps["width"], (
             "no chip the author wrote may cross the card's edge"
-        )
-
-
-def test_a_terse_variant_is_the_height_of_its_own_words(browser, serve):
-    """A group of five comes out three across and two under them, so the last row has
-    room to spare. A cell may not take its height from that row: stretch is the grid's
-    default and it drew a one-sentence variant as tall as the six-line one beside it,
-    190px of blank under a single line, which reads as a card whose words never arrived.
-
-    The widths are the other half of the same reading, because the room stays only while
-    nothing grows into it — a wrapped flex line and a column count read off the child
-    count both give the last row a cell width the first row hasn't got.
-
-    So the two are measured against each other, and each row's own tallest is asserted
-    first: two cells of one height prove nothing about stretch unless something in their
-    rows was taller."""
-    page = open_page(browser, serve(STACKED_OPTIONS_PAGE))
-    boxes = {
-        name: page.locator(f"#{name}").bounding_box()
-        for name in ("cv-oak", "cv-ash", "cv-elm", "cv-yew", "cv-fir")
-    }
-    rows = {}
-    for name, box in boxes.items():
-        rows.setdefault(round(box["y"]), []).append(name)
-    assert [len(row) for row in rows.values()] == [
-        3,
-        2,
-    ], f"five terse variants come out three across at this width: {rows}"
-    widths = [box["width"] for box in boxes.values()]
-    assert max(widths) - min(widths) < 1, (
-        f"a cell is one width whichever row it falls on: {widths}"
-    )
-    tall, short = boxes["cv-ash"]["height"], boxes["cv-oak"]["height"]
-    assert tall > short + 60, (
-        f"cv-oak says one word and cv-ash six lines, so nothing but the row can be "
-        f"setting a height they share: {short} vs {tall}"
-    )
-    assert boxes["cv-fir"]["height"] > boxes["cv-yew"]["height"] + 10, (
-        "the second row the same, cv-fir taking two lines to cv-yew's one"
-    )
-    for name in ("cv-elm", "cv-yew"):
-        assert abs(boxes[name]["height"] - short) < 1, (
-            f"{name} says as much as cv-oak and is the same box: "
-            f"{boxes[name]['height']} vs {short}"
         )
 
 
@@ -1981,7 +1926,7 @@ def test_a_chip_an_option_says_stands_with_the_rest_of_its_words(browser, serve)
     between them, and the chip is read against both edges rather than against whichever
     one the apparatus happened to be on."""
     page = open_page(browser, serve(ASK_PAGE))
-    chip = page.locator("#job-heater > lf-chip")
+    chip = page.locator("#job-heater > small.tag")
     expect(chip).to_have_text("reversible")
     ref = page.locator("#job-heater .lf-ref").bounding_box()
     mark = page.locator("#job-heater > .lf-pick").bounding_box()
@@ -2009,7 +1954,7 @@ def test_one_chip_holds_every_short_fact(browser, serve):
         where: (page.locator(sel).evaluate(face), page.locator(sel).bounding_box())
         for where, sel in [
             ("in prose", "#intro > .tag"),
-            ("on a decision", "#p-keep > lf-chip"),
+            ("on a decision", "#p-keep > small.tag"),
             ("in a task's row", "#t-camera .lf-chips > span"),
         ]
     }
@@ -2044,7 +1989,7 @@ def test_long_chip_labels_stay_inside_a_narrow_column(browser, serve):
     page = open_page(browser, serve(source))
     for chip_selector in (
         "#intro > .tag",
-        "#p-keep > lf-chip",
+        "#p-keep > small.tag",
         "#t-camera .lf-chips > span",
     ):
         expect(page.locator(chip_selector)).to_have_text(label)
@@ -2994,7 +2939,7 @@ def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
     expect(chosen).to_have_attribute("chosen", "")
     grounds = chosen.evaluate(
         """o => [getComputedStyle(o).backgroundColor,
-                 getComputedStyle(o.querySelector('lf-chip[tone="ok"]')).backgroundColor]"""
+                 getComputedStyle(o.querySelector('small.tag.ok')).backgroundColor]"""
     )
     assert grounds[0] != grounds[1], grounds
 

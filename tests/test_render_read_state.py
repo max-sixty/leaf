@@ -76,8 +76,7 @@ def _agent_metric_reply(page_dir, root, number, for_event=None):
         root,
         f"Update {number}.",
         (
-            f'<lf-metric id="read-update-{number}" value="{number}">'
-            "Completed steps</lf-metric>"
+            f'<dl id="read-update-{number}"><dt>Completed steps</dt><dd>{number}</dd></dl>'
         ),
         for_event=for_event,
         when_settled="post",

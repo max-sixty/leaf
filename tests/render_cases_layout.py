@@ -1359,25 +1359,22 @@ MANY_ASKS_PAGE = leaf_page(
 </lf-tasks>
 """,
 )
-# A run with nothing to break on, in the three places a page puts one: a metric's headline,
-# where the box is a fixed 138px and the value is whatever the number turned out to be;
-# ordinary prose, which is where a page about code keeps its paths; and a tree, whose module
-# writes the name and its badges with no whitespace between them at all.
+# Native values and prose paths must remain readable in a narrow column.
 UNBREAKABLE_PAGE = leaf_page(
     "unbreakable",
     """
 <h1 id="h">Nothing to break on</h1>
 <div class="layout-tiles" id="numbers">
-  <lf-metric id="m-token" value="a_very_long_unbroken_identifier">Bucket key</lf-metric>
+  <dl id="m-token" class="panel"><dt>Bucket key</dt><dd><strong>a_very_long_unbroken_identifier</strong></dd></dl>
 </div>
 <p id="p-token">The one it fails on is
 gateway_middleware_authentication_token_bucket_refill_strategy.py, every time.</p>
-<lf-tree id="tree"><pre>
+<pre id="tree">
 gateway/
   middleware/
     authentication/
       token_bucket_refill_strategy.py    +6 -2
-</pre></lf-tree>
+</pre>
 """,
 )
 # One line past any phone column, so the box a diff renders in has to scroll and the
@@ -1464,10 +1461,10 @@ rack flag from <lf-suggestion id="sug-flag"><lf-old>x</lf-old><lf-new>y</lf-new>
 before it ships.</p>
 <lf-ask id="extras-decision"><h2>Which extras should we add?</h2>
 <lf-options id="extras" choose multiple>
-<lf-option id="x-tray"><lf-chip>£9</lf-chip>
+<lf-option id="x-tray"><lf-gloss tip="Price">£9</lf-gloss>
 <strong>Seed tray</strong> Catches the spill under the south pair.
 </lf-option>
-<lf-option id="x-dome"><lf-chip tone="ok">£15</lf-chip>
+<lf-option id="x-dome"><lf-gloss tip="Price">£15</lf-gloss>
 <strong>Weather dome</strong> Keeps the seed dry through a wet week.
 </lf-option>
 </lf-options></lf-ask>
@@ -1522,21 +1519,17 @@ def shown_frames(page):
 
 # A painted fact whose spoken copy is on the page and drawn nowhere. It is written into
 # the markup because the gate reads the rendered page and cannot tell who suppressed
-# the word. `kind` is x-paints, so the runtime writes a
+# the word. `state` is x-paints, so the runtime writes a
 # .lf-quiet span beside each of these; the style takes the box off both. One stands in
 # the open and one behind a disclosure the user has not opened.
 PAINTED_IN_SILENCE_PAGE = leaf_page(
     "silence",
     """
 <h1 id="h">Transport</h1>
-<lf-chronology id="open-group">
-  <lf-chronology-entry id="p-seen" at="09:12" kind="failure"><strong>Feed stopped</strong></lf-chronology-entry>
-</lf-chronology>
+<div id="open-group"><lf-reading id="p-seen" label="Feed stopped" state="failure">The feeder stopped.</lf-reading></div>
 <details id="folded">
   <summary>Weighed in March</summary>
-  <lf-chronology id="folded-group">
-    <lf-chronology-entry id="p-folded" at="10:20" kind="failure"><strong>Feed stopped</strong></lf-chronology-entry>
-  </lf-chronology>
+  <div id="folded-group"><lf-reading id="p-folded" label="Feed stopped" state="failure">The feeder stopped.</lf-reading></div>
 </details>
 """,
     head="<style>.lf-quiet { display: none }</style>",

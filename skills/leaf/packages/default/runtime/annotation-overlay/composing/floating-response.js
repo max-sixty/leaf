@@ -69,14 +69,30 @@ export function createFloatingResponsePlacement({
   });
   let fabContentHeight = null;
   let nativeAttachment = false;
-  const fabFrameAt = () =>
-    response.open && response.floating && !panelIsOpen()
-      ? {
-          box: fabBar.getBoundingClientRect().toJSON(),
-          width: parseFloat(getComputedStyle(fabBar).width),
-          placement: fabPlacement.capture(),
-        }
-      : null;
+  const fabFrameAt = () => {
+    if (!response.open || !response.floating || panelIsOpen()) return null;
+    const bar = fabBar.getBoundingClientRect();
+    const field = fabInput.getBoundingClientRect();
+    const style = getComputedStyle(fabBar);
+    const scaleX = bar.width / parseFloat(style.width);
+    const scaleY = bar.height / parseFloat(style.height);
+    const left = parseFloat(style.paddingLeft);
+    const top = parseFloat(style.paddingTop);
+    const width = field.width / scaleX + left + parseFloat(style.paddingRight);
+    const height = field.height / scaleY + top + parseFloat(style.paddingBottom);
+    // The reserved header and footer surround the words the user sends. Attachment
+    // shelves and options disappear on Send, so their tracks are not the card's origin.
+    return {
+      box: new DOMRect(
+        field.left - left * scaleX,
+        field.top - top * scaleY,
+        width * scaleX,
+        height * scaleY,
+      ).toJSON(),
+      width,
+      placement: fabPlacement.capture(),
+    };
+  };
   // Used grid tracks exclude transformed descendant paint. A directional fit
   // reserves the future card's footer; withholding requires only the current
   // controls to fit, so they may borrow that transparent footer when space is short.

@@ -28,11 +28,13 @@ from render_harness import (
     nudge,
     open_page,
     panel_settled,
+    resized,
     sending,
     stamp_page,
     told,
     write,
 )
+from test_render_threads import paste_image
 
 pytestmark = pytest.mark.nightly
 
@@ -1443,3 +1445,99 @@ def test_drawing_ink_follows_pixels_inside_their_ancestor_viewport(browser, serv
             ),
             abs=1,
         )
+
+
+@pytest.mark.parametrize("long", [False, True], ids=["short", "scrolled"])
+@pytest.mark.parametrize("touch", [False, True], ids=["desktop", "phone"])
+def test_sent_drawing_keeps_its_reference_outside_the_retained_text_viewport(
+    browser, serve, long, touch
+):
+    """Sending retains the editor's text viewport, not a cap on added metadata."""
+    context = browser.new_context(has_touch=touch, is_mobile=touch)
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Drawing feedback",
+                '<h1>Review</h1><p id="target">Evidence to annotate.</p>',
+            )
+        ),
+        context=context,
+    )
+    if touch:
+        page.set_viewport_size({"width": 390, "height": 844})
+    draw_over(page, page.locator("#target"))
+    field = page.locator(".lf-fab-input")
+    write(
+        field, "still a gap here!" if not long else "A line of drawing feedback.\n" * 60
+    )
+    rendered(page)
+    before = field.evaluate(
+        "node => ({height:node.clientHeight, scroll:node.scrollTop, "
+        "top:node.getBoundingClientRect().top})"
+    )
+    with sending(page, "the drawing comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_be_visible()
+    rendered(page)
+    body = card.locator(".lf-msg-body").first
+    reading = body.evaluate("""body => {
+      const reference = body.querySelector('.lf-drawing-reference').getBoundingClientRect();
+      const text = body.querySelector('.lf-msg-text').getBoundingClientRect();
+      return {height: body.clientHeight, extent: body.scrollHeight,
+              textBottom: text.bottom, referenceTop: reference.top,
+              referenceBottom: reference.bottom, bodyBottom:body.getBoundingClientRect().bottom};
+    }""")
+    assert reading["extent"] <= reading["height"] + 1, reading
+    assert reading["referenceTop"] >= reading["textBottom"], reading
+    assert reading["referenceBottom"] <= reading["bodyBottom"] + 1, reading
+    text = body.locator(".lf-msg-text")
+    if not long:
+        assert text.bounding_box()["y"] == pytest.approx(before["top"], abs=1)
+    assert text.evaluate("node => node.scrollHeight > node.clientHeight + 1") == long
+    assert text.evaluate("node => node.scrollTop") == pytest.approx(
+        before["scroll"], abs=1
+    )
+    if long:
+        resized(page, 390 if touch else 1280, 600)
+        rendered(page)
+        reference = body.locator(".lf-drawing-reference").bounding_box()
+        viewport = card.locator(".lf-thread-transcript").bounding_box()
+        assert reference["y"] >= viewport["y"] - 1
+        assert reference["y"] + reference["height"] <= (
+            viewport["y"] + viewport["height"] + 1
+        )
+
+
+def test_a_sent_drawing_keeps_its_pasted_photo_outside_the_text_viewport(
+    browser, serve
+):
+    """The attachment remains visible and clickable beside a retained short comment."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Drawing with photo", '<h1>Review</h1><p id="target">Evidence.</p>'
+            )
+        ),
+    )
+    draw_over(page, page.locator("#target"))
+    field = page.locator(".lf-fab-input")
+    pixels = BytesIO()
+    Image.new("RGB", (640, 480), "teal").save(pixels, "PNG")
+    paste_image(field, pixels.getvalue())
+    write(field, "The photo shows the gap.")
+    with sending(page, "the drawing and photo"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    card = page.locator(".lf-margin-preview")
+    rendered(page)
+    text = card.locator(".lf-msg-text").first
+    assert text.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
+    photo = card.get_by_role("button", name="View Pasted image", exact=True)
+    assert photo.evaluate("""node => {
+      const box = node.getBoundingClientRect();
+      return node.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
+    }""")
+    photo.click()
+    expect(page.get_by_role("dialog", name="Image preview", exact=True)).to_be_visible()

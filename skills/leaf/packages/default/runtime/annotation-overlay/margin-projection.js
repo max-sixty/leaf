@@ -814,7 +814,9 @@ export function createMarginProjection({
         if (!position || !stillCurrent()) return;
         previewArriving = false;
         if (previewMessageViewport) {
-          const body = previewList.querySelector(".lf-msg > .lf-msg-body");
+          const body = previewList.querySelector(
+            ".lf-msg > .lf-msg-body > .lf-msg-text",
+          );
           if (body && body !== previewMessageViewport.body) {
             previewMessageViewport.stopRegion?.();
             body.scrollTop = previewMessageViewport.scroll;

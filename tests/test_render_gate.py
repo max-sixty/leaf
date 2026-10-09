@@ -3243,19 +3243,25 @@ def test_reader_state_observes_behavior_without_freezing_the_dom(browser, serve)
         "field => { field.value = 'kept words'; field.setSelectionRange(2, 5, 'backward'); }"
     )
     page.get_by_role("button", name="Continue", exact=True).focus()
-    before = reader_state(page)
+    # This arm probes the field reading. The served Leaf page may finish placing
+    # unrelated chrome while these property-only changes are made.
+    def draft_reading():
+        return [line for line in reader_state(page) if line.startswith("field: ")]
+
+    before = draft_reading()
+    assert len(before) == 1
     draft.evaluate(
         "field => { field.value = 'lost words'; field.setSelectionRange(2, 5, 'backward'); }"
     )
-    assert reader_state(page) != before, "an unfocused draft loss must be observable"
+    assert draft_reading() != before, "an unfocused draft loss must be observable"
     draft.evaluate(
         "field => { field.value = 'kept words'; field.setSelectionRange(2, 5, 'backward'); }"
     )
-    assert reader_state(page) == before
+    assert draft_reading() == before
     draft.evaluate("field => field.setSelectionRange(0, 0)")
-    assert reader_state(page) != before, "an unfocused caret loss must be observable"
+    assert draft_reading() != before, "an unfocused caret loss must be observable"
     draft.evaluate("field => field.setSelectionRange(2, 5, 'backward')")
-    assert reader_state(page) == before
+    assert draft_reading() == before
 
 
 # Each surface a page-level key opens, by the keys that open it from the page, and the

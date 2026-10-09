@@ -15,6 +15,8 @@ subpackage's initializer is only a marker, never a second API.
   files, immutable revisions, their captured inputs and held readings, and delivery
   URLs;
 - `locations`: filesystem path identity, containment, and overlap;
+- `file_changes`: native subscriptions shared by page, session, and preview
+  maintenance, with explicit ownership and canonical reads after notifications;
 - `page_memory`: how long a process keeps what it read of a page: while the page is
   among the eight it read most recently;
 - `page`: vendored page instructions;
@@ -32,19 +34,26 @@ subpackage's initializer is only a marker, never a second API.
   page and thread readings, what the user has not read, what a gesture's ids say,
   newest moves for `x-history`, and the Markdown export;
 - `thread_context`, `thread`: thread identity, frozen markup, delivery context,
-  thread writes, and the reply lifecycle;
+  thread writes, and reply reservations;
+- `work_reading`: the transaction-scoped durable work reading shared by admission,
+  serving and delivery;
 - `workflows`, `activity`: unsettled user moves with their evidence, and the
-  page-level fold over workflows, status, claim, turn, and watcher;
+  page-level fold over workflows, tasks, starts, status, claim, turn, and watcher;
 - `asks`: the one implementation of page and thread Asks, which every surface reads;
-- `work`: transient subject claims and widget work seats;
-- `tasks` (experimental, expected to change a lot): work the agent owes until it ends it: the fold, its admission gate, and
-  `leaf task`;
-- `delivery`, `session`, `hooks`, `hook_carrier`, `harness`: the delivery envelope
+- `work`: the subjects work stands on: what an id names, which widgets seat a task,
+  and which widget tasks a version would leave without a target;
+- `tasks` (experimental, expected to change a lot): tasks on either side, each with
+  its owner: the agent's the log holds until it ends them, the user's the log, the
+  document's Asks and the threads' questions hold, and the `start` that takes a move
+  or task in hand; their folds, admission gate, and `leaf task`;
+- `delivery`, `session`, `hooks`, `hook_transport`, `harness`: the delivery envelope
   and its receipt, status and the `leaf wait` watch, the harness hooks' entry, the
-  prompt and Stop hooks as a session's carrier, and harness declarations;
+  prompt and Stop hooks as a session's transport, and harness declarations;
+- `reconnect`: outage eligibility and once-per-outage notices, published under
+  the ownership, service, and session lifecycle locks;
 - `codex_state`: Codex delivery eligibility and shared delivery serialization paths;
-- `codex`, `codex_adapter`: Codex delivery records and App Server turn folds, and
-  the detached carrier behind `leaf codex start`;
+- `codex`, `codex_adapter`: Codex delivery records, App Server reply lifecycles and
+  turn folds, and the detached adapter behind `leaf codex start`;
 - `thread_titles`: the title Leaf asks the harness's model for when a user opens a
   thread, before the agent's reply could name it;
 - `state`: dependency-free session lifetime and turn publication, standalone cold
@@ -79,6 +88,7 @@ declarations and provenance, `storage` owns the vendored-file cache, and
 `reactions` owns reaction descriptions.
 
 Within `served_state/`, `context` owns the live or captured inputs every fold reads;
+`work` enriches the shared durable reading with live activity and response bindings;
 `wire` serializes one declared fold, `thread` and `document`
 own their scoped readings, `browser` assembles the requested views, `page` composes
 the served response, `reading` names filesystem changes for freshness reads, and
@@ -95,8 +105,8 @@ author, `picture` owns the picture `page picture` draws of a drawing comment,
 Within `validation/`, `markup` owns shared document structure, `instances` owns
 registry-declared instance rules, `admission` owns what an agent's writer hands in,
 `compatibility` owns layer changes against the standing log, `source_history` owns
-predecessor readings, `transitions` compares revisions with standing actions,
-`source` composes those gates, and `command` owns the CLI and render handoff.
+predecessor readings and automatic anchor relocation,
+`source` composes current-document validation, and `command` owns the CLI and render handoff.
 
 ## Protocol references
 

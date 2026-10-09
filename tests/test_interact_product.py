@@ -26,6 +26,7 @@ from interact_support import (
     page_state,
     publish,
     published,
+    response_reference,
     state_json,
 )
 from leaf import cli as cli_model
@@ -37,7 +38,7 @@ from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
-from leaf import thread as thread_model
+from leaf import tasks as tasks_model
 from leaf.registry import storage as registry_storage
 from leaf.structure import SourceDocument
 from leaf.thread_context import thread_digest
@@ -100,7 +101,7 @@ def test_valid_source_activates_once_and_a_bad_save_keeps_it_live(page_dir):
     assert repaired.error is None and repaired.created and repaired.revision == 3
 
 
-def test_the_log_reopens_a_refused_save_but_never_the_active_revision(page_dir):
+def test_later_events_do_not_veto_source_readings(page_dir):
     source = page_dir / "index.html"
     source.write_text(PAGE)
     live = revisioning_model.activate_source(page_dir)
@@ -121,23 +122,25 @@ def test_the_log_reopens_a_refused_save_but_never_the_active_revision(page_dir):
     )
     assert revisioning_model.activate_source(page_dir) is live
 
-    # A save that drops what the thread is anchored on is refused, and the event
-    # that releases the id clears the refusal without another save.
+    # Removing a thread's target activates immediately and detaches the thread;
+    # the original anchor stays in the log.
     dropped = re.sub(
         r'<lf-diagram id="flow">.*?</lf-diagram>', "", PAGE, flags=re.DOTALL
     )
     source.write_text(dropped)
-    refused = revisioning_model.activate_source(page_dir)
-    assert refused.revision == 1 and "'flow'" in refused.error
+    removed = revisioning_model.activate_source(page_dir)
+    assert removed.error is None and removed.created and removed.revision == 2
+    threads = event_folds_model.build_threads(events_model.read_events(page_dir), {})
+    assert threads["c1"]["anchor"] is None
+    assert threads["c1"]["root"]["anchor"] == {"section": "flow"}
     append_carried_log_record(
         page_dir, {"kind": "resolve", "author": "user", "parent": "c1"}
     )
     released = revisioning_model.activate_source(page_dir)
-    assert released.error is None and released.created and released.revision == 2
+    assert released.error is None and not released.created and released.revision == 2
 
     # A tab still showing r1 may anchor a thread on the id r2 dropped. r2 is live
-    # and its transition was judged when it activated, so neither activation nor
-    # `page check` re-judges it against the later event; the thread detaches.
+    # and neither activation nor `page check` lets the later event veto it.
     append_carried_log_record(
         page_dir,
         {
@@ -153,6 +156,19 @@ def test_the_log_reopens_a_refused_save_but_never_the_active_revision(page_dir):
         settled = revisioning_model.activate_source(page_dir)
     assert settled.error is None and settled.revision == 2 and not settled.created
     assert check(page_dir).exit_code == 0
+
+    # Events cannot repair an invalid source either; only a corrected save does.
+    source.write_text(dropped.replace("</section>", ""))
+    refused = revisioning_model.activate_source(page_dir)
+    assert refused.error and refused.revision == 2 and not refused.created
+    append_carried_log_record(
+        page_dir, {"kind": "resolve", "author": "user", "parent": "c2"}
+    )
+    still_refused = revisioning_model.activate_source(page_dir)
+    assert still_refused.error == refused.error and still_refused.revision == 2
+    source.write_text(dropped.replace("<title>t</title>", "<title>repaired</title>"))
+    repaired = revisioning_model.activate_source(page_dir)
+    assert repaired.error is None and repaired.created and repaired.revision == 3
 
 
 def test_stamp_assigns_versions_to_the_exact_immutable_revision(page_dir):
@@ -335,8 +351,8 @@ def test_command_references_preserve_the_package_owned_subject_roles(page_dir):
     errors = reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
 
     assert len(errors) == 2
-    assert "$command.widgets widget where role='readings'" in errors[0]
-    assert "$command.widgets widget where role='goal'" in errors[1]
+    assert '$command.widgets widget where role="readings"' in errors[0]
+    assert '$command.widgets widget where role="goal"' in errors[1]
 
 
 def test_a_readings_seat_answers_to_one_command(page_dir):
@@ -397,7 +413,7 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(
     (page_dir / "index.html").write_text(PAGE)
     assert checking_command.cmd_check(page_dir) == 0
     assert (
-        "ids dropped from revision r1: ['opt-a', 'opt-b', 'pick', 'pick-decision']"
+        'ids dropped from revision r1: ["opt-a", "opt-b", "pick", "pick-decision"]'
         in (capsys.readouterr().out)
     )
 
@@ -446,44 +462,58 @@ def test_every_path_a_diff_resolves_names_a_language_the_bundles_carry(page_dir)
     )
 
 
-def test_page_fixtures_pass_check(tmp_path, monkeypatch, initialized_page):
+PAGE_FIXTURES = (
+    *CORPUS_SOURCES,
+    ROOT / "examples" / "corpus.html",
+    *sorted((ROOT / "notes").glob("**/*.html")),
+)
+
+
+# One case per fixture, named by its path since notes each keep a `playground.html`, so
+# every fixture that fails is reported rather than only the first, and the cases spread
+# across workers rather than holding one for the whole tree.
+@pytest.mark.parametrize(
+    "example",
+    PAGE_FIXTURES,
+    ids=[
+        example.relative_to(ROOT).with_suffix("").as_posix()
+        for example in PAGE_FIXTURES
+    ],
+)
+def test_page_fixtures_pass_check(example, tmp_path, monkeypatch, initialized_page):
     """Every page fixture in the tree passes the real check: each public example and
     developer feature fixture, and each playground a note previews. A note's page
     is built by nothing else before a user asks for it, so without this a
     playground that names media it never committed stays green until preview
     refuses it."""
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
-    examples = [
-        *CORPUS_SOURCES,
-        ROOT / "examples" / "corpus.html",
-        *sorted((ROOT / "notes").glob("**/*.html")),
-    ]
-    assert FEATURE_GALLERY in DEVELOPER_PAGES
+    fixture = read_fixture(example)
+    d = tmp_path / "page"
 
-    for example in examples:
-        fixture = read_fixture(example)
+    def initialize(target):
+        run_leaf("page", "init", *package_selection_args(fixture.packages), str(target))
 
-        # Named by its path, since notes each keep a `playground.html`.
-        d = tmp_path / "-".join(example.relative_to(ROOT).with_suffix("").parts)
+    def checked(version):
+        result = check(d)
+        assert result.exit_code == 0, f"{version.name}: {result.output}"
 
-        def initialize(target, packages=fixture.packages):
-            run_leaf("page", "init", *package_selection_args(packages), str(target))
+    initialized_page("-".join(["fixture", *fixture.packages]), d, initialize)
+    # Every authored version, not only the current one: a fault in a prior
+    # version stops preview and the site build, a slow way to hear it.
+    prepare_page(
+        d,
+        fixture,
+        run_leaf,
+        initialize=False,
+        final_status=None,
+        each_version=checked,
+    )
 
-        def checked(version, page=d):
-            result = check(page)
-            assert result.exit_code == 0, f"{version.name}: {result.output}"
 
-        initialized_page("-".join(["fixture", *fixture.packages]), d, initialize)
-        # Every authored version, not only the current one: a fault in a prior
-        # version stops preview and the site build, a slow way to hear it.
-        prepare_page(
-            d,
-            fixture,
-            run_leaf,
-            initialize=False,
-            final_status=None,
-            each_version=checked,
-        )
+def test_the_fixture_check_reaches_the_developer_pages():
+    """A moved `examples/developer/` would leave the check above with nothing to say
+    about it rather than failing."""
+    assert FEATURE_GALLERY in PAGE_FIXTURES
 
 
 def test_every_widget_in_the_vocabulary_stands_in_a_corpus_source():
@@ -661,11 +691,9 @@ def test_reply_validates_widget_markup(page_dir):
         return CliRunner().invoke(
             cli_model.cli,
             [
-                "thread",
+                "response",
                 "reply",
-                str(page_dir),
-                "--for",
-                "c1",
+                response_reference(page_dir, "c1"),
                 "--text",
                 "See:",
                 "--markup",
@@ -710,11 +738,9 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
         return CliRunner().invoke(
             cli_model.cli,
             [
-                "thread",
+                "response",
                 "reply",
-                str(page_dir),
-                "--for",
-                "c1",
+                response_reference(page_dir, "c1"),
                 "--text",
                 "Choose:",
                 "--markup",
@@ -724,7 +750,7 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
 
     swapped = reply('<lf-command id="quoted" readings="goal"></lf-command>')
     assert swapped.exit_code != 0
-    assert "where role='readings'" in swapped.output
+    assert 'where role="readings"' in swapped.output
 
     borrowed = reply('<lf-command id="quoted" readings="seat"></lf-command>')
     assert borrowed.exit_code != 0
@@ -745,14 +771,15 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     )
 
     def reply(markup, *, for_event=None, to="c1"):
-        response = ["--for", for_event] if for_event else [to]
+        route = (
+            ["response", "reply", response_reference(page_dir, for_event)]
+            if for_event
+            else ["thread", "reply", str(page_dir), to]
+        )
         return CliRunner().invoke(
             cli_model.cli,
             [
-                "thread",
-                "reply",
-                str(page_dir),
-                *response,
+                *route,
                 "--text",
                 "Pick:",
                 "--markup",
@@ -848,11 +875,9 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
     reply = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "--for",
-            "c1",
+            response_reference(page_dir, "c1"),
             "--text",
             "Pick:",
             "--markup",
@@ -877,7 +902,7 @@ def test_agent_messages_preserve_a_single_space(page_dir):
         cli_model.cli, ["thread", "open", str(page_dir), "--text", ""]
     )
     assert empty.exit_code != 0
-    assert empty.output == "empty text (pass --text or pipe via stdin)\n"
+    assert empty.output == "Error: empty text (pass --text or pipe via stdin)\n"
 
     opened = comment(page_dir, "--text", " ")
     assert opened.exit_code == 0, opened.output
@@ -920,11 +945,9 @@ def test_the_wire_ships_a_message_as_logged(page_dir):
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "--for",
-            "c1",
+            response_reference(page_dir, "c1"),
             "--text",
             "Fixed in `poll()`.",
             "--markup",
@@ -954,23 +977,26 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "status?"}
     )
 
+    reference = response_reference(page_dir, "c1")
+
     def reply(text):
         return CliRunner().invoke(
             cli_model.cli,
-            [
-                "thread",
-                "reply",
-                str(page_dir),
-                *(["--for", "c1"] if text == "indexing done" else ["c1"]),
-                "--text",
-                text,
-            ],
+            ["thread", "reply", str(page_dir), "c1", "--text", text],
         )
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
-    assert _report(page_dir, "t-parser", "status", "status=review").exit_code == 0
-    assert reply("indexing done").exit_code == 0
+    assert _report(page_dir, "t-parser", "status", "value=review").exit_code == 0
+    answered = CliRunner().invoke(
+        cli_model.cli,
+        ["response", "reply", reference, "--text", "The work is ready."],
+    )
+    assert answered.exit_code == 0, answered.output
+    assert json.loads(answered.output)["responds"] == "c1"
+
+    indexed = reply("indexing done")
+    assert indexed.exit_code == 0, indexed.output
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-2")
     monkeypatch.setenv("LEAF_AGENT", "Crawler")
     assert reply("crawl running").exit_code == 0
@@ -982,6 +1008,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     assert (report["agent"], report["session"]) == ("Indexer", "worker-1")
     replies = [e for e in events if e["kind"] == "reply"]
     assert [(e["agent"], e["session"]) for e in replies] == [
+        ("Indexer", "worker-1"),
         ("Indexer", "worker-1"),
         ("Crawler", "worker-2"),
     ]
@@ -996,7 +1023,10 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     assert "- **Crawler**: crawl running" in transcript.output
 
 
-def test_ephemeral_reply_keeps_the_exact_input_and_work_claim_owed(claimed):
+def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
+    """Progress on a move the agent owes is the user's first sign it is handled: one
+    write posts it in the thread and takes the move in hand, Working with the update's text as its line,
+    while the answer stays owed. The line is the banner's, so the update is one line."""
     published(claimed)
     root = append_command(
         claimed,
@@ -1007,38 +1037,50 @@ def test_ephemeral_reply_keeps_the_exact_input_and_work_claim_owed(claimed):
             "text": "Check the schedule.",
         },
     )
-    run_leaf(
-        "status", str(claimed), "working", "Checking the schedule", "--on", root["id"]
-    )
-    before = page_state(claimed)["workflows"]
-    assert len(before) == 1 and before[0]["stage"] == "working"
 
-    progress = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "reply",
-            str(claimed),
-            "--for",
-            root["id"],
-            "--ephemeral",
-            "--text",
-            "Checking the camera.",
-        ],
-    )
-    assert progress.exit_code == 0, progress.output
-    update = json.loads(progress.output)
+    reference = response_reference(claimed, root)
+
+    def progress(text, *, proactive=False):
+        route = (
+            ["thread", "reply", str(claimed), root["id"]]
+            if proactive
+            else ["response", "reply", reference]
+        )
+        return CliRunner().invoke(
+            cli_model.cli,
+            [
+                *route,
+                "--ephemeral",
+                "--text",
+                text,
+            ],
+        )
+
+    refused = progress("Checking the camera.\n\nThen the clock.")
+    assert refused.exit_code != 0 and "one line" in refused.output
+
+    posted = progress("Checking the camera.")
+    assert posted.exit_code == 0, posted.output
+    update = json.loads(posted.output)
     assert update["ephemeral"] is True and "responds" not in update
-    assert page_state(claimed)["workflows"] == before
+    start = tasks_model.start_reading(update)
+    assert (start["item"], start["text"]) == (root["id"], "Checking the camera.")
+    assert events_model.read_events(claimed)[-1] == update
+    [working] = page_state(claimed)["workflows"]
+    assert (working["stage"], working["detail"]) == ("working", "Checking the camera.")
+    assert working["answer"]["for"] == root["id"]
+    # The same exact input remains owed; newer progress replaces the Working line.
+    again = progress("Checking the clock.")
+    assert again.exit_code == 0, again.output
+    [working] = page_state(claimed)["workflows"]
+    assert working["detail"] == "Checking the clock."
 
     answer = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(claimed),
-            "--for",
-            root["id"],
+            reference,
             "--text",
             "The schedule works.",
         ],
@@ -1049,7 +1091,14 @@ def test_ephemeral_reply_keeps_the_exact_input_and_work_claim_owed(claimed):
     state = page_state(claimed)
     assert state["workflows"] == []
     [thread] = state["browser"]["thread"]["threads"]
-    assert thread["summaries"][0]["covers"] == [update["id"]]
+    assert thread["summaries"][0]["covers"] == [
+        update["id"],
+        json.loads(again.output.splitlines()[0])["id"],
+    ]
+    # Once nothing is owed, an update takes nothing in hand, so it may run long.
+    later = progress("The clock drifts.\n\nWatching it overnight.", proactive=True)
+    assert later.exit_code == 0, later.output
+    assert [json.loads(line)["kind"] for line in later.output.splitlines()] == ["reply"]
 
 
 def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir):
@@ -1062,11 +1111,9 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
     answered = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "--for",
-            root["id"],
+            response_reference(page_dir, root["id"]),
             "--text",
             "Complete.",
         ],
@@ -1130,7 +1177,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
     assert replies[2]["awaits"] is True
 
 
-def test_an_agent_edits_its_own_messages_without_rewriting_history(
+def test_an_agent_edits_predecessor_messages_without_rewriting_history(
     page_dir, monkeypatch
 ):
     """An edit changes what the thread says, not what the log said before it.
@@ -1139,8 +1186,8 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     identity. The raw log therefore keeps each original and the revision as separate
     events, while user-facing folded readings show the latest words with an edited
     marker. Exact thread event selection returns the original and edit records without
-    copying either into page state. Another agent session — and an agent looking at the
-    user's words — cannot revise speech that is not its own.
+    copying either into page state. A successor agent may revise predecessor agent
+    speech; user-authored messages remain outside the author edit operation.
     """
     publish(page_dir)
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
@@ -1162,11 +1209,9 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     answered = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "--for",
-            user["id"],
+            response_reference(page_dir, user["id"]),
             "--text",
             "The crawl is paused.",
         ],
@@ -1246,8 +1291,11 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
         cli_model.cli,
         ["thread", "edit", str(page_dir), root["id"], "--text", "Taken over."],
     )
-    assert foreign.exit_code != 0
-    assert "belongs to agent session 'worker-1'" in foreign.output
+    assert foreign.exit_code == 0, foreign.output
+    replacement = json.loads(foreign.output)
+    assert replacement["session"] == "worker-2"
+    assert replacement["message"] == root["id"]
+    before = events_model.read_events(page_dir)
     user_edit = CliRunner().invoke(
         cli_model.cli,
         ["thread", "edit", str(page_dir), user["id"], "--text", "Changed."],
@@ -1265,7 +1313,6 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
         },
     )
     before_unidentified_edit = events_model.read_events(page_dir)
-    monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")
     unidentified = CliRunner().invoke(
         cli_model.cli,
         [
@@ -1277,10 +1324,9 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
             "Changed.",
         ],
     )
-    assert unidentified.exit_code != 0
-    assert "has no agent session identity" in unidentified.output
+    assert unidentified.exit_code == 0, unidentified.output
     assert before_unidentified_edit[-1]["id"] == sessionless["id"]
-    assert events_model.read_events(page_dir) == before_unidentified_edit
+    assert json.loads(unidentified.output)["message"] == sessionless["id"]
 
 
 def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(
@@ -1407,7 +1453,7 @@ def test_export_prints_threads_and_versions(page_dir):
             "revision": 1,
             "widget": "b",
             "action": "move",
-            "detail": {"card": "card-x", "to": "col-done", "rank": "0i"},
+            "detail": {"unit": "card-x", "value": "col-done", "rank": "0i"},
             "meaning": {
                 "scope": "page",
                 "unit": "card-x",
@@ -1423,7 +1469,7 @@ def test_export_prints_threads_and_versions(page_dir):
             "revision": 1,
             "widget": "plan-options",
             "action": "choose",
-            "detail": {"options": ["backfill-first"]},
+            "detail": {"value": ["backfill-first"]},
             "meaning": {
                 "scope": "page",
                 "unit": "plan-options",
@@ -1456,10 +1502,12 @@ def test_export_prints_threads_and_versions(page_dir):
     assert "- v1: first cut" in result.output
     # The user's direct edits are outcomes of the exchange, not just events.
     assert "### Edits" in result.output
-    assert "- `b`: move card=card-x to=col-done rank=0i (on v1)" in result.output
+    assert (
+        '- `b`: move unit="card-x" value="col-done" rank="0i" (on v1)' in result.output
+    )
     # A choice says what was chosen in the words of the version it was made on.
     assert (
-        "- `plan-options`: choose options=['backfill-first'] — “effort: med risk: low "
+        '- `plan-options`: choose value=["backfill-first"] — “effort: med risk: low '
         "Backfill first Verify, then flip. My take: do this first.” (on v1)"
     ) in result.output
 
@@ -1472,7 +1520,7 @@ def test_export_prints_threads_and_versions(page_dir):
     result = CliRunner().invoke(cli_model.cli, ["page", "transcript", str(page_dir)])
     assert result.exit_code == 0, result.output
     assert (
-        "- `b`: move card=card-x to=col-done rank=0i (on v1) — taken back"
+        '- `b`: move unit="card-x" value="col-done" rank="0i" (on v1) — taken back'
         in result.output
     )
     assert "> “flip reads”  — resolved" in result.output
@@ -1504,11 +1552,9 @@ def test_reply_markup_uses_the_captured_registry_after_candidate_files_disappear
     plain = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "--for",
-            "c1",
+            response_reference(page_dir, "c1"),
             "--text",
             "plain answer, x < y",
         ],
@@ -1664,13 +1710,20 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "token": "change"},
     )
-    reply = thread_model.cmd_reply(
-        page_dir,
-        answered["id"],
-        "Which part?",
-        None,
-        for_event=None,
+    # A bare reaction owes no response; adding speech to it is proactive.
+    posted = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            str(page_dir),
+            answered["id"],
+            "--text",
+            "Which part?",
+        ],
     )
+    assert posted.exit_code == 0, posted.output
+    reply = json.loads(posted.output)
     state = state_json(page_dir)
     assert [t["id"] for t in state["threads"]] == [answered["id"]]
     selected = CliRunner().invoke(
@@ -1709,40 +1762,80 @@ def test_an_agent_names_and_renames_a_thread_without_changing_its_speech(
     )
     runner = CliRunner()
     assert state_json(page_dir)["threads"][0]["title"] is None
-    titles = []
-    for title in ("Workshop venue", "Terrace accessibility"):
-        result = runner.invoke(
-            cli_model.cli,
-            [
-                "thread",
-                "edit",
-                str(page_dir),
-                root["id"],
-                "--title",
-                title,
-            ],
-        )
-        assert result.exit_code == 0, result.output
-        titles.append(json.loads(result.output))
-        assert state_json(page_dir)["threads"][0]["title"] == title
-        thread = event_folds_model.build_threads(
-            events_model.read_events(page_dir), {}
-        )[root["id"]]
-        assert thread_digest(thread)["title"] == title
-        assert [message["text"] for message in thread["msgs"]] == [root["text"]]
+    named = runner.invoke(
+        cli_model.cli,
+        [
+            "response",
+            "reply",
+            response_reference(page_dir, root),
+            "--text",
+            "The terrace works.",
+            "--title",
+            "Workshop venue",
+        ],
+    )
+    assert named.exit_code == 0, named.output
+    reply = json.loads(named.output)
+    assert reply["title"] == "Workshop venue"
+    assert events_model.read_events(page_dir)[-1] == reply
+    assert state_json(page_dir)["threads"][0]["title"] == "Workshop venue"
+
+    # A later inline suggestion preserves the first name. Renaming is explicit.
+    followed = runner.invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            str(page_dir),
+            root["id"],
+            "--text",
+            "Check the access route.",
+            "--title",
+            "Access route",
+        ],
+    )
+    assert followed.exit_code == 0, followed.output
+    followup = json.loads(followed.output)
+    assert state_json(page_dir)["threads"][0]["title"] == "Workshop venue"
+    renamed = runner.invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "edit",
+            str(page_dir),
+            root["id"],
+            "--title",
+            "Terrace accessibility",
+        ],
+    )
+    assert renamed.exit_code == 0, renamed.output
+    title = json.loads(renamed.output)
+    assert (title["kind"], title["thread"], title["title"]) == (
+        "thread_title",
+        root["id"],
+        "Terrace accessibility",
+    )
+    thread = event_folds_model.build_threads(events_model.read_events(page_dir), {})[
+        root["id"]
+    ]
+    assert thread_digest(thread)["title"] == "Terrace accessibility"
+    assert [message["text"] for message in thread["msgs"]] == [
+        root["text"],
+        reply["text"],
+        followup["text"],
+    ]
 
     selected = runner.invoke(
-        cli_model.cli,
-        ["page", "state", str(page_dir), root["id"]],
+        cli_model.cli, ["page", "state", str(page_dir), root["id"]]
     )
     assert selected.exit_code == 0, selected.output
     reading = json.loads(selected.output)
-    assert [m["message"] for m in reading["content"]] == [root["id"]]
-    assert reading["thread"]["title"] == "Terrace accessibility"
-    assert [(event["kind"], event["thread"], event["title"]) for event in titles] == [
-        ("thread_title", root["id"], "Workshop venue"),
-        ("thread_title", root["id"], "Terrace accessibility"),
+    assert [m["message"] for m in reading["content"]] == [
+        root["id"],
+        reply["id"],
+        followup["id"],
     ]
+    assert reading["thread"]["title"] == "Terrace accessibility"
 
 
 def test_thread_titles_require_an_existing_thread_and_short_agent_prose(page_dir):

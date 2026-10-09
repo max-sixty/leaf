@@ -11,8 +11,8 @@ The skill directory's `../../bin/leaf` launcher resolves to
 leaf server start <page>
 ```
 
-It prints `{"url": ...}`, the page's keyed URL, on stdout and returns. Hand that
-exact URL back. `leaf server run` prints the same but never exits, so nothing it says
+It prints `{"url": ...}`, the page's keyed URL, on stdout and returns. Follow
+`references/conversation-loop.md`, "Status and handoff". `leaf server run` prints the same but never exits, so nothing it says
 reaches you and there is no turn to end. `references/serving-pages.md` owns the
 key, the address it binds, and a URL the user cannot reach.
 
@@ -27,23 +27,23 @@ input; then it wakes the session, opening a turn, or reaching the current one at
 its next tool result. So once the page is handed over, end the turn: start no
 `leaf wait`. As the turn the input reaches takes it, Leaf's prompt hook puts the
 whole delivery in your context (`references/event-batches.md`, "One envelope on
-every transport"). Once the complete envelope is in context, take its
-`acknowledge` route (`leaf delivery ack <id>`) before working or replying, so the
-user's moves read **Picked up**. Large input arrives as a `leaf delivery read <id>`
-pointer; read the whole envelope before acknowledging it. Hook completion cannot
-prove receipt: a harness timeout discards its output. Input that arrives as a turn ends
-comes through the Stop hook the same way.
+every transport") and confirms it, so the user's moves read **Picked up** and its
+`acknowledge` is null: run no acknowledgement command. Large input arrives as a
+`leaf delivery read <id>` pointer instead; run it before working or replying, since
+reading it is what confirms it. Input that arrives as a turn ends comes through the
+Stop hook the same way. Where the user turned on Leaf's hooks module, the module
+keeps the same watch, and a wake it opens arrives as a message from the leaf plugin.
 
 To pick up a page this session did not serve, run `leaf page claim <page>`; the
 Stop hook watches it from the end of the turn.
 
 If a turn ends without answering a delivered move, the next prompt hook carries
 that obligation back into context and renews its **Picked up** receipt for the new
-turn without a status write. The banner reports overall page activity separately.
+turn without a start. The banner reports overall page activity separately.
 
-When nothing was watching, as after a turn you interrupted or once a background
-job has been idle for an hour, new input reaches you as a message from Leaf naming
-the page. It comes through Claude Code's session
+When nothing was watching, as after a turn you interrupted without the hooks module
+or once a background job has been idle for an hour, new input reaches you as a
+message from Leaf naming the page. It comes through Claude Code's session
 messaging, so it is presented as coming from another session; the input arrives
 with it, and the watch starts again when that turn ends.
 

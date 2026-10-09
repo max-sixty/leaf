@@ -8,12 +8,16 @@ builds and serves the triage board and the corpus from this checkout's examples,
 both arms' tabs stay open in one headless Chrome, taking turns within each run. Each
 run reloads the page, opens the Threads panel, and times five transitions
 (`TRANSITIONS`): a passage comment and a card move, each ended by a key, and an agent
-reply, status, and revision, each by the arm's `leaf`.
+reply, status, and revision, each by the arm's `leaf`. The agent conversation has
+enough history to scroll, and the reply measurement follows its latest turn with the
+native pinned reply row, so arriving words can paint without moving a short thread's
+controls under the reader.
 
 A gesture's clock starts at its input event's timestamp; an agent write's at the first
 modification of the file it writes, so the command's startup is left out. It stops at
 the first frame that paints the result (an init script samples after each frame's
-paint), and a gesture's "Sent" receipt is timed the same way. Requests and bytes, the
+paint). A gesture's `sent` time is the first painted frame after its exact attempt
+was admitted and that application reading was presented. Requests and bytes, the
 primary comparison, are the resource entries the page started from then until it has
 stayed quiet for SETTLE_MS, or the whole new document after a reload; request bodies
 carry no entry. Completed finite freshness reads do, while an open SSE connection does
@@ -69,6 +73,10 @@ MOVES = (
     ("card-avatar", "col-next"),
 )
 TRANSITIONS = ("comment", "move", "reply", "status", "revision")
+# A scrollable conversation lets the native pinned reply row absorb arriving turns.
+THREAD_TEXT = "Bench thread.\n\n" + "\n\n".join(
+    f"Earlier conversation paragraph {line + 1}." for line in range(20)
+)
 
 PROBE = Path(__file__).with_suffix(".js")
 
@@ -125,6 +133,7 @@ class Session:
     page: Page
     url: str
     thread: str
+    task: str
     # What runs around a transition, from just before it starts until its first goal
     # is painted: nothing here, a profiler in `leaf-dev profile`.
     recording: Callable[[], AbstractContextManager] = nullcontext
@@ -223,7 +232,10 @@ class Session:
         self.page.keyboard.insert_text(words)
         return self.gesture(
             "comment",
-            {"painted": ("message", words), "sent": ("sent", words)},
+            {
+                "painted": ("message", words),
+                "sent": ("delivered", {"kind": "comment"}),
+            },
             lambda: self.page.keyboard.press("ControlOrMeta+Enter"),
         )
 
@@ -234,7 +246,10 @@ class Session:
         self.page.keyboard.press("ArrowLeft")
         return self.gesture(
             "move",
-            {"painted": ("card", {"card": card, "to": to}), "sent": ("cardSent", card)},
+            {
+                "painted": ("card", {"card": card, "to": to}),
+                "sent": ("delivered", {"kind": "action", "unit": card}),
+            },
             lambda: self.page.keyboard.press("Enter"),
         )
 
@@ -244,8 +259,7 @@ class Session:
         return lambda: first_write(self.page_dir / path, self.command(*args), env)
 
     def reply(self, run: int) -> dict:
-        """A reply to the agent thread, which is opened first: the panel shows the
-        messages of the thread the user has open and one row for each other."""
+        """A reply while the user follows the scrollable agent conversation's tail."""
         words = f"Bench reply {run + 1}."
         thread = f'.lf-thread[data-id="{self.thread}"]'
         message = f"{thread} .lf-msg"
@@ -253,6 +267,7 @@ class Session:
         if not self.page.evaluate(opened, message):
             self.page.locator(f"{thread} .lf-thread-summary").click()
             until(self.page, opened, "the agent thread never opened", message)
+        self.page.locator(f"{thread} .lf-thread-reply leaf-text").focus()
         self.settle()
         act = self.written(
             "events.jsonl",
@@ -264,7 +279,7 @@ class Session:
     def status(self, run: int) -> dict:
         detail = f"Bench status {run + 1}"
         act = self.written(
-            "status.json", "status", str(self.page_dir), "working", detail
+            "events.jsonl", "task", "start", str(self.page_dir), self.task, detail
         )
         return self.measure("status", {"painted": ("status", detail)}, act)
 
@@ -297,9 +312,13 @@ def served(browser: Browser, arm: str, arm_dir: Path, source: str, scratch: Path
     thread = json.loads(
         leaf(
             "thread", "open", str(page_dir), "--section", PASSAGE, "--quote", QUOTE,
-            "--text", "Bench thread.",
+            "--text", THREAD_TEXT,
         ).stdout
     )["id"]  # fmt: skip
+    # The status transition starts this task, the page's own item, with a new line.
+    task = json.loads(leaf("task", "open", str(page_dir), "page", "Bench task").stdout)[
+        "id"
+    ]
     with serving(arm_dir, state, page_dir) as address:
         context = browser.new_context(
             viewport={"width": DESKTOP[0], "height": DESKTOP[1]}
@@ -310,7 +329,9 @@ def served(browser: Browser, arm: str, arm_dir: Path, source: str, scratch: Path
             page.goto(address)  # The token sets the page cookie; later loads drop it.
             origin = address.split("?", 1)[0]
             url = f"{origin}#{PASSAGE}"
-            yield Session(arm, source, arm_dir, state, page_dir, page, url, thread)
+            yield Session(
+                arm, source, arm_dir, state, page_dir, page, url, thread, task
+            )
         finally:
             context.close()
 

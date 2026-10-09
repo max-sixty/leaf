@@ -1,10 +1,10 @@
 /* This module owns the target picker and whole-page text search. Its transient hints,
  * search marks, and status are synchronous Lit projections over native controller state. */
 import { aimTargets, anchoringIsReady } from "../anchor-resolution.js";
-import { bindings } from "../keyboard/bindings.js";
-import { el, LAYOUT } from "../widget-elements.js";
+import { bindings, bindingEnabled } from "../keyboard/bindings.js";
+import { el, LAYOUT, reserve } from "../widget-elements.js";
 import { coarsePointer } from "../pointer.js";
-import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
+import { html, nothing, render } from "../../vendor/browser-runtime.js";
 
 import {
   contextAround,
@@ -16,10 +16,18 @@ import {
   selectEnds,
   segmentBlock,
 } from "../passages.js";
-import { bannerFoot, shownParts } from "../geometry.js";
-import { focused } from "../keyboard/scopes.js";
+import { bannerFoot, shownBox, shownParts } from "../geometry.js";
 import { repaint } from "../repaint.js";
-import { handBack, releaseFocus } from "../focus.js";
+import { anchorFor } from "../anchor-names.js";
+import { paintSet } from "../target-paint-geometry.js";
+import {
+  handBack,
+  releaseFocus,
+  focusDestination,
+  closeLayer,
+  openLayer,
+  openerOf,
+} from "../focus.js";
 import {
   createHintSession,
   HINT_KEYS,
@@ -33,7 +41,7 @@ import {
   progressStates,
 } from "../keyboard/presentation.js";
 import { announce } from "../notifications.js";
-import { keepsHidden, layoutPx } from "../keeps.js";
+import { keepsHidden } from "../keeps.js";
 import { beginWalk, walkPosition } from "../walk-position.js";
 
 import {
@@ -49,6 +57,9 @@ import {
 // of one.
 export const targetPickerHintLayer = el("div", "lf-ui lf-target-picker-hints");
 targetPickerHintLayer.setAttribute("aria-hidden", "true");
+const hintRoot = el("div", "lf-key-chips");
+const markRoot = el("div", "lf-key-chips");
+targetPickerHintLayer.append(hintRoot, markRoot);
 export const pageSearchSurface = el("div", "lf-ui lf-page-search");
 pageSearchSurface.setAttribute("role", "search");
 pageSearchSurface.hidden = true;
@@ -64,13 +75,17 @@ pageSearchInput.setAttribute("aria-label", "Search page text");
 const pageSearchStatus = el("span", "lf-page-search-status");
 pageSearchStatus.setAttribute("role", "status");
 pageSearchSurface.append(pageSearchInput, pageSearchStatus);
+const noMatches = "No matches";
+const searchCount = (position, total) => `${position} of ${total}`;
 
 // Target choosing and whole-page text search. `s` opens a viewport-local map of
 // the same stable addressables and visual parts Alt-click reaches, then opens Comment on the
 // chosen target; `/` opens the page's text search directly or from that map. The banner's
 // Select element opens this same picker, and its Cancel selection closes it. While it
-// stands on a touch device, presses use aim's capture boundary to choose the innermost target
-// without activating authored controls.
+// stands, the page is armed as it is under a held Alt (aim.js): a mouse shows the target
+// under it, and a press, by finger or mouse, chooses that target without activating
+// authored controls. The key and the modifier are two ways into one gesture, so a press
+// means the same under either.
 //
 // `keyboard/hints.js` owns the map itself: arming, codes, the typed prefix, the audible
 // walk, the scroll freeze, and the paint. What this module declares is which members the
@@ -98,6 +113,7 @@ export function createTargetPicker({
   updateFab,
   fabAnchorAt,
   pointerModeActive,
+  armChanged,
 }) {
   const HINT_INDENT = 10;
   const canChoose = () =>
@@ -107,7 +123,6 @@ export function createTargetPicker({
   let pageSearchOpen = false;
   let matches = [];
   let active = -1;
-  let opener = null;
   let searchReturnsToHints = false;
   let repeatedSearch = null;
   const matchNodeIds = new WeakMap();
@@ -116,8 +131,11 @@ export function createTargetPicker({
   // Target elements and text coordinates stay outside the immutable readings. Lit receives
   // only opaque primitive identities, retaining unchanged hint and keycap nodes on repaint.
   const hintRenderKey = renderKeys();
-
-  const matchRenderKey = (identity, index) => `${identity}\u0000${index}`;
+  // The open search's mark stands over its words in the frames that cut them, carried
+  // by what carries the words (target-paint-geometry.js, `paintSet`), so no scroll
+  // writes it.
+  const marks = paintSet(markRoot);
+  const markBoxes = [];
 
   // One reading of the room the user has, shared by every member of a pass: the clips
   // over their common ancestors are walked once, and admission, exposure, and paint read
@@ -202,10 +220,24 @@ export function createTargetPicker({
   // `withHints` opens the shared mode without a target map: a direct slash is page
   // search over the whole document, and reading a viewport-local map it would then hide
   // is work for nobody.
+  // The picker's opener is the control the user stood on as it opened (focus.js,
+  // `openLayer`); a close that restores hands them back to it as it closes.
   function setTargetPicker(on, restore = false, withHints = true) {
     if (on && (!anchoringIsReady() || (withHints && !canChoose()))) return;
-    if (on) opener = focused();
-    const returnTo = !on && restore ? opener : null;
+    if (on) {
+      openLayer(pageSearchSurface);
+      paintTargetPicker(on, withHints);
+      return;
+    }
+    // An opener of nowhere hands back nothing, and `handBack` lets the user go.
+    const landing = restore && pickerOpen;
+    const opener = openerOf(pageSearchSurface);
+    closeLayer(
+      () => paintTargetPicker(on, withHints),
+      landing && (() => handBack(opener)),
+    );
+  }
+  function paintTargetPicker(on, withHints) {
     pickerOpen = on;
     pageSearchOpen = false;
     searchReturnsToHints = false;
@@ -217,22 +249,25 @@ export function createTargetPicker({
       const found = hints.arm();
       announce(
         found.length
-          ? `Choose a target — tap an element, type one of ${found.length} hints, press Tab to hear them, or slash to search the page.`
-          : "There is no visible target to choose. Press slash to search the page.",
+          ? `Choose a target — press an element${bindings(TARGET_HINT_TYPE).length ? `, type one of ${found.length} hints` : ""}, or press Tab to hear targets and Enter to choose.${bindings(PAGE_SEARCH).length ? " Press slash to search the page." : ""}`
+          : `There is no visible target to choose.${bindings(PAGE_SEARCH).length ? " Press slash to search the page." : ""}`,
       );
     } else {
       hints.disarm();
-      if (!on) opener = null;
     }
+    armChanged();
     repaint();
-    if (returnTo) handBack(returnTo);
   }
 
   function setPageSearch(on) {
     pageSearchOpen = on;
     keepsHidden(pageSearchSurface, !on);
     if (on) {
-      pageSearchInput.focus({ preventScroll: true });
+      // A nonempty query cannot match more often than there are characters. Reserve
+      // the whole reading's count before editing, so narrowing never resizes the field.
+      const maximum = pageText().raw.length;
+      reserve(pageSearchStatus, [noMatches, searchCount(maximum, maximum)]);
+      focusDestination(pageSearchInput, "move");
       presentSearchStatus();
       announce("Search the page.");
     } else {
@@ -243,8 +278,11 @@ export function createTargetPicker({
       // Search may have travelled to a match, so the map the user comes back to is read
       // again rather than being the one search covered.
       hints.invalidate();
-      announce("Choose a target — type a hint, or slash to search the page.");
+      announce(
+        `Choose a target — ${bindings(TARGET_HINT_TYPE).length ? "type a hint, or " : ""}press Tab to hear targets and Enter to choose.${bindings(PAGE_SEARCH).length ? " Press slash to search the page." : ""}`,
+      );
     }
+    armChanged();
     repaint();
   }
 
@@ -278,8 +316,8 @@ export function createTargetPicker({
     const status = !query
       ? nothing
       : matches.length
-        ? `${active + 1} of ${matches.length}`
-        : "No matches";
+        ? searchCount(active + 1, matches.length)
+        : noMatches;
     render(html`${status}`, pageSearchStatus);
   }
 
@@ -412,7 +450,7 @@ export function createTargetPicker({
     selectMatch(segments);
     announce(
       `Selected match: ${quote}. ${
-        coarsePointer.matches
+        coarsePointer.matches || !bindingEnabled("c")
           ? "Comment on selection on the banner comments on it."
           : "Press n for next, Shift+n for previous, or c to comment."
       }`,
@@ -469,7 +507,7 @@ export function createTargetPicker({
   // The picker's hints and the open search's marks are two faces in one layer, and only
   // one of them stands at a time: search covers the map that opened it.
   const hints = createHintSession({
-    layer: targetPickerHintLayer,
+    layer: hintRoot,
     walk: "target-picker",
     read: visibleTargets,
     identity: (target) => target.element,
@@ -515,43 +553,43 @@ export function createTargetPicker({
     chrome: hintChrome,
   });
 
+  // A mark for each box the match's words take, while a covering surface leaves any of
+  // it in sight, standing over what holds the words and carried by what carries them
+  // (`anchorFor`).
   function paintSearchMatches() {
     const segments = matches[active];
     const owner = segments && matchIsRangeable(segments) ? matchOwner(segments) : null;
     const reading = room();
     const clip = owner ? reading.clipOver(owner) : null;
-    const plans = [];
-    if (clip)
-      for (const [index, box] of [...rangeOf(segments).getClientRects()].entries()) {
-        const rect = reading.clearPart(box, clip);
-        if (!reading.exposes(null, rect)) continue;
-        plans.push({
-          key: matchRenderKey(
-            matchIdentity(pageSearchInput.value.trim(), segments),
-            index,
-          ),
-          rect,
-        });
-      }
-    render(
-      html`${repeat(
-        plans,
-        ({ key }) => key,
-        () => html`<span class="lf-page-search-match"></span>`,
-      )}`,
-      targetPickerHintLayer,
+    const boxes = clip
+      ? [...rangeOf(segments).getClientRects()].filter((box) =>
+          reading.exposes(null, reading.clearPart(box, clip)),
+        )
+      : [];
+    const anchor = owner && anchorFor(segments[0].node);
+    // A line's box can reach past the block that holds it; the mark keeps to the block.
+    const own = owner && shownBox(owner);
+    while (markBoxes.length < boxes.length)
+      markBoxes.push(el("span", "lf-page-search-match"));
+    marks.place(
+      boxes.map((box, index) => ({
+        node: markBoxes[index],
+        target: owner,
+        held: true,
+        anchor,
+        rect: {
+          left: Math.max(box.left, own.left),
+          top: Math.max(box.top, own.top),
+          right: Math.min(box.right, own.right),
+          bottom: Math.min(box.bottom, own.bottom),
+        },
+      })),
     );
-    for (const [index, { rect }] of plans.entries()) {
-      const mark = targetPickerHintLayer.children[index];
-      mark.style.left = layoutPx(rect.left);
-      mark.style.top = layoutPx(rect.top);
-      mark.style.width = layoutPx(rect.width);
-      mark.style.height = layoutPx(rect.height);
-    }
   }
 
   function paintTargetPickerHints() {
     if (pickerOpen && pageSearchOpen) return paintSearchMatches();
+    marks.place([]);
     hints.paint();
   }
 
@@ -585,7 +623,6 @@ export function createTargetPicker({
         title: "Go to the previous match for the last page search",
       },
     ],
-    description: "Next / previous match for the last page search",
     title: "search matches",
     repeat: true,
     when: () => Boolean(repeatedSearch),
@@ -628,6 +665,16 @@ export function createTargetPicker({
   const targetingClaims = (binding) =>
     allButCommandReference(binding) && !bindings(PAGE_SEARCH).includes(binding);
 
+  const TARGET_HINT_TYPE = {
+    id: "target.picker.hint.type",
+    keys: HINT_KEYS,
+    label: "a–z",
+    description: "Type the hint for a target",
+    title: "type hint",
+    when: () => hints.candidates().length > 0,
+    run: hints.type,
+  };
+
   const TARGET_PICKER_SCOPE = {
     title: "In the target picker",
     escape: "inner",
@@ -637,15 +684,7 @@ export function createTargetPicker({
     // keyboard projection.
     claims: targetingClaims,
     rows: [
-      {
-        id: "target.picker.hint.type",
-        keys: HINT_KEYS,
-        label: "a–z",
-        description: "Type the hint for a target",
-        title: "type hint",
-        when: () => hints.candidates().length > 0,
-        run: hints.type,
-      },
+      TARGET_HINT_TYPE,
       {
         id: "target.picker.hint.walk",
         keys: ["Tab", "Shift+Tab"],
@@ -661,7 +700,6 @@ export function createTargetPicker({
             title: "Hear the previous visible target",
           },
         ],
-        description: "Hear the next / previous visible target",
         title: "browse hints",
         repeat: true,
         when: () => hints.candidates().length > 0,
@@ -711,7 +749,6 @@ export function createTargetPicker({
             touch: "Next",
           },
         ],
-        description: "Next / previous search match",
         title: "matches",
         repeat: true,
         when: () => matches.length > 0,
@@ -728,16 +765,9 @@ export function createTargetPicker({
   function mount() {
     pageSearchInput.addEventListener("input", search);
     hints.mount();
-    // The open search's mark is page-attached paint in a layer no ancestor scrolls, so it
-    // follows the page only while something asks for a frame. The hint session's own door
-    // answers for the map, and a slash pressed from the page arms no map — so search asks
-    // for its own. Capture, because a panel's list and a board's own overflow scroll in
-    // boxes of their own and a scroll event does not bubble.
-    const followMatch = () => {
+    addEventListener("resize", () => {
       if (pageSearchOpen) repaint();
-    };
-    addEventListener("scroll", followMatch, { capture: true, passive: true });
-    addEventListener("resize", followMatch);
+    });
     document.addEventListener(LAYOUT, refreshMatchWalk);
   }
   pageScope("page search", PAGE_SEARCH_SCOPE);
@@ -747,7 +777,10 @@ export function createTargetPicker({
   pageCommand({
     id: "target.picker.open",
     keys: ["s"],
-    description: "Choose an element by tapping it or typing its hint, then comment",
+    description: () =>
+      bindings(TARGET_HINT_TYPE).length
+        ? "Choose an element by pressing it or typing its hint, then comment"
+        : "Choose an element by pressing it or browsing targets with Tab and Enter, then comment",
     title: "select element",
     touch: "Select element",
     // Once the field is open, its typing scope owns character keys. This gate also keeps
@@ -764,7 +797,8 @@ export function createTargetPicker({
   return {
     visibleTargets,
     chooseTarget,
-    pointerChoosing: () => coarsePointer.matches && pickerOpen && !pageSearchOpen,
+    // The map, not the mode: a direct slash opens the mode for search alone.
+    choosing: () => hints.armed() && !pageSearchOpen,
     paintTargetPickerHints,
     targetPickerOpen,
     openTargetPicker,

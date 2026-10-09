@@ -8,6 +8,383 @@ from playwright.sync_api import expect
 from render_cases_navigation import source_revision
 from render_harness import leaf_page, open_page, round_trip, write
 
+EDITOR_INSPECTION = """(() => {
+  const attach = Element.prototype.attachShadow;
+  window.replyEditorRoots = new WeakMap();
+  Element.prototype.attachShadow = function(options) {
+    const root = attach.call(this, options);
+    replyEditorRoots.set(this, root);
+    return root;
+  };
+})()"""
+
+
+def reply_editing_pose(editor):
+    """Read the first visible line and Send without relying on node continuity."""
+    return editor.evaluate("""box => {
+      const range = document.createRange();
+      range.selectNodeContents(replyEditorRoots.get(box).querySelector('.cm-line'));
+      const field = box.getBoundingClientRect();
+      const send = box.closest('.lf-compose-field')
+        .querySelector('.lf-thread-send').getBoundingClientRect();
+      return {top: field.top, height: field.height,
+        firstLine: range.getBoundingClientRect().top,
+        sendTop: send.top, sendBottom: send.bottom};
+    }""")
+
+
+@pytest.mark.parametrize(
+    ("place", "edit", "platform"),
+    [
+        ("seat", "delete", "desktop"),
+        ("margin", "delete", "desktop"),
+        ("seat", "mirrored", "desktop"),
+        ("seat", "resize", "desktop"),
+        ("seat", "resize-paste", "desktop"),
+        ("seat", "resize-insert", "desktop"),
+        ("seat", "resize-replace", "desktop"),
+        ("seat", "resize-insert", "android"),
+        ("seat", "resize-replace", "android"),
+        ("seat", "mirrored", "android"),
+        ("seat", "mirrored-composing", "android"),
+    ],
+)
+def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
+    browser, serve, place, edit, platform
+):
+    """A semantic paint of a tall draft must not retain its height after native edits.
+
+    These surfaces do not repaint on every keystroke as the panel does. News captures
+    the same continuity extent, so a panel-only draft fix would leave them broken.
+    """
+    from render_cases_interaction import SEATED_QUESTION_PAGE
+    from render_harness import told
+
+    if place == "seat":
+        source = SEATED_QUESTION_PAGE
+        anchor = {"section": "jobs"}
+        selector = '[data-lf-thread-seat="jobs"] > .lf-page-thread'
+    else:
+        source = leaf_page(
+            "Reply editing",
+            '<h1 id="h">Review the release</h1><p id="plan">Keep the order visible.</p>',
+        )
+        anchor = {"section": "plan"}
+        selector = ".lf-margin-preview .lf-page-thread"
+    url = serve(source)
+    parent = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep the review clear.",
+            "anchor": anchor,
+        },
+    )["id"]
+    viewport = (
+        {"width": 560, "height": 1100}
+        if edit.startswith("resize")
+        else {"width": 1920, "height": 900}
+    )
+    device = (
+        {
+            "user_agent": (
+                "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/153.0.0.0 Mobile Safari/537.36"
+            ),
+            "is_mobile": True,
+            "has_touch": True,
+        }
+        if platform == "android"
+        else {}
+    )
+    context = browser.new_context(viewport=viewport, reduced_motion="reduce", **device)
+    page = open_page(browser, url, context=context, init_script=EDITOR_INSPECTION)
+    if place == "margin":
+        page.locator('[data-lf-margin-for="plan"] .lf-margin-marker').click()
+    owner = page.locator(selector)
+    editor = owner.locator("leaf-text")
+    rendered(page)
+    draft = (
+        "A stable native draft that wraps at the narrow width. " * 8
+        if edit.startswith("resize")
+        else "First line\n\n\n\n"
+    )
+    write(editor, draft)
+    rendered(page)
+    news = (
+        {
+            "kind": "thread_title",
+            "author": "agent",
+            "thread": parent,
+            "title": "Release review",
+        }
+        if place == "margin" or edit.startswith("resize")
+        else {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": parent,
+            "text": "The release is ready.",
+        }
+    )
+    events_model.append_event(serve.page_dir, news)
+    told(page)
+    rendered(page)
+    if edit.startswith("resize"):
+        narrow = editor.bounding_box()
+        page.set_viewport_size({"width": 1600, "height": 1100})
+        rendered(page)
+        before = editor.bounding_box()
+        assert before["height"] < narrow["height"] - 20, (narrow, before)
+        if platform == "android":
+            # CodeMirror's EditContext input updates the renderer from a native
+            # textupdate, without a DOM beforeinput or an already changed layout.
+            editor.evaluate("""box => {
+              window.androidReplyEvents = [];
+              for (const type of ['beforeinput', 'lf-before-edit', 'input'])
+                document.addEventListener(type, event => {
+                  if (event.composedPath().includes(box))
+                    window.androidReplyEvents.push(type);
+                }, {capture: true});
+            }""")
+        expected = draft + "!"
+        if edit == "resize-paste":
+            # The browser's Paste command reaches CodeMirror without keydown or
+            # beforeinput, as a context-menu paste does. Preserve the OS clipboard.
+            page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+            page.evaluate("""async () => {
+              window.previousReplyClipboard = await navigator.clipboard.read();
+            }""")
+            try:
+                page.evaluate("""async () => {
+                  await navigator.clipboard.writeText('!');
+                  window.replyPasteEvents = [];
+                  for (const type of ['keydown', 'beforeinput', 'paste'])
+                    document.addEventListener(type,
+                      () => window.replyPasteEvents.push(type), {capture: true});
+                }""")
+                page.context.new_cdp_session(page).send(
+                    "Input.dispatchKeyEvent",
+                    {"type": "char", "key": "Unidentified", "commands": ["Paste"]},
+                )
+                expect(editor).to_have_js_property("value", expected)
+                assert page.evaluate("window.replyPasteEvents") == ["paste"]
+            finally:
+                page.evaluate("""async () => {
+                  const previous = window.previousReplyClipboard;
+                  if (previous.length) await navigator.clipboard.write(previous);
+                  else await navigator.clipboard.writeText('');
+                }""")
+        elif edit == "resize-insert":
+            expected = draft + "\n\n\nMore"
+            page.keyboard.insert_text("\n\n\nMore")
+        elif edit == "resize-replace":
+            expected = "Short replacement"
+            editor.evaluate("box => box.select()")
+            page.keyboard.insert_text(expected)
+        else:
+            page.keyboard.type("!")
+        rendered(page)
+        if platform == "android":
+            assert page.evaluate("window.androidReplyEvents") == [
+                "lf-before-edit",
+                "input",
+            ]
+        now = editor.bounding_box()
+        if edit in ("resize", "resize-paste"):
+            assert now["height"] == pytest.approx(before["height"], abs=0.5), (
+                before,
+                now,
+            )
+        elif edit == "resize-insert":
+            assert now["height"] > before["height"] + 50, (before, now)
+        else:
+            assert now["height"] < before["height"] - 50, (before, now)
+        assert now["y"] == pytest.approx(before["y"], abs=0.5), (before, now)
+        expect(editor).to_have_js_property("value", expected)
+        expect(editor).to_be_focused()
+        return
+    if edit.startswith("mirrored"):
+        editor.evaluate("""box => {
+          window.mirroredReplyEdits = [];
+          for (const type of ['lf-before-edit', 'input'])
+            box.addEventListener(type, () => window.mirroredReplyEdits.push(type));
+        }""")
+        other = open_page(browser, url, context=context)
+        if edit == "mirrored-composing":
+            page.bring_to_front()
+            editor.focus()
+            editor.evaluate("box => box.select()")
+            context.new_cdp_session(page).send(
+                "Input.imeSetComposition",
+                {"text": "Composing", "selectionStart": 9, "selectionEnd": 9},
+            )
+            expect(editor).to_have_js_property("value", "Composing")
+            rendered(page)
+            page.evaluate("window.mirroredReplyEdits = []")
+        else:
+            other.bring_to_front()
+        standing = reply_editing_pose(editor)
+        other.evaluate(
+            """async parent => {
+              const {saveDraft, tellDraft} = await window.__lfRuntimeImport('/runtime/drafts.js');
+              saveDraft('reply:' + parent, 'First line');
+              tellDraft('reply:' + parent, 'First line');
+            }""",
+            parent,
+        )
+        expect(other.locator(selector).locator("leaf-text")).to_have_js_property(
+            "value", "First line"
+        )
+        expect(editor).to_have_js_property("value", "First line")
+        page.bring_to_front()
+        editor.focus()
+        rendered(page)
+        assert page.evaluate("window.mirroredReplyEdits") == []
+        mirrored = reply_editing_pose(editor)
+        for coordinate in standing:
+            assert mirrored[coordinate] == pytest.approx(
+                standing[coordinate], abs=0.5
+            ), (
+                standing,
+                mirrored,
+            )
+        before = editor.bounding_box()
+        if platform == "android":
+            page.keyboard.insert_text("!")
+        else:
+            page.keyboard.type("!")
+        rendered(page)
+        now = editor.bounding_box()
+        assert now["y"] == pytest.approx(before["y"], abs=0.5), (before, now)
+        expect(editor).to_have_js_property("value", "First line!")
+        expect(editor).to_be_focused()
+        page.keyboard.press("ControlOrMeta+z")
+        expect(editor).to_have_js_property("value", "First line")
+        page.keyboard.press("ControlOrMeta+z")
+        expect(editor).to_have_js_property("value", "First line")
+        return
+    before = editor.bounding_box()
+    for _ in range(4):
+        page.keyboard.press("Backspace")
+        rendered(page)
+        now = editor.bounding_box()
+        assert now["y"] == pytest.approx(before["y"], abs=0.5), (before, now)
+    assert now["height"] < before["height"] - 50, (before, now)
+    expect(editor).to_have_js_property("value", "First line")
+    expect(editor).to_be_focused()
+
+
+def test_passive_reply_room_ends_at_native_edit_and_new_inline_measure(browser, serve):
+    """Mirrors retain the writing room; canceled input retains it and edits resize it."""
+    from render_cases_interaction import SEATED_QUESTION_PAGE
+    from render_harness import stored_draft_text, told
+
+    url = serve(SEATED_QUESTION_PAGE)
+    parent = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep the review clear.",
+            "anchor": {"section": "jobs"},
+        },
+    )["id"]
+    context = browser.new_context(
+        viewport={"width": 560, "height": 1100}, reduced_motion="reduce"
+    )
+    page = open_page(browser, url, context=context, init_script=EDITOR_INSPECTION)
+    selector = '[data-lf-thread-seat="jobs"] > .lf-page-thread leaf-text'
+    editor = page.locator(selector)
+    write(editor, "First line\n\n\n\n")
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "thread_title",
+            "author": "agent",
+            "thread": parent,
+            "title": "Release review",
+        },
+    )
+    told(page)
+    rendered(page)
+    standing = reply_editing_pose(editor)
+    other = open_page(browser, url, context=context)
+    replacement = "\n".join(
+        [
+            "First line",
+            "Second line",
+            "Third line",
+            "Fourth line",
+            "Fifth line",
+            "Sixth line",
+            "Seventh line",
+            "Wrap this passage naturally at the editor's inline measure. " * 5,
+        ]
+    )
+    other.evaluate(
+        """async ({parent, value}) => {
+          const {saveDraft, tellDraft} = await window.__lfRuntimeImport('/runtime/drafts.js');
+          saveDraft('reply:' + parent, value);
+          tellDraft('reply:' + parent, value);
+        }""",
+        {"parent": parent, "value": replacement},
+    )
+    expect(editor).to_have_js_property("value", replacement)
+    rendered(page)
+    mirrored = reply_editing_pose(editor)
+    for coordinate in standing:
+        assert mirrored[coordinate] == pytest.approx(standing[coordinate], abs=0.5), (
+            standing,
+            mirrored,
+        )
+    assert stored_draft_text(page, "reply:" + parent) == replacement
+    page.bring_to_front()
+    editor.focus()
+    editor.evaluate("""box => {
+      const content = replyEditorRoots.get(box).querySelector('.cm-content');
+      content.addEventListener('beforeinput', event => {
+        window.canceledReplyAttempt = {trusted: event.isTrusted,
+          cancelable: event.cancelable};
+        event.preventDefault();
+      }, {once: true});
+    }""")
+    page.keyboard.insert_text("Canceled")
+    assert page.evaluate("window.canceledReplyAttempt") == {
+        "trusted": True,
+        "cancelable": True,
+    }
+    expect(editor).to_have_js_property("value", replacement)
+    rendered(page)
+    canceled = reply_editing_pose(editor)
+    for coordinate in standing:
+        assert canceled[coordinate] == pytest.approx(standing[coordinate], abs=0.5), (
+            standing,
+            canceled,
+        )
+    page.keyboard.insert_text("!")
+    expect(editor).to_have_js_property("value", replacement + "!")
+    rendered(page)
+    edited = reply_editing_pose(editor)
+    assert edited["height"] > standing["height"] + 50, (standing, edited)
+    for coordinate in ("top", "firstLine"):
+        assert edited[coordinate] == pytest.approx(standing[coordinate], abs=0.5), (
+            standing,
+            edited,
+        )
+    page.set_viewport_size({"width": 1600, "height": 1100})
+    rendered(page)
+    widened = reply_editing_pose(editor)
+    assert widened["height"] < edited["height"] - 20, (edited, widened)
+    page.keyboard.insert_text("?")
+    expect(editor).to_have_js_property("value", replacement + "!?")
+    rendered(page)
+    after = reply_editing_pose(editor)
+    assert after["top"] == pytest.approx(widened["top"], abs=0.5), (widened, after)
+
 
 @pytest.mark.parametrize(
     "place", ["outlet", "seat", "nested-room", "nested-end", "margin", "panel"]
@@ -398,3 +775,93 @@ def test_direct_comment_arrival_keeps_its_canceled_entry_motion_canceled(
             route.continue_()
         page.unroute("**/api/event", hold)
         expect(page.locator('.lf-threads [aria-busy="true"]')).to_have_count(0)
+
+
+def test_context_paste_after_rewrap_keeps_the_previous_panel_turn_visible(
+    browser, serve
+):
+    """Pinned reply growth uses its current height before every editor command.
+
+    Widening the panel shrinks a wrapped draft without another edit. A context-menu
+    paste then grows it without native beforeinput; the former height would underpay
+    that growth and leave the preceding words under the sticky writing area.
+    """
+    from render_cases_interaction import PANEL_PAGE, panel_comment
+    from render_harness import scroll_settled
+    from test_render_threads import open_threads_list, reply_by_keyboard
+
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Keep this review visible.")
+    for text in (
+        "The last answer remains useful while composing a response.\n\n" * 18,
+        "These final words stay beside the reply.",
+    ):
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Codex",
+                "parent": root,
+                "text": text,
+            },
+        )
+    context = browser.new_context(
+        viewport={"width": 300, "height": 900}, reduced_motion="reduce"
+    )
+    page = open_page(browser, url, context=context)
+    open_threads_list(page, 300, 900)
+    card = reply_by_keyboard(page, root)
+    editor = card.locator("leaf-text")
+    draft = "A stable native draft that wraps at the narrow width. " * 3
+    write(editor, draft)
+    rendered(page)
+    narrow = editor.bounding_box()
+    page.set_viewport_size({"width": 1600, "height": 900})
+    rendered(page)
+    # Rewrapping retains the reading position. Start at the list end before
+    # wheeling back to test how paste growth keeps the latest turn visible.
+    page.locator(".lf-threads").evaluate("list => list.scrollTop = list.scrollHeight")
+    page.locator(".lf-threads").hover()
+    page.mouse.wheel(0, -40)
+    scroll_settled(page, ".lf-threads")
+    latest = card.locator(".lf-msg.agent").last
+    before = editor.bounding_box()
+    previous = latest.bounding_box()
+    assert before["height"] < narrow["height"] - 10, (narrow, before)
+    assert previous["y"] + previous["height"] < before["y"], (previous, before)
+
+    context.grant_permissions(["clipboard-read", "clipboard-write"])
+    page.evaluate("""async () => {
+      window.previousGrowthClipboard = await navigator.clipboard.read();
+    }""")
+    pasted = "\n\n\n\nMore"
+    try:
+        page.evaluate(
+            """async words => {
+              await navigator.clipboard.writeText(words);
+              window.growthPasteEvents = [];
+              for (const type of ['keydown', 'beforeinput', 'paste'])
+                document.addEventListener(type,
+                  () => window.growthPasteEvents.push(type), {capture: true});
+            }""",
+            pasted,
+        )
+        context.new_cdp_session(page).send(
+            "Input.dispatchKeyEvent",
+            {"type": "char", "key": "Unidentified", "commands": ["Paste"]},
+        )
+        expect(editor).to_have_js_property("value", draft + pasted)
+        assert page.evaluate("window.growthPasteEvents") == ["paste"]
+        rendered(page)
+    finally:
+        page.evaluate("""async () => {
+          const previous = window.previousGrowthClipboard;
+          if (previous.length) await navigator.clipboard.write(previous);
+          else await navigator.clipboard.writeText('');
+        }""")
+    grown = editor.bounding_box()
+    previous = latest.bounding_box()
+    assert grown["height"] > before["height"] + 40, (before, grown)
+    assert previous["y"] + previous["height"] < grown["y"], (previous, grown)
+    expect(editor).to_be_focused()

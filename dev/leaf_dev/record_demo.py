@@ -22,19 +22,19 @@ from contextlib import redirect_stdout
 from pathlib import Path
 
 import click
-from leaf.delivery import freeze_delivery, pending_batches, receive_delivery
+from leaf.delivery import freeze_delivery, pending_batches, receive_held
 from leaf.harness import session_harness
-from leaf.hook_carrier import hook_acknowledgement
 from leaf.hosting import claim_and_start, cmd_stop
 from leaf.projection import folded_positions
 from leaf.publishing import cmd_stamp
 from leaf.render_checks import wait_until_ready
-from leaf.render_gate.scheme import rendered_revision, served
+from leaf.render_gate.scheme import rendered_revision
 from leaf.served_state.context import read_page
 from leaf.served_state.page import read_served_page
 from leaf.service import PageTransaction
-from leaf.session import cmd_status
-from leaf.thread import cmd_reply
+from leaf.session import cmd_waiting
+from leaf.tasks import cmd_start
+from leaf.thread import post_reply
 from leaf.vendoring import cmd_init
 from PIL import Image
 from playwright.sync_api import Page
@@ -236,12 +236,8 @@ class DemoWaiter:
         if not stdout.strip():
             payload = {}
         elif hooked:
-            payload = freeze_delivery(
-                pending_batches(harness.session),
-                carrier="hook",
-                acknowledge=hook_acknowledgement,
-            )
-            receive_delivery(payload["id"])
+            payload = freeze_delivery(pending_batches(harness.session))
+            receive_held(payload, harness.session)
         else:
             payload = json.loads(stdout)
         batches = payload.get("batches", [])
@@ -264,6 +260,21 @@ class DemoWaiter:
             self.process.wait(timeout=5)
 
 
+def wait_for_listening(page: Page) -> dict:
+    """Hold the canonical listening reading and wait for the page to present it."""
+    state = page.wait_for_function(
+        """async () => {
+            const response = await fetch('/api/state');
+            if (!response.ok) throw new Error(`Leaf state: HTTP ${response.status}`);
+            const state = await response.json();
+            return state.activity.kind === 'listening' && state;
+        }""",
+        polling=100,
+    ).json_value()
+    wait_until_ready(page, state)
+    return state
+
+
 def record(
     page: Page, waiter: DemoWaiter, page_dir: Path
 ) -> tuple[list[Image.Image], list[int]]:
@@ -277,16 +288,14 @@ def record(
 
     # The page's own readiness, not the document's stamp: a gesture taken before the
     # log's replay finishes reads a half-written page.
-    wait_until_ready(page)
-    page.wait_for_function(
-        "() => document.querySelector('.lf-status-text').textContent.includes('awaits')"
-    )
+    wait_for_listening(page)
     live_url = page.url
     shot(1600)
 
     select_text(page, "#p2", "Backfill history")
-    # The selection raises the response bar with its field open and focused, so the
-    # demo types into it and sends with Mod+Enter.
+    # The selected words offer the response action. Open it before typing, then
+    # send from the focused field with Mod+Enter.
+    page.get_by_role("button", name="Comment on selection").click()
     field = page.locator(".lf-fab-input")
     field.focus()
     page.keyboard.insert_text("Can the backfill stay online?")
@@ -306,13 +315,13 @@ def record(
     comment_id = next(
         event["id"] for event in waiter.receive() if event["kind"] == "comment"
     )
-    cmd_status(page_dir, "working", "answering the backfill question", on=comment_id)
+    cmd_start(page_dir, comment_id, "answering the backfill question")
     page.wait_for_function(
         "() => document.querySelector('.lf-status-detail').textContent.includes('answering')"
     )
     shot(900)
 
-    cmd_reply(
+    post_reply(
         page_dir,
         None,
         "Yes. The fixed rate limit keeps the backfill online.",
@@ -322,7 +331,7 @@ def record(
     )
     (page_dir / "index.html").write_text(demo_page(2), encoding="utf-8")
     cmd_stamp(page_dir, "Backfill stays online; rehearsal progress is now 3 of 4")
-    cmd_status(page_dir, "waiting", "")
+    cmd_waiting(page_dir, "")
     page.wait_for_function(
         "() => document.querySelector('meta[name=lf-revision][data-lf-runtime]')"
         "?.content === '2'"
@@ -379,24 +388,19 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
         demo_page(2, folded_board(page_dir)), encoding="utf-8"
     )
     cmd_stamp(page_dir, "On-call staffing moved into During, as the board now reads")
-    cmd_status(page_dir, "waiting", "")
+    cmd_waiting(page_dir, "")
 
     for name, size, scheme in STILLS:
         with tab(browser, size, scheme) as page:
             page.goto(url)
             # Hold the server's state and authored revision before taking the still.
-            state = served(page, url, "/api/state").json()
-            wait_until_ready(page, state)
+            state = wait_for_listening(page)
             revision = rendered_revision(url, state)
             page.wait_for_function(
                 "revision => document.querySelector("
                 "'meta[name=\"lf-revision\"][data-lf-runtime]'"
                 ")?.content === String(revision)",
                 arg=revision,
-            )
-            page.wait_for_function(
-                "() => document.querySelector('.lf-status-text')"
-                ".textContent.includes('awaits')"
             )
             page.locator(".lf-banner .lf-threads-toggle").click()
             page.locator(".lf-thread-summary").click()
@@ -429,7 +433,7 @@ def record_demo(output: Path | None) -> None:
             cmd_init(page_dir)
         (page_dir / "index.html").write_text(demo_page(1), encoding="utf-8")
         cmd_stamp(page_dir, "Migration rehearsal started; 2 of 4 checks complete")
-        cmd_status(page_dir, "waiting", "")
+        cmd_waiting(page_dir, "")
         with claim_and_start(page_dir) as started:
             pass
         url = started.url

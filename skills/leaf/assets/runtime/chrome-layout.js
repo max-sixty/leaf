@@ -23,11 +23,12 @@
 // may be one an agent sent, since a widget in a message is scrolled by the panel's own
 // list and by nothing else. Threads and drawers are alternate auxiliary surfaces, so only
 // one stands at a time, over the page and taking no width from it. Leaves always covers
-// the page. Threads and the Queue drawer cover it only where they would leave less than a
-// usable page beside them, one rule for both (`standsBeside`, auxiliary-surfaces.js;
-// `--lf-auxiliary-beside`, theme.css); elsewhere the page beside them stays live.
-// Auxiliary modality is a shared inert boundary outside this geometry owner; the
-// reference and Page Map keep native `showModal()`. `--lf-room` and
+// the page. Threads and Questions, which share the right edge and its width, cover it
+// only where they would leave less than a usable page beside them, one rule for both
+// (`standsBeside`, auxiliary-surfaces.js; `--lf-auxiliary-beside`, theme.css); elsewhere
+// the page beside them stays live.
+// The selected auxiliary surface shares one native dialog envelope outside this
+// geometry owner; the reference and Page Map retain their own native layers. `--lf-room` and
 // `--lf-sidebar-posture` are CSS-owned readings resolved on `main`, which is the named
 // `lf-content-frame` style container a margin resident asks for them. The bottom bar is
 // a stated height (`--lf-bottom-bar-h`, theme.css) rather than a reading, so whatever has to
@@ -37,8 +38,8 @@
 // auxiliary surfaces, send commands, or reconcile thread DOM.
 import { sizeObserver } from "./rendering.js";
 import { drawnEdge } from "./drawn-edge.js";
-import { overlapsAcross } from "./rect.js";
 import { standsBeside } from "./auxiliary-surfaces.js";
+import { rightCover } from "./geometry.js";
 import { scheduleResidency } from "./content-layout.js";
 import { syncLayoutRegion } from "./reading-regions.js";
 
@@ -66,10 +67,8 @@ const THREAD_PANEL_PROP = "--lf-thread-panel-width";
 
 export function createChromeLayout({
   panelIsOpen,
-  noticeIsVisible,
   elements: { panel, closeBtn, panelFoot, threadsBox, shortcutBarEl, bottomStatusEl },
   scheduleThreadPreviewPosition,
-  bottomChromeBoxes,
   restateDrawerEdge,
   syncAuxiliarySurfaces,
   syncReactLayout,
@@ -89,20 +88,21 @@ export function createChromeLayout({
     syncLayoutRegion();
     scheduleResidency();
     scheduleThreadPreviewPosition?.();
-    const panelLive = panelIsOpen() && !panelCovers();
-    // Over a live page, the thread panel owns the right of the window all the way to its
-    // foot. Cap the line's room at its edge rather than letting a long hint cross into it.
-    const panelRoom = (panelLive ? commentsEdge.width() : 0) + "px";
+    // Over a live page, the side panel, Threads or Questions, owns the right of the
+    // window all the way to its foot. Cap the line's room at its edge rather than letting
+    // a long hint cross into it, so swapping the two views moves nothing in the bar.
+    const sideLive = standsBeside() && rightCover() !== Infinity;
+    const panelRoom = (sideLive ? commentsEdge.width() : 0) + "px";
     shortcutBarEl.style.setProperty("--lf-shortcut-bar-right", panelRoom);
     bottomStatusEl.style.setProperty("--lf-shortcut-bar-right", panelRoom);
-    // Over a live page the panel stands over the page's right margin at any window short
-    // of about 1700px, and over the pins at the column's edge at the same widths. The
-    // markers are still drawn, under the panel; what says the user lost them is a margin
-    // row the panel's edge reaches. Where one does, the banner offers the Page Map in
-    // their place, as it does where the markers are pins (chrome.css).
-    // Where the panel stands, not where its slide has carried it this frame: offsetLeft
-    // ignores the slide's transform.
-    const panelLeft = panelLive ? panel.offsetLeft : Infinity;
+    // Over a live page the right edge's surface, Threads or Questions, stands over the
+    // page's right margin at any window short of about 1700px, and over the pins at the
+    // column's edge at the same widths. The markers are still drawn, under the surface;
+    // what says the user lost them is a margin row the surface's edge reaches. Where one
+    // does, the banner offers the Page Map in their place, as it does where the markers
+    // are pins (chrome.css). Where the surface stands, not where its slide has carried
+    // it this frame: offsetLeft ignores the slide's transform.
+    const panelLeft = standsBeside() ? rightCover() : Infinity;
     const railCovered = [
       ...document.querySelectorAll(".lf-margin-projection .lf-margin-cluster"),
     ].some(
@@ -112,51 +112,33 @@ export function createChromeLayout({
     );
     panel.closest(".lf-chrome")?.toggleAttribute("data-lf-rail-covered", railCovered);
     // The status stands in the bottom bar (chrome.css) and rises above a covering panel's
-    // foot, which stands over the bar's right end: unlike the inert shortcut guide,
-    // notices are live feedback from the foreground action. The stylesheet places it by
-    // the panel's modal state and the foreground clearance below it. Transient notices
-    // also clear live reply controls; that clearance never reserves page or list room.
+    // foot, which stands over the bar's right end: unlike the inert shortcut guide, what
+    // it shows there is live feedback from the foreground action. The stylesheet places it
+    // by the panel's modal state and the foreground clearance below it.
     syncBottomStatus();
-    // A region gives up the part of a bottom surface that stands over it: the band from
-    // that surface's top down to the region's own foot, plus air above it. Read off the
-    // rendered box, since what crosses the panel's list is a status whose place follows
-    // the panel's foot rather than the bottom bar's stated height.
-    const roomBelow = (region) => {
-      const clearances = bottomChromeBoxes()
-        .filter((box) => overlapsAcross(box, region) && region.bottom > box.top)
-        .map((box) => Math.ceil(region.bottom - box.top) + 20);
-      return clearances.length ? Math.max(...clearances) + "px" : null;
-    };
-    // The panel list is its own scroll region. The inert guide no longer reaches it, but
-    // a live walk status remains above the covering panel and can stand over its list.
-    // Reserve only the rendered bottom surface that crosses the list, for both wheel and
-    // scroll-into-view landings, and restore the stylesheet's inset when none does. The
-    // stylesheet reads the one reservation for the list's foot padding and its landing
-    // inset, and a reply box pinned there keeps its place under it (chrome.css).
-    const listClear = panelIsOpen() && roomBelow(threadsBox.getBoundingClientRect());
-    if (listClear) threadsBox.style.setProperty("--lf-threads-foot", listClear);
-    else threadsBox.style.removeProperty("--lf-threads-foot");
     syncFloats();
   }
   // The status renderer calls this synchronously after its words arrive or expire.
-  // A notice clears the visible reply rather than changing the reply's geometry;
-  // persistent walk status keeps its existing footer seat and list reservation.
+  // Over a covering panel the status shows only transient feedback, a notice or an empty
+  // Go to, never a walk's position (chrome.css). It clears the visible reply rather than
+  // taking room from the list: the list keeps its whole height for the thread.
   function syncBottomStatus() {
     let occupied = panelFoot.getBoundingClientRect().height;
-    if (panelCovers() && noticeIsVisible()) {
+    if (panelCovers() && bottomStatusEl.checkVisibility()) {
       const list = threadsBox.getBoundingClientRect();
-      const status = bottomStatusEl.getBoundingClientRect();
+      const padding = parseFloat(getComputedStyle(threadsBox).paddingBottom);
+      // Reply rows can pin at the list's foot. Their height defines the clearance,
+      // whatever the current scroll position: reading through a long thread must not
+      // move a notice when its reply enters or leaves the viewport.
       for (const reply of threadsBox.querySelectorAll(
         ":scope > .lf-thread[open] > .lf-thread-reply",
       )) {
         const box = reply.getBoundingClientRect();
-        if (
-          reply.checkVisibility() &&
-          overlapsAcross(box, status) &&
-          box.bottom > list.top &&
-          box.top < list.bottom
-        )
-          occupied = Math.max(occupied, innerHeight - Math.max(box.top, list.top));
+        if (reply.checkVisibility())
+          occupied = Math.max(
+            occupied,
+            innerHeight - list.bottom + padding + box.height,
+          );
       }
     }
     bottomStatusEl.style.setProperty("--lf-panel-foot-h", `${occupied}px`);
@@ -227,7 +209,8 @@ export function createChromeLayout({
     layoutSizes.observe(bottomStatusEl);
   }
 
-  // The thread panel's edge, on the right, and the drawer panel's, on the left. Each keeps
+  // The side panel's edge, on the right, which Threads and Questions share, and the
+  // pages drawer's, on the left. Each keeps
   // the user's choice in their own store rather than the tab's, because where a user
   // keeps their threads, and how much of the page they will give a drawer, is the
   // chrome they arrange and expect to find arranged wherever they are reading (see
@@ -242,7 +225,7 @@ export function createChromeLayout({
   }
   const commentsEdge = drawnEdge({
     side: "right",
-    noun: "thread panel",
+    noun: "side panel",
     wide: THREAD_PANEL_W,
     min: THREAD_PANEL_MIN,
     prop: THREAD_PANEL_PROP,

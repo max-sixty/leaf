@@ -41,6 +41,7 @@ from urllib.parse import quote, unquote, urlsplit
 import turbohtml
 
 from .layer import CASCADE_LAYERS
+from .passages import markdown_markup
 from .registry.contract import prepaint_markup
 from .revision_artifact import (
     Resource,
@@ -310,11 +311,23 @@ _PREPAINT_MARKS = ' data-lf-prepaint data-lf-gen="1"'
 
 
 def mark_declared(
-    source: str, registry: Mapping, resources: Mapping[str, Resource]
+    source: str,
+    registry: Mapping,
+    resources: Mapping[str, Resource],
+    *,
+    initial: bool = False,
 ) -> str:
     """Paint each element's declared marks (`DECLARED_MARKS`) onto its start tag, the
     rest byte-for-byte, the size of the page media it names, and its declared
-    `x-prepaint` as its first child.
+    `x-prepaint` as its first child. With `initial`, an `x-initial` host receives
+    an inert source template and a parser invocation immediately after that template
+    closes. The complete host is then inserted and drawn in one synchronous turn;
+    nested initial hosts share the outer template and draw deepest-first.
+
+    The opening script writes only the fixed template delimiter at the parser's
+    active insertion point. With scripts disabled, or in a DOMParser source reading,
+    no template opens and the unmatched closing delimiter is ignored: the one raw
+    authored host remains readable, including code containing raw-text delimiters.
 
     A mark painted by the runtime would land a registry fetch after the document first
     draws, so a workspace would draw its panes before knowing they are panes. An image
@@ -328,21 +341,33 @@ def mark_declared(
     sizes it as it will size the drawing. What a template holds is inert until a
     module clones it, and a declarative shadow tree's content is its host's to style, so
     neither is marked.
+
+    A mark is declared by the element's tag or by an idiom (`$idioms`) whose selector
+    the element matches, as a `.callout` declares the room it takes; the tag's
+    declaration comes first.
     """
     tree = turbohtml.parse(source, scripting=True, source_locations=True)
     index = source_index(source)
+    idioms = [
+        (selector, entry)
+        for selector, entry in registry.get("$idioms", {}).items()
+        if isinstance(entry, dict) and not entry.keys().isdisjoint(DECLARED_MARKS)
+    ]
     edits = []
     for element in tree.find_all(True):
         location = element.source_location
         if location is None or element.closest("template") is not None:
             continue
-        declaration = registry.get(element.tag, {})
+        declarations = [registry.get(element.tag, {})] + [
+            entry for selector, entry in idioms if element.matches(selector)
+        ]
         attrs = element_attrs(element)
         marks = {}
         for key, mark in DECLARED_MARKS.items():
+            declared = next((d[key] for d in declarations if d.get(key)), None)
             if (authored := mark.get("authored")) in attrs:
                 marks[mark["paint"]] = attrs[authored]
-            elif declared := declaration.get(key):
+            elif declared:
                 marks[mark["paint"]] = "" if declared is True else str(declared)
         sizes = [
             size
@@ -359,6 +384,25 @@ def mark_declared(
         if marks:
             start = index(location.start_tag.start_line, location.start_tag.start_col)
             edits.append((start + 1 + len(element.tag), _attributes(marks)))
+        if registry.get(element.tag, {}).get("x-text-format") == "markdown":
+            pre = element.select_one(":scope > pre")
+            if pre is not None:
+                body = "".join(
+                    child.data
+                    for child in pre.children
+                    if isinstance(child, turbohtml.Text)
+                )
+                text = body
+                edits.append(
+                    (
+                        index(location.start_tag.end_line, location.start_tag.end_col),
+                        (
+                            '<div class="lf-markdown-body" data-lf-prepaint data-lf-gen="1" '
+                            f'data-lf-source-words="{html.escape(text, quote=True)}">'
+                            f"{markdown_markup(text)}</div>"
+                        ),
+                    )
+                )
         if prepaint := prepaint_markup(registry, element.tag):
             root = len(re.match(r"<[a-z][a-z0-9]*", prepaint)[0])
             edits.append(
@@ -367,9 +411,75 @@ def mark_declared(
                     prepaint[:root] + _PREPAINT_MARKS + prepaint[root:],
                 )
             )
+        if (
+            initial
+            and registry.get(element.tag, {}).get("x-initial")
+            and not any(
+                registry.get(getattr(parent, "tag", ""), {}).get("x-initial")
+                for parent in element.ancestors
+            )
+        ):
+            if location.end_tag is None:
+                raise ValueError(
+                    f"<{element.tag}> initial rendering needs a closing tag"
+                )
+            start = index(location.start_tag.start_line, location.start_tag.start_col)
+            end = index(location.end_tag.end_line, location.end_tag.end_col)
+            edits.append(
+                (
+                    start,
+                    (
+                        "<script data-lf-runtime data-lf-initial>"
+                        'document.write("<template data-lf-runtime data-lf-initial-source>");'
+                        "</script>"
+                    ),
+                )
+            )
+            edits.append(
+                (
+                    end,
+                    (
+                        "</template>"
+                        "<script data-lf-runtime data-lf-initial>"
+                        "document.documentElement.lfInitial.mount("
+                        "document.currentScript.previousElementSibling);"
+                        "document.currentScript.remove();</script>"
+                    ),
+                )
+            )
     for offset, text in sorted(edits, reverse=True):
         source = source[:offset] + text + source[offset:]
     return source
+
+
+def initial_scripts(
+    source: str, registry: Mapping, resources: Mapping[str, Resource]
+) -> str:
+    """Inline only the captured producers this document uses, before its body parses.
+
+    Bundles register synchronous package renderers with the prepaint coordinator. The
+    widget loader imports its same bundle only for unregistered later arrivals;
+    serving and export need neither a compiler nor a second implementation of the
+    widget's structure.
+    """
+    tree = turbohtml.parse(source, scripting=True)
+    used = dict.fromkeys(
+        path
+        for element in tree.find_all(True)
+        if element.closest("template") is None
+        and (path := registry.get(element.tag, {}).get("x-initial"))
+    )
+    return "".join(
+        "<script data-lf-runtime>"
+        + re.sub(
+            r"</script",
+            r"<\\/script",
+            resources[path].data.decode(),
+            flags=re.IGNORECASE,
+        )
+        + "</script>"
+        for path in used
+    )
 
 
 @dataclass(frozen=True)
@@ -617,15 +727,24 @@ def compose_document(
     prepaint (`runtime/prepaint.js`), which says before the first paint what the
     runtime will draw and whether it could not start. It reads the canonical address,
     so that comes first; it names a startup fault before the host's runtime script
-    hears of it, so it comes before that; and it stands before the theme, since a
+    hears of it, so it comes before that. Used `x-initial` bundles follow it and
+    register the package producers that the body's parser invocations run; and it
+    stands before the theme, since a
     script after a stylesheet still loading waits for it. The root carries the host's attributes and the page's
     declared review (`data-lf-review`), which the render-blocking theme reads to
     reserve the banner a sign-off page will draw before the runtime draws it. The
     import map precedes every script, since a browser reads no map once a module has
     begun to load.
     """
+    initial = (
+        initial_scripts(source, registry, resources)
+        if delivery.runtime is not None
+        else ""
+    )
     source = rebase_document(
-        mark_declared(source, registry, resources),
+        mark_declared(
+            source, registry, resources, initial=delivery.runtime is not None
+        ),
         delivery.address,
         inline_stylesheet=delivery.inline_stylesheet,
     )
@@ -666,7 +785,7 @@ def compose_document(
         )
         + (
             "<script data-lf-runtime>"
-            f"{resources['/runtime/prepaint.js'].data.decode()}</script>"
+            f"{resources['/runtime/prepaint.js'].data.decode()}</script>" + initial
             if delivery.runtime is not None
             else ""
         )
@@ -686,6 +805,17 @@ def compose_document(
     )
     head_start, head_end = document.wrapper_tags["head"]
     insertions = [(head_end, head)]
+    if delivery.runtime is not None:
+        # A classic parser checkpoint waits for every preceding stylesheet, including
+        # the author's head overrides. The initial observer then receives styled body
+        # nodes before their first paint, rather than seating residents on CSS load's
+        # later task. It shares the same residency computation used after upgrade.
+        insertions.append(
+            (
+                document.wrapper_tags["body"][1],
+                "<script data-lf-runtime>document.documentElement.lfInitial.residency()</script>",
+            )
+        )
     root = dict(delivery.html_attributes)
     if (review := review_mode(document)) is not None:
         root["data-lf-review"] = review

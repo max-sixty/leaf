@@ -36,13 +36,15 @@
    capabilities; thread views register their template-owned trigger and palette.
    mount installs the mode teardown listeners after composition. */
 
-import { nextRender } from "./rendering.js";
+import { whenOffScreen } from "./geometry.js";
+import { scrollIntoReadingBand } from "./landing-scroll.js";
 import { registerContribution } from "./contributions.js";
 import { runtime } from "./context.js";
 import { registry } from "./registry.js";
 import { composerOpen, fabBar, fabOptions } from "./composing/selection.js";
 import { pageSelection } from "./composing/capture.js";
 import { el, offer, responseAction } from "./widget-elements.js";
+import { HOLDS_WORD } from "./held-word.js";
 
 import { elementById } from "./passages.js";
 import {
@@ -51,8 +53,16 @@ import {
   visualPartLabel,
 } from "./anchor-resolution.js";
 import { announce, notice } from "./notifications.js";
-import { claimsEsc, focused, saying } from "./keyboard/scopes.js";
-import { handBack } from "./focus.js";
+import { claimsEsc, saying } from "./keyboard/scopes.js";
+import {
+  handBack,
+  focusDestination,
+  focused,
+  closeLayer,
+  drawn,
+  openerOf,
+  openLayer,
+} from "./focus.js";
 import { repaint } from "./repaint.js";
 
 import {
@@ -80,120 +90,12 @@ const reactionVocabulary = () => registry.$reactions?.tokens;
 // row's bindings as the module evaluates, before the vocabulary is known.
 export const reactionTokens = () => Object.entries(reactionVocabulary() ?? {});
 
-// Press and hold to read, release to commit. A reaction's word is otherwise only its
-// tooltip and accessible name, which a finger never sees, so every reaction choice —
-// the response bar's, a reply strip's, the margin's under `e` — answers a press the same
-// way. The choice under the pointer wears `data-lf-held-word`, whose paint says its word
-// (shadow.css; theme.css for a margin entry's label), for as long as the press is held;
-// sliding onto a neighbouring choice of the same list reads that one instead; and the
-// release presses the choice it ends on, or none when it ends off the list. So a tap
-// still reacts, and a finger that reads the wrong word slides off before letting go.
-//
-// The release presses by dispatching the choice's click, counted as the pointer's
-// (surfaces read the count to tell a pointer from the keyboard), and the browser's own
-// click after it is swallowed: a finger held long enough to read may get none, so the
-// release, not the click, is the commit. A keyboard press carries no count and passes
-// untouched; the keyboard reads a word by focusing its choice, which paints the same.
-// Touch capture is released at the press so the slide is heard over each choice.
-//
-// A press or release with a modifier held is not this gesture: ctrl-click is the Mac's
-// context menu, and Option/Alt aims at the item. Such a press is left to the platform
-// and the choice's own click handling, and a modifier arriving before the release takes
-// the hold back without reacting.
-const REACTION_CHOICE = ".lf-react";
-const modified = (event) =>
-  event.ctrlKey || event.metaKey || event.altKey || event.shiftKey;
-function holdToRead() {
-  let hold = null;
-  let released = null;
-  const choiceIn = (event) =>
-    event
-      .composedPath()
-      .find((node) => node instanceof Element && node.matches(REACTION_CHOICE));
-  const read = (choice) => {
-    if (hold.reading === choice) return;
-    hold.reading?.removeAttribute("data-lf-held-word");
-    hold.reading = choice;
-    choice?.setAttribute("data-lf-held-word", "");
-  };
-  const under = (event) => {
-    const choice = choiceIn(event);
-    return choice?.parentElement === hold.list ? choice : null;
-  };
-  const end = (event, commit) => {
-    if (hold?.pointerId !== event.pointerId) return;
-    const choice = commit && !modified(event) ? under(event) : null;
-    read(null);
-    hold = null;
-    if (!choice) return;
-    released = choice;
-    choice.dispatchEvent(
-      new MouseEvent("click", {
-        bubbles: true,
-        cancelable: true,
-        composed: true,
-        detail: 1,
-        clientX: event.clientX,
-        clientY: event.clientY,
-      }),
-    );
-  };
-  document.addEventListener(
-    "pointerdown",
-    (event) => {
-      released = null;
-      if (hold) read(null);
-      hold = null;
-      if (!event.isPrimary || event.button !== 0 || modified(event)) return;
-      const choice = choiceIn(event);
-      if (!choice || choice.matches(":disabled, [aria-disabled='true']")) return;
-      const origin = event.composedPath()[0];
-      if (origin.hasPointerCapture?.(event.pointerId))
-        origin.releasePointerCapture(event.pointerId);
-      hold = { pointerId: event.pointerId, list: choice.parentElement, reading: null };
-      read(choice);
-    },
-    { capture: true },
-  );
-  document.addEventListener(
-    "pointermove",
-    (event) => {
-      if (hold?.pointerId === event.pointerId) read(under(event));
-    },
-    { capture: true },
-  );
-  document.addEventListener("pointerup", (event) => end(event, true), {
-    capture: true,
-  });
-  document.addEventListener("pointercancel", (event) => end(event, false), {
-    capture: true,
-  });
-  document.addEventListener(
-    "click",
-    (event) => {
-      if (!released || !event.isTrusted || !event.detail || !choiceIn(event)) return;
-      released = null;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-    },
-    { capture: true },
-  );
-  // A held choice would offer the platform's own long-press menu instead.
-  document.addEventListener(
-    "contextmenu",
-    (event) => {
-      if (hold) event.preventDefault();
-    },
-    { capture: true },
-  );
-}
-
 // One token as a press in the response bar; a reply's strip builds its own
 // (thread/reaction-strips.js). The token names the control; a layer may add an
 // explanation without making prose part of the platform's vocabulary. The compact face stays the declared mark. Digits remain keyboard
 // accelerators without changing the shape of every chip.
 function reactionChip(name, entry, pressed) {
-  const chip = offer("button", "lf-react");
+  const chip = offer("button", `lf-react ${HOLDS_WORD}`);
   const meaning = entry.means ? `${name} — ${entry.means}` : name;
   chip.dataset.token = name;
   chip.title = meaning;
@@ -213,7 +115,7 @@ export function createReactionController({
   hideComposer,
   syncResponseOptions,
   fabAnchorAt,
-  fabReturnTo,
+  fabReturnPlaces,
   fabTargetAt,
   hasPageSelectionTarget,
   showFab,
@@ -273,8 +175,7 @@ export function createReactionController({
     // The bar owns what that answer is. `setReact(false)` runs after the bar goes and the
     // palette makes a return of its own, so the user lands once, when everything has
     // settled, rather than once as the bar goes and again after the palette.
-    const returnTo = fabReturnTo();
-    const restoreTargetFocus = () => handBack(returnTo);
+    const returnTo = fabReturnPlaces();
     if (!anchor) return;
     let sent;
     if (standing) sent = commands.withdrawReaction(standing);
@@ -288,10 +189,14 @@ export function createReactionController({
       if (designModeActive()) event.about = "design";
       sent = sendReaction(event, chip, anchorWord(anchor), commands.postReaction);
     }
-    hideComposer();
-    showFab(null, { returnFocus: "none" });
-    setReact(false);
-    restoreTargetFocus();
+    closeLayer(
+      () => {
+        hideComposer();
+        showFab(null);
+        setReact(false);
+      },
+      () => handBack(...returnTo),
+    );
     getSelection()?.removeAllRanges();
     await sent;
   }
@@ -306,8 +211,16 @@ export function createReactionController({
   // choices away has a fold of its own to put back. A user who pressed `…` themselves
   // and then `e` opened that layer before the raise found it, and it is theirs to keep.
   let marginUnfolded = false;
-  let reactFrom = null;
+  // React mode's opener (focus.js, `openLayer`): the control the user stood on as the
+  // press armed it, which the close hands them back to.
+  const reactLayer = {};
+  const reactFrom = () => openerOf(reactLayer);
   let reactSurface = null;
+  // An open reply list closes once its trigger is out of view. The list is in the
+  // top layer, and its anchor only stops painting it there, so without this the user
+  // would read on through another thread while Tab, arrows and digits still answered
+  // the reply scrolled away.
+  let reactDeparture = null;
   const latestAgentStrip = (held) => held.querySelector(".lf-react-strip.lf-open");
   const pickerFor = (surface) => surfaces.get(surface);
 
@@ -346,7 +259,7 @@ export function createReactionController({
             glyph: entry.glyph,
             label: entry.means ? `${name} — ${entry.means}` : name,
             rank: "secondary",
-            className: "lf-react",
+            className: `lf-react ${HOLDS_WORD}`,
             pressed: standing.has(name),
           })),
           readings: [],
@@ -394,7 +307,13 @@ export function createReactionController({
   function closeSurface(surface) {
     if (surface === marginSurface) return;
     surface?.classList.remove("lf-react-open");
-    pickerFor(surface)?.trigger.setAttribute("aria-expanded", "false");
+    reactDeparture?.();
+    reactDeparture = null;
+    const picker = pickerFor(surface);
+    // The platform hands focus back to the opener as the list closes, the layer's own
+    // return (focus.js).
+    picker?.palette.hidePopover();
+    picker?.trigger.setAttribute("aria-expanded", "false");
   }
 
   // A page picker lives in the target's shared margin entry options and therefore owns its
@@ -418,13 +337,19 @@ export function createReactionController({
     }
     if (on === reactArmed && (surface === reactSurface || !surface)) return;
     if (on && claimsEsc(focused())) return;
-    // Closing hides the palette synchronously. Capture its focused control first: once
-    // CSS makes it invisible, the browser reports body and loses the fact needed to
-    // return to the compact response that opened it.
+    // Closing hides the palette synchronously. Capture its focused control first: a
+    // reply's list hands focus back to its opener as it closes, and the margin's goes
+    // with its contribution, after which the browser reports where focus went rather
+    // than the choice the user stood on, the fact the return below reads.
     const closingActive = on ? null : focused();
+    if (!on) {
+      closeReact(closingActive);
+      repaint();
+      return;
+    }
     closeSurface(reactSurface);
     if (on) {
-      reactFrom = focused();
+      openLayer(reactLayer);
       if (surface) reactSurface = surface;
       else {
         const target = reactionTarget();
@@ -435,7 +360,6 @@ export function createReactionController({
             // off screen. Keep the semantic anchor without
             // asking a floating bar to find geometry; the shared element is the surface.
             showFab(target.target.anchor, {
-              origin: reactFrom,
               place: false,
             });
             reactRaised = true;
@@ -444,72 +368,81 @@ export function createReactionController({
             if (reactRaised) showFab(null);
             reactRaised = false;
             reactSurface = null;
-            reactFrom = null;
+            openLayer(reactLayer, null);
             notice("That reaction target is no longer available");
             return;
           }
           reactSurface = marginSurface;
         } else {
           reactSurface = null;
-          reactFrom = null;
+          openLayer(reactLayer, null);
           return;
         }
       }
       if (reactSurface !== marginSurface && !pickerFor(reactSurface)) {
         reactSurface = null;
-        reactFrom = null;
+        openLayer(reactLayer, null);
         return;
       }
       reactArmed = true;
       if (reactSurface !== marginSurface) {
         reactSurface.classList.add("lf-react-open");
         const picker = pickerFor(reactSurface);
+        // `e` opens the latest reply of the thread the user stands in, which may be
+        // scrolled out of the list: it comes into view to be answered, since a list
+        // hung from a trigger out of view would neither show nor stay open.
+        scrollIntoReadingBand(picker.trigger, picker.trigger, "nearest", "instant");
+        picker.palette.showPopover({ source: picker.trigger });
+        const opened = reactSurface;
+        reactDeparture = whenOffScreen([picker.trigger], () => {
+          if (reactSurface === opened) setReact(false);
+        });
         picker.trigger.setAttribute("aria-expanded", "true");
-        if (surface && reactFrom === picker.trigger)
-          picker.palette.querySelector(".lf-react")?.focus({ preventScroll: true });
+        const first =
+          surface &&
+          reactFrom() === picker.trigger &&
+          picker.palette.querySelector(".lf-react");
+        if (first) focusDestination(first, "move");
       }
       announce(`React — ${saying(REACT.rows)}`);
-    } else {
-      const from = reactFrom;
-      const trigger = pickerFor(reactSurface)?.trigger;
-      const active = closingActive;
-      const stoodInMargin = marginOffer?.contains(active);
-      reactArmed = false;
-      reactSurface = null;
-      reactFrom = null;
-      if (reactRaised) showFab(null);
-      reactRaised = false;
-      lowerMarginSurface();
-      if (fabAnchorAt()) showFab(fabAnchorAt());
-      if (
-        fabBar.contains(from) ||
-        stoodInMargin ||
-        active === document.body ||
-        active?.closest?.(".lf-react-palette")
-      ) {
-        const input = fabBar.querySelector(".lf-fab-input");
-        const destination = input?.checkVisibility?.()
-          ? input
-          : from?.isConnected && from.checkVisibility?.()
-            ? from
-            : trigger?.checkVisibility?.()
-              ? trigger
-              : document.body;
-        // Hiding a focused choice may leave focus on that now-hidden node or drop it to
-        // body before the browser paints. The user may choose another control during
-        // that frame; only those two states mean the palette still owes its return.
-        if (destination !== document.body)
-          nextRender(() => {
-            if (
-              destination.isConnected &&
-              destination.checkVisibility?.() &&
-              (focused() === active || focused() === document.body)
-            )
-              destination.focus({ preventScroll: true });
-          });
-      }
     }
     repaint();
+  }
+
+  // Putting the reaction choices away is closing a layer (focus.js, `closeLayer`): the
+  // palette's own hand-back as it hides reaches no reader, and a user who stood in the
+  // choices, the bar or the margin's raise goes back once, to the bar's field, the
+  // control the press stood them on, or the list's trigger, whichever stands as the
+  // choices go; one they covered then is no way back, and a later frame showing it again
+  // must not pull the user onto it. `handBack` tries again a frame later only where the
+  // one it chose is swapped by a repaint in that frame, as a reaction press releasing
+  // held news repaints the thread. A press armed from nowhere has only the bar's field.
+  function closeReact(active) {
+    const from = reactFrom();
+    const trigger = pickerFor(reactSurface)?.trigger;
+    const input = fabBar.querySelector(".lf-fab-input");
+    const owed =
+      fabBar.contains(from) ||
+      marginOffer?.contains(active) ||
+      active === document.body ||
+      active?.closest?.(".lf-react-palette");
+    // Which candidates the user may go back to is read before the close, since it ends
+    // the reading of where the press came from; which of them stand is read after it,
+    // since the close itself may show one, as putting the bar back does its field.
+    const candidates = from ? [input, from, trigger] : [input];
+    closeLayer(
+      () => {
+        closeSurface(reactSurface);
+        reactArmed = false;
+        reactSurface = null;
+        openLayer(reactLayer, null);
+        if (reactRaised) showFab(null);
+        reactRaised = false;
+        lowerMarginSurface();
+        if (fabAnchorAt()) showFab(fabAnchorAt());
+      },
+      owed && (() => handBack(...candidates.filter(drawn))),
+    );
   }
 
   function responseChoices(surface) {
@@ -532,7 +465,7 @@ export function createReactionController({
           ? choices.length - 1
           : 0
         : (at + (backward ? -1 : 1) + choices.length) % choices.length;
-    choices[next].focus({ preventScroll: true });
+    focusDestination(choices[next], "move");
     beginWalk("reaction", "Reaction", () =>
       listWalkPosition(responseChoices(reactSurface), focused()),
     );
@@ -628,7 +561,6 @@ export function createReactionController({
     marginEntryContextContains?.(fabTargetAt(), node);
 
   function mount() {
-    holdToRead();
     document.addEventListener("lf-margin-entry-options-closed", () => {
       if (reactArmed && reactSurface === marginSurface) setReact(false);
     });
@@ -646,6 +578,9 @@ export function createReactionController({
   // `e` opens the list on the target the user has already named: the current selection,
   // item, or agent reply. Digits are optional accelerators in the registry's declared
   // order, and the mode's own scope above owns them once the list is open.
+  // A finger reacts to a reply with its own reaction control. Reactions on a selection
+  // or an item open only by key since the response bar dropped its ellipsis, a gap
+  // accepted for now (composing/selection.js, TODO.md).
   pageCommand({
     id: "reaction.open",
     touch: false,
@@ -708,6 +643,6 @@ function reactionPlace(event) {
 export const undoSentence = (undoable) => {
   const event = undoable();
   return event?.token
-    ? `Take back: ${event.token} on ${reactionPlace(event)}`
-    : "Take back the last change you made here";
+    ? `Undo: ${event.token} reaction on ${reactionPlace(event)}`
+    : "Undo your latest update";
 };

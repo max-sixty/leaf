@@ -8,16 +8,21 @@
  * `capturePlace` reads one, of the page or of a reading region, and `restorePlace`
  * returns the user to it: the passage is found again by its words, so a place survives
  * what moved the pixels under it — a new revision, a resize, a view that was hidden
- * while its width changed. A visible native editor is the live place while that
- * editing gesture still holds focus in this region. Its DOM identity stays local;
- * serialized places and replaced fields use the ordinary passage reading. A restore
+ * while its width changed. A visible focused destination is the live place while that
+ * gesture still holds focus in this region. Focus on the reading surface itself keeps
+ * its passage as the place. The destination's DOM identity stays local;
+ * serialized places and replaced elements use the ordinary passage reading. A restore
  * jumps rather than glides.
  *
  * Whoever remembers a place owns when to take it and where to keep it: version
  * continuity (version.js) across revisions and reading-region shifts, a root tab set
  * (lf-tabs) for each of its views. The browser keeps a history entry's own offset
- * (history.js). `readingBlock` is the block the user is on, for the questions that ask
- * where a walk starts.
+ * (history.js). `readingBlock` is the first block on screen in one region or the page;
+ * `pageReadingBlock` is the block the user is reading, where a walk starts, and
+ * `landingPlace` is where a let-go puts them. `openingPassage` gives travel the
+ * passage its destination draws first, using the same rendered words as the visible
+ * landmarks. It is independent of the viewport, so scrolling through a tall landing
+ * does not turn a later passage into the trip's original arrival.
  */
 import {
   clippedContents,
@@ -25,14 +30,15 @@ import {
   seenRect,
   shownBox,
   shownWindow,
+  skipped,
 } from "./geometry.js";
 import {
   closestAcross,
   cut,
-  elementReading,
   inChrome,
   pageBlocks,
   pageText,
+  quoteFrom,
   rangeOf,
 } from "./passages.js";
 import { ADDRESSABLE, resolveAnchor } from "./anchor-resolution.js";
@@ -44,22 +50,23 @@ import {
   readingRegionFor,
   readingRegions,
   shownRegionBounds,
+  pageReadingRegion,
 } from "./reading-regions.js";
 import { followingItsEnd } from "./bounds.js";
 import { moveScrollerBy, pageScroller, scrollToEnd } from "./scrolling.js";
-import { under } from "./shadow.js";
-import { recentPlaceInput, retainUserIntent } from "./user-intent.js";
+import { renderedParent, under, upFrom } from "./shadow.js";
+import { retainUserIntent } from "./user-intent.js";
+import { recentPlaceInput, focused } from "./focus.js";
 import { reveal } from "./widget-elements.js";
-import { TEXT_BOX } from "./control-selectors.js";
-import { focused } from "./keyboard/scopes.js";
 import { scrollIntoReadingBand } from "./landing-scroll.js";
+import { union } from "./rect.js";
 
-// A live editing place belongs to this DOM, not a serialized history record. Its
+// A live focused place belongs to this DOM, not a serialized history record. Its
 // symbol keeps that node out of JSON; the ordinary passage reading remains the
 // fallback when a replacement or a later gesture has given focus elsewhere.
-const EDITING_PLACE = Symbol("live editing place");
-const editingPlace = (reading) => {
-  const place = reading?.[EDITING_PLACE];
+const FOCUSED_PLACE = Symbol("live focused place");
+const focusedPlace = (reading) => {
+  const place = reading?.[FOCUSED_PLACE];
   return place?.node.isConnected &&
     place.node === focused() &&
     under(place.node, place.body) &&
@@ -84,6 +91,84 @@ const HEADING = "h1, h2, h3, h4, h5, h6";
 export const textBlocks = (root = document.querySelector("body > main")) =>
   pageBlocks().filter((block) => under(block, root));
 
+// Source blocks include concealed words, since an anchor can reveal them. A reading
+// place instead requires words the browser draws. Ask the text's own parent, rather
+// than its block: display: contents still draws text, and a child can restore visibility
+// inside a concealed block. Skipped subtrees are left alone before asking for any boxes.
+const blockWords = new WeakMap();
+function* renderedBlocks(blocks) {
+  const reading = pageText();
+  if (!blockWords.has(reading)) {
+    const words = new Map();
+    for (const segment of reading.segments) {
+      if (!words.has(segment.block)) words.set(segment.block, []);
+      words.get(segment.block).push(segment);
+    }
+    blockWords.set(reading, words);
+  }
+  const words = blockWords.get(reading);
+  const drawn = new Map();
+  const range = document.createRange();
+  for (const block of blocks) {
+    if (inChrome(block) || skipped(block)) continue;
+    const boxes = [],
+      runs = [];
+    let run = null;
+    for (const segment of words.get(block)) {
+      const { node, start, end } = segment;
+      const parent = renderedParent(node);
+      if (!drawn.has(parent)) {
+        let visible = false;
+        if (!skipped(parent) && getComputedStyle(parent).visibility === "visible") {
+          // Text in display: contents has no parent box to ask. Its first boxed
+          // ancestor supplies the browser's opacity/display reading; visibility
+          // belongs to the text parent, since its children may override that ancestor.
+          let box = parent;
+          while (box && getComputedStyle(box).display === "contents")
+            box = renderedParent(box);
+          visible = Boolean(box?.checkVisibility({ opacityProperty: true }));
+        }
+        drawn.set(parent, visible);
+      }
+      if (!drawn.get(parent)) {
+        run = null;
+        continue;
+      }
+      range.setStart(node, start);
+      range.setEnd(node, end);
+      const rects = [...range.getClientRects()].filter(
+        (rect) => rect.width && rect.height,
+      );
+      if (!rects.length) {
+        run = null;
+        continue;
+      }
+      if (!run) runs.push((run = { segments: [], boxes: [] }));
+      run.segments.push(segment);
+      run.boxes.push(...rects);
+      boxes.push(...rects);
+    }
+    const rect = union(boxes);
+    if (rect)
+      yield [block, new DOMRect(rect.left, rect.top, rect.width, rect.height), runs];
+  }
+}
+
+// The passage grain is shared by reading input and travel's produced landing. A
+// containing destination opens at its first rendered passage, independently of the
+// viewport: scrolling through a tall destination cannot redefine where it landed.
+export function passageBlock(node) {
+  const blocks = pageBlocks();
+  for (let at = node; at; at = upFrom(at)) if (blocks.includes(at)) return at;
+  return null;
+}
+export function openingPassage(where) {
+  if (where instanceof Range) return passageBlock(where.startContainer);
+  if (!where) return null;
+  const blocks = pageBlocks().filter((block) => under(block, where));
+  return renderedBlocks(blocks).next().value?.[0] ?? null;
+}
+
 export function* blocksOnScreen(region = null, blocks = textBlocks()) {
   const shown = region ? shownRegionBounds(region) : shownWindow();
   if (!shown) return;
@@ -93,30 +178,50 @@ export function* blocksOnScreen(region = null, blocks = textBlocks()) {
     region && effectiveScroller(region) === pageScroller
       ? shownWindow({ within: shown })
       : shown;
-  for (const block of blocks) {
-    // [hidden] needs an explicit skip: hidden="until-found" resolves to
-    // content-visibility, under which descendants still report real rects —
-    // but what's behind an inactive tab isn't what the user is reading.
+  for (const [block, rect, runs] of renderedBlocks(blocks)) {
     if (
-      inChrome(block) ||
-      closestAcross(block, "[hidden]") ||
-      (region
+      region
         ? !under(block, region.body)
-        : readingPosture(readingRegionFor(block)) === "bounded")
+        : readingPosture(readingRegionFor(block)) === "bounded"
     )
       continue;
-    const range = document.createRange();
-    range.selectNodeContents(block);
-    const rect = range.getBoundingClientRect();
-    const seen = clippedContents(rect, block, new Map());
-    if (seen && seen.bottom > bounds.top && seen.top < bounds.bottom)
-      yield [block, rect];
+    const clips = new Map();
+    const onScreen = runs.filter(({ boxes }) =>
+      boxes.some((box) => {
+        const seen = clippedContents(box, block, clips);
+        return seen && seen.bottom > bounds.top && seen.top < bounds.bottom;
+      }),
+    );
+    if (onScreen.length) yield [block, rect, onScreen.map(({ segments }) => segments)];
   }
 }
-// The first visible block in the user's reading region, for a walk's origin,
-// alignment when nothing is selected, and the keyboard reference's hand-back.
+// The first visible block in a reading region, or with none given in the page outside
+// the regions that bound themselves, for alignment when nothing is selected.
 export const readingBlock = (region = null) =>
   blocksOnScreen(region, textBlocks(region?.body)).next().value?.[0] ?? null;
+
+// The block the user is reading on the page, for a walk's origin, the keyboard
+// reference's hand-back and a let-go's landing: in the page region they last acted in
+// (`pageReadingRegion`), or, where that region shows none, in the region carrying it, and
+// so on out to the page. In a workspace whose panes bound themselves, the page outside
+// them holds only its header, so a reading that started there left the pane the user
+// was reading for the top of the page. With `bodies`, a region on screen that shows no
+// text block (a figure, a widget) answers with its own body, so a landing there keeps
+// the user in that region rather than on the document's body, which names the page.
+function pageReading({ bodies }) {
+  for (
+    let region = pageReadingRegion();
+    region;
+    region = readingRegionFor(region.host.parentElement)
+  ) {
+    const block = readingBlock(region);
+    if (block) return block;
+    if (bodies && shownRegionBounds(region)) return region.body;
+  }
+  return readingBlock();
+}
+export const pageReadingBlock = () => pageReading({ bodies: false });
+export const landingPlace = () => pageReading({ bodies: true });
 
 // The quote and the section it's searched in come from the same block, or the search is
 // filtered to a section the text isn't in and can only ever fail — restore then falls back
@@ -130,22 +235,25 @@ export function capturePlace(region = null, blocks = textBlocks()) {
   const landmarkTop = (top, block, blockTop = top) =>
     block?.matches(HEADING) ? top + Math.max(0, -blockTop) : top;
   const view = { y: box.scrollTop, scroller: scrollerIdentity(box) };
-  const editing = focused();
+  const standing = focused();
   const body = region?.body ?? document.querySelector("body > main");
+  const standingBody = readingRegionFor(standing)?.body ?? body;
   if (
     recentPlaceInput() === "focus" &&
-    editing?.matches(TEXT_BOX) &&
-    under(editing, body) &&
-    seenRect(editing, new Map())
+    standing &&
+    under(standing, body) &&
+    // Focus on the reading surface itself names its contents, not a landmark.
+    !under(standingBody, standing) &&
+    seenRect(standing, new Map())
   )
-    view[EDITING_PLACE] = {
-      node: editing,
+    view[FOCUSED_PLACE] = {
+      node: standing,
       body,
-      region: containingReadingRegionFor(editing)?.id,
-      intent: retainUserIntent({ source: editing }),
+      region: containingReadingRegionFor(standing)?.id,
+      intent: retainUserIntent({ source: standing }),
     };
   if (region && followingItsEnd(box)) return { ...view, end: true };
-  for (const [block, rect] of blocksOnScreen(region, blocks)) {
+  for (const [block, rect, runs] of blocksOnScreen(region, blocks)) {
     const section = closestAcross(block, ADDRESSABLE);
     if (!view.section && section) {
       // The first on-screen block's section, kept only until a quotable block supplies
@@ -159,9 +267,12 @@ export function capturePlace(region = null, blocks = textBlocks()) {
     }
     // Written down the way a comment's quote is, so the search that re-finds it is
     // looking for a string of the same kind.
-    const text = cut(elementReading(block), 0, LANDMARK_CAP);
+    // Concealed words split a block's drawn runs. A landmark uses one uninterrupted
+    // run so the ordinary quote resolver can find it in the complete source reading.
+    const run = runs.find((segments) => quoteFrom(segments).length >= 24);
+    const text = run && cut(quoteFrom(run), 0, LANDMARK_CAP);
     // A short line ("Risks") would match anywhere; keep scanning for a quotable block.
-    if (text.length >= 24) {
+    if (text) {
       // Unconditionally, so a quotable block under no section clears the earlier one
       // rather than sending the search into a subtree its text isn't in.
       view.section = section?.id;
@@ -174,7 +285,10 @@ export function capturePlace(region = null, blocks = textBlocks()) {
       // whole, so a coordinate that hides its opening words is not a valid heading
       // landmark. Normalize both quote and fallback section state here, once, rather
       // than teaching every restore path to repair it after document replacement.
-      view.quoteTop = landmarkTop(rect.top - boxTop, block);
+      view.quoteTop = landmarkTop(
+        rangeOf(run).getBoundingClientRect().top - boxTop,
+        block,
+      );
       break;
     }
   }
@@ -185,7 +299,7 @@ export function capturePlace(region = null, blocks = textBlocks()) {
 // animating from the replacement's raw position is worse than the jump it replaces.
 // Moving to a mark the user asked for is the other case, and says so.
 export const hasLandmark = (reading) =>
-  Boolean(editingPlace(reading) || reading?.end || reading?.quote || reading?.section);
+  Boolean(focusedPlace(reading) || reading?.end || reading?.quote || reading?.section);
 export const rawOffsetFits = (reading, scroller) =>
   reading.scroller !== undefined && reading.scroller === scrollerIdentity(scroller);
 function scrollerIdentity(scroller) {
@@ -195,15 +309,19 @@ function scrollerIdentity(scroller) {
 
 export function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
   if (!view || !currentIntent()) return;
-  const editing = editingPlace(view);
+  const box = region ? effectiveScroller(region) : pageScroller;
+  const standing = focusedPlace(view);
+  // A focus that remains visible after its region joins a different scroller can
+  // still be far from the passage's old reading band. Restore the landmark there;
+  // a focus with no saved landmark remains the only place to restore.
   if (
-    editing &&
-    under(editing, region?.body ?? document.querySelector("body > main"))
+    standing &&
+    (rawOffsetFits(view, box) || (!view.quote && !view.section && !view.end)) &&
+    under(standing, region?.body ?? document.querySelector("body > main"))
   ) {
-    scrollIntoReadingBand(editing, editing, "nearest", "instant");
+    scrollIntoReadingBand(standing, standing, "nearest", "instant");
     return;
   }
-  const box = region ? effectiveScroller(region) : pageScroller;
   if (view.end) {
     scrollToEnd(box);
     return;
@@ -218,6 +336,16 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
       box,
       rangeOf(segments).getBoundingClientRect().top - boxTop - view.quoteTop,
     );
+    return;
+  }
+  // Repeated passage words may have no unique anchor. In that case the live
+  // focused control is still a precise place in this document; a section's
+  // opening is only a fallback for a reading with no such destination.
+  if (
+    standing &&
+    under(standing, region?.body ?? document.querySelector("body > main"))
+  ) {
+    scrollIntoReadingBand(standing, standing, "nearest", "instant");
     return;
   }
   const section = targetElement(resolveAnchor({ section: view.section }, text));

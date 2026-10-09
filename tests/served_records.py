@@ -73,17 +73,17 @@ def build() -> dict:
                         "widget": "feeder-board",
                         "action": "move",
                         "detail": {
-                            "card": "card-baffle",
-                            "to": "col-doing",
+                            "unit": "card-baffle",
+                            "value": "col-doing",
                             "rank": "0i",
                         },
                     },
                 )
             ),
             # Something of every kind on each side: an open Ask, a question left in
-            # prose, a reply that failed and a page move whose pickup failed are on the
-            # user; a comment owed a reply, a task, and work claimed on an answered
-            # thread are on the agent.
+            # prose, a task the agent put on them, a reply that failed and a page move
+            # whose pickup failed are on the user; a comment owed a reply and a task the agent has in hand are on
+            # the agent.
             "queues on both sides": _queued(
                 (
                     {"kind": "comment", "text": "Weekly?"},
@@ -109,6 +109,7 @@ def build() -> dict:
                     {
                         "kind": "task",
                         "author": "agent",
+                        "owner": "agent",
                         "agent": "Agent",
                         "session": "served-records",
                         "subject": {"kind": "thread", "id": "e4"},
@@ -128,7 +129,7 @@ def build() -> dict:
                         "kind": "action",
                         "widget": "ship",
                         "action": "choose",
-                        "detail": {"options": ["ship-now"]},
+                        "detail": {"value": ["ship-now"]},
                     },
                     {
                         "kind": "pickup",
@@ -140,17 +141,23 @@ def build() -> dict:
                         "session": "served-records",
                         "turn": "turn-1",
                     },
-                ),
-                work=(
                     {
-                        "id": "claim-1",
-                        "subject": {"kind": "thread", "id": "e4"},
-                        "after": 6,
-                        "detail": "Redrawing the chart",
-                        "ts": "2026-09-19T12:00:00+00:00",
+                        "kind": "start",
+                        "author": "agent",
                         "agent": "Agent",
                         "session": "served-records",
                         "turn": "turn-1",
+                        "item": "e6",
+                        "text": "Redrawing the chart",
+                    },
+                    {
+                        "kind": "task",
+                        "author": "agent",
+                        "agent": "Agent",
+                        "session": "served-records",
+                        "owner": "user",
+                        "subject": {"kind": "page"},
+                        "title": "Try the build on a phone",
                     },
                 ),
             ),
@@ -162,12 +169,13 @@ def build() -> dict:
                         "kind": "action",
                         "widget": "ship",
                         "action": "choose",
-                        "detail": {"options": ["ship-now"]},
+                        "detail": {"value": ["ship-now"]},
                     },
                     {"kind": "comment", "text": "Rebuild the chart."},
                     {
                         "kind": "task",
                         "author": "agent",
+                        "owner": "agent",
                         "agent": "Agent",
                         "session": "served-records",
                         "subject": {"kind": "thread", "id": "e2"},
@@ -176,6 +184,7 @@ def build() -> dict:
                     {
                         "kind": "task",
                         "author": "agent",
+                        "owner": "agent",
                         "agent": "Agent",
                         "session": "served-records",
                         "subject": {"kind": "thread", "id": "e2"},
@@ -208,27 +217,22 @@ ASK_PAGE = leaf_page(
 
 
 def _done(events: tuple[dict, ...]) -> dict:
-    """The two readings the browser selects what is done from, as it is handed them:
-    the whole Ask reading, and the ended tasks served beside the open ones."""
+    """The reading the browser selects what is done from, as it is handed it: the
+    ended tasks served beside the open ones, the version's Asks' first."""
     state = reading(ASK_PAGE, events)
-    asks = state["views"]["1"]["document"]["asks"]
     return {
-        "asks": {key: asks[key] for key in ("all", "unanswered")},
-        "tasks": state["ended_tasks"],
+        "tasks": state["views"]["1"]["document"]["ended_tasks"] + state["ended_tasks"]
     }
 
 
-def _queued(events: tuple[dict, ...], work: tuple[dict, ...] = ()) -> dict:
-    """The four readings `agent_state.queues` selects from, as the browser is handed
+def _queued(events: tuple[dict, ...]) -> dict:
+    """The three readings `agent_state.queues` selects from, as the browser is handed
     them, and the two queues Python selects from them."""
-    state = reading(ASK_PAGE, events, work=work)
-    asks = state["views"]["1"]["document"]["asks"]["user"]
-    asks += state["thread"]["asks"]["user"]
+    state = reading(ASK_PAGE, events)
     served = {
-        "asks": asks,
         "threads": state["thread"]["threads"],
         "workflows": state["workflows"],
-        "tasks": state["tasks"],
+        "tasks": state["views"]["1"]["document"]["tasks"] + state["tasks"],
     }
     return {**served, "queues": queues(**served)}
 

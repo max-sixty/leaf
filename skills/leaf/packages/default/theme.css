@@ -34,7 +34,10 @@
     cursor: help;
   }
 }
+/* The phrase takes the pointer; this one-pixel carrier supplies its keyboard route.
+   Keep its declared box independent of the floor for standalone offered controls. */
 .lf-gloss-mark {
+  min-width: 0; min-height: 0;
   position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
   opacity: 0; pointer-events: none;
 }
@@ -43,17 +46,27 @@
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 .lf-gloss-popover {
+  --lf-gloss-gap: 8px;
   position: fixed; inset: auto; position-area: block-end center;
   position-try-fallbacks: flip-block, flip-inline;
   box-sizing: border-box;
   width: max-content; max-width: min(22rem, calc(100vw - 24px));
-  margin: 8px 0; padding: 10px 13px 11px;
+  margin: var(--lf-gloss-gap) 0; padding: 10px 13px 11px;
   border: 1px solid var(--border-2);
   border-radius: var(--r); background: var(--card); color: var(--ink);
   box-shadow: 0 10px 28px var(--shade);
   font-family: var(--serif); font-size: var(--t-5); line-height: 1.45;
   text-align: left; white-space: normal;
   overflow-wrap: anywhere;
+  overflow: visible;
+}
+/* Keep the space to the phrase inside the card's hover region, above and below
+ * so CSS anchor flipping preserves the same pointer route. */
+@media screen {
+  .lf-gloss-popover::before {
+    content: ""; position: absolute;
+    inset: calc(-1 * var(--lf-gloss-gap)) 0; z-index: -1;
+  }
 }
 .lf-gloss-popover::backdrop { background: transparent; }
 @media print {
@@ -450,8 +463,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
    & > lf-option[chosen] > .lf-pick::before {
                      width: auto; height: auto; border: 0; background: transparent;
                      color: inherit; }
-   & > lf-option > .lf-key-badge,
-   & > lf-options-done > .lf-done > .lf-key-badge {
+   & > lf-option > .lf-key-badge {
                      inset-inline-start: auto; inset-inline-end: var(--sp-2); }
    & > lf-option > .lf-key-badge { top: var(--sp-2); }
    /* An empty draft offers only the route into its field, so that binding badge occupies
@@ -563,13 +575,8 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
  * final cell on the page and in a thread. */
 :scope:is(lf-options) > lf-options-done > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
                      border-color: var(--ok); background: var(--ok-tint); }
-/* Its Ask binding badge stands where the rows' do: in the binding column, centred on the
- * press, inside the cell rather than hung off its corner. */
 :scope:is(lf-options) > lf-options-done { display: grid; padding: 0; }
-:scope:is(lf-options) > lf-options-done > .lf-done { position: relative; width: 100%; }
-:scope:is(lf-options) > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-index: 1;
-                     inset-inline-start: var(--lf-key-badge-start);
-                     top: 0; bottom: 0; margin: auto 0; }
+:scope:is(lf-options) > lf-options-done > .lf-done { width: 100%; }
 /* A group under `choose` is one control, not a set of options standing near each other.
  * Deleting the offer word left the question of what says a decision is waiting, and the
  * answer is the group rather than another thing drawn on every member: a group offers and
@@ -634,7 +641,11 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 
   :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *) {
     display: grid; background: var(--card);
-    border: 1px solid var(--border-2); border-radius: var(--r); overflow: hidden;
+    border: 1px solid var(--border-2); border-radius: var(--r);
+    /* Clipped to its corners, not hidden: a hidden box is a scroll container, and the
+     * box a sticky header in an option sticks in, so a diff's file header there would
+     * scroll off with the page rather than pin under the banner. */
+    overflow: clip;
     /* Where the runtime runs, the authored options paint before their generated Add
      * and Done cells. Keep their rows occupied until upgrade so the next block stays
      * put. The form needs more room in a card because its action seat sits inside the
@@ -792,7 +803,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
                      position: static; }
   .lf-another > .lf-compose-field > leaf-text { flex: 1; min-width: 0; min-height: 0; padding: 0;
                      margin-inline-start: var(--lf-compose-text-margin-inline-start, 0px);
-                     padding-inline-end: var(--lf-option-action-room);
+                     --lf-field-end-room: var(--lf-option-action-room);
                      border: 0; outline: none; background: transparent; color: inherit;
                      font: var(--lf-option-font); resize: none; }
   .lf-another .lf-compose-placeholder { font: var(--lf-option-font); }
@@ -1023,15 +1034,25 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 }
 
 /* lf-milestones / lf-milestone: a rail of status dots. The rail and dots are
- * CSS; the chip row (`when`, `tags`) is built by the lf-milestone upgrade. */
-:scope:is(lf-milestones) { display: block; margin: 14px 0 14px 8px; }
-:scope:is(lf-milestone) { display: block; position: relative; padding: 0 0 16px 26px;
-               border-left: 2px solid var(--rule); --lf-block-frame: 1; }
+ * CSS; the chip row (`when`, `tags`) is built by the lf-milestone upgrade. The rail's
+ * inset is padding, so it stays inside the column the list keeps (`x-space`), as
+ * lf-chronology's does. */
+:scope:is(lf-milestones) { display: block; margin: 14px 0; padding-inline-start: 8px; }
+/* Each row's border owns the rail width. A marker centres on that border from
+ * the padding-box origin, independent of the marker's diameter or border. */
+:scope:is(lf-milestone, lf-chronology-entry) {
+  --lf-timeline-rule: 2px;
+  display: block; position: relative; padding: 0 0 16px 26px;
+  border-left: var(--lf-timeline-rule) solid var(--rule); --lf-block-frame: 1;
+}
+:scope:is(lf-milestone)::before, :scope:is(lf-chronology-entry)::after {
+  content: ""; position: absolute;
+  left: calc(var(--lf-timeline-rule) / -2); top: 0.5lh;
+  transform: translate(-50%, -50%); box-sizing: border-box;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--paper); border: 2px solid var(--muted);
+}
 :scope:is(lf-milestone):last-child { border-left-color: transparent; padding-bottom: 2px; }
-:scope:is(lf-milestone)::before { content: ""; position: absolute; left: -7px;
-                       top: calc(0.5lh - 7px);
-                       width: 10px; height: 10px; border-radius: 50%;
-                       background: var(--paper); border: 2px solid var(--muted); }
 :scope:is(lf-milestone)[status="done"]::before   { background: var(--ok); border-color: var(--ok); }
 :scope:is(lf-milestone)[status="active"]::before { border-color: var(--accent);
                                         box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
@@ -1064,22 +1085,22 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 
 /* lf-chronology / lf-chronology-entry: a chronology on a rail. The dot is ::after, absolute,
  * colored by kind; the time label is the `at` attribute, said above the title. */
-:scope:is(lf-chronology) { display: block; margin: 14px 0 14px 8px; }
-:scope:is(lf-chronology-entry) { display: block; position: relative; padding: 0 0 16px 26px;
-           border-left: 2px solid var(--rule); --lf-block-frame: 1; }
+:scope:is(lf-chronology) { display: block; margin: 14px 0; padding-inline-start: 8px; }
 :scope:is(lf-chronology-entry):last-child { border-left-color: transparent; padding-bottom: 2px; }
-:scope:is(lf-chronology-entry)::after { content: ""; position: absolute; left: -7px; top: 4px;
-                  width: 10px; height: 10px; border-radius: 50%;
-                  background: var(--paper); border: 2px solid var(--muted); }
+/* A timestamp is the row's first line. Its marker uses the same font size and
+ * inherited leading so 0.5lh names that line's centre before and after upgrade. */
+:scope:is(lf-chronology-entry)[at]:not([at=""])::after { font-size: var(--t-6); }
 :scope:is(lf-chronology-entry)[kind="observation"]::after    { background: var(--muted); }
 :scope:is(lf-chronology-entry)[kind="intervention"]::after  { background: var(--accent); border-color: var(--accent); }
 :scope:is(lf-chronology-entry)[kind="warning"]::after { background: var(--warn); border-color: var(--warn); }
 :scope:is(lf-chronology-entry)[kind="failure"]::after { background: var(--danger); border-color: var(--danger); }
-:scope:is(lf-chronology-entry)[at]::before,
+:scope:is(lf-chronology-entry)[at]:not([at=""])::before,
 :scope:is(lf-chronology-entry) > [data-lf-said="at"] { display: block; font-family: var(--mono);
                        font-size: var(--t-6); color: var(--muted); margin-bottom: 1px; }
-:scope:is(lf-chronology-entry)[at]::before { content: attr(at); }
-:scope:is(lf-chronology-entry):has(> [data-lf-said="at"])::before { content: none; }
+:scope:is(lf-chronology-entry)[at]:not([at=""]):not(:has(> [data-lf-said="at"]))::before {
+  content: attr(at);
+}
+:scope:is(lf-chronology-entry) > [data-lf-said="at"]:empty { display: none; }
 :scope:is(lf-chronology-entry) > strong { margin-right: 6px; }
 
 /* lf-compare / lf-variant: labeled columns; exhibition, not decision.
@@ -1159,8 +1180,10 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 /* The board's minimum is every column at its floor and the gaps between them. A layout
  * that respects a widget's minimum, as a flex item's or a grid track's automatic minimum
  * does, gives the board that much or wraps it onto a row of its own; held to less, the
- * board scrolls its columns inside itself. The nearest size container caps it: the
- * shell, or a framed box holding the board (a pane's body, a card), and a sample,
+ * board scrolls its columns inside itself. Its declared reach caps the minimum at the
+ * room its holder grants, including the page's occupied margins. A frame grants only
+ * its own width. Without a declared reach (a frozen message), the nearest size container
+ * caps it: a framed box holding the board (a pane's body, a card), and a sample,
  * which cannot be one, through `--lf-box-cap`. So a phone or a box narrower
  * than the minimum scrolls the board rather than the page. Screen only: a sheet has no room
  * beside the column to give, so on paper the board is the column's width. */
@@ -1168,7 +1191,8 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 @media screen {
   :scope:is(lf-board) { min-inline-size: min(calc(var(--lf-board-columns)
                * var(--lf-reading-column-floor) + (var(--lf-board-columns) - 1) * var(--sp-2)),
-               calc(100cqi - 2 * var(--col-pad)), var(--lf-box-cap, 100vw)); }
+               var(--lf-reach, calc(100cqi - 2 * var(--col-pad))),
+               var(--lf-box-cap, 100vw)); }
 }
 :scope:is(lf-board):has(> lf-column:nth-of-type(2)) { --lf-board-columns: 2; }
 :scope:is(lf-board):has(> lf-column:nth-of-type(3)) { --lf-board-columns: 3; }
@@ -1313,15 +1337,12 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
    inset ring cannot leave the box it names, at any scroll position. */
 :scope:is(lf-card) .lf-grip:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: card-grip; outline-offset: calc(-1 * var(--focus-ring-w));
           color: var(--ink-2); }
-/* SortableJS drag states: the in-flow slot, the pressed card, the follower. */
+/* SortableJS drag states on the real card: the in-flow slot and pressed card. */
 :scope:is(lf-card).lf-ghost { opacity: .4; border-style: dashed; border-color: var(--accent); }
 /* A held card says so with its contour. The lift's shadow alone does not show on the
    dark paper, which left a card grabbed by keyboard looking exactly like one whose grip
    is merely focused. */
 :scope:is(lf-card).lf-lift { box-shadow: 0 2px 8px var(--shade); border-color: var(--accent); }
-/* (No transform here: Sortable positions the follower with an inline matrix.) */
-:scope:is(lf-card).lf-inhand { opacity: 1; cursor: grabbing;
-                    box-shadow: 0 8px 24px var(--shade); }
 /* lf-tabs / lf-tab: several views, one panel on screen at a time. The
  * strip is generated by the upgrade; which tab is open is the user's view
  * state, so everything here is presentation. On a live page the strip is a
@@ -1331,22 +1352,26 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
  * as labeled sections. */
 :where(:scope:is(lf-tabs)) { display: block; margin: 14px 0; }
 :scope:is(lf-tab) { display: block; }
-:scope:is(lf-tab)::before { content: attr(label); display: block; font-size: var(--t-6);
-                 text-transform: uppercase; letter-spacing: .05em;
-                 color: var(--muted); margin: 18px 0 8px; }
+/* A stacked panel's name and a queue's group label (below) are one face: a small
+ * heading over what follows it. */
+:scope:is(lf-tab)::before, .lf-tabstrip .lf-tab-group {
+                 font-size: var(--t-6); text-transform: uppercase; letter-spacing: .05em;
+                 color: var(--muted); }
+:scope:is(lf-tab)::before { content: attr(label); display: block; margin: 18px 0 8px; }
 :scope:is(lf-tabs).lf-rendered > lf-tab { margin-top: 14px; }
 /* Laid out by the live-page block below; hidden until then, because a row of
  * buttons is worth showing only where something will answer one. */
-.lf-tabstrip { display: none; flex-wrap: wrap; gap: 2px;
+.lf-tabstrip { display: none; gap: 2px;
                border-bottom: 1px solid var(--border-2); }
 /* The aim floor is the padding, which a side list's column cannot squeeze out from under
  * a row's summary as it could a min-height. Of what stands between the floor and the
  * name's line, 4px is the name's own padding, and the foot keeps the 2px it has over
- * the head. */
+ * the head. A tab never shrinks: one that did would cut its own name, which the strip's
+ * scroll could never reach. */
 .lf-tabstrip .lf-tab-btn {
                padding: max(5px, (var(--aim-floor) - 1lh) / 2 - 3px) 7px
                         max(7px, (var(--aim-floor) - 1lh) / 2 - 1px);
-               min-width: var(--aim-floor);
+               min-width: var(--aim-floor); flex: none;
                display: inline-flex; align-items: center; justify-content: center;
                color: var(--muted); cursor: pointer; }
 .lf-tabstrip .lf-tab-btn:hover { color: var(--ink-2); }
@@ -1380,11 +1405,30 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
     border: 1px solid var(--border-2); border-radius: var(--r);
     background: var(--card); --lf-block-frame: 1; }
     /* One row of the strip is the stated height a page strip is (`--lf-tabstrip-h`), so
-     * the room the page keeps for it before upgrade (below) is one number. */
-  .lf-tabstrip { display: flex; padding: 8px 8px 0;
+     * the room the page keeps for it before upgrade (below) is one number.
+     *
+     * A strip is that one row whatever the set, so its names scroll sideways when they
+     * outrun it rather than wrapping onto rows the page could not keep before upgrade,
+     * which push the open panel down. A scrollbar would add to its height, so it draws
+     * none, and a press at either edge scrolls the names that run past it (lf-tabs.js),
+     * shown while the layer reads more that way (`data-lf-more-before`,
+     * `data-lf-more-after`, reach.js). A side list's column runs down instead, and
+     * scrolls nothing of its own (below). The press's own face fades the names under
+     * it into the strip's background, so the layer's edge fade is off. A finger or a
+     * trackpad scrolls the strip itself, and an opened tab brings itself into view. */
+  .lf-tabstrip { display: flex; padding: 8px var(--lf-tabstrip-pad) 0;
+    --lf-tabstrip-pad: 8px;
     box-sizing: border-box; min-block-size: var(--lf-tabstrip-h);
     border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
-    background: var(--field); }
+    --lf-tabstrip-bg: var(--field);
+    background: var(--lf-tabstrip-bg);
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    scroll-padding-inline: var(--lf-tabstrip-press);
+    --lf-tabstrip-press: 36px;
+    --lf-more-fade-to: #000; }
   :scope:is(lf-tabs).lf-rendered > lf-tab::before { content: none; } /* the strip carries the label */
     /* Padding belongs only to the panel on screen. An until-found panel keeps a box in
      * flow, so padding on every panel would leave one blank band per preceding tab. */
@@ -1405,9 +1449,15 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 
     /* A list beside its panels (`list="side"`): a queue beside the item it opens. The
      * list is a column left of the open panel wherever the set holds both, and a row
-     * over it below that, as a narrow window or a phone gives it, so the open item is
-     * never below the whole list. The set is the container its own parts ask, which
-     * is why the stacking is written on them and not on the set. */
+     * over it below that, as a narrow window or a phone gives it. That row is one line
+     * of rows scrolled sideways, so however long the queue, the open item stands one
+     * row down rather than below the whole list. The set is the container its own
+     * parts ask, which is why the stacking is written on them and not on the set.
+     *
+     * A row's summary is a line of a stated height (`--lf-tab-summary-h`), so a strip
+     * held to one row is one number the page keeps before upgrade (below): the strip's
+     * own row, and that line where any row has a summary. */
+  :scope:is(lf-tabs)[list="side"] { --lf-tab-summary-h: 17px; }
   :scope:is(lf-tabs)[list="side"].lf-rendered {
     container-type: inline-size;
     display: grid;
@@ -1418,8 +1468,8 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
     grid-column: 1;
     grid-row: 1;
     flex-direction: column;
-    flex-wrap: nowrap;
     gap: 0;
+    overflow: visible;
     padding: 8px;
     border-bottom: 0;
     border-inline-end: 1px solid var(--border-2);
@@ -1476,9 +1526,30 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
   :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-summary {
     grid-column: 1 / -1;
     grid-row: 2;
-    padding: 0 5px 2px;
+    padding: 0 5px;
     font-size: var(--t-6);
+    line-height: var(--lf-tab-summary-h);
     color: var(--muted);
+  }
+    /* Each run of rows sharing a group, or sharing none, is a box of its own
+     * (lf-tabs.js), ruled off from the run before it, so a row's run is the one the
+     * rule above it opens. A group's label heads its run in the column and is a word
+     * before the run's first tab in the row, centred on the names. It is no tab, so it
+     * takes no aim floor. */
+  :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip > .lf-tab-run {
+    display: flex;
+    flex-direction: column;
+  }
+  :scope:is(lf-tabs)[list="side"].lf-rendered
+    > .lf-tabstrip
+    > .lf-tab-run
+    + .lf-tab-run {
+    margin-block-start: 2px;
+    padding-block-start: 2px;
+    border-block-start: 1px solid var(--border-2);
+  }
+  :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-group {
+    padding: 4px 12px 2px;
   }
   :scope:is(lf-tabs)[list="side"].lf-rendered > lf-tab { grid-column: 2; grid-row: 1; }
   @container (width < 36rem) {
@@ -1486,12 +1557,83 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
       grid-column: 1 / -1;
       grid-row: auto;
       flex-direction: row;
-      flex-wrap: wrap;
+      gap: 2px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: 8px var(--lf-tabstrip-pad) 0;
       border-inline-end: 0;
       border-bottom: 1px solid var(--border-2);
       border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
     }
+    :scope:is(lf-tabs)[list="side"].lf-rendered:has(> lf-tab[summary]) > .lf-tabstrip {
+      min-block-size: calc(var(--lf-tabstrip-h) + var(--lf-tab-summary-h));
+    }
+    :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-btn {
+      max-inline-size: 16rem;
+    }
+    :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip > .lf-tab-run {
+      flex: none;
+      flex-direction: row;
+      gap: 2px;
+    }
+    :scope:is(lf-tabs)[list="side"].lf-rendered
+      > .lf-tabstrip
+      > .lf-tab-run
+      + .lf-tab-run {
+      margin-block-start: 0;
+      padding-block-start: 0;
+      border-block-start: 0;
+      padding-inline-start: 4px;
+      border-inline-start: 1px solid var(--border-2);
+    }
+    :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-group {
+      flex: none;
+      align-self: center;
+      padding: 0 4px;
+    }
+    :scope:is(lf-tabs)[list="side"].lf-rendered
+      > .lf-tabstrip
+      .lf-tab-btn
+      > :is(.lf-tab-name, .lf-tab-summary) {
+      max-inline-size: 100%;
+      box-sizing: border-box;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
     :scope:is(lf-tabs)[list="side"].lf-rendered > lf-tab { grid-column: 1 / -1; grid-row: auto; }
+  }
+  /* A side list told it has a definite height to fill (`--lf-full-height`, layouts.css),
+   * as a full-height workspace's body is, takes that height, and its list and its open
+   * item each scroll on their own, as a mail client's do: walking a long queue never
+   * moves the item being read, and reading down a long item never moves the queue. Each
+   * is a reading region (lf-tabs.js). Stacked, the list is a row of its own height over
+   * the item, which takes the rest; beside the item, both span the two rows, and an item
+   * spanning the flexible row adds nothing to the row its own height would size. */
+  @container style(--lf-full-height: 1) {
+    :scope:is(lf-tabs)[list="side"].lf-rendered {
+      grid-template-rows: auto minmax(0, 1fr);
+      --lf-full-height: inherit;
+    }
+    :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip { grid-row: 1; }
+    :scope:is(lf-tabs)[list="side"].lf-rendered > lf-tab { grid-row: 2; }
+    @container (width >= 36rem) {
+      :scope:is(lf-tabs)[list="side"].lf-rendered > :is(.lf-tabstrip, lf-tab) {
+        grid-row: 1 / -1;
+      }
+    }
+    /* Only the open panel stretches: a closed one kept for find-in-page
+     * (`hidden="until-found"`) still has a box in the same cell, and stretched it would
+     * stand over the open one and take its presses. */
+    :scope:is(lf-tabs)[list="side"].lf-rendered
+      > :is(.lf-tabstrip, lf-tab:not([hidden])) {
+      align-self: stretch;
+      min-block-size: 0;
+      overflow: auto;
+      --lf-top: 0px;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+    }
   }
 
     /* A set in the page's flow (the root set, its strip a row; lf-tabs.js) is
@@ -1499,9 +1641,12 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
      * sticky horizontal index, one panel shown. It lays out nothing
      * of its own. The strip and the panel are blocks of `main` like any other, so they
      * take the page's width, column or wide, and whatever stands in `main` beside the set
-     * (a header, a sidebar) stays where it would on a page without tabs. */
+     * (a header, a sidebar) stays where it would on a page without tabs. Even a short
+     * view fills the window below the sticky inset, so switching to it can land the
+     * strip at that inset without the document's end clamping the scroll. */
   :where(:scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="page"]) {
     margin-block: 0 32px;
+    min-block-size: calc(100dvh - var(--lf-top));
     border: 0;
     border-radius: 0;
     background: transparent;
@@ -1523,40 +1668,19 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
     z-index: 2;
     box-sizing: border-box;
     block-size: var(--lf-tabstrip-h);
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding: 8px 0 0;
     border-radius: 0;
-    background: var(--paper);
-  }
-    /* A scrollbar would add to that height, so the strip draws none, and a press at
-     * either edge scrolls the names that run past it (lf-tabs.js), shown while the
-     * layer reads more that way (`data-lf-more-before`, `data-lf-more-after`,
-     * reach.js). The press's own face fades the names under it, so the layer's edge
-     * fade is off here. A finger or a trackpad scrolls the strip itself, and an opened
-     * tab brings itself into view. */
-  :scope:is(lf-tabs)[data-lf-tabs-flow="page"] > .lf-tabstrip {
-    scrollbar-width: none;
-    scroll-padding-inline: var(--lf-tabstrip-press);
-    --lf-tabstrip-press: 36px;
-    --lf-more-fade-to: #000;
-  }
-  :scope:is(lf-tabs)[data-lf-tabs-flow="page"] > .lf-tabstrip > .lf-tabstrip-scroll {
-    display: block;
-  }
-    :scope:is(lf-tabs)[data-lf-tabs-flow="page"] > .lf-tabstrip[data-lf-more-before]
-      > .lf-tabstrip-scroll[data-to="start"],
-    :scope:is(lf-tabs)[data-lf-tabs-flow="page"] > .lf-tabstrip[data-lf-more-after]
-  > .lf-tabstrip-scroll[data-to="end"] {
-    visibility: visible;
+    --lf-tabstrip-pad: 0px;
+    --lf-tabstrip-bg: var(--paper);
   }
     /* Each press stands at its edge without taking room in the row: a box no wider
      * than nothing, stuck to that edge, whose face lies over the names beside it and
-     * fades into them. */
+     * fades into them. Its negative margin returns the strip's gap, so a press coming
+     * and going moves no name. It sticks at the strip's own edge rather than inside the
+     * strip's inline padding (`--lf-tabstrip-pad`), which a sticky box otherwise keeps
+     * clear, so no name shows unfaded beside the face and the face covers exactly the
+     * strip's `scroll-padding`. */
   .lf-tabstrip-scroll {
     display: none;
-    visibility: hidden;
     position: sticky;
     z-index: 1;
     flex: none;
@@ -1564,11 +1688,11 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
     align-self: stretch;
   }
   .lf-tabstrip-scroll[data-to="start"] {
-    inset-inline-start: 0;
+    inset-inline-start: calc(-1 * var(--lf-tabstrip-pad));
     margin-inline-end: -2px;
   }
   .lf-tabstrip-scroll[data-to="end"] {
-    inset-inline-end: 0;
+    inset-inline-end: calc(-1 * var(--lf-tabstrip-pad));
     margin-inline-start: -2px;
   }
   .lf-tabstrip-scroll > span {
@@ -1582,31 +1706,34 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
     color: var(--muted);
     cursor: pointer;
   }
+  .lf-tabstrip[data-lf-more-before] > .lf-tabstrip-scroll[data-to="start"],
+  .lf-tabstrip[data-lf-more-after] > .lf-tabstrip-scroll[data-to="end"] {
+    display: block;
+  }
   .lf-tabstrip-scroll > span:hover { color: var(--ink); }
   .lf-tabstrip-scroll[data-to="start"] > span::before { content: "‹" / ""; }
   .lf-tabstrip-scroll[data-to="end"] > span::before { content: "›" / ""; }
   .lf-tabstrip-scroll[data-to="start"] > span {
     inset-inline-start: 0;
     justify-content: flex-start;
-    background: linear-gradient(to right, var(--paper) 55%, transparent);
+    background: linear-gradient(to right, var(--lf-tabstrip-bg) 55%, transparent);
   }
   .lf-tabstrip-scroll[data-to="end"] > span {
     inset-inline-end: 0;
     justify-content: flex-end;
-    background: linear-gradient(to left, var(--paper) 55%, transparent);
+    background: linear-gradient(to left, var(--lf-tabstrip-bg) 55%, transparent);
   }
   .lf-tabstrip-scroll[data-to="start"]:dir(rtl) > span {
-    background: linear-gradient(to left, var(--paper) 55%, transparent);
+    background: linear-gradient(to left, var(--lf-tabstrip-bg) 55%, transparent);
   }
   .lf-tabstrip-scroll[data-to="end"]:dir(rtl) > span {
-    background: linear-gradient(to right, var(--paper) 55%, transparent);
+    background: linear-gradient(to right, var(--lf-tabstrip-bg) 55%, transparent);
   }
   .lf-tabstrip-scroll[data-to="start"]:dir(rtl) > span::before { content: "›" / ""; }
   .lf-tabstrip-scroll[data-to="end"]:dir(rtl) > span::before { content: "‹" / ""; }
-    /* The strip scrolls when its names outrun it; a tab that shrank instead would
-     * cut its own name, which the strip's scroll could never reach. The name's 2px
-     * rule comes out of the aim floor's padding, a pixel from each side. */
-  :scope:is(lf-tabs)[data-lf-tabs-flow="page"] > .lf-tabstrip .lf-tab-btn { flex: none;
+    /* The name's 2px rule comes out of the aim floor's padding, a pixel from each
+     * side. */
+  :scope:is(lf-tabs)[data-lf-tabs-flow="page"] > .lf-tabstrip .lf-tab-btn {
     padding-block: max(5px, (var(--aim-floor) - 1lh) / 2 - 4px)
     max(7px, (var(--aim-floor) - 1lh) / 2 - 2px); }
     :scope:is(lf-tabs)[data-lf-tabs-flow="page"]
@@ -1634,7 +1761,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
     align-self: start;
     height: 0;
     min-height: 0;
-    overflow: hidden;
+    overflow: clip;
     pointer-events: none;
   }
 
@@ -1643,13 +1770,17 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
      * module writes, and the panel it opens on alone, which the prepaint marks
      * (`data-lf-opening`, runtime/prepaint.js) as the one the module will open. The
      * page's flow is the first set in `main` whose list is a row, as lf-tabs.js decides
-     * it (`#syncRootContext`). Not reserved: names that wrap the strip onto a second
-     * row, and a side list taller than its panel. A page whose runtime is missing
-     * what it needs to start loses the mark (runtime/prepaint.js) and keeps the
-     * stacked, labeled panels, since no strip will come to reach the hidden ones. */
+     * it (`#syncRootContext`). Not reserved: a side list taller than its panel. A page
+     * whose runtime is missing what it needs to start loses the mark
+     * (runtime/prepaint.js) and keeps the stacked, labeled panels, since no strip will
+     * come to reach the hidden ones. Each margin sits under :where, as the upgraded
+     * set's does, so the edge trim takes it off a set at its frame's edge from the
+     * first paint too. */
   @scope (html[data-lf-interactive] :scope) {
+    :where(:scope:is(lf-tabs):not(.lf-rendered):has(> lf-tab)) {
+      margin: var(--sp-4) 0 32px; }
     :scope:is(lf-tabs):not(.lf-rendered):has(> lf-tab){
-      margin: var(--sp-4) 0 32px; border: 1px solid var(--border-2);
+      border: 1px solid var(--border-2);
       border-radius: var(--r); background: var(--card); --lf-block-frame: 1;
       &::before { content: ""; display: block; box-sizing: border-box;
         block-size: var(--lf-tabstrip-h); border-bottom: 1px solid var(--border-2);
@@ -1661,9 +1792,12 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
     }
   }
   @scope (html[data-lf-interactive] body > main > :scope) {
+    :where(:scope:is(lf-tabs):not(.lf-rendered):nth-child(1 of lf-tabs):not(
+    [list="side"]):has(> lf-tab)) { margin-block: 0 32px; }
     :scope:is(lf-tabs):not(.lf-rendered):nth-child(1 of lf-tabs):not(
     [list="side"]):has(> lf-tab){
-      margin-block: 0 32px; border: 0; border-radius: 0; background: transparent;
+      border: 0; border-radius: 0; background: transparent;
+      min-block-size: calc(100dvh - var(--lf-top));
       --lf-block-frame: 0;
       &::before { border-radius: 0; background: var(--paper); }
       & > lf-tab { padding: var(--sp-4) 0 0; --lf-block-frame: trim; }
@@ -1681,6 +1815,8 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
         &::before { grid-column: 1 / -1; grid-row: auto; border-inline-end: 0;
           border-bottom: 1px solid var(--border-2);
           border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0; }
+        &:has(> lf-tab[summary])::before {
+          block-size: calc(var(--lf-tabstrip-h) + var(--lf-tab-summary-h)); }
         & > lf-tab { grid-column: 1 / -1; grid-row: auto; }
       }
     }
@@ -1691,6 +1827,11 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
  * content-visibility it carries is undone here. */
 @media print {
   :scope:is(lf-tabs).lf-rendered > lf-tab { content-visibility: visible !important; }
+  /* Stacked on paper, a queue's panel carries its group before its name, since no list
+   * stands over the panels to say it. */
+  :scope:is(lf-tabs)[list="side"] > lf-tab[group]::before {
+    content: attr(group) " · " attr(label);
+  }
 }
 
 /* lf-shot: Web Awesome owns the live draggable divider. The pair's natural-width
@@ -1700,7 +1841,8 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
  * of the host and the transparent native checkbox covers them — one fallback for loading
  * and controls-off alike.
  * Print stacks both frames. */
-:scope:is(lf-shot) { display: block; margin: 16px 0; }
+:scope:is(lf-shot) { display: block; margin: 16px 0;
+    --lf-shot-rail-size: max(34px, var(--aim-floor)); }
 :scope:is(lf-shot):has(.lf-shotframe) { display: grid; }
 /* Where the runtime runs, the rail and the frame stand empty from the first paint, the
  * frame in the pair's shape, which delivery reads from the images
@@ -1708,7 +1850,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
  * arrive in a box that is already there. */
 @scope (html[data-lf-interactive] :scope) {
   :scope:is(lf-shot):not(:has(> .lf-shotrail)){
-    &::before { content: ""; display: block; height: 34px; border: 1px solid var(--rule);
+    &::before { content: ""; display: block; height: var(--lf-shot-rail-size); border: 1px solid var(--rule);
       border-bottom: 0; border-radius: var(--r) var(--r) 0 0; background: var(--card); }
     &::after { content: ""; display: block; box-sizing: border-box;
       aspect-ratio: attr(data-lf-media-width type(<number>)) /
@@ -1746,7 +1888,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 :scope:is(lf-shot) .lf-shotframe img { display: block; width: 100%; height: auto;
     background: var(--card); }
 :scope:is(lf-shot) .lf-shotrail { display: flex; grid-area: 1 / 1; align-items: center;
-    justify-content: space-between; height: 34px; padding: 0 11px;
+    justify-content: space-between; height: var(--lf-shot-rail-size); padding: 0 11px;
     border: 1px solid var(--rule); border-bottom: 0;
     border-radius: var(--r) var(--r) 0 0; color: var(--muted);
     background: var(--card); }
@@ -1888,7 +2030,9 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
  * the one reading of the route and keeps every word the map says; the open outline on
  * screen sits under the title and leaves it out. It is still navigation apparatus, so
  * weight and ink distinguish it within the same sans voice as the section labels. Their common inset then reads as one route rather than two typographic systems.
- * Depth changes only the labels' inset. Labels stop at two lines, so prose never
+ * The title and top-level sections use 9px and 6px rings; deeper sections use 3px
+ * dots. The current destination fills its marker. All markers share the spine's
+ * centre, while depth also changes the labels' inset. Labels stop at two lines, so prose never
  * distorts the document-scale rows.
  * The open and paper forms retain the complete words. */
 :scope:is(lf-toc) { display: block; margin: var(--sp-4) 0 30px; }
@@ -1952,6 +2096,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
                            transition: background-color .24s ease-out; }
       :scope:is(lf-toc) .lf-toc-heading { display: none; }
       :scope:is(lf-toc) .lf-toc-rows { position: relative; display: flex; height: 100%;
+                            --lf-toc-spine-width: 1px;
                             flex-direction: column; }
       /* At rest the map takes presses on its spine alone, a strip one step wide, so it
        * never stands over the page's words beside it (the column claims no margin for
@@ -1966,12 +2111,13 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
         :is(:scope:is(lf-toc), :scope:is(lf-toc) .lf-toc-nav){ pointer-events: auto; }
       }
       :scope:is(lf-toc) .lf-toc-rows::before { content: ""; position: absolute;
-                                    z-index: 0; top: 0; bottom: 0; left: 0; width: 1px;
+                                    z-index: 0; top: 0; bottom: 0; left: 0;
+                                    width: var(--lf-toc-spine-width);
                                     background: var(--border-2); }
       /* One pixel tall, scaled to the lens's length by the widget's scroll-driven
        * animation, which the compositor runs. */
       :scope:is(lf-toc) .lf-toc-window { display: block; position: absolute; z-index: 1;
-                              top: 0; left: 0; width: 1px; height: 1px;
+                              top: 0; left: 0; width: var(--lf-toc-spine-width); height: 1px;
                               transform-origin: top; background: var(--ink-2); }
       /* A row is a span of the spine, and its link hangs from the row's top and may run
        * past the row's foot when rows are dense. The row takes no presses, so the next
@@ -1986,12 +2132,19 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
       :scope:is(lf-toc) .lf-toc-start::before, :scope:is(lf-toc) li::before {
         content: ""; position: absolute; z-index: 2;
         top: var(--lf-toc-row-shift, 0px);
-        transform: translateY(-50%);
-        left: -1px; width: 3px; height: 3px; border-radius: 50%;
+        transform: translate(-50%, -50%);
+        left: calc(var(--lf-toc-spine-width) / 2);
+        box-sizing: border-box; width: 3px; height: 3px; border-radius: 50%;
         background: var(--muted);
       }
+      :scope:is(lf-toc) .lf-toc-start::before { width: 9px; height: 9px; }
+      :scope:is(lf-toc) li[data-lf-depth="0"]::before { width: 6px; height: 6px; }
+      :scope:is(lf-toc) .lf-toc-start::before,
+      :scope:is(lf-toc) li[data-lf-depth="0"]::before {
+        border: 1px solid var(--muted); background: var(--paper);
+      }
       :scope:is(lf-toc) :is(.lf-toc-start, li):has(> a[aria-current="location"])::before {
-        background: var(--ink-2);
+        background: var(--ink-2); border-color: var(--ink-2);
       }
       :scope:is(lf-toc) li[data-lf-depth="1"] { --lf-toc-indent: 10px; }
       :scope:is(lf-toc) li[data-lf-depth="2"] { --lf-toc-indent: 20px; }
@@ -2071,12 +2224,15 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 }
 @media (forced-colors: active) {
   :scope:is(lf-toc) .lf-toc-rows::before,
-  :scope:is(lf-toc) .lf-toc-start::before, :scope:is(lf-toc) li::before {
-    forced-color-adjust: none; background: CanvasText;
+  :scope:is(lf-toc) .lf-toc-start::before, :scope:is(lf-toc) li::before,
+  :scope:is(lf-toc) li[data-lf-depth="0"]::before {
+    forced-color-adjust: none; background: CanvasText; border-color: CanvasText;
   }
+  :scope:is(lf-toc) .lf-toc-start::before,
+  :scope:is(lf-toc) li[data-lf-depth="0"]::before { background: Canvas; }
   :scope:is(lf-toc) .lf-toc-window,
   :scope:is(lf-toc) :is(.lf-toc-start, li):has(> a[aria-current="location"])::before {
-    forced-color-adjust: none; background: Highlight;
+    forced-color-adjust: none; background: Highlight; border-color: Highlight;
   }
 }
 
@@ -2129,9 +2285,10 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
  * wide or more, the list stands in a 16rem track beside the premise and evidence and
  * sticks while they scroll, so the question, its figure and every option share one
  * window. 50rem leaves the evidence 32rem at the least, which a chart and a short
- * table still read at; a narrower Ask stacks like any other. A reading column is narrower, so in
- * a column the track takes the room the page grants the Ask with `data-width`
- * (authoring-asks.md); room the page did not grant stays the render check's to refuse.
+ * table still read at; a narrower Ask stacks like any other. An Ask keeps the reading
+ * column on every page (`x-space`), so the track takes the room the page grants the Ask
+ * or its figure with `data-width` (authoring-asks.md); room the page did not grant stays
+ * the render check's to refuse.
  * The content decides the form, so there is no attribute for it. An Ask of words alone
  * stays stacked: its context is shorter than a list set at 16rem, so a track would
  * leave a column of air beside the list. A control other than a list has no room in
@@ -2155,12 +2312,9 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
  * Ask's as it would have the heading's. The list drops its end margin in favour of
  * whatever follows.
  *
- * A container also re-bases `cqi`, which `--lf-room` is written in (layouts.css), so a
- * breakout inside the Ask would measure the Ask rather than the shell. The Ask resolves
- * that room once, as its parent would, and hands it to its children as a length.
- * Beside the list, the free room is set to zero, so nothing in the context reaches
- * under the track. */
-@property --lf-ask-room { syntax: "<length-percentage>"; inherits: true; initial-value: 0px; }
+ * The page resolves its room before a child container can rebase its lengths.
+ * Beside the list, each context block receives only the evidence track's allocation;
+ * its minimum and descendants cannot claim the answer track's room. */
 /* The Ask that qualifies says so to its own children (`--lf-ask-track`, which does not
  * inherit), and each rule below asks its parent with a style query. An ordinary Ask held
  * inside one, among its evidence or in an option, finds the same named container, but
@@ -2168,26 +2322,28 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 @property --lf-ask-track { syntax: "<integer>"; inherits: false; initial-value: 0; }
 :scope:is(lf-ask):has(> :is(h1, h2, h3, h4, h5, h6):first-child ~ :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options:last-child) {
   container: lf-ask / inline-size;
-  --lf-ask-room: var(--lf-room, 0px);
   --lf-ask-track: 1;
   & > :is(h1, h2, h3, h4, h5, h6):first-child { margin-block-start: 0; }
 }
 @container lf-ask (width >= 0) {
   @container style(--lf-ask-track: 1) {
-    :scope:is(lf-ask) > * { --lf-room: var(--lf-ask-room); }
     :scope:is(lf-ask) > lf-options { margin-block-end: 0; }
   }
 }
 @container lf-ask (width >= 50rem) {
   @container style(--lf-ask-track: 1) {
-    /* `:nth-child(n)` outranks what sets a block's own width and margins, such as a
-     * declared width (`[data-lf-space]`) or `.facts`. The heading's end margin stands
+    /* `:nth-child(n)` outranks what sets a block's own width and margins in this layer,
+     * such as `.facts`. A breakout (`[data-lf-space]`, layouts.css) stands in a higher
+     * layer and sets only the margins it grows by, so the block gives it no room to grow
+     * into (`--lf-room`, `--lf-free-l`, `--lf-free-r`). The heading's end margin stands
      * above the first block and the list alike. */
     :scope:is(lf-ask) > :not(:first-child, lf-options):nth-child(n) {
       float: inline-start;
       clear: inline-start;
       inline-size: calc(100% - 16rem - var(--sp-4));
+      min-inline-size: 0;
       margin-block-end: 0;
+      --lf-room: 100%;
       --lf-free-l: 0px;
       --lf-free-r: 0px;
     }
@@ -2205,15 +2361,17 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 :where(:scope:is(lf-ask):has(> :is(h1, h2, h3, h4, h5, h6):first-child ~ :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options:last-child)) {
   margin-block-start: var(--sp-4);
 }
-/* An Ask that is a full-height workspace's body (`--lf-full-height` on main, layouts.css) and is a
- * heading and one answer gives the answer what the heading leaves, so a widget composing
- * its own regions there, such as a playground, fills the window. With context between
- * the two there is no one box to give the height to, so every part keeps its own.
- * `--lf-full-height` inherits, so the query holds for every Ask in the workspace; only
- * the one that is main's child is the body, and an Ask in a pane stays in block flow. */
+/* An Ask told it has a definite height to fill (`--lf-full-height`, layouts.css), as a
+ * full-height workspace's body is, that is a heading and one answer gives the answer
+ * what the heading leaves and tells it so, so a widget composing its own regions there,
+ * such as a playground, fills the window. With context between the two there is no one
+ * box to give the height to, so every part keeps its own. */
 @container style(--lf-full-height: 1) {
-  :scope:is(main > lf-ask) { display: flex; flex-direction: column; }
-  :scope:is(main > lf-ask) > :nth-child(2):last-child {
+  :scope:is(lf-ask) { display: flex; flex-direction: column; }
+  :scope:is(lf-ask):has(> :nth-child(2 of :not(script, style, template)):nth-last-child(1 of :not(script, style, template))) {
+    --lf-full-height: inherit;
+  }
+  :scope:is(lf-ask) > :nth-child(2 of :not(script, style, template)):nth-last-child(1 of :not(script, style, template)) {
     flex: 1 1 0;
     min-block-size: 0;
     margin-block-end: 0;
@@ -2416,17 +2574,6 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 :scope:is(lf-tree) ul { list-style: none; margin: 0; padding-left: 0; }
 :scope:is(lf-tree) ul ul { padding-left: 18px; border-left: 1px solid var(--rule); margin-left: 5px; }
 :scope:is(lf-tree) li { margin: 3px 0; }
-/* Where the runtime runs, each line of the body stands at the pitch its rendered row will (a
- * row, and the 3px between rows), so the tree takes its height from the first paint.
- * The line's half of the gap above the first row and below the last stays inside the
- * box, as the rendered rows' outer margins leave it. */
-@scope (html[data-lf-interactive] :scope) {
-  :scope:is(lf-tree):not(.lf-rendered){ display: flow-root; }
-}
-@scope (html[data-lf-interactive] :scope) {
-  :scope:is(lf-tree):not(.lf-rendered) > pre{
-    line-height: calc(var(--code-line) + 3px); margin-block: -1.5px; }
-}
 :scope:is(lf-tree) .lf-tree-dir { font-weight: 600; }
 /* nowrap because the module appends name and badges with no whitespace between them and
  * spaces them by margin, so a line is one word to the breaker: told it may break inside
@@ -2550,8 +2697,8 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 @media screen {
   :scope:is(lf-text-document)[data-lf-bound] { max-block-size: none; overflow: visible;
     --lf-top: inherit; }
-  :scope:is(lf-text-document)[data-lf-bound] pre { max-block-size: var(--lf-bound, 28rem);
-    overflow: auto; overscroll-behavior: contain; --lf-bound-box: 1; --lf-top: 0px; }
+  :scope:is(lf-text-document):not([preview])[data-lf-bound] pre { max-block-size: var(--lf-bound, 28rem);
+    overflow: auto; --lf-bound-box: 1; --lf-top: 0px; }
 }
 /* A long capture becomes a keyboard-reachable scroller inside the evidence frame.
    Keep its generic focus ring inside that frame: the figure clips at its rounded
@@ -2560,83 +2707,52 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 
-/* A draft keeps the page's type and frame while its shared Markdown editor opens.
-   Plain text retains its reading geometry; Markdown takes the field's common face.
-   Keep the reading body in flow until the editor has content, so its initial layout
-   cannot collapse a scrolled page or pane. Edit, Save and Cancel belong to the target's
-   contribution surface; native history keeps its allocated row below the text.
-   The frame carries the inset focus ring, and print keeps the saved reading body
-   while dropping editing controls. */
-:scope:is(lf-draft) { display: block; border: 1px dashed var(--border-2); border-radius: 6px;
-           padding: 10px 14px; margin: 12px 0; background: var(--card); }
-.lf-draft-body, .lf-draft-edit.lf-ui { white-space: pre-wrap; }
-/* The authored <pre> stands where the drawn body will, so it wraps as that body does
-   and drops what the module's decoder drops (`decodeBodyRecord`, projection/authored.js):
-   the indentation the HTML around it gave every line, and the line of spaces before an
-   indented closing tag. pre-line keeps the draft's line breaks and drops both, so the first
-   paint has the drawn body's lines; it reads otherwise only where the draft's own lines
-   are indented relative to one another or hold runs of spaces. */
+/* Drafts read as Markdown, with editor operations in their own stable footer.
+   Reserve that footer before upgrade; actual history shares it rather than adding
+   an empty Changes row. The frame holds focus, and print retains saved prose. */
+:scope:is(lf-draft) { display: block; border: 1px solid var(--border-2); border-radius: 6px;
+  padding: 10px 14px; margin: 12px 0; background: var(--card);
+  font-size: max(var(--entry-floor), 1em); }
+.lf-draft-body, :scope:is(lf-draft) > .lf-markdown-body { white-space: normal; }
+:is(.lf-draft-body, :scope:is(lf-draft) > .lf-markdown-body) > :first-child { margin-top: 0; }
+:is(.lf-draft-body, :scope:is(lf-draft) > .lf-markdown-body) > :last-child { margin-bottom: 0; }
 :scope:is(lf-draft) > pre { white-space: pre-line; }
-.lf-draft-pencil { opacity: 1; }
-/* The one control whose face is deliberately the document's: the box shows the page's
-   words in the page's serif, or the word under the press reflows out from under the
-   pointer the moment the box opens. Stated unlayered, so it outranks the runtime's layered
-   UA-clearing and the chrome face .lf-ui would otherwise put on it. */
 .lf-draft-edit.lf-ui { display: block; width: 100%; padding: 0; border: 0; background: none;
-           font: inherit; min-height: 0; max-height: none; overflow: hidden; }
-/* The editor is a field, so on a touch screen it stands on --entry-floor (shadow.css);
-   the box holds its shown words on the same floor, or a draft in a 14px sidenote opens a
-   size larger than the words it showed. */
-:scope:is(lf-draft) { font-size: max(var(--entry-floor), 1em); }
+  font: inherit; min-height: 0; max-height: none; overflow: hidden; }
 .lf-draft-edit.lf-ui:is(:focus, .lf-focus) { outline: none; box-shadow: none;
-           --lf-focus-ring: none; }
-.lf-draft-history { display: none; }
+  --lf-focus-ring: none; }
+.lf-draft-footer { display: none; }
 @media screen {
-
-    /* The box is the door (lf-draft.js), so the box answers the pointer: the dashed
-       edge it already wears to say "editable" sharpens under the aim, the way the
-       layer's own pressables warm their ground. Not the ground here — the user is
-       about to type on it, and the words have to stay the page's words while they
-       decide. A quoted draft is an exhibit with no door and gets none of this. */
-  :scope:is(lf-draft):not(:where([data-lf-exhibit]) *):not(:has(.lf-draft-edit)):hover {
-    border-color: var(--muted); }
-  :scope:is(lf-draft):has(.lf-draft-edit) { border-style: solid;
-    border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
-    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
+  @scope (html[data-lf-interactive] :scope) {
+    :scope:is(lf-draft):not(:where([data-lf-exhibit], [data-lf-exhibit] *)) {
+      display: grid;
+      grid-template-rows: minmax(min-content, auto) minmax(max(32px, var(--aim-floor)), auto);
+      gap: 8px;
+    }
+  }
+  :scope:is(lf-draft):has(.lf-draft-edit) { border-color: var(--muted); }
   :scope:is(lf-draft):has(.lf-draft-edit:focus) { outline: var(--focus-ring);
     --lf-focus-ring: draft-editor;
     outline-offset: calc(-1 * (var(--focus-ring-w) + var(--focus-ring-gap))); }
   :scope:is(lf-draft):has(.lf-draft-edit:state(ready)) > .lf-draft-body { display: none; }
-  .lf-draft-history { display: block; }
-
-  /* The live draft's second row belongs to its native history disclosure from the
-     parser's first paint. The complete reading supplies the real summary; until
-     then the same row is empty. Its minimum is the native details spacing and one
-     chrome line, so opening history can grow it without a measured-height cache.
-     The text row keeps its content minimum even when the shared field clips overflow,
-     so a bounded draft scrolls its words instead of shrinking that row. */
-  @scope (html[data-lf-interactive] :scope) {
-    :scope:is(lf-draft):not(:where([data-lf-exhibit], [data-lf-exhibit] *)) {
-      display: grid;
-      grid-template-rows: minmax(min-content, auto) minmax(calc(3 * var(--details-padding-block) +
-        var(--details-margin-block) + 2 * var(--details-border) +
-        var(--t-5) * var(--lf-ui-lh)), auto);
-    }
-  }
-
+  .lf-draft-footer { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 8px 12px;
+    min-width: 0; font: var(--t-5)/var(--lf-ui-lh) var(--sans); }
+  .lf-draft-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-inline-start: auto; }
+  .lf-draft-action { min-height: max(32px, var(--aim-floor)); }
+  .lf-draft-status { color: var(--danger-ink); align-self: center; }
+  .lf-draft-status:empty { display: none; }
+  .lf-draft-history { flex: 1; min-width: 0; margin: 0; padding: 0; border: 0;
+    --lf-block-frame: 1; font: inherit; color: var(--ink-2); }
+  .lf-draft-history[hidden] { display: none; }
+  .lf-draft-history > summary { width: max-content; max-width: 100%; cursor: pointer;
+    padding-block: 5px; color: var(--muted); }
+  .lf-draft-history > summary:hover { color: var(--ink-2); }
 }
 @media (forced-colors: active) {
-  :scope:is(lf-draft):has(.lf-draft-edit:focus){
+  :scope:is(lf-draft):has(.lf-draft-edit:focus) {
     outline: 2px solid Highlight; outline-offset: -5px; box-shadow: none;
   }
 }
-.lf-draft-history { margin-top: var(--details-padding-block);
-                    padding-top: var(--details-padding-block);
-                    border-top: var(--details-border) solid var(--rule);
-                    --lf-block-frame: 1;
-                    font-size: var(--t-5); color: var(--ink-2); }
-.lf-draft-history > summary { width: max-content; cursor: pointer; color: var(--muted); }
-.lf-draft-history > summary:hover { color: var(--ink-2); }
 .lf-draft-current { margin: 10px 0; }
 .lf-draft-current > strong { display: block; margin-bottom: 4px; }
 .lf-draft-revisions { margin: 0; padding-left: 20px; }
@@ -2648,3 +2764,31 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 .lf-draft-delta ins { background: var(--add-tint); color: var(--ok-ink);
                       text-decoration: none; }
 .lf-draft-restore { flex: none; font-size: var(--t-6); }
+
+/* Source and preview share one inspection viewport. Its height is independent of
+   either reading's length, so switching keeps the strip and following page still. */
+:scope:is(lf-text-document)[preview] > .lf-text-document-view {
+  background: var(--paper);
+}
+:scope:is(lf-text-document)[preview] .lf-text-document-view > lf-tabs {
+  margin: 0; border: 0; border-radius: 0;
+}
+:scope:is(lf-text-document)[preview] .lf-text-document-view > lf-tabs > lf-tab {
+  margin: 0; padding: 0;
+}
+:scope:is(lf-text-document) div.lf-text-document-preview {
+  padding: var(--sp-4); overflow-wrap: anywhere;
+}
+:scope:is(lf-text-document) iframe.lf-text-document-preview {
+  display: block; inline-size: 100%; block-size: var(--lf-bound, 28rem); border: 0;
+  background: white;
+}
+@media screen {
+  :scope:is(lf-text-document)[preview] .lf-text-document-view > lf-tabs > lf-tab:not([hidden]) {
+    block-size: var(--lf-bound, 28rem);
+    overscroll-behavior: auto;
+  }
+  :scope:is(lf-text-document) iframe.lf-text-document-preview {
+    block-size: 100%;
+  }
+}

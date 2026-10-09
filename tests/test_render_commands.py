@@ -41,7 +41,6 @@ from render_harness import (
     REPLY_HOST_PAGE,
     SAMPLE_MARKUP,
     SAMPLE_TEXT,
-    SETTLED_PAGE,
     consume_browser_errors,
     example_media,
     leaf_page,
@@ -51,6 +50,7 @@ from render_harness import (
     primed,
     resized,
     scroll_settled,
+    select,
     shortcut_bar_text,
 )
 
@@ -109,38 +109,29 @@ def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
     )
 
 
-def test_the_gate_passes_a_page_whose_collapsed_cards_lie_on_each_other(browser, serve):
-    """Words drawn on other words is a question about the screen, and a collapse is the
-    page being asked to take words off it. The cards behind a settled row wear
-    hidden="until-found" so find-in-page still reaches them, which is content-visibility
-    rather than display, and checkVisibility answers for neither: they read as drawn, and
-    each reports the box it last laid out in, so all three land on one another. That is
-    the collapse working, and COVERED_WORDS says why it is held out.
-
-    On a fresh load whether they report at all is a coin, which is no basis for a test.
-    Opening the row and closing it again settles it: the cards lay out for real, and the
-    boxes they keep afterwards are that layout."""
-    url = serve(SETTLED_PAGE)
+def test_the_gate_passes_collapsed_words_that_overlap_when_visible(browser, serve):
+    """Collapsing overlapping words removes them from the gate's screen reading."""
+    url = serve(
+        leaf_page(
+            "collapsed words",
+            '<h1>Collapsed words</h1><div id="collapsed" hidden="until-found">'
+            '<p style="position:absolute;top:100px;left:100px;margin:0">First hidden line</p>'
+            '<p style="position:absolute;top:100px;left:100px;margin:0">Second hidden line</p>'
+            "</div>",
+        )
+    )
     page = open_page(browser, url)
-    row = page.locator("#transport .lf-settled")
-    card = page.locator("#transport #opt-lax")
-
-    row.click()
-    expect(card).to_be_visible()
-    row.click()
-    expect(card).to_be_hidden()
-
-    # The gate's own reading, taken here rather than left to render_version: that opens a
-    # fresh page, which is the coin again, and this page is the one holding the layout the
-    # cards kept. Then the same named reading with its collapsed-content hold disabled.
-    held, reported = (
-        render_checks_model.evaluate_probe(page, "coveredWords"),
-        render_checks_model.evaluate_probe(page, "coveredWords", {"holdHidden": False}),
+    collapsed = page.locator("#collapsed")
+    collapsed.evaluate("node => node.removeAttribute('hidden')")
+    expect(collapsed.locator("p").first).to_be_visible()
+    visible = render_checks_model.evaluate_probe(page, "coveredWords")
+    assert any("hidden line" in found for found in visible), (
+        "the visible lines fell on nobody, so a gate that never looked would pass this too"
     )
-    assert held == []
-    assert any("opt-" in found for found in reported), (
-        "the cards fell on nobody, so a gate that never looked would pass this too"
-    )
+    collapsed.evaluate("node => node.setAttribute('hidden', 'until-found')")
+    expect(collapsed.locator("p").first).to_be_hidden()
+
+    assert render_checks_model.evaluate_probe(page, "coveredWords") == []
     page.close()
     assert render_gate_model.render_version(browser, url).failures == []
 
@@ -206,9 +197,9 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve, headless_shell)
     so the preview server has to expose the exact candidate without activating it.
 
     Over the clean source once through each browser a host can supply: the installed
-    Chrome the default channel finds, and the executable a browser variable names —
-    leaf's own and one of the two that predate it, since a host that set CHROME_PATH
-    for another tool has named this browser too. The default arm states every
+    Chrome the default channel finds, and the executable leaf's browser variable
+    names. That each older variable names a browser too is
+    `test_a_named_browser_that_is_not_one_names_the_variable`'s. The default arm states every
     variable empty rather than inheriting whatever the developer or the job
     exported, since a set one would otherwise turn the channel this arm exists to
     cover into a second run of the other. A runner image really does export
@@ -237,12 +228,11 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve, headless_shell)
 
     ok = gate()
     assert ok.returncode == 0, ok.stderr
-    assert "renders clean in Chrome" in ok.stdout
+    assert "render checks passed in Chrome" in ok.stdout
 
-    for variable in ("LEAF_BROWSER_EXECUTABLE", "CHROME_PATH"):
-        named = gate(variable=variable, executable=headless_shell)
-        assert named.returncode == 0, named.stderr
-        assert f"renders clean in {headless_shell}" in named.stdout
+    named = gate(variable="LEAF_BROWSER_EXECUTABLE", executable=headless_shell)
+    assert named.returncode == 0, named.stderr
+    assert f"render checks passed in {headless_shell}" in named.stdout
 
     # A vw width slips the static lint (which counts only px) and overflows only
     # in a layout engine.
@@ -261,8 +251,8 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     bottom at the desktop viewport and on a phone, and one screen at each width where
     the page's own arrangement is at its tightest before it changes. A sidebar page with
     four tiles in its body changes twice there: its tiles wrap before its track stacks.
-    Each open Ask, a suggestion as much as an lf-ask, gets the window `a` brings it
-    into, as the user working the page meets it, including those `a` reaches past a
+    Each open Ask, a suggestion as much as an lf-ask, gets the window `q` brings it
+    into, as the user working the page meets it, including those `q` reaches past a
     page widget move handed back to the user, which is a stop of its own and no Ask.
     A second check replaces the first's screens rather than adding to them."""
     tiles = "".join(
@@ -301,7 +291,7 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
             "revision": 1,
             "widget": "ship",
             "action": "choose",
-            "detail": {"options": ["ship-now"]},
+            "detail": {"value": ["ship-now"]},
         },
     )
     append_carried_log_record(
@@ -338,7 +328,7 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     assert {"1200px-1.png", "1920px-1.png", "390px-1.png"} <= set(names)
     assert {"1200px-ask-1.png", "1200px-ask-2.png", "1200px-ask-3.png"} <= set(names)
     assert "1200px-ask-4.png" not in names
-    assert any("each press of `a`" in line for line in listed)
+    assert any("each press of `q`" in line for line in listed)
     assert any('"Pre-handover review"' in line for line in listed)
     stacks = next(line for line in listed if "<main> 1+2 → 1+1+1" in line)
     assert (into / stacks.split(":")[0].strip()).exists()
@@ -457,8 +447,9 @@ def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_pa
 def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_shell):
     """Exercise the copied artifact a harness installs, never an import from this checkout.
 
-    Its browser gate runs on both of the browsers a host can supply, since the install
-    is where a host with a Chromium and no Chrome meets it."""
+    Its browser gate runs on a named Chromium, since the install is where a host with
+    a Chromium and no Chrome meets it; the default channel's Chrome is
+    `test_check_render_refuses_what_only_a_browser_can_see`'s."""
     root = Path(__file__).parent.parent
     installed = install_payload(tmp_path / "host" / "leaf")
     launcher = installed / "bin" / "leaf"
@@ -497,17 +488,56 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
     )
     assert stamp.returncode == 0, stamp.stderr
 
-    for executable in ("", headless_shell):
-        rendered = subprocess.run(
-            [launcher, "page", "check", page_dir, "--render"],
-            cwd=elsewhere,
-            capture_output=True,
-            text=True,
-            check=False,
-            env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": executable},
+    rendered = subprocess.run(
+        [launcher, "page", "check", page_dir, "--render"],
+        cwd=elsewhere,
+        capture_output=True,
+        text=True,
+        check=False,
+        env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": headless_shell},
+    )
+    assert rendered.returncode == 0, rendered.stderr
+    assert "render checks passed" in rendered.stdout
+
+
+@pytest.mark.parametrize("touch", [False, True])
+def test_shot_captions_have_disjoint_targets_inside_their_rail(browser, serve, touch):
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=touch
+    )
+    page = open_page(
+        browser,
+        serve(SHOT_PAGE, media={SHOT_SRC[n]: d for n, d in SHOTS.items()}),
+        context=context,
+    )
+    rail = page.locator("lf-shot .lf-shotrail")
+    caps = rail.locator(".lf-shotcap")
+    rail.scroll_into_view_if_needed()
+    floor = 44 if touch else 24
+    boxes = [cap.bounding_box() for cap in caps.all()]
+    bounds = rail.bounding_box()
+    assert len(boxes) == 2
+    for box in boxes:
+        assert min(box["width"], box["height"]) >= floor - 0.5, box
+        assert box["y"] >= bounds["y"]
+        assert box["y"] + box["height"] <= bounds["y"] + bounds["height"]
+    assert boxes[0]["x"] + boxes[0]["width"] <= boxes[1]["x"]
+    for index, position in [(0, "100"), (1, "0")]:
+        cap = caps.nth(index)
+        cap.click()
+        expect(page.locator("lf-shot wa-comparison")).to_have_attribute(
+            "position", position
         )
-        assert rendered.returncode == 0, rendered.stderr
-        assert "renders clean" in rendered.stdout
+        assert cap.bounding_box() == boxes[index]
+    # The captions remain selectable words, rather than native buttons that swallow a drag.
+    box = boxes[0]
+    select(
+        page,
+        (box["x"] + 5, box["y"] + box["height"] / 2),
+        (box["x"] + box["width"] - 5, box["y"] + box["height"] / 2),
+    )
+    assert "before" in page.evaluate("getSelection().toString()").lower()
+    expect(page.locator("lf-shot wa-comparison")).to_have_attribute("position", "0")
 
 
 def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
@@ -1196,7 +1226,7 @@ def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path, headless_shell):
         assert run.returncode == 1, run.stdout + run.stderr
         # "needs Playwright" here would mean the shim dispatched the plain `uv run`.
         # The report names the widget and gives the renderer's reason, not the source.
-        assert "✗ page code: 1 error(s)" in run.stderr
+        assert "Error: page code reported 1 error" in run.stderr
         assert '<lf-diagram id="d-broken"> failed:' in run.stderr
         assert "is unsupported" in run.stderr
         assert "Ada,Review,3" not in run.stderr
@@ -1265,7 +1295,7 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
     (d / "index.html").write_text(FILM_PAGE)
     broken = check(LEAF_BROWSER_EXECUTABLE=headless_shell)
     assert broken.returncode == 1, broken.stdout + broken.stderr
-    assert "✗ page code: 2 error(s)" in broken.stderr
+    assert "Error: page code reported 2 errors" in broken.stderr
     assert "map is not a function" in broken.stderr
     assert "/page/film.js:2)" in broken.stderr
     assert "Error: the trace never loaded" in broken.stderr
@@ -1286,9 +1316,7 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
     )
     clean = check(LEAF_BROWSER_EXECUTABLE=headless_shell)
     assert clean.returncode == 0, clean.stdout + clean.stderr
-    assert f"✓ page code: runs through upgrade and first paint in {headless_shell}" in (
-        clean.stdout
-    )
+    assert f"✓ page code: no errors in {headless_shell}" in (clean.stdout)
 
 
 def test_a_widget_that_fails_in_a_message_reports_when_its_thread_draws(

@@ -8,11 +8,16 @@
 import { reportPageError } from "./layer-client.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 
+const initialized = new WeakSet();
+
 // One-shot guard for connectedCallback: re-connection (a parent wrapping or moving an
-// already-upgraded child) must be harmless, so upgrade order can't matter.
+// already-upgraded child) must be harmless. A clone starts its own lifetime even when
+// it copied the painted upgrade mark; that mark never owns initialization.
 export function once(el) {
-  if (el.hasAttribute(PAGE_PAINT_ATTRIBUTE.done)) return false;
-  el.setAttribute(PAGE_PAINT_ATTRIBUTE.done, "1");
+  if (initialized.has(el)) return false;
+  initialized.add(el);
+  if (!el.hasAttribute(PAGE_PAINT_ATTRIBUTE.done))
+    el.setAttribute(PAGE_PAINT_ATTRIBUTE.done, "1");
   return true;
 }
 
@@ -29,8 +34,8 @@ export const dataBody = (el) => el.querySelector(":scope > pre").textContent;
 // whitespace are the <pre>'s layout, not lines. `page check` holds an x-numbering to
 // the lines of this same trim (`_body_text`, validation/instances.py). trimEnd removes
 // the class collapse.js's COLLAPSE spells, which Python names outright because its own
-// \s differs at the edges. A notation whose trailing whitespace is content, a diff's,
-// reads `dataBody` instead.
+// \s differs at the edges. Notations whose whitespace is content, such as a diff or
+// exact Markdown source, read `dataBody` instead.
 export const bodyText = (el) => dataBody(el).replace(/^\n+/, "").trimEnd();
 
 // A failed upgrade becomes a visible error box rather than a blank page. A widget failure

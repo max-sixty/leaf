@@ -8,8 +8,9 @@ The sample's output is what a judge needs: the user's request and each version's
 screenshots by width, written to `shots`, the one directory its judge may read.
 `rubrics` are the Promptfoo `agent-rubric` assertions the judge grades from it by
 opening the screenshots; the fixed checks cover execution and the render gate.
-Leaf also seeds a choice after the common comparison, asks a fresh reader for its
-current state, and checks that a separate resumed revision preserves that choice.
+For a task that asks for a decision, Leaf also seeds a choice after the common
+comparison, asks a fresh reader for its current state, and checks that a separate
+resumed revision preserves that choice. Readable records have no invented decision.
 """
 
 import json
@@ -19,30 +20,31 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from leaf.harness import ClaudeCodeHarness
 from leaf.render_checks import rendered
 from leaf.structure import SourceDocument
 
 from leaf_dev import ROOT, arrangement_plain
 from leaf_dev.arms import (
-    blocks,
     completed,
     observed_sum,
     read_trace,
     run_agent,
     run_leaf,
+    scratch,
     serving,
-    token_counts,
+    trace_summary,
 )
 from leaf_dev.arms import trace_result as result
 from leaf_dev.browser import chrome, load, settle, tab
 from leaf_dev.usability_eval import admit
 
 TASKS = ROOT / "evals"
-CASES = ("document", "dashboard", "queue")
 PHASES = (1, 2)
 WIDTHS = {
     "laptop": ((1440, 900), "a 1440px laptop window"),
     "narrow": ((900, 900), "a 900px window"),
+    "short": ((900, 600), "a short 900px by 600px window"),
     "phone": ((390, 844), "a 390px phone"),
 }
 PREFERENCE = (
@@ -51,19 +53,29 @@ PREFERENCE = (
     'contents or queue beside the main content rather than stacked above or below it."'
 )
 
-VOCAB = {
-    **{
-        f"layout-{kind}": rf"class=\"[^\"]*\blayout-{kind}\b"
-        for kind in ("column", "wide", "sidebar", "tiles", "workspace")
-    },
-    "lf-pane": r"<lf-pane\b",
-    "data-width": r"\bdata-width=",
-    "data-rail": r"\bdata-rail=",
-    "panel": r"class=\"[^\"]*(?<![\w-])panel\b",
-    "sidebar": r"class=\"[^\"]*(?<![\w-])sidebar\b",
-    "sidenote": r"class=\"[^\"]*(?<![\w-])sidenote\b",
-    "data-bound": r"\bdata-bound=",
-    "lf-tabs": r"<lf-tabs\b",
+
+@dataclass(frozen=True)
+class Scenario:
+    choice: bool
+    quality: str = ""
+
+
+CASES = {
+    "document": Scenario(choice=True),
+    "dashboard": Scenario(choice=True),
+    "queue": Scenario(choice=True),
+    "sidebar-page-at-900px": Scenario(
+        choice=False,
+        quality=(
+            "The completed rollout's forty entries must remain readable in the "
+            "document's scroll, rather than showing only one screen of a separate "
+            "listing. At both 900px window heights, all six checks and their failing "
+            "result stay accessible beside the log as it scrolls. Page navigation "
+            "and any supporting sidebar content remain reachable; a sticky box must "
+            "not hold them below the window. On a phone, the regions stack without covering "
+            "the log or hiding its entries."
+        ),
+    ),
 }
 
 
@@ -73,8 +85,12 @@ class Run:
     payload: Path
     directory: Path
     shots: Path
-    harness: str = "cc"
+    harness: str = ClaudeCodeHarness.name
     condition: str = "leaf"
+
+    @property
+    def needs_choice(self) -> bool:
+        return self.condition == "leaf" and CASES[self.subject].choice
 
     @property
     def work(self) -> Path:
@@ -109,9 +125,10 @@ def first_prompt(payload: Path, page: Path, subject: str, condition="leaf") -> s
     return f"""{tooling}
 
 Write the page at {page}/index.html. This run is non-interactive: nobody will
-answer in the page. Produce a finished record with readable evidence and usable
-choices. You may use the browser tooling available on this machine. Do not start
-an agent feedback watcher or wait for input. Reply with one line naming the path.
+answer in the page. Produce a finished record with readable evidence and the
+choices or navigation the request needs. You may use the browser tooling available
+on this machine. Do not start an agent feedback watcher or wait for input. Reply
+with one line naming the path.
 
 The user's request follows.
 
@@ -185,12 +202,7 @@ def author(run: Run, cwd: Path) -> None:
             run.directory / "page",
             ignore=shutil.ignore_patterns("service.json", "*.lock"),
         )
-    if (
-        run.condition == "leaf"
-        and page.exists()
-        and completed(first)
-        and completed(second)
-    ):
+    if run.needs_choice and page.exists() and completed(first) and completed(second):
         seed_and_read_choice(run)
         continuation = (
             f"The user has reviewed {page}. Add a short Review status note saying "
@@ -240,7 +252,7 @@ def seed_and_read_choice(run: Run) -> None:
                 "widget": widget,
                 "action": "choose",
                 "revision": state["active"]["revision"],
-                "detail": {"options": [chosen]},
+                "detail": {"value": [chosen]},
                 "attempt": "authored-choice-0001",
             },
         )
@@ -254,7 +266,7 @@ def seed_and_read_choice(run: Run) -> None:
         events_before = (page / "events.jsonl").read_bytes()
         destination = run.directory / "reader"
         destination.mkdir()
-        with tempfile.TemporaryDirectory(prefix="leaf-authored-reader-") as temporary:
+        with scratch() as work:
             prompt = (
                 f"Read the Leaf skill at {run.payload}/skills/leaf/SKILL.md. "
                 f"The page at {page} has been reviewed by a user. Read its current "
@@ -263,7 +275,7 @@ def seed_and_read_choice(run: Run) -> None:
             )
             (destination / "prompt.txt").write_text(prompt)
             trace = run_agent(
-                Path(temporary),
+                work,
                 prompt,
                 out=destination / "stream.jsonl",
                 err=destination / "err.txt",
@@ -286,101 +298,9 @@ def seed_and_read_choice(run: Run) -> None:
             and events_before == (page / "events.jsonl").read_bytes(),
             "answer": answer,
             "correct": isinstance(answer, dict) and answer.get("options") == [chosen],
-            "trace": trace_scores(destination / "stream.jsonl"),
+            "trace": trace_summary(trace),
         }
     (run.directory / "choice.json").write_text(json.dumps(record, indent=2))
-
-
-def trace_scores(stream: Path) -> dict:
-    if not stream.exists():
-        return {"missing": True}
-    trace = read_trace(stream)
-    calls, results, reads = {}, {}, []
-    for block in blocks(trace):
-        if block.get("type") == "tool_use":
-            calls[block["id"]] = block
-        elif block.get("type") == "tool_result":
-            results[block["tool_use_id"]] = block
-    checks = renders = refused = writes = 0
-    delegations = []
-    for cid, call in calls.items():
-        name, inp = call["name"], call.get("input", {})
-        if name in ("Agent", "Task", "spawn_agent", "spawnAgent"):
-            returned = results.get(cid)
-            delegations.append(
-                {
-                    "tool": name,
-                    "task": inp,
-                    "returned": returned is not None,
-                    "successful": returned is not None
-                    and not returned.get("is_error", False),
-                }
-            )
-        if name == "Bash":
-            cmd = inp.get("command", "")
-            if "page check" in cmd and "--help" not in cmd:
-                checks += 1
-                renders += "--render" in cmd
-                # The exit status is often masked by a pipe or a chained command, so
-                # read the check's own verdict mark. A `| tail` that cuts the mark off
-                # hides a failure, so this is a floor.
-                out = results.get(cid, {}).get("content")
-                out = (
-                    out if isinstance(out, str) else json.dumps(out, ensure_ascii=False)
-                )
-                refused += "✗" in out
-            elif "index.html" in cmd and re.search(
-                r"-pi\b|sed -i|write_text|open\([^)]*['\"]w|>\s*\S*index\.html", cmd
-            ):
-                writes += 1
-            reads += re.findall(r"references/[\w-]+\.md", cmd)
-            reads += [f"registry:{k}" for k in re.findall(r'\.\["([^"]+)"\]', cmd)]
-        elif name == "Read":
-            reads.append(Path(inp.get("file_path", "")).name)
-        elif name in ("Write", "Edit") and "index.html" in inp.get("file_path", ""):
-            writes += 1
-    done = result(trace)
-    return {
-        "completed": completed(trace),
-        "finished": bool(done),
-        "turns": done.get("num_turns"),
-        "is_error": done.get("is_error"),
-        "cost_usd": done.get("total_cost_usd"),
-        "cost_known": done.get("total_cost_usd") is not None,
-        "minutes": round(done.get("duration_ms", 0) / 60000, 1),
-        **token_counts(trace),
-        "checks": checks,
-        "renders": renders,
-        "refused": refused,
-        "page_writes": writes,
-        "reads": sorted(set(reads)),
-        "delegation_invocations": len(delegations),
-        "delegations": delegations,
-        "reply": (done.get("result") or "")[-300:],
-    }
-
-
-def page_scores(page: Path) -> dict:
-    html = (page / "index.html").read_text()
-    styles = re.findall(r"<style[^>]*>(.*?)</style>", html, re.DOTALL)
-    css_lines = [line for s in styles for line in s.splitlines() if line.strip()]
-    scripts = re.findall(r"<script[^>]*>(.*?)</script>", html, re.DOTALL)
-    js_lines = [line for s in scripts for line in s.splitlines() if line.strip()]
-    linked = 0
-    if (page / "page").is_dir():
-        for f in (page / "page").rglob("*.css"):
-            linked += sum(1 for line in f.read_text().splitlines() if line.strip())
-        for f in (page / "page").rglob("*.js"):
-            js_lines += [line for line in f.read_text().splitlines() if line.strip()]
-    return {
-        "css_lines": len(css_lines) + linked,
-        "css_bytes": sum(len(s) for s in styles),
-        "style_attrs": len(re.findall(r'\sstyle="[^"]*"', html)),
-        "js_lines": len(js_lines),
-        "vocab": {
-            k: len(re.findall(p, html)) for k, p in VOCAB.items() if re.search(p, html)
-        },
-    }
 
 
 def gate(run: Run, phase: int, page: Path) -> dict:
@@ -479,7 +399,8 @@ def rubrics(scenario: str) -> list[dict]:
                 "value": JUDGING.format(phase=phase)
                 + f"Pass only if, at every width, version {phase} keeps the request's "
                 "substantive information, lets the user find and read the evidence, and "
-                "provides the decisions or navigation the request needs.",
+                "provides the decisions or navigation the request needs. "
+                + CASES[scenario].quality,
             }
             for phase in PHASES
         ),
@@ -514,14 +435,20 @@ def expected_checks(case: str, *, condition="leaf") -> list[str]:
                 "choice-revised",
                 "choice-preserved",
             ]
-            if condition == "leaf"
+            if condition == "leaf" and CASES[case].choice
             else []
         ),
     ]
 
 
 def execute_scenario(
-    case: str, payload: Path, work: Path, *, shots: Path, harness="cc", condition="leaf"
+    case: str,
+    payload: Path,
+    work: Path,
+    *,
+    shots: Path,
+    harness=ClaudeCodeHarness.name,
+    condition="leaf",
 ) -> dict:
     """Execute only the selected condition; Promptfoo owns the condition matrix."""
     work.mkdir(parents=True, exist_ok=True)
@@ -536,7 +463,7 @@ def execute_scenario(
     costs = []
     with tempfile.TemporaryDirectory(prefix="leaf-author-") as temporary:
         author(run, Path(temporary) / "cwd")
-        if condition == "leaf":
+        if run.needs_choice:
             choice_path = work / "choice.json"
             choice = json.loads(choice_path.read_text()) if choice_path.exists() else {}
             diagnostics["choice"] = choice
@@ -546,7 +473,7 @@ def execute_scenario(
             checks["choice-reader-page-unchanged"] = (
                 choice.get("page_unchanged") is True
             )
-            continuation = trace_scores(work / "stream-3.jsonl")
+            continuation = trace_summary(read_trace(work / "stream-3.jsonl"))
             checks["choice-continuation-completed"] = (
                 continuation.get("completed") is True
             )
@@ -576,13 +503,13 @@ def execute_scenario(
                     and r["holder"]["attrs"].get("id") == choice["widget"]
                 ]
                 checks["choice-preserved"] = (
-                    standing[0]["detail"]["options"] if standing else authored_choice
+                    standing[0]["detail"]["value"] if standing else authored_choice
                 ) == choice["options"]
                 reader_trace = choice["trace"]
                 costs.append(reader_trace["cost_usd"])
         captures = capture(run)
         for phase in PHASES:
-            trace = trace_scores(work / f"stream-{phase}.jsonl")
+            trace = trace_summary(read_trace(work / f"stream-{phase}.jsonl"))
             costs.append(trace.get("cost_usd"))
             checks[f"phase-{phase}-completed"] = bool(trace.get("completed"))
             page = run.page(phase)
@@ -594,7 +521,6 @@ def execute_scenario(
                 checks[f"phase-{phase}-render"] = reading["passed"]
                 row |= {
                     "page": str(page),
-                    "page_scores": page_scores(page),
                     "gate": reading,
                 }
             diagnostics["phases"][phase] = row

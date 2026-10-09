@@ -9,14 +9,14 @@ or follow live work in a page you can comment on and change. The agent responds 
 revising the page.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/c3b6312fcf8d06b1cd70f16fab27c1865eb0ee6d/demo/session-dark.png">
-  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/c3b6312fcf8d06b1cd70f16fab27c1865eb0ee6d/demo/session-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/497955af2086d976459a567c3e7a6150075bf8bb/demo/session-dark.png">
+  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/497955af2086d976459a567c3e7a6150075bf8bb/demo/session-light.png">
 </picture>
 
 <details>
 <summary>Watch the comment-and-revision loop</summary>
 
-![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/c3b6312fcf8d06b1cd70f16fab27c1865eb0ee6d/demo/demo.gif)
+![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/497955af2086d976459a567c3e7a6150075bf8bb/demo/demo.gif)
 
 </details>
 
@@ -29,25 +29,27 @@ You need [`uv`](https://docs.astral.sh/uv/),
 [`jq`](https://jqlang.github.io/jq/download/) 1.6 or newer on `PATH`, and a
 browser that can reach the machine the agent runs on. No Leaf account or
 configuration is required.
+Leaf ships a prepared browser runtime. Users and package authors never need to
+build Leaf or run npm; custom widgets are ordinary browser JavaScript.
 
 Claude Code:
 
 ```
-/plugin marketplace add max-sixty/leaf
+/plugin marketplace add max-sixty/leaf#prepared
 /plugin install leaf@leaf
 ```
 
 Codex:
 
 ```
-codex plugin marketplace add max-sixty/leaf
+codex plugin marketplace add max-sixty/leaf --ref prepared
 codex plugin add leaf@leaf
 ```
 
 Pi (a highly experimental trial, which the rest of these docs don't cover yet):
 
 ```
-pi install git:github.com/max-sixty/leaf
+pi install git:github.com/max-sixty/leaf@prepared
 ```
 
 Then ask: “Use Leaf to write up the options for this change.” The explicit skill is
@@ -59,6 +61,9 @@ The result opens in a browser page; its comments return to the same agent task.
 <details>
 <summary>Browser and environment requirements</summary>
 
+Known functional limitations and accepted visual differences in current browsers
+are recorded in [Browser support gaps](notes/browser-support.md).
+
 The first run syncs the plugin's uv environment through your configured package
 index. Render checks use the executable named by
 `LEAF_BROWSER_EXECUTABLE`, `CHROME_PATH`, or `CHROME_BIN`, then installed Google
@@ -68,6 +73,11 @@ Chrome, then the first `google-chrome`, `google-chrome-stable`, `chrome`,
 In Claude Code, a page messages its session when input arrives while nothing watches
 it, as after a turn you interrupted. A session that bypasses permissions holds that message for
 your approval unless Claude Code's `crossSessionInbound` setting is `"accept"`.
+
+Leaf's "Watch pages with a hooks module" option, in `/config`, moves that watch into a
+Claude Code hooks module, an early-access Claude Code feature, which goes on watching
+after a turn you interrupt. A Claude Code that doesn't load hooks modules keeps the
+default watch.
 
 </details>
 

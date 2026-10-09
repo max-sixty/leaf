@@ -11,6 +11,8 @@
   },
   "overrides": {
     "@anthropic-ai/claude-agent-sdk": "$@anthropic-ai/claude-agent-sdk",
-    "get-uri": {"basic-ftp": "6.2.1"}
+    "get-uri": {
+      "basic-ftp": "6.2.1"
+    }
   }
 }

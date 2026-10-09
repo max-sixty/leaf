@@ -1,4 +1,7 @@
-/* Generic task rows retain their compact chip projection. A command surface owns its
+/* Every task is a named group, so its authored nesting is also its accessible
+ * hierarchy. Its own title supplies the name directly, including later text edits;
+ * status, prose, controls and child tasks remain readable inside that group.
+ * Generic task rows retain their compact chip projection. A command surface owns its
  * richer row projection at the root, so ordinary task trees never inherit fleet UI. */
 import { once, widgetController } from "/runtime/widget-api.js";
 import { closestCommandRole } from "/widgets/command-model.js";
@@ -32,17 +35,14 @@ customElements.define(
   "lf-task",
   class extends HTMLElement {
     #controller = widgetController(this);
-    #stop = null;
 
     connectedCallback() {
-      if (once(this) && !closestCommandRole(this.parentElement, "command"))
-        renderChips(this);
-      this.#stop ??= this.#controller.subscribe(() => {});
-    }
-
-    disconnectedCallback() {
-      this.#stop?.();
-      this.#stop = null;
+      if (!once(this)) return;
+      this.setAttribute("role", "group");
+      const title = this.querySelector(":scope > strong");
+      if (title) this.ariaLabelledByElements = [title];
+      if (!closestCommandRole(this.parentElement, "command")) renderChips(this);
+      this.#controller.subscribe(() => {});
     }
 
     renderState(state) {

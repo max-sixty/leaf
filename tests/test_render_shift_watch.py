@@ -2,6 +2,7 @@
 (`shift_watch.js`): a shift without input, and typing that carries its field."""
 
 from datetime import UTC, datetime, timedelta
+from html import escape
 from urllib.parse import quote
 
 import pytest
@@ -15,6 +16,7 @@ from render_harness import (
     open_page,
     panel_settled,
     resized,
+    scroll_settled,
     take_browser_errors,
 )
 
@@ -43,6 +45,22 @@ def paint(page):
     page.screenshot()
 
 
+def held_stretch(page):
+    """Idle frames the sensor keeps unchanged readings for, on a CPU as slow as a CI
+    runner's, so a credited move that follows is compared from a held frame
+    (`shift_watch.js`, "Unchanged frames") with the frame timing CI has."""
+    page.context.new_cdp_session(page).send(
+        "Emulation.setCPUThrottlingRate", {"rate": 6}
+    )
+    page.evaluate(
+        """count => new Promise((done) => {
+          const next = () => (--count ? requestAnimationFrame(next) : done());
+          requestAnimationFrame(next);
+        })""",
+        60,
+    )
+
+
 def field_page(browser, key=""):
     page = browser.new_page()
     page.goto("data:text/html," + quote(FIELD))
@@ -62,6 +80,209 @@ def test_typing_may_grow_its_field(browser):
     page = field_page(browser, "grow")
     page.locator("#field").fill("a")
     judge_watches()
+
+
+@pytest.mark.parametrize("nested", [False, True])
+def test_hidden_opaque_frames_drain_without_waiting_for_suppressed_paint(
+    browser, nested
+):
+    """The owner is visible only to the driver, including an ancestor above a child."""
+    child = '<p id="reading">An isolated document.</p>'
+    embedded = f'<iframe sandbox="allow-scripts" srcdoc="{escape(child, quote=True)}"></iframe>'
+    if nested:
+        embedded = f'<iframe hidden srcdoc="{escape(embedded, quote=True)}"></iframe>'
+    else:
+        embedded = embedded.replace("<iframe ", "<iframe hidden ", 1)
+    page = browser.new_page()
+    page.goto("data:text/html," + quote(f"<!doctype html><body>{embedded}</body>"))
+    frame = page.frame_locator("iframe")
+    if nested:
+        frame = frame.frame_locator("iframe")
+    expect(frame.locator("#reading")).to_have_text("An isolated document.")
+    assert frame.locator("#reading").evaluate(
+        "() => !document.hidden && window.frameElement === null"
+    )
+    judge_watches()
+
+    page.locator("iframe").evaluate("element => { element.hidden = false; }")
+    expect(frame.locator("#reading")).to_be_visible()
+    frame.locator("#reading").evaluate(PAINTED)
+    judge_watches()
+
+    # Hide an ancestor after the driver starts a drain whose native paint is held.
+    # Completion must use refreshed visibility rather than the initial true value.
+    page.evaluate("""() => {
+      window.hiddenDuringDrain = false;
+      window.hideDrainingFrame = event => {
+        if (event.data !== 'sensor-draining') return;
+        document.querySelector('iframe').hidden = true;
+        hiddenDuringDrain = true;
+      };
+      addEventListener('message', hideDrainingFrame);
+    }""")
+    frame.locator("#reading").evaluate("""() => {
+      const nativeFrame = lfWatchPlatform.frame;
+      window.restoreFrames = () => { lfWatchPlatform.frame = nativeFrame; };
+      lfWatchPlatform.frame = () => {
+        if (window.lfWatchJudgement && !lfWatchJudgement.complete)
+          top.postMessage('sensor-draining', '*');
+      };
+    }""")
+    reading = frame.locator("#reading").element_handle()
+    child_frame = reading.owner_frame()
+    reading.dispose()
+    try:
+        judge_watches()
+        assert page.evaluate("hiddenDuringDrain") is True
+    finally:
+        child_frame.evaluate("restoreFrames()")
+        page.evaluate("removeEventListener('message', hideDrainingFrame)")
+
+
+def test_hidden_returns_protect_only_the_resumed_reading(browser, serve):
+    """The return boundary ends at presentation, including two rapid absences."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Return boundary",
+                '<div id="above"></div><p id="reading">Read here.</p>',
+            )
+        ),
+    )
+    held = []
+    page.route("**/api/news", lambda route: held.append(route))
+    page.evaluate("""async () => {
+      window.returnBoundary = await window.__lfRuntimeImport('/runtime/reading-continuity.js');
+      window.returnVisibility = 'visible';
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true, get: () => window.returnVisibility,
+      });
+      window.setReturnVisibility = value => {
+        window.returnVisibility = value;
+        document.dispatchEvent(new Event('visibilitychange'));
+      };
+      setReturnVisibility('hidden'); setReturnVisibility('visible');
+      document.getElementById('above').style.height = '40px';
+    }""")
+    paint(page)
+    judge_watches()
+    page.evaluate("""() => {
+      returnBoundary.completeReadingReturn(returnBoundary.readingReturn());
+      // Before its completion frames run, another absence opens another return.
+      setReturnVisibility('hidden'); setReturnVisibility('visible');
+    }""")
+    paint(page)
+    page.evaluate("document.getElementById('above').style.height = '80px'")
+    paint(page)
+    judge_watches()
+    page.evaluate(
+        "returnBoundary.completeReadingReturn(returnBoundary.readingReturn())"
+    )
+    paint(page)
+    page.evaluate("document.getElementById('above').style.height = '120px'")
+    paint(page)
+    judge_watches()
+    consume_browser_errors(page, "moved without input")
+
+
+@pytest.mark.parametrize("cause", ["typing", "passive"])
+def test_editcontext_growth_keeps_input_credit_with_its_actual_field(
+    browser, serve, cause
+):
+    """Native EditContext growth is typing; carrying its field still violates stability."""
+    context = browser.new_context(
+        user_agent="Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/153.0.0.0 Mobile Safari/537.36"
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Native typing geometry", '<h1>Edit a reply</h1><div id="above"></div>'
+            )
+        ),
+        context=context,
+    )
+    page.evaluate(
+        """cause => {
+      const field = document.createElement('leaf-text'); field.id = 'field';
+      field.style.cssText = 'display:block;width:300px';
+      document.querySelector('main').append(field);
+      field.addEventListener('input', () => {
+        const source = lfInputWork.current();
+        window.nativeGeometryInput = {type:source.event.type,
+          trusted:source.event.isTrusted,field:source.node === field};
+        if(cause === 'typing') document.getElementById('above').style.height = '40px';
+      });
+    }""",
+        cause,
+    )
+    field = page.locator("#field")
+    field.focus()
+    paint(page)
+    before = field.bounding_box()
+    page.keyboard.insert_text("First line\nSecond line\nThird line")
+    expect(field).to_have_js_property("value", "First line\nSecond line\nThird line")
+    assert page.evaluate("window.nativeGeometryInput") == {
+        "type": "textupdate",
+        "trusted": True,
+        "field": True,
+    }
+    paint(page)
+    assert field.bounding_box()["height"] > before["height"]
+    judge_watches()
+    if cause == "typing":
+        assert field.bounding_box()["y"] == pytest.approx(before["y"] + 40)
+        consume_browser_errors(page, "typing in leaf-text#field moved leaf-text#field")
+    else:
+        assert field.bounding_box()["y"] == pytest.approx(before["y"])
+        page.evaluate("document.getElementById('above').style.height = '40px'")
+        judge_watches()
+        consume_browser_errors(page, "leaf-text#field moved without input")
+
+
+@pytest.mark.parametrize(
+    "compensate,holder",
+    [(True, "inert"), (False, "inert"), (True, "region"), (True, "painted")],
+)
+def test_typing_protects_subjects_through_a_coordinate_carrier_rebase(
+    browser, compensate, holder
+):
+    """Carrier coordinates are disposable; controls and declared regions are not."""
+    page = browser.new_page()
+    declared = 'data-lf-reflow="controls"' if holder == "region" else ""
+    background = (
+        "background:white;border:1px solid black;box-shadow:0 1px 3px #888"
+        if holder == "painted"
+        else ""
+    )
+    page.goto(
+        "data:text/html,"
+        + quote(f"""<!doctype html><body style="margin:0">
+<div id="carrier" {declared} style="position:relative;width:300px;height:100px;{background}">
+  <div id="inside" style="position:relative"><textarea id="field" rows="1"></textarea></div>
+</div><script>
+  field.addEventListener('beforeinput', () => {{
+    carrier.style.left = '20px';
+    inside.style.left = '{-20 if compensate else 0}px';
+  }});
+</script></body>""")
+    )
+    paint(page)
+    read = """() => Object.fromEntries(['carrier','field'].map(id =>
+      [id, document.getElementById(id).getBoundingClientRect().x]))"""
+    before = page.evaluate(read)
+    page.locator("#field").fill("a")
+    paint(page)
+    after = page.evaluate(read)
+    assert after["carrier"] - before["carrier"] == 20
+    assert after["field"] - before["field"] == (0 if compensate else 20)
+    judge_watches()
+    if not compensate:
+        consume_browser_errors(page, "typing in textarea#field moved textarea#field")
+    elif holder != "inert":
+        consume_browser_errors(page, "typing in textarea#field moved div#carrier")
 
 
 @pytest.mark.parametrize("distance", [6, 40])
@@ -315,6 +536,205 @@ def test_control_reflow_stays_inside_its_runtime_region(browser, fault, protecte
         assert any(f"{protected} moved without input" in error for error in errors), (
             errors
         )
+
+
+@pytest.mark.parametrize(
+    "fault, protected",
+    [
+        ("", None),
+        ("sticky_tail", None),
+        ("sticky_extra", "button#reply"),
+        ("prepend", "p#old"),
+        ("old_growth", "button#reply"),
+        ("extra_carry", "button#later"),
+        ("moving_port", "button#reply"),
+        ("outside", "button#outside"),
+        ("outside_runtime", "button#reply"),
+        ("port_outside_runtime", "button#reply"),
+        ("enclosing_text", "button#reply"),
+    ],
+)
+def test_append_reflow_credits_only_its_measured_suffix_growth(
+    browser, fault, protected
+):
+    """An arrival may move its reply and later cards, preserving the transcript."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0;font:16px monospace">'
+            '<div id="port" data-lf-runtime style="width:360px;height:300px;'
+            'padding:5px;box-sizing:border-box;overflow:auto;overflow-anchor:none">'
+            '<section style="overflow:clip">'
+            '<div id="source" data-lf-reflow="append">'
+            '<p id="old" style="margin:0;height:40px">Already reading.</p></div>'
+            '<button id="reply" style="display:block;position:sticky;bottom:0">Reply</button></section>'
+            '<article><p style="margin:0">Another conversation.</p>'
+            '<button id="later">Later thread</button></article></div>'
+            '<button id="outside">Outside the panel</button></body>'
+        )
+    )
+    if fault in {"outside_runtime", "port_outside_runtime"}:
+        page.locator("#port").evaluate(
+            "node => node.removeAttribute('data-lf-runtime')"
+        )
+    if fault == "port_outside_runtime":
+        page.locator("#source").evaluate(
+            "node => node.setAttribute('data-lf-runtime', '')"
+        )
+    if fault == "enclosing_text":
+        page.locator("#port > section").evaluate(
+            "node => node.setAttribute('data-lf-reflow', 'text')"
+        )
+    paint(page)
+    before = page.locator("#old").bounding_box()
+    reply_before = page.locator("#reply").bounding_box()
+    page.evaluate(
+        """fault => {
+          const source = document.getElementById('source');
+          const next = document.createElement('p');
+          next.textContent = 'The newly appended reply.';
+          next.style.cssText = `margin:0;height:${fault.startsWith('sticky_') ? 400 : 40}px`;
+          if (fault === 'prepend') source.prepend(next);
+          else source.append(next);
+          if (fault === 'old_growth') document.getElementById('old').style.height = '60px';
+          if (fault === 'extra_carry') document.getElementById('later').style.marginTop = '7px';
+          if (fault === 'sticky_extra') document.getElementById('reply').style.bottom = '7px';
+          if (fault === 'moving_port') document.getElementById('port').style.marginTop = '7px';
+          if (fault === 'outside') document.getElementById('outside').style.marginTop = '7px';
+        }""",
+        fault,
+    )
+    judge_watches()
+    if not protected:
+        assert page.locator("#old").bounding_box() == before
+        if fault == "sticky_tail":
+            port = page.locator("#port").bounding_box()
+            assert page.locator("#reply").bounding_box()["y"] == (
+                port["y"] + port["height"] - 5 - reply_before["height"]
+            )
+        else:
+            assert page.locator("#reply").bounding_box()["y"] == reply_before["y"] + 40
+    else:
+        errors = consume_browser_errors(page, "moved without input")
+        assert any(f"{protected} moved without input" in error for error in errors), (
+            errors
+        )
+
+
+@pytest.mark.parametrize("overflow", ["visible", "auto"])
+def test_boxless_overflow_does_not_hide_carried_reading(browser, overflow):
+    """Overflow on a display:contents wrapper cannot clip its visible descendants."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0">'
+            f'<div id="wrapper" style="display:contents;overflow:{overflow};padding:10%">'
+            '<div id="above" style="height:40px"></div>'
+            '<button id="target">Reading control</button></div></body>'
+        )
+    )
+    paint(page)
+    assert (
+        page.locator("#wrapper").evaluate("node => node.getClientRects().length") == 0
+    )
+    assert page.locator("#target").bounding_box()["y"] == 40
+    page.locator("#above").evaluate("node => node.style.height = '80px'")
+    judge_watches()
+    assert page.locator("#target").bounding_box()["y"] == 80
+    errors = consume_browser_errors(page, "moved without input")
+    assert any("button#target moved without input" in error for error in errors), errors
+
+
+@pytest.mark.parametrize("bounded", [False, True])
+@pytest.mark.parametrize("position", ["static", "sticky"])
+def test_append_uses_an_actual_scrollport_past_boxless_overflow(
+    browser, bounded, position
+):
+    """A boxless ancestor cannot own append growth; an actual outer scrollport can."""
+    page = browser.new_page()
+    contents = (
+        '<div data-lf-runtime style="display:contents;overflow:auto;padding:10%;'
+        f'position:{position};bottom:0">'
+        '<div id="source" data-lf-reflow="append">'
+        '<p style="height:40px;margin:0">Earlier message.</p></div>'
+        '<button id="target">Reply</button></div>'
+    )
+    if bounded:
+        contents = (
+            '<div data-lf-runtime style="width:360px;height:300px;overflow:auto">'
+            + contents
+            + "</div>"
+        )
+    page.goto(
+        "data:text/html," + quote('<!doctype html><body style="margin:0">' + contents)
+    )
+    paint(page)
+    assert page.locator("#target").bounding_box()["y"] == 40
+    page.evaluate("""() => {
+      const message = document.createElement('p');
+      message.style.cssText = 'height:400px;margin:0';
+      message.textContent = 'The new message.';
+      document.getElementById('source').append(message);
+    }""")
+    judge_watches()
+    assert page.locator("#target").bounding_box()["y"] == 440
+    if not bounded:
+        errors = consume_browser_errors(page, "moved without input")
+        assert any("button#target moved without input" in error for error in errors), (
+            errors
+        )
+
+
+def test_append_reflow_preserves_nested_text_reflow(browser):
+    """A stationary old header may still repack inside its own declared boundary."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0;font:16px monospace">'
+            '<div data-lf-runtime style="width:360px;height:300px;overflow:auto">'
+            '<div id="source" data-lf-reflow="append">'
+            '<div style="height:40px"><div data-lf-reflow="text" '
+            'style="display:flex;width:360px;height:24px">'
+            '<span id="receipt">Waiting</span><span id="time">Today</span>'
+            '</div></div></div><button id="reply">Reply</button></div>'
+        )
+    )
+    paint(page)
+    before = page.locator("#time").bounding_box()
+    page.evaluate("""() => {
+      document.getElementById('receipt').textContent = 'Responded just now';
+      const next = document.createElement('p'); next.textContent = 'New reply';
+      next.style.cssText = 'margin:0;height:40px';
+      document.getElementById('source').append(next);
+    }""")
+    judge_watches()
+    assert page.locator("#time").bounding_box()["x"] > before["x"]
+
+
+def test_append_reflow_does_not_credit_typing_that_carries_its_editor(browser):
+    """The append permission does not weaken the independently retained typing pose."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0">'
+            '<div data-lf-runtime style="width:360px;height:300px;overflow:auto">'
+            '<div id="source" data-lf-reflow="append">'
+            '<p style="margin:0;height:40px">Already reading.</p></div>'
+            '<textarea id="field"></textarea></div>'
+            '<script>document.getElementById("field").addEventListener("beforeinput", () => {'
+            'const next = document.createElement("p"); next.textContent = "New reply";'
+            'next.style.cssText = "margin:0;height:40px";'
+            'document.getElementById("source").append(next); });</script>'
+        )
+    )
+    paint(page)
+    page.locator("#field").fill("a")
+    judge_watches()
+    consume_browser_errors(page, "typing in textarea#field moved textarea#field")
 
 
 CAPPED_METADATA = "".join(
@@ -1140,7 +1560,11 @@ def test_a_press_in_the_page_holding_a_frame_is_input_to_it(browser):
 def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
     browser, serve, surface
 ):
-    """Age and receipt may rearrange; the thread and its controls stay put."""
+    """Age advances while the thread and its controls stay put.
+
+    Metadata may move or stay reserved. The passive-region fault controls above
+    exercise the watcher's permitted motion independently of this surface's layout.
+    """
     source = (
         leaf_page(
             "Inline task thread",
@@ -1183,31 +1607,17 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
     expect(timestamp).to_have_text("just now")
     # Age changes are news after Chrome's recent-input grace, even when opening the
     # surface and resizing it happened immediately before this clock transition.
-    page.wait_for_timeout(600)
+    rendered(page)
+    page.wait_for_function(
+        "at => performance.now() - at > 500", arg=page.evaluate("performance.now()")
+    )
     protected = surface_root.locator("b, button, leaf-text, .lf-msg-body")
     boxes = "nodes => nodes.map(node => node.getBoundingClientRect().toJSON())"
     before = protected.evaluate_all(boxes)
     assert before
+    thread_before = surface_root.bounding_box()
     owner = header.locator("xpath=..")
     owner_before = owner.bounding_box()
-    receipt.evaluate(
-        """receipt => {
-          window.ageShifts = [];
-          new PerformanceObserver(list => {
-            for (const entry of list.getEntries()) {
-              for (const source of entry.sources) {
-                if (source.node === receipt || receipt.contains(source.node)) {
-                  window.ageShifts.push({
-                    input: entry.hadRecentInput,
-                    before: source.previousRect.toJSON(),
-                    after: source.currentRect.toJSON(),
-                  });
-                }
-              }
-            }
-          }).observe({type: 'layout-shift'});
-        }"""
-    )
     held = []
     page.route("**/api/state*", lambda route: held.append(route))
     now = datetime.now().astimezone()
@@ -1216,9 +1626,6 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
         (timedelta(minutes=10), "10m ago"),
         (timedelta(hours=3), "3h ago"),
     ]:
-        receipt_before = receipt.bounding_box()
-        header_before = header.bounding_box()
-        count = page.evaluate("window.ageShifts.length")
         # Advance Leaf's calibrated server clock without changing the browser's
         # monotonic clock: native LayoutShift and frame readings must share time.
         page.evaluate(
@@ -1231,16 +1638,9 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
             (now + delta).isoformat(),
         )
         expect(timestamp).to_have_text(age)
+        expect(receipt).to_have_text("Sent")
         judge_watches()
-        native = page.evaluate("window.ageShifts")[count:]
-        assert native and all(not entry["input"] for entry in native)
-        assert any(entry["before"]["x"] != entry["after"]["x"] for entry in native)
-        assert receipt.bounding_box()["x"] != receipt_before["x"]
-        header_after = header.bounding_box()
-        assert (header_after["x"], header_after["y"]) == (
-            header_before["x"],
-            header_before["y"],
-        )
+        assert surface_root.bounding_box() == thread_before
         assert owner.bounding_box() == owner_before
         assert protected.evaluate_all(boxes) == before
 
@@ -1366,12 +1766,15 @@ def test_typing_keeps_its_field_when_chrome_reports_only_larger_sources(browser)
     consume_browser_errors(page, "typing in textarea#field moved textarea#field")
 
 
-def test_a_retained_control_keeps_its_pose_when_a_new_sticky_owner_adopts_it(browser):
+@pytest.mark.parametrize("subject", ["button", "span"])
+def test_a_retained_landmark_keeps_its_pose_when_a_new_sticky_owner_adopts_it(
+    browser, subject
+):
     page = browser.new_page()
     page.goto(
         "data:text/html,"
-        + quote("""<!doctype html><body style="margin:0">
-<button id="action" style="position:absolute;left:10px;top:10px">Act</button>
+        + quote(f"""<!doctype html><body style="margin:0">
+<{subject} id="action" style="position:absolute;left:10px;top:10px">Act</{subject}>
 <p id="other" style="position:absolute;left:10px;top:150px">Following reading</p></body>""")
     )
     page.evaluate(PAINTED)
@@ -1387,7 +1790,7 @@ def test_a_retained_control_keeps_its_pose_when_a_new_sticky_owner_adopts_it(bro
     page.evaluate(PAINTED)
     judge_watches()
     errors = take_browser_errors(page)
-    assert any("button#action moved without input" in error for error in errors), errors
+    assert any(f"{subject}#action" in error for error in errors), errors
     assert all("moved without input" in error for error in errors), errors
 
 
@@ -1526,13 +1929,50 @@ def test_typing_root_scroll_keeps_a_fixed_field_but_not_its_local_carry(browser,
 
 
 @pytest.mark.parametrize(
-    "fault", ["", "portal_x", "portal_y", "anchor_x", "anchor_y", "declared_unused"]
+    "fault",
+    [
+        "",
+        "portal_x",
+        "portal_y",
+        "anchor_x",
+        "anchor_y",
+        "declared_unused",
+        "rule_unused",
+        "important_rule",
+    ],
 )
 @pytest.mark.parametrize("transform", ["none", "scale(.8)", "scale(.8) rotate(10deg)"])
-def test_native_anchor_scroll_retains_local_motion_proof(browser, fault, transform):
+@pytest.mark.parametrize("declared", ["inline", "scoped_rule"])
+def test_native_anchor_scroll_retains_local_motion_proof(
+    browser, fault, transform, declared
+):
+    """A portal following its anchor's scroll is credited whether its insets are
+    written inline or stated in its tree's stylesheet, and whether its anchor's name is
+    unique or repeated under `anchor-scope`; moving either independently still fails.
+    A direct anchor inset that a more specific rule overrides credits nothing, even
+    where a later rule in sheet order states it, and neither does an inline one an
+    important rule overrides."""
+    if fault == "rule_unused" and declared == "inline":
+        pytest.skip("rules disagreeing needs the insets in rules")
+    if fault == "important_rule" and declared == "scoped_rule":
+        pytest.skip("an important rule over an inline inset needs the inset inline")
     field_style = "position:fixed;position-anchor:--target;left:calc(anchor(left) + 100px);top:calc(anchor(top) + 10px)"
     if fault == "declared_unused":
         field_style = "position:fixed;position-anchor:--target;left:100px;top:50px"
+    sheet, scope, decoy = "", "", ""
+    if declared == "scoped_rule":
+        sheet = f"<style>#field {{ {field_style} }}</style>"
+        field_style = ""
+        scope = "anchor-scope:--target"
+        decoy = '<div style="anchor-scope:--target"><div style="anchor-name:--target">Another</div></div>'
+    if fault == "important_rule":
+        # The inline inset stays anchored; the important rule holds the field still.
+        sheet = "<style>#field { top:50px !important }</style>"
+    if fault == "rule_unused":
+        # The id's static inset wins on specificity; the anchored rule comes last.
+        sheet = """<style>#field { position:fixed;position-anchor:--target;left:100px;top:50px }
+.down #field { top:30px }
+.f { left:calc(anchor(left) + 100px);top:calc(anchor(top) + 10px) }</style>"""
     change = {
         "": "",
         "portal_x": 'field.style.left="calc(anchor(left) + 110px)"',
@@ -1540,15 +1980,18 @@ def test_native_anchor_scroll_retains_local_motion_proof(browser, fault, transfo
         "anchor_x": 'target.style.marginLeft="10px"',
         "anchor_y": 'target.style.marginTop="70px"',
         "declared_unused": 'field.style.top="40px"',
+        "rule_unused": 'document.body.classList.add("down")',
+        "important_rule": 'field.style.marginTop="-20px"',
     }[fault]
+    name = "textarea#field.f" if fault == "rule_unused" else "textarea#field"
     page = browser.new_page()
     page.goto(
         "data:text/html,"
-        + quote(f"""<!doctype html><body style="margin:0">
+        + quote(f"""<!doctype html>{sheet}<body style="margin:0"><div style="{scope}">
 <div style="transform:{transform};transform-origin:left top">
 <div id="scroller" style="height:140px;width:300px;overflow:auto">
 <div style="width:600px;height:300px"><div id="target" style="anchor-name:--target;margin-top:60px;width:70px;height:30px">The target</div></div></div></div>
-<textarea id="field" style="{field_style}"></textarea>
+<textarea id="field" class="{"f" if fault == "rule_unused" else ""}" style="{field_style}"></textarea></div>{decoy}
 <p id="evidence" style="position:absolute;left:10px;top:400px">Independent painted source</p>
 <script>field.addEventListener('beforeinput',()=>{{scroller.scrollLeft+=20;scroller.scrollTop+=20;evidence.style.left='30px';{change}}})</script></body>""")
     )
@@ -1570,9 +2013,12 @@ def test_native_anchor_scroll_retains_local_motion_proof(browser, fault, transfo
     judge_watches()
     errors = take_browser_errors(page)
     if fault:
-        assert any(
-            "typing in textarea#field moved textarea#field" in error for error in errors
-        ), (fault, before, after, errors)
+        assert any(f"typing in {name} moved {name}" in error for error in errors), (
+            fault,
+            before,
+            after,
+            errors,
+        )
     else:
         assert errors == [], (before, after, errors)
 
@@ -1730,8 +2176,11 @@ def test_gesture_close_does_not_own_future_or_local_motion(browser, fault):
     )
 
 
-@pytest.mark.parametrize("destination", ["window", "page"])
-@pytest.mark.parametrize("guard_mode", ["typing", "passive"])
+# Input attribution and the plane moved to are independent, so each guard mode is
+# paired with one destination rather than crossed with both.
+@pytest.mark.parametrize(
+    "guard_mode, destination", [("typing", "window"), ("passive", "page")]
+)
 @pytest.mark.parametrize("fault", ["", "holder_x", "holder_y", "child_x", "child_y"])
 def test_real_floating_plane_retains_local_motion(
     browser, serve, fault, guard_mode, destination
@@ -1805,6 +2254,7 @@ def test_real_floating_plane_retains_local_motion(
     if guard_mode == "passive":
         page.keyboard.press("Shift")
         paint(page)
+    held_stretch(page)
     before, holder_before = field.bounding_box(), holder.bounding_box()
     page.evaluate("window.beforeField=document.querySelector('#field')")
     page.evaluate("""()=>{
@@ -2445,3 +2895,270 @@ def test_owned_native_finish_records_the_applied_endpoint(browser, fault, fill):
         assert all("moved without input" in error for error in errors), errors
     else:
         assert not errors, errors
+
+
+@pytest.mark.parametrize(
+    "case",
+    ["root", "scaled", "fixed-both", "sticky", "fixed-fault", "clamp", "clamp-fault"],
+)
+def test_observed_attachment_credits_only_the_measured_scroll_placement(
+    browser, serve, case
+):
+    """Fixed/sticky constraints and solver clamps retain only their solved movement.
+
+    A physical reference does not always travel by its ancestry's entire scroll.
+    Matching that scroll with an extra holder move must still fail.
+    """
+    style = {
+        "scaled": "transform:scale(2);transform-origin:top left;",
+        "fixed-both": "position:fixed;top:180px;left:100px;",
+        "fixed-fault": "position:fixed;top:180px;left:100px;",
+        "sticky": "position:sticky;top:170px;",
+    }.get(case, "")
+    source = leaf_page(
+        "Observed reference scroll",
+        '<div style="height:180px"></div><p id="subject" style="margin:0;height:130px;overflow:auto;width:350px;'
+        + style
+        + '">First line<br>'
+        + "More words<br>" * 50
+        + "</p>"
+        '<div id="holder" style="visibility:hidden;position:fixed;width:200px;height:60px">'
+        '<textarea id="field" style="width:160px;height:30px"></textarea></div>'
+        '<div style="height:1800px"></div>',
+        layout=None,
+    )
+    page = open_page(
+        browser,
+        serve(source),
+        init_script="""const supports = CSS.supports.bind(CSS);
+          CSS.supports = (property, value) => property === 'anchor-name' ? false : supports(property, value);
+          delete window.ViewTimeline; delete window.ScrollTimeline;""",
+    )
+    resized(page, 1200, 700)
+    if case.startswith("clamp"):
+        offset = page.evaluate(
+            """() => {
+              const offset = subject.getBoundingClientRect().top + scrollY - 12;
+              scrollTo(0, offset);
+              return offset;
+            }"""
+        )
+        page.wait_for_function("offset => scrollY === offset", arg=offset)
+        scroll_settled(page)
+    if case == "sticky":
+        page.locator("#subject").evaluate(
+            "node => node.style.top = `${node.getBoundingClientRect().top - 10}px`"
+        )
+    page.evaluate(
+        """async clamp => {
+      const module = await window.__lfRuntimeImport('/runtime/annotation-overlay/floating.js');
+      const ui = await module.floatingUi();
+      const subject = document.querySelector('#subject'), holder = document.querySelector('#holder');
+      const range = document.createRange(); range.selectNodeContents(subject.firstChild);
+      const reference = {contextElement:subject, contextNode:subject.firstChild,
+        getBoundingClientRect:()=>range.getBoundingClientRect()};
+      const owner = module.floatingPlacement({floating:holder, update:()=>void place()});
+      async function place() {
+        owner.begin();
+        const answer = await owner.position(ui.computePosition, reference,
+          {placement:'right-start',middleware:clamp ? [ui.shift({crossAxis:true,padding:0})] : []},
+          ()=>'page', subject);
+        if (answer) owner.stand(answer);
+      }
+      owner.watch(subject,reference,ui.autoUpdate);
+      await place();
+      holder.style.removeProperty('visibility');
+    }""",
+        case.startswith("clamp"),
+    )
+    expect(page.locator("#holder")).to_have_attribute("data-lf-plane", "window")
+    paint(page)
+    judge_watches()
+    held_stretch(page)
+    before = page.locator("#field").bounding_box()
+    holder_before = page.locator("#holder").bounding_box()
+    if case.startswith("clamp"):
+        assert 0 < holder_before["y"] < 30
+    scroll = page.evaluate(
+        """([scenario, extra]) => {
+      const before = {root:scrollY, inner:subject.scrollTop};
+      if (scenario !== 'scaled') scrollBy(0,30);
+      if (scenario === 'scaled' || scenario === 'fixed-both') subject.scrollBy(0,30);
+      if (scenario.endsWith('fault')) holder.style.marginTop = `${-extra}px`;
+      return before;
+    }""",
+        [case, 30 - holder_before["y"] if case == "clamp-fault" else 30],
+    )
+    if case != "scaled":
+        page.wait_for_function("offset => scrollY === offset", arg=scroll["root"] + 30)
+    if case in {"scaled", "fixed-both"}:
+        expect(page.locator("#subject")).to_have_js_property(
+            "scrollTop", scroll["inner"] + 30
+        )
+    scroll_settled(page, "#subject" if case in {"scaled", "fixed-both"} else None)
+    rendered(page)
+    paint(page)
+    judge_watches()
+    delta = {"scaled": -60, "sticky": -10, "clamp": -holder_before["y"]}.get(case, -30)
+    assert page.locator("#field").bounding_box()["y"] == pytest.approx(
+        before["y"] + delta, abs=1
+    )
+    if case.endswith("fault"):
+        consume_browser_errors(page, "textarea#field moved without input")
+
+
+FRAMES = """count => new Promise((done) => {
+  const next = () => (--count ? requestAnimationFrame(next) : done());
+  requestAnimationFrame(next);
+})"""
+
+
+# Each case restyles its own words, without moving them, through a change no DOM
+# write announces, and names the words and the style it settles on, if it settles.
+RESTYLES = {
+    "popover": ("tip.showPopover()", "#tip", ("display", "block")),
+    "custom state": ("custom.internals.states.add('on')", "#custom", None),
+    "sheet text": ("sheet.replaceSync('#replaced{opacity:.5}')", "#replaced", None),
+    "adopted sheet": ("document.adoptedStyleSheets = [sheet, other]", "#adopted", None),
+    "checked": ("box.checked = true", "#checked", None),
+    "paused animation": ("fade.currentTime = 500", "#faded", None),
+    "form reset": ("form.reset()", "#named", None),
+    "range text": ("ranged.setRangeText('', 0, 1)", "#ranged", None),
+    # Still running when the sensor checks: shadow trees hold their own animations.
+    "shadow transition": ("inner.style.opacity = '.2'", "#host", ("opacity", "1")),
+    # A rule's own declaration, which the sensor does not hear: only its check can
+    # find the change.
+    "unannounced": ("rules.cssRules[0].style.opacity = '.5'", "#unheard", None),
+}
+
+
+def restyle_page(browser):
+    """The words RESTYLES changes, once the frames that load announced are read."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><style>
+#box:checked ~ #checked, custom-words:state(on), :placeholder-shown { opacity: .5 }
+</style><input type="checkbox" id="box"><p id="checked">Checked</p>
+<p id="replaced">Replaced</p><p id="adopted">Adopted</p><p id="faded">Faded</p>
+<p id="unheard">Unheard</p><custom-words id="custom">Custom</custom-words>
+<div id="tip" popover>Tip</div><div id="host"></div>
+<form id="form"><input id="named" placeholder="Name"></form>
+<textarea id="ranged" placeholder="Text">x</textarea>
+<script>
+customElements.define("custom-words", class extends HTMLElement {
+  constructor() { super(); this.internals = this.attachInternals(); }
+});
+window.sheet = new CSSStyleSheet();
+window.other = new CSSStyleSheet();
+window.rules = new CSSStyleSheet();
+other.replaceSync("#adopted { opacity: .5 }");
+rules.replaceSync("#unheard { opacity: 1 }");
+document.adoptedStyleSheets = [sheet, rules];
+window.fade = faded.animate([{opacity: 1}, {opacity: 0}], {duration: 1000, fill: "both"});
+fade.pause();
+named.value = "Ada";
+host.attachShadow({ mode: "open" }).innerHTML =
+  '<p id="inner" style="transition: opacity 3s linear">Inner</p>';
+window.inner = host.shadowRoot.getElementById("inner");
+</script>""")
+    )
+    paint(page)
+    page.evaluate(FRAMES, 10)
+    return page
+
+
+@pytest.mark.parametrize("call", RESTYLES)
+def test_an_unchanged_frame_misses_no_restyle(browser, call):
+    """An idle frame keeps its last reading (`shift_watch.js`, "Unchanged frames").
+
+    Each change that restyles without a DOM write is announced, so the periodic
+    full reading finds nothing; a change no source announces fails the test, naming
+    the innermost node that changed.
+    """
+    page = restyle_page(browser)
+    script, words, settled = RESTYLES[call]
+    page.evaluate(script)
+    expect(page.locator(words)).to_have_css(*(settled or ("opacity", "0.5")))
+    # More frames than the sensor's check interval.
+    page.evaluate(FRAMES, 90)
+    judge_watches()
+    if call == "unannounced":
+        consume_browser_errors(
+            page,
+            "missed a change to #text in p#unheard (opacity) and to 1 other node:",
+        )
+
+
+def test_unavailable_computed_padding_keeps_an_unchanged_reading(browser):
+    """A native media source has no computed padding, even while connected."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html," + quote('<!doctype html><audio><source id="source"></audio>')
+    )
+    assert page.locator("#source").evaluate("""node => {
+      const style = getComputedStyle(node);
+      return [style.paddingTop, style.paddingBottom];
+    }""") == ["", ""]
+    paint(page)
+    page.evaluate(FRAMES, 4)
+    judge_watches()
+
+
+def test_the_verdict_checks_a_change_the_test_ends_on(browser):
+    """A test that ends before the periodic check still has its last unannounced
+    change found (`shift_watch.js`, "Unchanged frames")."""
+    page = restyle_page(browser)
+    page.evaluate(RESTYLES["unannounced"][0])
+    judge_watches()
+    consume_browser_errors(page, "missed a change to #text in p#unheard (opacity)")
+
+
+# Each case moves the words below #field's holder with a change the sensor may not
+# announce; the shift Chrome paints still has its verdict.
+UNHEARD_SHIFTS = {
+    "shadow transition": "grow.style.height = '200px'",
+    "form reset": "form.reset()",
+    "range text": "sized.setRangeText(LINES.slice(0, 4), 0, 0)",
+    "unheard rule": "rules.cssRules[0].style.height = '24px'",
+}
+
+
+@pytest.mark.parametrize("change", UNHEARD_SHIFTS)
+def test_a_shift_is_judged_on_complete_readings(browser, change):
+    """A layout-shift entry makes the reading that judges it complete
+    (`shift_watch.js`, "Unchanged frames"), so no announcement list decides whether
+    a shift without input is found."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><body style="margin:0">
+<div id="host"></div><div id="ruled"></div>
+<form id="form"><textarea id="sized" style="field-sizing:content;display:block">
+</textarea></form>
+<p id="below">Words below</p>
+<script>
+host.attachShadow({ mode: "open" }).innerHTML =
+  '<div id="grow" style="height:10px;transition:height 450ms linear"></div>';
+window.grow = host.shadowRoot.getElementById("grow");
+window.rules = new CSSStyleSheet();
+rules.replaceSync("#ruled { height: 10px }");
+document.adoptedStyleSheets = [rules];
+window.LINES = String.fromCharCode(10).repeat(6);
+sized.value = LINES;
+</script>""")
+    )
+    paint(page)
+    page.evaluate(FRAMES, 10)
+    page.evaluate(UNHEARD_SHIFTS[change])
+    page.evaluate(FRAMES, 40)
+    judge_watches()
+    errors = take_browser_errors(page)
+    assert any(" moved without input by " in error for error in errors), errors
+    # The unheard rule is also the sensor's own finding when its periodic check
+    # happens to fall on the frame after the change, before the paint is heard.
+    unheard = "shift watch missed a change to " if change == "unheard rule" else None
+    assert all(
+        " moved without input by " in error or (unheard and unheard in error)
+        for error in errors
+    ), errors

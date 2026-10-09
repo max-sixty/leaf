@@ -5,7 +5,7 @@
    answered or not, wherever it is drawn: an Ask frozen into a reply is where a user
    working it is, never the page Ask its thread is about. A presentation can stand at the
    source target it shows in authored flow or chrome, as its owner declares (`declareSide`): the margin for its
-   cluster controls, the thread card, and a thread in the Threads panel; the Queue panel
+   cluster controls, the thread card, and a thread in the Threads panel; the Questions panel
    for its rows; the details shelf for the elements that name its notes. A side's answer
    drawn in the chrome itself, such as a margin control on a widget frozen into a reply,
    stands only where an Ask holds it. Chrome no side
@@ -25,7 +25,7 @@ import { documentFocused } from "./keyboard/scopes.js";
 import { elementById, inChrome } from "./passages.js";
 import { allAsks } from "./asks/model.js";
 import { hostIn, under } from "./shadow.js";
-import { readingBlock } from "./reading-place.js";
+import { pageReadingBlock } from "./reading-place.js";
 
 const sides = new Set();
 
@@ -76,7 +76,7 @@ export const standingPlace = () =>
 
 // A page walk still has an origin when focus and selection name no page place. Order
 // is measured in the document's tree, where a shadow block stands at its host.
-export const walkOrigin = () => hostIn(standingPlace() ?? readingBlock(), document);
+export const walkOrigin = () => hostIn(standingPlace() ?? pageReadingBlock(), document);
 
 // The Ask the user stands in, answered or not: where letting go lands, and the extent
 // of what `c` counts as the element they stand at.

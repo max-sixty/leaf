@@ -1,8 +1,10 @@
 /* Inline command hints are a projection of the dispatcher's exact reachable bindings.
  *
  * A row or route opts in through `bindingBadge`: an Element lends a widget-positioned
- * face; null requests a runtime corner chip. The widget owns placement, while this
- * presenter owns words, visibility and the accessible shortcuts. Neither Decision
+ * face outside every native button; null requests a runtime corner chip. Native command buttons also receive
+ * accessible shortcuts without requesting a visual badge. The widget owns placement,
+ * while this presenter owns words, visibility and the accessible shortcuts. A lent
+ * face keeps its out-of-flow seat even when empty or its command leaves reach. Neither Decision
  * metadata nor a second focus predicate is needed. Contextual aliases and intrinsic
  * bindings to one original command share a face, with a reachable contextual alias
  * preferred. Every remaining reachable binding stays in the accessible projection.
@@ -14,19 +16,22 @@
  */
 import { bindings, commandRoutes, routedCommand, spell, word } from "./bindings.js";
 import { availableCommandRoutes } from "./dispatch.js";
-import { commandScope, projectCommandScope } from "./scopes.js";
+import { buttonCommand, commandScope, projectCommandScope } from "./scopes.js";
 import { coveringAuxiliarySurface } from "./register.js";
 import { keyBadgePlacement } from "./key-badge-placement.js";
-import { documentPoint } from "../geometry.js";
-import { under } from "../shadow.js";
+import { chipSeats } from "./chip-seats.js";
+import { renderedParent, under } from "../shadow.js";
 import { el } from "../widget-elements.js";
 import { keepsText } from "../keeps.js";
 import { repaint } from "../repaint.js";
+import { scrolling, watchScrollEnds } from "../arrivals.js";
 
 export const commandHintLayer = Object.assign(document.createElement("div"), {
-  className: "lf-ui lf-key-badges lf-command-binding-badges",
+  className: "lf-ui lf-key-chips lf-command-binding-badges",
 });
 commandHintLayer.setAttribute("aria-hidden", "true");
+// A chip rides each scroll with its control and is seated again once the scroll settles.
+const seats = chipSeats(commandHintLayer);
 
 // Expand executable bindings, retaining the original command behind any contextual
 // alias. A control has one face even when local and contextual routes both reach it.
@@ -44,20 +49,30 @@ function hintRoutes(available) {
         contribution.bindingBadge !== undefined
           ? contribution.bindingBadge
           : row.bindingBadge;
-      // An explicit null opts into the corner fallback; an absent field offers no hint.
-      if (contribution.bindingBadge === undefined && row.bindingBadge === undefined)
-        continue;
       const control = word(contribution.control ?? row.control);
-      const bindingBadge = word(badge) ?? null;
       if (control == null) continue;
-      if (!(control instanceof Element))
-        throw new TypeError(`leaf: ${contribution.id} has no Element hint control`);
-      if (!control.isConnected) continue;
-      if (bindingBadge !== null && !(bindingBadge instanceof Element))
-        throw new TypeError(`leaf: ${contribution.id} has no Element binding badge`);
       const reference = routedCommand(contribution);
       const original = reference?.row ?? row;
       const id = reference?.id ?? contribution.id;
+      const owned = buttonCommand(control);
+      if (badge === undefined && !(owned?.row === original && owned.entry.id === id))
+        continue;
+      if (!(control instanceof Element))
+        throw new TypeError(`leaf: ${contribution.id} has no Element hint control`);
+      // Undefined requests only accessible shortcuts; explicit null requests a chip.
+      const bindingBadge = badge === undefined ? undefined : (word(badge) ?? null);
+      if (bindingBadge != null && !(bindingBadge instanceof Element))
+        throw new TypeError(`leaf: ${contribution.id} has no Element binding badge`);
+      if (bindingBadge) {
+        for (let at = bindingBadge; at; at = renderedParent(at))
+          if (at.matches("button"))
+            throw new TypeError(
+              `leaf: ${contribution.id} binding badge must be outside native buttons`,
+            );
+        if (!bindingBadge.classList.contains("lf-binding-seat"))
+          bindingBadge.classList.add("lf-binding-seat");
+      }
+      if (!control.isConnected) continue;
       let record = gathered.find(
         (prior) =>
           prior.original === original && prior.id === id && prior.control === control,
@@ -176,7 +191,6 @@ export function createCommandHints({ presentedControl }) {
   function paint() {
     const available = availableCommandRoutes();
     const routes = hintRoutes(available);
-    hasRoutes = routes.length > 0;
     const controlKeys = new Map();
     for (const { control, keys } of routes) {
       if (!controlKeys.has(control)) controlKeys.set(control, new Set());
@@ -198,10 +212,14 @@ export function createCommandHints({ presentedControl }) {
       routedControls.add(control);
     }
     withdrawRoutes(new Set(routes.map(({ control }) => control)));
-    if (!routes.length) {
+    const visualRoutes = routes.filter(
+      ({ bindingBadge }) => bindingBadge !== undefined,
+    );
+    hasRoutes = visualRoutes.length > 0;
+    if (!visualRoutes.length) {
       restoreBindingBadges();
       bindingChips.clear();
-      keyBadgePlacement().paint(commandHintLayer, []);
+      seats.place([]);
       return;
     }
     // A covering auxiliary surface does not invalidate the commands or their accessible
@@ -212,7 +230,7 @@ export function createCommandHints({ presentedControl }) {
     const covered = (control) => covering && !under(control, covering);
     const placement = keyBadgePlacement();
     const bindingBadgeClaims = new Map();
-    for (const { bindingBadge } of routes)
+    for (const { bindingBadge } of visualRoutes)
       if (bindingBadge)
         bindingBadgeClaims.set(
           bindingBadge,
@@ -229,7 +247,7 @@ export function createCommandHints({ presentedControl }) {
     // the next pass. The widget routes a press on its face to the labeled control.
     const lent = new Set();
     const worn = new Set();
-    for (const { binding, control, bindingBadge } of routes) {
+    for (const { binding, control, bindingBadge } of visualRoutes) {
       // A control the window does not show cannot show its face either, and wearing
       // the face only to measure it away would write it twice on every scroll.
       if (
@@ -266,7 +284,7 @@ export function createCommandHints({ presentedControl }) {
     restoreBindingBadges(lent);
 
     const chips = [];
-    for (const { binding, control, bindingBadge } of routes) {
+    for (const { binding, control, bindingBadge } of visualRoutes) {
       if (covered(control)) continue;
       if (bindingBadge && worn.has(bindingBadge)) continue;
       const presented = presentedControl(control) ?? control;
@@ -280,12 +298,7 @@ export function createCommandHints({ presentedControl }) {
         bindingChips.set(control, chip);
       }
       keepsText(chip, spell(binding));
-      chips.push({
-        chip,
-        owner: presented,
-        corner: box,
-        at: documentPoint(box.left, box.top),
-      });
+      chips.push({ chip, owner: presented, corner: box });
     }
     // `chips` holds seats, so a chip is kept by the seat that names it; comparing a chip
     // with the seats themselves dropped every chip, and each pass made its chips again
@@ -293,23 +306,26 @@ export function createCommandHints({ presentedControl }) {
     const seated = new Set(chips.map(({ chip }) => chip));
     for (const control of [...bindingChips.keys()])
       if (!seated.has(bindingChips.get(control))) bindingChips.delete(control);
-    placement.paint(commandHintLayer, chips);
+    // A scroll holds the seats; each chip's digit is current in its own, and a chip whose
+    // command left reach is hidden.
+    if (scrolling()) seats.keepOnly(new Set(chips.map(({ owner }) => owner)));
+    else placement.paint(seats, chips);
   }
 
-  const pageScrolled = () => hasRoutes && repaint();
+  const scrollEnded = () => hasRoutes && repaint();
+  let stopScrollEnds = null;
   function mount() {
     if (mounted) return;
     mounted = true;
-    addEventListener("scroll", pageScrolled, { capture: true, passive: true });
+    stopScrollEnds = watchScrollEnds(scrollEnded);
   }
   function destroy() {
-    if (mounted)
-      globalThis.removeEventListener("scroll", pageScrolled, { capture: true });
+    if (mounted) stopScrollEnds();
     mounted = false;
     hasRoutes = false;
     clearProjections();
     bindingChips.clear();
-    keyBadgePlacement().paint(commandHintLayer, []);
+    seats.clear();
   }
   return { mount, paint, destroy };
 }

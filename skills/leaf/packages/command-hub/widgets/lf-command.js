@@ -24,7 +24,12 @@
  * (paper, which nothing moves on, prints them whole), and from then on a reading that
  * changes their rows waits, the lists standing as they were, while that growth would
  * be seen; the count whose list waits says so (`HeldReading`, assets/AGENTS.md,
- * "Stability"). */
+ * "Stability").
+ *
+ * A goal's prose opens its crew. The shared `worksInside` boundary leaves nested
+ * controls and evidence with their owners; command, goal and worker ancestry keeps
+ * that gesture within its own row. Only a drag ending on the clicked words suppresses
+ * it, so a standing selection elsewhere does not deaden the row. */
 import {
   PRESS,
   threadBox,
@@ -40,11 +45,15 @@ import {
   offer,
   once,
   projectData,
+  reachedForWords,
+  setChildren,
   relabel,
   selectableOffer,
   shortAgo,
-  TEXT_BOX,
   watchUpdates,
+  watchOwner,
+  focusDestination,
+  worksInside,
 } from "/runtime/widget-api.js";
 import {
   closestCommandRole,
@@ -319,7 +328,7 @@ function projectionFocus(plan) {
 function showView(box) {
   const title = box?.querySelector(":scope > h2");
   if (!title) return;
-  title.focus({ preventScroll: true });
+  focusDestination(title, "move");
   box.scrollIntoView({ block: "nearest" });
 }
 
@@ -370,8 +379,7 @@ function configureGoal(goal) {
   });
   goal.addEventListener("click", (event) => {
     if (!directCommandRole(goal, "worker").length) return;
-    if (event.target.closest(`button, a, ${TEXT_BOX}, input, summary, [data-lf-offer]`))
-      return;
+    if (worksInside(event.target, goal)) return;
     if (
       closestCommandRole(event.target, "command") !==
       closestCommandRole(goal, "command")
@@ -379,8 +387,7 @@ function configureGoal(goal) {
       return;
     if (closestCommandRole(event.target, "goal") !== goal) return;
     if (closestCommandRole(event.target, "worker")) return;
-    const selection = getSelection();
-    if (selection && !selection.isCollapsed) return;
+    if (event.detail !== 0 && reachedForWords(event.target)) return;
     toggleWorkers(goal);
   });
 }
@@ -526,39 +533,38 @@ function renderStopped(snapshot) {
       list.id = `lf-${plan.id}-stopped`;
       box.append(list);
     }
-    projectData(
+    const datums = snapshot.stopped.map((goal) => {
+      const downstream = descendants(plan, goal.element.id);
+      const reason = goal.held
+        ? "paused by you"
+        : goal.role.review?.includes(goal.state)
+          ? "awaiting review"
+          : goal.role.stalled?.includes(goal.state)
+            ? "stalled"
+            : "blocked";
+      const item = document.createElement("li");
+      item.dataset.lfGoal = goal.element.id;
+      item.dataset.lfReason = reason;
+      const why = chip("", "lf-stopped-why");
+      why.append(chip(age(goal), "lf-stopped-age"), ` ${reason}`);
+      if (downstream.length)
+        why.append(
+          ` · holds ${downstream.length} downstream goal${downstream.length === 1 ? "" : "s"}`,
+        );
+      item.append(button(goal.title, goal.element), why);
+      return {
+        node: item,
+        key: goal.element.id,
+        origin: {
+          derived: [goal.element.id, ...downstream].map((widget) => ({ widget })),
+        },
+      };
+    });
+    setChildren(
       list,
-      snapshot.stopped,
-      (goal) => goal.element.id,
-      (goal) => {
-        const downstream = descendants(plan, goal.element.id);
-        const reason = goal.held
-          ? "paused by you"
-          : goal.role.review?.includes(goal.state)
-            ? "awaiting review"
-            : goal.role.stalled?.includes(goal.state)
-              ? "stalled"
-              : "blocked";
-        const item = document.createElement("li");
-        item.dataset.lfGoal = goal.element.id;
-        item.dataset.lfReason = reason;
-        const why = chip("", "lf-stopped-why");
-        why.append(chip(age(goal), "lf-stopped-age"), ` ${reason}`);
-        if (downstream.length)
-          why.append(
-            ` · holds ${downstream.length} downstream goal${downstream.length === 1 ? "" : "s"}`,
-          );
-        item.append(button(goal.title, goal.element), why);
-        return item;
-      },
-      {
-        originOf: (goal) => ({
-          derived: [goal.element.id, ...descendants(plan, goal.element.id)].map(
-            (widget) => ({ widget }),
-          ),
-        }),
-      },
+      datums.map(({ node }) => node),
     );
+    projectData(list, datums);
   } else box.querySelector(":scope > ol")?.remove();
   return true;
 }
@@ -633,6 +639,8 @@ const render = (plan) => paint(plan);
 
 // Unopened lists draw every reading, which only paper shows.
 function paint(plan) {
+  keeps(plan, "role", "group");
+  keeps(plan, "aria-label", plan.getAttribute("label") || "Plan");
   const restoreFocus = projectionFocus(plan);
   const snapshot = commandSnapshot(plan);
   for (const goal of snapshot.goals) renderGoal(goal);
@@ -654,20 +662,16 @@ function paint(plan) {
 customElements.define(
   "lf-command",
   class extends HTMLElement {
-    #stop;
-
     connectedCallback() {
-      once(this);
-      this.#stop ??= watchUpdates(this, () => render(this));
-    }
-
-    // The panels leave with the command: standing in a seat, they would outlive it
-    // there, and a command that connects again repaints them into its current seat.
-    disconnectedCallback() {
-      this.#stop?.();
-      this.#stop = null;
-      for (const held of Object.values(holders.get(this) ?? {})) held.dispose();
-      if (drawn.has(this)) seat(this, band(this));
+      if (!once(this)) return;
+      watchOwner(this, {
+        // The command takes its panels out of an external seat only when it leaves.
+        disconnect: () => {
+          for (const held of Object.values(holders.get(this) ?? {})) held.dispose();
+          if (drawn.has(this)) seat(this, band(this));
+        },
+      });
+      watchUpdates(this, () => render(this));
     }
 
     // The seat this command's `readings` names connected or disconnected.

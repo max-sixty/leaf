@@ -15,6 +15,9 @@ import { shrunkLabelReading } from "./words.js";
 
 export const rootOverflow = () => pageScroller.scrollWidth - pageScroller.clientWidth;
 const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
+// A block the theme grows past the column (layouts.css). A block allocated `column`
+// keeps the measure as text does, so these checks read it as ordinary flow.
+const BREAKOUT = '[data-lf-space]:not([data-lf-space="column"])';
 
 // The page's own margin residents, without Leaf's rail: that holds only markers and
 // never moves the column. Both a sweep sample and its breakpoint refinement read the
@@ -29,8 +32,8 @@ export function marginResidents() {
 // One settled-width geometry sample: the readings the gate reports across the width
 // sweep, each field read by its own consumer in render_gate/readings.py. Which findings
 // the gate answers for at every width is its choice, not a property of the reader:
-// strandedMargins and reachabilityReading also move with the width, and the gate
-// reports them only at the viewports it renders (validation.md). These readers are
+// reachabilityReading also moves with the width, and the gate reports it only at
+// the viewports it renders (validation.md). These readers are
 // synchronous and read-only: taking them in one browser turn preserves their findings
 // while removing the protocol round trips between fields. Resize and rendering
 // completion belong to the caller, so a sample neither advances the page nor waits for
@@ -53,7 +56,6 @@ export function columnGeometry() {
   return {
     overflow: rootOverflow(),
     misplaced: misplacedBoxes(),
-    stranded: strandedMargins(),
   };
 }
 
@@ -236,7 +238,7 @@ function marginReading(main) {
     // pointer events keep them from occupying the margin until it opens.
     if (
       !el.checkVisibility({ opacityProperty: true, visibilityProperty: true }) ||
-      el.hasAttribute("data-lf-space")
+      el.matches(BREAKOUT)
     )
       return false;
     const style = getComputedStyle(el);
@@ -310,7 +312,7 @@ export function misplacedBoxes() {
   // scrolled, `overflow-x: auto` having caught every descendant a line above.
   const insideWide = (el) => {
     for (let a = el.parentElement; a && a !== main; a = a.parentElement)
-      if (a.hasAttribute("data-lf-space")) return a;
+      if (a.matches(BREAKOUT)) return a;
     return null;
   };
   // What a wide widget may not escape, whatever the page has room for: the nearest
@@ -341,7 +343,7 @@ export function misplacedBoxes() {
   };
   const over = new Map();
   for (const el of main.querySelectorAll("*")) {
-    const wide = el.hasAttribute("data-lf-space");
+    const wide = el.matches(BREAKOUT);
     // A wide widget is asked whatever it stands in, where everything else is excused
     // by a scroll container above it. The excuse is about the column — a box inside a
     // scroller is drawn only as far as the scroller reaches, so it cannot spill onto
@@ -402,6 +404,60 @@ export function misplacedBoxes() {
         `${at(el)} stands ${past}px past the room the page has for a wide widget`,
       );
   }
+  // The other way round: a breakout held to the measure. In a flow wider than the
+  // column, a box that keeps the column (an Ask, a callout) widens to a breakout among
+  // its own blocks (theme.css); one standing deeper, as a table in a figure inside an
+  // Ask does, stays at the box's width though the flow around the box has the room. A
+  // frame between them holds it on purpose and answers for it, and so does a widget's
+  // member, such as an option, which holds what it carries on its list's terms: only
+  // plain markup between them leaves the block to the box. A box held at the measure by
+  // another, as a callout inside an Ask is, is named through the outermost of them,
+  // whose width lets the inner ones widen. On a column page the box fills its holder,
+  // and the breakout grows out of it instead.
+  const content = (el) => {
+    const s = getComputedStyle(el);
+    return (
+      el.getBoundingClientRect().width -
+      ["Left", "Right"].reduce(
+        (sum, side) =>
+          sum + parseFloat(s[`padding${side}`]) + parseFloat(s[`border${side}Width`]),
+        0,
+      )
+    );
+  };
+  const atMeasure = (box) =>
+    box.matches('[data-lf-space="column"]') &&
+    main.contains(box) &&
+    box.getBoundingClientRect().width <=
+      parseFloat(getComputedStyle(box).getPropertyValue("--col")) + 1;
+  const allocated = (el) => el.parentElement.closest("[data-lf-space]");
+  // Whether `outer` holds `inner` as one of its own blocks: only plain markup between
+  // them, none of it a widget's member or a box that draws a frame.
+  const plainly = (inner, outer) => {
+    for (let a = inner.parentElement; a !== outer; a = a.parentElement)
+      if (a.localName.includes("-") || draws(a)) return false;
+    return true;
+  };
+  for (const el of main.querySelectorAll(BREAKOUT)) {
+    if (!el.checkVisibility()) continue;
+    let outer = allocated(el);
+    if (!outer || !atMeasure(outer) || !plainly(el, outer)) continue;
+    if (el.getBoundingClientRect().width > outer.getBoundingClientRect().width + 1)
+      continue;
+    let up = allocated(outer);
+    for (; up && atMeasure(up) && plainly(outer, up); up = allocated(outer)) outer = up;
+    // A box held at the measure by one it is not plainly inside is that box's member,
+    // which holds it on its own terms, so no width given to either would free it.
+    if (up && atMeasure(up)) continue;
+    if (content(outer.parentElement) > outer.getBoundingClientRect().width + 1)
+      report(
+        el,
+        "held",
+        `${at(el)} asks for data-width="${el.getAttribute("data-lf-space")}" but ` +
+          `stands at the reading measure inside ${at(outer)}, which keeps the column — ` +
+          `give ${at(outer)} the data-width`,
+      );
+  }
   // The room being the page's own box is not the whole of what a wide widget owes,
   // because the page hangs things in that box. A sidenote stands a gutter off the
   // column, while the strip it is reserved out of comes off the far edge of the page —
@@ -416,7 +472,7 @@ export function misplacedBoxes() {
   // maintains. A resident is whatever `marginReading` finds standing past the column, so
   // a project hanging its own furniture out there is covered without declaring anything
   // to this pass.
-  for (const el of main.querySelectorAll("[data-lf-space]")) {
+  for (const el of main.querySelectorAll(BREAKOUT)) {
     if (!el.checkVisibility()) continue;
     const b = el.getBoundingClientRect();
     const hit = residents.find((r) => {
@@ -494,10 +550,17 @@ export function misplacedBoxes() {
   };
   for (const el of main.querySelectorAll("*")) {
     if (!pageBox(el) || !el.checkVisibility()) continue;
-    // Nothing inside an <svg> is the page's flow: a foreignObject clips by its
-    // nature, and diagram label boxes run an even 8px outside theirs on an
-    // ordinary graph — the drawing's own accounting, not the page losing words.
-    if (el.closest("svg")) continue;
+    // A drawing owns its internal coordinates: SVG clips foreignObject and diagram
+    // labels, while an HTML drawing can pan time cells or zoom image pixels through
+    // its viewport. --lf-drawing: 1 declares that viewport. The inherited value on
+    // the parent excludes its descendants, leaving the viewport's own box and its
+    // siblings accountable. Words and offered controls still answer their separate
+    // reachability readings; declaring a drawing does not make a lost press reachable.
+    if (
+      el.closest("svg") ||
+      getComputedStyle(el.parentElement).getPropertyValue("--lf-drawing").trim() === "1"
+    )
+      continue;
     const b = el.getBoundingClientRect();
     if (b.width < 1) continue;
     let a = holder(el),
@@ -712,18 +775,4 @@ export function squeezedTables() {
     );
   }
   return found;
-}
-
-// A margin marker with nowhere to stand. The layout withholds a row whose anchor the
-// browser will not take — an element behind the page's own `anchor-scope`, say — and marks
-// it `data-lf-parked`, so the user has no marker for that element and the page has no
-// way to show its thread or its decision beside it. Only the page can fix it: anchor the
-// thread or the widget to an element in the page's flow.
-export function strandedMargins() {
-  return [...document.querySelectorAll(".lf-margin-cluster[data-lf-parked]")].map(
-    (row) =>
-      `the margin marker for ${row.lfTarget ? at(row.lfTarget) : row.dataset.lfMarginFor} ` +
-      "has nowhere to stand: its element sits where a marker cannot anchor to it " +
-      "(behind an anchor-scope, say), so the user sees no marker for it",
-  );
 }

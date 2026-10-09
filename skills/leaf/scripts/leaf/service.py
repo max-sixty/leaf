@@ -1,8 +1,12 @@
 """Page claims, serialized transactions, and status.
 
 The transaction holds the page's append lease; what may be appended under it is
-`event_contracts`' to say. Claim discovery runs in a cold harness hook, so
-process inspection and page-event semantics are imported only by their callers."""
+`event_contracts`' to say. Cold harness hooks read claims, and Codex's tool hook
+opens a transaction after every tool call, so process inspection and page-event
+semantics are imported only by their callers. A transaction imports the page model
+only to finish an interrupted publication."""
+
+from __future__ import annotations
 
 import hashlib
 import os
@@ -20,7 +24,7 @@ from leaf.event_log import (
     _parse_events,
     read_cursor,
 )
-from leaf.files import read_json
+from leaf.files import read_json, unfinished_publications
 from leaf.machine import pid_alive, state_home
 from leaf.schema import (
     ACTIVITY_GRACE_SECS,
@@ -29,13 +33,16 @@ from leaf.schema import (
     UNNAMED_AGENT,
 )
 from leaf.state import (
+    CLAIMED_SUFFIX,
     EVENTS_FILE,
     close_session_turn,
     ensure_session,
     flocked,
+    fsync_parents,
     now_iso,
     open_session_turn,
     page_key,
+    session_file,
     session_lock_path,
     session_record,
     write_json,
@@ -56,8 +63,43 @@ def delivery_reply_attempt(delivery_id: str) -> str:
 
 
 def claim_path(page_dir: Path) -> Path:
-    """The one ownership record for a resolved page path."""
-    return state_home() / "claims" / f"{page_key(page_dir)}.json"
+    """The page's one canonical payload, also written by resident page servers."""
+    return state_home().resolve() / "claims" / f"{page_key(page_dir)}.json"
+
+
+def session_claims(session_id: str) -> Path:
+    """This session's discovery locators; payloads remain canonical by page."""
+    return state_home().resolve() / "claims" / session_file(session_id, "claims").stem
+
+
+def publish_claim(page_dir: Path, claim: dict) -> None:
+    """Prepare discovery, then commit ownership in the canonical payload.
+
+    Discovery validates the payload's owner against the partition. A transfer's
+    old locator therefore stops standing at the canonical commit, which also
+    admits the prepared new locator. Failed preparation leaves ownership intact.
+    Resident writers retain the same flat payload path, so their atomic updates
+    cannot destroy discovery.
+    """
+    path = claim_path(page_dir)
+    previous = read_json(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    locator = session_claims(claim["id"]) / path.name
+    locator.parent.mkdir(parents=True, exist_ok=True)
+    staged = locator.with_name(f".{secrets.token_hex(8)}.tmp")
+    try:
+        staged.symlink_to(Path("..") / path.name)
+        os.replace(staged, locator)
+        fsync_parents([locator])
+    finally:
+        staged.unlink(missing_ok=True)
+    write_json(path, claim)
+    if (
+        isinstance(previous, dict)
+        and isinstance(previous.get("id"), str)
+        and previous["id"] != claim["id"]
+    ):
+        (session_claims(previous["id"]) / path.name).unlink(missing_ok=True)
 
 
 # What a reader takes straight off a claim: these fields by name, one of the
@@ -138,7 +180,24 @@ def claim_is_active(claim: dict | None) -> bool:
     return pid_alive(claim["pid"])
 
 
-def claimant_matches(claim: dict | None, harness: "Harness | None") -> bool:
+def claim_names_session(claim: dict | None, session_id: str) -> bool:
+    """Whether the page is still `session_id`'s to record what its task took from
+    the page and answered there: the claim names that session, and neither a
+    release nor the session's end has let the page go.
+
+    Unlike `claim_is_active`, this survives the session's own restart. A new
+    lifetime begins its generation before it publishes that generation's claim,
+    and a task that holds several pages claims them back one at a time, so the
+    claim may name an older generation, or a lifetime that has gone, of a session
+    still running. What that session's task received and answered stays its own
+    to record; only another session's claim takes the page from it."""
+    if not claim or claim["id"] != session_id or claim["released"] is not None:
+        return False
+    record = session_record(session_id)
+    return record is not None and record["ended"] is None
+
+
+def claimant_matches(claim: dict | None, harness: Harness | None) -> bool:
     """Whether the record names this harness, or neither names a claimant.
 
     Harness identity is independent of liveness: readers pass the active claim
@@ -209,15 +268,27 @@ def claim_records(session_id: str | None = None) -> list:
     claim here could erase the successor's ownership. Fresh page initialization
     clears the prior claim under the page lock instead.
 
-    When a session is named, unrelated records need no harness validation or
-    lifetime reading."""
-    directory = state_home() / "claims"
+    Payloads are canonical by page. A named lookup enumerates only that
+    session's locators, checking the canonical payload owner before admitting it.
+    No unrelated claim files are opened or page directories inspected."""
+    directory = (
+        session_claims(session_id) if session_id else state_home().resolve() / "claims"
+    )
     if not directory.is_dir():
         return []
     claims = []
     for path in directory.glob("*.json"):
         record = read_json(path)
         page = record.get("page") if isinstance(record, dict) else None
+        if isinstance(page, str) and claim_path(Path(page)) != path.resolve():
+            continue
+        if (
+            session_id is not None
+            and isinstance(record, dict)
+            and isinstance(record.get("id"), str)
+            and path.parent != session_claims(record["id"])
+        ):
+            continue
         if isinstance(page, str) and not Path(page).is_dir():
             continue
         elif (
@@ -229,22 +300,25 @@ def claim_records(session_id: str | None = None) -> list:
 
 
 class PageTransaction:
-    """One page transition serialized by its append-only log."""
+    """One page transition serialized by its append-only log. A `deadline`
+    bounds the wait for the log's lock (`flocked`)."""
 
-    def __init__(self, page_dir: Path):
+    def __init__(self, page_dir: Path, *, deadline: float | None = None):
         self.page_dir = page_dir.resolve()
+        self.deadline = deadline
         self._lock = None
         self._log = None
         self._events = None
 
     def __enter__(self):
         self._events = None
-        self._lock = flocked(self.page_dir / EVENTS_FILE)
+        self._lock = flocked(self.page_dir / EVENTS_FILE, deadline=self.deadline)
         self._log = self._lock.__enter__()
         try:
-            from leaf.revisioning import finish_publications
+            if publications := unfinished_publications(self.page_dir, self.events):
+                from leaf.revisioning import finish_publications
 
-            finish_publications(self)
+                finish_publications(self, publications)
         except BaseException:
             self._lock.__exit__(*sys.exc_info())
             raise
@@ -262,7 +336,36 @@ class PageTransaction:
         claim = self.claim
         return claim if claim_is_active(claim) else None
 
-    def take_claim(self, harness: "Harness") -> tuple[dict | None, dict]:
+    def standing_reply_binding(self, responds: str) -> dict | None:
+        """The response reservation while its claimant's exact turn remains open."""
+        from leaf.activity import reply_binding_stands
+
+        binding = ((self.status.get("stream") or {}).get("reply_bindings") or {}).get(
+            responds
+        )
+        claim = self.active_claim
+        if claim and reply_binding_stands(
+            binding, claim["id"], claim["turn"], claim["turn_closed"]
+        ):
+            return binding
+        return None
+
+    @property
+    def delivery_owner(self) -> str | None:
+        """The last logical owner, even after release, end or process restart.
+
+        Another session's claim supersedes delivered authorizations; liveness
+        and process generations do not. Provider reservations fence automatic finals.
+        """
+        claim = self.claim
+        return claim["id"] if claim else None
+
+    def claim_of(self, session_id: str) -> dict | None:
+        """The claim, while the page is still `session_id`'s (`claim_names_session`)."""
+        claim = self.claim
+        return claim if claim_names_session(claim, session_id) else None
+
+    def take_claim(self, harness: Harness) -> tuple[dict | None, dict]:
         """Record this session as the page's watcher.
 
         The record carries the claimant's harness as well as its id, so every
@@ -289,10 +392,11 @@ class PageTransaction:
                     "the prepared acquisition no longer has a live session"
                 )
             previous = self.claim
-            path = claim_path(self.page_dir)
-            path.parent.mkdir(parents=True, exist_ok=True)
             yield previous, projected
-            write_json(path, claim)
+            publish_claim(self.page_dir, claim)
+            # Lets Codex's tool hook skip a session that never held a page
+            # (`state.hook_needed`).
+            session_file(claim["id"], CLAIMED_SUFFIX).touch()
 
     def restore_claim(self, expected: dict, previous: dict | None) -> None:
         """Roll back one failed claim without erasing a successor's."""
@@ -301,9 +405,10 @@ class PageTransaction:
         path = claim_path(self.page_dir)
         if previous is None:
             path.unlink(missing_ok=True)
+            (session_claims(expected["id"]) / path.name).unlink(missing_ok=True)
         else:
-            write_json(
-                path,
+            publish_claim(
+                self.page_dir,
                 {
                     key: value
                     for key, value in previous.items()
@@ -312,7 +417,7 @@ class PageTransaction:
                 },
             )
 
-    def owned_by(self, harness: "Harness | None") -> bool:
+    def owned_by(self, harness: Harness | None) -> bool:
         """Whether this transaction may act for the given waiter."""
         return claimant_matches(self.active_claim, harness)
 
@@ -341,7 +446,7 @@ class PageTransaction:
         ended.
 
         Browser-event admission sends at most one such message per ending of a
-        turn (`session-lifetime.md`, Carriers). `ending` names the claim's turn id
+        turn (`session-lifetime.md`, Watchers). `ending` names the claim's turn id
         and its close stamp, or for an interrupted turn its last opening, so a
         later ending, whether a close under a new id or an interrupt after a new
         prompt renewed the same one, never matches the ending a message already
@@ -355,64 +460,16 @@ class PageTransaction:
     def status(self) -> dict:
         return read_status(self.page_dir)
 
-    def set_status(
-        self,
-        state: str,
-        detail: str,
-        *,
-        work: dict | None = None,
-    ) -> dict:
-        """Write the page declaration and any typed local evidence it renews, and
-        return it as written.
+    def set_status(self, state: str, detail: str) -> dict:
+        """Write the page's `waiting` or `idle` declaration and return it as written.
 
-        A local line is the same sentence read at a second seat: the page's one
-        line says what the agent is doing, and a typed subject says so where the
-        work lives. One command writes both because they are one claim, so a
-        write after a turn has ended renews the page line and the subject line
-        together.
-
-        Standing work carries across every other status write, so a page-wide
-        status update does not silently drop what a helper is holding. A new
-        claim replaces the old claim on its semantic subject; `idle`
-        clears them all with the leaf.
-        """
-        status = {
-            "state": state,
-            "detail": detail,
-            "ts": now_iso(),
-            # Order the agent's declaration against delivery transitions without
-            # comparing wall-clock timestamps that are only precise to a second.
-            "after": self.events[-1]["seq"] if self.events else 0,
-        }
+        The work the agent has in hand is no status: it is the log's `start` events,
+        and the `put_down` that `leaf status` writes beside a declaration takes them
+        back (`tasks`). The stream the harness observes carries across a `waiting`,
+        and `idle` clears it with the leaf."""
+        status = {"state": state, "detail": detail, "ts": now_iso()}
         if state != "idle" and (stream := self.status.get("stream")):
             status["stream"] = stream
-        claims = [] if state == "idle" else list(self.status.get("work", []))
-        if work:
-            claims = [held for held in claims if held["subject"] != work["subject"]]
-            voice = self.voice()
-            claim = self.claim
-            claims.append(
-                {
-                    "id": secrets.token_hex(4),
-                    **work,
-                    "detail": detail,
-                    "ts": status["ts"],
-                    **voice,
-                    # The claimant's turn that wrote it, which is how the Stop hook
-                    # tells work this turn declared from work an earlier turn left
-                    # (`activity.turn_obligations`). Another session's claim names
-                    # none. A Claude Code subagent runs as its parent's session, so
-                    # a claim it wrote would name the parent's turn; workers leave
-                    # status to the session driving the page.
-                    "turn": (
-                        claim.get("turn")
-                        if claim and claim["id"] == voice["session"]
-                        else None
-                    ),
-                }
-            )
-        if claims:
-            status["work"] = claims
         write_json(self.page_dir / STATUS_FILE, status)
         return status
 
@@ -527,8 +584,6 @@ class PageTransaction:
             "text": text,
             "state": state,
             "settles": settles,
-            # The claimant's name: a stream reply is the task that holds the page
-            # speaking, and `take_claim` always wrote one.
             "agent": self.claim["agent"],
             "ts": timestamp or updated_at,
             "updated_at": updated_at,
@@ -575,14 +630,9 @@ class PageTransaction:
         """The stream's bindings with one response address bound to `attempt`
         in `turn_id`, refusing an address another delivery's binding holds while
         it stands (`activity.reply_binding_stands`)."""
-        from leaf.activity import reply_binding_stands
-
         bindings = dict(stream.get("reply_bindings") or {})
-        standing = bindings.get(responds)
-        claim = self.claim
-        if reply_binding_stands(
-            standing, claim["id"], claim["turn"], claim["turn_closed"]
-        ) and not _held_by(standing, session_id, attempt):
+        standing = self.standing_reply_binding(responds)
+        if standing is not None and not _held_by(standing, session_id, attempt):
             raise RuntimeError(
                 f"response {responds!r} is already bound to another delivery"
             )
@@ -703,7 +753,7 @@ class PageTransaction:
     def cursor(self) -> int:
         return read_cursor(self.page_dir)
 
-    def watch_state(self, harness: "Harness | None") -> str:
+    def watch_state(self, harness: Harness | None) -> str:
         if not self.owned_by(harness):
             return "lost"
         return "ended" if self.status["state"] == "idle" else "watching"
@@ -718,7 +768,7 @@ def _held_by(binding: dict | None, session_id: str, attempt: str) -> bool:
     )
 
 
-def prepare_claim(harness: "Harness", page_dir: Path) -> dict:
+def prepare_claim(harness: Harness, page_dir: Path) -> dict:
     """Capture an unpublished acquisition in the claimant's process.
 
     Lifetime and cwd come from the launching harness, not a detached child. Preparing
@@ -779,7 +829,7 @@ def read_status(page_dir: Path) -> dict:
     "Stage"). The first status write replaces it."""
     record = read_json(page_dir / STATUS_FILE)
     if record is None or "state" not in record:
-        return {"state": "waiting", "detail": "", "after": 0}
+        return {"state": "waiting", "detail": ""}
     return record
 
 
@@ -796,7 +846,7 @@ def owned_pages(session_id: str | None) -> list:
 def unacknowledged(events: list, cursor: int) -> list:
     """Attention-marked events past the page's acknowledgement cursor.
 
-    Carriers, the unpicked-input Stop guard and the idle gate read the same
+    Delivery, the unpicked-input Stop guard and the idle gate read the same
     admission decision. The user-facing pending count includes only user input;
     workers' reports and page errors wake the agent without increasing that count.
     """
@@ -809,49 +859,3 @@ def requires_agent_attention(event: dict) -> bool:
     A record without the admitted decision is absent input.
     """
     return event.get("attention") is True
-
-
-# The fields every stored work claim carries (`PageService.set_status`).
-CLAIM_FIELDS = frozenset(
-    {"id", "subject", "after", "detail", "ts", "agent", "session", "turn"}
-)
-
-
-def claim_update_sources(status: dict) -> list[dict]:
-    """The status store's work claims at their public boundary.
-
-    `status.json` remains the small replace-in-place store its transient claims
-    need. The browser and `page state` receive typed source envelopes instead, so
-    every downstream consumer reads the same target and lifecycle vocabulary.
-
-    A claim lacking a field `PageService.set_status` writes today, such as the
-    poster's voice, was written by an older leaf and is absent here, so every
-    envelope carries the name its work is shown under.
-    """
-    sources = []
-    for claim in status.get("work", []):
-        target = claim.get("subject", {})
-        required = CLAIM_FIELDS | (
-            {"revision"} if target.get("kind") == "widget" else set()
-        )
-        if not required <= claim.keys():
-            continue
-        source = {
-            "id": claim["id"],
-            "target": target,
-            "source": "claim",
-            "action": "working",
-            "detail": {"text": claim["detail"]},
-            "text": claim["detail"],
-            "ts": claim["ts"],
-            "log_floor": claim["after"],
-            "agent": claim["agent"],
-            "session": claim["session"],
-            "turn": claim["turn"],
-        }
-        if event := claim.get("event"):
-            source["event"] = event
-        if target["kind"] == "widget":
-            source["revision"] = claim["revision"]
-        sources.append(source)
-    return sources

@@ -2,10 +2,9 @@
 
 import re
 
-from interact_support import record_claim
+from interact_support import declare_idle, record_claim, working
 from leaf import leases as leases_model
 from leaf import service as service_model
-from leaf import session as session_model
 from leaf import thread as thread_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -26,7 +25,7 @@ def test_new_reply_and_user_question_share_one_notice_without_moving_focus(
     expect(toggle).to_be_focused()
     expect(page.locator(".lf-notice")).to_be_hidden()
 
-    thread_model.cmd_reply(
+    thread_model.post_reply(
         serve.page_dir,
         root,
         "I changed the route. Does this answer your question?",
@@ -65,7 +64,7 @@ def test_terminal_failure_is_a_response_notice_not_an_agent_reply(browser, serve
     page = open_page(browser, url)
     expect(page.locator(".lf-notice")).to_be_hidden()
 
-    thread_model.cmd_reply(
+    thread_model.post_reply(
         serve.page_dir,
         root,
         "The agent turn ended before completion.",
@@ -134,14 +133,14 @@ def test_deferred_notice_describes_only_the_current_message_version(browser, ser
 def test_initial_history_and_repeated_stage_readings_are_quiet(browser, serve):
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "What changed?")
-    thread_model.cmd_reply(
+    thread_model.post_reply(
         serve.page_dir, root, "The initial historical answer.", None, for_event=root
     )
     page = open_page(browser, url)
     expect(page.locator(".lf-notice")).to_be_hidden()
 
     # A fresh accepted status reading must not rediscover historical content.
-    session_model.cmd_status(serve.page_dir, "idle", "done")
+    declare_idle(serve.page_dir)
     told(page)
     expect(page.locator(".lf-notice")).to_be_hidden()
     assert "replied" not in page.locator(".lf-live").text_content()
@@ -151,16 +150,16 @@ def test_page_availability_announces_once_while_work_stage_changes_remain_quiet(
     browser, serve
 ):
     url = serve(PANEL_PAGE)
-    session_model.cmd_status(serve.page_dir, "idle", "done")
+    declare_idle(serve.page_dir)
     page = open_page(browser, url)
     expect(page.locator(".lf-notice")).to_be_hidden()
 
-    session_model.cmd_status(serve.page_dir, "working", "Checking the page")
+    working(serve.page_dir, "Checking the page")
     told(page)
     expect(page.locator(".lf-notice")).to_have_text("Agent active on this page")
     expect(page.locator(".lf-live")).to_have_text("Agent active on this page")
-    expect(page.locator(".lf-notice")).to_be_hidden(timeout=6000)
+    expect(page.locator(".lf-notice")).to_be_hidden()
 
-    session_model.cmd_status(serve.page_dir, "working", "Using a tool")
+    working(serve.page_dir, "Using a tool")
     told(page)
     expect(page.locator(".lf-notice")).to_be_hidden()

@@ -2,9 +2,18 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createSemanticApplication } from "./application.ts";
 import { createPresentationCoordinator } from "./presentation.ts";
-import { servedThread, servedWorkflow } from "../../tests/served.mjs";
+import { stateDefinition } from "../../skills/leaf/assets/runtime/registry-contract.js";
+import { servedReading, servedThread, servedWorkflow } from "../../tests/served.mjs";
 
-const spec = { unit: "widget" };
+const spec = {
+  unit: "widget",
+  detail: {
+    type: "object",
+    properties: { outcome: { enum: ["accept", "reject"] } },
+    required: ["outcome"],
+    additionalProperties: false,
+  },
+};
 const descriptor = {
   id: "choice",
   tag: "lf-choice",
@@ -57,7 +66,15 @@ const state = (taken, events = []) => ({
           asks: noAsks(),
           projection: {
             entries: events.map((event) => ({
-              event,
+              event: {
+                ...event,
+                meaning: {
+                  ...event.meaning,
+                  state:
+                    event.meaning?.state ??
+                    stateDefinition("lf-choice", descriptor.declaration, spec),
+                },
+              },
               coordinate: [event.widget, event.widget, event.action],
               spec,
               scope: "page",
@@ -1192,11 +1209,12 @@ test("the publisher carries the server's Ask reading, page asks before thread as
 test("a standing report supplies desired widget state", () => {
   const valueSpec = {
     unit: "widget",
-    record: { kind: "value", attr: "choice", value: "choice" },
+    record: { kind: "value", attr: "choice" },
   };
   const source = {
     ...descriptor,
     declaration: {
+      properties: { choice: { type: "string" } },
       "x-state": { preview: { ...valueSpec, writer: "agent" } },
     },
   };
@@ -1206,10 +1224,13 @@ test("a standing report supplies desired widget state", () => {
     kind: "report",
     widget: source.id,
     action: "preview",
-    detail: { choice: "reported" },
+    detail: { value: "reported" },
     revision: 1,
     id: "report-1",
     seq: 1,
+  };
+  report.meaning = {
+    state: stateDefinition(source.tag, source.declaration, valueSpec),
   };
   accepted.events = [report];
   accepted.browser.basis.through_seq = 1;
@@ -1259,4 +1280,102 @@ test("a reaction root is not a spoken turn awaiting the user", () => {
 
   app.adopt(accepted);
   assert.equal(app.read().effective.thread.all[0].attention, null);
+});
+
+test("a Done this tab sends ends its task at once, and its undo puts the task back", () => {
+  // The task the agent put on the user, as the server serves it.
+  const task = servedReading("queues on both sides").tasks.find(
+    (candidate) => candidate.ends === "done",
+  );
+  const onYou = (app) => app.read().effective.queues.onYou.map(({ id }) => id);
+  const done = (app) => app.read().effective.done.map(({ id, state }) => [id, state]);
+
+  const app = setup();
+  const open = state(2);
+  open.browser.tasks = [task];
+  open.browser.ended_tasks = [];
+  app.adopt(open);
+  assert.deepEqual(onYou(app), [task.id]);
+  app.enqueue(
+    { kind: "task_end", task: task.id, outcome: "done", attempt: "done" },
+    "now",
+  );
+  assert.deepEqual(onYou(app), []);
+  assert.deepEqual(done(app), [[task.id, "done"]]);
+  // A refused Done puts the task back as the log has it.
+  app.refuse("done");
+  assert.equal(onYou(app)[0], task.id);
+  assert.deepEqual(done(app), []);
+
+  const later = setup();
+  const ended = state(2);
+  ended.browser.tasks = [];
+  ended.browser.ended_tasks = [
+    { ...task, state: "done", outcome: { ...task.outcome, id: "e20", ts: "now" } },
+  ];
+  later.adopt(ended);
+  assert.deepEqual(onYou(later), []);
+  later.enqueue({ kind: "undo", undoes: "e20", attempt: "undo" }, "now");
+  assert.deepEqual(onYou(later), [task.id]);
+  assert.deepEqual(done(later), []);
+});
+
+test("a revision preserves pending delivery while replacing incompatible speculative state", () => {
+  const app = setup();
+  const pending = app.enqueue(action("old"), "now");
+  app.enqueue({ kind: "undo", undoes: pending.localId, attempt: "undo-old" }, "now");
+  const document = structuredClone(app.read().document);
+  document.revision = 2;
+  const revisedSpec = { ...spec, record: { kind: "value", attr: "status" } };
+  const declaration = {
+    properties: { status: { type: "integer" } },
+    "x-state": { decide: revisedSpec },
+  };
+  document.registry["lf-choice"] = declaration;
+  document.descriptors.set("choice", {
+    ...descriptor,
+    declaration,
+    document: { kind: "page", revision: 2 },
+  });
+  document.authored.set("choice", {
+    tag: "lf-choice",
+    specs: new Map([["decide", revisedSpec]]),
+    positions: {},
+    state: { decide: { action: null, value: 5, detail: { value: 5 } } },
+  });
+  const reading = state(2);
+  reading.active.revision = 2;
+  reading.browser.views[2] = reading.browser.views[1];
+  reading.browser.views[2].basis.revision = 2;
+  assert.equal(app.adopt(reading, document), true);
+  assert.equal(app.read().effective.widgets.get("choice").state.decide.value, 5);
+  assert.equal(app.read().unresolved.length, 2);
+  const newAttempt = { ...action("new"), revision: 2, detail: { value: 7 } };
+  app.enqueue(newAttempt, "now");
+  assert.equal(app.read().effective.widgets.get("choice").state.decide.value, 7);
+  assert.equal(app.read().unresolved.length, 3);
+});
+
+test("a revision changing a verb's writer retains delivery without drawing the old user gesture", () => {
+  const app = setup();
+  app.enqueue(action("old-user"), "now");
+  assert.equal(decision(app), "accept");
+  const document = structuredClone(app.read().document);
+  document.revision = 2;
+  const agentSpec = { ...spec, writer: "agent" };
+  const declaration = { "x-state": { decide: agentSpec } };
+  document.registry["lf-choice"] = declaration;
+  document.descriptors.set("choice", {
+    ...descriptor,
+    declaration,
+    document: { kind: "page", revision: 2 },
+  });
+  document.authored.get("choice").specs.set("decide", agentSpec);
+  const reading = state(2);
+  reading.active.revision = 2;
+  reading.browser.views[2] = reading.browser.views[1];
+  reading.browser.views[2].basis.revision = 2;
+  assert.equal(app.adopt(reading, document), true);
+  assert.equal(decision(app), null);
+  assert.equal(app.read().unresolved.length, 1);
 });

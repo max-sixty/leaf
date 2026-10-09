@@ -62,6 +62,7 @@ from leaf_dev.page_fixtures import (
     package_selection_args,
     prepare_page,
     read_fixture,
+    source_packages,
 )
 
 DOCS = ROOT / "docs"
@@ -78,8 +79,8 @@ PRODUCT_ROUTES = {
     "extending.html": "/extending/",
     "registry.html": "/registry/",
     "event-log.html": "/event-log/",
+    "threads.html": "/threads/",
 }
-SITE_PACKAGE = "./docs/package"
 # The card a link to a product page unfurls into, shot at the 1.91:1 an unfurler draws
 # by `leaf_dev.record_demo`, relative to the asset tree. An example names its own
 # catalog preview instead.
@@ -240,9 +241,8 @@ def social_images(assets: Path) -> dict[str, str]:
     """The public card image behind each page root.
 
     Both are named at the page root that publishes the file: the product shot at the
-    site root, and an example's preview in the catalog, which is the page the previews
-    were stored against. Every root serves the whole media set, so the two paths hold
-    for a card unfurled from any page.
+    site root, and an example's preview in the catalog, whose authored markup selects
+    those images. These website paths address the publishing page from any link.
     """
     catalog = PRODUCT_ROUTES["examples.html"].rstrip("/")
     images = {
@@ -320,7 +320,7 @@ def deduplicate_tree(root: Path, *, mutable_names: set[str] = frozenset()) -> No
         os.link(existing, path)
 
 
-def publish_examples(out: Path, env: dict) -> None:
+def publish_examples(out: Path, env: dict, *, assets: Path) -> None:
     """Publish worked examples and developer references without product pages."""
     for source in published_page_sources():
         published = out / "examples" / source.stem
@@ -331,6 +331,7 @@ def publish_examples(out: Path, env: dict) -> None:
             partial(leaf, env),
             final_status="idle",
             current_note="As published",
+            assets=assets,
         )
         print(f"  {source.stem}")
 
@@ -341,24 +342,14 @@ def publish_pages(
     """Publish product documents with build-local markup and authored companions.
 
     Overrides are private source files, consumed by validation and the final stamp;
-    their versions, data, media and history still come from the authored source.
+    their companions and prior versions still come from the authored source. The
+    supplied asset tree provides media selected by those documents.
     """
     with tempfile.TemporaryDirectory() as tmp:
         template = Path(tmp) / "product-page"
-        packages = json.loads((EXAMPLES / "layer.json").read_text(encoding="utf-8"))
-        selection = package_selection_args([*packages, SITE_PACKAGE])
+        selection = package_selection_args(source_packages(DOCS / "index.html"))
         leaf(env, "page", "init", *selection, str(template))
-        # Put the authored images behind the content-addressed paths the product
-        # sources name before validating and rendering them.
-        product_media = [
-            assets / SOCIAL_CARD,
-            *(
-                assets / "examples" / f"example-{source.stem}.jpg"
-                for source in catalog_sources()
-            ),
-        ]
-        leaf(env, "page", "media", str(template), *map(str, product_media))
-        # Each product document is checked in the template, then published as a copy.
+        # Reuse the initialized layer; each document prepares its own authored inputs.
         for source in product_sources():
             fixture = read_fixture(source)
             if source in source_markup:
@@ -372,8 +363,6 @@ def publish_pages(
                         for version in fixture.versions
                     ),
                 )
-            shutil.copyfile(fixture.source, template / "index.html")
-            leaf(env, "page", "check", str(template))
             target = product_page(out, source.name)
             shutil.copytree(template, target)
             prepare_page(
@@ -383,8 +372,10 @@ def publish_pages(
                 initialize=False,
                 final_status="idle",
                 current_note="As published",
+                assets=assets,
             )
-    publish_examples(out, env)
+            leaf(env, "page", "check", str(target))
+    publish_examples(out, env, assets=assets)
 
 
 def publish_live_shells(
@@ -392,6 +383,16 @@ def publish_live_shells(
 ) -> Path:
     """Materialize the public bytes of every private page directory."""
     images = social_images(assets)
+    if include_products:
+        # This image belongs to website-generated social metadata. Authored images
+        # have already been materialized by the shared fixture preparation.
+        leaf(
+            environment(),
+            "page",
+            "media",
+            str(product_page(out, "index.html")),
+            str(assets / SOCIAL_CARD),
+        )
     digest = hashlib.sha256()
     for path in sorted(
         candidate for candidate in out.rglob("*") if candidate.is_file()
@@ -482,7 +483,7 @@ def build_examples(out: Path, *, assets: Path) -> None:
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
     # `environment()` keeps the builder's harness session out of published version notes.
-    publish_examples(out, environment())
+    publish_examples(out, environment(), assets=assets)
     publish_live_shells(out, assets, include_products=False)
 
 

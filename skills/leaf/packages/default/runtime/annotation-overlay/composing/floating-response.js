@@ -3,17 +3,19 @@
    Composition owns its durable target and native editor. This owner chooses its initial
    side, measure and CSS attachment. While editing, the browser carries that attachment
    through every ancestor scroll; generic repaint and scroll publications do not solve
-   another position. Target or field resize, viewport resize and declared layout
-   changes invalidate the attachment. Replacing its target or native seat retires it. The compact response strip retains ordinary
+   another position. Target or field resize, viewport resize, horizontal target motion,
+   and declared layout changes invalidate the attachment. Replacing its target or native seat retires it. The compact response strip retains ordinary
    collision placement and scroll observation.
 
    An editing field follows its passage out of view. The existing Resume writing route
-   reveals that same field; no window seat or duplicate input stands in for it. */
+   reveals that same field; no window seat or duplicate input stands in for it. A modal
+   side panel withholds the page's response bar and takes its focus until the page is
+   available again. */
 import { cancelRender, nextRender } from "/runtime/rendering.js";
 import { resolveAnchor } from "/runtime/anchor-resolution.js";
 import { sameAnchor } from "/runtime/anchor-coordinate.js";
 import { declareOffFlowSurface } from "/runtime/off-flow.js";
-import { shownBox } from "/runtime/geometry.js";
+import { rightCover, shownBox } from "/runtime/geometry.js";
 import {
   passageGeometry,
   rangeGeometry,
@@ -23,7 +25,7 @@ import {
 } from "/runtime/resolved-target.js";
 import { pageRange, pageText } from "/runtime/passages.js";
 import { pageSelection, selectionAnchor } from "/runtime/composing/capture.js";
-import { holdFocus } from "/runtime/focus.js";
+import { closeLayer, holdFocus, focusDestination } from "/runtime/focus.js";
 import { coarsePointer } from "/runtime/pointer.js";
 import { LAYOUT } from "/runtime/widget-elements.js";
 import { under } from "/runtime/shadow.js";
@@ -31,6 +33,7 @@ import { union } from "/runtime/rect.js";
 import { floatingPlacement, floatingUi } from "../floating.js";
 import {
   commentAttachment,
+  commentReference,
   commentBoundary,
   commentPlacement,
 } from "../comment-placement.js";
@@ -40,7 +43,6 @@ import { keeps, layoutPx } from "/runtime/keeps.js";
 export function createFloatingResponsePlacement({
   bar: fabBar,
   response,
-  panel,
   panelIsOpen,
   threadsBox,
   positioned,
@@ -50,7 +52,7 @@ export function createFloatingResponsePlacement({
   scrollToRange,
 }) {
   const floatBoundary = (region = null) =>
-    commentBoundary({ region, right: panel.open ? panel.offsetLeft : Infinity });
+    commentBoundary({ region, right: rightCover() });
   // The side the bar holds and its inline start, by the rule the thread card it becomes
   // stands by too (comment-placement.js).
   const fabPlacement = commentPlacement();
@@ -91,15 +93,20 @@ export function createFloatingResponsePlacement({
       Math.ceil(boundary.width) >= Math.ceil(fabBar.getBoundingClientRect().width)
     );
   };
+  const panelCoversPage = () =>
+    panelIsOpen() && threadsBox.closest("dialog")?.matches(":modal");
 
-  // The editing observer reports size changes only: CSS anchors own scroll following.
+  // The editing observer reports size and horizontal target movement: CSS anchors
+  // own scroll following, while a target moved without resizing must let the shared
+  // placement rule choose its side again. Movement observation also hears scroll,
+  // which must leave the native attachment alone.
   // A compact strip still observes scroll and layout shifts. Explicit publication may
   // replace a target or editor seat; composition stops this owner for that handoff.
   // Native-seat readiness belongs to composition; stopping this presenter retires
   // only its observers and geometry, never a handoff waiting for an inline seat.
   function stopFabPositioning({ reset = false } = {}) {
     nativeAttachment = false;
-    fabBar.style.removeProperty("height");
+    if (fabBar.style.height) fabBar.style.removeProperty("height");
     fabPosition.stop();
     cancelRender(fabPositionFrame);
     fabPositionFrame = 0;
@@ -120,7 +127,7 @@ export function createFloatingResponsePlacement({
   }
 
   let observationModes = null;
-  function watchFabPosition(target, autoUpdate) {
+  function watchFabPosition(target, autoUpdate, getOverflowAncestors) {
     const reference = {
       contextElement: response.pointIn(target) ?? target,
       getBoundingClientRect: () =>
@@ -128,16 +135,53 @@ export function createFloatingResponsePlacement({
     };
     if (!observationModes) {
       observationModes = {
-        editing: (reference, floating, update) =>
-          autoUpdate(
+        editing: (reference, floating, update) => {
+          const invalidate = () => {
+            nativeAttachment = false;
+            update();
+          };
+          const stopSize = autoUpdate(reference, floating, invalidate, {
+            ancestorScroll: !fabPosition.nativeAvailable(),
+            layoutShift: false,
+          });
+          let x = reference.getBoundingClientRect().left;
+          const scrollers = getOverflowAncestors(reference.contextElement);
+          const scrollPose = () =>
+            scrollers.map((node) => [
+              node.scrollX ?? node.scrollLeft,
+              node.scrollY ?? node.scrollTop,
+            ]);
+          let pose = scrollPose();
+          const stopMotion = autoUpdate(
             reference,
             floating,
             () => {
-              nativeAttachment = false;
-              update();
+              const next = reference.getBoundingClientRect().left;
+              const now = scrollPose();
+              const scrolled = now.some((axes, i) =>
+                axes.some((value, axis) => value !== pose[i][axis]),
+              );
+              pose = now;
+              if (scrolled) {
+                x = next;
+                return;
+              }
+              if (next === x) return;
+              x = next;
+              invalidate();
             },
-            { ancestorScroll: !fabPosition.nativeAvailable(), layoutShift: false },
-          ),
+            {
+              ancestorScroll: false,
+              ancestorResize: false,
+              elementResize: false,
+              layoutShift: true,
+            },
+          );
+          return () => {
+            stopMotion();
+            stopSize();
+          };
+        },
         compact: autoUpdate,
       };
     }
@@ -200,6 +244,10 @@ export function createFloatingResponsePlacement({
   // beside that whole place, or above/below it when the rail is too narrow.
   function placeFab() {
     if (!response.anchor) return false;
+    if (panelCoversPage()) {
+      withholdFab();
+      return false;
+    }
     if (response.open && nativeAttachment) return true;
     const geometry = anchorGeometry(response.anchor);
     const target = geometry?.box;
@@ -237,6 +285,7 @@ export function createFloatingResponsePlacement({
     };
     fabPlacement.choose({
       clear: place.clear,
+      column: place.column,
       extent: place.extent,
       boundary,
       scroller: place.scroller,
@@ -249,7 +298,11 @@ export function createFloatingResponsePlacement({
     void floatingUi()
       .then((ui) => {
         if (!stillCurrent()) return null;
-        watchFabPosition(owner ?? document.documentElement, ui.autoUpdate);
+        watchFabPosition(
+          owner ?? document.documentElement,
+          ui.autoUpdate,
+          ui.getOverflowAncestors,
+        );
         const { reference, placement, middleware, plane } = fabPlacement.options(ui, {
           clear: place.clear,
           row: place.row,
@@ -272,11 +325,7 @@ export function createFloatingResponsePlacement({
         });
         return fabPosition.position(
           ui.computePosition,
-          {
-            contextElement: owner ?? document.documentElement,
-            contextNode: place.contextNode,
-            getBoundingClientRect: () => reference,
-          },
+          commentReference(place, reference),
           { placement, middleware },
           response.open ? () => "page" : plane,
           owner ?? document.documentElement,
@@ -310,14 +359,19 @@ export function createFloatingResponsePlacement({
   // Threads list takes focus. While the bar waits, its composer scope and selection
   // rung stand down; `c` brings it back.
   function withholdFab() {
+    const covered = panelCoversPage();
     stopFabPositioning({ reset: false });
     if (fabWithheld) return;
     fabWithheld = true;
     const held = holdFocus(fabBar);
-    const toPanel = held && panelIsOpen() && !fabFits();
-    fabBar.style.visibility = "hidden";
-    if (toPanel) threadsBox.focus({ preventScroll: true });
-    else fabWithheldFocus = held;
+    const toPanel = held && panelIsOpen() && (!fabFits() || covered);
+    closeLayer(
+      () => {
+        if (fabBar.style.visibility !== "hidden") fabBar.style.visibility = "hidden";
+      },
+      toPanel && (() => focusDestination(threadsBox, "return")),
+    );
+    if (!toPanel) fabWithheldFocus = held;
   }
   // The bar is in view again, by whichever placement put it there.
   function stoodAgain() {

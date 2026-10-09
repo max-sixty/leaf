@@ -229,7 +229,9 @@ DIFF_EXAMPLE = json.loads(
 # around it is, its closing tag on a line of its own, with words that wrap in a phone's
 # column. The diff package's worked example, whose stated height is its drawing's at
 # the report's desktop width, read in a phone's window, where it also opens the column;
-# and at a desktop width closing a panel, whose frame trims the host's own margin.
+# and at a desktop width closing a panel, whose frame trims the host's own margin. A
+# framed tab set and a side-list queue whose names run past a phone's width, each
+# reserving the one row its strip keeps, the queue's group labels included.
 FIRST_BOXES = {
     "draft-in-a-phone-column": (
         """
@@ -246,6 +248,27 @@ FIRST_BOXES = {
         f'<section class="panel" id="ends"><p>The patch.</p>{DIFF_EXAMPLE}</section>',
         1200,
     ),
+    "tab-names-outrunning-a-phone": (
+        '<section id="views-section"><lf-tabs id="views">'
+        + "".join(
+            f'<lf-tab id="view-{i}" label="View {i}"><p id="words-{i}">View {i}.</p>'
+            "</lf-tab>"
+            for i in range(12)
+        )
+        + "</lf-tabs></section>",
+        390,
+    ),
+    "queue-in-a-phone": (
+        '<lf-tabs id="queue" list="side">'
+        + "".join(
+            f'<lf-tab id="item-{i}" label="Item {i}" summary="{i} days old" '
+            f'group="{"Merge" if i < 6 else "Close"}">'
+            f'<p id="item-words-{i}">Item {i}.</p></lf-tab>'
+            for i in range(12)
+        )
+        + "</lf-tabs>",
+        390,
+    ),
 }
 
 
@@ -255,7 +278,9 @@ def test_a_widget_first_paints_the_box_it_presents(browser, serve, case):
     indentation and closing line dropped and the words wrapped as the body wraps them.
     A diff's toolbar keeps one row in a phone's column, so the height its author stated
     at a desktop width holds there, and its drawing hands no margin out past the frame
-    trim at either edge. What follows each stays where it first painted."""
+    trim at either edge. A tab strip is one row however many names it holds, the
+    summary line a queue's rows carry included, so the open panel stands where it
+    first painted. What follows each stays where it first painted."""
     markup, width = FIRST_BOXES[case]
     url = serve(
         leaf_page(
@@ -306,7 +331,10 @@ feeders/
   sites/
     north.toml
 </pre></lf-tree>
-""",
+"""
+            + INITIAL_DRAWING_PAGE.replace('id="title"', 'id="drawing-title"').replace(
+                'id="after"', 'id="drawing-after"'
+            ),
         )
     )
     exported = tmp_path / "exported.html"
@@ -349,7 +377,22 @@ feeders/
     wait_until_ready(page)
     presented = page.evaluate(SHOWN)
 
-    assert {"views", "more", "build", "tree"} <= first["boxes"].keys(), first
+    assert {
+        "views",
+        "more",
+        "build",
+        "tree",
+        "drawing",
+        "faces-one",
+        "faces-two",
+    } <= first["boxes"].keys(), first
+    expect(first_page.locator("#drawing input")).to_have_count(5)
+    expect(first_page.locator("#drawing lf-playground-output")).to_contain_text(
+        "Field note"
+    )
+    expect(first_page.locator("#faces-one .margin-entry-gallery-item")).to_have_count(
+        22
+    )
     assert first == presented
     assert (
         page.evaluate(
@@ -367,3 +410,105 @@ feeders/
     )
     assert broken.evaluate(SHOWN)["panels"] == ["one", "two", "near", "far"]
     consume_browser_errors(broken, "missing.js", "net::ERR_FAILED")
+
+
+INITIAL_DRAWING_PAGE = """
+<h1 id="title">First drawing</h1>
+<lf-playground id="drawing">
+  <lf-playground-control name="title" label="Title" kind="text" value="Field note"></lf-playground-control>
+  <lf-playground-control name="radius" label="Corner radius" kind="range" value="12" min="0" max="24" unit="px"></lf-playground-control>
+  <lf-playground-control name="compact" label="Compact spacing" kind="toggle" value="false"></lf-playground-control>
+  <lf-playground-control name="tone" label="Tone" kind="choice" value="quiet">
+    <lf-playground-choice value="quiet" label="Quiet"></lf-playground-choice>
+    <lf-playground-choice value="bold" label="Bold"></lf-playground-choice>
+  </lf-playground-control>
+  <lf-playground-preview><p>The actual preview, with its own words.</p></lf-playground-preview>
+  <lf-playground-output>Build <lf-playground-value for="title"></lf-playground-value> with
+    <lf-playground-value for="radius"></lf-playground-value> corners and
+    <lf-playground-value for="tone"></lf-playground-value> emphasis.</lf-playground-output>
+</lf-playground>
+<lf-margin-entry-gallery id="faces-one"></lf-margin-entry-gallery>
+<lf-margin-entry-gallery id="faces-two"></lf-margin-entry-gallery>
+<p id="after">Reading after the widgets stays in place.</p>
+"""
+
+# Native fields, wrapped labels and instructions, and the paragraph after two
+# independent galleries. Measuring just the outer widget can miss movement inside it.
+INITIAL_DRAWING_NODES = """lf-playground, lf-playground-control,
+  lf-playground-preview, lf-playground-output, lf-playground-value,
+  .lf-playground-input, .lf-playground-control-label, .lf-playground-choice-face,
+  .lf-playground-reading, .lf-playground-copy-trigger,
+  lf-margin-entry-gallery, .margin-entry-gallery-name, .margin-entry-gallery-detail, .margin-entry-gallery-heading, .margin-entry-gallery-summary, .margin-entry-gallery-face,
+  #after"""
+
+
+@pytest.mark.parametrize("width", [1200, 390])
+def test_initial_drawings_keep_their_nodes_and_wrapped_geometry_on_upgrade(
+    browser, serve, width
+):
+    """Hold the full entry module to observe the actual parser-closing drawing.
+    The default and a restored longer instruction keep the same control and gallery
+    nodes and their geometry through upgrade, including the following reading and
+    different font metrics in the phone. Two
+    galleries also retain distinct control identities in one document."""
+    url = serve(
+        leaf_page(
+            "First drawing",
+            INITIAL_DRAWING_PAGE,
+            head="<style>:root { --sans: Georgia, serif; --mono: Courier, monospace; }</style>"
+            if width == 390
+            else "",
+        )
+    )
+    page = browser.new_page(
+        viewport={"width": width, "height": 900}, has_touch=width == 390
+    )
+    boot = []
+    reading = """selector => [...document.querySelectorAll(selector)]
+      .map(node => {
+        const box = node.getBoundingClientRect();
+        return [node.id || node.localName, ...[box.x, box.y + scrollY, box.width, box.height].map(Math.round)];
+      })"""
+
+    def first_and_upgraded(navigate, title):
+        page.route("**/leaf.js", lambda route: boot.append(route))
+        with page.expect_request("**/leaf.js"):
+            navigate()
+        displayed(page)
+        assert boot, "the positive control did not hold the entry module"
+        expect(page.locator('input[aria-label="Title"]')).to_have_value(title)
+        expect(page.locator("lf-playground-output")).to_contain_text(title)
+        assert page.locator(".margin-entry-gallery-face").count() == 44
+        page.evaluate(
+            "selector => window.initialDrawingNodes = [...document.querySelectorAll(selector)]",
+            INITIAL_DRAWING_NODES,
+        )
+        assert page.locator(".margin-entry-gallery-item").evaluate_all(
+            "items => items.every(item => item.querySelector('.margin-entry-gallery-copy').getBoundingClientRect().left - item.querySelector('.margin-entry-gallery-face').getBoundingClientRect().right >= 7.5)"
+        ), "the gallery label must follow the actual control's width"
+        first = page.evaluate(reading, INITIAL_DRAWING_NODES)
+        page.unroute("**/leaf.js")
+        boot.pop().continue_()
+        wait_until_ready(page)
+        assert page.evaluate(reading, INITIAL_DRAWING_NODES) == first
+        assert page.evaluate(
+            "selector => [...document.querySelectorAll(selector)].every((node, i) => node === window.initialDrawingNodes[i])",
+            INITIAL_DRAWING_NODES,
+        )
+        ids = page.locator(".margin-entry-gallery-face[id]").evaluate_all(
+            "nodes => nodes.map(node => node.id)"
+        )
+        assert len(ids) == len(set(ids))
+
+    try:
+        first_and_upgraded(lambda: page.goto(url, wait_until="commit"), "Field note")
+        title = "A longer title that wraps the actual instruction in a phone column"
+        page.get_by_role("textbox", name="Title").fill(title)
+        page.get_by_role("radio", name="Bold", exact=True).check()
+        first_and_upgraded(lambda: page.reload(wait_until="commit"), title)
+        expect(page.get_by_role("radio", name="Bold", exact=True)).to_be_checked()
+        assert page.locator("#drawing").evaluate("host => host.values.title") == title
+    finally:
+        for route in boot:
+            route.continue_()
+        page.unroute_all(behavior="wait")

@@ -842,12 +842,14 @@
 <!-- code-comparison.html authored script -->
 <script type="module">
       import {
+        cancelRender,
         keeps,
         keepsText,
         layoutChanged,
         nextRender,
         offer,
         once,
+        sizeObserver,
       } from "/runtime/widget-api.js";
 
       const DEFAULT_COMPARISON = {
@@ -863,6 +865,11 @@
           #state = clone(DEFAULT_COMPARISON);
           #notify = null;
           #change = null;
+          #watching = null;
+          #measurementFrame = 0;
+          #readerLayout = (event) => {
+            if (event.target.matches("lf-code")) this.#scheduleMeasurement();
+          };
 
           connectedCallback() {
             if (once(this)) this.#build();
@@ -871,6 +878,11 @@
 
           disconnectedCallback() {
             this.#playground?.removeEventListener("lf-playground-change", this.#change);
+            this.removeEventListener("lf-layout", this.#readerLayout);
+            this.#watching?.disconnect();
+            this.#watching = null;
+            cancelRender(this.#measurementFrame);
+            this.#measurementFrame = 0;
           }
 
           #button(label, run) {
@@ -896,7 +908,18 @@
               customElements.whenDefined("lf-playground"),
               customElements.whenDefined("lf-code"),
             ]);
-            if (!this.isConnected || this.#notify) return;
+            if (!this.isConnected || this.#watching) return;
+            if (!this.#notify) this.#initialize();
+            this.#playground.addEventListener("lf-playground-change", this.#change);
+            this.addEventListener("lf-layout", this.#readerLayout);
+            this.#watching = sizeObserver(() => this.#scheduleMeasurement());
+            for (const reader of this.querySelectorAll(".code-candidate lf-code")) {
+              this.#watching.observe(reader);
+            }
+            this.#render();
+          }
+
+          #initialize() {
             this.#playground = this.closest("lf-playground");
             this.#notify = this.#playground.registerContributor(
               "comparison",
@@ -920,8 +943,6 @@
             this.#change = (event) => {
               if (event.target === this.#playground) this.#render();
             };
-            this.#playground.addEventListener("lf-playground-change", this.#change);
-            this.#render();
           }
 
           #toggleDensity(candidate) {
@@ -952,7 +973,14 @@
                 `${name} · ${setting.density} · ${setting.wrap ? "wrap" : "scroll"}`,
               );
             }
-            nextRender(() => {
+            this.#scheduleMeasurement();
+          }
+
+          // Reader rendering and box changes invalidate the same derived reading.
+          #scheduleMeasurement() {
+            if (!this.isConnected || this.#measurementFrame) return;
+            this.#measurementFrame = nextRender(() => {
+              this.#measurementFrame = 0;
               for (const name of ["A", "B"]) {
                 const candidate = this.querySelector(`[data-candidate="${name}"]`);
                 const pre = candidate.querySelector("lf-code pre");
@@ -1028,8 +1056,8 @@
     </style>
 <!-- pr-walkthrough.html authored styles -->
 <style>
-      /* The rail runs the body's full height, so the contents at its foot can stay in
-         view while the review scrolls past. */
+      /* Navigation starts the stacked reading order; the stretched side track keeps
+         it beside the review on a wide window. Supporting history stays in the body. */
       #pr-rail {
         align-self: stretch;
       }
@@ -1037,7 +1065,6 @@
       #pr-contents-panel {
         position: sticky;
         top: calc(var(--lf-top) + var(--sp-4));
-        margin-top: var(--sp-4);
       }
 
       .pr-review-gesture {
@@ -1115,6 +1142,176 @@
         gap: 10px;
         align-content: start;
       }
+      lf-merge-film .film-phone,
+      lf-merge-film .film-caption,
+      lf-merge-film .film-previous,
+      lf-merge-film .film-next {
+        display: none;
+      }
+      lf-merge-film[data-phone] .film-caption {
+        display: block;
+        margin: 0;
+        min-height: 4.5em;
+        font: 16px / 1.5 var(--sans);
+        order: -2;
+      }
+      lf-merge-film[data-phone] .film-caption[data-tone="bad"] {
+        color: var(--danger-ink);
+      }
+      lf-merge-film[data-phone] .film-bar {
+        order: -1;
+      }
+      lf-merge-film .film-settings summary {
+        display: none;
+      }
+      lf-merge-film[data-phone] .film-settings {
+        order: 0;
+      }
+      lf-merge-film[data-phone] .film-settings summary {
+        display: list-item;
+        min-height: 44px;
+        padding: 10px 12px;
+        font: 14px / 1.5 var(--sans);
+        cursor: pointer;
+        border-block: 1px solid var(--rule);
+      }
+      lf-merge-film[data-phone] .film-stage {
+        order: 1;
+      }
+      lf-merge-film[data-phone] .film-previous,
+      lf-merge-film[data-phone] .film-next {
+        display: block;
+      }
+      lf-merge-film[data-phone] .film-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      lf-merge-film[data-phone] .film-scrub {
+        order: 1;
+        flex: 0 0 100%;
+        min-height: 32px;
+      }
+      lf-merge-film[data-phone] .film-inspect-next {
+        order: 2;
+      }
+      lf-merge-film[data-phone] .film-bar .film-speed {
+        order: 2;
+        flex: 0 0 auto;
+        min-width: 44px;
+      }
+      lf-merge-film[data-phone] .film-bar button {
+        flex: 1 0 auto;
+        min-height: 44px;
+        min-width: 0;
+        white-space: nowrap;
+        padding: 6px;
+        font: 14px var(--sans);
+        color: var(--ink);
+        background: var(--card);
+        border: 1px solid var(--border-2);
+        border-radius: var(--r);
+        cursor: pointer;
+      }
+      lf-merge-film[data-phone] .film-bar button:disabled {
+        color: var(--muted);
+        cursor: default;
+      }
+      lf-merge-film .film-stage[data-phone] {
+        line-height: 1.5;
+      }
+      lf-merge-film .film-stage[data-phone] > svg {
+        display: none;
+      }
+      lf-merge-film .film-stage[data-phone] .film-phone {
+        display: block;
+      }
+      lf-merge-film .film-phone-context {
+        padding: 0 16px;
+      }
+      lf-merge-film .film-phone-tree {
+        display: grid;
+        gap: 2px;
+        padding: 10px 0;
+        border-top: 1px solid var(--rule);
+        font: 14px / 1.4 var(--sans);
+      }
+      lf-merge-film .film-phone-tree code {
+        font-size: 16px;
+      }
+      lf-merge-film .film-phone-tree[data-here="true"] {
+        color: var(--accent);
+      }
+      lf-merge-film .film-phone-tree[data-gone="true"] {
+        color: var(--muted);
+      }
+      lf-merge-film .film-phone-tree[data-gone="true"] code {
+        text-decoration: line-through;
+      }
+      lf-merge-film .film-phone-hook {
+        margin: 0;
+        padding: 10px 0;
+        font: 14px / 1.5 var(--mono);
+      }
+      lf-merge-film .film-phone-hook[data-tone="fail"] {
+        color: var(--danger-ink);
+      }
+      lf-merge-film .film-phone-latest {
+        margin: 0;
+        padding: 12px 16px;
+        font: 14px / 1.5 var(--mono);
+        color: var(--code-ink);
+        background: var(--pre-bg);
+        overflow-wrap: anywhere;
+      }
+      lf-merge-film .film-phone-terminal {
+        font: 14px / 1.5 var(--mono);
+      }
+      lf-merge-film .film-phone-terminal summary {
+        padding: 10px 16px;
+        min-height: 44px;
+        cursor: pointer;
+      }
+      lf-merge-film .film-phone-terminal > div {
+        max-height: 16rem;
+        overflow: auto;
+      }
+      lf-merge-film .film-terminal-line {
+        display: block;
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+        padding: 0;
+        margin: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        text-align: left;
+        white-space: pre;
+        font: 14px / 21px var(--mono);
+        cursor: pointer;
+      }
+      lf-merge-film .film-terminal-line:focus-visible {
+        outline-offset: -2px;
+      }
+      lf-merge-film .film-phone-line {
+        display: block;
+        width: 100%;
+        min-height: 44px;
+        padding: 8px 16px;
+        border: 0;
+        border-top: 1px solid var(--rule);
+        background: var(--pre-bg);
+        color: var(--code-ink);
+        text-align: left;
+        font: inherit;
+        overflow-wrap: anywhere;
+        cursor: pointer;
+      }
+      lf-merge-film[data-phone] .film-flags label {
+        min-height: 44px;
+        font-size: 14px;
+      }
       #lede code {
         white-space: nowrap;
       }
@@ -1150,6 +1347,9 @@
         box-shadow: 0 8px 24px var(--shade);
         pointer-events: none;
       }
+      lf-merge-film[data-phone] .film-inspect {
+        max-width: calc(100% - 20px);
+      }
       lf-merge-film .film-inspect strong {
         font-family: var(--mono);
       }
@@ -1158,7 +1358,7 @@
       }
       lf-merge-film .film-bar {
         display: grid;
-        grid-template-columns: auto 1fr auto;
+        grid-template-columns: auto minmax(0, 1fr) auto auto;
         gap: 12px;
         align-items: center;
       }
@@ -1167,7 +1367,8 @@
         accent-color: var(--accent);
       }
       lf-merge-film .film-play,
-      lf-merge-film .film-speed {
+      lf-merge-film .film-speed,
+      lf-merge-film .film-inspect-next {
         min-width: 5.5em;
         padding: 4px 10px;
         font: inherit;
@@ -1177,6 +1378,21 @@
         background: var(--card);
         color: var(--ink);
         cursor: pointer;
+      }
+      @media (pointer: coarse) {
+        lf-merge-film .film-bar {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+        lf-merge-film .film-scrub {
+          grid-column: 1 / -1;
+          grid-row: 2;
+          min-height: 44px;
+        }
+        lf-merge-film .film-play,
+        lf-merge-film .film-speed,
+        lf-merge-film .film-inspect-next {
+          min-height: 44px;
+        }
       }
       lf-merge-film .film-flags {
         display: flex;
@@ -1224,6 +1440,18 @@
         display: flex;
         gap: 8px;
         align-items: baseline;
+      }
+      lf-merge-steps h3 button {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 8px;
+        border: 0;
+        padding: 0;
+        background: none;
+        color: inherit;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
       }
       lf-merge-steps h3::after {
         margin-left: auto;
@@ -1590,6 +1818,21 @@
         margin: 0;
       }
 
+      #bg-framed-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--sp-3);
+        padding: var(--sp-3);
+        border: 1px solid var(--rule);
+        background: var(--card);
+        --lf-block-frame: 1;
+        --lf-holds-edge: 1;
+      }
+
+      #bg-framed-row > p {
+        flex: 1 1 14rem;
+      }
+
       /* The summary beside the log at one part to two, from bases of 14rem and 28rem,
          so the two stack below 696px. */
       #bg-run {
@@ -1735,8 +1978,8 @@
 
       .interaction-frame {
         display: none;
-        width: var(--interaction-viewport-size, 200%);
-        height: var(--interaction-viewport-size, 200%);
+        width: calc(100% / var(--interaction-page-scale, 0.5));
+        height: calc(100% / var(--interaction-page-scale, 0.5));
         border: 0;
         opacity: 0;
         pointer-events: none;
@@ -1745,17 +1988,14 @@
       }
 
       .interaction-gallery[data-interaction-viewport="1"] {
-        --interaction-viewport-size: 100%;
         --interaction-page-scale: 1;
       }
 
       .interaction-gallery[data-interaction-viewport="2"] {
-        --interaction-viewport-size: 200%;
         --interaction-page-scale: 0.5;
       }
 
       .interaction-gallery[data-interaction-viewport="4"] {
-        --interaction-viewport-size: 400%;
         --interaction-page-scale: 0.25;
       }
 
@@ -1826,6 +2066,22 @@
       }
     </style>
 <!-- feature-gallery.html authored script -->
+<script id="bg-margin-layer-status-history" type="application/json">
+      [
+        {
+          "kind": "action",
+          "author": "user",
+          "widget": "bg-margin-layer-packing",
+          "action": "move",
+          "detail": {
+            "unit": "bg-margin-layer-map",
+            "value": "bg-margin-layer-ready",
+            "rank": "z"
+          }
+        }
+      ]
+    </script>
+<!-- feature-gallery.html authored script -->
 <script id="bg-window-history" type="application/json">
       [
         {
@@ -1844,12 +2100,22 @@
       ]
     </script>
 <!-- feature-gallery.html authored script -->
+<script id="bg-title-sheen-history" type="application/json">
+      [
+        {
+          "id": "bg-title-sheen-question",
+          "kind": "comment",
+          "author": "user",
+          "text": "Can we schedule the workshop lunch?"
+        }
+      ]
+    </script>
+<!-- feature-gallery.html authored script -->
 <script type="module">
       import { afterPresentation, commands } from "/runtime/widget-api.js";
 
       const localNote = document.querySelector("#bg-shortcut-note");
       const focusNote = document.querySelector("#bg-shortcut-focus-note");
-      focusNote.addEventListener("click", () => localNote.focus());
       commands(document.querySelector("#bg-local-shortcuts"), "In the note sample", [
         {
           id: "note.focus",
@@ -1858,7 +2124,7 @@
           bindingBadge: null,
           title: "Write note",
           description: "Focus the sample note",
-          run: () => focusNote.click(),
+          run: () => localNote.focus(),
         },
       ]);
 
@@ -1895,6 +2161,23 @@
         });
 
       await customElements.whenDefined("lf-sample");
+
+      const titleSample = document.querySelector("#bg-title-sheen-sample");
+      let titleRequested = false;
+      let shownTitleRevision = null;
+      const showPendingTitle = () => {
+        const ready = titleSample.ready;
+        if (!titleRequested || !ready || shownTitleRevision === ready) return;
+        shownTitleRevision = ready;
+        void titleSample.showThread("bg-title-sheen-question", { surface: "panel" });
+      };
+      document.querySelector("#bg-title-sheen-show").addEventListener("click", () => {
+        titleRequested = true;
+        shownTitleRevision = null;
+        showPendingTitle();
+      });
+      titleSample.addEventListener("lf-sample-ready", showPendingTitle);
+      void titleSample.ready.then(showPendingTitle);
 
       const sample = document.querySelector("#bg-panel-sample");
       let selected = null;
@@ -2308,8 +2591,7 @@ catalog.</p>
         <h2>CLI</h2>
         <lf-draft id="rn-cli">
           <pre>
-Adds `--dry-run` to every command that changes state. Existing scripts continue to work without it.
-</pre>
+Adds `--dry-run` to every command that changes state. Existing scripts continue to work without it.</pre>
         </lf-draft>
       </section>
 
@@ -2326,8 +2608,7 @@ Adds `--dry-run` to every command that changes state. Existing scripts continue 
         </p>
         <lf-draft id="rn-api">
           <pre>
-Deprecates the v1 auth header. It keeps working until 4.0, and v1 responses now include a Sunset header.
-</pre>
+Deprecates the v1 auth header. It keeps working until 4.0, and v1 responses now include a Sunset header.</pre>
         </lf-draft>
       </section>
 
@@ -2351,8 +2632,7 @@ Deprecates the v1 auth header. It keeps working until 4.0, and v1 responses now 
         ></lf-shot>
         <lf-draft id="rn-console">
           <pre>
-Run status now appears in the run list. Filtering by status is planned for 3.3.
-</pre>
+Run status now appears in the run list. Filtering by status is planned for 3.3.</pre>
         </lf-draft>
       </section>
 
@@ -2370,9 +2650,7 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.
           >
         </lf-suggestion>
         <lf-draft id="rn-migration">
-          <pre>
-Run the online schema migration before deploying.
-</pre>
+          <pre>Run the online schema migration before deploying.</pre>
         </lf-draft>
       </section>
 </lf-tab>
@@ -2619,7 +2897,7 @@ Run the online schema migration before deploying.
 </lf-tab>
 
 <lf-tab id="corpus-notification-playground" label="Notification">
-<lf-ask id="notification-ask">
+<lf-ask id="notification-ask" data-width="available">
         <h1>Stress-test the deployment notification</h1>
         <lf-playground id="notification-playground" submit-label="Create notification">
           <lf-playground-control
@@ -2745,7 +3023,7 @@ Run the online schema migration before deploying.
         Compose ordered filters against a captured release set. The table and final
         instruction derive from the same structured configuration.
       </p>
-      <lf-ask id="release-query-ask">
+      <lf-ask id="release-query-ask" data-width="available">
         <h2>Which release query should the agent build?</h2>
         <lf-playground id="release-query-playground" submit-label="Build query">
           <lf-playground-control
@@ -2782,7 +3060,7 @@ Run the online schema migration before deploying.
         Both candidates are the shipped <code>lf-code</code> widget. One width gesture
         reaches both; candidate settings stay explicit and copyable.
       </p>
-      <lf-ask id="code-comparison-ask">
+      <lf-ask id="code-comparison-ask" data-width="available">
         <h2>Which built code-reader treatment should the agent keep?</h2>
         <lf-playground id="code-comparison-playground" submit-label="Apply treatment">
           <lf-playground-control
@@ -2868,7 +3146,7 @@ export function releaseLabels(releases) {
           </lf-playground-output>
         </lf-playground>
       </lf-ask>
-      <lf-ask id="code-targeting-ask">
+      <lf-ask id="code-targeting-ask" data-width="available">
         <h2>Which exact reader element should change?</h2>
         <p>
           Targeting keeps element identity separate from the comparison's visual labels
@@ -3129,9 +3407,9 @@ export const summarize = checks =>
 <header>
         <h1>Which alerts should still page?</h1>
         <p id="ar-legend">
-          <span class="tag danger">5 caught incidents</span>
           <span class="tag warn">7 mostly noise</span>
           <span class="tag">2 wrong owner</span>
+          <span class="tag danger">5 caught incidents</span>
         </p>
       </header>
 
@@ -3139,9 +3417,10 @@ export const summarize = checks =>
         <lf-tab
           id="ar-canary"
           label="Canary health check"
-          summary="noise · 0 of 47 pages real"
+          group="Mostly noise"
+          summary="0 of 47 pages real"
         >
-          <lf-ask id="ar-canary-decision">
+          <lf-ask id="ar-canary-decision" data-width="wide">
             <h4>How should the canary probe page?</h4>
             <dl class="facts">
               <dt>Rule</dt>
@@ -3209,7 +3488,8 @@ export const summarize = checks =>
         <lf-tab
           id="ar-latency"
           label="Checkout p99 latency"
-          summary="noise · 1 of 31 pages real"
+          group="Mostly noise"
+          summary="1 of 31 pages real"
         >
           <lf-ask id="ar-latency-decision">
             <h4>What should the latency alert page on?</h4>
@@ -3249,7 +3529,8 @@ export const summarize = checks =>
         <lf-tab
           id="ar-webhooks"
           label="Webhook queue depth"
-          summary="noise · 2 of 22 pages real"
+          group="Mostly noise"
+          summary="2 of 22 pages real"
         >
           <lf-ask id="ar-webhooks-decision">
             <h4>What should the webhook alert measure?</h4>
@@ -3289,9 +3570,10 @@ export const summarize = checks =>
         <lf-tab
           id="ar-export"
           label="Ledger export lag"
-          summary="noise · 0 of 18 pages real"
+          group="Mostly noise"
+          summary="0 of 18 pages real"
         >
-          <lf-ask id="ar-export-decision">
+          <lf-ask id="ar-export-decision" data-width="wide">
             <h4>What should happen during the nightly batch?</h4>
             <p>Finance reads the export at 07:00 UTC.</p>
             <dl class="facts">
@@ -3357,7 +3639,8 @@ export const summarize = checks =>
         <lf-tab
           id="ar-disk"
           label="Replica disk usage"
-          summary="noise · 0 of 9 pages real"
+          group="Mostly noise"
+          summary="0 of 9 pages real"
         >
           <lf-ask id="ar-disk-decision">
             <h4>Should the 80% disk alert page at all?</h4>
@@ -3392,43 +3675,10 @@ export const summarize = checks =>
           </lf-ask>
         </lf-tab>
         <lf-tab
-          id="ar-cert"
-          label="Sandbox TLS expiry"
-          summary="wrong owner · 0 of 7 pages real"
-        >
-          <lf-ask id="ar-cert-decision">
-            <h4>Who should hear about the sandbox certificate?</h4>
-            <p>It expires in six days.</p>
-            <dl class="facts">
-              <dt>Rule</dt>
-              <dd><code>tls_cert_expiring_14d</code></dd>
-              <dt>Fires on</dt>
-              <dd>A certificate within 14 days of expiry</dd>
-              <dt>Pages</dt>
-              <dd>7, one a day for the same certificate</dd>
-            </dl>
-            <p>
-              The certificate belongs to the partner sandbox host, which Platform owns
-              and renews automatically. Their renewal job is failing, and PLAT-2291
-              already tracks the fix.
-            </p>
-            <lf-options id="ar-cert-choice" choose>
-              <lf-option id="ar-cert-platform">
-                <lf-chip tone="ok">recommended</lf-chip>
-                <strong>Route it to Platform's queue</strong> The team that can renew it
-                sees it; payments stops paging.
-              </lf-option>
-              <lf-option id="ar-cert-both">
-                <strong>Page both teams until it renews</strong> Payments keeps waking
-                up for a fix it cannot make.
-              </lf-option>
-            </lf-options>
-          </lf-ask>
-        </lf-tab>
-        <lf-tab
           id="ar-settlement"
           label="Settlement job failed"
-          summary="noise · 3 of 6 pages real"
+          group="Mostly noise"
+          summary="3 of 6 pages real"
         >
           <lf-ask id="ar-settlement-decision">
             <h4>Should a settlement failure wait for its retry?</h4>
@@ -3459,61 +3709,12 @@ export const summarize = checks =>
           </lf-ask>
         </lf-tab>
         <lf-tab
-          id="ar-kafka"
-          label="Ledger consumer lag"
-          summary="wrong owner · 0 of 5 pages real"
-        >
-          <lf-ask id="ar-kafka-decision">
-            <h4>Who should hear about ledger consumer lag?</h4>
-            <p>Lag that outlasts a rebalance does delay the ledger export.</p>
-            <dl class="facts">
-              <dt>Rule</dt>
-              <dd><code>ledger_events_consumer_lag</code></dd>
-              <dt>Fires on</dt>
-              <dd>More than 50,000 unread events on the ledger topic</dd>
-              <dt>Pages</dt>
-              <dd>5, none of which needed a person</dd>
-            </dl>
-            <p>
-              Each page was a broker rebalance on the shared event cluster, which Data
-              Platform runs. The consumer caught up once partitions were reassigned;
-              nothing on the payments side changed.
-            </p>
-            <lf-options id="ar-kafka-choice" choose>
-              <lf-option id="ar-kafka-route">
-                <lf-chip tone="ok">recommended</lf-chip>
-                <strong>Page Data Platform during rebalances</strong> Payments hears
-                only when lag outlasts 15 minutes.
-              </lf-option>
-              <lf-option id="ar-kafka-keep">
-                <strong>Keep paging payments</strong> No change to the rule.
-              </lf-option>
-            </lf-options>
-          </lf-ask>
-        </lf-tab>
-        <lf-tab
-          id="ar-errors"
-          label="Payments API 5xx rate"
-          summary="incident · 4 of 4 pages real"
-        >
-          <dl class="facts">
-            <dt>Rule</dt>
-            <dd><code>payments_api_5xx_rate</code></dd>
-            <dt>Pages</dt>
-            <dd>4, all of which needed a person</dd>
-          </dl>
-          <p>
-            Caught Tuesday's card-network outage six minutes before the first customer
-            ticket, and paged for Thursday's failover a minute ahead of the latency
-            alert. It keeps paging unchanged.
-          </p>
-        </lf-tab>
-        <lf-tab
           id="ar-3ds"
           label="3-D Secure failure rate"
-          summary="noise · 1 of 3 pages real"
+          group="Mostly noise"
+          summary="1 of 3 pages real"
         >
-          <lf-ask id="ar-3ds-decision">
+          <lf-ask id="ar-3ds-decision" data-width="wide">
             <h4>Should one issuer's outage page us?</h4>
             <p>Per-issuer failure rates are already on the payments dashboard.</p>
             <dl class="facts">
@@ -3568,9 +3769,97 @@ export const summarize = checks =>
           </lf-ask>
         </lf-tab>
         <lf-tab
+          id="ar-cert"
+          label="Sandbox TLS expiry"
+          group="Wrong owner"
+          summary="0 of 7 pages real"
+        >
+          <lf-ask id="ar-cert-decision">
+            <h4>Who should hear about the sandbox certificate?</h4>
+            <p>It expires in six days.</p>
+            <dl class="facts">
+              <dt>Rule</dt>
+              <dd><code>tls_cert_expiring_14d</code></dd>
+              <dt>Fires on</dt>
+              <dd>A certificate within 14 days of expiry</dd>
+              <dt>Pages</dt>
+              <dd>7, one a day for the same certificate</dd>
+            </dl>
+            <p>
+              The certificate belongs to the partner sandbox host, which Platform owns
+              and renews automatically. Their renewal job is failing, and PLAT-2291
+              already tracks the fix.
+            </p>
+            <lf-options id="ar-cert-choice" choose>
+              <lf-option id="ar-cert-platform">
+                <lf-chip tone="ok">recommended</lf-chip>
+                <strong>Route it to Platform's queue</strong> The team that can renew it
+                sees it; payments stops paging.
+              </lf-option>
+              <lf-option id="ar-cert-both">
+                <strong>Page both teams until it renews</strong> Payments keeps waking
+                up for a fix it cannot make.
+              </lf-option>
+            </lf-options>
+          </lf-ask>
+        </lf-tab>
+        <lf-tab
+          id="ar-kafka"
+          label="Ledger consumer lag"
+          group="Wrong owner"
+          summary="0 of 5 pages real"
+        >
+          <lf-ask id="ar-kafka-decision">
+            <h4>Who should hear about ledger consumer lag?</h4>
+            <p>Lag that outlasts a rebalance does delay the ledger export.</p>
+            <dl class="facts">
+              <dt>Rule</dt>
+              <dd><code>ledger_events_consumer_lag</code></dd>
+              <dt>Fires on</dt>
+              <dd>More than 50,000 unread events on the ledger topic</dd>
+              <dt>Pages</dt>
+              <dd>5, none of which needed a person</dd>
+            </dl>
+            <p>
+              Each page was a broker rebalance on the shared event cluster, which Data
+              Platform runs. The consumer caught up once partitions were reassigned;
+              nothing on the payments side changed.
+            </p>
+            <lf-options id="ar-kafka-choice" choose>
+              <lf-option id="ar-kafka-route">
+                <lf-chip tone="ok">recommended</lf-chip>
+                <strong>Page Data Platform during rebalances</strong> Payments hears
+                only when lag outlasts 15 minutes.
+              </lf-option>
+              <lf-option id="ar-kafka-keep">
+                <strong>Keep paging payments</strong> No change to the rule.
+              </lf-option>
+            </lf-options>
+          </lf-ask>
+        </lf-tab>
+        <lf-tab
+          id="ar-errors"
+          label="Payments API 5xx rate"
+          group="Caught incidents"
+          summary="4 of 4 pages real"
+        >
+          <dl class="facts">
+            <dt>Rule</dt>
+            <dd><code>payments_api_5xx_rate</code></dd>
+            <dt>Pages</dt>
+            <dd>4, all of which needed a person</dd>
+          </dl>
+          <p>
+            Caught Tuesday's card-network outage six minutes before the first customer
+            ticket, and paged for Thursday's failover a minute ahead of the latency
+            alert. It keeps paging unchanged.
+          </p>
+        </lf-tab>
+        <lf-tab
           id="ar-fraud"
           label="Fraud score drift"
-          summary="incident · 2 of 2 pages real"
+          group="Caught incidents"
+          summary="2 of 2 pages real"
         >
           <dl class="facts">
             <dt>Rule</dt>
@@ -3586,7 +3875,8 @@ export const summarize = checks =>
         <lf-tab
           id="ar-payouts"
           label="Payout file rejected"
-          summary="incident · 2 of 2 pages real"
+          group="Caught incidents"
+          summary="2 of 2 pages real"
         >
           <dl class="facts">
             <dt>Rule</dt>
@@ -3603,7 +3893,8 @@ export const summarize = checks =>
         <lf-tab
           id="ar-refunds"
           label="Refund processor timeouts"
-          summary="incident · 1 of 1 pages real"
+          group="Caught incidents"
+          summary="1 of 1 pages real"
         >
           <dl class="facts">
             <dt>Rule</dt>
@@ -3619,7 +3910,8 @@ export const summarize = checks =>
         <lf-tab
           id="ar-disputes"
           label="Dispute deadline near"
-          summary="incident · 1 of 1 pages real"
+          group="Caught incidents"
+          summary="1 of 1 pages real"
         >
           <dl class="facts">
             <dt>Rule</dt>
@@ -3660,6 +3952,9 @@ export const summarize = checks =>
           <span class="tag">46 files · +1,567 −701</span>
         </p>
       </header>
+
+      <aside id="pr-rail">
+      </aside>
 
       <div id="pr-body">
         <aside class="callout ok" id="pr-verdict">
@@ -3840,6 +4135,8 @@ max-sixty/worktrunk #3865
               >
                 <pre>
 flowchart TB
+  accTitle: Unified diff preparation
+  accDescr: A selected row chooses a preview mode. Unified diff uses PreparedDiff for committed changes and TempIndex for staged, unstaged and untracked work; working and committed tabs remain available.
   Row[Selected row] --> Mode[Preview mode]
   Mode -. old default .-> Working["− working-tree diff"]
   Mode --> Unified["+ unified diff"]
@@ -3884,7 +4181,7 @@ flowchart TB
             This exact hunk from <code>src/summary.rs</code> replaces direct Git
             argument assembly with the repository’s <code>PreparedDiff</code> API.
           </p>
-          <lf-diff id="pr-key-hunk" data-height="524" review>
+          <lf-diff id="pr-key-hunk" data-height="539" review>
             <pre>
 diff --git a/src/summary.rs b/src/summary.rs
 --- a/src/summary.rs
@@ -4066,14 +4363,16 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
             <pre></pre>
           </lf-diff>
         </section>
-      </div>
 
-      <aside id="pr-rail">
-        <lf-pull-request
-          id="pr-reviewed-request"
-          data-height="1321"
-          source="pr-review-facts"
-        ></lf-pull-request>
+        <section class="panel" id="pr-source-facts">
+          <h2>Captured pull request</h2>
+          <lf-pull-request
+            id="pr-reviewed-request"
+            data-height="959"
+            source="pr-review-facts"
+          ></lf-pull-request>
+        </section>
+
         <section class="panel" id="pr-history">
           <h2>Review history</h2>
           <lf-chronology id="pr-review-chronology">
@@ -4123,7 +4422,7 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
             </lf-chronology-entry>
           </lf-chronology>
         </section>
-      </aside>
+      </div>
 </lf-tab>
 
 <lf-tab id="corpus-wt-merge" label="Merge film">
@@ -4140,14 +4439,14 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
             <p id="lede">
               Worktrunk's <code>wt merge</code> takes a finished branch to main in one
               command. The film draws each step from the flags below it, so ticking
-              <code>--no-ff</code> or a failing test re-plots the run. Hover a commit,
-              branch, worktree or hook to see what it is; Alt-click one to comment on
-              it.
+              <code>--no-ff</code> or a failing test re-plots the run. Tap or hover a
+              commit, branch, worktree or hook to read its details; Inspect cycles
+              through them. Alt-click a part to comment on it.
             </p>
             <lf-merge-steps id="merge-steps" for="merge-film">
               <ol>
                 <li id="step-setup" data-chapter="setup">
-                  <h3>Before</h3>
+                  <h3><button type="button">Before</button></h3>
                   <p>
                     A branch in its own worktree, with commits and perhaps edits not yet
                     committed. Main may have moved on since the branch forked.
@@ -4155,7 +4454,9 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
                   <p class="this-run"></p>
                 </li>
                 <li id="step-commit" data-chapter="commit">
-                  <h3><span class="step-n">1</span> Commit</h3>
+                  <h3>
+                    <button type="button"><span class="step-n">1</span> Commit</button>
+                  </h3>
                   <p>
                     Uncommitted edits become a commit of their own. The default run
                     skips this, because the squash stages them itself.
@@ -4163,7 +4464,9 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
                   <p class="this-run"></p>
                 </li>
                 <li id="step-squash" data-chapter="squash">
-                  <h3><span class="step-n">2</span> Squash</h3>
+                  <h3>
+                    <button type="button"><span class="step-n">2</span> Squash</button>
+                  </h3>
                   <p>
                     Every commit since the fork, plus any edits, becomes one commit. The
                     old tip is backed up to <code>refs/wt-backup/&lt;branch&gt;</code>
@@ -4172,7 +4475,9 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
                   <p class="this-run"></p>
                 </li>
                 <li id="step-rebase" data-chapter="rebase">
-                  <h3><span class="step-n">3</span> Rebase</h3>
+                  <h3>
+                    <button type="button"><span class="step-n">3</span> Rebase</button>
+                  </h3>
                   <p>
                     The work is replayed onto main's current tip, which gives it new
                     hashes. A conflict stops the merge here, with the rebase left open
@@ -4181,7 +4486,11 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
                   <p class="this-run"></p>
                 </li>
                 <li id="step-premerge" data-chapter="premerge">
-                  <h3><span class="step-n">4</span> Pre-merge hooks</h3>
+                  <h3>
+                    <button type="button">
+                      <span class="step-n">4</span> Pre-merge hooks
+                    </button>
+                  </h3>
                   <p>
                     Hooks from <code>.config/wt.toml</code> run on the exact tree that
                     will land, as local CI. A failure aborts, and main never moves.
@@ -4189,7 +4498,9 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
                   <p class="this-run"></p>
                 </li>
                 <li id="step-merge" data-chapter="merge">
-                  <h3><span class="step-n">5</span> Merge</h3>
+                  <h3>
+                    <button type="button"><span class="step-n">5</span> Merge</button>
+                  </h3>
                   <p>
                     Main fast-forwards to the branch tip, so history stays linear.
                     <code>--no-ff</code> records a merge commit instead.
@@ -4197,7 +4508,11 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
                   <p class="this-run"></p>
                 </li>
                 <li id="step-preremove" data-chapter="preremove">
-                  <h3><span class="step-n">6</span> Pre-remove hooks</h3>
+                  <h3>
+                    <button type="button">
+                      <span class="step-n">6</span> Pre-remove hooks
+                    </button>
+                  </h3>
                   <p>
                     A last hook before the worktree is deleted; if it fails, the
                     worktree stays.
@@ -4205,7 +4520,9 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
                   <p class="this-run"></p>
                 </li>
                 <li id="step-cleanup" data-chapter="cleanup">
-                  <h3><span class="step-n">7</span> Cleanup</h3>
+                  <h3>
+                    <button type="button"><span class="step-n">7</span> Cleanup</button>
+                  </h3>
                   <p>
                     The worktree and branch are removed in the background, and the shell
                     lands in main's worktree.
@@ -4213,12 +4530,16 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
                   <p class="this-run"></p>
                 </li>
                 <li id="step-postmerge" data-chapter="postmerge">
-                  <h3><span class="step-n">8</span> Post-merge hooks</h3>
+                  <h3>
+                    <button type="button">
+                      <span class="step-n">8</span> Post-merge hooks
+                    </button>
+                  </h3>
                   <p>Background hooks run from main after the prompt is back.</p>
                   <p class="this-run"></p>
                 </li>
                 <li id="step-end" data-chapter="end">
-                  <h3>After</h3>
+                  <h3><button type="button">After</button></h3>
                   <p>Where the run ended, and what it did.</p>
                   <p class="this-run"></p>
                 </li>
@@ -4549,6 +4870,8 @@ unsafe fn merge&lt;T, F&gt;(v: &amp;mut [T], mid: usize, buf: *mut T, compare: &
         >
           <pre>
 flowchart LR
+  accTitle: Shared checkout crosses the sandbox boundary
+  accDescr: Runner setup hands its checkout to the agent, then resumes runner steps and action POSTs on the same writable tree.
   R0[Runner checkout] --> R1[Runner setup]
   R1 --> A1[Same tree handed to agent]
   A1 --> R2[Same tree returned to runner]
@@ -4695,6 +5018,8 @@ flowchart LR
           >
             <pre>
 stateDiagram-v2
+  accTitle: Sandbox execution and cleanup states
+  accDescr: A trusted runner prepares an independent agent checkout, starts setup and the agent under one supervisor, reaps the process tree and validates outputs before trusted cleanup. Failures close the gate or enter finalization.
   state "S0 · Gate passed" as S0
   state "S1 · Wᵣ prepared" as S1
   state "S2 · Wₐ imported" as S2
@@ -5596,8 +5921,7 @@ stateDiagram-v2
     where refunded_minor is not null limit 1) to stdout with csv header"</code></pre>
                 <lf-draft id="ledger-cargo" needed>
                   <pre>
-  Paste the complete CSV row here. Remove customer_name and billing_email before saving.
-  </pre>
+Paste the complete CSV row here. Remove customer_name and billing_email before saving.</pre>
                 </lf-draft>
               </lf-ask>
             </lf-task>
@@ -6452,6 +6776,12 @@ observe --cohort staff</code></pre>
             </div>
           </section>
         </lf-tab>
+        <lf-tab id="summary-tab" label="Summary">
+          <section id="release-summary">
+            <h2>Release decision</h2>
+            <p>Advance only after the evidence meets every rollout gate.</p>
+          </section>
+        </lf-tab>
       </lf-tabs>
 </lf-tab>
 
@@ -6474,8 +6804,9 @@ observe --cohort staff</code></pre>
       <p id="bg-start">
         Choose a view below. Its contents spine and Page Map lead to each feature. The
         top link brings the eyebrow and heading together; the first dot sits at the
-        spine’s origin. Each sample’s eyebrow names the <code>lf-*</code> elements it
-        exercises.
+        spine’s origin. The title has the largest ring, section rings are smaller, and
+        deeper headings use small dots. The current destination fills its marker. Each
+        sample’s eyebrow names the <code>lf-*</code> elements it exercises.
       </p>
 
       <lf-tabs id="bg-gallery-tabs">
@@ -6490,23 +6821,24 @@ observe --cohort staff</code></pre>
               An <code>lf-ask</code> is one complete Ask: its heading names the
               question, and one nested widget owns the answer. This sample uses
               <code>lf-options</code>, which records a choice Leaf can replay as page
-              state. Press <kbd>a</kbd> for the next thing waiting on you, in page
+              state. Press <kbd>q</kbd> for the next question waiting on you, in page
               order: an open Ask, a thread whose question is yours to answer, such as
-              the gallery thread that asks about a pasted image, or a move whose reply
-              failed and needs sending again. After its status, the banner counts what
-              waits on you and what waits on the agent. Press those counts, open
-              <strong>Queue</strong> in More, or press <kbd>g</kbd> then
-              <kbd>Shift+Q</kbd>, to see both lists in one panel, with answered Asks and
-              finished tasks folded under Done; Enter on a row goes where
-              <kbd>a</kbd> would. The Queue panel is experimental. Within a view,
-              <kbd>a</kbd> scrolls to the question. When it opens another view, the
-              question appears immediately and its tab name briefly highlights.
-              <kbd>Shift+A</kbd> walks back. Reduced motion removes the glide and
-              highlight. When <kbd>a</kbd> reaches a commented Ask, its discussion stays
-              closed while you read and choose, including when Tab enters its controls.
-              Press <kbd>c</kbd> to reply in that existing discussion, <kbd>t</kbd> to
-              read it, or its Thread marker to open it under a finger. Returning to an
-              Ask you have answered also keeps its controls clear.
+              the gallery thread that asks about a pasted image, a to-do the agent put
+              on you, or a move whose reply failed and needs sending again. The banner's
+              <strong>Questions</strong> door, beside Threads, counts them, and the
+              agent's Tasks count follows its status. Press either, or press
+              <kbd>g</kbd> then <kbd>Shift+Q</kbd>, to see both lists in the panel
+              Threads also opens in, with answered Asks and finished tasks folded under
+              Done; Enter on a row goes where <kbd>q</kbd> would. The Questions panel is
+              experimental. Within a view, <kbd>q</kbd> scrolls to the question. When it
+              opens another view, the question appears immediately and its tab name
+              briefly highlights. <kbd>Shift+Q</kbd> walks back. Reduced motion removes
+              the glide and highlight. When <kbd>q</kbd> reaches a commented Ask, its
+              discussion stays closed while you read and choose, including when Tab
+              enters its controls. Press <kbd>c</kbd> to reply in that existing
+              discussion, <kbd>t</kbd> to read it, or its Thread marker to open it under
+              a finger. Returning to an Ask you have answered also keeps its controls
+              clear.
             </p>
             <lf-ask id="bg-choice-ask">
               <h3>Which map should the sample team carry?</h3>
@@ -6515,6 +6847,19 @@ observe --cohort staff</code></pre>
                 <lf-option id="bg-choice-trail">Trail map</lf-option>
               </lf-options>
             </lf-ask>
+            <section id="bg-task-on-you">
+              <h3>A task on you</h3>
+              <p>
+                The agent put a task on you about this section with
+                <code>leaf task open … --on user</code>: check that the trail map marks
+                the shelter. Nothing here answers it, so it ends at your Done. It waits
+                under Questions in the Questions panel, as a To do whose row has a Done
+                button, and <kbd>q</kbd> reaches it after the Ask above. Where
+                <kbd>q</kbd> lands on it, press <kbd>x</kbd>, or under a finger the
+                banner's <strong>Done</strong>. Done moves it under the panel's Done
+                fold and tells the agent.
+              </p>
+            </section>
             <section id="bg-widget-shortcut-hints">
               <h3>Inline hints outside an Ask</h3>
               <p>
@@ -6531,11 +6876,22 @@ observe --cohort staff</code></pre>
                 <label>Sample note <input id="bg-shortcut-note" type="text" /></label>
               </div>
             </section>
+            <section id="bg-keyboard-preference">
+              <h3>Quick keyboard shortcuts</h3>
+              <p>
+                Open <strong>More → Keyboard shortcuts</strong> and turn off
+                <strong>Quick keyboard shortcuts</strong>. Letters, numbers and symbols
+                now keep their ordinary meaning: <kbd>c</kbd> leaves the page alone, and
+                the note sample above loses its <kbd>1</kbd> hint. Its button and text
+                field still work with Tab, Enter and Space. Reload to check the
+                preference stays off, then turn it on to restore the hints and keys.
+              </p>
+            </section>
             <p id="bg-core-controls-guide">
               The banner also shows <strong>Threads</strong>, the
               <strong>Versions</strong> menu, <strong>Page Map</strong> (<kbd>g</kbd>
               then <kbd>Shift+M</kbd>), <strong>Command reference</strong> (<kbd>?</kbd>
-              twice), and <strong>All leaves</strong> when another Leaf page is live. A
+              twice), and <strong>All pages</strong> when another Leaf page is live. A
               quiet status line at the bottom right reports the current keyboard walk or
               a useful command result. It moves above the bottom-left shortcuts when
               room is tight.
@@ -6607,9 +6963,10 @@ observe --cohort staff</code></pre>
               ><span class="bg-feature-detail">: editable passages and history</span>
             </h2>
             <p id="bg-editing-guide">
-              “Edit” opens the shared Markdown editor. Try emphasis or inline code;
-              “Save” records the exact source, and “Cancel” discards the unsaved edit.
-              “Changes” lists saved versions, and “Restore” reapplies one.
+              Drafts render Markdown as readable prose. “Edit” opens its exact source;
+              “Save” records it, “Cancel” discards the unsaved edit, and “Close” keeps
+              it for later. These controls stay in the box when annotations are hidden.
+              After an edit, “Changes” lists saved versions and “Restore” reapplies one.
             </p>
             <lf-draft id="bg-draft">
               <pre>
@@ -6700,6 +7057,26 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </p>
             </section>
 
+            <section id="bg-page-comment-card">
+              <h3>
+                <strong>Comment on the page</strong
+                ><span class="bg-feature-detail"
+                  >: start a page thread from the banner</span
+                >
+              </h3>
+              <p id="bg-page-comment-card-guide">
+                With Threads shut, press the comment symbol beside Threads on the
+                banner, or press <kbd>c</kbd> with nothing selected. A card hangs from
+                the symbol; write a sentence and send it. Focus stays on the open card
+                and Threads flashes yellow, its count one higher, while the panel stays
+                shut; the new thread is in Threads. Press <kbd>c</kbd> to write again.
+                <kbd>Escape</kbd> or a click elsewhere puts the card away, keeping what
+                you wrote for the next time it opens. With Threads open, the same press
+                goes to its own “Comment on the page” box. On a phone, “Comment on the
+                page” is in “More page controls”.
+              </p>
+            </section>
+
             <section id="bg-design-comments">
               <h3>
                 <strong>Design mode</strong
@@ -6721,15 +7098,20 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </h3>
               <p id="bg-drawing-comments-guide">
                 Press <kbd>w</kbd> and draw anywhere across the page. Start over this
-                guide or in its margin to anchor the comment here; empty space with no
-                addressable element alongside comments on the page whole. Every further
+                guide or in the space around it to anchor the comment here: a stroke in
+                empty space belongs to the nearest element on screen. Every further
                 stroke joins the same drawing, wherever it starts. Send the drawing
-                alone or add words first. <kbd>Escape</kbd> puts the comment box away
-                with its strokes kept, and the next stroke brings it back; a second
-                <kbd>Escape</kbd> leaves Draw mode. Press <kbd>w</kbd> again and start
-                over this guide: the stroke joins the kept drawing rather than replacing
-                it. On a touch screen, “Draw mode” is in “More page controls”, and “Exit
-                Draw mode” stands on the banner while the mode holds.
+                alone or add words first. The comment box shows the drawing beside Undo
+                last stroke and Remove drawing; in the box, <kbd>⌘Z</kbd> and
+                <kbd>⌘⇧Z</kbd> undo and redo strokes and words in the order you made
+                them. <kbd>Escape</kbd> puts the box away and leaves the drawing on the
+                page, dashed, and the next stroke brings the box back;
+                <kbd>z</kbd> takes back a stroke while it is away. A second
+                <kbd>Escape</kbd> leaves Draw mode with the drawing still showing. Press
+                <kbd>w</kbd> again and start over this guide: the stroke joins the kept
+                drawing rather than replacing it. On a touch screen, “Draw mode” is in
+                “More page controls”, and “Undo stroke” and “Exit Draw mode” stand on
+                the banner while the mode holds.
               </p>
             </section>
 
@@ -6860,7 +7242,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 data-view="updates"
                 aria-pressed="false"
               >
-                Previous updates
+                Progress messages
               </button>
               <label for="bg-panel-width">Sample width</label>
               <select id="bg-panel-width" class="field">
@@ -6892,8 +7274,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   keeps its earlier decisions in a summary.
                 </p>
                 <p id="bg-thread-updates">
-                  <strong>Previous updates.</strong> Open the folded checks above the
-                  answer. These ephemeral updates folded when the answer arrived.
+                  <strong>Progress messages.</strong> Show the folded checks from the
+                  answer’s header, then hide them again.
                 </p>
               </template>
             </lf-sample>
@@ -6957,8 +7339,19 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               you” also names the action owed. Each thread has a short title chosen by
               the agent; open one to read the full messages beneath it. Reply follows a
               short conversation directly; in a long conversation it stays visible while
-              you scroll. While you write in a short thread, an arriving reply waits
-              behind “new reply” until you open it.
+              you scroll. Send a reply: focus stays on the conversation card or its
+              title, including in the floating card. Press <kbd>c</kbd> to write again;
+              <kbd>Escape</kbd> leaves a floating card for its page target. With a panel
+              thread open and its reply editor idle, have the agent append a message: it
+              appears immediately, moving Reply and later cards down while the existing
+              messages keep their place. Repeat with an answer taller than the panel:
+              the previous reading stays in view rather than jumping to the end. While
+              you write in a short thread, an arriving reply waits behind “new reply”
+              until you open it. Switch to another browser tab, have the agent add a
+              reply, then return: held replies and the first refreshed reply appear
+              automatically with the usual arrival tint. Your draft and caret stay in
+              the same editor. Leave this page visible beside another window while
+              composing and focus that window: new replies still wait behind the notice.
             </p>
             <p id="bg-thread-notices">
               <strong>New information.</strong> Have the agent add a message after the
@@ -7046,6 +7439,32 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </p>
             <section id="bg-thread-state-titles">
               <h3>Thread title</h3>
+              <section id="bg-title-sheen">
+                <p id="bg-title-sheen-guide">
+                  Open the sample thread to see a pending title highlighted across its
+                  lettering. Reset starts a fresh untitled thread. Reduced motion shows
+                  solid muted text.
+                </p>
+                <button id="bg-title-sheen-show" type="button">
+                  Open sample thread
+                </button>
+                <lf-sample
+                  id="bg-title-sheen-sample"
+                  label="Pending thread title"
+                  window
+                >
+                  <template
+                    id="bg-title-sheen-page"
+                    data-sample
+                    data-sample-events="bg-title-sheen-history"
+                  >
+                    <h1>Workshop schedule</h1>
+                    <p id="bg-title-sheen-copy">
+                      Lunch is the remaining question for the workshop.
+                    </p>
+                  </template>
+                </lf-sample>
+              </section>
               <div id="bg-thread-title-pair">
                 <section id="bg-thread-title-before">
                   <p class="eyebrow">Before · untitled</p>
@@ -7053,8 +7472,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                     <strong>An untitled thread.</strong> The workshop schedule leaves
                     lunch open. Open Threads to view it. The agent asked without naming
                     the thread, so its row reads the question itself. A thread you open
-                    reads <code>Generating title</code> in muted text until the agent
-                    gives it a short name.
+                    reads <code>Generating title</code> with a highlight sweeping across
+                    the lettering until the agent gives it a short name. With reduced
+                    motion, the text stays a solid muted color.
                   </p>
                 </section>
                 <section id="bg-thread-title-after">
@@ -7076,6 +7496,21 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                     into its reply box to see the thumbnail Leaf keeps in the draft
                     without exposing image Markdown.
                   </p>
+                  <figure id="bg-image-preview">
+                    <a href="/media/051bee487bfb5d13.png">
+                      <img
+                        src="/media/051bee487bfb5d13.png"
+                        width="1800"
+                        height="746"
+                        alt="A before-and-after screenshot of the draft controls"
+                      />
+                    </a>
+                    <figcaption>
+                      Open this screenshot, zoom to 100%, and pan by dragging or with
+                      arrow keys. Fit or z returns to the whole image; Escape or Close
+                      returns to this link.
+                    </figcaption>
+                  </figure>
                 </section>
               </div>
             </section>
@@ -7098,17 +7533,17 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 the disclosure.
               </p>
               <p id="bg-thread-updates">
-                <strong>Previous updates.</strong> The ephemeral schedule checks fold
+                <strong>Progress messages.</strong> The ephemeral schedule checks fold
                 automatically when their final answer arrives, without adding a digest.
-                Choose “Previous updates” in the practice page, then expand the folded
-                checks with a press or Enter.
+                Choose “Progress messages” in the practice page, then use “Show 2
+                progress messages” beside the answer’s timestamp with a press or Enter.
               </p>
               <p id="bg-thread-unread">
                 <strong>Unread replies.</strong> The seeded agent replies start unread.
-                Open Threads and use “Next unread”, or press <kbd>u</kbd> there, to
-                reveal the earliest unread reply, including one covered by a summary. A
-                fully exposed short reply leaves the count; scroll through a long reply
-                to read all of it. The blue rail marks each unread message without
+                Use “Next unread” in Threads, or press <kbd>g</kbd> then <kbd>u</kbd>,
+                to reveal the earliest unread reply, including one covered by a summary.
+                A fully exposed short reply leaves the count; scroll through a long
+                reply to read all of it. The blue rail marks each unread message without
                 shifting the transcript. Interactive replies clear when their visible
                 body has been shown too; replying, answering, or resolving also marks
                 the thread's current messages read. A margin control whose thread holds
@@ -7250,15 +7685,18 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <p class="eyebrow">list="side"</p>
             <h2><strong>A queue beside the item it opens</strong></h2>
             <p id="bg-side-list-guide">
-              The tab list stands left of the open item, each row its name and summary.
-              Walk it with the up and down arrows. Answer the first item's Ask and its
-              row shows a check and the option you picked, and undo takes them away;
-              narrow the window below the set's 36rem and the list becomes a row above
-              the item, its rows keeping only the check.
+              The tab list stands left of the open item, each row its name and summary,
+              and each run of rows sharing a <code>group</code> under its heading. Walk
+              it with the up and down arrows, which pass the headings by. Answer the
+              first item's Ask and its row shows a check and the option you picked, and
+              undo takes them away; narrow the window below the set's 36rem and the list
+              becomes a row above the item, with each group's name before its first row
+              and the rows keeping only the check.
             </p>
             <lf-tabs id="bg-side-queue" list="side">
               <lf-tab
                 id="bg-side-4107"
+                group="Act today"
                 label="ESC-4107 · Northwind Labs"
                 summary="sev 1 · 9 h · suggested fix"
               >
@@ -7280,6 +7718,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </lf-tab>
               <lf-tab
                 id="bg-side-4114"
+                group="Act today"
                 label="ESC-4114 · Vela Analytics"
                 summary="sev 1 · 1 h · suggested escalate"
               >
@@ -7289,6 +7728,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </lf-tab>
               <lf-tab
                 id="bg-side-4108"
+                group="This week"
                 label="ESC-4108 · Hale &amp; Sons"
                 summary="sev 3 · 8 h · suggested close"
               >
@@ -7382,23 +7822,89 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               does. Delivery statuses below report what already happened without
               offering another press.
             </p>
-            <h3>
+            <h3 id="bg-margin-layer">
               <strong>Rail and pins</strong
-              ><span class="bg-feature-detail"
-                >: where a marker stands, and hiding them</span
-              >
+              ><span class="bg-feature-detail">: annotations beside their targets</span>
             </h3>
             <p id="bg-margin-layer-guide">
-              <strong>Two postures; nothing moves.</strong> A marker beside prose stands
-              in the rail, 22px past the column. The schedule below is wider than the
-              column and carries a comment, so its marker stands on the schedule as a
-              pin at its top-right. Narrow the window until the room beside the column
-              no longer holds the rail, about 960px, and every marker becomes a pin.
-              Press <kbd>o</kbd> to hide what is drawn over the page, the pins and the
-              passage marks; the rail stays, and nothing on the page moves. Press it
-              again to bring them back. On a touch screen, open “More page controls” and
-              choose “Hide annotations”, then “Show annotations”.
+              Leaf places threads, unanswered Asks, actions, changes, and delivery or
+              work status beside the content they concern. With enough room beside the
+              reading column, their controls stand in the rail. Where the rail is
+              absent, the same controls appear as pins near their targets on the page.
+              Every annotation uses the same filled teardrop face as a pin. Its glyph
+              and label keep their meaning: a Thread opens a conversation, Accept acts
+              on a suggestion, and Sent reports delivery. Targets inside scrolling panes
+              or extending into the rail also use pins. Related controls share a compact
+              group; “More options” opens additional controls. When space is tight, a
+              group can fold to one pin; opening it reveals its controls over the page.
+              A workflow status can appear on an existing control, as the samples above
+              show.
             </p>
+            <p id="bg-margin-layer-placement">
+              Pins sit clear of text and controls when nearby space permits. In a
+              crowded view they can overlap content. They reserve no space, so their
+              arrival, removal, or expansion leaves the page's layout unchanged. The
+              schedule below extends beyond the column and carries a thread, so its
+              Thread control already appears as a pin. Open it, or use the suggestion's
+              “Accept” and “Reject” controls above. Narrow the window below about 960px
+              to remove this page's rail and inspect those same controls beside their
+              targets.
+            </p>
+            <p id="bg-margin-layer-visibility">
+              Press <kbd>o</kbd> to hide pins and passage marks while reading the
+              content beneath them. Controls in the rail stay visible, and nothing on
+              the page moves. Press it again to bring the annotations back. On a touch
+              screen, open “More page controls” and choose “Hide annotations”, then
+              “Show annotations”.
+            </p>
+            <p id="bg-margin-layer-actions-guide">
+              <strong>Action pins without a rail.</strong> This practice page has no
+              rail. The suggestion's “Accept” and “Reject” controls appear as pins
+              beside the proposed wording. Choose either, then use “Undo” to restore the
+              suggestion. These annotations work without a thread or an Ask.
+            </p>
+            <lf-sample id="bg-margin-layer-actions" label="suggestion without a rail">
+              <template id="bg-margin-layer-actions-page" data-sample data-rail="none">
+                <p id="bg-margin-layer-actions-copy">
+                  The sample workshop will meet
+                  <lf-suggestion id="bg-margin-layer-suggestion"
+                    ><lf-old>outside by the fountain.</lf-old
+                    ><lf-new>under the station canopy.</lf-new></lf-suggestion
+                  >
+                </p>
+              </template>
+            </lf-sample>
+            <p id="bg-margin-layer-status-guide">
+              <strong>Quiet status pins without a rail.</strong> This sample starts with
+              a recorded card move. The small upward arrow beside “Print the workshop
+              map” says “Sent” on hover: the move was recorded, with nothing for you to
+              answer. After two minutes without pickup, it becomes “Waiting for pickup”;
+              Reset starts a fresh example. Queued, Picked up, and Working follow the
+              same placement rule. When a target already has a control, that control can
+              carry the status instead of adding a separate pin.
+            </p>
+            <lf-sample
+              id="bg-margin-layer-status"
+              label="delivery status without a rail"
+            >
+              <template
+                id="bg-margin-layer-status-page"
+                data-sample
+                data-rail="none"
+                data-sample-events="bg-margin-layer-status-history"
+              >
+                <lf-board id="bg-margin-layer-packing">
+                  <lf-column id="bg-margin-layer-ready" label="Ready">
+                    <lf-card id="bg-margin-layer-map"
+                      ><strong>Print the workshop map</strong></lf-card
+                    >
+                    <lf-card id="bg-margin-layer-signs"
+                      ><strong>Pack the direction signs</strong></lf-card
+                    >
+                  </lf-column>
+                </lf-board>
+              </template>
+            </lf-sample>
             <figure id="bg-margin-layer-figure" data-width="available">
               <table id="bg-margin-layer-table">
                 <thead>
@@ -7614,13 +8120,18 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   id="bg-gloss"
                   tip="A narrow end-to-end path through the real system."
                   >walking skeleton</lf-gloss
-                >. Code adds line numbers and Notes, and quotes an excerpt under its
-                file's own numbers with an elided row where it skips; Tree shows file
-                structure. Use “Copy code” on the right of either block below, or
-                <kbd>Tab</kbd> to it and press <kbd>Enter</kbd>. The clipboard keeps the
-                code's whitespace and leaves out line numbers and Notes.
+                >. Hover the term, then move into its explanation; the card stays open
+                while you read it. Code adds line numbers and Notes, and quotes an
+                excerpt under its file's own numbers with an elided row where it skips;
+                Tree shows file structure. Use “Copy code” on the right of either block
+                below, or <kbd>Tab</kbd> to it and press <kbd>Enter</kbd>. The clipboard
+                keeps the code's whitespace and leaves out line numbers and Notes. Bash
+                separates commands, arguments, and flags with the same syntax colors as
+                a diff.
               </p>
-              <pre id="bg-plain-code"><code>leaf page check ./proposal
+              <pre
+                id="bg-plain-code"
+              ><code class="language-bash">leaf page check ./proposal --render
 leaf page stamp ./proposal --text "Ready for review"</code></pre>
               <lf-code id="bg-code" language="python" lines="40-43,58-59" hi="41-42">
                 <pre>
@@ -7645,8 +8156,15 @@ gallery/
   data.json  +2
   media/
     after.png
+  recordings/
+    evidence/
+      rendered_first_paint_checkpoints_with_readable_path_names.json  +245 -93
 </pre>
               </lf-tree>
+              <p id="bg-tree-after">
+                At a narrow width, the nested filename and its change badges wrap. This
+                paragraph stays in place when the tree upgrades.
+              </p>
             </section>
 
             <section id="bg-neutral-comparison">
@@ -7800,8 +8318,12 @@ gallery/
                 presents this same tab set at the root of a page, where it becomes
                 borderless top navigation for page-scale views. Both forms remember the
                 selected panel after reload. At page level, scroll a view and switch
-                away and back: each selection reaches the panel’s beginning below the
-                tab strip. Browser Back and Forward return to the corresponding views.
+                away and back: an unread view opens below the tab strip, and a view you
+                already read returns to its place. The strip stays put even when the
+                next view is shorter than the window. Browser Back and Forward return to
+                the corresponding views. Narrow the window until the gallery’s own tab
+                names overflow, then page them with the edge arrows. Reduced motion
+                makes that move immediate.
               </p>
               <lf-tabs id="bg-tabs">
                 <lf-tab id="bg-tab-current" label="Current">
@@ -8095,6 +8617,20 @@ gallery/
             </section>
           </section>
 
+          <section id="bg-frame-edges">
+            <h2>Framed rows</h2>
+            <p>
+              This row draws its own frame and declares that its items keep their
+              margins. Both paragraphs start at the same height and leave equal space
+              below them. Narrow the window to stack them: each item keeps the same
+              spacing when the row wraps.
+            </p>
+            <div id="bg-framed-row">
+              <p>Preview checks run before the release.</p>
+              <p>Delivery checks run after the release.</p>
+            </div>
+          </section>
+
           <section id="bg-layout-family">
             <p class="eyebrow bg-feature-elements">lf-pane</p>
             <h2>
@@ -8215,6 +8751,28 @@ switch --readers checkout-api,orders-api</code></pre>
               ></lf-text-document>
             </section>
 
+            <section id="bg-document-previews">
+              <p class="eyebrow bg-feature-elements">lf-text-document</p>
+              <h3>Rendered documents</h3>
+              <p>
+                Switch between the rendered release note and its exact source. Use the
+                arrow keys on the tabs. Reloading keeps your selected view; a new source
+                value updates both views.
+              </p>
+              <lf-text-document
+                id="bg-markdown-preview"
+                source="gallery-markdown"
+                label="release-note.md"
+                preview="markdown"
+              ></lf-text-document>
+              <lf-text-document
+                id="bg-html-preview"
+                source="gallery-html"
+                label="release-card.html"
+                preview="html"
+              ></lf-text-document>
+            </section>
+
             <section id="bg-measurement-lag">
               <p class="eyebrow bg-feature-elements">lf-num</p>
               <h3>
@@ -8274,8 +8832,8 @@ switch --readers checkout-api,orders-api</code></pre>
               <lf-column id="bg-work-ready" label="Ready">
                 <lf-card id="bg-work"
                   ><strong>Check the sample route</strong>
-                  A live work claim puts a Working indicator here because this card has
-                  no other margin control to carry its workflow state.
+                  An open task on this card puts a Working indicator here because the
+                  card has no other margin control to carry it.
                 </lf-card>
               </lf-column>
               <lf-column id="bg-work-tried" label="Tried"></lf-column>
@@ -8559,6 +9117,67 @@ switch --readers checkout-api,orders-api</code></pre>
         id="visual-review-run"
         source="gallery-visual-run"
       ></lf-visual-review>
+</lf-tab>
+
+<lf-tab id="corpus-playwright-trace-gallery" label="Playwright trace package">
+<header id="trace-introduction">
+        <h1>Review a recorded release journey</h1>
+        <p>
+          This ordinary website has two buttons named Review. Playwright recorded each
+          click; Leaf's comments identify the captured action, image or saved element.
+          Play the captured sequence, or drag the blue handle to scrub and pause on a
+          detail.
+        </p>
+      </header>
+      <section id="trace-review">
+        <lf-trace id="release-trace" source="release-journey">
+          <lf-trace-bookmark
+            label="Documentation reviewed"
+            target="trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-phase-trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-call-4e380b5061c4982e-after"
+          ></lf-trace-bookmark>
+          <lf-trace-bookmark
+            label="API reviewed"
+            target="trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-phase-trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-call-0684e283ed722175-after"
+          ></lf-trace-bookmark>
+          <lf-trace-bookmark
+            label="Last filmstrip image"
+            target="trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-image-trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-image-73"
+          ></lf-trace-bookmark>
+        </lf-trace>
+      </section>
+      <details id="trace-scenarios">
+        <summary>Review scenarios</summary>
+        <ul>
+          <li>
+            Step through the timeline to review page actions and browser setup calls
+            together. Recordings with several browser pages offer All pages and
+            individual page filters; a single-page recording needs no selector.
+          </li>
+          <li>
+            Select Documentation reviewed or API reviewed on the timeline. Hover or
+            focus each number to read its name and time; close moments stay separate.
+            Zoom in to spread their times and Whole recording to restore the overview.
+          </li>
+          <li>
+            Use Fit image, Actual size, or image zoom to inspect captured pixels. Drag
+            the image to pan, or focus it and use arrow keys. Step through a click’s
+            Before, Action and After checkpoints on one timeline. Each image and saved
+            tree shows its own capture time.
+          </li>
+          <li>
+            Enable Show intermediate frames to include the browser’s filmstrip on that
+            same timeline. Left and Right step through the displayed stops.
+          </li>
+          <li>
+            Comment on one saved Review button, move to another action, and follow the
+            thread back. It returns to that action and tree path.
+          </li>
+          <li>
+            Comment on an image or draw on it. Following the thread restores that exact
+            captured image.
+          </li>
+        </ul>
+      </details>
 </lf-tab>
 
 </lf-tabs>

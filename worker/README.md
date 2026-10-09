@@ -176,7 +176,7 @@ text written into the addressed thread, which is the user-visible response miles
 from Leaf's durable validation and append; `turn_stream_completed` also carries the
 turn's `modelRequests` and the `inputTokens`, `cachedInputTokens` and `outputTokens`
 they summed to. `thread_title_generated` records the title request for an untitled
-thread the turn answers, with its duration, tokens, and whether the title was
+thread a dispatched move is in, with its duration, tokens, and whether the title was
 `written`; `thread_title_skipped` and `thread_title_failed` record a thread left
 untitled. A refused title's failure carries no `detail`, because its words are drawn
 from the user's. `turn_interrupted` and
@@ -243,8 +243,17 @@ same records live under the agent administration token.
 Each public document emits one `component=leaf-startup` record from the inline
 bootstrap, including when the module graph fails. It identifies the route, release,
 browser family and major version, platform, and navigation type. `serverMs`,
-`firstByteMs`, `firstContentfulPaintMs`, and `presentedMs` separate Worker, network,
-browser paint, and Leaf startup time. `outcome` says how the load ended, not how far it
+`firstByteMs`, and `firstContentfulPaintMs` measure Worker, network, and browser paint.
+The version 2 report adds `upgradedMs` for the first observed body widget-upgrade
+mark and `firstStateResponseMs` for the first completed same-origin, page-root
+`api/state` response, measured by Resource Timing's `responseEnd`. These and
+`presentedMs` are milliseconds since navigation started, or `null` when unobserved.
+Upgrade can finish while private state still waits for its container. Normal state
+restoration presents after that answer is applied and rendered; the bounded offline
+fallback can present authored content with `firstStateResponseMs: null`.
+Resource completions are
+observed continuously, so a full resource timeline does not erase the first answer,
+and later polling does not replace it. `outcome` says how the load ended, not how far it
 got: `presented` where the page came up and the document went on to finish loading,
 `failed` where the page declared it could not start, `timeout` where fifteen seconds
 passed without either, and `abandoned` where the user left first. A page that comes up
@@ -308,15 +317,15 @@ debugging log. Live incidents use
 `wrangler tail`; historical incidents use the REST API or Cloudflare's Observability
 query builder.
 
-The local end-to-end verifier prints the same container records and leaves them at
-`.tmp/verify-site/run-*/website-agent-local.log` for a later agent to inspect. Each
-run builds its own site, binds an OS-assigned HTTP port, and gives each website harness
-a private App Server socket. It gives the child App
+The local end-to-end journey (`leaf-dev journey local`) prints the same container
+records and leaves them at `.tmp/verify-site/run-*/website-agent-local.log` for a later
+agent to inspect. Each run builds its own site, binds an OS-assigned HTTP port, and gives
+each website harness a private App Server socket. It gives the child App
 Server a temporary plugin-free `CODEX_HOME` seeded with copies of the host login and
 website config, matching production without changing personal state. Its JSON result
-records `responseVisibleMs` from the first non-empty agent reply the open Threads panel
-actually displays; `repliedMs` is the independent durable-state observation and is not a
-substitute for that user-visible milestone.
+records `sinceSendMs.responseVisible` from the first non-empty agent reply the open
+Threads panel actually displays; `sinceAdmissionMs.replied` is when the container
+admitted that reply and is not a substitute for that user-visible milestone.
 
 ## Hosted-agent delivery
 
@@ -431,7 +440,7 @@ npm run dev
 ## Remote development
 
 The one standing remote development environment runs the same Worker, Container image,
-credential proxy, and browser benchmark at
+credential proxy, and agent journey at
 `https://leaf-website-dev.maxsixty.workers.dev`. It is an ordinary Wrangler `dev`
 environment with its own Worker, container application, Durable Objects, and Analytics
 Engine dataset. The shared rate-limit namespace is the only bound resource it reuses
@@ -455,7 +464,7 @@ CLOUDFLARE_API_TOKEN=... OPENAI_API_KEY=... npm run deploy:dev --prefix worker
 Later deployments need only `CLOUDFLARE_API_TOKEN`, loaded from 1Password as above. The
 command builds the current checkout, deploys only that named environment, gives its
 commit plus working-tree state a release identity, waits for that exact release, and
-runs the complete agent benchmark:
+runs the agent journey (`leaf-dev journey`):
 
 ```sh
 npm run deploy:dev --prefix worker

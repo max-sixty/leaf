@@ -42,7 +42,7 @@ test("user, reported and restated origins stand separately on one unit", () => {
 });
 
 test("a recorded verb standing at its authored value overrides nothing", () => {
-  const record = { kind: "value", attr: "status", value: "status" };
+  const record = { kind: "value", attr: "status" };
   const authored = new Map([
     [
       "t-parser",
@@ -65,4 +65,27 @@ test("a recorded verb standing at its authored value overrides nothing", () => {
     projectionOrigins(authored, { classified: new Map(), desired: desired("running") }),
     [{ origin: "user", unit: "t-parser" }],
   );
+});
+
+test("Markdown body provenance distinguishes paragraphs from ordinary spaces", () => {
+  const record = { kind: "body" };
+  const authored = new Map([
+    [
+      "t-parser",
+      {
+        state: { edit: { value: "A B" } },
+        specs: new Map([["edit", { unit: "widget", record }]]),
+      },
+    ],
+  ]);
+  const projected = (value) => ({
+    classified: new Map(),
+    desired: new Map([
+      [coordinate("edit"), entry("user-edit", "action", "edit", value, record)],
+    ]),
+  });
+  assert.deepEqual(projectionOrigins(authored, projected("A B")), []);
+  assert.deepEqual(projectionOrigins(authored, projected("A\n\nB")), [
+    { origin: "user", unit: "t-parser" },
+  ]);
 });

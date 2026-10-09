@@ -7,23 +7,32 @@
  * value of each property no change holds any longer. Prose carries a target key beside
  * its words. The complete target/change graph is submitted as one recordless action,
  * so replay, refusal, and undo use Leaf's ordinary projection instead of a
- * widget-owned event history. */
+ * widget-owned event history. Target keys retain the native editor controls across
+ * repaint; local names preserve the user's exact draft, and submission normalizes
+ * whitespace and requires every target to have a nonempty name. */
 import {
   captureTargetReference,
   commands,
   failSoft,
+  html,
+  keyed,
   keepsHidden,
-  keepsText,
   layoutChanged,
   notice,
   offer,
+  offered,
   once,
   paintKeys,
   quoted,
+  render,
+  repeat,
+  retainUserIntent,
   resolveTargetReference,
   says,
   targetCandidates,
   widgetController,
+  focusDestination,
+  holdFocus,
 } from "/runtime/widget-api.js";
 import "../vendor/webawesome.esm.js";
 
@@ -43,7 +52,7 @@ const normalizedWords = (value) => value.replace(/\s+/g, " ").trim();
 
 function option(value, label) {
   const node = offer("wa-option", "", label);
-  node.setAttribute("value", value);
+  node.value = value;
   return node;
 }
 
@@ -87,7 +96,6 @@ customElements.define(
     #interactive = false;
     #ready = false;
     #resumeProjection = null;
-    #stop = null;
     #targetChanges = new MutationObserver(() => this.#render());
 
     connectedCallback() {
@@ -97,7 +105,6 @@ customElements.define(
         if (this.#interactive) {
           if (this.#dirty && !this.#resumeProjection)
             this.#resumeProjection = this.#controller.defer();
-          this.#stop ??= this.#controller.subscribe(() => this.#paintAvailability());
         }
         return;
       }
@@ -114,7 +121,7 @@ customElements.define(
         this.#ready = true;
         this.#watchTargets();
         if (this.#interactive)
-          this.#stop ??= this.#controller.subscribe(() => this.#paintAvailability());
+          this.#controller.subscribe(() => this.#paintAvailability());
         this.#render();
         // Built, so the height the page reserved for it lifts (x-height).
         this.classList.add("lf-rendered");
@@ -126,8 +133,6 @@ customElements.define(
 
     disconnectedCallback() {
       this.#targetChanges.disconnect();
-      this.#stop?.();
-      this.#stop = null;
       this.#resumeProjection?.();
       this.#resumeProjection = null;
       this.disarm();
@@ -216,7 +221,6 @@ customElements.define(
         this.getAttribute("submit-label") ?? "Submit changes",
       );
       this.#revert.addEventListener("click", () => this.#revertDraft());
-      this.#submit.addEventListener("click", () => void this.#submitChanges());
       actions.append(this.#revert, this.#submit);
 
       this.#editor.append(toolbar, this.#candidateList, targets, changes, actions);
@@ -227,33 +231,44 @@ customElements.define(
       this.#commands();
     }
 
+    #field(tag, cls, name, label) {
+      const field = offer(tag, cls);
+      field.name = `${this.id}-${name}`;
+      field.label = label;
+      field.size = "s";
+      return field;
+    }
+
     #styleForm() {
       const form = offer("section", "lf-targeting-change-form");
       form.setAttribute("aria-label", "Add box-model change");
       form.append(offer("p", "lf-targeting-change-summary", "Box model"));
       const fields = offer("div", "lf-targeting-change-fields");
-      this.#styleTarget = offer("wa-select", "lf-targeting-change-target");
-      this.#styleTarget.name = `${this.id}-style-target`;
-      this.#styleTarget.label = "Style target";
-      this.#styleTarget.size = "s";
-      this.#styleTarget.setAttribute("aria-label", "Style target");
-      this.#styleProperty = offer("wa-select", "lf-targeting-property");
-      this.#styleProperty.name = `${this.id}-style-property`;
-      this.#styleProperty.label = "Box-model property";
-      this.#styleProperty.size = "s";
-      this.#styleProperty.setAttribute("aria-label", "Box-model property");
+      this.#styleTarget = this.#field(
+        "wa-select",
+        "lf-targeting-change-target",
+        "style-target",
+        "Style target",
+      );
+      this.#styleProperty = this.#field(
+        "wa-select",
+        "lf-targeting-property",
+        "style-property",
+        "Box-model property",
+      );
       this.#styleProperty.append(
         ...STYLE_PROPERTIES.map(([value, label]) => option(value, label)),
       );
       this.#styleProperty.value = STYLE_PROPERTIES[0][0];
-      this.#styleValue = offer("wa-number-input", "lf-targeting-value");
-      this.#styleValue.name = `${this.id}-style-value`;
-      this.#styleValue.label = "Pixel value";
-      this.#styleValue.size = "s";
+      this.#styleValue = this.#field(
+        "wa-number-input",
+        "lf-targeting-value",
+        "style-value",
+        "Pixel value",
+      );
       this.#styleValue.min = 0;
       this.#styleValue.step = 1;
       this.#styleValue.value = "24";
-      this.#styleValue.setAttribute("aria-label", "Pixel value");
       const add = offer("button", "lf-btn lf-targeting-add-style", "Add style");
       add.addEventListener("click", () => {
         const value = Number(this.#styleValue.value);
@@ -277,19 +292,21 @@ customElements.define(
       form.setAttribute("aria-label", "Add target instruction");
       form.append(offer("p", "lf-targeting-change-summary", "Prose instruction"));
       const fields = offer("div", "lf-targeting-form-row");
-      this.#instructionTarget = offer("wa-select", "lf-targeting-change-target");
-      this.#instructionTarget.name = `${this.id}-instruction-target`;
-      this.#instructionTarget.label = "Instruction target";
-      this.#instructionTarget.size = "s";
-      this.#instructionTarget.setAttribute("aria-label", "Instruction target");
-      this.#instructionText = offer("wa-textarea", "lf-targeting-instruction");
-      this.#instructionText.name = `${this.id}-instruction`;
-      this.#instructionText.label = "Target instruction";
-      this.#instructionText.size = "s";
+      this.#instructionTarget = this.#field(
+        "wa-select",
+        "lf-targeting-change-target",
+        "instruction-target",
+        "Instruction target",
+      );
+      this.#instructionText = this.#field(
+        "wa-textarea",
+        "lf-targeting-instruction",
+        "instruction",
+        "Target instruction",
+      );
       this.#instructionText.resize = "auto";
       this.#instructionText.rows = 2;
       this.#instructionText.placeholder = "Describe the change for this target";
-      this.#instructionText.setAttribute("aria-label", "Target instruction");
       const add = offer(
         "button",
         "lf-btn lf-targeting-add-instruction",
@@ -322,7 +339,7 @@ customElements.define(
           decision: true,
           title: () => this.#submit.textContent,
           when: () => this.#canSubmit(),
-          run: () => this.#submit.click(),
+          run: () => void this.#submitChanges(),
         },
         {
           id: "targeting.focused-element",
@@ -340,7 +357,7 @@ customElements.define(
           when: () => this.#armed,
           run: () => {
             this.disarm();
-            this.#arm.focus({ preventScroll: true });
+            focusDestination(this.#arm, "return");
           },
         },
       ]);
@@ -361,7 +378,7 @@ customElements.define(
           this.#tabIndexes.set(element, element.getAttribute("tabindex"));
           element.tabIndex = 0;
         }
-        this.#preview.focus({ preventScroll: true });
+        focusDestination(this.#preview, "move");
       } else {
         for (const [element, prior] of this.#tabIndexes) {
           if (prior === null) element.removeAttribute("tabindex");
@@ -405,25 +422,33 @@ customElements.define(
       if (!this.#armed) return false;
       this.#candidates = targetCandidates(this.#preview, source);
       if (!this.#candidates.length) return false;
-      this.#candidateList.replaceChildren(
-        offer("p", "lf-targeting-heading", "Choose target boundary"),
+      render(
+        html`
+          <p ${offered("lf-targeting-heading")}>Choose target boundary</p>
+          ${repeat(
+            this.#candidates,
+            (candidate) => candidate,
+            (candidate) => {
+              const selection = this.#selection(candidate);
+              return html`<button
+                ${offered("lf-btn lf-targeting-candidate-choice")}
+                @click=${() => this.#addTarget(candidate)}
+              >
+                <strong
+                  >${this.#kind(candidate)} — ${this.#defaultName(candidate)}</strong
+                >
+                <span ${offered("lf-targeting-candidate-context")}
+                  >${selection.label} · ${selection.text || "No visible text"}</span
+                >
+              </button>`;
+            },
+          )}
+        `,
+        this.#candidateList,
       );
-      for (const candidate of this.#candidates) {
-        const selection = this.#selection(candidate);
-        const button = offer("button", "lf-btn lf-targeting-candidate-choice");
-        const title = document.createElement("strong");
-        title.textContent = `${this.#kind(candidate)} — ${this.#defaultName(candidate)}`;
-        const context = offer(
-          "span",
-          "lf-targeting-candidate-context",
-          `${selection.label} · ${selection.text || "No visible text"}`,
-        );
-        button.append(title, context);
-        button.addEventListener("click", () => this.#addTarget(candidate));
-        this.#candidateList.append(button);
-      }
       keepsHidden(this.#candidateList, false);
-      this.#candidateList.querySelector("button")?.focus({ preventScroll: true });
+      const first = this.#candidateList.querySelector("button");
+      if (first) focusDestination(first, "move");
       layoutChanged(this);
       return true;
     }
@@ -473,6 +498,7 @@ customElements.define(
     }
 
     #addTarget(element) {
+      const mayFocus = retainUserIntent({ available: () => this.isConnected });
       const selection = this.#selection(element);
       const signature = JSON.stringify(selection.reference);
       const existing = this.#configuration.targets.find(
@@ -481,9 +507,7 @@ customElements.define(
       if (existing) {
         this.disarm();
         keepsHidden(this.#candidateList, true);
-        this.#targetList
-          .querySelector(`[data-target-key="${existing.key}"] input`)
-          ?.focus({ preventScroll: true });
+        void this.#focusName(existing.key, mayFocus);
         return;
       }
       const target = {
@@ -499,9 +523,15 @@ customElements.define(
       this.#changed();
       this.#styleTarget.value = target.key;
       this.#instructionTarget.value = target.key;
-      this.#targetList.lastElementChild
-        ?.querySelector("input")
-        ?.focus({ preventScroll: true });
+      void this.#focusName(target.key, mayFocus);
+    }
+
+    async #focusName(key, mayFocus) {
+      const field = this.#targetList.querySelector(
+        `[data-target-key="${key}"] .lf-targeting-name`,
+      );
+      await field.updateComplete;
+      if (field.isConnected && mayFocus()) focusDestination(field, "move");
     }
 
     #nextTarget() {
@@ -543,114 +573,111 @@ customElements.define(
       layoutChanged(this);
     }
 
+    // A rebuild keeps the user in the row they stood in, or the nearest that survived it,
+    // or on the control that adds one, rather than dropping them to the body when the
+    // row they removed goes.
     #renderTargets() {
-      this.#targetList.replaceChildren();
-      if (!this.#configuration.targets.length) {
-        this.#targetList.append(
-          offer("p", "lf-targeting-empty", "No targets selected."),
-        );
-        return;
-      }
-      for (const target of this.#configuration.targets) {
-        const row = offer("section", "lf-targeting-target");
-        row.dataset.targetKey = target.key;
-        const resolution = this.#resolution(target);
-        row.dataset.lfTargetStatus = resolution.status;
-        const fields = offer("div", "lf-targeting-form-row");
-        const name = offer("wa-input", "lf-targeting-name");
-        name.type = "text";
-        name.name = `${this.id}-${target.key}-name`;
-        name.label = `Name for ${target.label}`;
-        name.size = "s";
-        name.value = target.name;
-        name.setAttribute("aria-label", `Name for ${target.label}`);
-        const priorName = target.name;
-        name.addEventListener("input", () => {
-          const value = normalizedWords(name.value);
-          if (!value) return;
-          target.name = value;
-          scope.label = `Scope for ${target.name}`;
-          scope.setAttribute("aria-label", scope.label);
-          className.label = `Class for ${target.name}`;
-          className.setAttribute("aria-label", className.label);
-          for (const select of [this.#styleTarget, this.#instructionTarget]) {
-            const targetOption = select.querySelector(
-              `wa-option[value="${CSS.escape(target.key)}"]`,
-            );
-            keepsText(targetOption, value);
-          }
-          this.#beginDraft();
-          this.#paintAvailability();
-        });
-        name.addEventListener("change", () => {
-          const value = normalizedWords(name.value);
-          if (!value) {
-            target.name = priorName;
-            name.value = priorName;
-            this.#changed();
-            return;
-          }
-          target.name = value;
-          this.#changed();
-        });
-        const scope = offer("wa-select", "lf-targeting-scope");
-        scope.name = `${this.id}-${target.key}-scope`;
-        scope.label = `Scope for ${target.name}`;
-        scope.size = "s";
-        scope.setAttribute("aria-label", `Scope for ${target.name}`);
-        scope.append(
-          option("element", "This element"),
-          option("class", "Shared class"),
-        );
-        scope.value = target.scope;
-        const classes = this.#classesFor(target);
-        scope.querySelector('wa-option[value="class"]').disabled = !classes.length;
-        const className = offer("wa-select", "lf-targeting-class");
-        className.name = `${this.id}-${target.key}-class`;
-        className.label = `Class for ${target.name}`;
-        className.size = "s";
-        className.setAttribute("aria-label", `Class for ${target.name}`);
-        className.append(
-          ...classes.map((value) =>
-            option(value, `.${value} · ${this.#classCount(value)} matches`),
-          ),
-        );
-        className.value = target.className ?? classes[0] ?? "";
-        className.hidden = target.scope !== "class";
-        className.disabled = target.scope !== "class";
-        scope.addEventListener("change", () => {
-          target.scope = scope.value;
-          target.className = scope.value === "class" ? className.value : null;
-          this.#changed();
-        });
-        className.addEventListener("change", () => {
-          target.className = className.value;
-          this.#changed();
-        });
-        const remove = offer("button", "lf-btn lf-targeting-remove", "Remove target");
-        remove.setAttribute("aria-label", `Remove target ${target.name}`);
-        remove.addEventListener("click", () => {
-          this.#configuration.targets = this.#configuration.targets.filter(
-            (candidate) => candidate.key !== target.key,
-          );
-          this.#configuration.changes = this.#configuration.changes.filter(
-            (change) => change.target !== target.key,
-          );
-          this.#changed();
-        });
-        fields.append(name, scope, className, remove);
-        row.append(
-          fields,
-          offer(
-            "p",
-            "lf-targeting-change-summary",
-            resolution.status === "resolved"
-              ? target.label
-              : `${target.label} · ${resolution.status === "detached" ? "Detached" : "Ambiguous"} target`,
-          ),
-        );
-        this.#targetList.append(row);
-      }
+      const restoreFocus = holdFocus(this.#targetList, { key: "data-target-key" });
+      render(
+        this.#configuration.targets.length
+          ? repeat(
+              this.#configuration.targets,
+              (target) => target.key,
+              (target) => {
+                const resolution = this.#resolution(target);
+                const classes = this.#classesFor(target);
+                return html`<section
+                  ${offered("lf-targeting-target")}
+                  data-target-key=${target.key}
+                  data-lf-target-status=${resolution.status}
+                >
+                  <div ${offered("lf-targeting-form-row")}>
+                    <wa-input
+                      ${offered("lf-targeting-name")}
+                      name=${`${this.id}-${target.key}-name`}
+                      label=${`Name for ${target.label}`}
+                      size="s"
+                      .value=${target.name}
+                      hint=${normalizedWords(target.name) ? "" : "Enter a target name before submitting."}
+                      @input=${(event) => {
+                        target.name = event.currentTarget.value;
+                        this.#changed();
+                      }}
+                    ></wa-input>
+                    <wa-select
+                      ${offered("lf-targeting-scope")}
+                      name=${`${this.id}-${target.key}-scope`}
+                      label=${`Scope for ${target.name}`}
+                      size="s"
+                      .value=${target.scope}
+                      @change=${(event) => {
+                        target.scope = event.currentTarget.value;
+                        target.className =
+                          target.scope === "class"
+                            ? (target.className ?? classes[0])
+                            : null;
+                        this.#changed();
+                      }}
+                    >
+                      <wa-option ${offered()} value="element">This element</wa-option>
+                      <wa-option ${offered()} value="class" ?disabled=${!classes.length}
+                        >Shared class</wa-option
+                      >
+                    </wa-select>
+                    <wa-select
+                      ${offered("lf-targeting-class")}
+                      name=${`${this.id}-${target.key}-class`}
+                      label=${`Class for ${target.name}`}
+                      size="s"
+                      .value=${target.className ?? classes[0] ?? ""}
+                      ?hidden=${target.scope !== "class"}
+                      ?disabled=${target.scope !== "class"}
+                      @change=${(event) => {
+                        target.className = event.currentTarget.value;
+                        this.#changed();
+                      }}
+                    >
+                      ${repeat(
+                        classes,
+                        (value) => value,
+                        (value) =>
+                          html` <wa-option ${offered()} value=${value}
+                            >.${value} · ${this.#classCount(value)} matches</wa-option
+                          >`,
+                      )}
+                    </wa-select>
+                    <button
+                      ${offered("lf-btn lf-targeting-remove")}
+                      aria-label=${`Remove target ${target.name}`}
+                      @click=${() => {
+                        this.#configuration.targets =
+                          this.#configuration.targets.filter(
+                            (candidate) => candidate.key !== target.key,
+                          );
+                        this.#configuration.changes =
+                          this.#configuration.changes.filter(
+                            (change) => change.target !== target.key,
+                          );
+                        this.#changed();
+                      }}
+                    >
+                      Remove target
+                    </button>
+                  </div>
+                  <p ${offered("lf-targeting-change-summary")}>
+                    ${
+                      resolution.status === "resolved"
+                        ? target.label
+                        : `${target.label} · ${resolution.status === "detached" ? "Detached" : "Ambiguous"} target`
+                    }
+                  </p>
+                </section>`;
+              },
+            )
+          : html`<p ${offered("lf-targeting-empty")}>No targets selected.</p>`,
+        this.#targetList,
+      );
+      restoreFocus?.(this.#arm);
     }
 
     #classesFor(target) {
@@ -667,52 +694,68 @@ customElements.define(
     }
 
     #refreshTargetSelect(select) {
+      const targets = this.#configuration.targets;
       const selected = select.value;
-      select.replaceChildren();
-      if (!this.#configuration.targets.length) {
-        select.append(option("", "Select a target"));
-        select.value = "";
-        select.disabled = true;
-        return;
-      }
-      select.disabled = false;
-      select.append(
-        ...this.#configuration.targets.map((target) => option(target.key, target.name)),
+      render(
+        targets.length
+          ? repeat(
+              targets,
+              (target) => target.key,
+              (target) =>
+                html` <wa-option ${offered()} value=${target.key}
+                  >${keyed(target.name, target.name)}</wa-option
+                >`,
+            )
+          : html`<wa-option ${offered()} value="">Select a target</wa-option>`,
+        select,
       );
-      select.value = this.#configuration.targets.some(
-        (target) => target.key === selected,
-      )
+      select.toggleAttribute("disabled", !targets.length);
+      select.value = targets.some((target) => target.key === selected)
         ? selected
-        : this.#configuration.targets[0].key;
+        : (targets[0]?.key ?? "");
     }
 
     #renderChanges() {
-      this.#changeList.replaceChildren();
-      if (!this.#configuration.changes.length) {
-        this.#changeList.append(offer("p", "lf-targeting-empty", "No changes added."));
-        return;
-      }
-      for (const change of this.#configuration.changes) {
-        const target = this.#configuration.targets.find(
-          (candidate) => candidate.key === change.target,
-        );
-        const summary =
-          change.kind === "style"
-            ? `${target?.name}: ${change.property} ${change.value}`
-            : `${target?.name}: ${change.text}`;
-        const row = offer("div", "lf-targeting-change");
-        row.append(offer("span", "lf-targeting-change-summary", summary));
-        const remove = offer("button", "lf-btn lf-targeting-remove", "Remove");
-        remove.setAttribute("aria-label", `Remove change for ${target?.name}`);
-        remove.addEventListener("click", () => {
-          this.#configuration.changes = this.#configuration.changes.filter(
-            (candidate) => candidate.id !== change.id,
-          );
-          this.#changed();
-        });
-        row.append(remove);
-        this.#changeList.append(row);
-      }
+      const restoreFocus = holdFocus(this.#changeList, { key: "data-change-id" });
+      render(
+        this.#configuration.changes.length
+          ? repeat(
+              this.#configuration.changes,
+              (change) => change.id,
+              (change) => {
+                const target = this.#configuration.targets.find(
+                  (candidate) => candidate.key === change.target,
+                );
+                return html`<div
+                  ${offered("lf-targeting-change")}
+                  data-change-id=${change.id}
+                >
+                  <span ${offered("lf-targeting-change-summary")}
+                    >${
+                      change.kind === "style"
+                        ? `${target.name}: ${change.property} ${change.value}`
+                        : `${target.name}: ${change.text}`
+                    }</span
+                  >
+                  <button
+                    ${offered("lf-btn lf-targeting-remove")}
+                    aria-label=${`Remove change for ${target.name}`}
+                    @click=${() => {
+                      this.#configuration.changes = this.#configuration.changes.filter(
+                        (candidate) => candidate.id !== change.id,
+                      );
+                      this.#changed();
+                    }}
+                  >
+                    Remove
+                  </button>
+                </div>`;
+              },
+            )
+          : html`<p ${offered("lf-targeting-empty")}>No changes added.</p>`,
+        this.#changeList,
+      );
+      restoreFocus?.(this.#arm);
     }
 
     #elementsFor(target) {
@@ -797,7 +840,9 @@ customElements.define(
         this.#configuration.targets.length > 0 &&
         this.#configuration.changes.length > 0 &&
         this.#configuration.targets.every(
-          (target) => this.#resolution(target).status === "resolved",
+          (target) =>
+            normalizedWords(target.name) &&
+            this.#resolution(target).status === "resolved",
         ) &&
         (this.#controller.read().actions.submit?.available ?? false)
       );
@@ -805,7 +850,6 @@ customElements.define(
 
     #paintAvailability() {
       if (!this.#submit) return;
-      this.#submit.toggleAttribute("disabled", !this.#canSubmit());
       this.#revert.toggleAttribute("disabled", !this.#dirty);
       paintKeys();
     }
@@ -818,6 +862,7 @@ customElements.define(
     async #submitChanges() {
       if (!this.#canSubmit()) return;
       const detail = copy(this.#configuration);
+      for (const target of detail.targets) target.name = normalizedWords(target.name);
       this.#sending = true;
       this.#finishDraft();
       this.#submit.setAttribute("aria-busy", "true");

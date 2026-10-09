@@ -17,7 +17,7 @@ desktop viewport.
 The page owns its arrangement: a shipped Layout class (`layouts.css`, `@layer
 lf-layouts`) or its own CSS. Leaf owns what pages and widgets coordinate through: the
 bands, the reading measure as typography, and each widget's contract to fill the box
-it is given, declare the minimum it needs, and never let its content size its holder.
+it is given, declare the minimum it needs, and never let its content widen its holder.
 
 Three things shape a page, and none of them reads another:
 
@@ -32,7 +32,8 @@ Three things shape a page, and none of them reads another:
 
 Where one has to answer another, the owner sets a token saying what the box is, or
 which style it stands under, and the reader keys on that token with a style query:
-`--lf-full-height` (the body has a definite height to fill), `--lf-wide-page` (the page
+`--lf-full-height` (this box's children have a definite height to fill; it does not
+inherit, so each box that passes the height on says so again), `--lf-wide-page` (the page
 spans the window, so the theme sets its title a size up), `--lf-resident` (what stands
 in the column's margin), and `--lf-density` (the working setting, for what a width alone
 cannot decide). A width needs no token, since a size query on the reader's own container
@@ -72,18 +73,23 @@ which markers stand and where, which is what the overlay exists to avoid. Where 
 covers something the user needs, the answers are `o` (or More's Hide annotations
 under a finger) and a better placement (`TODO.md`), never room made for it.
 
-The auxiliary surfaces (Queue panel, thread panel, Leaves drawer) stand over the page and
-never change its geometry; the Queue panel and thread panel leave the page live beside
-them, and cover it where they would leave less than a usable page
+The auxiliary surfaces (Questions panel, thread panel, Leaves drawer) stand over the page and
+never change its geometry; the Questions panel and thread panel share the right edge, one
+at a time, leave the page live beside them, and cover it where they would leave less than
+a usable page
 (`--lf-auxiliary-beside`, read by `standsBeside`). Which box scrolls is the
 stylesheet's, a Layout's or the page's, which the runtime reads rather than decides.
-The Queue panel is experimental and expected to change a lot: it replaced the Asks
+The Questions panel is experimental and expected to change a lot: it replaced the Asks
 drawer to try one place for both queues (`runtime/queue-panel.js`).
 
-Ordinary content grows in flow. A bounded inspection object may scroll inside the
-document and chain into it at its edges; isolate scrolling only at a bounded task
-or modal boundary, and add no vertical scroller without an inspection need. Wheel
-and touch keep their navigation meaning; deliberate controls enter pan and zoom.
+Widgets in ordinary document flow grow with their content by default. Internal
+vertical scrolling needs a task that benefits from keeping a region in view while
+its contents move, or a live stream whose newest entry the reader follows; being
+an inspection object is not enough. Page-authoring choices live in
+`../references/page-authoring.md`, "Bounds and widths". A necessary scroller chains
+into the document at its edges; isolate scrolling only at a bounded task or modal
+boundary. Wheel and touch keep their navigation meaning; deliberate controls enter
+pan and zoom.
 Every necessary scroller has a keyboard route, visible bounds, and visible focus.
 Allocate room before shrinking evidence, and keep narrow screens' access to
 two-dimensional evidence deliberate. Expanding content keeps the allocation its
@@ -107,21 +113,40 @@ boundary and every enclosing declaration's guarantees; it never borrows an outer
 declaration or relaxes one, including across a shadow root. Both painted positions stay inside
 that boundary, and neighbours and ordinary page reading content stay put. Typing
 still cannot carry its field.
+An `append` region declares a transcript whose new children may grow its end within
+its stationary scrollport. Existing messages stay put; the idle reply row and later
+cards may move by that growth. The declaration permits no changes to existing
+messages or independent movement of following content.
 News grows where the reader isn't looking: above the screen, where scroll anchoring
 takes the growth into what they scrolled past, or below it. A short thread's reply
 box follows its last message; a long panel thread pins the
-box at its scroller's foot. News that would move a reply in flow waits behind the
-thread's existing notice; a pinned reply lets the transcript grow above it.
+box at its scroller's foot. An idle open panel thread shows appended replies
+immediately, allowing its reply row and later cards to move. An active composition
+keeps its editor still: news that would move it waits behind the thread's existing
+notice; a pinned reply lets the transcript grow above it. Only an already pinned
+reply follows incoming messages to the end; a short thread keeps the previous reading
+in place even when a new answer is taller than the panel.
+The open conversation remains the panel's reading anchor even when its title is
+scrolled above the visible band. An explicitly named later card takes precedence.
+These holds protect continuous reading. A hidden tab ends it; returning reveals
+the held reading and the first refreshed reading before protection resumes
+(`reading-continuity.js`, closed by `state-feed.js` after presentation). Keyboard
+blur alone does not end reading: the page may remain visible beside another window.
+Returning uses the ordinary arrival tint and thread transitions, and keeps a native
+editor the user was composing in, including its focus and caret.
 Where news would move what the reader is reading, it waits behind a control of fixed size:
-in a seat in the page's flow, an agent's reply, the reopening it brings, and a
-thread the agent starts wait behind a notice in a row the seat already draws, and a
-thread that would open a seat of its own, as on a diff line with no thread, waits in
-the margin behind its marker (`thread/held-news.js`). It shows once a gesture of theirs
-takes them to it: opening the notice or the thread, walking to the thread or one of its
-Asks, or replying there. In the Threads panel, a card
-news takes out of the view, as another actor resolving its thread under Open does,
-stays where it stands, drawn as the news left it in the shape it stood in, until its
-going would move nothing the user sees or they change the view
+in a seat in the page's flow, whatever the thread would draw differently (an agent's
+reply, a reaction from another tab, the thread resolved or reopened elsewhere) waits
+behind a notice in a row the thread already draws. Open panel cards apply the same
+hold to changes in existing messages, reactions, folds, settlement and active
+compositions. A thread the agent starts in a seat also waits there; a thread that
+would open a seat of its own, as on a diff line with no thread, waits in the margin behind its marker
+(`thread/held-news.js`). It shows once a gesture of theirs takes them to it: opening
+the notice or the thread, walking to the thread or one of its Asks, or acting there. In
+the Threads panel, a card news takes out of the view, as another actor resolving its
+thread under Open does, stays where it stands, holding the news behind that notice
+and, once shown, in the shape it stood in, until its going would move nothing the
+user sees or they change the view
 (`thread/thread-list-view.js`, `keeping`). A region whose rows only the
 log or the clock decides, so no first paint can size it, shows none of them until the
 reader opens them through a control of fixed size the widget already draws, as a
@@ -188,7 +213,7 @@ words and caret remain with its native node (`standFab`, `runtime/composing/surf
 words and caret to the replacement. The suite's browser fixture fails any test
 whose page loses typed words without a key or press (`tests/words_watch.js`), and
 every corpus page is scrolled to both ends and back with each typed box open
-(`test_words_in_a_box_survive_scrolling_away_and_back`).
+(`typed_box_findings` in `tests/test_render_gate.py`).
 
 ### Visual grammar
 
@@ -209,8 +234,11 @@ never moves the user.
 
 ### Motion
 
-Use restrained, finite animations to acknowledge state changes. Do not animate
-continuously while a state remains unchanged.
+Use restrained, finite animations to acknowledge state changes. An untitled
+thread awaiting the agent uses a sheen sweeping across “Generating title”.
+It stops when the title arrives or the thread stops awaiting the agent, and
+is static under reduced motion. Other unchanged states
+do not animate continuously.
 
 Nothing the user must read, press, or decide waits on a clock. Motion runs from a
 state that is already true, and motion that must finish before the result can be
@@ -255,7 +283,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Vocabulary and public helpers | `registry.js`, `widget-api.js`, `widget-elements.js` |
 | External data | `data.js`, `projection/data.js`, `projection/authored.js` |
 | Revision installs and continuity | `version.js`, `version-picker.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js` |
-| Repaint and geometry | `rendering.js`, `repaint.js`, `standing.js`, `page-geometry.js`, `geometry.js`, `rect.js`, `pointer.js` |
+| Repaint and geometry | `rendering.js`, `repaint.js`, `standing.js`, `page-geometry.js`, `geometry.js`, `scroll-motion.js`, `rect.js`, `pointer.js` |
 | Chrome and available room | `chrome.js`, `chrome-layout.js`, `auxiliary-surfaces.js`, `drawn-edge.js` |
 | Reading regions and scrolling | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js` |
 | Keyboard | `keyboard/AGENTS.md` |
@@ -293,15 +321,21 @@ lint refuses the browser's own.
 
 The browser moves what a scroll moves. A box that follows page content stands where
 CSS puts it, by an anchor, a sticky offset, or a scroll timeline, and no scroll handler
-writes its position, which would trail the scroll by a frame. Every write says only
+writes its position, which would trail the scroll by a frame. Paint over the page's
+targets, whether a box, a chip, a mark or ink, stands in a paint set
+(`target-paint-geometry.js`, `paintSet`); what a scroll changes about it, such as which
+chip the banner holds in, is read once the scroll settles (`arrivals.js`,
+`watchScrollEnds`). Every write says only
 what changed (`runtime/keeps.js`): while a highlight holds a range, Chrome repaints the
 whole document for any write, so a write per scroll event makes every page with a
 quoted comment judder. One place has one writer: two owners that each set it in turn
 rewrite it every time either paints. A paint that more than one step of a script asks
 for waits for the script to end (`rendering.js`, `afterScript`), rather than painting
 the step between. The browser fixture fails a write that changes
-nothing in any test (`tests/write_watch.js`), and
-`test_a_scroll_writes_only_what_it_changes` fails a place a scroll writes on every step.
+nothing in any test (`tests/write_watch.js`), `test_page_fixture_renders`
+fails a place a scroll writes on every step (`scroll_findings`), and
+`test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled` fails paint
+a mode writes on a scroll gesture's frames.
 
 What a page says follows from where it stands now, not from how it got there. The one
 history its arrangement keeps is the order its margin rows came in, since a row that
@@ -311,14 +345,14 @@ and closed again leaves the page as the last time did, holding no more nodes or
 listeners; a page resized says at each width what it said there before. So whatever
 sets a state also clears it, when the width or the gesture that called for it ends,
 and "none" has one spelling, the attribute's absence, which `keeps` writes for a null
-value. The corpus holds each rule: `test_a_page_at_rest_does_nothing`,
-`test_a_closed_surface_leaves_the_page_as_it_found_it` and
-`test_a_resized_page_comes_back_as_it_was`.
+value. The corpus holds each rule, in
+`test_a_still_page_comes_back_from_every_journey_as_it_was`.
 
 Stylesheets apply in layers. `theme.css` holds page tokens, element styles,
 idioms, and CSS-only widgets, and each package theme follows it; shared shadow
-rules compose into `/shadow.css`, whose shared `.lf-ui` face comes before
-component rules. In the document all of these, and each widget module's adopted
+rules compose into `/shadow.css`, whose shared native `.lf-ui-face` defaults come
+before component rules. Custom-element hosts own their appearance; `.lf-ui`
+marks apparatus without imposing a face. In the document all of these, and each widget module's adopted
 sheet, share the `lf-base` cascade layer; `layouts.css` is `lf-layouts` above it,
 and `state.css` is `lf-state` above both so semantic retirement wins over package
 defaults and Layouts. The page's own CSS stays unlayered above those tiers,
@@ -328,8 +362,9 @@ shadow rules use `lf-shadow` above adopted widget defaults in `lf-base`, and
 package's rules reach only its own widgets (`layer.py`, `widget_confinement`), so a rule
 several packages' widgets need is the kernel's. The page's rules skip the chrome and
 every `.lf-ui` control unless they name a widget or the layer's vocabulary
-(`runtime/page-sheets.js`), and the chrome's root and `.lf-ui` state the whole face they
-would otherwise inherit from the page.
+(`runtime/page-sheets.js`). The chrome's root and native `.lf-ui-face` defaults
+state the face they would otherwise inherit from the page; imported components
+receive theme variables, preserving their own state presentation.
 `runtime/chrome.css` and `runtime/marks.css` stay unlayered, apart from
 `chrome.css`'s form-control reset in `lf-reset`, below every layer that chooses a face.
 Their paint lies over the page, so they are adopted after page and package sheets and win by their
@@ -356,7 +391,7 @@ selects from:
 | unresolved browser work | the publisher's one ordered ledger |
 | thread, workflow, attention, Asks, tasks, activity, unread | the server's folds; the browser adds only its own unresolved sends and the versions it is marking read |
 | what is waiting on the user and on the agent | `queues.js`'s selection from those readings, the browser's side of `agent_state.queues` |
-| what the DOM represents | controller presentation tickets and projection commits |
+| what the DOM represents | the presentation coordinator's renderer tickets and preparation regions |
 | when a document-wide renderer paints | the publication that opened the epoch, in the order `runtime/semantic-state.js` declares |
 | where each thread's passage lands | `anchor-placement.js`'s resolution of its anchor in this version |
 | the row inside a target a comment stands by | `pointed-place.js`: the line a pointing gesture landed on, held by the composer until sent, then under the thread's key with the words that find it again; where it stands now is `anchor-placement.js`'s placement record (`point`, `pointRow`), written in its read, the only writer, which takes in what a send hands over; presentation only, and only the pointed threads' row, card and travel follow it |
@@ -463,7 +498,6 @@ changing `leaf.js`, a runtime owner, a widget module, the registry, or the theme
 | `unmarkableElements` | every addressable element has a visible part to outline |
 | `misplacedBoxes` | boxes stay in the column or in reachable overflow at every width |
 | `squeezedTables` | a table scrolls sideways only with every column at its longest unbreakable run |
-| `strandedMargins` | every margin marker has an element to stand by |
 | `clippedControls` | controls are visible and reachable |
 | `unreachableWords`, `coveredWords` | visible words stay in reachable flow and are not silently clipped or claimed by chrome |
 | `unreadSyntax` | highlighting does not alter source words |
@@ -471,8 +505,7 @@ changing `leaf.js`, a runtime owner, a widget module, the registry, or the theme
 | `silentWords` | `x-says` and `x-paints` promises reach the rendered page |
 | `undeclaredAttrs` | modules write no undeclared author-namespace state |
 | `retiredSlots` | settlement marks agree with the projection |
-| `trappedMargins`, `splitEdges` | suite only: the theme's frame trim reaches Leaf's own boxes |
-| `replayOverrides` | the log, not conflicting markup, determines projected state |
+| `trappedMargins`, `splitEdges` | authored-page spacing advice; the suite enforces frame trim on Leaf's own boxes |
 | `relativeReplays` | rendering a complete widget state twice changes nothing |
 | `shrunkLabels` | advice only |
 
@@ -491,7 +524,8 @@ visible change").
 ## Working on the runtime
 
 `build/browser/build.mjs` compiles the TypeScript foundation into
-`vendor/browser-runtime.js` and writes `vendor/lit.js`, the page's one copy of Lit
+`vendor/browser-runtime.js` and the modules beside it in `vendor/browser-runtime/`,
+which import the runtime's own modules, and writes `vendor/lit.js`, the page's one copy of Lit
 (`build/AGENTS.md` owns the commands). What a module decides on its own is
 tested under `tests/runtime/` (`npm run test:runtime`; `tests/AGENTS.md` says
 which readings may go there).

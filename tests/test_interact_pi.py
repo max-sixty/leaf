@@ -13,12 +13,18 @@ from pathlib import Path
 
 import pytest
 from interact_support import (
+    HELD_LEASES,
     STATED_TIMEOUT,
     append_carried_log_record,
+    available_loopback_port,
     page_state,
     serving,
+    wait_for,
 )
+from leaf import event_log as events_model
 from leaf import harness as harness_model
+from leaf import leases as leases_model
+from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
@@ -42,12 +48,16 @@ class Pi:
         # since a watch can wake while a handler runs.
         self.answers = queue.Queue()
         self.sent = queue.Queue()
+        self.closed_watches = 0
         threading.Thread(target=self.route, daemon=True).start()
         self.pid = self.read()["pid"]
 
     def route(self) -> None:
         for line in self.process.stdout:
             record = json.loads(line)
+            if record.get("type") == "leaf_watch_closed":
+                self.closed_watches += record["code"] == 0
+                continue
             (self.sent if "sent" in record else self.answers).put(record)
 
     def read(self) -> dict:
@@ -63,10 +73,26 @@ class Pi:
         self.process.stdin.flush()
         return self.read()
 
-    def emit(self, event: str, *, idle: bool = False, reason: str = "") -> object:
+    def emit(
+        self,
+        event: str,
+        *,
+        idle: bool = False,
+        reason: str = "",
+        aborted: bool = False,
+        message: dict | None = None,
+    ) -> object:
         """Run one Pi event through the extension, and return what its handlers
         returned."""
-        answer = self.send({"emit": event, "idle": idle, "reason": reason})
+        answer = self.send(
+            {
+                "emit": event,
+                "idle": idle,
+                "reason": reason,
+                "aborted": aborted,
+                "message": message,
+            }
+        )
         assert answer["event"] == event, answer
         return answer["result"]
 
@@ -74,8 +100,11 @@ class Pi:
         """The ids of the events in the first message the extension sends that
         carries event `until`: the delivery the prompt hook returned."""
         while True:
-            sent = self.message()
-            delivery = json.loads(sent["sent"]["content"].split("\n")[1])
+            self.message()
+            self.emit("agent_start")
+            continued = self.emit("turn_end")
+            [entry] = continued["entries"]
+            delivery = json.loads(entry["content"].split("\n")[1])
             [batch] = delivery["batches"]
             ids = [event["id"] for event in batch["events"]]
             if until in ids:
@@ -109,7 +138,7 @@ def start_pi(page_dir, monkeypatch, spawn, sessionless):
         monkeypatch.setenv("LEAF_PI_PID", str(driven.pid))
         service_model.claim_page(page_dir)
         serving(page_dir, 1)
-        session_model.cmd_status(page_dir, "waiting", "")
+        session_model.cmd_waiting(page_dir, "")
         driven.emit("session_start", idle=True, reason="startup")
         return driven
 
@@ -124,12 +153,16 @@ def pi(start_pi):
     return start_pi("tui")
 
 
-def test_the_pi_extension_carries_a_comment_into_a_new_run(page_dir, pi):
-    """The extension calls Leaf's hooks at the points of a Pi run Claude Code
-    calls them at a turn, and keeps the watch running from the session's start. A
+@pytest.mark.parametrize("cancelled", [False, True])
+@pytest.mark.parametrize("role", ["user", "custom"])
+def test_the_pi_extension_carries_a_comment_into_a_new_run(
+    page_dir, pi, cancelled, role
+):
+    """The extension keeps the watch running from the session's start. A
     comment arriving while Pi is idle wakes the watch, and the extension starts a
-    run carrying the whole delivery, which is the same envelope the prompt hook
-    hands a Claude Code turn. Ending the session ends the claim's lifetime."""
+    run with an unreceipted notification. The accepted incoming message takes
+    the whole delivery into context, using the same envelope as Claude Code. Ending the
+    session ends the claim's lifetime."""
     claim = service_model.page_claim(page_dir)
     assert (claim["harness"], claim["id"], claim["agent"]) == ("pi", "pi-s1", "Pi")
     assert cleanup_model.session_record("pi-s1")["lifetime"] == {"pid": pi.pid}
@@ -140,6 +173,7 @@ def test_the_pi_extension_carries_a_comment_into_a_new_run(page_dir, pi):
     pi.emit("agent_start")
     assert pi.emit("agent_before_settle") is None
     pi.emit("agent_settled", idle=True)
+    closed_turn = cleanup_model.session_record("pi-s1")["turn"]
 
     comment = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "hi"}
@@ -147,11 +181,79 @@ def test_the_pi_extension_carries_a_comment_into_a_new_run(page_dir, pi):
     sent = pi.message()
     # Pi starts a run when none is going, and steers the running one.
     assert sent["options"] == {"triggerTurn": True, "deliverAs": "steer"}
-    instruction, envelope = sent["sent"]["content"].split("\n")[:2]
-    assert "acknowledge" in instruction
-    [batch] = json.loads(envelope)["batches"]
-    assert [event["id"] for event in batch["events"]] == [comment["id"]]
     assert page_state(page_dir)["pending"] == 1
+    assert not any(
+        event["kind"] == "pickup" for event in events_model.read_events(page_dir)
+    )
+    assert pi.emit("before_agent_start") is None
+    assert page_state(page_dir)["pending"] == 1
+    pi.emit("agent_start")
+    active = cleanup_model.session_record("pi-s1")
+    assert active["turn"] != closed_turn and active["turn_closed"] is None
+    assert page_state(page_dir)["pending"] == 1
+    if cancelled:
+        # An idle notification may become a queued steer when a user run
+        # starts beside it. Clearing that notification has received no input.
+        assert (
+            pi.emit(
+                "message_end",
+                message={
+                    "role": "user",
+                    "content": [{"type": "text", "text": "cancelled"}],
+                    "timestamp": 0,
+                },
+                aborted=True,
+            )
+            is None
+        )
+        assert pi.emit("turn_end", aborted=True) is None
+        assert page_state(page_dir)["pending"] == 1
+        pi.emit("agent_settled", idle=True)
+        pi.message()
+        assert page_state(page_dir)["pending"] == 1
+        pi.emit("agent_start")
+    assert pi.emit("message_end", message={"role": "assistant", "content": []}) is None
+    assert (
+        pi.emit(
+            "message_end",
+            message={"role": "custom", "customType": "other", "content": "other"},
+        )
+        is None
+    )
+    assert page_state(page_dir)["pending"] == 1
+    incoming = (
+        {
+            "role": "custom",
+            "customType": "leaf",
+            "content": "Leaf: input",
+            "display": True,
+            "timestamp": 0,
+        }
+        if role == "custom"
+        else {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "user prompt"},
+                {"type": "image", "mimeType": "image/png", "data": "image"},
+            ],
+            "timestamp": 0,
+        }
+    )
+    accepted = pi.emit("message_end", message=incoming)["message"]
+    assert accepted["role"] == incoming["role"]
+    assert accepted["content"][:-1] == (
+        [{"type": "text", "text": incoming["content"]}]
+        if role == "custom"
+        else incoming["content"]
+    )
+    delivery = json.loads(accepted["content"][-1]["text"].split("\n")[1])
+    assert pi.emit("turn_end") is None
+    assert delivery["acknowledge"] is None
+    [batch] = delivery["batches"]
+    assert [event["id"] for event in batch["events"]] == [comment["id"]]
+    assert page_state(page_dir)["pending"] == 0
+    [workflow] = page_state(page_dir)["workflows"]
+    assert workflow["stage"] == "picked_up"
 
     pi.quit()
     assert cleanup_model.session_record("pi-s1")["ended"] is not None
@@ -162,8 +264,7 @@ def test_the_pi_extension_keeps_a_run_going_for_input_that_arrives_in_it(
 ):
     """Input that arrives during a run with nothing watching, as under
     `pi --print`, is handed over as the run is about to settle, and keeps it
-    going. An Escape settles a run without going on from there, and closes the
-    turn."""
+    going."""
     pi = start_pi("print")
     pi.emit("before_agent_start")
     pi.emit("agent_start")
@@ -176,28 +277,86 @@ def test_the_pi_extension_keeps_a_run_going_for_input_that_arrives_in_it(
     [batch] = json.loads(entry["content"].split("\n")[1])["batches"]
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
 
-    pi.emit("agent_start")
-    pi.emit("agent_settled", idle=True)
-    assert cleanup_model.session_record("pi-s1")["turn_closed"] is not None
-
 
 def test_an_escape_leaves_input_handed_to_the_run_for_the_next_prompt(page_dir, pi):
-    """Input steered into a run the user then stops with Escape is not handed to
-    a new run of its own (`session.watch_between_turns`); the user's next prompt
-    carries it."""
+    """Input handed to a run the user then stops with Escape is not handed to a
+    new run of its own (`session.watch_between_turns`). The Escape settles the
+    run without going on from there, and the watch the extension starts then
+    closes the turn. The hook confirmed the input as it handed it over, so the
+    user's next prompt carries it as a move still owed its answer, picked up
+    again in that run."""
     pi.emit("before_agent_start")
     pi.emit("agent_start")
     comment = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "handed over"}
     )
-    # The watch steers it into the run.
-    assert pi.delivered(until=comment["id"]) == [comment["id"]]
-    pi.emit("agent_settled", idle=True)
-    assert cleanup_model.session_record("pi-s1")["turn_closed"] is not None
-
-    prompt = pi.emit("before_agent_start", idle=True)
-    [batch] = json.loads(prompt["message"]["content"].split("\n")[1])["batches"]
+    # The watch wakes, and the run's next turn end adds the delivery to the
+    # session and keeps the run going to read it.
+    handed = wait_for(
+        lambda: pi.emit("turn_end"), bool, failure="no turn end took the input"
+    )
+    assert handed["continue"] is True
+    [entry] = handed["entries"]
+    [batch] = json.loads(entry["content"].split("\n")[1])["batches"]
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
+    pi.emit("agent_settled", idle=True)
+    wait_for(
+        lambda: cleanup_model.session_record("pi-s1")["turn_closed"],
+        bool,
+        failure="the Escape left the turn open",
+    )
+
+    assert pi.emit("before_agent_start", idle=True) is None
+    pi.emit("agent_start")
+    continued = pi.emit("turn_end")
+    [entry] = continued["entries"]
+    assert f"`leaf response reply <answer.ref>` for {comment['id']}" in entry["content"]
+    pickup = events_model.read_events(page_dir)[-1]
+    assert (pickup["kind"], pickup["events"], pickup["turn"]) == (
+        "pickup",
+        [comment["id"]],
+        cleanup_model.session_record("pi-s1")["turn"],
+    )
+
+
+def test_input_during_a_run_is_picked_up_only_once_pi_takes_it(page_dir, pi):
+    """A move reads Picked up once its delivery is in the session's context. Pi
+    queues a steer behind a running tool and Escape clears that queue, so input
+    arriving during a run waits for the run's next turn end; a run stopped
+    before then never took it, and a fresh watch hands it into a new run."""
+    pi.emit("before_agent_start")
+    pi.emit("agent_start")
+    closed_watches = pi.closed_watches
+    comment = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "during a tool"}
+    )
+    wait_for(
+        lambda: leases_model.wait_is_live(None, "pi-s1"),
+        lambda live: not live,
+        failure="the watch did not wake on the comment",
+    )
+
+    wait_for(
+        lambda: pi.closed_watches > closed_watches,
+        bool,
+        failure="the watch notification did not finish",
+    )
+
+    def stage() -> str:
+        [workflow] = page_state(page_dir)["workflows"]
+        return workflow["stage"]
+
+    interrupted_turn = cleanup_model.session_record("pi-s1")["turn"]
+    assert stage() != "picked_up"
+    # Pi emits a turn boundary for the cancelled tool before agent_settled.
+    # That boundary still has the old aborted signal and cannot take input.
+    assert pi.emit("turn_end", aborted=True) is None
+    assert stage() != "picked_up"
+    assert cleanup_model.session_record("pi-s1")["turn"] == interrupted_turn
+    pi.emit("agent_settled", idle=True)
+    assert pi.delivered(until=comment["id"]) == [comment["id"]]
+    assert cleanup_model.session_record("pi-s1")["turn"] != interrupted_turn
+    assert stage() == "picked_up"
 
 
 def test_a_reload_keeps_the_pi_session_and_its_watch(page_dir, pi):
@@ -209,6 +368,30 @@ def test_a_reload_keeps_the_pi_session_and_its_watch(page_dir, pi):
         page_dir, {"kind": "comment", "author": "user", "text": "after reload"}
     )
     assert pi.delivered(until=comment["id"]) == [comment["id"]]
+
+
+def test_the_pi_watch_restarts_a_session_server_that_died(page_dir, pi):
+    """The watch the extension runs revives the session's server as `leaf wait`
+    would. The server it starts must serve as the Pi session the hook names,
+    though nothing in the hook's environment names that session."""
+    leases_model.release_lease(HELD_LEASES.pop())
+    cleanup_model.write_json(
+        page_dir / "service.json",
+        {
+            "host": "127.0.0.1",
+            "bind": "127.0.0.1",
+            "port": available_loopback_port(),
+            "enabled": True,
+            "lifetime": "session",
+        },
+    )
+    wait_for(
+        lambda: server_model.running_server(page_dir),
+        bool,
+        failure="the Pi watch never restarted the dead session server",
+    )
+    claim = service_model.page_claim(page_dir)
+    assert (claim["harness"], claim["id"]) == ("pi", "pi-s1")
 
 
 def test_pi_and_claude_code_nested_either_way_rank_by_process(monkeypatch):

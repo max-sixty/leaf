@@ -120,8 +120,9 @@ install the tracked tree whole.
 - `skills/leaf/packages/`: the bundled content vocabularies, widgets, and modules;
 - `skills/leaf/references/`: contracts for page authors, package authors, and harnesses;
 - `.claude/skills/developing-leaf/`: the maintainer workflow and vocabulary;
-- `hooks/hooks.json`: the shared harness hooks, and `hooks/pi.ts`, the Pi extension
-  that calls the same `leaf hook` entry;
+- `hooks/`: each harness's registrations of the `leaf hook` entry: `hooks.json`
+  for Claude Code, with `claude-code.ts`, the opt-in hooks module that keeps its
+  watch, `codex.json` for Codex, and `pi.ts`, the Pi extension;
 - `evals/`: cases a headless agent answers, scoring the shipped instructions;
 - `examples/`: the authored pages the site publishes and the render corpus;
 - `tests/`: the file, CLI, browser, and published-site boundaries, and in
@@ -158,10 +159,17 @@ The sections above **Repository map** are the maintainer's direction; change the
 only when the user asks. An `AGENTS.md` holds what an agent needs before changing
 its area: goals, invariants that span modules, who owns what, and the gates to
 run. A contract one module owns goes in that module's header, a helper's in its
-docstring, and how a rule was found in the commit message. A workflow for one
+docstring, and how a rule was found in the commit message. A header also records the
+product decisions its module embodies and the alternatives they rejected; a change
+that reverses one rewrites that record and says so in its commit. A workflow for one
 kind of task goes in `/developing-leaf`.
 
 ### The install runs this tree
+
+Consumer installers follow the CI-built `prepared` Git branch. The browser kernel
+is compiled there; development branches keep its source modules. Installation,
+page authoring, custom packages, and export require no browser build or npm command.
+`dev/leaf_dev/distribution.py` owns preparation and publication.
 
 An install is the tracked tree copied into a harness's plugin cache, and nothing is
 built at install time: `bin/leaf` is `uv run --no-dev` on the tree, so the
@@ -181,7 +189,15 @@ holds no binary files and no large ones. An image a tool in this repository
 reads, such as the demo recording, a catalog preview, an example page's image,
 or an eval case's capture, is published to `max-sixty/leaf-assets` at the path
 its reader looks for it and pinned by `leaf-assets.json`
-(`dev/leaf_dev/leaf_assets.py`). Evidence, such as screenshots, probe
+(`dev/leaf_dev/leaf_assets.py`). Publishing there belongs to the change that
+needs the images and takes no separate approval: it appends a commit and moves
+only this checkout's pin, so no other branch reads a different image. A new media
+`revision` also carries whatever other branches published since the old one, so a
+conflict there takes the later pin. Where both branches published the same file,
+the later pin holds the later publication's copy, so that file is published again
+from the merged tree. A `thread_snapshots_revision` holds only its own branch's
+reviewed appearance, so a conflict there is accepted again from the merged tree.
+Evidence, such as screenshots, probe
 captures, recordings and raw run output, stays in `.tmp/` and reaches the user
 on a Leaf page; a note keeps the finding and the command that reproduces it,
 not the capture. The suite refuses a binary file, and pre-commit refuses a new
@@ -253,8 +269,8 @@ the same underlying response obligations.
 
 The page directory is the durable record and deployment unit: mutable `index.html`,
 immutable revisions, an append-only event log, and one replaceable JSON file per
-external-data source under `data/`, whose source ids keep the contract `data.json`
-records for the page's lifetime. `skills/leaf/scripts/leaf/page-storage.md`
+external-data source under `data/`. `data.json` records each source's current
+contract; a later document may replace that binding. `skills/leaf/scripts/leaf/page-storage.md`
 defines the complete layout.
 
 ### Validate once and share readings
@@ -295,8 +311,15 @@ Before finishing a feature:
   `skills/leaf/SKILL.md` or the one routed reference that owns the workflow;
   other references point at that section by name. Shipped instructions set goals
   for the user's experience and name the surface they read on; they leave
-  format and phrasing to the agent. Score the change with `evals/` before and
-  after (`/developing-leaf`, "Score an instruction change").
+  format and phrasing to the agent. Where an agent could read the change more
+  than one way, score it with `evals/` before and after (`/developing-leaf`,
+  "Score an instruction change").
+
+Local compute is often the bottleneck because several sessions share one machine.
+Before widening a local test selection or increasing parallelism, check current
+CPU use, memory pressure, and other running test suites. Weigh the extra evidence
+against the cost to all sessions; on a busy host, favor focused checks and avoid
+redundant overlapping runs. The required landing gates still have to pass.
 
 Before handing over, run the tests that hold what the change touches; the broad
 selection, `uv run pytest tests`, and `npm run test:runtime` run at landing

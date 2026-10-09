@@ -70,18 +70,11 @@ class PageView:
 
     def responses(self, events: list) -> dict[str, dict]:
         """Where each event the log still owes work for is answered."""
-        # This reads the page's whole state, which is far more than any gate does.
-        # `delivery` loads it on the refusal that names it rather than at import.
+        # Delivery selects the shared work reading, including the live reply
+        # binding that owns an answer, without preparing browser output.
         from .delivery import current_responses
 
         return current_responses(self._page_dir, events)
-
-    @property
-    def claims(self) -> list:
-        """The subject work present when this command is admitted."""
-        from .service import claim_update_sources, read_status
-
-        return claim_update_sources(read_status(self._page_dir))
 
 
 class CandidatePageView(PageView):
@@ -159,7 +152,3 @@ class InitialPageView:
 
     def responses(self, events: list) -> dict:
         return {}
-
-    @property
-    def claims(self) -> list:
-        return []

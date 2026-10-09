@@ -4,17 +4,18 @@
  * geometry, cache or scheduled work; native drawing-ink renders its records beside
  * active/draft ink. Page-owned annotation presentation omits this producer entirely.
  */
-import { targetElement, targetPlace } from "/runtime/resolved-target.js";
+import { exactTarget } from "/runtime/resolved-target.js";
 
 export function postedDrawings(threads, anchors) {
   const drawings = [];
   for (const thread of threads) {
     if (thread.resolved || !thread.root.drawing) continue;
-    const place = thread.root.anchor ? anchors.placedAt(thread.id) : null;
-    if (thread.root.anchor && (!place || place.status === "outdated")) continue;
+    const place = anchors.placedAt(thread.id);
+    const target = exactTarget(place);
+    if (!target) continue;
     drawings.push({
       drawing: thread.root.drawing,
-      target: targetElement(place) ?? targetPlace(place),
+      target,
       className: "lf-drawing-posted",
       id: thread.id,
     });

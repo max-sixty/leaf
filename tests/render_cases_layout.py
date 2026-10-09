@@ -12,13 +12,12 @@ import pytest
 from axe_playwright_python.sync_playwright import Axe
 from browser_sources import browser_function
 from click.testing import CliRunner
-from interact_support import record_claim
+from interact_support import declare_work, record_claim
 from leaf import cli as cli_model
 from leaf import hosting as hosting_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf import render_checks as render_checks_model
-from leaf import state as cleanup_model
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered
 from leaf.render_gate import scheme as render_gate_model
@@ -468,8 +467,46 @@ OVER_ITS_CONTAINER = LONG_PAGE.replace(
     "overflow: hidden'>"
     "<div id='over-by-far' style='position: absolute; left: 0; width: 600px'>Four "
     "hundred over that one.</div></div></div></div>"
+    "<div id='html-drawing' style='--lf-drawing: 1; width: 120px; overflow: hidden'>"
+    "<div id='drawing-pixels' style='width: 300px; height: 30px; background: coral'>"
+    "</div><lf-test-drawing-control id='clipped-drawing'></lf-test-drawing-control>"
+    "<lf-test-drawing-control id='clean-drawing'>"
+    "</lf-test-drawing-control></div>"
+    "<div id='drawing-holder' style='width: 120px; overflow: hidden'>"
+    "<div id='outside-viewport' style='--lf-drawing: 1; width: 180px; overflow: hidden'>"
+    "<div style='width: 300px; height: 30px; background: coral'></div></div></div>"
     "\n</main>",
+).replace(
+    "</head>",
+    "<style>lf-test-drawing-control { display: block; width: 90px; }"
+    "#clipped-drawing { width: 200px; }</style></head>",
 )
+DRAWING_CONTROL_LAYER = {
+    "lf-test-drawing-control": {
+        "description": "A native offered control inside a drawing viewport.",
+        "type": "object",
+        "properties": {"id": {"type": "string"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-upgrade": True,
+        "x-example": '<lf-test-drawing-control id="control"></lf-test-drawing-control>',
+    }
+}
+DRAWING_CONTROL_WIDGETS = {
+    "lf-test-drawing-control.js": """
+import { once, offer } from '/runtime/widget-api.js';
+customElements.define('lf-test-drawing-control', class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    const control = offer('button', 'drawing-control', 'Inspect');
+    control.id = `${this.id}-control`;
+    control.style.width = '100%';
+    this.append(control);
+  }
+});
+"""
+}
 # A scroller the page wrote and did not position, beside one it did. The commented
 # words stand at the far end of the first, since a word laid out against the page from
 # the near end lands inside the window and escapes nothing anyone can measure.
@@ -529,23 +566,24 @@ SCROLLED_CONTAINER = LONG_PAGE.replace(
     "starts.</div></div>\n</main>",
 )
 # The two edges the user draws, and what a reading of either has to know: a page that
-# offers the region, what puts it up, the region's own selector, which side of the window
-# it is held to, and the numbers the runtime holds it to. Two records rather than two
-# tests, because the whole claim of `drawnEdge` is that the two are one piece of furniture
-# reflected — a reading written for the panel alone would go on passing on the day the
-# drawer's edge stopped working, and the drawer's edge exists precisely because the panel's
-# did not have to be written a second time.
+# offers the region, the fixtures that page needs beside it, what puts it up, the
+# region's own selector, which side of the window it is held to, and the numbers the
+# runtime holds it to. Two records rather than two tests, because the whole claim of
+# `drawnEdge` is that the two are one piece of furniture reflected — a reading written
+# for the panel alone would go on passing on the day the drawer's edge stopped working,
+# and the drawer's edge exists precisely because the panel's did not have to be written
+# a second time. The right edge holds Threads and Questions, one side panel at one width
+# (`QUESTIONS`); the left holds the Leaves drawer, which needs a neighbour to list.
 #
-# `html` is a call rather than the markup, because the page the drawers need is declared
-# with the other drawer readings a long way below here, and a parametrize list is read at
-# import. `squeeze` is the
-# window that has no room for what the user chose and the width the region stands at
-# there, which is the window itself on either side.
+# `html` is a call rather than the markup, because a parametrize list is read at import.
+# `squeeze` is the window that has no room for what the user chose and the width the
+# region stands at there, which is the window itself on either side.
 EDGES = [
     SimpleNamespace(
         name="comments",
         html=lambda: LONG_PAGE,
         comments=1,
+        fixtures=(),
         stand=lambda page: page.locator(".lf-threads-toggle").click(),
         region=".lf-thread-panel",
         side="right",
@@ -554,11 +592,12 @@ EDGES = [
         squeeze=(500, 500),
     ),
     SimpleNamespace(
-        name="drawers",
-        html=lambda: ASKS_PAGE,
+        name="leaves",
+        html=lambda: LONG_PAGE,
         comments=0,
-        stand=lambda page: banner_control(page, ".lf-queue").click(),
-        region=".lf-queue-panel",
+        fixtures=("other_leaf",),
+        stand=lambda page: banner_control(page, ".lf-others").click(),
+        region=".lf-others-panel",
         side="left",
         store="lf-drawer-slot-width",
         wide=300,
@@ -566,9 +605,27 @@ EDGES = [
     ),
 ]
 EDGE_IDS = [edge.name for edge in EDGES]
+# The Questions panel, which stands on the Threads panel's edge at its width.
+QUESTIONS = SimpleNamespace(
+    name="questions",
+    html=lambda: ASKS_PAGE,
+    comments=0,
+    fixtures=(),
+    stand=lambda page: banner_control(page, ".lf-queue").click(),
+    region=".lf-queue-panel",
+    side="right",
+    store="lf-thread-panel-width",
+    wide=420,
+)
 
 
-# One Ask, so a page offers the Queue panel.
+def edge_world(request, edge):
+    """Stand up what the edge's page needs beside it, such as a neighbour for Leaves."""
+    for name in edge.fixtures:
+        request.getfixturevalue(name)
+
+
+# One Ask, so a page offers the Questions panel.
 ONE_ASK = (
     '<lf-ask id="go-decision"><h2>Ship it?</h2>'
     '<lf-options id="go" choose>'
@@ -587,7 +644,7 @@ def with_one_ask(html):
 
 
 def toggle_queue(page, open=True):
-    """Open or close the Queue panel from its banner control and wait for it to stand."""
+    """Open or close the Questions panel from its banner control and wait for it to stand."""
     banner_control(page, ".lf-queue").click()
     drawer = expect(page.locator(".lf-queue-panel"))
     opened = re.compile(r"\bopen\b")
@@ -645,29 +702,30 @@ def geometry(page, edge):
 def draw_edge(page, edge, by):
     """Draw the region's edge `by` pixels wider, as a hand on it would.
 
-    Whole pixels, per `hold_selection`'s reason: a press on a fractional point
-    is a press the browser is free to round somewhere else. In steps, because one jump
+    Take hold at the grip's center, in whole pixels per `hold_selection`'s reason:
+    the browser may round a fractional press elsewhere. In steps, because one jump
     from press to release is a drag with no `pointermove` between its ends, and the move
     is the whole of what this gesture is made of. Wider is away from the side the region
     is held to, which is the reading the runtime makes of the same gesture.
     """
     box = page.locator(f"{edge.region} .lf-edge").bounding_box()
-    x, y = math.floor(box["x"] + box["width"] / 2), math.floor(box["y"] + 200)
+    x = math.floor(box["x"] + box["width"] / 2)
+    y = math.floor(box["y"] + box["height"] / 2)
     page.mouse.move(x, y)
     page.mouse.down()
     page.mouse.move(x + (by if edge.side == "left" else -by), y, steps=8)
     page.mouse.up()
 
 
-# Enough code for the roles to differ from each other and from the block: a comment, a
+# Enough code for the colors to differ from each other and from the block: a comment, a
 # keyword, a string, a name, a number.
 CODE_BLOCK = """<pre id="snippet"><code class="language-python"># the ceiling doubles per approval
 def ceiling(limit, approvals):
     return "over" if approvals > 12 else limit
 </code></pre>"""
 
-# A role that reads on the block and not on the tint one of its lines wears. The clean
-# line comes first on purpose: a gate that stopped at a role's first span would take that
+# A color that reads on the block and not on the tint one of its lines wears. The clean
+# line comes first on purpose: a gate that stopped at a color's first span would take that
 # line's reading, which clears the threshold, and never reach the one two lines down, and
 # a walkthrough's hi band is the surface where a code line is most often set on something
 # other than --pre-bg.
@@ -677,8 +735,8 @@ second = "on the band"
 </pre></lf-code>"""
 
 # The same reading, in a shadow tree. lf-diff renders the page's words into one, so its
-# spans are in no document.querySelectorAll. The fault page changes only its number role,
-# so that role's finding and the population assertion prove the probe crossed the root.
+# spans are in no document.querySelectorAll. The fault page changes only its number color,
+# so that color's finding and the population assertion prove the probe crossed the root.
 # The token is what goes back rather than a rule: a custom property inherits through the
 # boundary where a selector does not, which is both why this reaches the spans and why a
 # project's own palette reaches them too, gate or no gate.
@@ -694,24 +752,30 @@ diff --git a/gateway/limits.py b/gateway/limits.py
 </pre></lf-diff>"""
 SHADOWED_DIFF = SHADOWED_DIFF_BODY.format(id="shadowed") + "\n</main>"
 
-# These bugs go back as CSS, which is the shape the regressions take for real: the
-# attribute lands either way, and it is the stylesheet answering it that stops working.
-# Each uses a different role, so one public-gate reading still attributes the faults
-# independently. The media query keeps fixed fault colours out of the dark control half.
+# Palette overrides cross native theme spans and shadow boundaries. A comment using
+# the surrounding ink is a valid theme choice; faint keywords, tinted strings and a
+# dark diff's numbers still need contrast findings. The later function name has the
+# same native style and background as its earlier readable control but inherits faint
+# ink. The media query keeps fixed fault colors out of the dark control half.
 CODE_FAULT_PAGE = LONG_PAGE.replace(
     "</head>",
     """<style>
 #shadowed { --syn-number: #1c1b18; }
 @media (prefers-color-scheme: light) {
-  #snippet [data-lf-syn="cm"] { color: inherit; }
-  #snippet [data-lf-syn="kw"] { color: #8b8577; }
+  #snippet { --syn-comment: var(--code-ink); }
+  #snippet { --syn-keyword: #8b8577; }
+  #snippet-faint-name { --syn-name: #8b8577; }
   #tinted { --hi-tint: #6f6a60; }
 }
 </style>
 </head>""",
 ).replace(
     "</main>",
-    CODE_BLOCK + TINTED_CODE + SHADOWED_DIFF_BODY.format(id="shadowed") + "\n</main>",
+    CODE_BLOCK
+    + CODE_BLOCK.replace('id="snippet"', 'id="snippet-faint-name"')
+    + TINTED_CODE
+    + SHADOWED_DIFF_BODY.format(id="shadowed")
+    + "\n</main>",
 )
 
 # The shipped dark comment ink must clear the add-line tint behind it. A large real patch
@@ -818,7 +882,7 @@ def unfolded_button(control):
 
 # The banner's controls in their one ranked order: fixed secondary menu seats followed
 # by the primary row. The door itself and controls the page has taken away are omitted.
-BANNER_ORDER = """() => {
+BANNER_ORDER = r"""() => {
   const toolbar = document.querySelector('.lf-banner-actions');
   const menu = document.querySelector('.lf-banner-menu');
   const more = document.querySelector('.lf-banner-more');
@@ -826,7 +890,9 @@ BANNER_ORDER = """() => {
     .filter(control => control !== more &&
             getComputedStyle(control).display !== 'none' &&
             getComputedStyle(control).visibility !== 'hidden')
-    .map(control => (control.getAttribute('aria-label') || control.textContent).trim());
+    .map(control => (control.getAttribute('aria-label') || control.textContent).trim()
+      // The version's age ticks with the clock between two readings; the order does not.
+      .replace(/ · \S+ ago$/, ''));
 }"""
 
 
@@ -932,8 +998,9 @@ FOCUS_IN_PAGE = """() => {
 # check is for survives untouched — a stray pick writes `chosen` on the option and a
 # stray tab switch moves the panels' attributes, both of them authored rather than
 # generated, and structure is compared either way.
-# The page as a press leaves it. Where the pointer is resting and the projection Leaf
-# paints above descendants are not authored state, so neither belongs in this reading.
+# The page as a press leaves it. Where the pointer is resting, the projection Leaf
+# paints above descendants, and the generated binding seat are not authored state,
+# so none belongs in this reading.
 PAGE_MARKUP = r"""() => [...document.body.children]
     .filter((n) => !n.classList.contains("lf-chrome"))
     .map((n) => {
@@ -941,15 +1008,15 @@ PAGE_MARKUP = r"""() => [...document.body.children]
         for (const g of c.querySelectorAll("[data-lf-gen]")) g.textContent = "";
         if (c.dataset && c.dataset.lfGen !== undefined) c.textContent = "";
         for (const el of [c, ...c.querySelectorAll("*")]) {
-            el.classList?.remove("lf-mark-hover", "lf-projected-mark");
+            el.classList?.remove("lf-mark-hover", "lf-projected-mark", "lf-binding-seat");
             // The name a margin row anchors by, which the layout writes on whatever
             // target a row comes to stand by, on its own schedule rather than a press's.
             if (el.style?.anchorName) {
                 el.style.anchorName = el.style.anchorName.split(",")
                     .map((name) => name.trim())
                     .filter((name) => !/^--lf-a\d+$/.test(name)).join(", ");
-                if (!el.getAttribute("style")) el.removeAttribute("style");
             }
+            if (!el.getAttribute("style")) el.removeAttribute("style");
         }
         return c.outerHTML;
     })
@@ -1239,14 +1306,7 @@ def live_leaf(tmp_path, monkeypatch):
             LONG_PAGE.replace("<title>long</title>", f"<title>{title}</title>"),
             "t",
         )
-        cleanup_model.write_json(
-            d / "status.json",
-            {
-                "state": "working",
-                "detail": "running the suite",
-                "ts": cleanup_model.now_iso(),
-            },
-        )
+        declare_work(d, "running the suite")
         # A live leaf has a session behind it, and what the drawer's hover says about a
         # page is the work that session is doing it for — so the fixture's pages come
         # out of somewhere nameable rather than out of nowhere.
@@ -1260,7 +1320,7 @@ def live_leaf(tmp_path, monkeypatch):
         )
         # Use the durable server's maintenance loop: the row remains canonical
         # even while no browser has visited this neighboring page.
-        url = hosting_model.start_server(d, standing=True).url
+        url = hosting_model.start_server(d, standing=True, harness=None).url
         served.append(d)
         return url.split("?")[0].rstrip("/"), d
 

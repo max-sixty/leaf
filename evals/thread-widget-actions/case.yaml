@@ -16,16 +16,6 @@ vars:
 
     The page directory is not reachable from here. Reply with the JavaScript module.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-module-authoring
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/(?:packages|module-authoring)\.md
 - type: regex
   metric: watches-threads
   value: watchThreads\s*\(

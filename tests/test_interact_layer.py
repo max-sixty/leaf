@@ -8,13 +8,13 @@ import shutil
 import subprocess
 import sys
 import threading
+import tomllib
 from datetime import datetime
 from pathlib import Path
 
 import playwright
 import pytest
 import tinycss2
-import tomllib
 import yaml
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND, PagePool, _retire
@@ -97,6 +97,7 @@ def test_cli_help_groups_commands_with_complete_summaries(regtest):
         "page": ["page", "--help"],
         "server": ["server", "--help"],
         "thread": ["thread", "--help"],
+        "response": ["response", "--help"],
     }
     outputs = []
 
@@ -146,6 +147,7 @@ def test_agent_interaction_command_help(regtest):
         "status",
         "thread open",
         "thread reply",
+        "response reply",
         "thread edit",
         "thread resolve",
         "page report",
@@ -170,6 +172,7 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     runner = CliRunner()
     ids = []
     outputs = []
+    references = []
 
     def record(args, code):
         result = runner.invoke(cli_model.cli, args, prog_name="leaf")
@@ -183,11 +186,13 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
             )
         text = f"$ leaf {' '.join(args)}\nexit: {code}\n{output}"
         text = text.replace(str(page), "/page")
+        for ref in references:
+            text = text.replace(ref, "response-ref")
         for number, event_id in enumerate(ids, 1):
             text = text.replace(event_id, f"user-{number}")
         outputs.append(text)
 
-    record(["thread", "reply", str(page), "--text", "Answer"], 1)
+    record(["thread", "reply", str(page), "--text", "Answer"], 2)
     for text in ("Why this plan?", "What will it cost?"):
         code, response = fetch(
             f"{server}/api/event",
@@ -200,10 +205,16 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     assert "has new input" in woke.output
     [batch] = consume_pending_input("s1")["batches"]
     assert len(batch["events"]) == 2
-    record(["thread", "reply", str(page), "--text", "Answer"], 1)
+    record(["thread", "reply", str(page), "--text", "Answer"], 2)
     record(["thread", "reply", str(page), ids[0], "--text", "Answer"], 1)
-    record(["thread", "reply", str(page), "--for", ids[0], "--text", "Answer"], 0)
-    record(["thread", "reply", str(page), "--for", ids[0], "--text", "Answer"], 1)
+    reference = batch["events"][0]["answer"]["ref"]
+    references.append(reference)
+
+    def response_args(*extra):
+        return ["response", "reply", reference, "--text", "Answer", *extra]
+
+    record(response_args(), 0)
+    record(response_args(), 0)
     record(["thread", "reply", str(page), ids[0], "--text", "Follow-up"], 0)
     # A page reaction can close without an answer: it never owed a reply.
     code, response = fetch(
@@ -212,8 +223,14 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     )
     assert code == 200, response
     ids.append(events_model.read_events(page)[-1]["id"])
-    record(["thread", "reply", str(page), "--for", ids[-1], "--text", "Answer"], 1)
+    record(["response", "reply", "not-a-response-ref", "--text", "Answer"], 1)
     record(["thread", "resolve", str(page), ids[-1]], 0)
+    # The title harness stand-in runs asynchronously; retain this fixture until
+    # its jobs have reported, before the page/state home are retired.
+    for worker in threading.enumerate():
+        if worker.name == "leaf-thread-title":
+            worker.join(timeout=STATED_TIMEOUT)
+            assert not worker.is_alive(), "the title stand-in outlived its page fixture"
     regtest.write("\n".join(outputs).encode("ascii", "backslashreplace").decode())
 
 
@@ -368,7 +385,9 @@ def test_workflow_shell_continuations_use_literal_blocks():
 
 
 def test_hidden_hook_remains_callable():
-    result = CliRunner().invoke(cli_model.cli, ["hook"], input="{}")
+    result = CliRunner().invoke(
+        cli_model.cli, ["hook", "--harness", "codex"], input="{}"
+    )
 
     assert result.exit_code == 0
     assert result.output == ""
@@ -428,7 +447,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     assert (waiting["state"], waiting["detail"]) == ("waiting", "pick a storage engine")
 
     # The comment's id is the thread's; --title names it in the same command.
-    opened, title = written(
+    [opened] = written(
         [
             "thread",
             "open",
@@ -441,11 +460,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     )
     root = opened["id"]
     assert opened == logged(opened)
-    assert (title["kind"], title["thread"], title["title"]) == (
-        "thread_title",
-        root,
-        "Storage",
-    )
+    assert opened["title"] == "Storage"
 
     # A refused title refuses the whole command, so no message goes up unnamed.
     before = events_model.read_events(page_dir)
@@ -457,14 +472,20 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     assert "thread_title event is invalid" in unnamed.output
     assert events_model.read_events(page_dir) == before
 
-    for command in (
-        ["thread", "reply", str(page_dir), root, "--text", "x", "--title", "a\nb"],
-        ["thread", "edit", str(page_dir), root, "--text", "y", "--title", " "],
+    for command, rejected_kind in (
+        (
+            ["thread", "reply", str(page_dir), root, "--text", "x", "--title", "a\nb"],
+            "reply",
+        ),
+        (
+            ["thread", "edit", str(page_dir), root, "--text", "y", "--title", " "],
+            "thread_title",
+        ),
     ):
         refused = runner.invoke(cli_model.cli, command)
         assert refused.exit_code != 0
-        assert "thread_title event is invalid" in refused.output
-    assert events_model.read_events(page_dir) == before
+        assert f"{rejected_kind} event is invalid" in refused.output
+        assert events_model.read_events(page_dir) == before
 
     # A reply's --title names only a thread nothing has named, so a name the harness
     # gave the thread while the agent worked stands; edit renames one.
@@ -482,7 +503,6 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
         ],
     )
     assert followed.exit_code == 0, followed.output
-    assert "already has a title" in followed.stderr
     [followed] = [json.loads(line) for line in followed.stdout.splitlines()]
     assert followed == logged(followed)
     assert followed["parent"] == root
@@ -490,7 +510,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
         event["title"]
         for event in events_model.read_events(page_dir)
         if event["kind"] == "thread_title"
-    ] == ["Storage"]
+    ] == []
     later = followed["id"]
 
     # Every command naming a thread takes any message in it, as reply does.
@@ -506,28 +526,13 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
         ["thread", "reply", str(page_dir), root, "--for", root, "--text", "x"],
     )
     assert both.exit_code == 2
-    assert "THREAD and --for cannot be used together" in both.output
+    assert "No such option '--for'" in both.output
 
-    [working] = written(
-        ["status", str(page_dir), "working", "reading the traces", "--on", later]
-    )
-    assert [claim["subject"] for claim in working["work"]] == [
-        {"kind": "thread", "id": root}
-    ]
+    [task] = written(["task", "open", str(page_dir), later, "Trace the store"])
+    assert task["subject"] == {"kind": "thread", "id": root}
 
     [closed] = written(["thread", "resolve", str(page_dir), later])
     assert (closed["kind"], closed["parent"]) == ("resolve", later)
-
-    # `idle` reaches the status write by its own route, so the subject a claim
-    # needs is refused before either route runs. Otherwise the line reports a
-    # claim the page never took.
-    for refused_state in ("waiting", "idle"):
-        refused = runner.invoke(
-            cli_model.cli,
-            ["status", str(page_dir), refused_state, "done", "--on", root],
-        )
-        assert refused.exit_code != 0, refused.output
-        assert "use it with `working`" in refused.output
 
 
 def test_init_help_names_the_source_revision_and_version_layout():
@@ -548,8 +553,8 @@ def test_init_help_names_the_source_revision_and_version_layout():
 @pytest.mark.parametrize(
     "args",
     [
-        ["hook"],
-        ["hook", "--watch"],
+        ["hook", "--harness", "codex"],
+        ["hook", "--harness", "claude-code", "--watch"],
         ["page", "check", "page", "--render"],
         ["thread", "reply", "page", "--for", "c1", "--text", "export"],
     ],
@@ -688,6 +693,8 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "pyproject.toml",
         "uv.lock",
         "hooks/hooks.json",
+        "hooks/claude-code.ts",
+        "hooks/codex.json",
         "hooks/scripts/loop-guard.py",
         "skills/leaf/SKILL.md",
         "skills/leaf/references/authoring-asks.md",
@@ -735,8 +742,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
     # payload naming one — in the project file, or in a `uv.toml` beside it —
     # so that is what this forbids. Read off the lines rather than a parsed
     # table because a comment is free to discuss an index where a setting is
-    # not, and the project's own floor is 3.10, with no `tomllib` to parse
-    # with. The nightly test below drives the same claim through a real
+    # not. The nightly test below drives the same claim through a real
     # resolve against a closed port; this is the half every run sees.
     configured = [
         line
@@ -1008,7 +1014,7 @@ def test_init_and_revendoring_preserve_the_page_owned_contribution(
     revendored = runner.invoke(cli_model.cli, ["page", "init", str(page)])
 
     assert revendored.exit_code == 0, revendored.output
-    assert registry_storage.layer_generation(page) != generation
+    assert registry_storage.layer_generation(page) == generation
     assert {name: (authored / name).read_text() for name in files} == files
     assert "lf-local" not in registry_storage.load_registry(page)
     composed = registry_storage.read_page_registry(page)
@@ -1051,15 +1057,17 @@ def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypa
     (first / "leaf.js").symlink_to(tmp_path / "nowhere")
     (first / "widgets" / "lf-planted.js").symlink_to(tmp_path / "nowhere")
     (first / "media" / "elsewhere").symlink_to(tmp_path, target_is_directory=True)
-    cleanup_model.write_json(first / "status.json", {"state": "working"})
+    cleanup_model.write_json(first / "status.json", {"state": "idle"})
     pool.give_back("plain", first)
 
     second = pool.lend("plain", tmp_path / "second", initialize)
 
     template = pool.shapes["plain"].template
     assert {path.relative_to(second).as_posix() for path in second.rglob("*")} == shape
-    for name in ("theme.css", "widgets/lf-tabs.js", "status.json", "registry.json"):
+    for name in ("theme.css", "widgets/lf-tabs.js", "registry.json"):
         assert (second / name).read_bytes() == (template / name).read_bytes(), name
+    # A status the test wrote is a file it added, so the reset takes it away.
+    assert not (second / "status.json").exists()
     linked = "runtime/chrome.css"
     assert (second / linked).stat().st_ino == (template / linked).stat().st_ino
 
@@ -1281,6 +1289,26 @@ def test_the_chrome_restates_no_rule_a_page_side_sheet_already_makes():
     )
 
 
+def _complex_arms(selector):
+    """The complex selectors a selector matches by: itself, or, where the whole of it is
+    one :is()/:where(), each of that list's arms, since Chrome matches each arm on its
+    own and a `:has()` inside one stands before that arm's last combinator."""
+    selector = selector.strip()
+    opening = re.match(r":(?:is|where)\(", selector)
+    close, depth = None, 0
+    if opening:
+        for at in range(opening.end() - 1, len(selector)):
+            depth += {"(": 1, ")": -1}.get(selector[at], 0)
+            if not depth:
+                close = at
+                break
+    if close != len(selector) - 1:
+        yield selector
+        return
+    for arm in _split_top(selector[opening.end() : close], ","):
+        yield from _complex_arms(arm)
+
+
 def _names_a_feature(compound):
     """Whether a compound names a class, id, attribute, or type, directly or in every
     arm of an :is()/:where(). `:not()` and pseudo-classes name nothing Chrome can key on."""
@@ -1322,17 +1350,24 @@ def test_no_has_rule_restyles_the_whole_document():
     read = 0
     unkeyed = []
     for sheet in sheets:
-        for _conditions, _enclosing, selector, _declarations in _style_rules(sheet):
-            compounds = _split_top(selector, " >+~")
-            if not any(":has(" in compound for compound in compounds[:-1]):
-                continue
-            read += 1
-            if not _names_a_feature(compounds[-1]):
-                unkeyed.append(
-                    f"{sheet.relative_to(schema_model.ASSETS.parent)}: {selector}"
-                )
+        for _conditions, _enclosing, rule_selector, _declarations in _style_rules(
+            sheet
+        ):
+            for selector in _complex_arms(rule_selector):
+                compounds = _split_top(selector, " >+~")
+                if not any(":has(" in compound for compound in compounds[:-1]):
+                    continue
+                read += 1
+                if not _names_a_feature(compounds[-1]):
+                    unkeyed.append(
+                        f"{sheet.relative_to(schema_model.ASSETS.parent)}: {selector}"
+                    )
     assert read, "no non-subject :has() read from the layer — the reading is broken"
     assert _names_a_feature(":is(.a, lf-b)") and not _names_a_feature(":not(.a)")
+    assert list(_complex_arms(":is(.a:has(.b) > :not(.c), .d *)")) == [
+        ".a:has(.b) > :not(.c)",
+        ".d *",
+    ]
     assert not unkeyed, (
         "a :has() rule whose target names nothing restyles the whole document:\n"
         + "\n".join(unkeyed)
@@ -1570,7 +1605,7 @@ _LAYER_SHEET_ORDER = [
 
 
 def test_the_injected_control_face_is_a_default_only_the_document_reads():
-    """`.lf-ui` is a default. `offer()` writes it on every control a widget builds, and a
+    """`.lf-ui-face` is a native default. `offer()` writes it on native controls, and a
     component that states the same property overrides it, so the face stands first in
     the layer's page-side order and loses on position. It keeps a class's specificity,
     so the page's own element rules lose to it. And a declared tree copies shadow.css,
@@ -1594,12 +1629,18 @@ def test_the_injected_control_face_is_a_default_only_the_document_reads():
     assert faces, "no face was read from the layer's sheets — the reading is broken"
     # Public controls and injected controls share this one default; its root boundary
     # and class weight still protect shadow content and win over page element rules.
-    control_face = ":where(:root) :is(.lf-ui, .button, .field)"
+    control_face = ":where(:root) :is(.lf-ui-face, .button, .field)"
     assert faces[0] == ("assets/shadow.css", control_face), faces[0]
     defaults = [
         face
         for face in faces
-        if face[1] in {".lf-ui", ":where(.lf-ui)", ":where(:root) .lf-ui", control_face}
+        if face[1]
+        in {
+            ".lf-ui-face",
+            ":where(.lf-ui-face)",
+            ":where(:root) .lf-ui-face",
+            control_face,
+        }
     ]
     assert defaults == [faces[0]], defaults
 
@@ -1631,8 +1672,8 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
     for spelling in (
-        'html[data-lf-live] body[data-lf-auxiliary-surface="queue"]',
-        'html[data-lf-live] body[data-lf-auxiliary-surface="threads"]',
+        '[data-lf-auxiliary-surface="queue"]',
+        '[data-lf-auxiliary-surface="threads"]',
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
 
@@ -1642,7 +1683,6 @@ def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
     the root state they write to the stylesheet that reads it, and the surfaces' default
     widths to the runtime owners that hold them."""
     assets = schema_model.ASSETS
-    drawers = (assets / "runtime" / "drawers.js").read_text()
     bootstrap = (assets / "runtime" / "bootstrap.js").read_text()
     prepaint = (assets / "runtime" / "prepaint.js").read_text()
     theme = (assets / "theme.css").read_text()
@@ -1656,20 +1696,23 @@ def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
     def constant(pattern, source):
         return re.search(pattern, source, re.MULTILINE).group(1)
 
+    # The right edge's width, which Threads and Questions share, is the one a restored
+    # surface beside the page stands at before the runtime runs. The Leaves drawer
+    # covers the page, so no prepaint reads its width.
     layout = (assets / "runtime" / "chrome-layout.js").read_text()
     panel_prop = constant(r'^const THREAD_PANEL_PROP = "([^"]+)";', layout)
-    drawer_prop = constant(r'^export const DRAWER_SLOT_PROP = "([^"]+)";', drawers)
     panel_default = constant(r"^const THREAD_PANEL_W = (\d+);", layout)
-    drawer_default = constant(r"^const DRAWER_SLOT_W = (\d+);", drawers)
-    for literal in (
-        f"var({panel_prop}, {panel_default}px)",
-        f"var({drawer_prop}, {drawer_default}px)",
-    ):
-        assert literal in theme
+    literal = f"var({panel_prop}, {panel_default}px)"
+    assert literal in theme
+    assert (
+        'html[data-lf-live] body:is([data-lf-auxiliary-surface="threads"],\n'
+        '      [data-lf-auxiliary-surface="queue"]) {\n'
+        f"    --lf-auxiliary-width: {literal};"
+    ) in theme
 
 
-def test_layer_identity_distinguishes_content_from_a_vendoring_epoch(tmp_path):
-    """The stable identity follows bytes while generation still invalidates old tabs."""
+def test_identical_init_preserves_the_installed_layer(tmp_path):
+    """No contract transition means no writes or invalidation of an open tab."""
     runner = CliRunner()
     page = tmp_path / "page"
     first_init = runner.invoke(cli_model.cli, ["page", "init", str(page)])
@@ -1681,11 +1724,86 @@ def test_layer_identity_distinguishes_content_from_a_vendoring_epoch(tmp_path):
     assert state.exit_code == 0, state.output
     assert json.loads(state.output)["layer"] == first
 
+    files = {
+        path.relative_to(page): (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in page.rglob("*")
+        if path.is_file()
+    }
+    planned = runner.invoke(cli_model.cli, ["page", "init", "--dry-run", str(page)])
+    assert planned.exit_code == 0, planned.output
+    assert json.loads(planned.output) == {"page": str(page), "changed": False}
     second_init = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert second_init.exit_code == 0, second_init.output
     second = interact_files.read_json(page / "registry.json")["$layer"]
     assert second["fingerprint"] == first["fingerprint"]
+    assert second == first
+    assert {
+        path.relative_to(page): (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in page.rglob("*")
+        if path.is_file()
+    } == files
+
+
+@pytest.mark.parametrize("damage", ["modified", "missing", "stale", "metadata"])
+def test_init_repairs_installed_files_with_a_new_generation(tmp_path, damage):
+    runner = CliRunner()
+    page = tmp_path / "page"
+    assert runner.invoke(cli_model.cli, ["page", "init", str(page)]).exit_code == 0
+    original = interact_files.read_json(page / "registry.json")["$layer"]
+    theme = (page / "theme.css").read_bytes()
+    if damage == "modified":
+        (page / "theme.css").write_bytes(theme + b"\n/* edited installed bytes */\n")
+    elif damage == "missing":
+        (page / "theme.css").unlink()
+    elif damage == "stale":
+        (page / "runtime" / "obsolete.js").write_text("export {};\n")
+    else:
+        registry = interact_files.read_json(page / "registry.json")
+        del registry["$layer"]["generation"]
+        (page / "registry.json").write_text(json.dumps(registry))
+    planned = runner.invoke(cli_model.cli, ["page", "init", "--dry-run", str(page)])
+    assert planned.exit_code == 0, planned.output
+    assert json.loads(planned.output)["changed"]
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    assert initialized.exit_code == 0, initialized.output
+    repaired = interact_files.read_json(page / "registry.json")["$layer"]
+    assert repaired["generation"] != original["generation"]
+    assert repaired["fingerprint"] == original["fingerprint"]
+    assert (page / "theme.css").read_bytes() == theme
+    assert not (page / "runtime" / "obsolete.js").exists()
+
+
+@pytest.mark.parametrize(
+    "input_name", ["server.py", "pyproject.toml", "uv.lock", "python"]
+)
+def test_server_inputs_require_a_transition_without_browser_changes(
+    tmp_path, monkeypatch, input_name
+):
+    """The installed browser bytes cannot identify a changed serving process."""
+    payload = tmp_path / "payload"
+    script = payload / "skills/leaf/scripts/server.py"
+    script.parent.mkdir(parents=True)
+    script.write_text("# original\n")
+    for name in ("pyproject.toml", "uv.lock"):
+        (payload / name).write_text("# original\n")
+    monkeypatch.setattr(layer_model, "PLUGIN_ROOT", payload)
+    runner = CliRunner()
+    page = tmp_path / "page"
+    first_init = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    assert first_init.exit_code == 0, first_init.output
+    first = interact_files.read_json(page / "registry.json")["$layer"]
+    if input_name == "python":
+        monkeypatch.setattr(layer_model.sys, "version", "a different interpreter")
+    else:
+        target = script if input_name == "server.py" else payload / input_name
+        target.write_text("# changed\n")
+    second_init = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    assert second_init.exit_code == 0, second_init.output
+    second = interact_files.read_json(page / "registry.json")["$layer"]
     assert second["generation"] != first["generation"]
+    assert second["server"] != first["server"]
+    assert second["fingerprint"] == first["fingerprint"]
+    assert second["runtime"] == first["runtime"]
 
 
 PLAIN_PAGE = (
@@ -2203,43 +2321,44 @@ def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
     assert not bypassed, bypassed
 
 
-def test_a_python_side_wait_takes_the_suites_deadline():
+def test_a_wait_takes_the_suites_deadline():
     """A wait in the suite bounds a hang; it does not time the work it waits for.
 
     A literal deadline is sized to how long the work took where it was written, and
     a busy runner takes many times that, so a correct product fails the test there
     (tests/AGENTS.md, "Functional results do not depend on execution speed").
-    Every Python-side wait takes `STATED_TIMEOUT`, or a constant derived from it,
-    so the one bound is set in one place. A wait whose length is its subject names
-    that value where it is defined, which keeps it out of this check without a
-    list of exceptions here.
+    A Python-side wait takes `STATED_TIMEOUT`, or a constant derived from it. A
+    browser wait takes `SERVED_TIMEOUT_MS`, which `render_harness` makes the default
+    of every Playwright wait and `expect` that names none, or `HANDOVER_DEADLINE_MS`
+    where it spans a page handover. So each bound is set in one place. A wait whose
+    length is its subject names that value where it is defined, which keeps it out
+    of this check without a list of exceptions here.
 
-    The calls read are the blocking waits whose deadline is in seconds: the
-    standard library's threads, futures, processes, sockets and HTTP clients, and
-    the suite's own `wait_for`, plus a deadline a local loop computes from
-    `monotonic()`. A zero timeout asks without waiting and is left alone. Browser
-    waits, in milliseconds, are bounded by `SERVED_TIMEOUT_MS`.
+    Read are every `timeout` or `timeout_ms` a call passes or a helper defaults;
+    the deadline a thread, future, event or socket takes first, and a page's
+    default deadline; and a deadline a local loop computes from `monotonic()`. A
+    zero timeout asks without waiting and is left alone. A sleep
+    (`wait_for_timeout`) is a pause or an absence window, not a deadline.
     """
-    with_timeout = {
-        "call",
-        "check_output",
-        "communicate",
-        "create_connection",
-        "get",
-        "HTTPConnection",
+    deadline_names = {"timeout", "timeout_ms"}
+    deadline_first = {
         "join",
-        "recv",
         "result",
-        "run",
-        "urlopen",
+        "set_default_navigation_timeout",
+        "set_default_timeout",
+        "settimeout",
         "wait",
-        "wait_for",
     }
-    deadline_first = {"join", "result", "settimeout", "wait"}
-    # Sites in files another change holds, to move onto the suite's deadline once
-    # it lands. Each is a hang bound like the rest.
+    # Literal deadlines in files another change is rewriting, at most this many in
+    # each, to move onto the suite's deadlines once that change lands. Each is a hang
+    # bound like the rest.
     held_elsewhere = {
-        ("test_render_gate.py", "answer_ready.wait(10)"),
+        "test_render_anchors.py": 1,
+        "test_render_controls.py": 3,
+        "test_render_gate.py": 6,
+        "test_render_navigation.py": 9,
+        "test_render_startup.py": 8,
+        "test_render_threads.py": 8,
     }
 
     def literal(node) -> bool:
@@ -2256,7 +2375,14 @@ def test_a_python_side_wait_takes_the_suites_deadline():
             func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)
         )
 
-    literals = []
+    def defaults(arguments):
+        positional = arguments.posonlyargs + arguments.args
+        yield from zip(
+            positional[len(positional) - len(arguments.defaults) :], arguments.defaults
+        )
+        yield from zip(arguments.kwonlyargs, arguments.kw_defaults)
+
+    literals = {}
     for path in sorted((ROOT / "tests").rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
@@ -2267,28 +2393,39 @@ def test_a_python_side_wait_takes_the_suites_deadline():
                     and literal(node.right)
                 )
             elif isinstance(node, ast.Call):
-                name = called(node.func)
-                computed = (
-                    name in with_timeout
-                    and any(
-                        keyword.arg == "timeout" and literal(keyword.value)
-                        for keyword in node.keywords
-                    )
+                computed = any(
+                    keyword.arg in deadline_names and literal(keyword.value)
+                    for keyword in node.keywords
                 ) or (
-                    name in deadline_first
+                    called(node.func) in deadline_first
                     and isinstance(node.func, ast.Attribute)
                     and bool(node.args)
                     and literal(node.args[0])
                 )
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+                computed = any(
+                    argument.arg in deadline_names
+                    and default is not None
+                    and literal(default)
+                    for argument, default in defaults(node.args)
+                )
             else:
                 continue
             if computed:
-                site = (path.name, ast.unparse(node))
-                if site not in held_elsewhere:
-                    literals.append(f"{path.relative_to(ROOT)}:{node.lineno} {site[1]}")
-    assert not literals, (
+                literals.setdefault(path.name, []).append(
+                    f"{path.relative_to(ROOT)}:{node.lineno} "
+                    + ast.unparse(node).split("\n", 1)[0]
+                )
+    fixed = [
+        site
+        for name, sites in literals.items()
+        if len(sites) > held_elsewhere.get(name, 0)
+        for site in sites
+    ]
+    assert not fixed, (
         "these waits fix their own deadline; bound them with STATED_TIMEOUT "
-        f"(interact_support.py): {literals}"
+        "(interact_support.py), or in a browser with SERVED_TIMEOUT_MS or "
+        f"HANDOVER_DEADLINE_MS (leaf.render_checks): {fixed}"
     )
 
 
@@ -2317,6 +2454,43 @@ def test_a_spawned_process_ends_with_what_it_started(spawn, launcher_ends):
         return True
 
     wait_for(running, lambda alive: not alive, failure="the launcher's child survived")
+
+
+def test_no_test_ends_a_process_with_sigkill():
+    """SIGKILL gives a process no chance to end what it started, so a test ends one
+    by closing the pipe it reads or with SIGTERM (tests/AGENTS.md, "A process the
+    suite starts ends with the run"). The source is read for it, since no fixture
+    sees which signal a test sends: `Popen.kill()`, `signal.SIGKILL`, signal 9
+    passed to `kill`, `killpg` or `send_signal`, and a shell `kill` given signal 9
+    or KILL in a command a test runs."""
+    shell_kill = re.compile(r"\bkill\s+-(?:9|KILL|SIGKILL)\b")
+    killed = []
+    for path in sorted((ROOT / "tests").glob("*.py")):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if (
+                (isinstance(node, ast.Attribute) and node.attr == "SIGKILL")
+                or (
+                    isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "kill"
+                    and not node.args
+                )
+                or (
+                    isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr in {"kill", "killpg", "send_signal"}
+                    and node.args
+                    and isinstance(node.args[-1], ast.Constant)
+                    and node.args[-1].value == 9
+                )
+                or (
+                    isinstance(node, ast.Constant)
+                    and isinstance(node.value, str)
+                    and shell_kill.search(node.value)
+                )
+            ):
+                killed.append(f"{path.name}:{node.lineno} {ast.unparse(node)[:80]}")
+    assert not killed, killed
 
 
 def test_page_packages_are_explicit_and_survive_reinitialization(tmp_path, monkeypatch):
@@ -2470,6 +2644,36 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
     assert registry["lf-local"] == project_entry
     assert registry["lf-project-only"] == project_only
     assert "lf-options" in registry and "$events" in registry
+
+
+def test_an_idiom_declares_only_a_mark_the_document_paints(tmp_path, monkeypatch):
+    """An idiom declares the room it takes as an element does (x-space), which delivery
+    paints on every element the idiom's selector matches. A mark other code reads by
+    tag would be half kept, a value its key does not admit paints nothing the theme
+    reads, and a selector delivery cannot match stops every route that serves the
+    page, so a layer declaring any of them is refused at init."""
+    monkeypatch.chdir(tmp_path)
+    layer = tmp_path / ".leaf"
+    layer.mkdir()
+
+    def init(selector, declaration, page):
+        (layer / "registry.json").write_text(
+            json.dumps({"$idioms": {selector: {"description": "d", **declaration}}})
+        )
+        return CliRunner().invoke(
+            cli_model.cli,
+            ["page", "init", "--package", "./.leaf", str(tmp_path / page)],
+        )
+
+    assert init(".hazard", {"x-space": "column"}, "room").exit_code == 0
+    for selector, declaration, page in (
+        (".hazard", {"x-inline": True}, "inline"),
+        (".hazard", {"x-space": "huge"}, "huge"),
+        (".hazard::before", {"x-space": "column"}, "pseudo"),
+    ):
+        result = init(selector, declaration, page)
+        assert result.exit_code != 0
+        assert f"$idioms {selector!r} declares" in result.output
 
 
 def test_init_merges_dollar_entries_by_member(tmp_path, monkeypatch):
@@ -2690,7 +2894,7 @@ def test_init_reads_the_complete_layer_before_revendoring(tmp_path, monkeypatch)
 def test_a_rejected_init_leaves_a_precreated_directory_empty(tmp_path, monkeypatch):
     """A directory the caller prepared is not page state until init succeeds."""
     monkeypatch.chdir(tmp_path)
-    page = tmp_path / "prepared-page"
+    page = tmp_path / "prepared page"
     page.mkdir()
     layer = tmp_path / ".leaf"
     layer.mkdir()
@@ -2707,13 +2911,14 @@ def test_a_rejected_init_leaves_a_precreated_directory_empty(tmp_path, monkeypat
 
 def test_page_commands_do_not_mint_the_successful_init_marker(tmp_path):
     """An existing directory becomes a page only through a completed page init."""
-    page = tmp_path / "prepared-page"
+    page = tmp_path / "prepared page"
     page.mkdir()
 
     result = CliRunner().invoke(cli_model.cli, ["server", "stop", str(page)])
 
     assert result.exit_code != 0
-    assert "page init" in result.output
+    assert result.stderr.startswith("Error: ")
+    assert f"leaf page init '{page}'" in result.stderr
     assert list(page.iterdir()) == []
 
 
@@ -2790,7 +2995,9 @@ def test_hooks_do_not_mint_the_successful_init_marker_for_a_deleted_page(page_di
     shutil.rmtree(page_dir)
     page_dir.mkdir()
 
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "stale-session"})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "Stop", "session_id": "stale-session"}
+    )
 
     assert list(page_dir.iterdir()) == []
 
@@ -3688,9 +3895,9 @@ def test_package_install_makes_a_source_selectable_by_name(tmp_path, monkeypatch
 
     installed = runner.invoke(cli_model.cli, ["package", "install", str(source)])
 
-    stored = machine_model.package_store() / "callout"
     assert installed.exit_code == 0, installed.output
-    assert json.loads(installed.output) == {"package": str(stored)}
+    stored = Path(json.loads(installed.output)["package"])
+    assert layer_model.named_package("callout") == stored
     assert sorted(path.name for path in stored.iterdir()) == [
         "instructions",
         "registry.json",
@@ -3713,46 +3920,74 @@ def test_package_install_makes_a_source_selectable_by_name(tmp_path, monkeypatch
     assert (page / "widgets" / "lf-callout.js").is_file()
 
 
-def test_package_install_never_changes_which_directory_a_name_means(
-    tmp_path, monkeypatch
+@pytest.mark.parametrize("name", ["callout", "diagram", "default"])
+def test_package_install_replaces_a_name_without_changing_held_readers(
+    tmp_path, monkeypatch, name
 ):
-    """A taken name is refused, whichever root already answers to it.
+    """Installation publishes one complete snapshot; invalid replacements preserve it.
 
-    Installed and bundled are one refusal because they come from the one lookup
-    `--package` resolves through.
+    This holds for an existing installed name and an override of any bundled name,
+    including an explicitly selected default overlay.
     """
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
-    store = machine_model.package_store()
-    for name in ("callout", "diagram"):
-        created = runner.invoke(cli_model.cli, ["package", "init", f"src/{name}"])
-        assert created.exit_code == 0, created.output
-    first = runner.invoke(cli_model.cli, ["package", "install", "src/callout"])
+    source = tmp_path / "src" / name
+    created = runner.invoke(cli_model.cli, ["package", "init", str(source)])
+    assert created.exit_code == 0, created.output
+    add_test_widget(source, "lf-installed", upgrade=True)
+    (source / "theme.css").write_text("lf-installed { color: teal; }\n")
+    first = runner.invoke(cli_model.cli, ["package", "install", str(source)])
     assert first.exit_code == 0, first.output
-    (store / "callout" / "theme.css").write_text("lf-callout { color: teal; }\n")
-    before = {
-        path.relative_to(store): path.read_bytes()
-        for path in store.rglob("*")
-        if path.is_file()
-    }
+    held = layer_model.named_package(name)
+    assert held == Path(json.loads(first.output)["package"])
+    first_registry = (held / "registry.json").read_bytes()
+    (source / "theme.css").write_text("lf-installed { color: purple; }\n")
+    source_registry = source / "registry.json"
+    updated = json.loads(source_registry.read_text())
+    updated["lf-installed"]["description"] = "Replacement snapshot."
+    source_registry.write_text(json.dumps(updated))
+    replace = packages_model.os.replace
+    observations = []
 
-    standing = runner.invoke(cli_model.cli, ["package", "install", "src/callout"])
-    bundled = runner.invoke(cli_model.cli, ["package", "install", "src/diagram"])
+    def at_publication(staged, destination):
+        if Path(staged).name == "selection":
+            observations.append(layer_model.named_package(name))
+            assert (held / "theme.css").read_text() == "lf-installed { color: teal; }\n"
+        replace(staged, destination)
+        if Path(staged).name == "selection":
+            observations.append(layer_model.named_package(name))
 
-    assert standing.exit_code != 0
-    assert f"'callout' already resolves to {store / 'callout'}" in standing.output
-    assert "remove that directory to replace it" in standing.output
-    assert bundled.exit_code != 0
+    with monkeypatch.context() as publication:
+        publication.setattr(packages_model.os, "replace", at_publication)
+        second = runner.invoke(cli_model.cli, ["package", "install", str(source)])
+    assert second.exit_code == 0, second.output
+    current = layer_model.named_package(name)
+    assert observations == [held, current] and held != current
+    assert (held / "registry.json").read_bytes() == first_registry
+    assert (held / "theme.css").read_text() == "lf-installed { color: teal; }\n"
     assert (
-        f"'diagram' already resolves to {schema_model.BUNDLED_PACKAGES / 'diagram'}"
-        in bundled.output
+        json.loads((current / "registry.json").read_text())["lf-installed"][
+            "description"
+        ]
+        == "Replacement snapshot."
     )
-    assert "rename the source directory" in bundled.output
-    assert {
-        path.relative_to(store): path.read_bytes()
-        for path in store.rglob("*")
-        if path.is_file()
-    } == before
+    assert (current / "theme.css").read_text() == "lf-installed { color: purple; }\n"
+
+    page = tmp_path / "page"
+    vendored = runner.invoke(
+        cli_model.cli, ["page", "init", "--package", name, str(page)]
+    )
+    assert vendored.exit_code == 0, vendored.output
+    assert (
+        json.loads((page / "registry.json").read_text())["lf-installed"]["description"]
+        == "Replacement snapshot."
+    )
+    assert "lf-installed { color: purple; }" in (page / "theme.css").read_text()
+    (source / "theme.css").write_text(".bad { color red; }\n")
+    refused = runner.invoke(cli_model.cli, ["package", "install", str(source)])
+    assert refused.exit_code != 0 and "syntax error" in refused.output
+    assert layer_model.named_package(name) == current
+    assert (current / "theme.css").read_text() == "lf-installed { color: purple; }\n"
 
 
 def test_package_install_refuses_a_source_it_cannot_check_or_name(
@@ -4015,7 +4250,10 @@ cli.cli.main(args=sys.argv[1:], standalone_mode=False)
         f"lf-parallel-{index}" for index in range(len(routes))
     }
 
-    for held_package in (package, other_state / "leaf" / "packages" / package.name):
+    for held_package in (
+        package,
+        other_state / "leaf" / "packages" / "locks" / package.name,
+    ):
         with packages_model.package_write_lock(held_package):
             installing = spawn(
                 [sys.executable, "-c", observe, "package", "install", str(package)],
@@ -4028,11 +4266,7 @@ cli.cli.main(args=sys.argv[1:], standalone_mode=False)
                 installing.stdout.readline().strip() == "waiting on shared destination"
             )
         out, err = installing.communicate(timeout=STATED_TIMEOUT)
-        if held_package == package:
-            assert installing.returncode == 0, out + err
-        else:
-            assert installing.returncode != 0
-            assert "already resolves to" in err
+        assert installing.returncode == 0, out + err
 
 
 def test_package_install_checks_the_bytes_it_publishes(tmp_path, monkeypatch):
@@ -4051,7 +4285,7 @@ def test_package_install_checks_the_bytes_it_publishes(tmp_path, monkeypatch):
     result = CliRunner().invoke(cli_model.cli, ["package", "install", str(source)])
     assert result.exit_code != 0
     assert "syntax error" in result.output
-    assert not (machine_model.package_store() / source.name).exists()
+    assert layer_model.named_package(source.name) is None
 
 
 def test_package_init_widget_stages_only_the_package_contract(tmp_path, monkeypatch):
@@ -4302,7 +4536,8 @@ def test_package_recognizes_a_page_without_runtime_status(tmp_path, monkeypatch)
     page = tmp_path / "page"
     initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
-    (page / "status.json").unlink()
+    # A page has no status until its agent declares one.
+    assert not (page / "status.json").exists()
     before = (page / "theme.css").read_bytes()
 
     layer = project / ".leaf"
@@ -4391,7 +4626,7 @@ def test_package_refuses_members_aliased_into_an_initialized_page(
 @pytest.mark.parametrize(
     ("source_name", "page_name"),
     [
-        ("theme.css", "status.json"),
+        ("theme.css", "events.jsonl"),
         ("widgets", schema_model.MEDIA_DIR),
         ("vendor", "revisions"),
     ],
@@ -4487,20 +4722,13 @@ def test_page_init_does_not_treat_an_unknown_bare_name_as_a_path(tmp_path, monke
     assert not page.exists()
 
 
-def test_page_init_refuses_to_select_the_always_included_default_package(
-    tmp_path, monkeypatch
-):
-    monkeypatch.chdir(tmp_path)
+def test_selecting_the_bundled_default_package_is_redundant(tmp_path):
     page = tmp_path / "page"
-
     result = CliRunner().invoke(
-        cli_model.cli,
-        ["page", "init", "--package", "default", str(page)],
+        cli_model.cli, ["page", "init", "--package", "default", str(page)]
     )
-
-    assert result.exit_code == 1
-    assert "package 'default' is already included in every page" in result.output
-    assert not page.exists()
+    assert result.exit_code == 0, result.output
+    assert "lf-options" in json.loads((page / "registry.json").read_text())
 
 
 def test_page_init_refuses_to_publish_an_absolute_package_path(tmp_path, monkeypatch):
@@ -4726,7 +4954,6 @@ def test_pr_review_package_composes_its_data_brief(tmp_path, monkeypatch):
     assert initialized.exit_code == 0, initialized.output
     registry = json.loads((page / "registry.json").read_text())
     widget = registry["lf-pull-request"]
-    call_diff = registry["lf-call-diff"]
     assert registry["$layer"]["packages"] == ["pr-review"]
     assert widget["x-data"] == {
         "request": {
@@ -4736,13 +4963,54 @@ def test_pr_review_package_composes_its_data_brief(tmp_path, monkeypatch):
     }
     assert "pull-request" in registry["$data"]["contracts"]
     assert (page / "widgets" / "lf-pull-request.js").is_file()
-    assert call_diff["x-data"] == {
-        "document": {
-            "contract": "text-document",
-            "source": "source",
-        }
-    }
-    assert (page / "widgets" / "lf-call-diff.js").is_file()
+    assert "lf-call-diff" not in registry
+    assert not (page / "widgets" / "lf-call-diff.js").exists()
+
+
+@pytest.mark.parametrize(
+    ("package", "markup"),
+    [
+        ("pr-review", '<lf-pull-request id="pr" source="pr-data"></lf-pull-request>'),
+        (
+            "diff",
+            (
+                '<lf-call-diff id="calls" source="calls-data" diff="patch"></lf-call-diff>'
+                '<lf-diff id="patch"><pre>diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n'
+                "@@ -1 +1 @@\n-old()\n+new()\n</pre></lf-diff>"
+            ),
+        ),
+    ],
+)
+def test_review_evidence_packages_export_independently(
+    tmp_path, monkeypatch, package, markup
+):
+    """Call navigation and PR metadata each export with their owning package alone."""
+    monkeypatch.chdir(tmp_path)
+    page = tmp_path / package
+    runner = CliRunner()
+    initialized = runner.invoke(
+        cli_model.cli, ["page", "init", "--package", package, str(page)]
+    )
+    assert initialized.exit_code == 0, initialized.output
+    (page / "index.html").write_text(
+        "<!doctype html><html><head><title>Review evidence</title></head><body>"
+        f'<main><h1 id="title">Review evidence</h1>{markup}</main></body></html>'
+    )
+    stamped = runner.invoke(
+        cli_model.cli, ["page", "stamp", str(page), "--text", "Review evidence"]
+    )
+    assert stamped.exit_code == 0, stamped.output
+    exported = runner.invoke(
+        cli_model.cli,
+        ["page", "export", str(page), "-o", str(tmp_path / "export.html")],
+    )
+    assert exported.exit_code == 0, exported.output
+    if package == "diff":
+        source = page / "index.html"
+        source.write_text(source.read_text().replace('diff="patch"', 'diff="title"'))
+        checked = runner.invoke(cli_model.cli, ["page", "check", str(page)])
+        assert checked.exit_code != 0
+        assert 'diff="title" must name a $diff.widgets widget' in checked.output
 
 
 def test_visual_review_package_composes_its_run_contract(tmp_path, monkeypatch):
@@ -4882,15 +5150,22 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     nothing binds a key behind its back. That is not a property a rendered page can be
     asked about — a listener nobody declared looks exactly like no listener at all until
     the press it eats goes missing — so it is pinned in the source, the way the
-    document-level class surface is.
+    document-level class surface is. The listeners are read from each parsed module
+    (tests/keydown_listeners.mjs), so one wrapped across lines or registered for several
+    types in a loop counts as written.
 
-    Three are allowed and each is named here. The dispatcher is the register's own. The aim
-    latch is not a binding at all: holding ⌥ arms nothing and answers no press, it paints
-    what a click would take, and its keyup half has no place in a table of presses. The
+    Each allowed one is named here. The dispatcher is the register's own. The aim latch
+    is not a binding at all: holding ⌥ arms nothing and answers no press, it paints what
+    a click would take, and its keyup half has no place in a table of presses. The
     prepaint bootstrap's hold answers no press either: it keeps keys pressed before the
-    page presents and hands them to the dispatcher's owner. Another is how every drift this
-    register replaced began — a `keydown` beside a display list, the two of them free to
-    disagree about which keys the widget answers."""
+    page presents and hands them to the dispatcher's owner. focus.js reads every key as
+    an input, as the end of a label press, and as a Tab's step, and answers none. The
+    interaction log records keys and answers none. A covering surface's Tab loop keeps
+    the platform's own sequential navigation inside it. The code block's copy control
+    hands Tab back to its source, and the block's Enter moves to that control, which no
+    register row declares. Another is how every drift this register replaced began — a
+    `keydown` beside a display list, the two of them free to disagree about which keys the
+    widget answers."""
     layer = ROOT / "skills/leaf"
     sources = [
         layer / "assets/leaf.js",
@@ -4898,14 +5173,27 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
         *sorted((layer / "packages").glob("*/widgets/*.js")),
         *sorted((ROOT / "examples/packages").glob("*/widgets/*.js")),
     ]
-    listeners = [
-        f"{src.name}:{n}"
-        for src in sources
-        for n, line in enumerate(src.read_text().splitlines(), 1)
-        if 'addEventListener("keydown"' in line
-    ]
-    assert len(listeners) == 3, (
-        f"the runtime's keydown listeners changed: {listeners}. A key belongs in the "
+    listed = subprocess.run(
+        ["node", str(ROOT / "tests/keydown_listeners.mjs"), *map(str, sources)],
+        capture_output=True,
+        text=True,
+        check=True,
+        cwd=ROOT,
+    ).stdout.split()
+    by_file = {}
+    for line in listed:
+        name = line.split(":")[0]
+        by_file[name] = by_file.get(name, 0) + 1
+    assert by_file == {
+        "controller.js": 1,
+        "aim.js": 1,
+        "bootstrap.js": 1,
+        "focus.js": 3,
+        "interaction-log.js": 1,
+        "auxiliary-surfaces.js": 1,
+        "code-copy.js": 2,
+    }, (
+        f"the runtime's keydown listeners changed: {listed}. A key belongs in the "
         "register (keys(el, title, rows)), which is what lets a surface promise it."
     )
 
@@ -5054,7 +5342,7 @@ def test_an_installed_package_runs_its_own_scripts_by_name(tmp_path, monkeypatch
     assert json.loads(failed.stdout) == {"args": ["--fail"], "lines": 2}
     assert missing.returncode == 1
     assert missing.stderr == (
-        "package 'tally' has no script 'total.py'; available: count.py\n"
+        "Error: package 'tally' has no script 'total.py'; available: count.py\n"
     )
     assert unknown.returncode == 1
     assert "unknown package 'tallies'" in unknown.stderr
@@ -5105,7 +5393,7 @@ def test_package_check_refuses_a_script_that_would_run_in_the_callers_project(
     installed = CliRunner().invoke(cli_model.cli, ["package", "install", str(source)])
 
     assert checked.exit_code == 1
-    assert checked.output.startswith(str(script))
+    assert checked.output.startswith(f"Error: {script}")
     assert message in checked.output
     assert installed.exit_code == 1
     assert message in installed.output

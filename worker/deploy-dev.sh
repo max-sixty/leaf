@@ -72,5 +72,5 @@ until uv run --project "$repo_root" leaf-dev verify-site "$origin" \
   ((SECONDS < deadline)) || exit 1
   sleep 10
 done
-uv run --project "$repo_root" leaf-dev verify-site "$origin" \
-  --release "$release" --agent
+uv run --project "$repo_root" leaf-dev journey "$origin" \
+  --release "$release"

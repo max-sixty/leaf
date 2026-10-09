@@ -11,17 +11,21 @@ turn entry separately; neither settles the user's response requirement.
 Each batch carries distinct handling clause texts once, with ordered references
 on the events they apply to. Clause identities belong only to that batch.
 
-The envelope names the carrier that brings it into an agent's context, and the
-two facts that differ by carrier are stated once for the whole delivery rather
-than per event. `acknowledge` says who confirms receipt: the reader of a `leaf
-wait`, in the way its harness runs that command, or nobody, where the carrier
-confirmed it itself. A hook names the reader's confirmation route where its
-harness cannot establish receipt; Codex's pointer read establishes it directly.
-A carrier whose turn speaks for the delivery, App Server,
-turns the one thread reply the delivery owes into a `turn` answer, which that
-turn's own messages write; every other carrier leaves it a `reply` for `leaf thread
-reply`. Each event's `answer` is that same address, so its `handling` clauses
-follow from the answer rather than from the carrier.
+The envelope names who confirms receipt through `acknowledge`. A hook confirms
+what it hands over inline; reading a pointer confirms it through the reading
+session's harness. `turn_replies` assigns final custody to the provider turn.
+An answer's `writer` guides initial handling at capture; the current binding alone
+controls final custody when writing. It is separate from the semantic operation:
+reply and markup requirements retain their meaning on every transport.
+
+Freeze emits an exact `answer.ref`, qualified by delivery, page batch and input.
+The immutable envelope is the only address store. Direct authors and provider
+finals resolve it through `response_address` before the rich durable reply writer
+rechecks the captured logical owner, exact input and standing obligation under the
+page lock. An address may be forwarded to a worker without changing its own
+author identity; another session's claim supersedes its authorization even after
+release or end. The owning session's process restart preserves it.
+
 """
 
 import json
@@ -32,6 +36,7 @@ import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
+from typing import Literal
 
 from .files import read_json
 from .harness import claim_harness, session_harness
@@ -39,24 +44,17 @@ from .machine import state_home
 from .schema import CURSOR_FILE
 from .service import (
     PageTransaction,
-    delivery_reply_attempt,
     owned_pages,
     requires_agent_attention,
     unacknowledged,
 )
 from .state import flocked, session_lock_path, session_record, write_json
 
-DELIVERY_FORMAT = "leaf-delivery-v3"
-# The routes that carry a delivery to an agent: `leaf wait`'s output, a harness hook's
-# context for the turn it opens, a pointer queued with `codex queue`, and a turn
-# Leaf starts over Codex App Server.
-CARRIERS = ("wait", "hook", "queue", "app-server")
-# The one carrier whose turn writes the delivery's thread reply with its own
-# messages.
-TURN_CARRIER = "app-server"
+DELIVERY_FORMAT = "leaf-delivery-v5"
 DELIVERY_ID = re.compile(r"[0-9a-f]{8}")
 _BATCH_FIELDS = (
     "page",
+    "claim",
     "through_seq",
     "threads",
     "handling",
@@ -164,19 +162,19 @@ def current_responses(page_dir: Path, events: list[dict]) -> dict[str, dict]:
     the Stop hook name the same operation. An input a newer one in its thread covers
     owns none; the newest carries the thread's one answer.
     """
-    from .served_state.page import full_state
+    from .served_state.work import live_work
 
     return {
         item["input"]: item["answer"]
-        for item in full_state(page_dir, events, layer_identity={})["activity"][
-            "obligations"
-        ]
+        for item in live_work(page_dir, events).obligations
     }
 
 
-def batch_data(page_dir: Path, transaction, batch: list[dict]) -> dict:
+def batch_data(
+    page_dir: Path, transaction, batch: list[dict], *, responses: dict | None = None
+) -> dict:
     """Capture one complete ordered page batch, less what `freeze_delivery` writes
-    for its carrier: the route of a thread reply, and the `handling` that follows
+    for its transport: the address of a thread reply, and the `handling` that follows
     from it."""
     from .gesture_words import GestureWords, revisions_on_disk
     from .registry.reactions import described
@@ -199,7 +197,8 @@ def batch_data(page_dir: Path, transaction, batch: list[dict]) -> dict:
         thread_widgets(thread_structure(events), names),
         within,
     )
-    responses = current_responses(page_dir, events)
+    if responses is None:
+        responses = current_responses(page_dir, events)
     by_id = {event["id"]: event for event in events}
     words = GestureWords(events, registry, revisions_on_disk(page_dir))
 
@@ -223,35 +222,63 @@ def batch_data(page_dir: Path, transaction, batch: list[dict]) -> dict:
         captured.append(entry)
     return {
         "page": str(page_dir),
+        "claim": transaction.delivery_owner,
         "through_seq": max(event["seq"] for event in batch),
         "threads": batch_threads(events, batch, within),
         "events": captured,
     }
 
 
-def carried_answer(answer: dict, carrier: str, delivery_id: str) -> dict:
-    """The answer one captured event owes once `carrier` delivers it.
+def response_addresses(payload: dict) -> Iterator[dict]:
+    """Read each address exactly as its immutable envelope captured it."""
+    for batch in payload["batches"]:
+        for event in batch["events"]:
+            if (answer := event.get("answer")) is not None:
+                yield {
+                    **answer,
+                    "page": batch["page"],
+                    "claim": batch["claim"],
+                    "input": {"id": event["id"], "seq": event["seq"]},
+                }
 
-    A plain reply delivered into a turn of its own is that turn's to write, with
-    its opening and final messages, under the reply attempt the delivery names; the
-    same reply reaching an agent any other way stays `leaf thread reply`'s. Every other
-    answer is the same on every carrier."""
-    if answer["kind"] == "reply" and carrier == TURN_CARRIER:
-        return {
-            **answer,
-            "kind": "turn",
-            "attempt": delivery_reply_attempt(delivery_id),
+
+def response_address(reference: str) -> dict:
+    """Resolve only a complete reference emitted by an immutable delivery.
+
+    Page-local event ids are not addresses. The delivery and batch qualify them;
+    consumers use the captured destination rather than interpreting the id again.
+    The writer rechecks the captured event against the page log under its lock.
+    """
+    payload = read_delivery(reference.partition(":")[0])
+    for address in response_addresses(payload):
+        if address["ref"] == reference:
+            return address
+    sys.exit(f"unknown response reference {reference!r}")
+
+
+def stream_reply_target(payload: dict) -> dict | None:
+    """The sole reply whose final text belongs to this delivery's provider turn."""
+    targets = [
+        {
+            "page": address["page"],
+            "reply_to": address["to"],
+            "responds": address["for"],
+            "ref": address["ref"],
         }
-    return answer
+        for address in response_addresses(payload)
+        if address.get("writer") == "turn"
+    ]
+    return targets[0] if len(targets) == 1 else None
 
 
-def handled(batch: dict, carrier: str, delivery_id: str) -> dict:
-    """One captured batch as `carrier` delivers it: each answer routed for that
-    carrier, and the `handling` its page's layer gives each event.
+def handled(
+    batch: dict, delivery_id: str, batch_index: int, *, turn_replies: bool
+) -> dict:
+    """One captured batch with exact references, writer custody and handling.
 
     A clause's `when` reads the event, the answer it owes, and its thread's
     digest, so each event is told only its own case and the answer it owes. The
-    answer's route is a fact of the freeze, not of the capture: a Codex record
+    answer's address is a fact of the freeze, not of the capture: a Codex record
     collects batches before it knows which transport will offer it, and only the
     freeze does."""
     from .registry.contract import event_clauses
@@ -271,7 +298,21 @@ def handled(batch: dict, carrier: str, delivery_id: str) -> dict:
             if key not in {"handling", "answer"}
         }
         owed = (
-            {"answer": carried_answer(event["answer"], carrier, delivery_id)}
+            {
+                "answer": {
+                    **event["answer"],
+                    "ref": f"{delivery_id}:{batch_index}:{event['id']}",
+                    **(
+                        {
+                            "writer": "turn"
+                            if turn_replies
+                            else event["answer"].get("writer", "agent")
+                        }
+                        if event["answer"]["kind"] == "reply"
+                        else {}
+                    ),
+                }
+            }
             if "answer" in event
             else {}
         )
@@ -295,19 +336,19 @@ def handled(batch: dict, carrier: str, delivery_id: str) -> dict:
 def freeze_delivery(
     batches: list[dict],
     *,
-    carrier: str,
     acknowledge: Callable[[str], str] | None = None,
+    turn_replies: bool = False,
     delivery_id: str | None = None,
     created_at: float | None = None,
 ) -> dict:
-    """Persist and return one immutable delivery envelope, as the `carrier` that
-    will deliver it hands it over.
+    """Persist and return one immutable delivery envelope, as its transport hands
+    it over.
 
     `acknowledge` supplies the delivery-specific instruction for reader
     confirmation after the complete envelope reaches context. When the harness
-    establishes receipt directly, omit it and the envelope records `null`."""
-    if carrier not in CARRIERS:
-        raise ValueError(f"unknown delivery carrier {carrier!r}")
+    establishes receipt directly, omit it and the envelope records `null`.
+    `turn_replies` is set where the turn the delivery opens writes its thread
+    reply with its own messages."""
     lock = _delivery_lock_path()
     lock.parent.mkdir(parents=True, exist_ok=True)
     with flocked(lock):
@@ -324,11 +365,13 @@ def freeze_delivery(
             "format": DELIVERY_FORMAT,
             "id": delivery_id,
             "created_at": created_at if created_at is not None else time.time(),
-            "carrier": carrier,
             "acknowledge": acknowledge(delivery_id) if acknowledge else None,
             "batches": [
                 {field: batch[field] for field in _BATCH_FIELDS}
-                for batch in (handled(batch, carrier, delivery_id) for batch in batches)
+                for batch in (
+                    handled(batch, delivery_id, index, turn_replies=turn_replies)
+                    for index, batch in enumerate(batches)
+                )
             ],
         }
         existing = read_json(path)
@@ -343,6 +386,15 @@ def freeze_delivery(
         return payload
 
 
+def readable_delivery(payload, delivery_id: str) -> bool:
+    """Whether this immutable identity has the envelope this version consumes."""
+    return bool(
+        isinstance(payload, dict)
+        and payload.get("format") == DELIVERY_FORMAT
+        and payload.get("id") == delivery_id
+    )
+
+
 def read_delivery(delivery_id: str) -> dict:
     try:
         path = delivery_path(delivery_id)
@@ -351,17 +403,52 @@ def read_delivery(delivery_id: str) -> dict:
     payload = read_json(path)
     if payload is None:
         sys.exit(f"unknown delivery {delivery_id!r}")
-    if payload.get("format") != DELIVERY_FORMAT or payload.get("id") != delivery_id:
+    if not readable_delivery(payload, delivery_id):
         raise RuntimeError(f"delivery {delivery_id!r} has an invalid envelope")
     return payload
 
 
 def cmd_delivery_read(delivery_id: str) -> None:
-    from .codex_state import accept_codex_delivery_read
-
+    """Print one envelope, confirming it where reading is its receipt: a pointer
+    that names no other acknowledger, offered to the reading session, which its
+    harness confirms (`Harness.receive_pointer`)."""
     payload = read_delivery(delivery_id)
-    accept_codex_delivery_read(delivery_id)
+    harness = session_harness()
+    if payload["acknowledge"] is None and harness is not None:
+        harness.receive_pointer(payload)
     print(json.dumps(payload, indent=2, ensure_ascii=False))
+
+
+def pickup_receipts(
+    events: list[dict],
+    *,
+    phase: Literal["queued", "opened", "failed"] | None,
+    input_id: str | None = None,
+) -> list[dict]:
+    """Select admitted receipts for an explicit transport reading, in log order.
+
+    Keep each complete receipt: its exact input batch, session, turn and timestamp
+    belong together. Queued transport acceptance and failed delivery do not prove
+    context entry; readers checking pickup must request ``opened``. This reading
+    establishes transport evidence only, never work or a successful response.
+    ``phase=None`` selects every transport milestone recorded for the input.
+    """
+    return [
+        event
+        for event in events
+        if event["kind"] == "pickup"
+        and (phase is None or event["phase"] == phase)
+        and (input_id is None or input_id in event["events"])
+    ]
+
+
+def opened_input_ids(events: list[dict]) -> set[str]:
+    """The exact attention inputs recorded as entering a harness's context."""
+    return {
+        input_id
+        for receipt in pickup_receipts(events, phase="opened")
+        for input_id in receipt["events"]
+    }
 
 
 def record_pickup(
@@ -376,7 +463,11 @@ def record_pickup(
     """Durably record one delivery transition for exact attention-bearing inputs.
 
     ``queued`` means Codex's durable same-task queue accepted the batch;
-    ``opened`` means the batch entered an agent turn; ``failed`` means the harness
+    ``opened``, which the page shows as Picked up, means the batch is in the
+    harness's context for the session: written into the conversation its model
+    reads at its next step, whether or not that step has come. A batch the harness
+    holds to add later, as a queue or a steer waiting behind a running tool, is not
+    opened until it is added. ``failed`` means the harness
     gave up on the moves with the named ``failure`` and no answer is coming.
     Queued and opened are transport evidence, not authored work claims. A queued
     transition may therefore be followed by an opened transition for the same
@@ -431,17 +522,27 @@ def receive_batch(
 ) -> Iterator[list[dict]]:
     """Commit receipt after the consumer records its durable pickup evidence.
 
-    All carriers use this boundary after their durable consumer accepts input.
+    Every transport confirms here once its durable consumer accepts input.
     The body records pickup and turn entry before this advances the cursor, so
     interruption leaves input available for retry. Work remains separate.
-    Current ownership authorizes the write, not capture-time ownership;
-    an old envelope can be confirmed after ownership returns to its receiver.
+    Current ownership authorizes the write, not capture-time ownership: the
+    page is still the receiver's (`service.claim_names_session`), even between a
+    restart's new generation and its claim, and an old envelope can be confirmed
+    after ownership returns to its receiver. A receiver with no session takes
+    receipt only while no session holds the page.
     """
     # The page is already locked; keep lifecycle admission valid through pickup
     # and cursor commit. SessionEnd cannot cross between those writes.
-    with flocked(session_lock_path(session_id)) if session_id else nullcontext():
-        claim = page.active_claim
-        if (claim["id"] if claim else None) != session_id:
+    with (
+        flocked(session_lock_path(session_id), deadline=page.deadline)
+        if session_id
+        else nullcontext()
+    ):
+        if (
+            page.active_claim is not None
+            if session_id is None
+            else page.claim_of(session_id) is None
+        ):
             raise ReceiptRefused(f"delivery no longer owns its page: {page.page_dir}")
         expected = {event["seq"]: event["id"] for event in batch["events"]}
         delivered = {event["seq"]: event for event in page.events}
@@ -476,11 +577,33 @@ def receive(payload: dict, session_id: str | None) -> list[Path]:
     return pages
 
 
-def receive_one(batch: dict, session_id: str | None) -> Path:
+def receive_held(
+    payload: dict, session_id: str, *, deadline: float | None = None
+) -> list[Path]:
+    """Confirm each batch of a delivery its hook handed to `session_id`'s open
+    turn, where the session still holds the batch's page.
+
+    The hook has already handed the delivery over, so a page that changed hands
+    or went, or a turn that ended, refuses only its own batch: that input stays
+    pending, and a later delivery carries it. So does a batch whose locks are still
+    held at `deadline`, for a hook that must exit by then for its handover to
+    stand."""
+    pages = []
+    for batch in payload["batches"]:
+        try:
+            pages.append(receive_one(batch, session_id, deadline=deadline))
+        except (FileNotFoundError, ReceiptRefused, TimeoutError):
+            continue
+    return pages
+
+
+def receive_one(
+    batch: dict, session_id: str | None, *, deadline: float | None = None
+) -> Path:
     """Confirm one consumer-read batch under its current page ownership."""
     page_dir = Path(batch["page"])
     with (
-        PageTransaction(page_dir) as page,
+        PageTransaction(page_dir, deadline=deadline) as page,
         receive_batch(page, batch, session_id=session_id) as events,
     ):
         turn = None
@@ -499,7 +622,7 @@ def pending_batches(session_id: str) -> list[dict]:
     """Every page's pending input for a session whose hooks carry it, one batch
     per page, captured under that page's transaction and not yet confirmed.
 
-    Receipt is a separate step, taken when the reader confirms those batches:
+    Receipt is a separate step, taken once those batches are handed over:
     it rechecks ownership and the captured events, and anything appended between
     the two readings stays pending, above the cursor it advances."""
     batches = []

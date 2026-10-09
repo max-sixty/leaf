@@ -4,14 +4,9 @@
    This module combines those values without consulting the DOM, registry, runtime
    state, or delivery state. Authored snapshots have the same shape captured by
    projection/authored.js: a map from widget id to `{state, specs}`. */
-import { COLLAPSE } from "../collapse.js";
 
 export function foldedValue(event, record) {
-  const value = event.detail[record.value];
-  if (record.kind === "body")
-    return String(value ?? "")
-      .replace(COLLAPSE, " ")
-      .trim();
+  const value = event.detail.value;
   if (record.kind === "attribute") return [...value].sort().join(" ");
   return value ?? null;
 }
@@ -121,7 +116,6 @@ const authoredValue = (authoredSnapshots, coordinate) => {
   const record = spec.record;
   const value = authored.state[verb].value;
   if (record?.kind === "attribute") return value.join(" ");
-  if (record?.kind === "body") return value.replace(COLLAPSE, " ").trim();
   if (record?.kind === "position")
     return (
       Object.keys(value).find((container) => value[container].includes(unit)) ?? null
@@ -241,8 +235,8 @@ export function foldWidgetStates(authoredSnapshots, projection) {
       },
     ]),
   );
-  const place = ({ value: containers, ranks }, unit, record, detail) => {
-    const destination = containers[detail[record.value]];
+  const place = ({ value: containers, ranks }, unit, detail) => {
+    const destination = containers[detail.value];
     if (!destination || !Object.values(containers).some((ids) => ids.includes(unit)))
       return;
     for (const ids of Object.values(containers)) {
@@ -250,7 +244,7 @@ export function foldWidgetStates(authoredSnapshots, projection) {
       if (index >= 0) ids.splice(index, 1);
     }
     destination.push(unit);
-    ranks[unit] = detail[record.rank];
+    ranks[unit] = detail.rank;
   };
 
   for (const entry of [...projection.desired.values()].sort(compareProjected)) {
@@ -258,15 +252,14 @@ export function foldWidgetStates(authoredSnapshots, projection) {
     if (!owner) continue;
     const { spec, e, unit } = entry;
     const record = spec.record;
-    const value = record ? structuredClone(e.detail[record.value]) : e.action;
+    const value = record ? structuredClone(e.detail.value) : e.action;
     const standing = { action: e.action, value, detail: structuredClone(e.detail) };
     owner.entries.push(entry);
     if (spec.unit === "widget") owner.state[e.action] = standing;
     else {
       const target = owner.state[e.action];
       target.units[unit] = standing;
-      if (record?.kind === "position" && !entry.absorbed)
-        place(target, unit, record, e.detail);
+      if (record?.kind === "position" && !entry.absorbed) place(target, unit, e.detail);
     }
   }
 

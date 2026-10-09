@@ -1,0 +1,44 @@
+# Added when an ephemeral reply to an owed move began taking that move in hand, so
+# the user's first sign of the agent is words in their thread rather than a Working
+# label. Two `leaf-dev journey claude-code` runs on 18142adc showed the agent's first command
+# was `leaf task start` and a read of the page, with nothing in the thread until the
+# final reply 21-26 s after the comment. The delivery's handling is read from each
+# arm's own registry, since that clause is what a real delivery hands the agent.
+# It separated the arms: base f5712f3e6 passed 0 of 5 on each harness, the change
+# 5 of 5 on each (the first codex sample counted after its multi-line command was
+# let through the regex).
+description: first-command-says-what-comes
+metadata:
+  purpose: 'Conversation loop: after a delivery whose message asks for work, the first command posts a short progress update in its thread saying what the agent will do, before reading or editing anything; the answer comes later.'
+  tags:
+  - wait-loop
+  - threads
+vars:
+  prompt: |
+    You are a Claude Code session driving a live Leaf page at
+    ~/.local/state/leaf/pages/rollout, served with `leaf server start`. Leaf's prompt
+    hook has just put this delivery in your context and confirmed it:
+    {"format":"leaf-delivery-v5","id":"7f20c3d9","acknowledge":null,"batches":[{"page":"~/.local/state/leaf/pages/rollout","claim":null,"through_seq":9,"threads":[{"id":"5d1e8a42","title":null,"anchor":{"section":"rollout","quote":"The rollout starts on 14 October"},"resolved":null,"messages":[]}],"handling":{},"events":[{"kind":"comment","id":"5d1e8a42","seq":9,"author":"user","revision":3,"text":"This paragraph repeats the one above it. Tighten the rollout section, and check its dates against CHANGELOG.md.","answer":{"kind":"reply","to":"5d1e8a42","for":"5d1e8a42","ref":"7f20c3d9:0:5d1e8a42","writer":"agent"},"threads":["5d1e8a42"],"subject":{"kind":"thread","id":"5d1e8a42"},"handling":[]}]}]}
+
+    The delivery's handling text for this comment is the list of clauses under
+    `$events` → `answering` → `reply` in `assets/registry.json` in the Leaf skill's
+    base directory; read it as part of the delivery.
+
+    Read whatever Leaf instructions you need. Only Skill and Read run here, so write
+    out, in order, each command you would run from now until you have answered the
+    comment, including any that read files or the page. Then end your answer.
+assert:
+- type: regex
+  metric: posts-progress-in-the-thread
+  value: >-
+    \bleaf\s+response\s+reply\b(?=(?:[^\n]|\\\n)*--ephemeral\b)(?=(?:[^\n]|\\\n)*5d1e8a42)
+- type: llm-rubric
+  metric: judgment
+  value: |
+    Pass only if the first command written, before any command that reads a file,
+    the changelog, the page source or page state, edits the page, or checks it, is a
+    `leaf response reply` with `--ephemeral` addressed to `7f20c3d9:0:5d1e8a42` whose text tells the user in a line what the agent is about to do, and
+    if a later ordinary `leaf response reply` (without `--ephemeral`) answers 5d1e8a42
+    after the work. A `leaf task start` on 5d1e8a42 after the progress update is
+    fine. Fail if the first command is a `leaf task start`, a read, an edit, or
+    anything other than that progress update, or if the comment is never answered.

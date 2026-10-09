@@ -9,9 +9,9 @@
    face. Both clamped and cyclic semantic walks use this reading. Native focus traversal
    and gestures that rearrange state are not walks through a named list. */
 import { clampedRow } from "./keyboard/bindings.js";
-import { focused } from "./keyboard/scopes.js";
 import { holdStatus } from "./notifications.js";
 import { repaint } from "./repaint.js";
+import { focusDestination, focused } from "./focus.js";
 
 const BOUNDARY_MS = 900;
 
@@ -96,7 +96,7 @@ export function rowWalk({
     const was = focused();
     const row = pick(rows());
     if (!row) return;
-    row.focus({ preventScroll: !scroll });
+    focusDestination(row, "move", { scroll });
     beginWalk(id, noun, () => listWalkPosition(items(), focused()));
     if (row !== was) landed?.(row);
   };
@@ -116,7 +116,6 @@ export function rowWalk({
       id: `${id}.edge`,
       keys: ["Home", "End"],
       routes: [route("Home", home), route("End", end)],
-      description: `${capital(home)} / ${end} ${noun.toLowerCase()}`,
       title: `${home} / ${end}`,
       // Home and End answer as they do in any list, so the shortcut bar spends its
       // slots on the walk and on what the list offers that no other list does; the

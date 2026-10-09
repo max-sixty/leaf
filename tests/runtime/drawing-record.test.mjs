@@ -60,7 +60,7 @@ test("an anchored drawing keeps its share of the box it was drawn in", () => {
     ],
   ]);
   assert.deepEqual(strokesIn(drawing, { width: 320, height: 80 }), strokes);
-  // A page drawing has no box, so it stands where it was drawn at any width.
+  // A draft parked in its section has no box, so it stands as drawn at any width.
   assert.deepEqual(
     strokesIn({ format: DRAWING_FORMAT, strokes }, { width: 10, height: 10 }),
     strokes,

@@ -1,25 +1,32 @@
-"""Harness evidence admits successful commands and retains actual delivery inputs."""
+"""Native traces retain commands, turn outcomes and actual delivery inputs."""
 
 import json
 
 import pytest
-from leaf_dev.arms import accepted_thread_claims, commands, completed, trace_result
+from leaf_dev.arms import commands, completed, trace_result
 from leaf_dev.eval_codex import records_for
+
+EVENT_ENVELOPE = {
+    "attention": False,
+    "id": "a1b2c3d4",
+    "ts": "2026-10-07T12:00:00-07:00",
+    "author": "agent",
+    "seq": 1,
+}
 
 
 def test_codex_command_and_turn_success_are_observed_harness_results():
-    # App Server's observed commandExecution notifications, reduced to the fields
-    # relevant to successful Leaf status admission. Unknown/nonzero exits must
-    # never turn a printed status into an accepted claim.
+    # Command text is retained independently of its exit status; completion is
+    # the native turn outcome, rather than something inferred from stdout.
     output = json.dumps(
-        {"state": "working", "work": [{"subject": {"kind": "thread", "id": "comment"}}]}
+        {**EVENT_ENVELOPE, "kind": "start", "item": "comment", "text": "editing"}
     )
     for exit_code in (0, 1, None):
         item = {
             "id": "claim",
             "type": "commandExecution",
             "status": "completed",
-            "command": "leaf status page working editing --on comment",
+            "command": "leaf task start page comment editing",
             "aggregatedOutput": output,
             "exitCode": exit_code,
         }
@@ -28,10 +35,9 @@ def test_codex_command_and_turn_success_are_observed_harness_results():
         ) + records_for(
             {"method": "item/completed", "params": {"item": item}}, "session", ""
         )
+        trace[0]["received_at"] = "2026-10-07T11:59:59-07:00"
+        trace[1]["received_at"] = "2026-10-07T12:00:01-07:00"
         assert commands(trace[0]) == [item["command"]]
-        assert accepted_thread_claims(trace, "comment") == (
-            {"claim": 1} if exit_code == 0 else {}
-        )
         for status in ("completed", "failed", "interrupted"):
             end = records_for(
                 {
@@ -158,6 +164,7 @@ def observed_codex():
     child.now = lambda: "2026-10-02T22:36:55-07:00"
     task = Task.__new__(Task)
     task.thread, task.started, task.running = "parent", [], set()
+    task.final_answers = set()
     task.commands, task.running_commands, task.hooks = [], {}, []
     task.on_final = None
     task.on_message = child._hear
@@ -235,6 +242,7 @@ def test_codex_parent_evidence_isolated_from_delegated_threads_and_usage_snapsho
         turn={"id": "child-turn", "status": "completed", "error": None},
     )
     assert task.running == {"parent-turn"}
+    assert task.final_answers == {"parent-turn"}
     assert [message["method"] for message in task.hooks] == ["hook/started"]
     assert task.started == ["parent-turn"]
     assert task.commands == [] and task.running_commands == {}

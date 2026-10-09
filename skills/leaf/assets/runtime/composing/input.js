@@ -1,14 +1,15 @@
 import { rememberWriting } from "../drafts.js";
-import { focused, keys } from "../keyboard/scopes.js";
-import { repaint } from "../repaint.js";
+import { keys, paintKeys } from "../keyboard/scopes.js";
 import { keeps, keepsHidden, keepsText } from "../keeps.js";
 import { advertisesKeys, submitBindings, submitLabel } from "../keyboard/bindings.js";
 import { readPastedMedia, scopedMediaUrl, writePastedMedia } from "../media.js";
-import { notice } from "../notifications.js";
+import { announce, notice } from "../notifications.js";
 import { iconElement } from "../icons.js";
+import { drawingThumbnail } from "./drawing-ink.js";
 import { LitElement, html } from "../../vendor/browser-runtime.js";
 import "./text-field.js";
 import { followBoxGrowth, readBoxPlace } from "../thread/reply-landing.js";
+import { focusDestination, focused } from "../focus.js";
 // One helper wires every durable composition surface: the general box, each per-thread
 // reply, the compact anchored composer, and composition boxes contributed by widgets.
 // `wireInput` gives every such text field one input contract: persist each edit, keep the
@@ -45,6 +46,11 @@ const inputDrafts = new WeakMap();
 
 const MEDIA_SHELF_TAG = "leaf-pasted-media-shelf";
 
+// What the draft carries beside its words: the drawing a stroke attached, then each pasted
+// image. Each shows itself rather than its transport and each comes off with its own
+// control, so nothing rides along with a comment unseen or beyond the user's reach. The
+// drawing also takes back its last stroke here: the route a pointer or a finger has to
+// that, wherever the composer stands.
 class PastedMediaShelf extends LitElement {
   static properties = {
     model: { attribute: false },
@@ -52,47 +58,92 @@ class PastedMediaShelf extends LitElement {
 
   constructor() {
     super();
-    this.model = [];
-    this.removeMedia = null;
+    this.model = { drawing: null, media: [] };
+    this.actions = null;
+    this.undoIcon = iconElement("undo", "lf-action-icon");
+    this.removeIcon = iconElement("cross", "lf-action-icon");
+    // The picture is rebuilt only when the drawing changes, so a repaint that changes
+    // nothing about it leaves its node standing.
+    this.pictured = { drawing: null, node: null };
+  }
+
+  picture(drawing) {
+    if (drawing !== this.pictured.drawing)
+      this.pictured = { drawing, node: drawingThumbnail(drawing) };
+    return this.pictured.node;
   }
 
   createRenderRoot() {
     return this;
   }
 
-  present(model, removeMedia) {
+  present(model, actions) {
     this.model = model;
-    this.removeMedia = removeMedia;
+    this.actions = actions;
     this.performUpdate();
   }
 
   updated() {
-    keepsHidden(this, this.model.length === 0);
+    keepsHidden(this, !this.model.drawing && this.model.media.length === 0);
   }
 
   render() {
-    return this.model.map(
-      ({ index, url }) => html`
-        <span class="lf-composer-media-item">
-          <button
-            type="button"
-            class="lf-media-open lf-composer-media-open"
-            data-lf-media-url=${url}
-            aria-label=${`View pasted image ${index + 1}`}
-          >
-            <img src=${url} alt="" />
-          </button>
-          <button
-            type="button"
-            class="lf-composer-media-remove"
-            aria-label=${`Remove pasted image ${index + 1}`}
-            @click=${() => this.removeMedia(index)}
-          >
-            ×
-          </button>
-        </span>
-      `,
-    );
+    const { drawing, media } = this.model;
+    const strokes = drawing?.strokes.length ?? 0;
+    return [
+      drawing
+        ? html`
+            <span class="lf-composer-media-item lf-composer-drawing">
+              <span
+                class="lf-composer-media-open"
+                role="img"
+                aria-label=${`Drawing, ${strokes} ${strokes === 1 ? "stroke" : "strokes"}`}
+                >${this.picture(drawing)}</span
+              >
+              <button
+                type="button"
+                aria-label="Undo last stroke"
+                title="Undo last stroke"
+                @mousedown=${(event) => event.preventDefault()}
+                @click=${() => this.actions.undoStroke()}
+              >
+                ${this.undoIcon}
+              </button>
+              <button
+                type="button"
+                aria-label="Remove drawing"
+                title="Remove drawing"
+                @mousedown=${(event) => event.preventDefault()}
+                @click=${() => this.actions.removeDrawing()}
+              >
+                ${this.removeIcon}
+              </button>
+            </span>
+          `
+        : null,
+      media.map(
+        ({ index, url }) => html`
+          <span class="lf-composer-media-item">
+            <button
+              type="button"
+              class="lf-media-open lf-composer-media-open"
+              data-lf-media-url=${url}
+              aria-label=${`View pasted image ${index + 1}`}
+            >
+              <img src=${url} alt="" />
+            </button>
+            <button
+              type="button"
+              class="lf-composer-media-remove"
+              aria-label=${`Remove pasted image ${index + 1}`}
+              @click=${() => this.actions.removeMedia(index)}
+            >
+              ×
+            </button>
+          </span>
+        `,
+      ),
+    ];
   }
 }
 
@@ -152,6 +203,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       hasContent = (raw) => Boolean(raw),
       // The caller's own rendering of what the box holds, run in the box's paint.
       paint: paintOwn = () => {},
+      // A box whose draft can carry a drawing: `read` returns it or null, `replace` puts
+      // another in its place (null takes it off), `undoStroke` takes back its last stroke
+      // and `remove` takes it off the draft.
+      drawing = null,
     },
   ) {
     const field = document.createElement("div");
@@ -178,7 +233,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const mediaShelf = document.createElement(MEDIA_SHELF_TAG);
     mediaShelf.className = "lf-composer-media";
     mediaShelf.setAttribute("role", "group");
-    mediaShelf.setAttribute("aria-label", "Pasted images");
+    mediaShelf.setAttribute("aria-label", "Attachments");
     field.before(mediaShelf);
     let pastedMedia = [];
     const draftValue = () => writePastedMedia(ta.value, pastedMedia);
@@ -187,22 +242,83 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       renderMedia();
       draftChanged();
       rememberWriting(ta);
-      ta.focus({ preventScroll: true });
+      focusDestination(ta, "return");
+    };
+    // ⌘Z and ⌘⇧Z walk the whole draft in the order it changed. The words have the field's
+    // own history, and each change to what the shelf holds beside them takes a step in
+    // that history, whichever control made it: a stroke, a press on the shelf, Draw
+    // mode's undo, a pasted image. A step is one part of the shelf, the drawing or the
+    // images, and taking it back or redoing it puts that part as it stood. What reaches
+    // the box from outside is where its history stands rather than a step in it: a draft
+    // loaded whole (`hydrate`), or one the box takes up afresh (`sync.arrive`), so no step
+    // reaches across drafts or takes back another tab's change.
+    let shelfSeen = null;
+    let arrivals = 0;
+    // Another tab's copy of the same drawing is a different object holding the same one.
+    const sameDrawing = (a, b) => a === b || JSON.stringify(a) === JSON.stringify(b);
+    const putDrawing = (drawn) => {
+      shelfSeen = { ...shelfSeen, drawing: drawn };
+      drawing.replace(drawn);
+      const strokes = drawn?.strokes.length ?? 0;
+      announce(
+        strokes
+          ? `Drawing, ${strokes} stroke${strokes === 1 ? "" : "s"}.`
+          : "No drawing.",
+      );
+    };
+    const putMedia = (media) => {
+      shelfSeen = { ...shelfSeen, media };
+      pastedMedia = [...media];
+      renderMedia();
+      draftChanged();
     };
     const renderMedia = () => {
+      const drawn = drawing?.read() ?? null;
+      const media = [...pastedMedia];
+      if (shelfSeen && !sameDrawing(drawn, shelfSeen.drawing)) {
+        const before = shelfSeen.drawing;
+        ta.record(
+          () => putDrawing(before),
+          () => putDrawing(drawn),
+        );
+      }
+      if (shelfSeen && media.join("\n") !== shelfSeen.media.join("\n")) {
+        const before = shelfSeen.media;
+        ta.record(
+          () => putMedia(before),
+          () => putMedia(media),
+        );
+      }
+      shelfSeen = { drawing: drawn, media };
       mediaShelf.present(
-        Object.freeze(
-          pastedMedia.map((path, index) =>
+        Object.freeze({
+          drawing: drawn,
+          media: pastedMedia.map((path, index) =>
             Object.freeze({ index, url: scopedMediaUrl(path) }),
           ),
-        ),
-        removeMedia,
+        }),
+        {
+          removeMedia,
+          // A press that leaves the drawing keeps the user on the control, for the next
+          // stroke back; one that takes the drawing, and the control with it, returns
+          // them to the words.
+          undoStroke: () => {
+            drawing.undoStroke();
+            if (!drawing.read()) focusDestination(ta, "return");
+          },
+          removeDrawing: () => {
+            drawing.remove();
+            focusDestination(ta, "return");
+          },
+        },
       );
     };
     const hydrate = (value) => {
       const restored = readPastedMedia(value);
       pastedMedia = restored.paths;
       ta.value = restored.text;
+      ta.restartHistory();
+      shelfSeen = null;
       renderMedia();
     };
     hydrate(ta.value);
@@ -222,6 +338,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     if (altBtn) altBtn.title = altBtn.textContent;
     let sending = false;
     let uploading = false;
+    const canSend = () => !sending && !uploading && !busy() && hasContent(draftValue());
     // Everything the box shows about its standing, written only where it differs from
     // what stands: a text node replaced inside the chrome restyles far more than the node.
     const paint = (contextualHint) => {
@@ -249,19 +366,18 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const action = sendLabel();
       keeps(sendBtn, "aria-label", action);
       keeps(sendBtn, "title", sendKeys ? `${action} (${sendKeys})` : action);
-      // Keep a disabled send reachable so the user can discover why it will not send;
-      // submit() is the behavioral guard and aria-disabled exposes the same state.
-      const disabled = sending || uploading || busy() || !hasContent(draftValue());
-      keeps(sendBtn, "aria-disabled", disabled);
-      if (altBtn) keeps(altBtn, "aria-disabled", disabled);
+      // These native input actions keep their focus seat while refusing a send.
+      keeps(sendBtn, "aria-disabled", !canSend());
+      if (altBtn) keeps(altBtn, "aria-disabled", !canSend());
     };
     inputPaints.set(ta, paint);
     const refresh = () => {
       // A button whose visibility follows the draft must join the tab order before
       // the next key. The rest of its dressing can wait for the shared paint.
       paintOwn();
+      if (drawing) renderMedia();
       stale.add(ta);
-      repaint();
+      paintKeys();
     };
     const draftChanged = () => {
       save(draftValue());
@@ -276,6 +392,14 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const sync = () => refresh();
     sync.value = draftValue;
     sync.hasMedia = () => pastedMedia.length > 0;
+    // The box takes up the draft it now stands on as it is, with a history of its own:
+    // another draft, or this one as another tab left it. The caller's next paint shows
+    // it, and shows any change made to it since as a step of that history.
+    sync.arrive = () => {
+      arrivals += 1;
+      ta.restartHistory();
+      shelfSeen = { drawing: drawing?.read() ?? null, media: [...pastedMedia] };
+    };
     // The one way a draft enters from outside: the complete value, words and image Markdown
     // together, as the store holds it. Writing .value moves a focused caret to its end, so a
     // value the box already holds is left where it is — which is what lets another tab's
@@ -316,7 +440,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       if (focused() === ta) followBoxGrowth(ta);
     });
     ta.addEventListener("focus", () => readBoxPlace(ta));
-    ta.addEventListener("beforeinput", () => readBoxPlace(ta), { capture: true });
+    ta.addEventListener("lf-before-edit", () => readBoxPlace(ta), { capture: true });
     // The composer owns picture admission. Capture declines the field's ordinary text
     // paste before CodeMirror handles it; a direct editor without this owner keeps the
     // clipboard's text even when the payload also contains a picture.
@@ -350,9 +474,16 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         notice(
           images.length === 1 ? "Adding image…" : `Adding ${images.length} images…`,
         );
+        const pastedAt = arrivals;
         try {
           const paths = await Promise.all(images.map((image) => uploadMedia(image)));
           if (paths.some((path) => path === null)) return;
+          // A box that took up another draft while the picture uploaded is no longer the
+          // draft it was pasted into, and the picture is not this one's.
+          if (arrivals !== pastedAt) {
+            notice("Image not added — the comment moved before it finished uploading");
+            return;
+          }
           pastedMedia.push(...paths);
           renderMedia();
           draftChanged();
@@ -384,7 +515,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         label: submitLabel,
         description: "Submit what you have typed",
         title: sends,
-        run: () => sendBtn.click(),
+        run: () => pressed(send),
       },
     ]);
     // A press on a submit control is the send key pressed from the box, so it leaves the
@@ -405,7 +536,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     ta.addEventListener("compositionstart", () => (composing = true));
     ta.addEventListener("compositionend", () => (composing = false));
     const pressed = (sender) => {
-      if (focused() !== ta) ta.focus({ preventScroll: true });
+      if (focused() !== ta) focusDestination(ta, "return");
       submit(sender);
     };
     for (const [button, sender] of [

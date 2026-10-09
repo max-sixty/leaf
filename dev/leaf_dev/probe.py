@@ -102,6 +102,11 @@ def viewport(value: str) -> tuple[int, int]:
 )
 @click.option("--gif", is_flag=True, help="Also encode a GIF (short recordings only).")
 @click.option(
+    "--checkpoint-images",
+    is_flag=True,
+    help="Add native PNG images at trace checkpoints; adds capture work and briefly hides the caret.",
+)
+@click.option(
     "--actions",
     is_flag=True,
     help="Decorate inputs for a demo; adds Playwright's 500 ms wait per annotation.",
@@ -145,6 +150,7 @@ def probe(
     journey,
     record_dir,
     gif,
+    checkpoint_images,
     actions,
     motion,
     size,
@@ -178,7 +184,9 @@ def probe(
     recording.gif. View the action timeline, filmstrip, DOM, console and network:
 
     \b
-      uv run playwright show-trace DIR/worktree/trace.zip
+      uv run leaf-dev trace-server DIR/worktree/trace.zip
+
+    The server prints its viewer URL and opens no browser window.
 
     Recordings add observation overhead; they are behavior evidence, not timing
     benchmarks. Plain recording inserts no pauses. --actions adds visible input
@@ -188,8 +196,10 @@ def probe(
     A journey must keep its page and context open for video finalization; if it
     closes its page, the live context can still save the trace and GIF frames.
     """
-    if (gif or actions) and record_dir is None:
-        raise click.UsageError("--gif and --actions require --record DIR")
+    if (gif or actions or checkpoint_images) and record_dir is None:
+        raise click.UsageError(
+            "--gif, --actions and --checkpoint-images require --record DIR"
+        )
     if isinstance(source, str) and base is not None:
         raise click.UsageError("--base requires a Leaf source, not a URL")
     run = None
@@ -226,6 +236,7 @@ def probe(
                                 page,
                                 record_dir.resolve() / arm,
                                 gif=gif,
+                                checkpoint_images=checkpoint_images,
                                 actions=actions,
                             )
                             if record_dir

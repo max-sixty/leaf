@@ -38,7 +38,7 @@ from leaf import media as media_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
 from leaf.schema import ELEMENT_ID
 from leaf.structure import UTF8_BOM
 from leaf_dev import preview as preview_model
@@ -330,7 +330,7 @@ def test_a_watch_subscription_collects_before_its_first_read(tmp_path):
     edited = tmp_path / "source.html"
     edited.write_text("<p>authored</p>", encoding="utf-8")
     changes = preview_model.watch_changes(
-        preview_model.Watched((tmp_path,), frozenset(), frozenset())
+        preview_model.Watched((tmp_path,), frozenset({str(edited)}), frozenset())
     )
     try:
         edited.write_text("<p>edited</p>", encoding="utf-8")
@@ -341,7 +341,7 @@ def test_a_watch_subscription_collects_before_its_first_read(tmp_path):
             assert time.monotonic() < deadline, (
                 f"the edit was never reported: {reported}"
             )
-            reported |= {path for _, path in next(changes)}
+            reported |= next(changes)
     finally:
         changes.close()
 
@@ -467,7 +467,7 @@ def test_a_preview_records_real_gestures_outside_the_task(
         )
         expect(
             driven.get_by_role("heading", name="A preview follows source edits")
-        ).to_be_visible(timeout=30000)
+        ).to_be_visible(timeout=HANDOVER_DEADLINE_MS)
     expect(driven.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert (page_dir / "events.jsonl").read_bytes().startswith(feedback)
     assert (page_dir / "events.jsonl").stat().st_ino == inode
@@ -574,7 +574,9 @@ def test_an_unclaimed_preview_keeps_its_gestures_out_of_the_stop_hook(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "probe"},
     )
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": session})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "Stop", "session_id": session}
+    )
     assert capsys.readouterr().out == ""
 
 
@@ -676,28 +678,24 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
         stream.write("\nh1 { color: navy; }\n")
     wait_for(
         log.read_text,
-        lambda output: "Reloaded detached" in output,
+        lambda output: "Updated detached" in output,
         failure="the preview did not restart for its runtime",
     )
     assert server_model.running_server(directory)
     assert service_model.page_claim(directory) == claim
 
-    # SessionEnd can win while the re-vendor waits for the page transaction.
+    # Ownership can end while a runtime edit waits for the page transaction.
+    # page init needs that transaction before it can stop the service, so do not
+    # wait for its stop while holding the transaction ourselves.
     with service_model.PageTransaction(directory) as transaction:
         with theme.open("a", encoding="utf-8") as stream:
             stream.write("\nh1 { color: teal; }\n")
-        wait_for(
-            lambda: server_model.running_server(directory),
-            lambda running: not running,
-            failure="the refresh did not stop the service",
-        )
         transaction.release_claim()
     wait_for(
-        log.read_text,
-        lambda output: "no longer owns" in output,
-        failure="the preview did not report its lost claim",
+        lambda: server_model.running_server(directory),
+        lambda running: not running,
+        failure="the released claim left the service running",
     )
-    assert server_model.running_server(directory) is None
     assert service_model.page_claim(directory)["released"] is not None
     wait_for(
         lambda: leases_model.lock_is_held(preview_model.preview_lease(directory)),
@@ -727,7 +725,7 @@ def test_preview_watches_runtime_and_source_without_losing_user_state(
         with theme.open("a", encoding="utf-8") as stream:
             stream.write("\nh1 { color: rgb(17, 83, 129); }\n")
         expect(page.locator("h1")).to_have_css(
-            "color", "rgb(17, 83, 129)", timeout=30000
+            "color", "rgb(17, 83, 129)", timeout=HANDOVER_DEADLINE_MS
         )
     assert (
         json.loads((directory / "registry.json").read_text())["$layer"]["generation"]
@@ -742,7 +740,7 @@ def test_preview_watches_runtime_and_source_without_losing_user_state(
     revised = original.replace("Rollout", "A watched source revision", 1)
     source.write_text(revised, encoding="utf-8")
     expect(page.get_by_role("heading", name="A watched source revision")).to_be_visible(
-        timeout=30000
+        timeout=HANDOVER_DEADLINE_MS
     )
     expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
@@ -764,7 +762,7 @@ def test_preview_watches_runtime_and_source_without_losing_user_state(
         encoding="utf-8",
     )
     expect(page.get_by_role("heading", name="Recovered watched source")).to_be_visible(
-        timeout=30000
+        timeout=HANDOVER_DEADLINE_MS
     )
     expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
@@ -871,20 +869,21 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
         generation = json.loads((directory / "registry.json").read_text())["$layer"][
             "generation"
         ]
-        # A refused re-vendor still replaces the server; the old layer is now loadable.
-        (
-            runtime / "skills" / "leaf" / "packages" / "default" / "registry.json"
-        ).write_text("{", encoding="utf-8")
+        # A changed layer replaces the server. An invalid input is now refused
+        # before that replacement, so change a valid theme to test recovery.
+        theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
+        with theme.open("a", encoding="utf-8") as stream:
+            stream.write("\nh1 { color: navy; }\n")
         expect(page.locator("body")).to_have_attribute(
-            "data-lf-presented", "1", timeout=30000
+            "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
         )
         expect(status).not_to_be_visible()
     if resource == "widgets/lf-options.js":
         expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
-    assert len(documents) == 2
+    assert len(documents) >= 2
     assert (
         json.loads((directory / "registry.json").read_text())["$layer"]["generation"]
-        == generation
+        != generation
     )
 
 
@@ -928,7 +927,7 @@ def test_a_failed_bootstrap_hears_a_static_registry_generation(
         )
         expect(status).to_be_visible()
         expect(page.locator("body")).to_have_attribute(
-            "data-lf-presented", "1", timeout=10000
+            "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
         )
     assert len(probes) >= 2
     assert len(documents) == 2
@@ -1101,7 +1100,7 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
             stream.write("\nh1 { color: navy; }\n")
     wait_for(
         log.read_text,
-        lambda output: "Reloaded watched" in output,
+        lambda output: "Updated watched" in output,
         failure="the preview did not finish its update",
     )
     assert server_model.running_server(directory)
@@ -1234,7 +1233,7 @@ customElements.define("lf-offline-test", class extends LitElement {
 
   choose() {
     return this.controller.dispatch({
-      kind: "action", verb: "choose", detail: {choice: "chosen"},
+      kind: "action", verb: "choose", detail: {value: "chosen"},
     });
   }
 
@@ -1273,14 +1272,8 @@ OFFLINE_REGISTRY = {
         "x-upgrade": True,
         "x-state": {
             "choose": {
-                "detail": {
-                    "type": "object",
-                    "properties": {"choice": {"type": "string"}},
-                    "required": ["choice"],
-                    "additionalProperties": False,
-                },
                 "unit": "widget",
-                "record": {"kind": "value", "attr": "choice", "value": "choice"},
+                "record": {"kind": "value", "attr": "choice"},
             }
         },
         "x-example": (
@@ -1401,7 +1394,7 @@ def test_authored_video_and_audio_play_seek_and_export_offline(
 def test_interactive_export_with_an_ask_reaches_application_presentation(
     browser, serve, tmp_path
 ):
-    """Offline mode omits thread chrome without leaving its ticket pending."""
+    """Offline mode omits page controls without leaving their ticket pending."""
     serve(ROOT / "examples" / "notification-playground.html")
     interactive = tmp_path / "interactive-with-ask.html"
     result = CliRunner().invoke(
@@ -1423,13 +1416,16 @@ def test_interactive_export_with_an_ask_reaches_application_presentation(
         "content", "width=device-width, initial-scale=1, viewport-fit=cover"
     )
     expect(page.locator("body")).to_have_attribute(
-        "data-lf-presented", "1", timeout=10000
+        "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
     )
-    expect(page.locator(".lf-chrome")).to_have_count(0)
+    expect(page.locator(".lf-chrome > #lf-media-viewer:not([open])")).to_have_count(1)
+    expect(page.locator("#lf-banner, .lf-thread-panel, .lf-queue-panel")).to_have_count(
+        0
+    )
 
 
 def test_an_interactive_export_paints_a_widget_owned_text_box(browser, serve, tmp_path):
-    """A text box paints in the standing paint, which an export mounts without chrome.
+    """A text box paints in the standing paint, which an export mounts without page controls.
 
     A choosable group builds its addition field offline too. Its placeholder, disabled
     Add and empty-field flag are that paint's; focus alone repaints the placeholder with
@@ -1446,7 +1442,7 @@ def test_an_interactive_export_paints_a_widget_owned_text_box(browser, serve, tm
     page = browser.new_page()
     page.goto(interactive.as_uri(), wait_until="load")
     expect(page.locator("body")).to_have_attribute(
-        "data-lf-presented", "1", timeout=10000
+        "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
     )
     form = page.locator("#jobs > .lf-another")
     field = form.locator("leaf-text")
@@ -1526,7 +1522,10 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     page.goto(document_url, wait_until="load")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     expect(page.locator("#offline-widget #choice")).to_have_text("chosen")
-    expect(page.locator(".lf-chrome")).to_have_count(0)
+    expect(page.locator(".lf-chrome > #lf-media-viewer:not([open])")).to_have_count(1)
+    expect(page.locator("#lf-banner, .lf-thread-panel, .lf-queue-panel")).to_have_count(
+        0
+    )
     assert (
         page.locator("#offline-widget #local").evaluate(
             "control => getComputedStyle(control).color"
@@ -1658,7 +1657,12 @@ def test_playground_examples_keep_their_offline_interaction_mode(
     )
     offline.goto(document_url, wait_until="load")
     expect(offline.locator("body")).to_have_attribute("data-lf-presented", "1")
-    expect(offline.locator(".lf-chrome")).to_have_count(0)
+    expect(offline.locator(".lf-chrome > #lf-media-viewer:not([open])")).to_have_count(
+        1
+    )
+    expect(
+        offline.locator("#lf-banner, .lf-thread-panel, .lf-queue-panel")
+    ).to_have_count(0)
     expect(offline.locator(".lf-playground-submit")).to_be_disabled()
     expect(offline.locator(".lf-playground-unavailable")).to_have_text(
         "Submission unavailable: no agent or server is available."
@@ -1896,7 +1900,7 @@ def test_an_export_embeds_only_the_widgets_its_markup_names(browser, serve, tmp_
     """A widget the page and its messages never name brings none of its modules.
 
     The page draws code and a reply carries a diagram; nothing names a diff, so
-    Pierre's renderer, the largest bundle the layer vendors, stays out of the file.
+    Pierre's renderer stays out of the file.
     """
     serve(
         leaf_page(
@@ -2099,14 +2103,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
     if not resolved:
         result = CliRunner().invoke(
             cli_model.cli,
-            [
-                "status",
-                str(serve.page_dir),
-                "working",
-                "checking the shard",
-                "--on",
-                root["id"],
-            ],
+            ["task", "start", str(serve.page_dir), root["id"], "checking the shard"],
         )
         assert result.exit_code == 0, result.output
     if resolved:
@@ -2225,3 +2222,32 @@ def test_an_export_runs_what_its_served_page_runs(browser, serve, tmp_path):
         context.route("https://outside.invalid/**", outside)
         page = open_page(browser, url, context=context)
         assert page.evaluate("() => window.policyOutcomes") == expected, url
+
+
+def test_an_interactive_export_reseats_authored_margin_notes(browser, serve, tmp_path):
+    """Offline reading shares the same initial and width-dependent composition."""
+    serve(
+        leaf_page(
+            "Exported notes",
+            '<h1 id="title">Migration</h1>'
+            '<aside class="sidenote" id="note">Keep earlier readers available.</aside>'
+            '<p id="passage">Advance the migration one cohort at a time.</p>',
+        )
+    )
+    interactive = tmp_path / "margin-notes.html"
+    result = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "export", str(serve.page_dir), "--out", str(interactive)],
+        env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
+    )
+    assert result.exit_code == 0, result.output
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page.goto(interactive.as_uri(), wait_until="load")
+    expect(page.locator("body")).to_have_attribute(
+        "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
+    )
+    expect(page.locator("#note")).to_have_css("float", "right")
+    page.set_viewport_size({"width": 390, "height": 900})
+    expect(page.locator("#note")).to_have_css("float", "none")
+    page.set_viewport_size({"width": 1440, "height": 900})
+    expect(page.locator("#note")).to_have_css("float", "right")

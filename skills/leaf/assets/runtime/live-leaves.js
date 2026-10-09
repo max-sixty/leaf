@@ -3,7 +3,7 @@ import { clocked } from "./presence.js";
 import { pagePresented } from "./presentation.js";
 import { liveLeavesList, drawerIsOpen, othersPanel } from "./drawers.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
-import { activityFacts, countUpdates } from "./banner.js";
+import { activityFacts, countResponses } from "./banner.js";
 import { rowWalk } from "./walk-position.js";
 
 let others = [];
@@ -12,7 +12,7 @@ let rows = Object.freeze([]);
 // The drawer's one offer: something to show, or the drawer already standing — the key that
 // opened it must still close it, and its button must still be pressable. The button's
 // visibility and the key both ask the drawer's own predicate, so the two surfaces cannot
-// disagree about whether there is a drawer to open. A leaves drawer of one — the page the
+// disagree about whether there is a drawer to open. A pages drawer of one — the page the
 // user is already on — is not worth a control.
 export const leavesOffered = () =>
   pagePresented() && (others.length > 0 || drawerIsOpen("leaves"));
@@ -22,7 +22,7 @@ export const leavesOffered = () =>
 const presentationModel = () =>
   Object.freeze({
     offered: leavesOffered(),
-    label: `All leaves (${rows.length})`,
+    label: `All pages (${rows.length})`,
     rows,
   });
 export const presentLeaves = () => liveLeavesList.present(presentationModel());
@@ -38,8 +38,8 @@ export const othersLinks = () => [...othersPanel.querySelectorAll("a.lf-others-r
 export function declareLeavesKeys() {
   keys(
     othersPanel,
-    "In the leaves drawer",
-    rowWalk({ id: "leaf", noun: "Leaf", plural: "leaves", rows: othersLinks }),
+    "In the pages drawer",
+    rowWalk({ id: "leaf", noun: "Page", plural: "pages", rows: othersLinks }),
     () => othersLinks().length > 0,
   );
 }
@@ -56,7 +56,7 @@ function rowPresence(entry) {
   // first is the whole question the panel was opened to answer.
   const stated = (word) => word + (detail ? " — " + detail : "");
   // The banner's two silences, dated the same way and worded for a row.
-  const silence = `${facts.left ? "Left" : "Quiet"} (${facts.silentSince})`;
+  const silence = `${facts.left ? "Left" : "Quiet"}${facts.silentSince ? ` (${facts.silentSince})` : ""}`;
   const work = facts.work.replace(/^./, (letter) => letter.toUpperCase());
   const primary =
     kind === "working"
@@ -72,7 +72,7 @@ function rowPresence(entry) {
               ? silence
               : "Away"
             : kind === "unheld"
-              ? "Unheld"
+              ? "No session"
               : "Closed";
   const line = facts.waiting.length
     ? `${primary} · ${facts.waiting.join(" · ")}`
@@ -94,12 +94,17 @@ function rowPresence(entry) {
 // part of the account they can already read.
 const activityAccount = ({ counts }) => {
   const parts = [];
-  if (counts.active) parts.push(`${countUpdates(counts.active)} active`);
-  if (counts.handling) parts.push(`${countUpdates(counts.handling)} being handled`);
-  if (counts.queued) parts.push(`${countUpdates(counts.queued)} queued`);
+  if (counts.active) parts.push(`${countResponses(counts.active)} being worked on`);
+  if (counts.handling)
+    parts.push(`${countResponses(counts.handling)} owed on picked-up updates`);
+  if (counts.queued)
+    parts.push(`${countResponses(counts.queued)} owed on queued updates`);
   if (counts.picked_up)
-    parts.push(`${countUpdates(counts.picked_up)} picked up; turn ended`);
-  if (counts.pending) parts.push(`${countUpdates(counts.pending)} waiting`);
+    parts.push(
+      `${countResponses(counts.picked_up)} owed on picked-up updates; no current turn observed`,
+    );
+  if (counts.pending)
+    parts.push(`${countResponses(counts.pending)} owed on updates awaiting delivery`);
   return parts.length ? parts.join("; ") : null;
 };
 
@@ -132,19 +137,27 @@ function renderOthersNow(state) {
     state === null
       ? []
       : state.others.filter((entry) => entry.activity.kind !== "closed");
+  // A neighbour's row is its page, keyed by `page_key`, and its link is wherever that
+  // page is served now. A server restarted on another port keeps the row, and the focus
+  // on it, where they were; only the destination changes.
   const wanted = state
     ? [
-        { key: "self", title: document.title, entry: state },
-        ...others.map((entry) => ({ key: entry.url, title: entry.title, entry })),
+        { key: "self", href: null, title: document.title, entry: state },
+        ...others.map((entry) => ({
+          key: entry.page_key,
+          href: entry.url,
+          title: entry.title,
+          entry,
+        })),
       ]
     : [];
   rows = Object.freeze(
-    wanted.map(({ key, title, entry }) => {
+    wanted.map(({ key, href, title, entry }) => {
       const { tone, line } = rowPresence(entry);
       return Object.freeze({
         key,
         self: key === "self",
-        href: key === "self" ? null : key,
+        href,
         title,
         tone,
         line,

@@ -14,16 +14,17 @@ Commands:
   delivery  Read input delivered by any Leaf harness.
   package   Create, check, install, and run packages.
   page      Create, check, stamp, and read pages.
+  response  Answer exact response references carried by a delivery.
   server    Start, run, or stop the local server.
-  status    Set the agent's banner state.
-  task      Open or end a task the agent has taken on.
+  status    Say the page waits on its user, or is done.
+  task      Open, start, or end tasks on the page, yours or the user's.
   thread    Open, answer, edit, summarize, or resolve a thread.
   wait      Confirm a delivery, if given, then wait for the next batch.
 
 ## codex
 Usage: leaf codex [OPTIONS] COMMAND [ARGS]...
 
-  Launch Codex or run Leaf's detached delivery carrier.
+  Launch Codex or run Leaf's delivery adapter.
 
 Options:
   --help  Show this message and exit.
@@ -118,6 +119,17 @@ Options:
 Commands:
   edit       Edit a message's text, or its thread's title.
   open       Open an agent thread \u2014 on a passage, or on the page whole.
-  reply      Reply to a thread as the agent.
+  reply      Add an agent-initiated reply to a thread.
   resolve    Close a thread as the agent.
   summarize  Summarize a contiguous message range.
+
+## response
+Usage: leaf response [OPTIONS] COMMAND [ARGS]...
+
+  A response reference selects its page, input and frozen thread destination.
+
+Options:
+  --help  Show this message and exit.
+
+Commands:
+  reply  Author a complete addressed reply.

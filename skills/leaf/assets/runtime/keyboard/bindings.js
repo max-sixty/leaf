@@ -16,7 +16,9 @@
    - `routes` are optional stable subcommands when those bindings mean different things.
      The shortcut bar keeps the compact row; the command reference presents each route separately. A
      route may override `title`, `description`, `line` and `label` for the case where a nearer scope shadows only
-     its sibling binding.
+     its sibling binding. A route without a description of its own lists under the
+     row's, so the row's says what every route shares ("Filter visible targets by kind"),
+     never what tells them apart ("Next / previous match").
    - `title` is the command's required concise name, or a function when state changes
      it. `description` optionally explains information the title cannot carry. The Ask,
      shortcut bar, reference, and announcements read these same words. `line` overrides
@@ -39,8 +41,10 @@
      by default; a local action that happens to clear state can leave the slot to the
      next action on that state. A step of the ladder sets the same field for the shared
      Escape row it answers through while it is the innermost one.
-   - `when` says whether the capability exists. A declared control's native or ARIA
-     disabled state also makes its command unavailable. When a destination surface is available
+   - `when` says whether the capability exists. An owned native button derives its
+     disabled state from this reading; a route may declare its own `when` for a sibling
+     control. Associated controls retain platform and ARIA constraints; owned buttons
+     retain their fieldset constraint and expose availability as ARIA output. When a destination surface is available
      independently of its members, its row stays live and opens the surface even when the
      collection is empty. Member-dependent rows use the collection as their capability.
    - `covering`, on a row of the page's own scope, keeps that command reachable while an
@@ -88,11 +92,14 @@
    liveness predicate changes.
 
    A run-less row may still project a native press when that meaning is worth naming in
-   help, but it never reimplements the press.
+   help. An explicit control delegates the keyboard route to that platform activation;
+   it never reimplements the press.
 
    `aria-keyshortcuts` is another projection of the register. Element scopes expose their
-   currently available rows, including the scope's capability gate, and a row's `control`
-   exposes the key that duplicates it. `Mod` expands to both Meta and Control because the
+   currently available rows, including the scope's capability gate. Projected shortcuts
+   on native command buttons describe the dispatcher's currently reachable routes,
+   including contextual aliases and nearer key reservations. A directly attached element
+   scope also names its local keys. `Mod` expands to both Meta and Control because the
    dispatcher accepts both. The attribute cannot express a sequential sequence: spaces
    separate alternatives. An associated `control` in a sequence scope therefore omits
    `aria-keyshortcuts` and exposes the complete route through its title and the keyboard
@@ -130,10 +137,6 @@ const GLYPH = {
 // Read off `answers` rather than chosen here, so the list cannot claim more than the
 // dispatcher does — a fourth name would have to be taught to both.
 const MODIFIERS = ["Mod", "Alt", "Shift"];
-// The same modifiers as the platform's own keydowns: what `ev.key` says when a modifier
-// goes down alone, ahead of the key it modifies. The dispatcher's sequence asks this to tell
-// half a press from a key of its own.
-export const MODIFIER_KEYS = ["Shift", "Alt", "Control", "Meta"];
 // One reading of a binding's syntax, for the three questions asked of it: how it is
 // spelled, whether a press answers it, and whether a text box's letters cover it. Three
 // hand-agreed splits is one representation too few — the moment one of them had to state
@@ -207,6 +210,10 @@ export const allBindings = (row) => [
   ]),
 ];
 export const commandRoutes = (row) => word(row.routes) ?? [];
+export const commandBinding = (row, route = null) =>
+  route
+    ? (route.binding ?? contextBindings(route)[0])
+    : (declaredBindings(row)[0] ?? contextBindings(row)[0]);
 // A contextual route may invoke a command declared in another scope. Brand that private
 // edge with a Symbol so an unrelated package route field cannot accidentally become an
 // executable cross-scope reference. The dispatcher still validates the reference at use.
@@ -216,22 +223,40 @@ export const contextualRoute = (route, command) => ({
   [ROUTED_COMMAND]: command,
 });
 export const routedCommand = (route) => route?.[ROUTED_COMMAND] ?? null;
-// Bindings are routes to commands, not their identity. A contextual projection may add a
-// route without mutating this intrinsic set; dispatch still reads one spelling here.
-export const bindings = declaredBindings;
+// A preference removes character-only routes, including Shift variants, without
+// withdrawing their commands or native activation. Declaration checks stay unfiltered.
+export const quickShortcuts = () => document.documentElement.lfKeyboard.quick;
+export const setQuickShortcuts = (on) =>
+  document.documentElement.lfKeyboard.setQuick(on);
+export const bindingEnabled = (binding) => {
+  const { key, mods } = parsed(binding);
+  return (
+    quickShortcuts() ||
+    key.length !== 1 ||
+    key === " " ||
+    mods.some((mod) => mod !== "Shift")
+  );
+};
+export const bindings = (row) => declaredBindings(row).filter(bindingEnabled);
 // The command identities under one row. Equivalent bindings keep the row's identity
 // and share its implementation; distinct results are routes and expose only those exact
 // identities. Dispatch and every command-facing projection consume this split.
-export const commandEntries = (row, active = bindings(row)) => {
+export const commandEntries = (
+  row,
+  active = bindings(row),
+  { includeUnavailable = false } = {},
+) => {
   const routes = commandRoutes(row);
-  if (!routes.length) return [{ id: row.id, binding: active[0], route: null }];
+  if (!routes.length)
+    return includeUnavailable || commandAvailable(row)
+      ? [{ id: row.id, binding: active[0], route: null }]
+      : [];
   return routes
     .filter(
       (route) =>
+        (includeUnavailable || commandAvailable(row, route)) &&
         (active.includes(route.binding) ||
-          contextBindings(route).some((binding) => active.includes(binding))) &&
-        ((route.control ?? row.control) === undefined ||
-          controlAvailable(word(route.control ?? row.control))),
+          contextBindings(route).some((binding) => active.includes(binding))),
     )
     .map((route) => ({
       id: route.id,
@@ -245,9 +270,9 @@ export const commandEntries = (row, active = bindings(row)) => {
 // distinct commands expand into routes; a compact row and one deliberately unavailable
 // from the command reference keep their own identity. The command reference and shortcut bar both consume this
 // projection so route additions cannot reach one surface without the other.
-export const commandPresentations = (row, active = bindings(row)) => {
+export const commandPresentations = (row, active = bindings(row), options = {}) => {
   if (row.runFromCommandReference === false) return [{ id: row.id, route: null }];
-  return commandEntries(row, active);
+  return commandEntries(row, active, options);
 };
 // A row's rendering is made of its own bindings, so it cannot advertise a key it does not
 // answer. Three rows existed only to carry a partner key — `u`, `k` and `]`, each
@@ -261,14 +286,73 @@ export const labelOf = (row) => {
 // Whether a row is live right now, asked through one predicate by the dispatcher, the line
 // and the overlay alike, so no surface can promise a press the dispatcher refuses. A guard
 // inside `run` instead is a liveness no surface can see. A declared visible control's
-// native or ARIA disabled state is part of that same availability reading.
-export const controlAvailable = (control) =>
-  Boolean(control?.isConnected) &&
-  !control.matches(":disabled") &&
-  control.getAttribute("aria-disabled") !== "true";
-export const live = (row) =>
-  (!row.when || row.when()) &&
-  (row.control === undefined || controlAvailable(word(row.control)));
+// native or ARIA disabled state constrains associated controls; an executable command
+// owns its button's disabled fields as output rather than reading them back.
+// Native and contribution painters identify their derived fields here. Availability
+// never reads its own previous paint as an input; source ARIA and disabled fieldsets
+// remain platform constraints. Each owner removes its claim when handing a node back.
+const controlOutputs = new WeakMap();
+export function controlAvailabilityOutput(control, owner, fields = null) {
+  let outputs = controlOutputs.get(control);
+  if (!fields) {
+    outputs?.delete(owner);
+    return;
+  }
+  if (!outputs) controlOutputs.set(control, (outputs = new Map()));
+  outputs.set(owner, fields);
+}
+function disabledByFieldset(control) {
+  for (let parent = control.parentElement; parent; parent = parent.parentElement) {
+    if (parent.localName !== "fieldset" || !parent.disabled) continue;
+    const legend = [...parent.children].find((child) => child.localName === "legend");
+    if (!legend?.contains(control)) return true;
+  }
+  return false;
+}
+export function controlAvailable(control) {
+  if (!control?.isConnected) return false;
+  const outputs = [...(controlOutputs.get(control)?.values() ?? [])];
+  const disabled = outputs.some((fields) => fields.disabled)
+    ? disabledByFieldset(control)
+    : control.matches(":disabled");
+  const ariaDisabled =
+    !outputs.some((fields) => fields.ariaDisabled) &&
+    control.getAttribute("aria-disabled") === "true";
+  return !disabled && !ariaDisabled;
+}
+export const declaredCommandAvailable = (row, route = null) =>
+  (!row.when || row.when()) && (!route?.when || route.when());
+export const commandAvailable = (row, route = null) => {
+  const control = route?.control ?? row.control;
+  const reference = routedCommand(route);
+  return (
+    declaredCommandAvailable(row, route) &&
+    (control === undefined || controlAvailable(word(control))) &&
+    (!reference || referencedCommandEntry(reference) !== null)
+  );
+};
+export function referencedCommandEntry(reference) {
+  if (
+    !reference.source.isConnected ||
+    !reference.scope.rows.includes(reference.row) ||
+    (reference.scope.when && !reference.scope.when())
+  )
+    return null;
+  return (
+    commandEntries(reference.row, allBindings(reference.row)).find(
+      ({ id, binding }) =>
+        id === reference.id && (binding ?? null) === reference.binding,
+    ) ?? null
+  );
+}
+export const live = (row) => {
+  const routes = commandRoutes(row);
+  return routes.length
+    ? routes.some((route) => commandAvailable(row, route))
+    : commandAvailable(row);
+};
+const availableBindings = (row, declared) =>
+  declared.filter((binding) => commandEntries(row, [binding]).length > 0);
 
 // The presses a finger needs a control for: the row's one press, or each route of a routed
 // row that names its words. `id` is the command the press invokes.
@@ -342,11 +426,13 @@ function validateActive(active, where, bindingOf) {
 // register and let it fail only after the projection changes.
 export const validateRows = (rows, where = "a scope") => {
   const active = rows.filter(live);
-  validateActive(active, where, declaredBindings);
-  return validateActive(active, where, (row) => [
-    ...contextBindings(row),
-    ...commandRoutes(row).flatMap(contextBindings),
-  ]);
+  validateActive(active, where, (row) => availableBindings(row, declaredBindings(row)));
+  return validateActive(active, where, (row) =>
+    availableBindings(row, [
+      ...contextBindings(row),
+      ...commandRoutes(row).flatMap(contextBindings),
+    ]),
+  );
 };
 
 // A scope may reuse a key across mutually exclusive states, but never in the scene the
@@ -354,7 +440,7 @@ export const validateRows = (rows, where = "a scope") => {
 // ambiguous scene instead of letting declaration order choose a meaning silently.
 export function activeRows(rows, where = "a scope") {
   const active = rows.filter((row) => live(row) && bindings(row).length > 0);
-  return validateActive(active, where, bindings);
+  return validateActive(active, where, (row) => availableBindings(row, bindings(row)));
 }
 
 // The controls one ordered command set contributes to an Ask. `decision: true` marks
@@ -470,7 +556,7 @@ export const ariaShortcuts = (rows, current = true, where, includes = () => true
 //
 // A letter matches on its lowercase with Shift asked for separately, because caps lock
 // writes an uppercase key out of an unshifted press and reads an unshifted one out of a
-// shifted press. Read off the glyph, `A` would match the shifted queue walk from a
+// shifted press. Read off the glyph, `Q` would match the shifted queue walk from a
 // bare letter under caps lock, and could no longer be reached with the Shift the chip
 // names. Asking
 // for the modifier is what makes the chip true in both directions.

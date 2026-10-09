@@ -10,8 +10,6 @@ async function check(caseName, metric, output) {
     fs.readFileSync(path.join(__dirname, caseName, "case.yaml"), "utf8"),
   );
   const assertion = source.assert.find((item) => item.metric === metric);
-  if (assertion.value.startsWith("file://"))
-    assertion.value = `file://${path.join(__dirname, assertion.value.slice(7))}`;
   return (
     await assertions.runAssertions({
       test: { assert: [assertion] },
@@ -55,6 +53,27 @@ test("case-insensitive positive cases still accept upper-case HTML", async () =>
     await check("options-stay-words-for-wording", "has-options", "<p>Words</p>"),
     false,
   );
+});
+
+test("trace review requires its widget when negation is omitted", async () => {
+  assert.equal(
+    await check(
+      "playwright-trace-review",
+      "uses-imported-trace",
+      '<lf-trace id="release" source="release-journey"></lf-trace>',
+    ),
+    true,
+  );
+  for (const invalid of [
+    "no HTML here",
+    '<lf-trace data-id="release" data-source="release-journey"></lf-trace>',
+    '<lf-trace-preview id="release" source="release-journey"></lf-trace-preview>',
+  ]) {
+    assert.equal(
+      await check("playwright-trace-review", "uses-imported-trace", invalid),
+      false,
+    );
+  }
 });
 
 test("opening and mid-work progress reject repeating the page URL", async () => {

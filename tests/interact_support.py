@@ -29,6 +29,7 @@ from contextlib import contextmanager
 from functools import cache
 from pathlib import Path
 
+import psutil
 import pytest
 import yaml
 from click.testing import CliRunner
@@ -51,7 +52,6 @@ from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import server_rows as server_rows_model
 from leaf import service as service_model
-from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
@@ -119,10 +119,21 @@ def append_command(page_dir, command):
         return event_contracts_model.append_admitted(page, command)
 
 
+def response_reference(page_dir, event):
+    """Read the exact address emitted by the real delivery producer for an input."""
+    from leaf.delivery import batch_data, freeze_delivery
+
+    event_id = event["id"] if isinstance(event, dict) else event
+    with service_model.PageTransaction(page_dir) as page:
+        captured = next(item for item in page.events if item["id"] == event_id)
+        batch = batch_data(page_dir, page, [captured])
+    return freeze_delivery([batch])["batches"][0]["events"][0]["answer"]["ref"]
+
+
 def append_carried_log_record(page_dir, event):
     """Seed already-interpreted input for a storage or transport test.
 
-    These tests declare input the carrier must deliver, without a document that
+    These tests declare input the transport must deliver, without a document that
     could decide its meaning. Semantic attention cases use `append_command`.
     A raw fixture can explicitly declare `attention=False` for quiet input.
     """
@@ -260,16 +271,16 @@ STATED_TIMEOUT = 60
 """How long a pure-Python wait gives another thread or process to state its fact.
 
 The deadline separates a product that never states the fact from a machine that
-has not reached it yet, so it is generous rather than tight. Two workers share
-one runner's cores with a browser, and a stretch of ordinary work there runs
-many times slower than it does on an unloaded host: a wait sized as a small
-multiple of the unloaded duration reddens `main` on the runs where the other
-worker happens to be driving Chrome. On a local host at load 230 over 18 cores,
+has not reached it yet, so it is generous rather than tight. Several workers
+share one runner's cores with their browsers, and a stretch of ordinary work there
+runs many times slower than it does on an unloaded host: a wait sized as a small
+multiple of the unloaded duration reddens `main` on the runs where another worker
+happens to be driving Chrome. On a local host at load 230 over 18 cores,
 two concurrent `page init`s took up to 25s and three `leaf codex start`
 commands 20s. `SERVED_TIMEOUT_MS` is the browser side's counterpart.
 
 Every Python-side wait in the suite takes its deadline from here, so a slow machine
-is answered in one place (`test_a_python_side_wait_takes_the_suites_deadline`). A
+is answered in one place (`test_a_wait_takes_the_suites_deadline`). A
 wait whose length is its subject, such as a product's own timeout passed in to be
 exercised, names that value where it is defined instead."""
 
@@ -352,7 +363,7 @@ def lock_contention(
 def take_stream_activity(monkeypatch, updates: list, clears: list) -> None:
     """Collect every activity reading a turn writes, instead of a page taking it.
 
-    Every carrier and harness calls the writers through `leaf.codex`, so that one binding
+    Every App Server client and harness calls the writers through `leaf.codex`, so that one binding
     takes them all. Pass empty lists for a test that wants them to touch nothing.
     """
     monkeypatch.setattr(
@@ -578,7 +589,7 @@ def stamp_activation(d):
     from leaf.validation.source import check_source
 
     with service_model.PageTransaction(d) as page:
-        checked = check_source(d, page.events, allow_transition=True)
+        checked = check_source(d, page.events)
         return revisioning_model.activate_checked_source(page, checked)
 
 
@@ -683,9 +694,7 @@ def record_claim(page, /, harness="claude-code", **fields):
     }
     record["generation"] = session["generation"]
     record["acquisition"] = fields.get("acquisition", secrets.token_hex(16))
-    path = service_model.claim_path(page)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    cleanup_model.write_json(path, record)
+    service_model.publish_claim(page, record)
     return service_model.page_claim(page)
 
 
@@ -696,7 +705,7 @@ def bind_task_lifetime_to_worker(page):
     changes only that existing task's lifetime provenance, under its session
     lock: its generation, turn, provider observation, and page acquisition stay
     intact. Recording another claim would create a replacement generation and
-    briefly leave the already-running carrier with no pages to own.
+    briefly leave the already-running adapter with no pages to own.
     """
     claim = service_model.page_claim(page)
     with cleanup_model.flocked(cleanup_model.session_lock_path(claim["id"])):
@@ -796,7 +805,7 @@ def _decided(page_dir, words):
             "revision": files_model.latest_revision(page_dir),
             "widget": "d1",
             "action": "edit",
-            "detail": {"text": "Cut the flag; backfill first."},
+            "detail": {"value": "Cut the flag; backfill first."},
         },
     )
     return lambda words, attrs="": (page_dir / "index.html").write_text(
@@ -876,6 +885,22 @@ def state_json(d):
     return json.loads(result.output)
 
 
+def asks_on_you(state):
+    """The Asks on the user's queue in one agent-facing state: each open Ask's task,
+    as the widget it is and the widget that answers it."""
+    return [
+        {
+            "id": item["id"],
+            "tag": item["ask"]["tag"],
+            "widget": item["ask"]["widget"],
+            "widget_tag": item["ask"]["widget_tag"],
+            "thread": item["thread"],
+        }
+        for item in state["queues"]["on_you"]
+        if item.get("ask")
+    ]
+
+
 def owed(state):
     """The workflows one agent-facing state still owes an answer.
 
@@ -912,8 +937,8 @@ ACCEPT = {
 def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     """Hold one admitted writer at append and prove re-vendor cannot pass it.
 
-    Re-vendoring waits for the admitted writer, then refuses the incoming
-    vocabulary when it cannot replay that event. Release the writer before
+    Re-vendoring waits for the admitted writer, then commits the incoming
+    vocabulary while retaining that event. Release the writer before
     joining either worker, including when an assertion fails."""
     entering = threading.Event()
     resume = threading.Event()
@@ -968,7 +993,7 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
         refusal = vendoring.result(timeout=STATED_TIMEOUT)
 
     assert not passed_writer, f"re-vendor passed a validated {kind} writer"
-    assert refusal is not None
+    assert refusal is None
     return written, refusal
 
 
@@ -980,18 +1005,13 @@ def _mutated_registry_check(page_dir, mutate):
 
 
 def _report_body_record(registry):
-    registry["lf-task"]["x-state"]["status"]["record"] = {
-        "kind": "body",
-        "value": "status",
-    }
+    registry["lf-task"]["x-state"]["status"]["record"] = {"kind": "body"}
 
 
 def _report_position_record(registry):
     registry["lf-task"]["x-state"]["status"]["record"] = {
         "kind": "position",
         "within": "lf-column",
-        "value": "status",
-        "rank": "status",
     }
 
 
@@ -1009,20 +1029,15 @@ def _report_says_attr(registry):
     task["x-says"] = {"owner": "before"}
     task["x-state"]["status"] = {
         "writer": "agent",
-        "detail": {
-            "type": "object",
-            "properties": {"owner": {"type": "string"}},
-            "required": ["owner"],
-            "additionalProperties": False,
-        },
         "unit": "widget",
-        "record": {"kind": "value", "attr": "owner", "value": "owner"},
+        "record": {"kind": "value", "attr": "owner"},
     }
 
 
-def _report_detail_drift(registry):
-    registry["lf-task"]["x-state"]["status"]["detail"]["properties"]["status"] = {
-        "type": "string"
+def _report_authored_detail(registry):
+    registry["lf-task"]["x-state"]["status"]["detail"] = {
+        "type": "object",
+        "additionalProperties": False,
     }
 
 
@@ -1035,7 +1050,7 @@ def _report_without_upgrade(registry):
 
 
 def _user_verb_update(registry):
-    registry["lf-options"]["x-state"]["choose"]["update"] = "options"
+    registry["lf-options"]["x-state"]["choose"]["update"] = True
 
 
 def _agent_verb_answers(registry):
@@ -1044,6 +1059,8 @@ def _agent_verb_answers(registry):
 
 
 def _body_record_with_prose(registry):
+    # Isolate the body-record contract from the Markdown/data-content contract.
+    del registry["lf-draft"]["x-text-format"]
     registry["lf-draft"]["x-content"] = "markup"
 
 
@@ -1298,12 +1315,37 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
     this sweep stopped every server standing there (tests/AGENTS.md, "A process
     the suite starts ends with the run")."""
     yield
+    retire_test_services(tmp_path, isolated_session)
+
+
+def retire_test_services(tmp_path, isolated_session):
+    """End the test's harnesses before removing their coordination files.
+
+    Detached adapters hold session leases outside any subprocess group. Their
+    lifecycle must end while its state directory still exists, so they can
+    retire normally rather than retry a deleted startup lock forever.
+    """
     while HELD_LEASES:
         leases_model.release_lease(HELD_LEASES.pop())
+    for path in (isolated_session / "sessions").glob(
+        f"*.{cleanup_model.SESSION_SUFFIX}"
+    ):
+        record = files_model.read_json(path)
+        if isinstance(record, dict) and isinstance(record.get("id"), str):
+            cleanup_model.end_session(record["id"])
     for root in (tmp_path, isolated_session):
         for lease in root.rglob("server.lock"):
             if server_model.running_server(lease.parent):
                 hosting_model.cmd_stop(lease.parent)
+    wait_for(
+        lambda: [
+            path.name
+            for path in (isolated_session / "sessions").glob("*.adapter")
+            if leases_model.lock_is_held(path)
+        ],
+        lambda held: not held,
+        failure="a detached adapter outlived its test's ended sessions",
+    )
 
 
 @contextmanager
@@ -1330,10 +1372,10 @@ def neighbour_page(directory, title=None, dead=False, published=True, port=59999
     initialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(directory)])
     assert initialized.exit_code == 0, initialized.output
     write_revision(directory, 1, html.encode())
-    # What `page init` writes: a page always has a status record.
+    # A neighbour the agent has finished with.
     cleanup_model.write_json(
         directory / "status.json",
-        {"state": "idle", "detail": "", "ts": None, "after": 0},
+        {"state": "idle", "detail": "", "ts": None},
     )
     if published:
         append_carried_log_record(
@@ -1369,6 +1411,139 @@ def _status(page_dir, *args):
     return CliRunner().invoke(cli_model.cli, ["status", str(page_dir), *args])
 
 
+def declare_idle(page_dir):
+    """Write the page's `idle` declaration directly, past `leaf status idle`'s refusal
+    over unanswered moves, for a test whose subject is what an idle page does."""
+    with service_model.PageTransaction(page_dir) as page:
+        return page.set_status("idle", "")
+
+
+def declare_work(page_dir, line, *, item=None, ts=None, **voice):
+    """Seed the agent's work in hand as the log holds it, for a test of how a page
+    reads it: a `start` on `item`, or on the page's own task, which this opens when
+    the page has none, dated `ts` (now by default) and spoken in `voice` (`agent`,
+    `session`, `turn`). Raw, so a test can date it in the past; `working` is the
+    command an agent runs."""
+    from leaf.tasks import owed_tasks
+
+    if item is None:
+        item = (
+            next(
+                (
+                    task["id"]
+                    for task in owed_tasks(events_model.read_events(page_dir))
+                    if task["subject"] == {"kind": "page"}
+                ),
+                None,
+            )
+            or append_carried_log_record(
+                page_dir,
+                {
+                    "kind": "task",
+                    "author": "agent",
+                    "owner": "agent",
+                    "subject": {"kind": "page"},
+                    "title": "Work on the page",
+                    **({"ts": ts} if ts else {}),
+                },
+            )["id"]
+        )
+    return append_carried_log_record(
+        page_dir,
+        {
+            "kind": "start",
+            "author": "agent",
+            "item": item,
+            "text": line,
+            **({"ts": ts} if ts else {}),
+            **voice,
+        },
+    )
+
+
+def end_work(page_dir):
+    """End every open task on the page as a whole, `declare_work`'s and `working`'s,
+    so nothing the agent opened for itself is in hand any more."""
+    from leaf.tasks import owed_tasks
+
+    for task in owed_tasks(events_model.read_events(page_dir)):
+        if task["subject"] == {"kind": "page"}:
+            append_carried_log_record(
+                page_dir,
+                {
+                    "kind": "task_end",
+                    "author": "agent",
+                    "task": task["id"],
+                    "outcome": "done",
+                },
+            )
+
+
+def end_work_on(page_dir, subject):
+    """End the open tasks on the thread or widget `subject` names, done."""
+    from leaf.tasks import owed_tasks
+    from leaf.work import page_subject
+
+    named = page_subject(page_dir, events_model.read_events(page_dir), subject)
+    for task in owed_tasks(events_model.read_events(page_dir)):
+        if task["subject"] == named:
+            ended = CliRunner().invoke(
+                cli_model.cli, ["task", "end", str(page_dir), task["id"], "done"]
+            )
+            assert ended.exit_code == 0, ended.output
+
+
+def newest_move(page_dir, widget):
+    """The id of the user's newest move on `widget`, the item a start on it names."""
+    return next(
+        event["id"]
+        for event in reversed(events_model.read_events(page_dir))
+        if event["kind"] == "action"
+        and event["author"] == "user"
+        and event["widget"] == widget
+    )
+
+
+def _start(page_dir, item, line):
+    """`leaf task start`: take a move or task in hand with the banner's line."""
+    return CliRunner().invoke(
+        cli_model.cli, ["task", "start", str(page_dir), str(item), line]
+    )
+
+
+def working(page_dir, line, subject="page"):
+    """Show work no move asked for: open a task on `subject` (the page, unless a
+    thread or widget is named) and start it with `line`, as an agent does. Reuses the
+    page's open task on that subject, so a test can say what it does next. Returns the
+    start's record."""
+    from leaf import event_log as log_model
+    from leaf.tasks import owed_tasks
+    from leaf.work import page_subject
+
+    named = (
+        {"kind": "page"}
+        if subject == "page"
+        else page_subject(page_dir, log_model.read_events(page_dir), subject)
+    )
+    task = next(
+        (
+            task
+            for task in owed_tasks(log_model.read_events(page_dir))
+            if task["subject"] == named
+        ),
+        None,
+    )
+    if task is None:
+        opened = CliRunner().invoke(
+            cli_model.cli, ["task", "open", str(page_dir), subject, line[:80]]
+        )
+        assert opened.exit_code == 0, opened.output
+        task = json.loads(opened.output.splitlines()[-1])
+    started = _start(page_dir, task["id"], line)
+    assert started.exit_code == 0, started.output
+    return json.loads(started.output.splitlines()[-1])
+
+
 @pytest.fixture
 def comment_once_served():
     """Post a user comment as soon as a server answers for the page, so a wait
@@ -1393,7 +1568,7 @@ def comment_once_served():
                     )
                     return
                 if time.monotonic() > deadline:
-                    session_model.cmd_status(page_dir, "idle", "no server came up")
+                    declare_idle(page_dir)
                     return
 
         thread = threading.Thread(target=post, daemon=True)
@@ -1423,9 +1598,10 @@ def codex_program(tmp_path_factory):
     name. The name has to be the executable's own, because what a process reports
     is what the kernel loaded — a `#!` script and a symlink both wear the
     interpreter's, and a copy of /bin/sh is killed on sight on macOS, where that
-    binary's signature is the system's."""
+    binary's signature is the system's. A framework Python's sys.executable is
+    a launcher that re-execs Python.app, so copy the running binary itself."""
     program = tmp_path_factory.mktemp("codex-program") / "codex"
-    shutil.copy(sys.executable, program)
+    shutil.copy(psutil.Process().exe(), program)
     return program
 
 
@@ -1448,6 +1624,10 @@ import sys
 from pathlib import Path
 from leaf.state import write_json
 
+# The queue command is all this models; the App Server a page server starts to
+# name a thread is not here.
+if sys.argv[1] == "app-server":
+    sys.exit(1)
 if os.environ.get("PREVIEW_QUEUE_AVAILABLE", "True") == "False":
     print("queue unsupported", file=sys.stderr)
     sys.exit(1)
@@ -1514,7 +1694,7 @@ def under_codex(spawn, codex_program):
 
 @pytest.fixture
 def codex_claimed_page(tmp_path, under_codex, codex_env):
-    """A Codex-owned server before delivery starts, for carrier lifecycle tests.
+    """A Codex-owned server before delivery starts, for adapter lifecycle tests.
 
     Public handoff connects delivery too. These tests choose their own transport
     or exercise a direct wait, so setup takes the lower-level claim and serve.
@@ -1535,11 +1715,12 @@ def codex_claimed_page(tmp_path, under_codex, codex_env):
     program = """
 import json, sys
 from pathlib import Path
+from leaf.harness import session_harness
 from leaf.hosting import start_server
 from leaf.service import claim_page
 page = Path(sys.argv[1])
 claim_page(page)
-started = start_server(page)
+started = start_server(page, harness=session_harness())
 print(json.dumps({"url": started.url}))
 """
     finished = tmp_path / "page-host-finished"
@@ -1696,7 +1877,7 @@ def edit(page_dir, text, widget="note", version=1):
             "revision": revision,
             "widget": widget,
             "action": "edit",
-            "detail": {"text": text},
+            "detail": {"value": text},
         },
     )
 
@@ -1883,15 +2064,13 @@ SnapshotHandlerRegistry.add_handler(
 
 
 def consume_pending_input(session_id):
-    """A test reader takes a complete envelope and explicitly confirms it."""
+    """Hand the session its pending input as a hook does inline: one complete
+    envelope, confirmed as it is handed over."""
     from leaf import delivery
-    from leaf.hook_carrier import hook_acknowledgement
 
     batches = delivery.pending_batches(session_id)
     if not batches:
         return None
-    payload = delivery.freeze_delivery(
-        batches, carrier="hook", acknowledge=hook_acknowledgement
-    )
-    delivery.receive(payload, session_id)
+    payload = delivery.freeze_delivery(batches)
+    delivery.receive_held(payload, session_id)
     return payload

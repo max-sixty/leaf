@@ -93,14 +93,15 @@ other page files and the external state listed below.
 - `user-views.lock` — the independent lock serializing observation writes;
   excluded from page freshness and activation.
 
-- `data.json` — the contract each external-data source id was first set under.
+- `data.json` — the current contract each external-data source id was set under.
   `data.py` owns storage and updates.
 
 - `data/` — one JSON file per source, `<source>.json`, holding its current value.
   Any process may rewrite one; readings validate it against the recorded contract.
   Deferred record fields served by `/api/deferred` come from these same files.
 
-- `status.json` — work declarations, observed activity, and reply bindings.
+- `status.json` — the agent's `waiting` or `idle` declaration, observed activity,
+  and reply bindings. The work in hand is no status: it is the log's `start` events.
   [session-lifetime.md](session-lifetime.md) owns their writers and lifetimes;
   `thread.py` owns response reservations and their release. Every reader loads it
   through `service.read_status`, which reads a missing file as no declaration.
@@ -136,8 +137,17 @@ other page files and the external state listed below.
   listener cannot advertise a prior incarnation. `hosting.py` waits for release
   on stop, after sockets close. The stable file remains after release.
 
-- `<state-home>/claims/` — one atomic claim per resolved page, independent of its page
-  directory. Scans ignore claims for missing pages; fresh page initialization clears
+- `<state-home>/claims/<page-key>.json` — the page's one atomic canonical claim
+  payload. `<state-home>/claims/<session-key>/<page-key>.json` is a symlink
+  locating that payload for the owning session's discovery. The locator is prepared
+  before ownership commits in the payload; failed preparation leaves ownership
+  intact. Discovery admits a locator only when the payload names that partition's
+  session, so a stale locator cannot reclaim a transferred page. Named watches
+  follow prepared locators' canonical targets until ownership commits.
+  Named discovery reads only that session's partition; global observation reads
+  the canonical payloads directly. Atomic updates by existing
+  page-server writers retain the payload's path and leave discovery intact.
+  Scans ignore claims for missing pages; fresh page initialization clears
   the prior claim under the page lock. [session-lifetime.md](session-lifetime.md) owns
   claimant identity, release, harness, and lifetime.
 
@@ -187,8 +197,9 @@ contract, source id and revision, or to the `error` a failing value reads as;
 contracts with a deferred record field expose the manifest plus the value file and
 its revision for their payload. The reading's `content_source` names the thread and
 vocabulary file. A widget on the page names itself: the reading is its `widget`
-element, the `state` and `updates` standing on it, the `asks` it holds or answers,
-and the `workflows` it is the subject of, with their `activity` obligations. Page ids
+element, the `state` and `updates` standing on it, the open `tasks` on it, an Ask's
+task it holds or answers among them, and the `workflows` it is the subject of, with
+their `activity` obligations. Page ids
 and event ids share one address space, which is why `page check` refuses an authored
 id shaped like an event id. Default `page state` thread entries stay compact. Raw
 diagnostic history belongs to `leaf page events`, and the page's `registry.json` owns
@@ -197,7 +208,7 @@ the vocabulary.
 Immutable deliveries live outside page directories at
 `<state-home>/deliveries/<id>.json`, because one envelope can contain complete
 batches from several pages and must resolve identically in every harness. The file's
-`leaf-delivery-v3` format, id, capture time, carrier, acknowledgement, and
+`leaf-delivery-v3` format, id, capture time, acknowledgement, and
 batches never change. Delivery
 records are separate mutable transport state; acknowledgement can archive
 those records without moving or rewriting the delivery addressed by `leaf

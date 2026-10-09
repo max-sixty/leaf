@@ -20,6 +20,7 @@ from render_cases_widgets import (
     PART_DIAGRAM_PAGE,
 )
 from render_harness import (
+    EXAMPLES,
     ROOT,
     leaf_page,
     open_page,
@@ -73,9 +74,8 @@ def test_short_inline_code_selection_offers_comment(browser, serve):
 
     for term in ("x", "id"):
         page.get_by_text(term, exact=True).select_text()
-        bar = page.locator(".lf-fab-bar")
-        expect(bar).to_be_visible()
-        expect(bar).to_have_attribute("aria-label", f"Respond to “{term}”")
+        expect(page.get_by_role("button", name="Comment on selection")).to_be_visible()
+        assert page.evaluate("() => getSelection().toString()") == term
         expect(page.locator(".lf-fab-input")).not_to_be_focused()
 
     page.keyboard.press("c")
@@ -267,7 +267,8 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
 
 
-def test_desktop_target_hints_leave_plain_link_clicks_available(browser, serve):
+def test_desktop_target_picker_arms_the_page_as_alt_does(browser, serve):
+    """While `s` stands, the mouse shows and takes a target as Alt-click does."""
     page = open_page(
         browser,
         serve(
@@ -277,11 +278,45 @@ def test_desktop_target_hints_leave_plain_link_clicks_available(browser, serve):
             )
         ),
     )
+    link = page.get_by_role("link", name="Follow this link")
+    link.hover()
+    expect(page.locator(".lf-aim[data-for]")).to_have_count(0)
+    # Opened under a still mouse, the promise paints without waiting for a move.
     page.keyboard.press("s")
     expect(page.locator(".lf-target-picker-hint")).not_to_have_count(0)
-    page.get_by_role("link", name="Follow this link").click()
-    expect(page).to_have_url(re.compile(r"#elsewhere$"))
-    expect(page.locator(".lf-fab-input")).to_be_hidden()
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "link")
+    # A middle press is armed too: it opens no tab and chooses nothing, so the picker stands.
+    link.click(button="middle")
+    expect(page.locator(".lf-target-picker-hint")).not_to_have_count(0)
+    # The first click chooses and closes the picker; the second is the same gesture's.
+    link.dblclick()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-target-picker-hint")).to_have_count(0)
+    expect(page.locator(".lf-aim[data-for]")).to_have_count(0)
+    assert not page.url.endswith("#elsewhere"), "the picker's press followed the link"
+    assert page.context.pages == [page], "the picker's middle press opened the link"
+
+
+def test_target_picker_takes_a_margin_press_as_the_target_it_stands_by(browser, serve):
+    """Over a suggestion's ✓ Accept, the picker comments on the change, as Alt does."""
+    page = open_page(
+        browser, serve(next(p for p in EXAMPLES if p.stem == "release-notes"))
+    )
+    standing = len(events_model.read_events(serve.page_dir))
+    accept = page.locator(".lf-margin-cluster .lf-sug-accept").first
+    accept.scroll_into_view_if_needed()
+    accept.hover()
+    page.keyboard.press("s")
+    promised = page.locator(".lf-aim").get_attribute("data-for")
+    assert promised, "the picker painted no target over the margin row"
+    accept.click()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    assert page.evaluate(DRAFT_MARK) == promised
+    assert not [
+        e
+        for e in events_model.read_events(serve.page_dir)[standing:]
+        if e["kind"] == "action"
+    ], "the picker's press accepted the suggestion"
 
 
 def test_select_element_obeys_covering_surfaces_and_pointer_modes(browser, serve):
@@ -518,7 +553,6 @@ def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser,
     shown = page.locator(".lf-shortcut-bar .lf-shortcut:not([hidden])")
     expect(shown).to_have_count(2)
     expect(shown.nth(1).locator("kbd")).to_have_text("esc")
-    expect(bar.get_by_role("button", name="Show other responses")).to_be_hidden()
     expect(page.locator(".lf-fab-input")).to_have_attribute(
         "aria-keyshortcuts", "Enter Meta+Enter Control+Enter"
     )
@@ -542,7 +576,7 @@ def test_a_passage_still_offers_suggest_when_the_layer_has_no_reactions(browser,
     prose = page.locator("#prose")
     prose.select_text()
     field = page.locator(".lf-fab-input")
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    expect(page.get_by_role("button", name="Comment on selection")).to_be_visible()
     expect(field).not_to_be_focused()
     page.keyboard.press("c")
     expect(field).to_be_focused()
@@ -773,8 +807,9 @@ def test_selection_hints_do_not_name_page_content_behind_a_covering_panel(
 
     page.locator(".lf-threads-toggle").click()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
-    assert page.locator("main").evaluate("el => el.inert")
-    expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
+    assert page.locator(".lf-thread-panel").evaluate(
+        "surface => surface.closest('dialog').matches(':modal')"
+    )
     page.keyboard.press("s")
     assert page.locator(".lf-target-picker-hint").count() == 0, (
         "page target selection crossed the covering auxiliary surface boundary"
@@ -797,14 +832,14 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     search_command = help_el.locator('tr[data-lf-command="page.search.open"]')
     select_command = help_el.locator('tr[data-lf-command="target.picker.open"]')
     expect(search_command.locator("kbd")).to_have_text("/")
-    expect(search_command.get_by_role("button")).to_have_text("search page")
+    expect(search_command.get_by_role("button")).to_have_text("Search page")
     expect(search_command.locator(".lf-command-reference-description")).to_have_text(
         "Search all the text on the page"
     )
     expect(select_command.locator("kbd")).to_have_text("s")
-    expect(select_command.get_by_role("button")).to_have_text("select element")
+    expect(select_command.get_by_role("button")).to_have_text("Select element")
     expect(select_command.locator(".lf-command-reference-description")).to_have_text(
-        "Choose an element by tapping it or typing its hint, then comment"
+        "Choose an element by pressing it or typing its hint, then comment"
     )
     page.keyboard.press("Escape")
     page.keyboard.press("/")
@@ -813,15 +848,20 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     expect(search).to_be_focused()
     status = page.locator(".lf-page-search-status")
     expect(status).to_be_empty()
+    search_box = search.bounding_box()
     search.fill("words absent from this page")
     expect(status).to_have_text("No matches")
+    assert search.bounding_box() == pytest.approx(search_box, abs=0.5)
     search.fill("")
     expect(status).to_be_empty()
+    assert search.bounding_box() == pytest.approx(search_box, abs=0.5)
     page.keyboard.type("b")
     expect(status).to_have_text(re.compile(r"\d+ of \d+"))
+    assert search.bounding_box() == pytest.approx(search_box, abs=0.5)
     expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
     search.fill("button the key")
     expect(status).to_have_text("1 of 1")
+    assert search.bounding_box() == pytest.approx(search_box, abs=0.5)
     expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("select match")
     page.keyboard.press("Tab")
@@ -988,10 +1028,10 @@ def test_a_search_selection_keeps_the_response_bar_off_its_passage(browser, serv
     assert response_bar_is_clear_of("#plain")
 
     page.keyboard.press("n")
-    assert page.evaluate("() => getSelection().anchorNode.parentElement.className") == (
-        "lf-draft-body"
+    assert page.evaluate(
+        "() => Boolean(getSelection().anchorNode.parentElement.closest('.lf-draft-body'))"
     )
-    assert response_bar_is_clear_of("#draft"), (
+    assert response_bar_is_clear_of("#draft .lf-draft-body"), (
         "the response bar covered the readable body of a widget-rendered passage"
     )
 
@@ -1170,10 +1210,10 @@ def test_hint_browsing_forgets_a_target_that_scrolls_out_of_the_map(browser, ser
 
 
 def test_a_scroll_with_no_scrollend_still_refreshes_the_target_map(browser, serve):
-    """A page can move and never send `scrollend`: a programmatic scroll written a frame
-    at a time, and the scroll a replaced scene restores, both end without one. The map
-    freezes its membership for the length of a scroll, so with nothing to settle it the
-    chips go on naming the scene the first frame left behind.
+    """A page can move and never send `scrollend`: the scroll a replaced scene restores
+    ends without one. The map freezes its membership for the length of a scroll, so
+    with nothing to settle it the chips go on naming the scene the first frame left
+    behind.
 
     A hidden target is dropped from the paint either way; the codes are what say whether
     the map was read again, because a fresh reading gives the survivors the head of the
@@ -1189,7 +1229,7 @@ def test_a_scroll_with_no_scrollend_still_refreshes_the_target_map(browser, serv
     page.evaluate(
         """() => {
           document.querySelector('#t').style.display = 'none';
-          dispatchEvent(new Event('scroll'));
+          document.dispatchEvent(new Event('scroll'));
         }"""
     )
 
@@ -1466,21 +1506,15 @@ def test_scrolling_target_hints_does_not_measure_hidden_targets(browser, serve):
     page.evaluate(
         """() => {
           const originalRect = Element.prototype.getBoundingClientRect;
-          const originalVisibility = Element.prototype.checkVisibility;
-          let rectReads = 0;
-          let visibilityReads = 0;
+          let hiddenRectReads = 0;
           Element.prototype.getBoundingClientRect = function (...args) {
-            rectReads += 1;
+            if (this.id.startsWith('hidden-'))
+              hiddenRectReads += 1;
             return originalRect.apply(this, args);
           };
-          Element.prototype.checkVisibility = function (...args) {
-            visibilityReads += 1;
-            return originalVisibility.apply(this, args);
-          };
           addEventListener('scrollend', () => requestAnimationFrame(() => {
-            window.lfHintScrollReads = {rectReads, visibilityReads};
+            window.lfHintScrollReads = {hiddenRectReads};
             Element.prototype.getBoundingClientRect = originalRect;
-            Element.prototype.checkVisibility = originalVisibility;
           }), {capture: true, once: true});
           document.scrollingElement.scrollTo({top: 600, behavior: 'smooth'});
         }"""
@@ -1488,8 +1522,7 @@ def test_scrolling_target_hints_does_not_measure_hidden_targets(browser, serve):
     page.wait_for_function("() => window.lfHintScrollReads")
     reads = page.evaluate("() => window.lfHintScrollReads")
 
-    assert reads["rectReads"] < hidden_count, reads
-    assert reads["visibilityReads"] < hidden_count * 3, reads
+    assert reads["hiddenRectReads"] == 0, reads
 
 
 def test_cancelling_page_search_restores_the_control_that_opened_it(browser, serve):

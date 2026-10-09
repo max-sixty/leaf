@@ -34,8 +34,9 @@ const WAIT = "Wait for the current change to finish before undoing";
 const words = {
   resolve: "Reopened the thread",
   unresolve: "Resolved the thread again",
-  action: "Took back your last change",
-  done: "Took back your approval",
+  action: "Undid your latest update",
+  done: "Undid your approval",
+  task_end: "Put the task back on you",
 };
 
 export function createProjectionCommands({ post, stateApplying, unaccountedGesture }) {
@@ -90,7 +91,7 @@ export function createProjectionCommands({ post, stateApplying, unaccountedGestu
       .then((accepted) => {
         if (accepted)
           notice(
-            `${event.token ? `Took back your ${event.token}` : words[event.kind]} — sent`,
+            `${event.token ? `Undid your ${event.token} reaction` : words[event.kind]} — sent`,
           );
         return accepted;
       })

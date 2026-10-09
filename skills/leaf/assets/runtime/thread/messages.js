@@ -1,9 +1,10 @@
 /* Synchronous Lit message presentation and frozen authored message islands.
 
    Every surface uses the same message, header and body vocabulary. Generated
-   metadata, prose, workflow and reaction placement have one owner. Message headers
-   declare their stationary text-reflow boundary; a hoisted root header leaves that
-   declaration to the thread's complete metadata row. An
+   metadata, prose, workflow and reaction placement have one owner. Each message
+   retains its header and body together, sharing delivery, unread and fold state.
+   Its header declares its stationary text-reflow boundary and hosts the thread's
+   disclosure for progress completed by that reply. An
    immutable descriptor changes prose without reconnecting the validated authored
    fragment. A new message cues its own words once on first presentation, in every
    surface: one the user just sent, and any turn, whoever wrote it, joining a thread
@@ -47,7 +48,7 @@ import { ReactionStripView } from "./reaction-strips.js";
 import { keeps } from "../keeps.js";
 import { motion } from "../motion.js";
 
-export const loadMarked = () =>
+export const loadMessageMarkdown = () =>
   loadMarkdown((error) =>
     reportPageError(`markdown renderer failed to load: ${error?.message ?? error}`),
   );
@@ -199,7 +200,7 @@ export class MessageView {
     this.node = document.createElement("div");
   }
 
-  present(model, { externalHeader = false, arrived = false } = {}) {
+  present(model, { arrived = false, headerControls = nothing } = {}) {
     const prior = this.#model;
     this.#model = model;
     const panel = model.panel;
@@ -215,7 +216,7 @@ export class MessageView {
         this.node.dataset.lfOffer = "";
       }
     }
-    keeps(this.#header, "data-lf-reflow", externalHeader ? null : "text");
+    keeps(this.#header, "data-lf-reflow", "text");
     if (prior && prior.author !== model.author)
       this.node.classList.toggle(prior.author, false);
     this.node.classList.toggle(model.author, true);
@@ -235,17 +236,16 @@ export class MessageView {
           model.reactions,
         )
       : nothing;
+    const receipt = model.workflowLabel
+      ? html`<span class="lf-msg-sending" title=${model.workflowTitle}
+          >${model.workflowLabel}</span
+        >`
+      : nothing;
     render(
       html`
         <b>${model.by}</b
         ><span class="lf-msg-meta"
-          ><time datetime=${model.timestamp}>${model.age}</time> ${
-            model.workflowLabel
-              ? html`<span class="lf-msg-sending" title=${model.workflowTitle}
-                  >${model.workflowLabel}</span
-                >`
-              : nothing
-          }
+          ><time datetime=${model.timestamp}>${model.age}</time> ${receipt}
           ${
             model.failure
               ? html`<span class="lf-msg-failure">${FAILURE_LABEL}</span>`
@@ -262,12 +262,13 @@ export class MessageView {
               : nothing
           }
         </span>
+        ${headerControls}
       `,
       this.#header,
     );
     render(
       html`
-        ${externalHeader ? nothing : this.#header}
+        ${this.#header}
         <div
           class=${`lf-msg-body${model.body.kind === "suggestion" ? " lf-suggest-body" : ""}`}
         >
@@ -310,22 +311,18 @@ export class MessageView {
       model,
     );
     if (!prior && (model.pending || arrived)) {
-      // A background cue can finish while the message remains unconfirmed. The
-      // shared motion gate answers for restoration and reduced motion; opacity
-      // continues to describe delivery independently (marks.css). It settles on the
-      // message's own ground, which a surface may paint (the margin card's sticky
-      // heads take it).
+      // One phase drives the message's ground and its sticky header. CSS resolves
+      // the tint and resting colour at this message after insertion; Firefox's
+      // Web Animations interpolates a var() colour keyframe discretely.
+      // The shared motion gate answers for restoration and reduced motion; the
+      // delivery receipt and busy cursor remain independent of the arrival tint.
       this.#arrivalMotion = motion(
         this.node,
-        [{ backgroundColor: "var(--hi-tint)", offset: 0 }],
+        [{ "--lf-msg-arrival": 1, offset: 0 }],
         1200,
       );
     }
     return this.node;
-  }
-
-  get header() {
-    return this.#header;
   }
 
   #body(body) {

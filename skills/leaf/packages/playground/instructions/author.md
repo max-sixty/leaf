@@ -13,8 +13,9 @@ instruction to the agent stand in a rail beside it, on the same `2fr 1fr` tracks
 wide page's body and rail, wherever it has 43.5rem; narrower, they stack. A preview that needs
 width, such as two candidates side by side, belongs on a wide page (`<main
 class="layout-wide">`), or on a workspace page (`<main class="layout-workspace density-working">`) whose
-body is the playground's Ask, where the stage grows to the window's height. Draw
-candidates directly on the stage without separate cards.
+body is the playground's Ask, where the stage grows to the window's height. An Ask
+keeps the prose's width on either page, so give the playground's Ask
+`data-width="available"`. Draw candidates directly on the stage without separate cards.
 
 The preview is the surface the user operates. An A/B comparison keeps both candidates
 mounted there with the same configuration and starting content. Candidates that stand
@@ -25,20 +26,30 @@ scroll, reorder, or edit once and draw both from that state; derive their measur
 beside them. Live Leaf samples share the configuration and authored starting history,
 while practice gestures belong to each child's independent log. Reset brings a sample back to that starting history.
 
+## Decision fidelity
+
 Start from the real artifact. Wrap the existing component, document, or generated output
 instead of rebuilding its appearance in page-local markup. A companion package may carry
 browser-ready code and fixtures under `vendor/`; page images go through `leaf page media`
 (`references/authoring-evidence.md`). Load those assets from the page's same origin,
 and keep imports from Leaf's runtime to `/runtime/widget-api.js`.
 
-Keep candidates realistic so the user can judge the interface as they would use it.
-Use product copy for their visible and accessible text. Describe them as prototypes
-only in the surrounding playground, and only if necessary.
+Show each candidate as the interface being decided, so the user can judge it as
+they would use it: its content, controls in their proposed locations, surrounding
+context, and the states that distinguish the alternatives. A sketch, wireframe,
+or diagram may be rough and unwired as long as it shows those things; naming a
+control in prose does not show it. Make an interaction work inside each candidate
+only when the user needs to try it to decide. Before asking anyone which candidate
+they prefer, check that the views support the choice and add what is missing. Use
+product copy for visible and accessible text; put prototype commentary in the
+surrounding playground only where needed.
 
 When exploring changes to an existing interface, include its current state as a labeled
 baseline. Derive each candidate from that baseline and change only the behavior or
 presentation under review; preserve its controls, words, tokens, and interaction state
 unless the candidate explicitly proposes changing them.
+
+## Controls, samples, and output
 
 Controls support `range`, `toggle`, `choice`, `color`, and `text`. Their `name` becomes
 the key in the complete typed value map sent by the final `choose` action. A range's
@@ -67,7 +78,7 @@ leaves out keeps the user's last value. Name the outcome—`Status strip`, not `
 In this comparison, `format` identifies which of the two candidates to build:
 
 ```html
-<lf-ask id="notification-ask">
+<lf-ask id="notification-ask" data-width="available">
   <h2>Which deployment notification should we build?</h2>
   <lf-playground id="notification-playground" submit-label="Create notification">
     <lf-playground-control name="format" label="Format" kind="choice" value="banner">

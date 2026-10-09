@@ -15,8 +15,8 @@
 # passed on.
 #
 # The dev group is what the suite and `leaf-dev` need on top of the runtime:
-# pytest, the accessibility checks, screenshot assertions, and the filesystem
-# watcher behind `leaf-dev preview`. These run here rather than carrying
+# pytest, the accessibility checks, and screenshot assertions. These run here
+# rather than carrying
 # dependency headers of their own — developer tools like the suite, so one environment
 # covers both. `bin/leaf` passes `--no-dev`, so an install never fetches the group,
 # though the lock records it.
@@ -24,8 +24,10 @@
 # psutil is a compiled extension, so every install fetches a platform wheel for it
 # rather than pure Python. It is a runtime dependency because every page claim
 # reads the process tree above it (`machine.py`).
+# watchfiles supplies the native subscriptions shared by page maintenance,
+# delivery waits and developer previews, avoiding repeated idle filesystem scans.
 #
-# packaging and tomli (tomllib before 3.11) read a package script's inline
+# packaging and tomllib read a package script's inline
 # metadata when `package check` holds it to the dependency policy (`packages.py`).
 #
 # Playwright is a runtime dependency because the skill's own flow runs the
@@ -38,22 +40,25 @@
 [project]
 name = "leaf"
 version = "0"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
   "anyio>=4.10",
   "click>=8",
+  "jmespath>=1",
   "jsonschema>=4",
+  "linkify-it-py>=2",
   "markdown-it-py>=4",
+  "mdit-py-plugins>=0.4",
   "packaging>=22",
   "playwright>=1.51",
   "psutil>=6",
   "starlette>=0.48",
   "tinycss2>=1.4",
-  "tomli>=1.1; python_version < '3.11'",
   "tree-sitter>=0.25.2",
   "tree-sitter-javascript>=0.25.0",
   "turbohtml>=1.7",
   "uvicorn>=0.31.1",
+  "watchfiles>=1.1.0",
   "websockets>=15",
 ]
 
@@ -81,9 +86,6 @@ dev = [
   "pytest-regtest>=2.7",
   # The YAML snapshots `interact_support.yaml_document` writes.
   "pyyaml>=6",
-  # `leaf-dev preview`'s watcher. 1.1.0 is the first release with a wheel for the
-  # interpreter this project runs on; earlier ones would build Rust from source.
-  "watchfiles>=1.1.0",
   # Every requirement a bundled package script's header declares, repeated here so
   # this lock pins what the suite runs those scripts against and a fresh machine
   # needs no network after setup.
@@ -105,12 +107,17 @@ members = ["dev", "worker"]
 leaf-dev = { workspace = true }
 leaf-website = { workspace = true }
 
+# SessionEnd runs before a managed environment exists (bin/leaf), on system Python.
+[tool.ruff.per-file-target-version]
+"skills/leaf/scripts/leaf/state.py" = "py39"
+
 # The suite is round trips through a real browser rather than computation, so tests
 # shard independently: every test gets its own tmp_path, XDG homes, and server.
 # The site module is one load group because its module-scoped build and host are the
 # shared setup; everything else stays individually balanced. Chromium launches once
 # per worker for the run.
-# Two workers cap the browser load when suites overlap.
+# Two workers cap the browser load when suites overlap on one machine; CI's own
+# runner sets its count in ci.yaml.
 # `-n0` to debug a single test.
 [tool.pytest.ini_options]
 addopts = "-n 2 --dist loadgroup --regtest-consider-line-endings --image-snapshot-save-diff -p leaf_dev.thread_snapshot_plugin"
@@ -118,3 +125,11 @@ markers = [
   "nightly: a pull request can land without it; `--run-nightly` runs it",
   "watch_shifts: a surveyed nightly test also rejects unsolicited layout shifts and typing that carries its field",
 ]
+# A test still running after half an hour is hung, not slow: the slowest takes under
+# three minutes on CI, so even ten times slower it finishes. The worker prints every
+# thread's stack, which names the call that blocked, and exits; xdist reports the test
+# as crashed and starts a fresh worker for the rest. Without this, a call with no
+# deadline of its own (`page.evaluate`, a new page, a lock) holds the run until the CI
+# job's six-hour limit.
+faulthandler_timeout = 1800
+faulthandler_exit_on_timeout = true

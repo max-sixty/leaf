@@ -2,7 +2,9 @@
  *
  * An element is the semantic hit and travel target; its optional visual `surface` changes
  * only contour paint. A passage carries text segments instead. Both kinds name `place`,
- * where panel order and attached chrome sit. */
+ * where panel order and attached chrome sit. Frame-bound paint uses only an exact
+ * target; a fallback place remains useful for travel and attached chrome, but cannot
+ * supply the original coordinates of an absent visual part. */
 
 import { shownParts } from "./geometry.js";
 import { rangeOf } from "./passages.js";
@@ -33,6 +35,9 @@ export const targetSegments = (resolved) =>
   resolved?.kind === "passage" ? resolved.segments : [];
 
 export const targetPlace = (resolved) => resolved?.place ?? null;
+
+export const exactTarget = (resolved) =>
+  resolved?.exact ? (targetElement(resolved) ?? targetPlace(resolved)) : null;
 
 // A passage's whole box decides visibility; its first nonempty fragment attaches
 // chrome. A later line can begin further left without changing that attachment.

@@ -1,0 +1,45 @@
+# Added when an Ask and a callout came to keep the prose's width on a wide page, as
+# they do in a column: an Ask that turns on a table now needs data-width there too.
+# An Ask widens to a block of its own that declares data-width, so the width may go on
+# either. On the final wording, Claude Code: base 0/2, candidate 2/2 (and 0/3 against
+# 3/3 on the wording before it).
+description: wide-page-ask-grants-its-evidence-room
+metadata:
+  purpose: 'Asks: on a wide page, an Ask holding a table it turns on takes data-width, and one of words alone does not.'
+  tags:
+  - asks
+  - layout
+vars:
+  prompt: |
+    You are writing a Leaf release dashboard, `<main class="layout-wide">`, that the
+    on-call engineer keeps open all day. Write the section about the export timeout
+    regression, which puts two questions to the user.
+
+    Your notes:
+    - Since the cutover, 2.1% of export requests hit the 5 s gateway timeout, up from
+      0.1%. Measured over one day of traffic:
+
+      | export size | requests | p50 | p95 | over 5 s |
+      | --- | --- | --- | --- | --- |
+      | under 10 MB | 18,240 | 0.4 s | 1.1 s | 0.0% |
+      | 10–40 MB | 3,112 | 1.9 s | 3.8 s | 0.3% |
+      | over 40 MB | 911 | 4.6 s | 9.2 s | 41% |
+
+    - First question, which turns on that table: raise the timeout to 15 s for exports
+      only, stream large exports, or leave it until next quarter's rewrite.
+    - Second question, words alone: should the export team or the gateway team own the
+      follow-up? Two options, one each.
+
+    The page directory is not reachable from here, so reply with the section's HTML
+    fragment rather than writing a file.
+assert:
+- type: llm-rubric
+  metric: ask-widths
+  value: |
+    Read the HTML. Pass only if the timing evidence the timeout question turns on (a
+    table or a chart) gets more than the prose's width: data-width="wide" or
+    data-width="available" on the lf-ask about the timeout, or on the table or chart
+    inside that lf-ask. The lf-ask about which team owns the follow-up, and everything
+    in it, carries no data-width. Fail if neither the timeout Ask nor its evidence
+    carries data-width, if the evidence sits outside the Ask without it, or if the width
+    is set through page CSS.

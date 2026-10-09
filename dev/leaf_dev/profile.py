@@ -55,15 +55,12 @@ RENDER = {
     "Paint": "paint",
     "Commit": "commit",
 }
-# Frames that say nothing about which runtime code ran: the sampler's own states and
-# the bundle's module wrappers.
+# Frames that say nothing about which runtime code ran: the sampler's own states.
 OPAQUE = (
     "(root)",
     "(program)",
     "(idle)",
     "(garbage collector)",
-    "(anon) browser-runtime",
-    "l browser-runtime",
 )
 TASK_MIN_MS = 2
 TOP = 12

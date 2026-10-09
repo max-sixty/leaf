@@ -7,7 +7,6 @@ A reading about Leaf's own chrome or theme, including one that would have to
 recognize a Leaf control by its markup to judge it, belongs in the suite, which holds
 Leaf's half."""
 
-import json
 from dataclasses import dataclass
 from itertools import pairwise
 
@@ -21,22 +20,17 @@ from leaf.projection import (
     rewritten_bodies,
 )
 from leaf.registry.contract import retirement_slots
+from leaf.registry.schema import json_value
 from leaf.render_checks import evaluate_probe, one_frame, rendered
 from leaf.structure import SourceDocument
 
 # A probe's arguments cross as JSON, so a node only CDP can name is handed to the
 # `issueNode` probe as the receiver of a call made on the node itself.
 _ISSUE_NODE = (
-    "function () { return globalThis.__leafRenderDriver"
-    ".call({name: 'issueNode', args: [this]}); }"
-)
-# A node in a child frame is that frame's to show, and the frame is the page's, so the
-# issue is placed at the frame element in the page's own document, where the probes
-# run. A cross-origin frame withholds that element, and the issue goes unplaced.
-_IN_PAGE = (
-    "function () { let node = this; const view = (n) => (n.ownerDocument ?? n)"
-    ".defaultView; while (node && view(node) !== top) node = view(node).frameElement;"
-    " return node; }"
+    "function () { const view = (this.ownerDocument ?? this).defaultView;"
+    " let driver; try { driver = view.top.__leafRenderDriver; }"
+    " catch (error) { if (error.name === 'SecurityError') return null; throw error; }"
+    " return driver.call({name: 'issueNode', args: [this]}); }"
 )
 
 
@@ -77,18 +71,9 @@ class DevtoolsIssues:
             node = self._cdp.send("DOM.resolveNode", {"backendNodeId": backend_id})
         except PlaywrightError:
             return None  # the node left the document after Chrome raised the issue
-        in_page = self._call(node["object"], _IN_PAGE, by_value=False)
-        if in_page.get("subtype") == "null":
-            return None
-        # The frame element came back as the child frame's object. Resolving it again
-        # by id answers in its own document's context, where the probes are loaded.
-        described = self._cdp.send(
-            "DOM.describeNode", {"objectId": in_page["objectId"]}
-        )
-        page_node = self._cdp.send(
-            "DOM.resolveNode", {"backendNodeId": described["node"]["backendNodeId"]}
-        )
-        return self._call(page_node["object"], _ISSUE_NODE, by_value=True)["value"]
+        # Preserve the actual node for the ownership reading. Lifting a shadow
+        # input to its iframe first would turn a control's issue into the page's.
+        return self._call(node["object"], _ISSUE_NODE, by_value=True)["value"]
 
     def _call(self, receiver: dict, function: str, *, by_value: bool) -> dict:
         answer = self._cdp.send(
@@ -116,7 +101,11 @@ class DevtoolsIssues:
         for issue in self._raised:
             fields = list(_issue_fields(issue["details"]))
             nodes = [v for k, v in fields if k == "nodeId" or k.endswith("NodeId")]
-            facts = [f"{k}={v}" for k, v in fields if not k.endswith("Id") and v != ""]
+            facts = [
+                f"{k}={json_value(v)}"
+                for k, v in fields
+                if not k.endswith("Id") and v != ""
+            ]
             node = self._node(nodes[0]) if nodes else None
             if node is not None and not node["owned"]:
                 continue
@@ -139,7 +128,6 @@ class _SchemeContext:
     state: dict
     markup: str
     here: int
-    earlier: str | None
     replayed: bool
     unsettled: list
     devtools: DevtoolsIssues
@@ -217,8 +205,8 @@ def _verbatim_findings(context: _SchemeContext) -> list[str]:
         findings.append(
             f"{owner}{where} declares x-verbatim but shows "
             f"{reading['says'][:80]!r} with owned structure "
-            f"{reading['compositional']!r} where the file reads "
-            f"{expected.get(key, [])!r}"
+            f"{json_value(reading['compositional'])} where the file reads "
+            f"{json_value(expected.get(key, []))}"
         )
     return findings
 
@@ -231,7 +219,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     state = context.state
     markup = context.markup
     here = context.here
-    earlier = context.earlier
     replayed = context.replayed
     errors = context.errors
     resize_notices = context.resize_notices
@@ -243,7 +230,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     column = evaluate_probe(page, "columnGeometry")
     overflow = column["overflow"]
     misplaced = column["misplaced"]
-    stranded = column["stranded"]
     # This experiment writes and removes a temporary wrapping rule. Preserve its
     # position between the two read-only groups so each reads the same restored page.
     squeezed = evaluate_probe(page, "squeezedTables")
@@ -264,7 +250,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     # already reported by the readiness wait and supplies no comparison.
     dishonest_verbatim = _verbatim_findings(context) if replayed else []
     # Replay is scheme-blind, so one scheme's reading covers both.
-    conflicts = []
     silent = []
     missing_threads = []
     undeclared_attrs = []
@@ -317,33 +302,11 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
                     )
                 if holders:
                     retired = evaluate_probe(page, "retiredSlots", holders)
-    # Last: these probes render temporary complete states. Compare carried actions
-    # against the authored baseline, restore current state, then prove idempotence.
+    # Last: render the complete state again to prove idempotence.
     # The caught-up wait ensures they observe the same settled projection as the
     # preceding read-only probes.
     relative = []
     if scheme == "light" and replayed:
-        if earlier is not None:
-            projection = page_reading(
-                SourceReading(SourceDocument(markup), registry),
-                state["events"],
-                here,
-            ).projection
-            carried = [
-                event["id"]
-                for event, _spec in projection.actions.values()
-                if event["revision"] < here
-            ]
-            if carried:
-                conflicts = evaluate_probe(
-                    page,
-                    "replayOverrides",
-                    {
-                        "curHtml": markup,
-                        "prevHtml": earlier,
-                        "carriedActions": carried,
-                    },
-                )
         relative = evaluate_probe(page, "relativeReplays")
     # The replay above can resize what an observer watches. Chrome
     # delivers that notice in the next rendering turn, so closing on the write
@@ -365,7 +328,7 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         )
     if tiny:
         found.append(
-            f"[{scheme}] widgets rendered with no usable size: {json.dumps(tiny)}"
+            f"[{scheme}] widgets rendered with no usable size: {json_value(tiny)}"
         )
     found += [
         f"[{scheme}] <{u['tag']} id={u['id']!r}> shows {u['w']}x{u['h']}px of words"
@@ -376,7 +339,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         for u in unmarkable
     ]
     found += [f"[{scheme}] {text}" for _key, text in _overflow(overflow, misplaced)]
-    found += [f"[{scheme}] {s}" for s in stranded]
     found += [f"[{scheme}] {s}" for s in squeezed]
     found += [
         f"[{scheme}] the control .{c['ctrl'].split()[0]}"
@@ -412,7 +374,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         )
     found += [f"[{scheme}] {r}" for r in retired]
     found += [f"[{scheme}] {u}" for u in unsettled]
-    found += [f"[{scheme}] {c}" for c in conflicts]
     found += [f"[{scheme}] {r}" for r in relative]
     notices = [f"[{scheme}] console: {e}" for e in resize_notices]
     return found, notices
@@ -689,3 +650,41 @@ def unreserved_height_advice(page, declarations: dict) -> list[str]:
         + f', so what follows it moves when it is drawn: state data-height="{w["drawn"]}"'
         for w in evaluate_probe(page, "unreservedHeights", declarations)
     ]
+
+
+def framing_advice(page) -> list[str]:
+    """Report authored boxes whose visible inset includes a child's outer margin,
+    and rows whose edge trim separates their items.
+
+    Padding and margins can be intentional, so these measurements refuse nothing.
+    The shared probes also inspect Leaf's chrome and module implementations; their
+    findings belong to the suite rather than the author editing the page.
+    """
+
+    found = []
+    for box in evaluate_probe(page, "trappedMargins"):
+        if not box["authored"]:
+            continue
+        through = "".join(f" through <{tag}>" for tag in box["through"])
+        trim = (
+            "Restore the declared frame's content-edge trim"
+            if box["frameDeclared"]
+            else "Use --lf-block-frame: 1 for a drawn frame, or --lf-block-frame: trim "
+            "for a transparent grouping"
+        )
+        found.append(
+            f"{box['at']} draws {box['drawn']:g}px of inset and shows "
+            f"{box['drawn'] + box['margin']:g}px {box['edge']} its <{box['child']}>"
+            f"{through}: {box['margin']:g}px of child margin stays inside the box. "
+            f"{trim}; put spacing between selectable blocks in the parent's gap "
+            "or outside margins"
+        )
+    for row in evaluate_probe(page, "splitEdges"):
+        if not row["authored"]:
+            continue
+        found.append(
+            f"{row['at']} trims only one item at its {row['edge']} edge while "
+            f"another keeps {row['margin']:g}px of margin. Declare "
+            "--lf-holds-edge: 1 on this flex or grid row to keep its items aligned"
+        )
+    return list(dict.fromkeys(found))

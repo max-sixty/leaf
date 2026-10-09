@@ -2,15 +2,18 @@
  * The document and every declared shadow stage adopt this sheet. Passage annotation
  * highlights belong to the optional annotation-marks.css sheet. */
 
-/* A newly inserted message starts unconfirmed, so delivery paint is immediate.
-   This sheet reaches every annotation surface, including inline threads inside
-   declared shadow roots. Existing controls keep chrome.css's delayed busy feedback. */
-.lf-msg[aria-busy="true"] {
-  animation: none;
-  opacity: .5;
+/* Delivery feedback follows reading content into every declared shadow stage.
+   The document's chrome sheet alone owns action-control fading. */
+[aria-busy="true"],
+[aria-busy="true"] :is(button, [role="button"]) {
   cursor: progress;
 }
 ::highlight(lf-version-insert) { background-color: var(--add-tint); }
+/* The start of what a scroller holds, for chrome standing beside words its scroll
+   carries to anchor to (anchor-names.js, `contentStart`): empty and inline, so it lays
+   out and paints nothing, and named by the attribute its owner writes. */
+[data-lf-content-start]::before {
+  content: ""; anchor-name: attr(data-lf-content-start type(<custom-ident>)); }
 .lf-action-target { outline: 1px solid var(--accent); outline-offset: -1px;
   cursor: pointer; }
 /* An element another widget indicates (indication.js, experimental). A contour in the

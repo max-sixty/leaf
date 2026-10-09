@@ -155,6 +155,7 @@ export function messageReading(
   return Object.freeze({
     key: message.attempt ?? message.id,
     id: message.id,
+    version: message.edited?.id ?? message.id,
     seq: moved(message).seq,
     unread: message.unread,
     attempt: message.attempt ?? null,
@@ -192,6 +193,7 @@ export class MessageView {
   #authored = null;
   #dressed = false;
   #arrivalMotion = null;
+  #stopRead = null;
   #header = document.createElement("div");
 
   constructor(commands) {
@@ -303,8 +305,7 @@ export class MessageView {
     }
     // Markdown is an opaque property part: tokenization never rewrites Lit markers.
     highlightBlocks(this.node);
-    this.#commands.read.observeBody(
-      this.node,
+    this.#stopRead = this.#commands.read.observeMessage(
       this.node.querySelector(":scope > .lf-msg-body"),
       model,
     );
@@ -345,7 +346,7 @@ export class MessageView {
   retire() {
     this.#arrivalMotion?.cancel();
     this.#reaction?.retire();
-    this.#commands.read.forgetBody(this.node);
+    this.#stopRead?.();
   }
 }
 

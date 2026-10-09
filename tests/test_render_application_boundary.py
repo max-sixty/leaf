@@ -2142,7 +2142,7 @@ def test_thread_readiness_waits_for_the_keyed_thread_list(browser, serve):
           document.addEventListener('keydown', event => {
             if (event.key === 'F9') window.releaseThreadList();
           });
-          application.createComment({
+          application.threadActions.create({
             attempt: 'held-thread-list',
             text: 'A second thread arrives.',
           });
@@ -2288,3 +2288,464 @@ def test_package_thread_actions_share_core_admission_and_current_availability(
         for event in events_model.read_events(serve.page_dir)
         if event.get("author") == "user" and event["kind"] != "comment"
     ] == ["reply", "resolve", "reply", "reply", "undo"]
+
+
+def package_workspace(serve):
+    """Run the shipped package example against real event admission."""
+    from render_harness import ROOT
+
+    companion = ROOT / "examples/developer/feature-gallery.page"
+    url = serve(
+        leaf_page(
+            "Package reader",
+            '<h1>Package reader</h1><p id="notes">Announcement notes</p><lf-conversation-workspace id="workspace"></lf-conversation-workspace>',
+        ),
+        layer_registry=json.loads((companion / "registry.json").read_text()),
+        layer_widgets={
+            "lf-conversation-workspace.js": (
+                companion / "widgets/lf-conversation-workspace.js"
+            ).read_text()
+        },
+    )
+    for event in [
+        {
+            "id": "channel-question",
+            "kind": "comment",
+            "author": "agent",
+            "revision": 1,
+            "text": "Which channel?",
+            "markup": '<lf-ask id="channel-ask"><h3>Channel</h3><lf-options id="channel-options" choose><lf-option id="email">Email</lf-option><lf-option id="chat">Chat</lf-option></lf-options></lf-ask>',
+        },
+        {
+            "id": "opening",
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep it concise.",
+        },
+        {
+            "id": "answer",
+            "kind": "reply",
+            "author": "agent",
+            "revision": 1,
+            "parent": "opening",
+            "text": "One paragraph.",
+        },
+        {
+            "id": "proofread",
+            "kind": "task",
+            "author": "agent",
+            "agent": "Agent",
+            "session": "proofread",
+            "owner": "user",
+            "subject": {"kind": "element", "id": "notes"},
+            "title": "Proofread announcement",
+        },
+    ]:
+        append_carried_log_record(serve.page_dir, event)
+    return url
+
+
+@pytest.mark.parametrize("width", [1440, 390])
+def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
+    browser, serve, width
+):
+    context = browser.new_context(
+        viewport={"width": width, "height": 900},
+        has_touch=width < 500,
+        is_mobile=width < 500,
+    )
+    page = open_page(browser, package_workspace(serve), context=context)
+    workspace = page.locator("#workspace")
+    email = workspace.locator("lf-option#email")
+    expect(email).to_be_visible()
+    page.evaluate(
+        "window.originalOption = document.querySelector('#workspace').querySelector('#email')"
+    )
+    with sending(page, "answer the package's native Ask"):
+        email.click()
+    expect(workspace.locator(".counts")).to_contain_text("Email")
+    workspace.get_by_role("button", name="Keep it concise.", exact=True).click()
+    editor = workspace.get_by_role("textbox", name="Reply", exact=True)
+    write(editor, "A shared draft")
+    workspace.get_by_role("button", name="Feed", exact=True).click()
+    expect(editor).to_have_js_property("value", "A shared draft")
+    workspace.get_by_role("button", name="Shelf", exact=True).click()
+    assert page.evaluate(
+        "document.querySelector('#workspace').querySelector('#email') === window.originalOption"
+    )
+    expect(
+        workspace.get_by_role("textbox", name="Reply", exact=True).last
+    ).to_have_js_property("value", "A shared draft")
+    with sending(page, "send the retained reply"):
+        workspace.get_by_role("textbox", name="Reply", exact=True).last.press(
+            "Control+Enter"
+        )
+    expect(workspace.get_by_text("A shared draft", exact=True)).to_be_visible()
+    with sending(page, "create a real conversation from a package"):
+        workspace.get_by_role("textbox", name="New conversation").fill(
+            "New package conversation"
+        )
+        workspace.get_by_role("button", name="Start conversation").click()
+    expect(
+        workspace.locator(".lf-page-thread").get_by_text(
+            "New package conversation", exact=True
+        )
+    ).to_be_visible()
+    assert any(
+        event.get("text") == "New package conversation" and event["kind"] == "comment"
+        for event in events_model.read_events(serve.page_dir)
+    )
+
+
+def test_public_queue_commands_recheck_membership_and_restore_refusals(browser, serve):
+    page = open_page(browser, package_workspace(serve))
+    page.evaluate(
+        "async () => { window.api = await window.__lfRuntimeImport('/runtime/widget-api.js'); }"
+    )
+    key = page.evaluate(
+        "api.queueItemKey(api.readQueues().onYou.find(item => item.id === 'proofread'))"
+    )
+    assert page.evaluate(
+        "api.queueActions.done(api.queueItemKey(api.readQueues().onYou.find(item => item.ends === 'widget'))) === null"
+    )
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.evaluate("key => { window.doneDelivery = api.queueActions.done(key); }", key)
+    holding(page, held, 1, "a package Done awaiting admission")
+    assert page.evaluate(
+        "!api.readQueues().onYou.some(item => item.id === 'proofread')"
+    )
+    assert page.evaluate("api.readQueues().done.some(item => item.id === 'proofread')")
+    assert page.evaluate("key => api.queueActions.done(key) === null", key)
+    held[0].fulfill(
+        status=200,
+        content_type="application/json",
+        body=json.dumps(
+            {
+                "ok": False,
+                "final": True,
+                "attempt": held[0].request.post_data_json["attempt"],
+                "error": "Deliberate refusal",
+            }
+        ),
+    )
+    page.unroute("**/api/event")
+    assert page.evaluate("doneDelivery") is None
+    round_trip(page)
+    assert page.evaluate("api.readQueues().onYou.some(item => item.id === 'proofread')")
+    with sending(page, "a current package Done"):
+        page.locator("#workspace").get_by_role(
+            "button", name="Done", exact=True
+        ).click()
+    assert page.evaluate("key => api.queueActions.done(key) === null", key)
+    assert page.evaluate("key => api.queueActions.open(key)", key)
+    expect(page.locator("#notes")).to_be_focused()
+    assert [
+        event["kind"]
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("task") == "proofread"
+    ] == ["task_end"]
+
+
+def test_failed_primary_reader_restores_the_same_native_ask_in_core(browser, serve):
+    page = open_page(browser, package_workspace(serve))
+    expect(page.locator("#workspace lf-option#email")).to_be_visible()
+    page.evaluate("""() => {
+      const workspace = document.querySelector('#workspace');
+      window.nativeOption = workspace.querySelector('#email');
+      const render = workspace.present.bind(workspace);
+      workspace.present = (...args) => {
+        workspace.present = render;
+        throw new Error('Deliberate primary failure');
+      };
+      window.failedRender = workspace.presentation.update().then(() => false, () => true);
+    }""")
+    assert page.evaluate("failedRender")
+    consume_browser_errors(
+        page, "leaf: Presentation failed: Deliberate primary failure"
+    )
+    assert page.evaluate(
+        "nativeOption.isConnected && nativeOption.closest('.lf-thread') !== null"
+    )
+    page.evaluate("document.querySelector('#workspace').presentation.update()")
+    email = page.locator("lf-option#email")
+    expect(email).to_be_visible()
+    assert email.evaluate("node => node === nativeOption")
+    with sending(page, "answer the restored native Ask"):
+        email.click()
+    expect(page.locator("#workspace .counts")).to_contain_text("Email")
+
+
+@pytest.mark.parametrize("fault", ["detached-outlet", "retained-list"])
+def test_primary_native_content_survives_sibling_preparation_faults(
+    browser, serve, fault
+):
+    page = open_page(browser, package_workspace(serve))
+    page.evaluate(
+        """fault => {
+      const workspace = document.querySelector('#workspace');
+      window.nativeOption = workspace.querySelector('#email');
+      const list = document.querySelector('leaf-thread-list');
+      const present = list.present.bind(list);
+      if (fault === 'retained-list') {
+        list.present = model => {
+          list.present = present;
+          throw new Error('Deliberate sibling failure');
+        };
+      } else {
+        let release;
+        const gate = new Promise(resolve => { release = resolve; });
+        window.releaseSibling = release;
+        list.present = model => {
+          list.present = present;
+          window.siblingWaiting = true;
+          return gate.then(() => present(model));
+        };
+      }
+      window.faultDelivery = workspace.presentation.update().catch(() => null);
+    }""",
+        fault,
+    )
+    if fault == "detached-outlet":
+        page.wait_for_function("window.siblingWaiting === true")
+        page.evaluate("""() => {
+          document.querySelector('#workspace').reader.firstElementChild.remove();
+          releaseSibling();
+        }""")
+    page.evaluate("faultDelivery")
+    consume_browser_errors(
+        page,
+        "leaf: Presentation failed: "
+        + (
+            "Deliberate sibling failure"
+            if fault == "retained-list"
+            else "A primary Thread outlet must remain inside its connected owner"
+        ),
+    )
+    assert page.evaluate("nativeOption.isConnected")
+    page.evaluate("document.querySelector('#workspace').presentation.update()")
+    email = page.locator("#workspace lf-option#email")
+    expect(email).to_be_visible()
+    assert email.evaluate("node => node === nativeOption")
+    with sending(page, "answer after sibling recovery"):
+        email.click()
+    expect(page.locator("#workspace .counts")).to_contain_text("Email")
+
+
+def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
+    browser, serve
+):
+    """Forwarding slots preserve native widgets and respect rendered inert ancestors."""
+    from render_harness import ROOT
+
+    companion = ROOT / "examples/developer/feature-gallery.page"
+    registry = json.loads((companion / "registry.json").read_text())
+    registry["lf-nested-reader"] = {
+        "description": "A declared nested physical reader stage.",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-shadow": True,
+        "x-upgrade": True,
+    }
+    module = (companion / "widgets/lf-conversation-workspace.js").read_text()
+    module = module.replace(
+        "body.append(index, this.reader);",
+        """const nested = offer('lf-nested-reader');
+        nested.style.display = 'block';
+        nested.style.minWidth = '0';
+        nested.style.minHeight = '0';
+        nested.inert = true;
+        const nestedStyle = document.createElement('style');
+        nestedStyle.textContent = '.reader { height:100%; min-height:0; overflow:auto; }';
+        shadowStage(nested, [nestedStyle, this.reader]);
+        body.append(index, nested);""",
+    )
+    url = serve(
+        leaf_page(
+            "Nested package reader",
+            '<h1>Nested package reader</h1><lf-conversation-workspace id="workspace"></lf-conversation-workspace>',
+        ),
+        layer_registry=registry,
+        layer_widgets={
+            "lf-conversation-workspace.js": module,
+            "lf-nested-reader.js": "customElements.define('lf-nested-reader', class extends HTMLElement {});",
+        },
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "id": "nested-question",
+            "kind": "comment",
+            "author": "agent",
+            "revision": 1,
+            "text": "Which channel?",
+            "markup": '<lf-ask id="channel-ask"><h3>Channel</h3><lf-options id="channel-options" choose><lf-option id="email">Email</lf-option><lf-option id="chat">Chat</lf-option></lf-options></lf-ask>',
+        },
+    )
+    page = open_page(browser, url)
+    workspace = page.locator("#workspace")
+    email = workspace.locator("lf-option#email")
+    expect(email).to_be_visible()
+    page.evaluate(
+        """async () => {
+        window.api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+        window.nestedOption = document.querySelector('#email');
+        }"""
+    )
+    assert email.evaluate("node => node.getRootNode() === document")
+    assert page.evaluate(
+        "document.querySelector('#workspace').shadowRoot.querySelector('lf-nested-reader').shadowRoot !== null"
+    )
+    workspace.get_by_role("button", name="Feed", exact=True).click()
+    round_trip(page)
+    assert page.evaluate("api.readThreads().threads[0].unread") == [
+        {"message": "nested-question", "version": "nested-question"}
+    ]
+    assert not [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "read"
+    ]
+    page.evaluate(
+        "document.querySelector('#workspace').shadowRoot.querySelector('lf-nested-reader').inert = false"
+    )
+    workspace.get_by_role("button", name="Shelf", exact=True).click()
+    expect(
+        workspace.locator('.lf-msg[data-event="nested-question"]')
+    ).not_to_have_class(re.compile(r"\blf-unread\b"))
+    round_trip(page)
+    assert [
+        event["messages"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "read"
+    ] == [[{"message": "nested-question", "version": "nested-question"}]]
+    assert email.evaluate("node => node === nestedOption")
+    assert page.evaluate(
+        "async () => await api.openThread('nested-question', {focus:'message'}) !== null"
+    )
+    expect(workspace.locator('.lf-msg[data-event="nested-question"]')).to_be_focused()
+    assert email.evaluate(
+        "node => node === nestedOption && node.getRootNode() === document"
+    )
+    with sending(page, "answer through a nested package reader"):
+        email.click()
+    expect(workspace.locator(".counts")).to_contain_text("Email")
+
+
+def test_queue_ask_arrival_selects_the_primary_reader(browser, serve):
+    page = open_page(browser, package_workspace(serve))
+    workspace = page.locator("#workspace")
+    workspace.get_by_role("button", name="Keep it concise.", exact=True).click()
+    page.evaluate(
+        "async () => { window.api = await window.__lfRuntimeImport('/runtime/widget-api.js'); }"
+    )
+    assert page.evaluate(
+        "async () => { const item = api.readQueues().onYou.find(item => item.ends === 'widget'); return await api.queueActions.open(api.queueItemKey(item)); }"
+    )
+    expect(workspace.locator("lf-option#email")).to_be_visible()
+    assert page.evaluate(
+        "document.querySelector('#workspace').contains(document.querySelector('#email'))"
+    )
+    assert page.evaluate(
+        "document.querySelector('leaf-thread-list').getBoundingClientRect().width === 0"
+    )
+
+
+def test_primary_reader_revision_replaces_owner_without_losing_thread_draft(
+    browser, serve
+):
+    """An authored owner replacement carries the thread's session and frozen widgets."""
+    page = open_page(browser, live_url(package_workspace(serve)))
+    page.evaluate(
+        """() => {
+        window.originalWorkspace = document.querySelector('#workspace');
+        window.originalOption = document.querySelector('#email');
+        window.originalDocument = performance.timeOrigin;
+        }"""
+    )
+    workspace = page.locator("#workspace")
+    workspace.get_by_role("button", name="Keep it concise.", exact=True).click()
+    editor = workspace.get_by_role("textbox", name="Reply", exact=True)
+    words = "Keep this unfinished answer across the revision."
+    write(editor, words)
+    editor.evaluate("node => node.setSelectionRange(2, 8, 'backward')")
+    before = editor.evaluate("node => [node.selectionStart, node.selectionEnd]")
+    stamp_page(
+        serve.page_dir,
+        leaf_page(
+            "Package reader",
+            '<h1>Package reader</h1><p id="notes">Revised announcement notes</p><lf-conversation-workspace id="replacement"></lf-conversation-workspace>',
+        ),
+        "Replace the reader owner while retaining its conversations",
+    )
+    told(page)
+    banner_control(page, ".lf-latest-chip").click()
+    wait_for_revision(page, 2)
+    assert page.evaluate("performance.timeOrigin === originalDocument")
+    assert page.evaluate("!originalWorkspace.isConnected")
+    replacement = page.locator("#replacement")
+    reply = replacement.get_by_role("textbox", name="Reply", exact=True)
+    expect(reply).to_have_js_property("value", words)
+    expect(reply).to_be_focused()
+    assert reply.evaluate("node => [node.selectionStart, node.selectionEnd]") == before
+    expect(
+        replacement.locator('.lf-page-thread[data-thread="opening"]')
+    ).to_contain_text("One paragraph.")
+    replacement.get_by_role("button", name=re.compile(r"Which channel\?")).click()
+    email = replacement.locator("lf-option#email")
+    expect(email).to_be_visible()
+    assert email.evaluate(
+        "node => node === originalOption && node.getRootNode() === document"
+    )
+    with sending(page, "answer the unchanged native Ask after reader replacement"):
+        email.click()
+    expect(replacement.locator(".counts")).to_contain_text("Email")
+    replacement.get_by_role("button", name="Keep it concise.", exact=True).click()
+    reply = replacement.get_by_role("textbox", name="Reply", exact=True)
+    expect(reply).to_have_js_property("value", words)
+    with sending(page, "send the thread draft carried across reader replacement"):
+        reply.press("Control+Enter")
+    expect(
+        replacement.locator('.lf-page-thread[data-thread="opening"]')
+    ).to_contain_text(words)
+    assert [
+        event["parent"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "reply" and event.get("text") == words
+    ] == ["opening"]
+
+
+@pytest.mark.parametrize("edit_again", [False, True])
+def test_package_creation_refusal_preserves_the_current_draft(
+    browser, serve, edit_again
+):
+    page = open_page(browser, package_workspace(serve))
+    workspace = page.locator("#workspace")
+    input = workspace.get_by_role("textbox", name="New conversation")
+    input.fill("Refused conversation")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    workspace.get_by_role("button", name="Start conversation").click()
+    holding(page, held, 1, "a package creation awaiting admission")
+    expect(input).to_have_value("")
+    if edit_again:
+        input.fill("A later draft")
+    held[0].fulfill(
+        status=200,
+        content_type="application/json",
+        body=json.dumps(
+            {
+                "ok": False,
+                "final": True,
+                "attempt": held[0].request.post_data_json["attempt"],
+                "error": "Deliberate creation refusal",
+            }
+        ),
+    )
+    page.unroute("**/api/event")
+    expect(input).to_have_value(
+        "A later draft" if edit_again else "Refused conversation"
+    )

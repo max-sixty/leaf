@@ -97,12 +97,7 @@ import { reserve } from "../widget-elements.js";
 import { keeps } from "../keeps.js";
 import { queueList } from "../drawers.js";
 import { decisionFor, registry, tagsDeclaring } from "../registry.js";
-import {
-  allAsks as readAllAsks,
-  askEntry,
-  openAsks as readOpenAsks,
-  unansweredAsks as readUnansweredAsks,
-} from "./model.js";
+import { askEntry, readAsks } from "./model.js";
 import { walkPositionLabel } from "../walk-position.js";
 import { focused } from "../focus.js";
 import {
@@ -133,29 +128,23 @@ import { showHeld } from "../thread/held-news.js";
 
 // Ask owns contextual action routes and navigation; the keyboard presenter owns their hints.
 export function createAskView({
-  panelIsOpen,
-  setPanel,
   prepareTrip,
   arrive,
-  refreshThread,
-  revealThread,
+  openPageThread,
   focusForNavigation,
   presentedControl,
   announce,
   repaint,
 }) {
-  const allAsks = readAllAsks;
-  const openAsks = readOpenAsks;
-  const unansweredAsks = readUnansweredAsks;
   const askNode = (ask) => (ask ? elementById(ask.id) : null);
   const askRow = (ask) => (ask ? rowAt(queueList, ask.id) : null);
   const sourceNode = (ask) => (ask ? elementById(ask.sourceId) : null);
   const hasAsk = (asks, candidate) =>
     Boolean(candidate && asks.some((ask) => ask.id === candidate.id));
-  const unansweredIds = () => new Set(unansweredAsks().map(({ id }) => id));
+  const unansweredIds = () => new Set(readAsks().unanswered.map(({ id }) => id));
 
   // A thread Ask is part of the application reading before its frozen markup has a
-  // live panel node. Navigation and activation are the two boundaries that need that
+  // live reader node. Navigation and activation are the two boundaries that need that
   // node, so materialize the existing thread projection there rather than
   // narrowing the semantic inventory to what happens to be in the DOM.
   //
@@ -174,13 +163,11 @@ export function createAskView({
   };
   const unbuilt = (ask, { target, source }) => (!target || !source) && ask.thread;
   async function materializeAsk(ask, intent = null) {
-    if (!panelIsOpen()) {
-      if (intent) {
-        if (!intent.handoff(() => setPanel(true))) return {};
-      } else setPanel(true);
-    }
-    await revealThread(ask.thread);
-    await refreshThread();
+    await openPageThread(ask.thread, {
+      focus: false,
+      travel: false,
+      ...(intent && { intent }),
+    });
     return askNodes(ask);
   }
   const presentedActionControl = (control) => presentedControl?.(control) ?? control;
@@ -193,7 +180,7 @@ export function createAskView({
     try {
       // Resolve the current open inventory at activation. A control can survive several
       // publications and toolbar moves; it never captures an earlier Ask or DOM node.
-      for (const ask of openAsks()) {
+      for (const ask of readAsks().user) {
         if (askEntry(ask)?.all !== outcome) continue;
         const nodes = reachAsk(ask);
         const { source } = unbuilt(ask, nodes) ? await materializeAsk(ask) : nodes;
@@ -258,7 +245,7 @@ export function createAskView({
   // these counts once the state its POST returns has been adopted.
   async function paintAsks(current) {
     const bannerModel = Object.freeze({
-      bulk: Object.freeze(blanketAnswers(openAsks())),
+      bulk: Object.freeze(blanketAnswers(readAsks().user)),
     });
     repaint();
     try {
@@ -323,14 +310,14 @@ export function createAskView({
   // retargets to its host, and the host is the place in the document this wants.
   function standingAsk(held = documentFocused()) {
     if (!held || held === document.body) return null;
-    const unanswered = askAt(unansweredAsks(), held);
+    const unanswered = askAt(readAsks().unanswered, held);
     if (unanswered) return unanswered;
     // An answered Ask is standing only on an explicit review route: the ask element,
     // or chrome whose owner declares it stands at that element (`sideOf`), as a Queue
     // row does. A widget host can be the document's retargeted focus without being the
     // ask itself; treating that as an arrival would make an ordinary click on a chosen
     // option steal the option's own semantics.
-    const answered = askAt(allAsks(), held);
+    const answered = askAt(readAsks().all, held);
     if (!answered) return null;
     const ask = askNode(answered);
     return held === ask ||
@@ -355,12 +342,12 @@ export function createAskView({
     return source ? actionsFor(source) : [];
   };
   function questionContext(origin) {
-    const record = askAt(allAsks(), hostIn(origin, document));
+    const record = askAt(readAsks().all, hostIn(origin, document));
     let root = null;
     // Keep the projection outside any nearer widget scope, but inside the
     // keyboard boundary of a thread. Native input claims precede context scopes.
     for (let node = origin; record && node; node = upFrom(node)) {
-      if (askAt(allAsks(), node)?.id !== record.id) break;
+      if (askAt(readAsks().all, node)?.id !== record.id) break;
       root = node;
       if (node.hasAttribute("data-lf-thread-surface")) break;
     }
@@ -472,7 +459,7 @@ export function createAskView({
   // each of those returns and `body` keeps the focus the replacement gave it.
   function restoreStanding(ask) {
     if (!ask || standingAsk()?.id === ask) return;
-    const record = allAsks().find((candidate) => candidate.id === ask);
+    const record = readAsks().all.find((candidate) => candidate.id === ask);
     const target = record && arrivalFocus(record);
     if (target) focusForNavigation(target, "return");
   }
@@ -601,26 +588,17 @@ export function createAskView({
   // since it is the one that knows which list it walked.
   async function arriveAtAskNow(next) {
     const mayArrive = retainUserIntent({
-      available: () => hasAsk(allAsks(), next),
+      available: () => hasAsk(readAsks().all, next),
     });
     // Materializing an Ask can yield before its destination opens a narrowed thread.
     // The arrival is this walk's deferred invocation; its returned tail is separate.
     const arriveAtAsk = bindQueuedWork(arrive);
-    // A thread's ask lives in the panel, which has no geometry while closed — the
-    // same reason reveal() opens a settled group before the scroll. Waited for only
-    // where it has to be built, so an Ask already standing is arrived at in the turn.
-    const nodes = reachAsk(next);
-    let { target } = unbuilt(next, nodes)
+    // A thread Ask uses the same retained destination as every other thread
+    // arrival. The selected reader may need to disclose a different conversation.
+    const { target } = next.thread
       ? await materializeAsk(next, mayArrive)
-      : nodes;
+      : reachAsk(next);
     if (!mayArrive() || !target) return false;
-    if (inChrome(target) && !panelIsOpen()) {
-      if (!mayArrive.handoff(() => setPanel(true))) return false;
-      await refreshThread();
-      if (!mayArrive()) return false;
-      target = askNode(next);
-      if (!target) return false;
-    }
     // A page Ask starts below the banner so its context comes before its control, and
     // what counts as its context is arrivalRegion's answer: the region an author declared,
     // or the one the document supplies for a change that cannot declare one. Whether this

@@ -2,7 +2,7 @@
    Questions panel's Done rows and a queue's rows (lf-tabs).
 
    Which Asks the page holds and whether each is answered are the admitted inventory's
-   (`allAsks`, `unansweredAsks`), so both move when the state a gesture's POST returns
+   (`readAsks`), so both move when the state a gesture's POST returns
    is adopted; nothing here folds the widget's `x-awaits.answered` condition again. The
    inventory keeps an Ask the user answered after a later version settles it, so a
    region whose question is decided still reads as decided.
@@ -17,7 +17,7 @@ import { closestAcross, elementById } from "../passages.js";
 import { tagsDeclaring } from "../registry.js";
 import { selectWidgets } from "../semantic-state.js";
 import { under } from "../shadow.js";
-import { allAsks, unansweredAsks } from "./model.js";
+import { readAsks } from "./model.js";
 
 // Whether a command declared inside an Ask's source belongs to that Ask rather than to
 // another Ask nested in it.
@@ -42,7 +42,7 @@ function answerOf(ask, widgets) {
 // Each Ask's answer: null while it is unanswered, else its widget's words for the
 // answer ("" where the widget says none).
 export function askAnswers(asks) {
-  const unanswered = new Set(unansweredAsks().map(({ id }) => id));
+  const unanswered = new Set(readAsks().unanswered.map(({ id }) => id));
   const widgets = selectWidgets();
   return asks.map((ask) => (unanswered.has(ask.id) ? null : answerOf(ask, widgets)));
 }
@@ -53,7 +53,7 @@ export function askAnswers(asks) {
 // model.
 export const answersWithin = (root) =>
   askAnswers(
-    allAsks().filter((ask) => {
+    readAsks().all.filter((ask) => {
       const source = elementById(ask.sourceId);
       return source && under(source, root);
     }),

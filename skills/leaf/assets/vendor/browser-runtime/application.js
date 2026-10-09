@@ -28,7 +28,7 @@ import {
   isMessageEvent,
 } from "../../runtime/pending/model.js";
 import { PENDING } from "../../runtime/thread/identity.js";
-import { selectDone, selectQueues } from "../../runtime/queues.js";
+import { queueOffers, selectDone, selectQueues } from "../../runtime/queues.js";
 
 // The pure model's input types are inferred from its existing implementation. They
 // remain one contract while those folds move to compiled source independently.
@@ -802,6 +802,14 @@ export function createSemanticApplication({
       workflows,
       markingRead,
     );
+    const selectedQueues = selectQueues({ threads, workflows, tasks: tasks.open });
+    const workflowById = new Map(workflows.map((workflow) => [workflow.id, workflow]));
+    const contextual =                                         (items     , onYou = false) =>
+      items.map((item) => ({
+        ...item,
+        workflow: workflowById.get(item.id) ?? null,
+        offers: queueOffers(item, ready, onYou),
+      }));
     return {
       hostAvailable,
       projection,
@@ -813,12 +821,15 @@ export function createSemanticApplication({
           threads: threads.filter(discussed),
         },
       },
-      asks,
+      asks: { phase, ...asks },
       // What is on the user and what is on the agent, selected from the readings
       // above once this tab's sends are folded into them (`runtime/queues.js`).
-      queues: selectQueues({ threads, workflows, tasks: tasks.open }),
-      // What is finished, selected beside them from the ended tasks.
-      done: selectDone({ tasks: tasks.ended }),
+      queues: {
+        phase,
+        onYou: contextual(selectedQueues.onYou, true),
+        onAgent: contextual(selectedQueues.onAgent),
+        done: contextual(selectDone({ tasks: tasks.ended })),
+      },
       // Inside the publication signature, so a read that changes only the view's
       // updates, publication time, or undo list still reaches its watchers.
       view,

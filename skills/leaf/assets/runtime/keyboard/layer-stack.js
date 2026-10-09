@@ -32,7 +32,7 @@
    own DOM cannot be asked for in order. */
 
 import { releaseFocus, holdFocus, nativeLayerSteps } from "../focus.js";
-import { under } from "../shadow.js";
+import { renderedUnder } from "../shadow.js";
 
 const entries = [];
 const watchedRoots = new WeakSet();
@@ -82,7 +82,7 @@ function closing(event) {
   if (
     entry?.kind === "popover" &&
     entry.fromNowhere &&
-    event.target.contains(document.activeElement)
+    renderedUnder(document.activeElement, event.target)
   )
     releaseFocus();
 }
@@ -130,10 +130,10 @@ export function nativeModalAdmits(node) {
   const reading = owner[NATIVE_LAYERS];
   if (reading) {
     const modal = reading().findLast((layer) => layer.kind === "modal")?.root;
-    return !modal || under(node, modal);
+    return !modal || renderedUnder(node, modal);
   }
   return [...owner.querySelectorAll("dialog:modal")].every((modal) =>
-    under(node, modal),
+    renderedUnder(node, modal),
   );
 }
 
@@ -143,7 +143,7 @@ export function nativeModalAdmits(node) {
 // turn, before any queued close event can see a descendant left closed.
 export function transitionNativeAncestor(root, transition) {
   const descendants = nativeLayers().filter(
-    (layer) => layer.root !== root && under(layer.root, root),
+    (layer) => layer.root !== root && renderedUnder(layer.root, root),
   );
   const held = holdFocus(root);
   nativeLayerSteps(() => {

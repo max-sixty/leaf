@@ -227,18 +227,18 @@ customElements.define(
         if (this.#picture?.viewed) {
           const canvas = this.#picture.element.parentElement;
           const viewer = this.#picture.viewer;
-          if (
+          const resized =
             viewer.clientWidth !== canvas.clientWidth ||
-            viewer.clientHeight !== canvas.clientHeight
-          ) {
+            viewer.clientHeight !== canvas.clientHeight;
+          if (resized) {
             this.#picture.resize();
+            const image = this.#trace.images.find(
+              (image) => image.id === this.#pictureId,
+            );
+            this.#applyPictureView(this.#picture, image);
+            this.#imageZoom();
+            this.#parts.update();
           }
-          const image = this.#trace.images.find(
-            (image) => image.id === this.#pictureId,
-          );
-          this.#applyPictureView(this.#picture, image);
-          this.#imageZoom();
-          this.#parts.update();
         }
         if (!widthChanged || !rail || rail !== this.#rail) return;
         const redraw = this.#waitRail((done) => {

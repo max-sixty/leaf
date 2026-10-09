@@ -1232,18 +1232,19 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
      there. */
   .lf-thread-panel-foot { display: flex; flex-direction: column; flex: none; }
   /* Every composer gives its field the row; its submit action lives inside that field. */
-  /* `--lf-held-room` keeps a sent draft's room, its attachments' included, until the
-     user writes again (page-comment.js), and `--lf-held-field` keeps the field's own, at
-     the room's foot: the attachments' room stands empty above it while the send is out,
-     so neither the field nor Send moves when a refusal hands them back. Both are bases
-     rather than floors, so the editor still shrinks before the card scrolls when the
-     window has less room. */
   .lf-general {
-    display: flex; gap: 6px; flex: 1 1 var(--lf-held-room, 0%); min-height: 0;
-    flex-direction: column; flex-wrap: nowrap; align-items: stretch;
-    justify-content: flex-end; }
+    display: flex; gap: 6px; flex: 1; min-height: 0;
+    flex-direction: column; flex-wrap: nowrap; align-items: stretch; }
+  /* A sent draft's room, held by page-comment.js. `--lf-held-field` keeps the field's
+     height until the user writes again, as its basis rather than a floor, so the editor
+     still shrinks before the card scrolls when the window has less room.
+     `--lf-held-gap` keeps the room its attachments took above the field while the shelf
+     stands empty, until the card goes: neither the field nor Send moves while the send
+     is out, when a refusal hands the attachments back, or when the user types again. */
   .lf-general > .lf-compose-field {
     flex: var(--lf-held-grow, 1) 1 var(--lf-held-field, 0%); }
+  .lf-general:has(> .lf-composer-media[hidden]) {
+    padding-block-start: var(--lf-held-gap, 0px); }
   .lf-thread-action { border: none; background: none; color: var(--muted); cursor: pointer; }
   .lf-thread-action:hover { color: var(--ok); }
   /* Reopen stands in the same row as Resolve and answers the same question from the

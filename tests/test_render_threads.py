@@ -2372,6 +2372,18 @@ def test_a_sent_page_comment_keeps_its_room_without_stranding_send(browser, serv
     page.unroute("**/api/event")
     assert all("400" in error for error in take_browser_errors(page))
 
+    # Accepted, the words and the image leave; writing again shrinks the field at its
+    # foot, its top where the send left it, the image's room still above it.
+    with sending(page, "the page comment with its image"):
+        send.click()
+    expect(box).to_have_js_property("value", "")
+    rendered(page)
+    top = field.bounding_box()["y"]
+    box.click()
+    page.keyboard.type("A")
+    rendered(page)
+    assert field.bounding_box()["y"] == top, "typing again moved the field's top"
+
 
 def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
     """A send is the one gesture that produces a thread, so it gets the same answer a

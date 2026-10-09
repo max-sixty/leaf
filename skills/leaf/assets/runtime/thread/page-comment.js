@@ -127,16 +127,16 @@ export function createPageComment({
     focusDestination(input, "move");
   }
 
-  // The room the box's words and attachments took when they were sent, held until the
-  // user writes again or the card goes.
-  const HELD = ["--lf-held-room", "--lf-held-field", "--lf-held-grow"];
-  const releaseRoom = () => {
-    if (!composer.style.getPropertyValue("--lf-held-room")) return;
-    for (const name of HELD) composer.style.removeProperty(name);
+  // The room a sent draft took: the field's until the user writes again, and its
+  // attachments' above the field until the card goes (chrome.css, `.lf-general`).
+  const release = (...names) => {
+    for (const name of names)
+      if (composer.style.getPropertyValue(name)) composer.style.removeProperty(name);
   };
-  input.addEventListener("input", releaseRoom);
+  input.addEventListener("input", () => release("--lf-held-field", "--lf-held-grow"));
   card.addEventListener("toggle", (event) => {
-    if (event.newState === "closed") releaseRoom();
+    if (event.newState === "closed")
+      release("--lf-held-field", "--lf-held-grow", "--lf-held-gap");
   });
 
   let sync = () => {};
@@ -159,13 +159,11 @@ export function createPageComment({
       sendBtn: send,
       save: (text) => saveDraft("general", text),
       send: async (_text, raw, owns) => {
-        const room = composer.getBoundingClientRect().height;
-        const field = input
-          .closest(".lf-compose-field")
-          ?.getBoundingClientRect().height;
-        if (room && field) {
-          composer.style.setProperty("--lf-held-room", `${room}px`);
-          composer.style.setProperty("--lf-held-field", `${field}px`);
+        const top = composer.getBoundingClientRect().top;
+        const field = input.closest(".lf-compose-field")?.getBoundingClientRect();
+        if (field?.height) {
+          composer.style.setProperty("--lf-held-gap", `${field.top - top}px`);
+          composer.style.setProperty("--lf-held-field", `${field.height}px`);
           composer.style.setProperty("--lf-held-grow", "0");
         }
         let flight = null;

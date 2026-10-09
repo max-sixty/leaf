@@ -1,8 +1,9 @@
 /* Validation for the drawing payload shared by composers and the drawing controller.
  *
- * `strokes` are offsets in one local frame and may run past its edges. HTML uses
- * CSS pixels; SVG uses viewport user units; images, canvases and video use intrinsic
- * pixels. geometry.elementFrame projects all of them through composed affine transforms.
+ * `strokes` are coordinates in one local frame and may run past its edges. HTML uses
+ * CSS pixels; SVG uses user units; images, canvases and video use intrinsic
+ * pixels. SVG points retain their user-space origin when the viewBox pans.
+ * geometry.elementFrame projects all of them through composed affine transforms.
  * `frame`, when present, identifies the native visual under the stroke inside the
  * semantic comment target. Its bounded structural path counts authored element siblings,
  * including a shadow-root step, and detaches on insertion/removal rather than guessing.

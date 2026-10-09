@@ -211,14 +211,20 @@ def test_drawing_preview_preserves_the_painted_area(browser, serve, backing):
     draw_over(page, target)
     preview = page.locator(".lf-composer-drawing canvas")
     expect(preview).to_have_attribute("data-lf-drawing-context", "ready")
-    pixel = preview.evaluate(
-        "canvas => [...canvas.getContext('2d').getImageData(0,0,1,1).data]"
+    # The lower context band is blank page paint. Keep clear of platform-dependent
+    # glyph placement at the top and raster antialiasing at the crop boundary.
+    pixels = preview.evaluate(
+        "canvas => [...canvas.getContext('2d').getImageData(2,canvas.height-3,1,3).data]"
     )
+    pixel = pixels[:4]
     if backing == "solid":
         assert pixel == [20, 40, 60, 255]
     elif backing == "translucent":
         assert pixel[0] == 255 and pixel[3] == 255
         assert abs(pixel[1] - 127) <= 1 and abs(pixel[2] - 127) <= 1
+        assert pixels[-3] < 240 and pixels[-2] < 240, (
+            "the antialiased edge must contain page paint, without a bare white fringe"
+        )
     elif backing == "gradient":
         assert pixel[0] > 20 and pixel[2] > 20 and pixel[3] == 255
     else:

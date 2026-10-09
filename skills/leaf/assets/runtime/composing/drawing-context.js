@@ -107,10 +107,10 @@ export function drawingThumbnail(drawing, target) {
   };
   sizeCanvas();
   const paintInk = () => {
-    const { strokes, left, top, scale } = picture;
+    const { strokes, left, top, width, height } = picture;
     const ctx = canvas.getContext("2d");
     ctx.save();
-    ctx.scale(scale, scale);
+    ctx.scale(canvas.width / width, canvas.height / height);
     ctx.translate(-left, -top);
     ctx.strokeStyle = getComputedStyle(canvas).color;
     ctx.lineWidth = 3;
@@ -182,6 +182,10 @@ export function drawingThumbnail(drawing, target) {
         filter: (node) => !leafSurface(node),
         features: { restoreScrollPosition: true },
       });
+      // The renderer owns raster rounding. Its bitmap and ink share the same
+      // crop-to-pixel mapping, including fractional crop dimensions.
+      if (canvas.width !== image.width) canvas.width = image.width;
+      if (canvas.height !== image.height) canvas.height = image.height;
       paintBacking(canvas, colors);
       canvas.getContext("2d").drawImage(image, 0, 0);
       paintInk();

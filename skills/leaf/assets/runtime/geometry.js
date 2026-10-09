@@ -202,8 +202,9 @@ function nativePosition(source, position, horizontal, vertical) {
 }
 
 // Local content coordinates in the viewport. HTML uses its CSS border box; native
-// visuals use intrinsic pixels or SVG viewport units, so resizing scales their ink
-// with the picture. SVG supplies its own user-space matrix. Text reflow adds pixels
+// visuals use intrinsic pixels or SVG user units, so resizing scales their ink
+// with the picture. SVG's native user-space matrix carries viewBox camera pans as
+// well as scale; its viewport origin never rebases stored points. Text reflow adds pixels
 // to an HTML frame instead of stretching the points already held there.
 export function elementFrame(source) {
   const box = shownBox(source);
@@ -234,7 +235,7 @@ export function elementFrame(source) {
         screen.d,
         screen.e,
         screen.f,
-      ]).translate(local.x, local.y),
+      ]),
     };
   }
   const layout = elementBorderFrame(source);

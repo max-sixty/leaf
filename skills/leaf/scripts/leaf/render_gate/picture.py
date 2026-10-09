@@ -1,6 +1,6 @@
 """The picture of a drawing comment, as the user saw it.
 
-A drawing's ink keeps local offsets in its recorded frame: native visual coordinates
+A drawing's ink keeps local coordinates in its recorded frame: native visual coordinates
 inside its semantic target, or HTML pixels. Intrinsic resizing carries ink with the
 content. Once text reflows under it, the current page no longer shows what the
 user's strokes crossed.

@@ -253,13 +253,22 @@ def native_ink_start(page, selector, mark=".lf-drawing-pending"):
 
 def test_a_drawing_uses_its_anonymous_svg_inside_its_semantic_figure(browser, serve):
     """Two native visuals share one semantic comment seat. The selected visual's
-    viewport, including a viewBox origin and zero-height path, carries its ink."""
+    user space carries ink through camera pan, resize, addition and replay, even
+    with a nonzero viewBox origin and a zero-height path."""
     url = serve(NATIVE_FRAME_PAGE)
     page = open_page(browser, url)
     second = page.locator("#visuals svg").nth(1)
     draw_over(page, second)
     start = native_ink_start(page, "#visuals svg:nth-of-type(2)")
     assert start == pytest.approx([108, 129.2], abs=0.03)
+    second.evaluate("""async svg => {
+      const {layoutChanged} = await import('/runtime/widget-elements.js');
+      svg.setAttribute('viewBox', '50 50 400 160');
+      await layoutChanged(svg);
+    }""")
+    assert native_ink_start(page, "#visuals svg:nth-of-type(2)") == pytest.approx(
+        start, abs=0.03
+    ), "a camera pan moves the graphic and its ink together"
     page.locator("#visuals").evaluate("""el => {
       el.querySelector('figcaption').textContent += ' Longer caption.'.repeat(20);
       const chrome = document.createElement('aside');
@@ -271,7 +280,10 @@ def test_a_drawing_uses_its_anonymous_svg_inside_its_semantic_figure(browser, se
     assert native_ink_start(page, "#visuals svg:nth-of-type(2)") == pytest.approx(
         start, abs=0.03
     )
-    stroke_over(page, second)
+    # Draw on the same graphic points after the camera moved by 30x20 user units.
+    stroke_over(
+        page, second, points=tuple((x - 30 / 400, y - 20 / 160) for x, y in STROKE)
+    )
     with sending(page, "the second anonymous sketch"):
         page.keyboard.press("ControlOrMeta+Enter")
     event = events_model.read_events(serve.page_dir)[-1]
@@ -281,6 +293,7 @@ def test_a_drawing_uses_its_anonymous_svg_inside_its_semantic_figure(browser, se
         "root": "figure",
         "path": [{"tag": "svg", "index": 1, "siblings": 3}],
     }
+    assert event["drawing"]["strokes"][0][0] == pytest.approx(start, abs=0.03)
     assert event["drawing"]["strokes"][0][0] == pytest.approx(
         event["drawing"]["strokes"][1][0], abs=0.03
     )

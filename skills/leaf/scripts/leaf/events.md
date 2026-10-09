@@ -54,7 +54,7 @@ an ordinary comment, and may be that comment's only content. The browser anchors
 the element its first stroke starts on or nearest. `drawing.frame`, when present,
 identifies the native visual under that point with a bounded structural path inside
 that semantic element; sibling insertion or removal detaches it rather than retargeting.
-Leaf apparatus is excluded. Points are local offsets: HTML CSS pixels, SVG viewport
+Leaf apparatus is excluded. Points are local coordinates: HTML CSS pixels, SVG
 user units, or intrinsic image, canvas and video pixels. `box` is that frame's size
 and `says` the page's words under the ink. The frame follows scrolling and affine
 transforms. Intrinsic content resizing scales its ink; HTML layout growth adds local

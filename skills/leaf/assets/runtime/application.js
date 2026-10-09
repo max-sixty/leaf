@@ -13,8 +13,6 @@ import {
   presentDocument,
   whenDocumentPresented,
 } from "./semantic-state.js";
-import { newAttempt } from "./drafts.js";
-import { saidNow } from "./presence.js";
 import { announce, notice } from "./notifications.js";
 import {
   approvalBlockingAsks as readApprovalBlockingAsks,
@@ -22,7 +20,7 @@ import {
 } from "./asks/model.js";
 import { paintKeys } from "./keyboard/scopes.js";
 import { pendingTraffic } from "./traffic.js";
-import { createPendingLedger } from "./pending/state.js";
+import { createCommandDispatch } from "./pending/dispatch.js";
 import { createDelivery, deliverBookkeeping } from "./delivery.js";
 import {
   createProjectionPresentation,
@@ -45,8 +43,6 @@ import { registerMirrorConsumer, createPrimaryReader } from "./thread/mirrors.js
 import { createReadTracking } from "./thread/read.js";
 import { renderMarginThread } from "./thread/inline.js";
 import { threadBox as buildThreadBox } from "./thread/box.js";
-import { messageText } from "./thread/messages.js";
-import { isThreadEvent } from "./pending/model.js";
 import {
   placeThreads as registerConsumer,
   placePageThreads as registerPageConsumer,
@@ -56,6 +52,7 @@ import { createStateApplication } from "./state-application.js";
 import { beginRead as beginStateRead, createStateFeed } from "./state-feed.js";
 import { watchUpdates as observeUpdates } from "./updates.js";
 
+const commandDispatch = createCommandDispatch();
 let application = null;
 const app = () => {
   if (!application) throw new Error("Leaf application has not been mounted");
@@ -65,15 +62,7 @@ const app = () => {
 export function mountApplication(dependencies) {
   if (application) throw new Error("Leaf application mounted twice");
   setPresentationFailureReporter(dependencies.reportPageError);
-  const ledger = createPendingLedger({
-    newAttempt,
-    enqueue: (event) =>
-      applicationState.enqueue(
-        event,
-        saidNow(),
-        isThreadEvent(event) ? messageText(event) : undefined,
-      ),
-  });
+  const { ledger } = commandDispatch;
   const hasPending = () => ledger.snapshot().length > 0;
   const engagement = dependencies.createEngagement({
     hasPending,
@@ -173,12 +162,8 @@ export function mountApplication(dependencies) {
   // same fault a second time.
   const refreshThread = () => presentThread().catch(() => undefined);
 
-  function startPost(event) {
-    const entry = ledger.enqueue(event);
-    if (!entry) {
-      notice(`Couldn't send — attempt ${event.attempt} is already in use`);
-      return null;
-    }
+  /** @param {import("./pending/state.js").DeliveryHandle} entry */
+  function afterEnqueue(entry) {
     let presentationError = null;
     let threadPresentation = Promise.resolve();
     try {
@@ -207,37 +192,17 @@ export function mountApplication(dependencies) {
     // apparent refusal for callers that restore drafts or clear busy state from it.
     if (presentationError)
       console.error("leaf: optimistic presentation", presentationError);
-    return Object.freeze({
-      answer: entry.answer,
-      presentation: threadPresentation,
-    });
+    return threadPresentation;
   }
 
-  const post = (event) => startPost(event)?.answer ?? Promise.resolve(null);
+  commandDispatch.mount({
+    afterEnqueue,
+    withdraw: (candidate) => projectionCommands.withdraw(candidate),
+    onCollision: (attempt) =>
+      notice(`Couldn't send — attempt ${attempt} is already in use`),
+  });
 
-  function dispatchWidget(descriptor, command) {
-    const reading = applicationState.selectWidget(descriptor).read();
-    if (command.kind === "undo") {
-      // Only an exact candidate this widget's reading offers, by attempt or id.
-      const candidate = Object.values(reading.actions)
-        .flatMap(({ undo }) => undo)
-        .find(
-          (event) => event.attempt === command.target || event.id === command.target,
-        );
-      return candidate ? projectionCommands.withdraw(candidate) : null;
-    }
-    if (!reading.actions[command.verb]?.available) return null;
-    return (
-      startPost({
-        kind: "action",
-        revision: runtime.currentRevision,
-        widget: descriptor.id,
-        action: command.verb,
-        detail: structuredClone(command.detail ?? {}),
-        ...(command.attempt && { attempt: command.attempt }),
-      })?.answer ?? null
-    );
-  }
+  const { post, dispatchWidget } = commandDispatch;
 
   const projectionCommands = createProjectionCommands({
     post,
@@ -615,7 +580,7 @@ export function mountApplication(dependencies) {
 export const approvalBlockingAsks = (...args) => app().approvalBlockingAsks(...args);
 export const beginRead = (...args) => app().beginRead(...args);
 export const threadBox = (...args) => app().threadBox(...args);
-export const dispatchWidget = (...args) => app().dispatchWidget(...args);
+export const dispatchWidget = commandDispatch.dispatchWidget;
 export const hasPending = (...args) => app().hasPending(...args);
 export const invalidateDom = (...args) => app().invalidateDom(...args);
 export const landInThread = (...args) => app().landInThread(...args);
@@ -626,7 +591,7 @@ export const navigateToDatum = (...args) => app().navigateToDatum(...args);
 export const openThread = (...args) => app().threadDestinations.openPageThread(...args);
 export const pendingApprovals = (...args) => app().pendingApprovals(...args);
 export const acceptedApprovals = (...args) => app().acceptedApprovals(...args);
-export const post = (...args) => app().post(...args);
+export const post = commandDispatch.post;
 export const projectData = (...args) => app().projectData(...args);
 export const readAndApply = (...args) => app().readAndApply(...args);
 export const receiveState = (...args) => app().receiveState(...args);

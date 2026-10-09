@@ -988,8 +988,7 @@ def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypa
     stat moved.
 
     Runtime and vendor stay hard links into the shape across the loan, which is
-    the sharing the reset must not quietly spend (tests/AGENTS.md, "Fixtures own
-    the world they create")."""
+    the sharing the reset must not quietly spend (tests/AGENTS.md, "Fixtures")."""
     monkeypatch.chdir(tmp_path)
     pool = PagePool(tmp_path / "shapes")
 
@@ -2179,7 +2178,7 @@ def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
     close where the test ends with it does the same work a step early, and the
     reading it cuts short is its own. The exception is a page that keeps making
     the fault its test is about, where the consume has to follow a close of its own
-    (tests/AGENTS.md, "Consume a browser error where it is caused").
+    (tests/AGENTS.md, "Browser errors").
     """
     closes_to_stop_a_repeating_fault = {
         "test_a_website_session_reference_survives_a_failed_first_read",
@@ -2415,8 +2414,7 @@ def test_a_spawned_process_ends_with_what_it_started(spawn, launcher_ends):
 
 def test_no_test_ends_a_process_with_sigkill():
     """SIGKILL gives a process no chance to end what it started, so a test ends one
-    by closing the pipe it reads or with SIGTERM (tests/AGENTS.md, "A process the
-    suite starts ends with the run"). The source is read for it, since no fixture
+    by closing the pipe it reads or with SIGTERM (tests/AGENTS.md, "Processes and servers"). The source is read for it, since no fixture
     sees which signal a test sends: `Popen.kill()`, `signal.SIGKILL`, signal 9
     passed to `kill`, `killpg` or `send_signal`, and a shell `kill` given signal 9
     or KILL in a command a test runs."""

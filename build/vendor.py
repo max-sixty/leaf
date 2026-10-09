@@ -169,6 +169,25 @@ def build_drawing_context(work: Path) -> list[Path]:
     return [out]
 
 
+def build_density_clustering(work: Path) -> list[Path]:
+    """DBSCAN groups screenshot fragments by their original neighborhoods."""
+    out = ASSETS / "vendor/density-clustering.esm.js"
+    (work / "entry.mjs").write_text(
+        'export { default as DBSCAN } from "density-clustering/lib/DBSCAN.js";\n',
+        encoding="utf-8",
+    )
+    esbuild(
+        "entry.mjs",
+        "--bundle",
+        "--format=esm",
+        "--minify",
+        "--legal-comments=inline",
+        f"--outfile={out}",
+        cwd=work,
+    )
+    return [out]
+
+
 def build_photoswipe(work: Path) -> list[Path]:
     """Load the viewer with its own styles in one optional, exportable module."""
     out = ASSETS / "vendor/photoswipe.esm.js"
@@ -540,6 +559,7 @@ BUILDS: dict[str, Callable[[Path], list[Path]]] = {
     "floating-ui": build_floating_ui,
     "syntax": build_syntax,
     "jsdiff": build_jsdiff,
+    "density-clustering": build_density_clustering,
     "drawing-context": build_drawing_context,
     "plot": build_plot,
     "pierre": build_pierre,

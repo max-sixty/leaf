@@ -845,6 +845,109 @@ def test_a_tall_shot_drags_where_it_was_grabbed_without_moving_the_page(browser,
         )
 
 
+@pytest.mark.parametrize("holder", ["tabs", "pane"])
+def test_a_tall_shot_keeps_its_endpoint_labels_in_view(browser, serve, holder):
+    """The pair stays identifiable below page tabs and inside a workspace scroller."""
+    before = solid_png(390, 1200, (232, 226, 213))
+    after = solid_png(390, 1200, (214, 226, 235))
+    shot = f'<lf-shot id="sticky-shot" alt="a tall comparison" before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>'
+    tail = '<p style="min-height: 1200px">Reading after the comparison.</p>'
+    if holder == "tabs":
+        markup = leaf_page(
+            "Sticky comparison",
+            f'<lf-tabs id="sticky-tabs"><lf-tab id="sticky-pair" label="Comparison"><lf-tabs id="embedded-tabs"><lf-tab id="embedded-pair" label="Pair">{shot}<div id="sideways-reading" data-bound="start" style="overflow:auto; width:100%"><div style="width:2000px"><p id="embedded-destination" style="margin-left:1600px; width:200px">A passage below the comparison.</p></div></div>{tail}</lf-tab><lf-tab id="embedded-notes" label="Notes"><p>Short notes.</p></lf-tab></lf-tabs>{tail}</lf-tab>'
+            '<lf-tab id="sticky-other" label="Other"><p>Another view.</p></lf-tab></lf-tabs>',
+        )
+    else:
+        markup = leaf_page(
+            "Sticky comparison",
+            f'<lf-pane id="sticky-pane" label="Comparison"><header>Comparison</header><section>{shot}{tail}</section></lf-pane>',
+            layout="workspace",
+        )
+    page = open_page(
+        browser,
+        serve(markup, media={SHOT_SRC["before"]: before, SHOT_SRC["after"]: after}),
+    )
+    resized(page, 1200, 800)
+    comparison = page.locator("#sticky-shot wa-comparison")
+    expect(comparison).to_be_visible()
+    rail = page.locator("#sticky-shot .lf-shotrail")
+    page.mouse.move(600, 350)
+    page.mouse.wheel(0, 600)
+    scroll_settled(page)
+    reading = rail.evaluate("""rail => {
+      const r = rail.getBoundingClientRect();
+      const pane = rail.closest('lf-pane')?.querySelector(':scope > section');
+      return {top: r.top, bottom: r.bottom,
+            expected: (pane ? pane.getBoundingClientRect().top
+              + parseFloat(getComputedStyle(pane).paddingTop) : 0)
+          + parseFloat(getComputedStyle(rail).top)};
+    }""")
+    assert abs(reading["top"] - reading["expected"]) <= 1, reading
+    for state, position in (("before", "100"), ("after", "0")):
+        rail.locator(f'[data-lf-state="{state}"]').click()
+        expect(comparison).to_have_attribute("position", position)
+    scroll = page.evaluate("document.scrollingElement.scrollTop")
+    page.keyboard.press("Shift+Tab")
+    scroll_settled(page)
+    assert abs(page.evaluate("document.scrollingElement.scrollTop") - scroll) <= 1
+    if holder == "tabs":
+        outer = page.locator("#sticky-tabs > .lf-tabstrip").bounding_box()
+        inner = page.locator("#embedded-tabs > .lf-tabstrip").bounding_box()
+        assert inner["y"] == pytest.approx(outer["y"] + outer["height"], abs=1)
+        assert reading["top"] == pytest.approx(inner["y"] + inner["height"], abs=1)
+        page.locator("#embedded-tabs > .lf-tabstrip").get_by_role(
+            "tab", name="Notes", exact=True
+        ).click()
+        scroll_settled(page)
+        assert (
+            page.locator("#embedded-notes p").bounding_box()["y"]
+            >= inner["y"] + inner["height"]
+        )
+        page.keyboard.press("ArrowLeft")
+        scroll_settled(page)
+        expect(page.locator("#embedded-pair")).to_be_visible()
+        page.mouse.wheel(0, 600)
+        scroll_settled(page)
+        landed = page.evaluate("""async () => {
+          const {scrollIntoReadingBand} = await window.__lfRuntimeImport('/runtime/landing-scroll.js');
+          const {scrollToFragment} = await window.__lfRuntimeImport('/runtime/anchor-travel.js');
+          const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
+          const passage = document.querySelector('#embedded-destination');
+          const strip = document.querySelector('#embedded-tabs > .lf-tabstrip');
+          scrollToFragment(passage);
+          const elementTop = passage.getBoundingClientRect().top;
+          const range = document.createRange();
+          range.selectNodeContents(passage);
+          scrollIntoReadingBand(range, passage, 'start', 'instant');
+          return {elementTop, rangeTop: range.getBoundingClientRect().top,
+            rangeBottom: range.getBoundingClientRect().bottom,
+            landingBottom: landingBand(document.scrollingElement).bottom,
+            stripBottom: strip.getBoundingClientRect().bottom,
+            sidewaysVisible: passage.getBoundingClientRect().right <= document.querySelector('#sideways-reading').getBoundingClientRect().right + 1};
+        }""")
+        assert landed["sidewaysVisible"], landed
+        assert landed["elementTop"] >= landed["stripBottom"] - 1, landed
+        assert landed["rangeTop"] >= landed["stripBottom"] - 1, landed
+        assert landed["rangeBottom"] <= landed["landingBottom"] + 1, landed
+        page.locator("#sticky-shot").evaluate("""node => {
+          const tab = document.querySelector('#sticky-tabs [role="tab"]');
+          const r = tab.getBoundingClientRect();
+          document.scrollingElement.scrollBy(0,
+            node.getBoundingClientRect().bottom - (r.top + r.height / 2 + 5));
+        }""")
+        scroll_settled(page)
+        assert page.locator('#sticky-tabs [role="tab"]').first.evaluate("""tab => {
+          const r = tab.getBoundingClientRect();
+          return document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+            ?.closest('[role="tab"]') === tab;
+        }"""), "the departing comparison header covered the page tabs"
+    page.locator("#sticky-shot").evaluate("node => node.scrollIntoView({block: 'end'})")
+    page.mouse.wheel(0, 1000)
+    scroll_settled(page)
+    assert rail.bounding_box()["y"] < reading["top"] - 100
+
+
 def test_a_shot_adopts_a_fallback_choice_when_the_divider_arrives(browser, serve):
     """A user's before → after → before choice survives the deferred import."""
     url = serve(

@@ -3,20 +3,39 @@
  * one answer about progress and workers.
  *
  * The three readings are panels that stand open, each titled by what it counts. They
- * head the command, or fill the lf-command-readings that names it, so a wide page lays the
- * tree in its body and the readings in the rail beside it. The command owns the panels
- * it drew wherever they stand: each paint puts them at the head of the current seat, so
- * a seat that arrives or leaves moves them rather than stranding one copy and drawing
- * another, and a seat tells its command when it connects or disconnects. A command
- * that disconnects takes its panels with it, so a seat never holds a departed
- * command's readings beside its replacement's. The seat is
- * looked up in the command's own authored document, so a message quoting a seat does
- * not take the page's readings. */
+ * fill a seat: the lf-command-readings the command's `readings` names, so a wide page
+ * lays the tree in its body and the readings in the rail beside it, or else one the
+ * command draws at its own head (`band`). The command owns the panels it drew wherever
+ * they stand: each paint puts them at the head of the current seat, so a seat that
+ * arrives or leaves moves them rather than stranding one copy and drawing another, and
+ * a seat tells its command when it connects or disconnects. A command that disconnects
+ * takes its panels with it, so a seat never holds a departed command's readings beside
+ * its replacement's. The seat is looked up in the command's own authored document, so
+ * a command quoted in a message does not take the page's seat.
+ *
+ * The outcome stands at one size whatever the log says, and its first paint already
+ * lays it out in the seat: delivery writes in its structure (`x-prepaint`), which the
+ * paint that draws the outcome takes out (`seat`), and each outcome drawn is that same
+ * declaration filled in (`outcomePanel`). Which goals are stopped and which
+ * workers live is the log's and the clock's to say, so no first paint can size the two
+ * lists under it, and they would push down whatever follows the seat, the plan itself
+ * at the command's head.
+ * So on screen they stand once the reader opens one through its count in the outcome
+ * (paper, which nothing moves on, prints them whole), and from then on a reading that
+ * changes their rows waits, the lists standing as they were, while that growth would
+ * be seen; the count whose list waits says so (`HeldReading`, assets/AGENTS.md,
+ * "Stability").
+ *
+ * A goal's prose opens its crew. The shared `worksInside` boundary leaves nested
+ * controls and evidence with their owners; command, goal and worker ancestry keeps
+ * that gesture within its own row. Only a drag ending on the clicked words suppresses
+ * it, so a standing selection elsewhere does not deaden the row. */
 import {
   PRESS,
   threadBox,
   declarationFor,
   addressableWord,
+  HeldReading,
   holdFocus,
   authoredScope,
   commands,
@@ -26,11 +45,15 @@ import {
   offer,
   once,
   projectData,
+  reachedForWords,
+  setChildren,
   relabel,
   selectableOffer,
   shortAgo,
-  TEXT_BOX,
   watchUpdates,
+  watchOwner,
+  focusDestination,
+  worksInside,
 } from "/runtime/widget-api.js";
 import {
   closestCommandRole,
@@ -78,19 +101,97 @@ function draw(plan, cls, box) {
   drawn.get(plan).set(cls, box);
 }
 
-// Where the readings stand: the lf-command-readings naming this command in its own
-// document, or the command.
-const home = (plan) =>
-  authoredScope(plan).querySelector(`lf-command-readings[for="${plan.id}"]`) ?? plan;
+// The seat a command draws at its own head when the page places none.
+const bands = new WeakMap();
 
-// Put the drawn panels, in reading order, at the head of their home. A panel already in
-// place is not moved, so a paint that changes nothing about the seat moves nothing.
+function band(plan) {
+  if (!bands.has(plan)) {
+    const box = document.createElement("lf-command-readings");
+    box.dataset.lfGen = "1";
+    bands.set(plan, box);
+  }
+  return bands.get(plan);
+}
+
+// Where the readings stand: the lf-command-readings this command's `readings` names in
+// its own document, or else the band at its head.
+function home(plan) {
+  const id = plan.getAttribute("readings");
+  const named =
+    id && authoredScope(plan).querySelector(`lf-command-readings[id="${id}"]`);
+  return named || band(plan);
+}
+
+// Put the drawn panels, in reading order, at the head of their home, and the band at
+// the head of the command only while it is that home. Nothing already in place is
+// moved, so a paint that changes nothing about the seat moves nothing. The outcome
+// delivery wrote in for the first paint (`x-prepaint`, theme.css) leaves in the same
+// step, from the seat and from the command's head, since the drawn outcome stands
+// where it stood.
 function seat(plan, at = home(plan)) {
+  const own = band(plan);
+  for (const holder of [plan, at])
+    holder.querySelector(":scope > [data-lf-prepaint]")?.remove();
+  keeps(at, "data-lf-open", opened.has(plan) ? "" : null);
+  if (at !== own) own.remove();
+  else if (plan.firstChild !== own) plan.prepend(own);
   let cursor = at.firstChild;
   for (const cls of VIEWS) {
     const box = view(plan, cls);
     if (box === cursor) cursor = cursor.nextSibling;
     else at.insertBefore(box, cursor);
+  }
+}
+
+// The commands whose lists a count has opened on screen, and the hold on each list from
+// then on. A list's reading is which rows it draws, so one with the same rows draws at
+// the same size and repaints in place, while the other list waits. Rows that change in
+// the stopped list move the fleet list under it as well.
+const opened = new WeakSet();
+const holders = new WeakMap();
+
+function holds(plan) {
+  if (!holders.has(plan)) {
+    const lists =
+      (...names) =>
+      () =>
+        names.map((cls) => view(plan, cls));
+    const changed = () => render(plan);
+    holders.set(plan, {
+      stopped: new HeldReading(lists("lf-stopped-view", "lf-fleet-view"), changed),
+      fleet: new HeldReading(lists("lf-fleet-view"), changed),
+    });
+  }
+  return holders.get(plan);
+}
+
+const FLEET_TILE = { all: "workers", running: "running", quiet: "quiet" };
+
+function listRows(snapshot) {
+  const mode = fleetModes.get(snapshot.plan) ?? "all";
+  return {
+    stopped: snapshot.stopped.map((goal) => goal.element.id).join(" "),
+    fleet: [mode, ...fleetWorkers(snapshot).map((worker) => worker.element.id)].join(
+      " ",
+    ),
+  };
+}
+
+// A count whose list holds news says so: a mark the theme paints on its tile, and the
+// same said to a listener.
+function markNews(plan, shown, rows) {
+  const news = new Set();
+  if (shown.stopped !== rows.stopped) news.add("stopped");
+  if (shown.fleet !== rows.fleet) news.add(FLEET_TILE[fleetModes.get(plan) ?? "all"]);
+  const head = view(plan, "lf-command-head");
+  for (const tile of head.querySelectorAll("[data-lf-view]")) {
+    const held = news.has(tile.dataset.lfView);
+    keeps(tile, "data-lf-news", held ? "" : null);
+    keeps(
+      tile,
+      "aria-description",
+      held ? "Its list has changed; press to show it" : null,
+    );
   }
 }
 
@@ -148,8 +249,7 @@ function viewButton(label, view, open, cls = "") {
     {
       id: "command.open-view",
       keys: PRESS,
-      does: "Open this command view",
-      line: "open the view",
+      title: "open the view",
       run: () => node.click(),
     },
   ]);
@@ -163,22 +263,31 @@ function chip(text, cls = "") {
   });
 }
 
-// A count the head offers as a view: the number is what the eye compares across tiles,
-// so it stands apart from its word, and the two still read as the one label they are.
-function countTile(count, word, name, open, cls = "") {
-  const node = viewButton(`${count} ${word}`, name, open, cls);
-  node.replaceChildren(chip(String(count), "lf-command-count"), " ", chip(word));
-  return node;
+// The outcome as its first paint laid it out: the lf-command-readings declaration's
+// `x-prepaint` is the one statement of its structure and words, and every outcome this
+// draws is a copy of it with the log's readings filled in, so the panel drawn and the
+// room the first paint held cannot differ.
+function outcomePanel(plan) {
+  const markup = document.createElement("template");
+  markup.innerHTML = declarationFor(band(plan), "x-prepaint");
+  const box = markup.content.firstElementChild;
+  box.dataset.lfGen = "1";
+  const title = box.querySelector(":scope > h2");
+  title.tabIndex = -1;
+  relabel(title, title.textContent, { says: true });
+  return box;
 }
 
-// The done fraction drawn as a length. The fraction under it says the number, so the
-// bar is hidden from assistive technology rather than said twice.
-function progressBar(done, total) {
-  const bar = document.createElement("span");
-  bar.className = "lf-command-progress";
-  bar.setAttribute("aria-hidden", "true");
-  bar.style.setProperty("--lf-done", total ? done / total : 0);
-  return bar;
+// A count the head offers as a view, standing where its tile does, named by its word:
+// the number is what the eye compares across tiles, so it stands apart from its word,
+// and the two still read as the one label they are.
+function countTile(tile, count, open, tint) {
+  const word = tile.lastElementChild.textContent;
+  const classes = [...tile.classList, tint].filter((cls) => cls && cls !== "lf-ui");
+  const node = viewButton(`${count} ${word}`, word, open, classes.join(" "));
+  tile.querySelector(".lf-command-count").textContent = String(count);
+  node.replaceChildren(...tile.childNodes);
+  tile.replaceWith(node);
 }
 
 function projectionFocus(plan) {
@@ -219,17 +328,26 @@ function projectionFocus(plan) {
 function showView(box) {
   const title = box?.querySelector(":scope > h2");
   if (!title) return;
-  title.focus({ preventScroll: true });
+  focusDestination(title, "move");
   box.scrollIntoView({ block: "nearest" });
 }
 
+// A count opens its list: the lists show as they stand now, whatever they move, since
+// the user asked, in one paint.
+function openLists(plan) {
+  opened.add(plan);
+  for (const held of Object.values(holds(plan))) held.release();
+  render(plan);
+}
+
 function openStopped(plan) {
+  openLists(plan);
   showView(view(plan, "lf-stopped-view"));
 }
 
 function openFleet(plan, mode) {
   fleetModes.set(plan, mode);
-  render(plan);
+  openLists(plan);
   showView(view(plan, "lf-fleet-view"));
 }
 
@@ -261,8 +379,7 @@ function configureGoal(goal) {
   });
   goal.addEventListener("click", (event) => {
     if (!directCommandRole(goal, "worker").length) return;
-    if (event.target.closest(`button, a, ${TEXT_BOX}, input, summary, [data-lf-offer]`))
-      return;
+    if (worksInside(event.target, goal)) return;
     if (
       closestCommandRole(event.target, "command") !==
       closestCommandRole(goal, "command")
@@ -270,8 +387,7 @@ function configureGoal(goal) {
       return;
     if (closestCommandRole(event.target, "goal") !== goal) return;
     if (closestCommandRole(event.target, "worker")) return;
-    const selection = getSelection();
-    if (selection && !selection.isCollapsed) return;
+    if (event.detail !== 0 && reachedForWords(event.target)) return;
     toggleWorkers(goal);
   });
 }
@@ -349,48 +465,29 @@ function renderHeader(snapshot) {
   ]);
   if (old && headerSignatures.get(plan) === signature) return false;
   headerSignatures.set(plan, signature);
-  const head = panel("lf-command-head", "Outcome");
-  const outcome = document.createElement("div");
-  outcome.className = "lf-command-outcome";
-  outcome.append(
-    Object.assign(document.createElement("strong"), {
-      textContent: plan.getAttribute("label") || "Work",
-    }),
-    progressBar(snapshot.done, snapshot.leaves.length),
-    Object.assign(document.createElement("span"), {
-      textContent: `${snapshot.done}/${snapshot.leaves.length} leaves · ${plan.getAttribute("phase") || "in progress"}`,
-    }),
+  const head = outcomePanel(plan);
+  const [name, bar, line] = head.querySelector(".lf-command-outcome").children;
+  name.textContent = plan.getAttribute("label") || "Work";
+  // The fraction under the bar says the number, so the declaration hides the bar from
+  // assistive technology rather than having it said twice.
+  bar.style.setProperty(
+    "--lf-done",
+    snapshot.leaves.length ? snapshot.done / snapshot.leaves.length : 0,
   );
-  const facts = document.createElement("div");
-  facts.className = "lf-command-facts";
-  facts.append(
-    countTile(snapshot.running.length, "running", "running", () =>
-      openFleet(plan, "running"),
-    ),
-    countTile(snapshot.liveWorkers.length, "workers", "workers", () =>
-      openFleet(plan, "all"),
-    ),
-  );
-  if (snapshot.quiet.length)
-    facts.append(
-      countTile(
-        snapshot.quiet.length,
-        "quiet",
-        "quiet",
-        () => openFleet(plan, "quiet"),
-        "warn",
-      ),
-    );
-  facts.append(
-    countTile(
-      snapshot.stopped.length,
-      "stopped",
-      "stopped",
-      () => openStopped(plan),
-      snapshot.stopped.length ? "danger" : "",
-    ),
-  );
-  head.append(outcome, facts);
+  line.textContent = `${snapshot.done}/${snapshot.leaves.length} leaves · ${plan.getAttribute("phase") || "in progress"}`;
+  // Every count stands whatever it says, so the clock making a worker quiet tints a tile
+  // rather than adding one the row would have to find room for. Each tile is the view
+  // its word names, the name `data-lf-view`, the fleet's modes and `markNews` share.
+  const counts = {
+    running: [snapshot.running.length, () => openFleet(plan, "running")],
+    workers: [snapshot.liveWorkers.length, () => openFleet(plan, "all")],
+    quiet: [snapshot.quiet.length, () => openFleet(plan, "quiet"), "warn"],
+    stopped: [snapshot.stopped.length, () => openStopped(plan), "danger"],
+  };
+  for (const tile of head.querySelectorAll(".lf-command-tile")) {
+    const [count, open, tint] = counts[tile.lastElementChild.textContent];
+    countTile(tile, count, open, count ? tint : "");
+  }
   draw(plan, "lf-command-head", head);
   return true;
 }
@@ -436,52 +533,55 @@ function renderStopped(snapshot) {
       list.id = `lf-${plan.id}-stopped`;
       box.append(list);
     }
-    projectData(
+    const datums = snapshot.stopped.map((goal) => {
+      const downstream = descendants(plan, goal.element.id);
+      const reason = goal.held
+        ? "paused by you"
+        : goal.role.review?.includes(goal.state)
+          ? "awaiting review"
+          : goal.role.stalled?.includes(goal.state)
+            ? "stalled"
+            : "blocked";
+      const item = document.createElement("li");
+      item.dataset.lfGoal = goal.element.id;
+      item.dataset.lfReason = reason;
+      const why = chip("", "lf-stopped-why");
+      why.append(chip(age(goal), "lf-stopped-age"), ` ${reason}`);
+      if (downstream.length)
+        why.append(
+          ` · holds ${downstream.length} downstream goal${downstream.length === 1 ? "" : "s"}`,
+        );
+      item.append(button(goal.title, goal.element), why);
+      return {
+        node: item,
+        key: goal.element.id,
+        origin: {
+          derived: [goal.element.id, ...downstream].map((widget) => ({ widget })),
+        },
+      };
+    });
+    setChildren(
       list,
-      snapshot.stopped,
-      (goal) => goal.element.id,
-      (goal) => {
-        const downstream = descendants(plan, goal.element.id);
-        const reason = goal.held
-          ? "paused by you"
-          : goal.role.review?.includes(goal.state)
-            ? "awaiting review"
-            : goal.role.stalled?.includes(goal.state)
-              ? "stalled"
-              : "blocked";
-        const item = document.createElement("li");
-        item.dataset.lfGoal = goal.element.id;
-        item.dataset.lfReason = reason;
-        const why = chip("", "lf-stopped-why");
-        why.append(chip(age(goal), "lf-stopped-age"), ` ${reason}`);
-        if (downstream.length)
-          why.append(
-            ` · holds ${downstream.length} downstream goal${downstream.length === 1 ? "" : "s"}`,
-          );
-        item.append(button(goal.title, goal.element), why);
-        return item;
-      },
-      {
-        originOf: (goal) => ({
-          derived: [goal.element.id, ...descendants(plan, goal.element.id)].map(
-            (widget) => ({ widget }),
-          ),
-        }),
-      },
+      datums.map(({ node }) => node),
     );
+    projectData(list, datums);
   } else box.querySelector(":scope > ol")?.remove();
   return true;
+}
+
+function fleetWorkers(snapshot) {
+  const mode = fleetModes.get(snapshot.plan) ?? "all";
+  return mode === "running"
+    ? snapshot.running
+    : mode === "quiet"
+      ? snapshot.quiet
+      : snapshot.liveWorkers;
 }
 
 function renderFleet(snapshot) {
   const { plan } = snapshot;
   const mode = fleetModes.get(plan) ?? "all";
-  const workers =
-    mode === "running"
-      ? snapshot.running
-      : mode === "quiet"
-        ? snapshot.quiet
-        : snapshot.liveWorkers;
+  const workers = fleetWorkers(snapshot);
   const old = view(plan, "lf-fleet-view");
   const signature = JSON.stringify([
     mode,
@@ -537,36 +637,44 @@ function renderFleet(snapshot) {
 
 const render = (plan) => paint(plan);
 
+// Unopened lists draw every reading, which only paper shows.
 function paint(plan) {
+  keeps(plan, "role", "group");
+  keeps(plan, "aria-label", plan.getAttribute("label") || "Plan");
   const restoreFocus = projectionFocus(plan);
   const snapshot = commandSnapshot(plan);
   for (const goal of snapshot.goals) renderGoal(goal);
   renderHeader(snapshot);
-  renderStopped(snapshot);
-  renderFleet(snapshot);
+  const rows = listRows(snapshot);
+  const shown = opened.has(plan)
+    ? {
+        stopped: holds(plan).stopped.hold(rows.stopped),
+        fleet: holds(plan).fleet.hold(rows.fleet),
+      }
+    : rows;
+  if (shown.stopped === rows.stopped) renderStopped(snapshot);
+  if (shown.fleet === rows.fleet) renderFleet(snapshot);
   seat(plan);
+  markNews(plan, shown, rows);
   restoreFocus?.();
 }
 
 customElements.define(
   "lf-command",
   class extends HTMLElement {
-    #stop;
-
     connectedCallback() {
-      once(this);
-      this.#stop ??= watchUpdates(this, () => render(this));
+      if (!once(this)) return;
+      watchOwner(this, {
+        // The command takes its panels out of an external seat only when it leaves.
+        disconnect: () => {
+          for (const held of Object.values(holders.get(this) ?? {})) held.dispose();
+          if (drawn.has(this)) seat(this, band(this));
+        },
+      });
+      watchUpdates(this, () => render(this));
     }
 
-    // The panels leave with the command: standing in a seat, they would outlive it
-    // there, and a command that connects again repaints them into its current seat.
-    disconnectedCallback() {
-      this.#stop?.();
-      this.#stop = null;
-      if (drawn.has(this)) seat(this, this);
-    }
-
-    // A seat naming this command connected or disconnected in its document.
+    // The seat this command's `readings` names connected or disconnected.
     reseat() {
       if (!this.isConnected || !drawn.has(this)) return;
       const restoreFocus = projectionFocus(this);

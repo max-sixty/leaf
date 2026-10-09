@@ -1,296 +1,340 @@
-"""Run one real Codex task through Leaf's App Server adapter and check what it leaves.
+"""Run real Codex tasks through Leaf's transports and check what they leave.
 
-    uv run leaf-dev verify-codex-task
+    uv run leaf-dev verify-codex-task [--preview]
 
 The suite drives the adapter with scripted App Server messages; this drives it with
 Codex itself. It installs this working tree's plugin payload (`extract_payload`) into
 a throwaway Codex home (`codex_home`), trusts the plugin's hooks there, and starts a
-private App Server the way `leaf codex launch` does (`private_app_server`). The command
-is then the terminal: it opens the task, types the user's turns, and posts the user's
+private App Server the way `leaf codex launch` does (`private_app_server`). It runs
+the journey through the observed App Server adapter and through the queue adapter.
+The queue journey hides Leaf's App Server environment variable from the task and
+routes the real `codex queue` command to the private server. The command is then
+the terminal: it opens the task, types the user's turns, and posts the user's
 comments to the served page as a tab would. It reads the page's log and claim in
 process, and stops at the first check that fails.
 
 The journey, in order:
 
-- `setup`: the user asks for a page to review; the agent serves it and hands it to
-  the adapter with `leaf codex start`, whose App Server its environment names;
+- `setup`: the user asks for a page to review; serving it automatically connects
+  delivery using this journey's transport;
 - `idle`: a comment posted while the task is idle is answered in a turn Leaf starts;
-- `mid-turn`: a comment posted while a turn the user typed is running is answered
-  once, in that turn or after it;
+- `mid-turn`: a comment posted during a shell command is answered once; the queue
+  task must pick it up and answer it before that turn's first final response;
+- `resume`: the queue task resumes an interrupted turn with empty input and
+  receives a comment while that turn runs, without starting another turn;
 - `restart`: with the adapter killed, the user's next turn ends with the agent having
   started it again, and a comment posted afterwards is answered.
 
-After each step every comment posted so far has exactly one reply and a pickup, and
+After each step every comment posted so far has exactly one reply and a pickup, its
+thread was named by the page server's own title request (`thread_titles`), and
 the page's claim names the task's last turn, closed. The claim's turn is App Server's
 id for that turn, so the prompt hook and the adapter agree on one identity, and a
 turn that ended stays closed. During the user's own turn the claim names that turn.
+
+With `--preview`, setup runs the canonical `leaf-dev preview --user` command instead.
+Every step retains its keyed URL. Between turns, the page server is interrupted;
+the preview restores it without an edit and the next comment is answered through
+the existing adapter at the same URL.
 
 It spends a few model turns on the host's Codex login, so CI does not run it. The
 task, its page and its state home live in a temporary directory, removed when every
 check passes and kept, with its path printed, when one fails.
 """
 
-import itertools
 import json
 import os
+import shlex
 import shutil
+import sys
 import tempfile
 import time
-from collections.abc import Callable
 from pathlib import Path
 
 import click
 import psutil
-from leaf.codex import app_server_connect, app_server_handshake, app_server_request
-from leaf.codex_adapter import private_app_server
+from leaf.codex import private_app_server
+from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
-from leaf.leases import adapter_is_live
+from leaf.events import build_threads
+from leaf.leases import adapter_is_live, lock_is_held, titles_log
+from leaf.revision_artifact import active_enclosing
 from leaf.server import running_server
 from leaf.service import page_claim
+from leaf.thread_titles import TIMEOUT
 
 from leaf_dev import ROOT
-from leaf_dev.harness import (
+from leaf_dev.arms import (
     PageClient,
     codex_home,
     environment,
     extract_payload,
     run_leaf,
 )
-
-# How long one step may take, and how long it has to stay settled before its
-# checks count: a second reply lands after the turn that wrote the first.
-STEP_LIMIT = 300
-QUIET = 10
-PROMPT = (
-    "I wrote a Leaf page at ./page. Serve it so I can review it in my browser, "
-    "and handle the comments I leave on it."
+from leaf_dev.codex_task import STEP_LIMIT, Task, install_plugin
+from leaf_dev.preview import preview_lease
+from leaf_dev.review_scenario import (
+    COMMENTS,
+    REQUEST,
+    answers,
+    attempt,
+    comment_id,
+    post,
+    prepare,
+    require,
+    settled,
 )
-USER_TURN = "Run `sleep 20` in the shell, then reply with the single word done."
+
+USER_TURN = (
+    "Run `sleep 20` in the shell. Then, in a separate tool call, run "
+    "`printf 'verified\\n'`. Then reply with the single word done."
+)
 RESTART_TURN = "Reply with the single word OK."
-COMMENTS = {
-    "idle": ("triage-lede", "Which of these items actually blocks the release?"),
-    "mid-turn": ("triage-why", "Is the migration the only blocker, or the first?"),
-    "restart": ("triage-lede", "Anything else I should check before we ship?"),
-}
+RESUME_TURN = (
+    "Run `sleep 30` in the shell, then in a separate tool call run "
+    "`printf 'verified\\n'`, then say done. If interrupted and resumed, "
+    "skip the remaining shell command and report the interruption."
+)
 
 
-def require(condition: bool, message: str) -> None:
-    if not condition:
-        raise click.ClickException(message)
-
-
-class Task:
-    """The task's terminal: one App Server connection that opens the task, types the
-    user's turns, and hears every turn the task runs, Leaf's included, since every
-    client of a thread receives what it says."""
-
-    def __init__(self, endpoint: str) -> None:
-        self.socket = app_server_connect(endpoint)
-        self.ids = itertools.count()
-        self.thread = ""
-        self.started: list[str] = []
-        self.running: set[str] = set()
-        self.commands: list[str] = []
-        app_server_handshake(
-            self.socket, next(self.ids), "verify", "Verify", self._hear
-        )
-
-    def _hear(self, message: dict) -> None:
-        method, params = message.get("method"), message.get("params") or {}
-        if method == "turn/started":
-            self.started.append(params["turn"]["id"])
-            self.running.add(params["turn"]["id"])
-        elif method == "turn/completed":
-            self.running.discard(params["turn"]["id"])
-        elif (
-            method == "item/completed" and params["item"]["type"] == "commandExecution"
-        ):
-            self.commands.append(params["item"]["command"])
-
-    def request(self, method: str, params: dict) -> dict:
-        return app_server_request(
-            self.socket, method, next(self.ids), params, self._hear
-        )
-
-    def listen(self, seconds: float) -> None:
-        """Hear whatever the task says for `seconds`."""
-        deadline = time.monotonic() + seconds
-        while (left := deadline - time.monotonic()) > 0:
-            try:
-                raw = self.socket.recv(timeout=left)
-            except TimeoutError:
-                return
-            self._hear(json.loads(raw))
-
-    def say(self, text: str) -> str:
-        """Type one user turn and return its id."""
-        started = self.request(
-            "turn/start",
-            {"threadId": self.thread, "input": [{"type": "text", "text": text}]},
-        )
-        return started["turn"]["id"]
-
-    def settle(self, done: Callable[[], bool], what: str) -> None:
-        """Hear the task until it is idle with `done` true, and still is QUIET
-        seconds later."""
-        deadline = time.monotonic() + STEP_LIMIT
-        while time.monotonic() < deadline:
-            self.listen(0.5)
-            if not self.running and done():
-                self.listen(QUIET)
-                if not self.running and done():
-                    return
-        raise click.ClickException(
-            f"{what} within {STEP_LIMIT} s. The agent's last commands:\n"
-            + "\n".join(f"  {command}" for command in self.commands[-8:])
-        )
-
-
-def install_plugin(task: Task, payload: Path, cwd: Path) -> None:
-    """Install the payload as the task's Leaf plugin and trust its hooks, which
-    Codex otherwise lists and never runs."""
-    task.request(
-        "plugin/install",
-        {
-            "pluginName": "leaf",
-            "marketplacePath": str(payload / ".agents/plugins/marketplace.json"),
-        },
-    )
-    hooks = [
-        hook
-        for hook in task.request("hooks/list", {"cwds": [str(cwd)]})["data"][0]["hooks"]
-        if hook["pluginId"] == "leaf@leaf"
-    ]
-    require(bool(hooks), "Codex lists no hooks for the installed Leaf plugin")
-    task.request(
-        "config/batchWrite",
-        {
-            "edits": [
-                {
-                    "keyPath": "hooks.state",
-                    "mergeStrategy": "upsert",
-                    "value": {
-                        hook["key"]: {"trusted_hash": hook["currentHash"]}
-                        for hook in hooks
-                    },
-                }
-            ],
-            "reloadUserConfig": True,
-        },
-    )
-
-
-def adapter_processes(endpoint: str) -> list[psutil.Process]:
-    """The detached adapters carrying delivery over this App Server."""
+def adapter_processes(codex: str) -> list[psutil.Process]:
+    """The detached adapters using this journey's isolated Codex executable."""
     return [
         process
         for process in psutil.process_iter(["cmdline"])
-        if endpoint in (cmdline := process.info["cmdline"] or [])
-        and "--app-server" in cmdline
+        if codex in (cmdline := process.info["cmdline"] or [])
+        and "--codex-path" in cmdline
     ]
 
 
-def attempt(step: str) -> str:
-    """The retry key a step's comment is posted under, as long as the log requires."""
-    return f"verify-codex-task-{step}"
-
-
-def comment_id(page: Path, step: str) -> str:
-    return next(
-        event["id"]
-        for event in read_events(page)
-        if event["kind"] == "comment" and event.get("attempt") == attempt(step)
-    )
-
-
-def answers(page: Path, step: str) -> list[dict]:
-    """The replies that answer one posted comment; a failure receipt is not one."""
-    posted = comment_id(page, step)
-    return [
-        event
-        for event in read_events(page)
-        if event["kind"] == "reply"
-        and event.get("responds") == posted
-        and "failure" not in event
-    ]
+def page_server_title(session: str, thread: str) -> dict | None:
+    """The page server's record of the title it generated for `thread`, waiting as
+    long as the request may take, or None where it made none."""
+    log = titles_log(session)
+    deadline = time.monotonic() + TIMEOUT
+    while True:
+        records = log.read_text().splitlines() if log.exists() else []
+        for line in records:
+            record = json.loads(line)
+            if (record["event"], record["thread"]) == (
+                "thread_title_generated",
+                thread,
+            ):
+                return record
+        if time.monotonic() > deadline:
+            return None
+        time.sleep(0.5)
 
 
 def check(page: Path, task: Task, posted: list[str]) -> None:
-    """What holds between steps: each comment answered once and picked up, and the
-    claim naming the task's last turn, closed."""
-    events = read_events(page)
-    for step in posted:
-        replies = answers(page, step)
+    """What holds between steps (`settled`), each comment's thread titled by the page
+    server, and the claim's turn being the task's last."""
+    claim = settled(page, task.thread, posted)
+    if posted:
+        record = page_server_title(task.thread, comment_id(page, posted[-1]))
         require(
-            len(replies) == 1,
-            f"comment `{step}` has {len(replies)} replies, not one",
+            record is not None,
+            f"the page server did not title comment `{posted[-1]}`'s thread",
         )
-        posted_id = comment_id(page, step)
-        require(
-            any(
-                event["kind"] == "pickup" and posted_id in event["events"]
-                for event in events
-            ),
-            f"comment `{step}` has a reply but no pickup",
+        click.echo(
+            f"  titled in {record['durationMs']} ms, "
+            f"{record['inputTokens']} input tokens"
         )
-    claim = page_claim(page)
-    require(claim is not None, "the page has no claim")
-    require(
-        claim["id"] == task.thread,
-        f"the page is claimed by {claim['id']}, not the task {task.thread}",
-    )
     require(
         claim["turn"] == task.started[-1],
         f"the claim names turn {claim['turn']}, not the task's last turn "
         f"{task.started[-1]}",
     )
-    require(
-        claim["turn_closed"] is not None,
-        f"turn {claim['turn']} has ended, but the claim holds it open",
-    )
 
 
-def post(page: Path, step: str) -> None:
-    """Post a step's comment as the page's tab does."""
-    section, text = COMMENTS[step]
-    client = PageClient(running_server(page)["url"])
-    client.post(
-        {
-            "kind": "comment",
-            "revision": client.state()["active"]["revision"],
-            "attempt": attempt(step),
-            "text": text,
-            "anchor": {"section": section},
-        }
-    )
-
-
-def journey(task: Task, page: Path, endpoint: str) -> None:
+def journey(
+    task: Task, page: Path, codex: str, transport: str, *, preview: bool = False
+) -> None:
     def step(name: str, started: float) -> None:
-        click.echo(f"{name}: passed in {time.monotonic() - started:.0f} s")
+        click.echo(f"{transport}/{name}: passed in {time.monotonic() - started:.0f} s")
+        if preview:
+            claim = page_claim(page)
+            click.echo(
+                json.dumps(
+                    {
+                        "transport": transport,
+                        "step": name,
+                        "url": running_server(page)["url"],
+                        "thread": task.thread,
+                        "turn": claim["turn"],
+                        "generation": claim["generation"],
+                        "acquisition": claim["acquisition"],
+                        "turn_closed": claim["turn_closed"],
+                        "answers": {
+                            name: len(answers(page, name))
+                            for name in COMMENTS
+                            if any(
+                                event.get("attempt") == attempt(name)
+                                for event in read_events(page)
+                            )
+                        },
+                    }
+                )
+            )
 
     started = time.monotonic()
-    task.say(PROMPT)
+    if preview:
+        command = shlex.join(
+            [
+                "uv",
+                "run",
+                "--project",
+                str(ROOT),
+                "leaf-dev",
+                "preview",
+                "--source",
+                "./source.html",
+                "--slot",
+                "page",
+                "--user",
+            ]
+        )
+        task.say(
+            "I wrote a Leaf source at ./source.html. "
+            f"Run `{command}` so I can review it. "
+            "Keep its preview available; feedback connects automatically. "
+            "Handle the comments I leave on the page."
+        )
+    else:
+        task.say(REQUEST)
     task.settle(
         lambda: adapter_is_live(task.thread) and running_server(page) is not None,
         "the setup turn did not serve the page and start the adapter",
     )
     require(
-        bool(adapter_processes(endpoint)),
-        "the adapter is carrying delivery over the queue, not this App Server",
+        bool(adapter_processes(codex)), "the adapter did not use this journey's Codex"
+    )
+    require(
+        all(
+            ("--app-server" in process.cmdline()) == (transport == "app-server")
+            for process in adapter_processes(codex)
+        ),
+        f"the adapter did not select the {transport} transport",
     )
     check(page, task, [])
+    url = running_server(page)["url"]
+    acquired = page_claim(page)["acquisition"]
+
+    def check_step(posted: list[str]) -> None:
+        check(page, task, posted)
+        require(
+            running_server(page)["url"] == url,
+            "the page's keyed URL changed between Codex turns",
+        )
+        PageClient(url).state()
+        if preview:
+            require(
+                page_claim(page)["acquisition"] == acquired,
+                "the preview lost its acquisition between Codex turns",
+            )
+            require(
+                lock_is_held(preview_lease(page)),
+                "the preview watcher ended between Codex turns",
+            )
+
     step("setup", started)
 
     started = time.monotonic()
     post(page, "idle")
     task.settle(lambda: bool(answers(page, "idle")), "comment `idle` was not answered")
-    check(page, task, ["idle"])
+    check_step(["idle"])
     step("idle", started)
 
+    # Real author intent exercises the rich interface without naming its commands.
+    for rich, request in (
+        (
+            "choice",
+            (
+                "I need to decide whether to ship or wait. Give me two clickable choices "
+                "inside this thread, not on the page. Explain the decision in a short "
+                "question, and move this thread to the release rationale section."
+            ),
+        ),
+        (
+            "question",
+            (
+                "Ask me whether I can own the release check, as a prose question in this "
+                "thread. Keep it waiting for my answer and move the thread to the release "
+                "rationale section."
+            ),
+        ),
+    ):
+        started = time.monotonic()
+        client = PageClient(url)
+        client.post(
+            {
+                "kind": "comment",
+                "revision": client.state()["active"]["revision"],
+                "attempt": f"verify-rich-{rich}",
+                "text": request,
+                "anchor": {"section": "triage-lede"},
+            }
+        )
+        # The browser response carries state; the admitted event is the log fact.
+        posted = next(
+            event["id"]
+            for event in read_events(page)
+            if event.get("attempt") == f"verify-rich-{rich}"
+        )
+
+        def rich_answers(responds=posted):
+            return [
+                event
+                for event in read_events(page)
+                if event["kind"] == "reply"
+                and event.get("responds") == responds
+                and "failure" not in event
+            ]
+
+        task.settle(
+            lambda: bool(rich_answers()), f"rich {rich} comment was not answered"
+        )
+        [reply] = rich_answers()
+        require(bool(reply.get("text")), "the rich reply has no prose")
+        require(
+            reply.get("anchor", {}).get("section") == "triage-why",
+            "rich reply did not relocate to the rationale",
+        )
+        if rich == "choice":
+            require(
+                bool(reply.get("markup")),
+                "the real author did not send clickable thread markup",
+            )
+        else:
+            require(
+                reply.get("awaits") is True,
+                "the prose question does not await the user's answer",
+            )
+        thread = build_threads(read_events(page), active_enclosing(page))[posted]
+        require(bool(thread["title"]), "the rich thread was not titled")
+        check_step(["idle"])
+        step(f"rich-{rich}", started)
+
     started = time.monotonic()
+    previous_turns = len(task.started)
     user_turn = task.say(USER_TURN)
+    deadline = time.monotonic() + STEP_LIMIT
+    while not any("sleep 20" in command for command in task.running_commands.values()):
+        task.listen(0.5)
+        require(
+            time.monotonic() < deadline and user_turn in task.running,
+            "the user turn did not start its sleep command",
+        )
     post(page, "mid-turn")
+    if transport == "queue":
+
+        def before_final(turn: str) -> None:
+            if turn == user_turn:
+                require(
+                    bool(answers(page, "mid-turn")),
+                    "the agent sent its final response before answering the active comment",
+                )
+
+        task.on_final = before_final
     named, deadline = False, time.monotonic() + STEP_LIMIT
     while (
         user_turn in task.running or user_turn not in task.started
@@ -298,74 +342,221 @@ def journey(task: Task, page: Path, endpoint: str) -> None:
         task.listen(0.5)
         named = named or page_claim(page)["turn"] == user_turn
     require(named, f"the claim never named the user's turn {user_turn} while it ran")
+    task.on_final = None
+    if transport == "queue":
+        require(
+            user_turn in task.final_answers,
+            "the active turn emitted no final response to check",
+        )
+        require(
+            bool(answers(page, "mid-turn")), "the active turn ended without answering"
+        )
+        posted_id = comment_id(page, "mid-turn")
+        require(
+            any(
+                event["turn"] == user_turn
+                for event in pickup_receipts(
+                    read_events(page), phase="opened", input_id=posted_id
+                )
+            ),
+            f"the active hook did not deliver the comment into turn {user_turn}",
+        )
     task.settle(
         lambda: bool(answers(page, "mid-turn")),
         "comment `mid-turn` was not answered",
     )
-    check(page, task, ["idle", "mid-turn"])
+    check_step(["idle", "mid-turn"])
+    if transport == "queue":
+        require(
+            task.started[previous_turns:] == [user_turn],
+            "the mid-turn comment started another turn instead of entering the active one",
+        )
     step("mid-turn", started)
+    posted = ["idle", "mid-turn"]
+
+    if transport == "queue":
+        started = time.monotonic()
+        interrupted = task.say(RESUME_TURN)
+        deadline = time.monotonic() + STEP_LIMIT
+        while not any(
+            "sleep 30" in command for command in task.running_commands.values()
+        ):
+            task.listen(0.5)
+            require(
+                time.monotonic() < deadline and interrupted in task.running,
+                "the turn to interrupt did not start its sleep command",
+            )
+        task.request("turn/interrupt", {"threadId": task.thread, "turnId": interrupted})
+        while interrupted in task.running:
+            task.listen(0.5)
+            require(time.monotonic() < deadline, "the interrupted turn did not end")
+        # Aborted command items need not emit item/completed. They cannot stand
+        # in for execution of the resumed turn's first command.
+        task.running_commands.clear()
+        previous_turns = len(task.started)
+        resumed = task.request(
+            "turn/start",
+            {
+                "threadId": task.thread,
+                "input": [],
+                "turnTrigger": "resume_interrupted_task",
+            },
+        )["turn"]["id"]
+        deadline = time.monotonic() + STEP_LIMIT
+        while resumed not in task.started:
+            task.listen(0.5)
+            require(
+                time.monotonic() < deadline,
+                "the empty-input resume did not start",
+            )
+        require(resumed in task.running, "the empty-input resume already ended")
+        # Resume can continue tools or simply report the interruption. Post
+        # while that native turn is open, before its first delivery hook.
+        post(page, "escape")
+        task.settle(
+            lambda: bool(answers(page, "escape")),
+            "the comment posted during resume was not answered",
+        )
+        posted.append("escape")
+        check_step(posted)
+        require(
+            task.started[previous_turns:] == [resumed],
+            "the resumed-turn comment started another turn",
+        )
+        posted_id = comment_id(page, "escape")
+        require(
+            any(
+                event["turn"] == resumed
+                for event in pickup_receipts(
+                    read_events(page), phase="opened", input_id=posted_id
+                )
+            ),
+            "the comment did not enter the empty-input resumed turn",
+        )
+        step("resume", started)
 
     started = time.monotonic()
-    for process in adapter_processes(endpoint):
+    for process in adapter_processes(codex):
         process.kill()
-        process.wait(10)
-    require(
-        not adapter_is_live(task.thread), "the killed adapter still holds its lease"
+    # The preview may retain its killed child as a zombie until its next spawn.
+    # The kernel-backed lease proves execution ended before that parent reaps it.
+    task.settle(
+        lambda: not adapter_is_live(task.thread),
+        "the killed adapter still holds its lease",
     )
-    task.say(RESTART_TURN)
+    if preview:
+        reconnect = shlex.join(
+            [
+                "uv",
+                "run",
+                "--project",
+                str(ROOT),
+                "python",
+                "-c",
+                "from leaf.harness import session_harness; session_harness().ensure_delivery()",
+            ]
+        )
+        task.say(
+            "The isolated delivery adapter stopped. Reconnect the current preview "
+            f"without acquiring its page again: run `{reconnect}`, then {RESTART_TURN}"
+        )
+    else:
+        task.say(
+            "Serve the existing ./page again with `leaf server start ./page`, "
+            f"then {RESTART_TURN}"
+        )
     task.settle(
         lambda: adapter_is_live(task.thread),
         "the agent did not start the adapter again",
     )
-    check(page, task, ["idle", "mid-turn"])
+    check_step(posted)
     post(page, "restart")
     task.settle(
         lambda: bool(answers(page, "restart")),
         "comment `restart` was not answered",
     )
-    check(page, task, ["idle", "mid-turn", "restart"])
+    posted.append("restart")
+    check_step(posted)
     step("restart", started)
 
+    if preview:
+        started = time.monotonic()
+        servers = [
+            process
+            for process in psutil.process_iter(["cmdline"])
+            if (cmdline := process.info["cmdline"] or [])
+            and "_serve" in cmdline
+            and str(page.resolve()) in cmdline
+        ]
+        require(len(servers) == 1, "the isolated preview has no unique page server")
+        servers[0].kill()
+        task.settle(
+            lambda: running_server(page) is not None,
+            "the idle preview did not restore its server without an edit",
+        )
+        check_step(posted)
+        post(page, "reconnect")
+        task.settle(
+            lambda: bool(answers(page, "reconnect")),
+            "the restored preview's comment was not answered",
+        )
+        check_step([*posted, "reconnect"])
+        step("reconnect", started)
 
-@click.command()
-def verify_codex_task() -> None:
-    """Run one Codex task through Leaf's App Server adapter and check what it wrote.
 
-    Spends a few model turns on the host's Codex login. The task and its page live in
-    a temporary directory, removed when every check passes and kept, with its path
-    printed, when one fails.
-    """
-    codex = shutil.which("codex")
-    if codex is None:
-        raise click.ClickException("cannot find the `codex` executable on PATH")
+def task_codex(root: Path, executable: str, transport: str) -> str:
+    """Route the queue to the private server without exposing Leaf's observed
+    App Server transport to the task. Both transports use the real Codex executable."""
+    directory = root / "bin"
+    directory.mkdir()
+    wrapper = directory / "codex"
+    wrapper.write_text(
+        f"#!{sys.executable}\n"
+        "import os, sys\n"
+        "arguments = sys.argv[1:]\n"
+        f"if {transport!r} == 'queue':\n"
+        "    if arguments[0] == 'app-server':\n"
+        "        os.environ['LEAF_VERIFY_CODEX_ENDPOINT'] = "
+        "arguments[arguments.index('--listen') + 1]\n"
+        "        os.environ.pop('LEAF_CODEX_APP_SERVER', None)\n"
+        "    elif arguments[0] == 'queue':\n"
+        "        arguments += ['--remote', os.environ['LEAF_VERIFY_CODEX_ENDPOINT']]\n"
+        f"os.execv({executable!r}, [{executable!r}, *arguments])\n"
+    )
+    wrapper.chmod(0o700)
+    return str(wrapper)
+
+
+def verify_transport(codex: str, transport: str, *, preview: bool = False) -> None:
     # Outside any repository, so the task loads no project instructions or skills.
-    root = Path(tempfile.mkdtemp(prefix="leaf-verify-codex-"))
+    root = Path(tempfile.mkdtemp(prefix=f"leaf-verify-codex-{transport}-"))
     state, work = root / "state", root / "work"
     work.mkdir()
     page = work / "page"
     payload = root / "plugin"
     extract_payload(payload)
-    home = codex_home(root / "codex-home")
+    # Keep the journey's isolated executable on PATH; a login shell would
+    # replace it with the user's Codex and bypass the queue wrapper.
+    home = codex_home(root / "codex-home", "allow_login_shell = false\n")
+    executable = task_codex(root, codex, transport)
     # This process reads the page and claim in the state home the task writes, and
     # every child inherits the throwaway Codex home, never the session running this.
-    isolated = environment(XDG_STATE_HOME=str(state), CODEX_HOME=str(home))
+    inherited = dict(os.environ)
+    isolated = environment(
+        XDG_STATE_HOME=str(state),
+        CODEX_HOME=str(home),
+        LEAF_PREVIEWS_ROOT=str(work),
+        PATH=f"{Path(executable).parent}{os.pathsep}{os.environ['PATH']}",
+    )
     os.environ.clear()
     os.environ.update(isolated)
-    run_leaf(ROOT, state, "page", "init", str(page), check=True)
-    shutil.copy(ROOT / "examples" / "triage-board.html", page / "index.html")
-    run_leaf(
-        ROOT,
-        state,
-        "version",
-        "stamp",
-        str(page),
-        "--text",
-        "Release triage for review.",
-        check=True,
-    )
     passed = False
     try:
-        with private_app_server(codex) as endpoint:
+        if preview:
+            shutil.copy(ROOT / "examples" / "triage-board.html", work / "source.html")
+        else:
+            prepare(ROOT, state, page)
+        with private_app_server(executable) as endpoint:
             task = Task(endpoint)
             try:
                 install_plugin(task, payload, work)
@@ -377,16 +568,38 @@ def verify_codex_task() -> None:
                         "sandbox": "danger-full-access",
                     },
                 )["thread"]["id"]
-                journey(task, page, endpoint)
-                passed = True
+                journey(task, page, executable, transport, preview=preview)
             finally:
+                (root / "hooks.json").write_text(json.dumps(task.hooks, indent=2))
                 task.socket.close()
-                for process in adapter_processes(endpoint):
+                for process in adapter_processes(executable):
                     process.kill()
                 run_leaf(ROOT, state, "server", "stop", str(page))
+                if preview:
+                    deadline = time.monotonic() + 30
+                    while lock_is_held(preview_lease(page)):
+                        require(
+                            time.monotonic() < deadline,
+                            "the isolated preview outlived its stopped service",
+                        )
+                        time.sleep(0.05)
+            passed = True
     finally:
+        os.environ.clear()
+        os.environ.update(inherited)
         if passed:
             shutil.rmtree(root)
         else:
             click.echo(f"Kept the task, its page and its state home in {root}")
+
+
+@click.command()
+@click.option("--preview", is_flag=True, help="Verify the canonical live user preview.")
+def verify_codex_task(preview: bool = False) -> None:
+    """Run Codex tasks through both Leaf transports and check same-turn delivery."""
+    codex = shutil.which("codex")
+    if codex is None:
+        raise click.ClickException("cannot find the `codex` executable on PATH")
+    for transport in ("app-server", "queue"):
+        verify_transport(codex, transport, preview=preview)
     click.echo("Every check passed.")

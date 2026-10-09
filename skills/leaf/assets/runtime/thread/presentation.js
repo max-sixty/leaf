@@ -5,8 +5,13 @@
    for every textual/geometry view. It is an epoch presenter: the publication claims its
    region and the pass paints it, after the projection whose provenance words its
    passages resolve over. Its presentation ticket commits the thread surfaces
-   together with preparation for frozen widgets newly joined to the panel. A mechanical
-   repaint — a draft, a hover, a narrowing — claims the same region through `present`. */
+   together with preparation for frozen widgets newly joined to the panel. Surface
+   callbacks nominate outlets during preparation; their seats, composer and ownership
+   commit together after every required member is ready. A mechanical
+   repaint — a draft, a hover, a narrowing — claims the same region through `present`.
+   Reply continuity begins after commit and runs independently: its selected route may
+   itself need this renderer to finish. Its caret follows the actual returned editor;
+   its failures reach the page's existing asynchronous error channel. */
 import { clocked } from "../presence.js";
 import { keeps } from "../keeps.js";
 import { reportPageError } from "../layer-client.js";
@@ -14,6 +19,7 @@ import { closestAcross, elementById, inChrome } from "../passages.js";
 import { threadState, readThreads } from "./state.js";
 import { watchThreads } from "./watch.js";
 import { holdReply } from "./focus.js";
+import { holdReplyCompositions } from "./replies.js";
 import {
   renderSeats,
   beginThreadSeats,
@@ -46,20 +52,21 @@ export function createThreadPresentation({
   available = true,
   inlineView,
   surfaceView,
+  anchorPlacement,
   anchorPaint,
   anchorControls,
   drawingPaint,
   pageGeometry,
   readDraft,
   activeActionAnchor,
-  renderMargin,
+  renderAnnotations,
   renderSurfaces,
   openThread,
+  continueThread,
   read,
 }) {
   const panels = new Set();
   let mounted = false;
-  let painting = false;
 
   const presenter = applicationPresenter({
     region: "thread",
@@ -69,33 +76,14 @@ export function createThreadPresentation({
     // then is asking for exactly that.
     current: () => (available ? readApplication().effective.thread : null),
     failSoft: retainedThreadListProof,
-    paint: async (value) => {
-      painting = true;
-      try {
-        const phase = readApplication().phase;
-        // The claimed value is the thread this pass owes. What it draws comes from
-        // the current semantic root, which may already carry a newer local gesture.
-        void (phase === "ready" ? paintCurrent() : setUnavailable(phase));
-        // The ticket answers for what stands in the region, not for the reading this
-        // paint happened to start. A clock tick landing inside it starts a newer one and
-        // leaves this one returning early, so waiting on the reading it started would
-        // commit over a page still being written — and would drop that reading's failure,
-        // which has no other ticket to travel on.
-        //
-        // A superseded reading rejects rather than returning, so leaving on the first
-        // rejection would settle the ticket on a reading the page has already discarded
-        // while its replacement writes the region — the same commit-too-early on the
-        // failure path. Keep the first failure and raise it once the region is quiet,
-        // which is the first-failure the pass reports anyway.
-        let failure = null;
-        let awaited = null;
-        while (awaited !== latestRender) {
-          awaited = latestRender;
-          await awaited.catch((error) => (failure ??= error));
-        }
-        if (failure) throw failure;
-      } finally {
-        painting = false;
+    paint: async (value, current) => {
+      const phase = readApplication().phase;
+      // A pass reads the latest root. Clock changes claim another pass through the
+      // same presenter, so its current predicate also retires in-flight preparation.
+      if (phase === "ready") await paintCurrent(current);
+      else {
+        paintCurrent.stop();
+        await startRender(current, phase);
       }
       return value;
     },
@@ -127,20 +115,17 @@ export function createThreadPresentation({
   }
 
   let surfaceGeneration = 0;
-  // The reading the region is currently being written from. Every entry goes through
-  // `startRender`, so whoever is waiting on the region can wait for the last word.
-  let latestRender = Promise.resolve();
   let cancelCurrentRender = () => {};
-  const startRender = (phase = "ready") => {
+  const startRender = (presenting, phase = "ready") => {
     cancelCurrentRender();
     const cancelled = new Promise((resolve) => (cancelCurrentRender = resolve));
-    return (latestRender = renderReading(phase, cancelled));
+    return renderReading(phase, cancelled, presenting);
   };
 
-  async function renderReading(phase, cancelled) {
+  async function renderReading(phase, cancelled, presenting) {
     const generation = ++surfaceGeneration;
     read.begin();
-    const current = () => generation === surfaceGeneration;
+    const current = () => generation === surfaceGeneration && presenting();
     const batch = beginThreadSeats();
     // The reply the user is writing, which this pass may take off the surface drawing it
     // (thread/focus.js, `holdReply`).
@@ -153,15 +138,22 @@ export function createThreadPresentation({
       const collection = readThreads();
       const threads = phase === "ready" ? all : [];
       const listed = collection.threads;
+      const continueReplies = holdReplyCompositions(threads, continueThread);
       renderHolds(threads);
-      const painted = anchorPaint.paint({
-        threads,
-        draft: readDraft(),
-        actionAnchor: activeActionAnchor(),
-      });
-      if (painted) anchorControls.render(painted);
-      drawingPaint.paint(threads);
-      surfaces = renderSurfaces(collection, anchorPaint.placedAt, surfaceView);
+      const readTargets = () => {
+        const anchors = anchorPlacement.read({
+          threads,
+          draft: readDraft(),
+          actionAnchor: activeActionAnchor(),
+        });
+        if (anchors) {
+          anchorPaint?.paint(anchors);
+          anchorControls.render(anchors);
+        }
+        drawingPaint.paint();
+      };
+      readTargets();
+      surfaces = renderSurfaces(collection, anchorPlacement, surfaceView);
       void surfaces.completion.catch(() => {});
       prepared = Promise.all(
         livePanels.map(({ controller, view }) =>
@@ -179,20 +171,33 @@ export function createThreadPresentation({
       renderSeats(listed, inlineView);
       // Capture every core message and approval age before yielding to a package.
       // Their shared clock refreshes this whole presentation, including its outlets.
-      const result = await Promise.race([
+      // Register the cohort's commit before yielding: its synchronous writes belong
+      // to this requested reading, while preparation and continuity remain separate.
+      await Promise.race([
         Promise.all([surfaces.completion, prepared]),
         cancelled.then(() => null),
-      ]);
-      if (!result) return;
-      const [, candidates] = result;
-      if (!current()) return;
-      renderMargin();
-      for (const candidate of candidates) candidate?.commit();
-      commitThreadSeats(batch);
-      pageGeometry.pageShifted();
-      restoreReply?.();
-      finishListRecovery(candidates);
-      read.present();
+      ]).then((result) => {
+        if (!result) return;
+        const [, candidates] = result;
+        if (!current()) return;
+        for (const candidate of candidates) candidate?.commit();
+        // Preparation may materialize or retire targets without another publication.
+        // Preserve immediate semantic paint, then refresh the same directory and its
+        // retained decoration before any nominated surface actually moves.
+        readTargets();
+        surfaces.commit();
+        commitThreadSeats(batch);
+        surfaceView.composition.finishPlacement();
+        renderAnnotations();
+        pageGeometry.pageShifted();
+        finishListRecovery(candidates);
+        read.present();
+        // Continuity may reveal a route needing this very presenter. Its work starts
+        // after the cohort commits, and never joins the ticket it is completing.
+        void continueReplies(restoreReply).catch((error) =>
+          reportPageError(`Reply continuation failed: ${error?.message ?? error}`),
+        );
+      });
     } catch (error) {
       surfaces?.cancel();
       if (!current()) throw error;
@@ -209,29 +214,7 @@ export function createThreadPresentation({
     }
   }
 
-  function setUnavailable(phase) {
-    paintCurrent.stop();
-    return startRender(phase);
-  }
-  const renderCurrent = () => startRender();
-
-  // A clock tick outside the pass claims its own ticket; inside it, the pass already
-  // holds one and claiming a second would be this paint waiting on the pass it is part
-  // of. Either way the reading comes from the current semantic root rather than a
-  // retained input that could omit a later local gesture or accepted reading.
-  //
-  // A tick can also land in the middle of a pass paint, while it waits on a frozen
-  // widget. That runs `renderReading` again, and `surfaceGeneration` settles which of
-  // the two the page keeps: the newer one, exactly as a newer claim supersedes an older
-  // reading a rank up. The pass paint waits for that newer reading rather than the one
-  // it started, which is what keeps its ticket true and gives the tick's own failure a
-  // ticket to travel on. The clock has to reach `renderReading` synchronously — `clocked`
-  // records which relative-time readings a paint made while that paint runs, and a claim
-  // that returns before the pass would record none and unsubscribe the thread from
-  // the clock altogether.
-  const paintCurrent = clocked(document.body, () =>
-    painting ? renderCurrent() : present(),
-  );
+  const paintCurrent = clocked(document.body, startRender, present);
 
   function onReveal({ threadsBox, view }, event) {
     const target = event.detail?.target;

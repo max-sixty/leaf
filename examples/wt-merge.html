@@ -11,7 +11,6 @@
       #merge-regions {
         display: grid;
         grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-        gap: var(--sp-4);
       }
       @media (width < 720px) {
         #merge-regions {
@@ -22,6 +21,176 @@
         display: grid;
         gap: 10px;
         align-content: start;
+      }
+      lf-merge-film .film-phone,
+      lf-merge-film .film-caption,
+      lf-merge-film .film-previous,
+      lf-merge-film .film-next {
+        display: none;
+      }
+      lf-merge-film[data-phone] .film-caption {
+        display: block;
+        margin: 0;
+        min-height: 4.5em;
+        font: 16px / 1.5 var(--sans);
+        order: -2;
+      }
+      lf-merge-film[data-phone] .film-caption[data-tone="bad"] {
+        color: var(--danger-ink);
+      }
+      lf-merge-film[data-phone] .film-bar {
+        order: -1;
+      }
+      lf-merge-film .film-settings summary {
+        display: none;
+      }
+      lf-merge-film[data-phone] .film-settings {
+        order: 0;
+      }
+      lf-merge-film[data-phone] .film-settings summary {
+        display: list-item;
+        min-height: 44px;
+        padding: 10px 12px;
+        font: 14px / 1.5 var(--sans);
+        cursor: pointer;
+        border-block: 1px solid var(--rule);
+      }
+      lf-merge-film[data-phone] .film-stage {
+        order: 1;
+      }
+      lf-merge-film[data-phone] .film-previous,
+      lf-merge-film[data-phone] .film-next {
+        display: block;
+      }
+      lf-merge-film[data-phone] .film-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      lf-merge-film[data-phone] .film-scrub {
+        order: 1;
+        flex: 0 0 100%;
+        min-height: 32px;
+      }
+      lf-merge-film[data-phone] .film-inspect-next {
+        order: 2;
+      }
+      lf-merge-film[data-phone] .film-bar .film-speed {
+        order: 2;
+        flex: 0 0 auto;
+        min-width: 44px;
+      }
+      lf-merge-film[data-phone] .film-bar button {
+        flex: 1 0 auto;
+        min-height: 44px;
+        min-width: 0;
+        white-space: nowrap;
+        padding: 6px;
+        font: 14px var(--sans);
+        color: var(--ink);
+        background: var(--card);
+        border: 1px solid var(--border-2);
+        border-radius: var(--r);
+        cursor: pointer;
+      }
+      lf-merge-film[data-phone] .film-bar button:disabled {
+        color: var(--muted);
+        cursor: default;
+      }
+      lf-merge-film .film-stage[data-phone] {
+        line-height: 1.5;
+      }
+      lf-merge-film .film-stage[data-phone] > svg {
+        display: none;
+      }
+      lf-merge-film .film-stage[data-phone] .film-phone {
+        display: block;
+      }
+      lf-merge-film .film-phone-context {
+        padding: 0 16px;
+      }
+      lf-merge-film .film-phone-tree {
+        display: grid;
+        gap: 2px;
+        padding: 10px 0;
+        border-top: 1px solid var(--rule);
+        font: 14px / 1.4 var(--sans);
+      }
+      lf-merge-film .film-phone-tree code {
+        font-size: 16px;
+      }
+      lf-merge-film .film-phone-tree[data-here="true"] {
+        color: var(--accent);
+      }
+      lf-merge-film .film-phone-tree[data-gone="true"] {
+        color: var(--muted);
+      }
+      lf-merge-film .film-phone-tree[data-gone="true"] code {
+        text-decoration: line-through;
+      }
+      lf-merge-film .film-phone-hook {
+        margin: 0;
+        padding: 10px 0;
+        font: 14px / 1.5 var(--mono);
+      }
+      lf-merge-film .film-phone-hook[data-tone="fail"] {
+        color: var(--danger-ink);
+      }
+      lf-merge-film .film-phone-latest {
+        margin: 0;
+        padding: 12px 16px;
+        font: 14px / 1.5 var(--mono);
+        color: var(--code-ink);
+        background: var(--pre-bg);
+        overflow-wrap: anywhere;
+      }
+      lf-merge-film .film-phone-terminal {
+        font: 14px / 1.5 var(--mono);
+      }
+      lf-merge-film .film-phone-terminal summary {
+        padding: 10px 16px;
+        min-height: 44px;
+        cursor: pointer;
+      }
+      lf-merge-film .film-phone-terminal > div {
+        max-height: 16rem;
+        overflow: auto;
+      }
+      lf-merge-film .film-terminal-line {
+        display: block;
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+        padding: 0;
+        margin: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        text-align: left;
+        white-space: pre;
+        font: 14px / 21px var(--mono);
+        cursor: pointer;
+      }
+      lf-merge-film .film-terminal-line:focus-visible {
+        outline-offset: -2px;
+      }
+      lf-merge-film .film-phone-line {
+        display: block;
+        width: 100%;
+        min-height: 44px;
+        padding: 8px 16px;
+        border: 0;
+        border-top: 1px solid var(--rule);
+        background: var(--pre-bg);
+        color: var(--code-ink);
+        text-align: left;
+        font: inherit;
+        overflow-wrap: anywhere;
+        cursor: pointer;
+      }
+      lf-merge-film[data-phone] .film-flags label {
+        min-height: 44px;
+        font-size: 14px;
       }
       #lede code {
         white-space: nowrap;
@@ -58,6 +227,9 @@
         box-shadow: 0 8px 24px var(--shade);
         pointer-events: none;
       }
+      lf-merge-film[data-phone] .film-inspect {
+        max-width: calc(100% - 20px);
+      }
       lf-merge-film .film-inspect strong {
         font-family: var(--mono);
       }
@@ -66,7 +238,7 @@
       }
       lf-merge-film .film-bar {
         display: grid;
-        grid-template-columns: auto 1fr auto;
+        grid-template-columns: auto minmax(0, 1fr) auto auto;
         gap: 12px;
         align-items: center;
       }
@@ -75,7 +247,8 @@
         accent-color: var(--accent);
       }
       lf-merge-film .film-play,
-      lf-merge-film .film-speed {
+      lf-merge-film .film-speed,
+      lf-merge-film .film-inspect-next {
         min-width: 5.5em;
         padding: 4px 10px;
         font: inherit;
@@ -85,6 +258,21 @@
         background: var(--card);
         color: var(--ink);
         cursor: pointer;
+      }
+      @media (pointer: coarse) {
+        lf-merge-film .film-bar {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+        lf-merge-film .film-scrub {
+          grid-column: 1 / -1;
+          grid-row: 2;
+          min-height: 44px;
+        }
+        lf-merge-film .film-play,
+        lf-merge-film .film-speed,
+        lf-merge-film .film-inspect-next {
+          min-height: 44px;
+        }
       }
       lf-merge-film .film-flags {
         display: flex;
@@ -133,6 +321,18 @@
         gap: 8px;
         align-items: baseline;
       }
+      lf-merge-steps h3 button {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 8px;
+        border: 0;
+        padding: 0;
+        background: none;
+        color: inherit;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+      }
       lf-merge-steps h3::after {
         margin-left: auto;
         font: 500 var(--t-6) / 1 var(--sans);
@@ -175,10 +375,10 @@
       lf-merge-steps li[data-now] p {
         display: block;
       }
-      html:not([data-lf-live]) lf-merge-steps p {
+      html:not([data-lf-interactive]) lf-merge-steps p {
         display: block;
       }
-      html:not([data-lf-live]) lf-merge-steps li {
+      html:not([data-lf-interactive]) lf-merge-steps li {
         cursor: auto;
       }
       lf-merge-steps .this-run {
@@ -197,7 +397,7 @@
     </style>
   </head>
   <body>
-    <main class="layout-workspace" id="merge-workspace">
+    <main class="layout-workspace density-working" id="merge-workspace">
       <header>
         <h1>Explain how <code>wt merge</code> works</h1>
       </header>
@@ -210,16 +410,15 @@
           <div>
             <p id="lede">
               Worktrunk's <code>wt merge</code> takes a finished branch to main in one
-              command: commit, squash, rebase, test, merge, then clean up. The film
-              draws each step from the flags below it, so ticking
-              <code>--no-ff</code> or a failing test re-plots the run, including the
-              three ways it stops early. Hover a commit, branch, worktree or hook to see
-              what it is; Alt-click one to comment on it.
+              command. The film draws each step from the flags below it, so ticking
+              <code>--no-ff</code> or a failing test re-plots the run. Tap or hover a
+              commit, branch, worktree or hook to read its details; Inspect cycles
+              through them. Alt-click a part to comment on it.
             </p>
             <lf-merge-steps id="merge-steps" for="merge-film">
               <ol>
                 <li id="step-setup" data-chapter="setup">
-                  <h3>Before</h3>
+                  <h3><button type="button">Before</button></h3>
                   <p>
                     A branch in its own worktree, with commits and perhaps edits not yet
                     committed. Main may have moved on since the branch forked.
@@ -227,7 +426,9 @@
                   <p class="this-run"></p>
                 </li>
                 <li id="step-commit" data-chapter="commit">
-                  <h3><span class="step-n">1</span> Commit</h3>
+                  <h3>
+                    <button type="button"><span class="step-n">1</span> Commit</button>
+                  </h3>
                   <p>
                     Uncommitted edits become a commit of their own. The default run
                     skips this, because the squash stages them itself.
@@ -235,7 +436,9 @@
                   <p class="this-run"></p>
                 </li>
                 <li id="step-squash" data-chapter="squash">
-                  <h3><span class="step-n">2</span> Squash</h3>
+                  <h3>
+                    <button type="button"><span class="step-n">2</span> Squash</button>
+                  </h3>
                   <p>
                     Every commit since the fork, plus any edits, becomes one commit. The
                     old tip is backed up to <code>refs/wt-backup/&lt;branch&gt;</code>
@@ -244,7 +447,9 @@
                   <p class="this-run"></p>
                 </li>
                 <li id="step-rebase" data-chapter="rebase">
-                  <h3><span class="step-n">3</span> Rebase</h3>
+                  <h3>
+                    <button type="button"><span class="step-n">3</span> Rebase</button>
+                  </h3>
                   <p>
                     The work is replayed onto main's current tip, which gives it new
                     hashes. A conflict stops the merge here, with the rebase left open
@@ -253,7 +458,11 @@
                   <p class="this-run"></p>
                 </li>
                 <li id="step-premerge" data-chapter="premerge">
-                  <h3><span class="step-n">4</span> Pre-merge hooks</h3>
+                  <h3>
+                    <button type="button">
+                      <span class="step-n">4</span> Pre-merge hooks
+                    </button>
+                  </h3>
                   <p>
                     Hooks from <code>.config/wt.toml</code> run on the exact tree that
                     will land, as local CI. A failure aborts, and main never moves.
@@ -261,7 +470,9 @@
                   <p class="this-run"></p>
                 </li>
                 <li id="step-merge" data-chapter="merge">
-                  <h3><span class="step-n">5</span> Merge</h3>
+                  <h3>
+                    <button type="button"><span class="step-n">5</span> Merge</button>
+                  </h3>
                   <p>
                     Main fast-forwards to the branch tip, so history stays linear.
                     <code>--no-ff</code> records a merge commit instead.
@@ -269,7 +480,11 @@
                   <p class="this-run"></p>
                 </li>
                 <li id="step-preremove" data-chapter="preremove">
-                  <h3><span class="step-n">6</span> Pre-remove hooks</h3>
+                  <h3>
+                    <button type="button">
+                      <span class="step-n">6</span> Pre-remove hooks
+                    </button>
+                  </h3>
                   <p>
                     A last hook before the worktree is deleted; if it fails, the
                     worktree stays.
@@ -277,7 +492,9 @@
                   <p class="this-run"></p>
                 </li>
                 <li id="step-cleanup" data-chapter="cleanup">
-                  <h3><span class="step-n">7</span> Cleanup</h3>
+                  <h3>
+                    <button type="button"><span class="step-n">7</span> Cleanup</button>
+                  </h3>
                   <p>
                     The worktree and branch are removed in the background, and the shell
                     lands in main's worktree.
@@ -285,12 +502,16 @@
                   <p class="this-run"></p>
                 </li>
                 <li id="step-postmerge" data-chapter="postmerge">
-                  <h3><span class="step-n">8</span> Post-merge hooks</h3>
+                  <h3>
+                    <button type="button">
+                      <span class="step-n">8</span> Post-merge hooks
+                    </button>
+                  </h3>
                   <p>Background hooks run from main after the prompt is back.</p>
                   <p class="this-run"></p>
                 </li>
                 <li id="step-end" data-chapter="end">
-                  <h3>After</h3>
+                  <h3><button type="button">After</button></h3>
                   <p>Where the run ended, and what it did.</p>
                   <p class="this-run"></p>
                 </li>

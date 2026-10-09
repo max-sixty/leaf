@@ -17,6 +17,7 @@
    watches. */
 import { ariaShortcuts, bindings, labelOf, live, word } from "./bindings.js";
 import { pageScopes, universalCommandReference } from "./register.js";
+import { buttonCommand } from "./scopes.js";
 import { keeps } from "../keeps.js";
 
 const stepsBefore = (scope) => word(scope?.sequencePrefix ?? scope?.sequence) ?? [];
@@ -31,7 +32,7 @@ const shortcutIn = (scope, row) =>
 export function commandShortcut(id) {
   for (const scope of pageScopes())
     for (const row of scope?.rows ?? [])
-      if (row.id === id) return shortcutIn(scope, row);
+      if (row.id === id && bindings(row).length) return shortcutIn(scope, row);
   return "";
 }
 
@@ -39,26 +40,36 @@ export function paintCoreControls() {
   // The shortcut bar owns the permanent More control because its binding must first pass
   // through the same contextual shadowing as the line's ordinary rows.
   const more = universalCommandReference();
+  const controls = new Map();
   for (const scope of pageScopes())
     for (const row of scope?.rows ?? []) {
       if (row === more) continue;
       const control = word(row.control);
       if (!control) continue;
-      if (!("lfKeyTitle" in control.dataset))
-        control.dataset.lfKeyTitle = control.title;
       const active = live(row) && bindings(row).length > 0;
-      keeps(
-        control,
-        "title",
-        control.dataset.lfKeyTitle + (active ? ` (${shortcutIn(scope, row)})` : ""),
-      );
-      // aria-keyshortcuts has no syntax for sequential shortcuts: its spaces separate
-      // alternatives. The complete sequence remains in the overlay, tooltip, and
-      // accessible command reference instead of claiming its final press works alone.
-      keeps(
-        control,
-        "aria-keyshortcuts",
-        active && !scope.sequence ? ariaShortcuts([row], false) : null,
-      );
+      const prior = controls.get(control);
+      // One native control may also have an unbound semantic route for reference
+      // activation. Project it once, preferring the live keyboard presentation;
+      // the unbound row must not erase that route or rewrite its title each frame.
+      if (!prior || (!prior.active && active))
+        controls.set(control, { scope, row, active });
     }
+  for (const [control, { scope, row, active }] of controls) {
+    if (!("lfKeyTitle" in control.dataset)) control.dataset.lfKeyTitle = control.title;
+    keeps(
+      control,
+      "title",
+      control.dataset.lfKeyTitle + (active ? ` (${shortcutIn(scope, row)})` : ""),
+    );
+    // Native command buttons receive exact reachable shortcuts from command-hints.
+    if (buttonCommand(control)) continue;
+    // aria-keyshortcuts has no syntax for sequential shortcuts: its spaces separate
+    // alternatives. The complete sequence remains in the overlay, tooltip, and
+    // accessible command reference instead of claiming its final press works alone.
+    keeps(
+      control,
+      "aria-keyshortcuts",
+      active && !scope.sequence ? ariaShortcuts([row], false) : null,
+    );
+  }
 }

@@ -65,6 +65,27 @@ test("words before a title mean it is not one", () => {
   assert.equal(named('<p id="it">This is <strong>important</strong> text.</p>'), "");
 });
 
+test("a title group names itself and its owner by the heading alone", () => {
+  assert.equal(
+    named(
+      '<hgroup id="it"><p class="eyebrow">Stage 2</p><h1>Review</h1><p>Subtitle.</p></hgroup>',
+    ),
+    "Review",
+  );
+  assert.equal(
+    named(
+      '<section id="it"><hgroup><p class="eyebrow">Stage 2</p><h2>Migration</h2></hgroup><p>Body.</p></section>',
+    ),
+    "Migration",
+  );
+  assert.equal(
+    named(
+      '<section id="it"><header><hgroup><p class="eyebrow">Stage 2</p><h2>Migration</h2></hgroup></header></section>',
+    ),
+    "Migration",
+  );
+});
+
 test("the attribute a tag declares with x-name names its element", () => {
   for (const tag of Object.keys(registry)) delete registry[tag];
   Object.assign(registry, {

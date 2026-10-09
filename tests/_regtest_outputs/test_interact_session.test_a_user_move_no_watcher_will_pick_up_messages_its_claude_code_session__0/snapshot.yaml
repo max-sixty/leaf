@@ -1,0 +1,10 @@
+# A real user POST reaches the Claude Code socket after its watcher died.
+# This is the complete user frame, without the separate authentication frame.
+
+socket user frame:
+  type: user
+  session_id: s1
+  message:
+    role: user
+    content: >-
+      leaf: <page> has new input, which arrives with this message.

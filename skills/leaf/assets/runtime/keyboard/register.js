@@ -2,7 +2,8 @@
  *
  * Owners contribute pageScope, pageCommand, and pageRung declarations during construction,
  * before the first scope read. This module stores declarations and order; owners supply
- * command behavior. Widget element scopes join STACK at ELEMENTS.
+ * command behavior. Widget element scopes join STACK at ELEMENTS. Every table ranks
+ * constructed features; an absent feature registers no scope, rung or command.
  *
  * STACK orders ordinary dispatch, innermost first; the command reference reads it in
  * reverse. Escape additionally resolves inner claims and focused-surface containment.
@@ -19,10 +20,21 @@ import {
   bindings,
   checked,
   touchPresses as pressesOf,
+  titleOf,
+  descriptionOf,
+  lineOf,
   word,
 } from "./bindings.js";
-import { focused } from "./scopes.js";
+import { focused } from "../focus.js";
+import { paintKeys, watchCommandScopes } from "./scopes.js";
+// Native activation reads declarations without assembling or validating the keyboard
+// during feature construction. Both element and page commands share one control owner.
+watchCommandScopes(() => [
+  ...[...scopes.values()].flat(),
+  { rows: [...commands.values()] },
+]);
 import { under } from "../shadow.js";
+import { offlineInteractive } from "../context.js";
 
 export const ELEMENTS = Symbol("the scopes of the focused element");
 const PAGE = Symbol("the page's own keys");
@@ -46,6 +58,8 @@ const STACK = [
   // Among inner scopes the order is moot, since the modes and the Page Map stand it down
   // themselves.
   "standing",
+  // A task on the user that the walk stands on, whose Done this scope carries.
+  "task",
   "versions",
   "composer",
   "text entry",
@@ -80,18 +94,26 @@ const RUNG_LADDER = [
 ];
 
 const PAGE_COMMANDS = [
-  "ask.activate-nth",
   "comment.create",
+  "writing.resume",
+  "selection.restore",
   "target.picker.open",
   "reaction.open",
   "page.search.open",
   "page.search.repeat",
   "thread.walk",
-  "ask.walk",
+  "queue.walk",
   // Scrolling is available in the page and in a covering auxiliary surface, which reuses
   // the rows marked `covering` while the modal floor suspends the rest of page scope.
   "page.move",
   "scroll.move",
+  "reading.align.top",
+  "thread.unread.first",
+  "navigation.panel.threads",
+  "navigation.drawer.queue",
+  "navigation.drawer.leaves",
+  "navigation.page-map",
+  "version.open",
   "history.undo",
   // Below the walks that reach one list at a time, because `g` opens a door to all of
   // them: on a narrow window the sequence hides a second way to somewhere the user can
@@ -114,7 +136,7 @@ const commands = new Map();
 const rungs = new Map();
 let resolved = null;
 let validated = false;
-let auxiliaryModality = null;
+let coveringSurface = null;
 
 const place = (where, name) => {
   if (!where.includes(name))
@@ -131,12 +153,14 @@ export function pageScope(name, declaration) {
   scopes.set(name, declarations);
   resolved = null;
   validated = false;
+  paintKeys();
   return () => {
     const remaining = scopes.get(name)?.filter((item) => item !== declaration) ?? [];
     if (remaining.length) scopes.set(name, remaining);
     else scopes.delete(name);
     resolved = null;
     validated = false;
+    paintKeys();
   };
 }
 
@@ -149,11 +173,12 @@ export function pageCommand(row) {
   commands.set(row.id, row);
   resolved = null;
   validated = false;
+  paintKeys();
   return row;
 }
 
 /** Declare one instance's step of Escape's fallback ladder: a function answering what the press would
- * take off right now, as `{says, does, out}` plus an optional `root` for the surface the
+ * take off right now, as `{title, description?, line?, out}` plus an optional `root` for the surface the
  * step is inside and the `lineWhen` and `promoteEscape` this step wants on the compact
  * line, or null where this step has nothing to take. `RUNG_LADDER` orders the steps. */
 export function pageRung(name, reading) {
@@ -194,26 +219,19 @@ function rung() {
 const BACK_OUT = {
   id: "navigation.back",
   keys: ["Escape"],
-  does: () => rung()?.does,
-  line: () => rung()?.says,
+  title: () => (rung() ? titleOf(rung()) : "Back"),
+  description: () => (rung() ? descriptionOf(rung()) : undefined),
+  line: () => (rung() ? lineOf(rung()) : false),
   lineWhen: () => word(rung()?.lineWhen) !== false,
   promoteEscape: () => word(rung()?.promoteEscape) !== false,
   when: () => Boolean(rung()),
   run: () => rung().out(),
 };
 
-const missing = (where, held) =>
-  where.filter((name) => typeof name === "string" && !held.has(name)).map(String);
-
 function assemble() {
-  const absent = [
-    ...missing(STACK, scopes),
-    ...missing(PAGE_COMMANDS, commands),
-    ...missing(RUNG_LADDER, rungs),
-  ];
-  if (absent.length)
-    throw new Error(`leaf: the page's keyboard has no owner for ${absent.join(", ")}`);
-  const rows = PAGE_COMMANDS.map((id) => commands.get(id));
+  const rows = PAGE_COMMANDS.flatMap((id) =>
+    commands.has(id) ? [commands.get(id)] : [],
+  );
   // Every page command answers whether a finger needs a stand-in for its keys (AGENTS.md,
   // "Touch routes"), so a new one meets the question where it is declared.
   const unanswered = rows.filter((row) => !answersTouch(row)).map((row) => row.id);
@@ -237,7 +255,7 @@ function assemble() {
         rows: covering,
       };
     if (typeof name !== "string") return name;
-    return scopes.get(name);
+    return scopes.get(name) ?? [];
   });
 }
 
@@ -247,6 +265,9 @@ function assemble() {
 // read of it, by which time every owner stands. The assembled stack is published before
 // that reading, because a row's key set may consult the register on its way to answering.
 export function pageScopes() {
+  // Exports retain widget scopes and the native input claims the dispatcher places
+  // among them. Page navigation and chrome have no surfaces in that document.
+  if (offlineInteractive) return [ELEMENTS];
   resolved ??= assemble();
   if (!validated) {
     validated = true;
@@ -263,7 +284,9 @@ export function pageScopes() {
 export function touchPresses() {
   pageScopes();
   return {
-    commands: PAGE_COMMANDS.flatMap((id) => pressesOf(commands.get(id))),
+    commands: PAGE_COMMANDS.flatMap((id) =>
+      commands.has(id) ? pressesOf(commands.get(id)) : [],
+    ),
     steps: STACK.flatMap((name) =>
       typeof name === "string"
         ? (scopes.get(name) ?? []).map((scope) => ({
@@ -274,7 +297,8 @@ export function touchPresses() {
     ).filter(({ presses }) => presses.length),
   };
 }
-export const universalCommandReference = () => commands.get(COMMAND_REFERENCE);
+export const universalCommandReference = () =>
+  offlineInteractive ? undefined : commands.get(COMMAND_REFERENCE);
 export const textEntryScope = () => scopes.get("text entry")?.[0];
 // What an interaction claiming the whole keyboard still lets through: the one route to
 // another layer, read off the row so a fact about a binding cannot be written where the
@@ -285,7 +309,7 @@ export const allButCommandReference = (binding) =>
 // The auxiliary layer's surface reading, held here because the dispatcher's own closure
 // stops at this register: it resolves a press against the register and the focused scope,
 // and an edge to the surface owner would give it that owner's whole initialization graph.
-export function registerAuxiliaryModality(modality) {
-  auxiliaryModality = modality;
+export function registerCoveringAuxiliarySurface(read) {
+  coveringSurface = read;
 }
-export const coveringAuxiliarySurface = () => auxiliaryModality.coveringSurface();
+export const coveringAuxiliarySurface = () => coveringSurface();

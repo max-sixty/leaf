@@ -4,11 +4,22 @@
    waits on it after a gesture rather than guessing a number of frames.
 
    Leaf's rendering callbacks and size observers go through this module: `nextRender`,
-   `nextFrame` and `cancelRender` in place of `requestAnimationFrame` and
-   `cancelAnimationFrame`, `sizeObserver` in place of `new ResizeObserver`. The lint gate
+   `nextFrame` and `cancelRender` for settling work, `nextAnimation` and
+   `cancelAnimation` for continuous mechanical motion, and `sizeObserver` in place
+   of `new ResizeObserver`. The lint gate
    refuses the browser's own in the runtime and in the bundled packages, so the loop and
    the reading answer for every owner there without a list of them. Coalescing owners
    keep their own flags; this module holds the one queue behind them.
+
+   The neutral `queued-work.js` home binds a callback's one deferred invocation to that same lifecycle,
+   for host schedules which own their own order rather than using this frame queue.
+   Its `observeQueuedWork` exposes each queued callback's lifecycle to tracing owners.
+   Its frozen identity is announced at enqueue, immediately before and after its
+   synchronous turn, or on cancellation. The enqueue-time observer cohort follows
+   that job to completion even if unsubscribed meanwhile; unsubscription affects new
+   jobs. Observers can carry a scheduling context across this coalesced queue without
+   changing callbacks, their execution order, or the pass's microtask checkpoint.
+   An async callback's returned tail is not part of its synchronous rendering turn.
 
    The loop takes one animation frame and works through every queued callback in it, in
    the order they were queued. `nextRender` asked for from inside that pass runs in the
@@ -29,7 +40,10 @@
    as a control replaced and the focus landing on its successor, would otherwise paint
    the moment between them and then put back what it took off, a write that changes
    nothing. A callback asked for again before it runs runs once, and one that throws is
-   reported as a frame callback's failure is while the others still run. Steps in
+   reported as a frame callback's failure is while the others still run. Repeated
+   invalidations keep the existing job and its first enqueue context. That identifies
+   the callback invocation, not the provenance of each mutable value it may read.
+   Steps in
    separate listeners of one event are separate scripts.
 
    `nextFrame` is for a step that must not run in the pass that asked for it: an
@@ -40,7 +54,8 @@
    Work toward a resting state is counted; a playback loop is not. A loop through
    `nextFrame` holds the page unsettled for as long as it runs, which is right for a
    glide that lands in a moment and wrong for a film that plays until the user stops it,
-   so a page's own playback schedules with the browser directly.
+   so playback uses nextAnimation/cancelAnimation, which schedule with the browser
+   without entering the counted queue.
 
    A rendering update runs animation-frame callbacks, then style and layout, then
    ResizeObserver delivery, then paint. A reading taken inside a callback precedes the
@@ -66,6 +81,8 @@
    why `data-lf-presented`, which such a host waits on before showing the frame, never
    waits on this reading. */
 
+import { enqueueWork, runWork, cancelWork } from "./queued-work.js";
+
 const ROUNDS = 8;
 // What the next pass runs, what the running pass is working through, and what a
 // `nextFrame` asked for during a pass, which waits for the pass after it. One id space
@@ -82,7 +99,7 @@ let checking = false;
 
 function request(into, callback) {
   const id = ++lastId;
-  into.set(id, callback);
+  into.set(id, enqueueWork(callback));
   if (!running && !frame) frame = requestAnimationFrame(pass);
   unsettle();
   return id;
@@ -94,9 +111,20 @@ export const nextRender = (callback) => request(queued, callback);
 /** Run `callback` in the next frame's pass, never in the running one. */
 export const nextFrame = (callback) => request(running ? afterPaint : queued, callback);
 
+/** Continuous mechanical motion, such as a playing film, does not hold resting
+ * proof open. Its owner cancels this browser frame when stopped or retired. */
+export const nextAnimation = (callback) => requestAnimationFrame(callback);
+export const cancelAnimation = (id) => cancelAnimationFrame(id);
+
 /** Withdraw a callback `nextRender` or `nextFrame` queued. */
 export function cancelRender(id) {
-  queued.delete(id) || afterPaint.delete(id) || running?.delete(id);
+  for (const queue of [queued, afterPaint, running]) {
+    const job = queue?.get(id);
+    if (!job) continue;
+    queue.delete(id);
+    cancelWork(job);
+    return;
+  }
 }
 
 async function pass(time) {
@@ -104,10 +132,10 @@ async function pass(time) {
   for (let round = 0; queued.size && round < ROUNDS; round++) {
     running = queued;
     queued = new Map();
-    for (const [id, callback] of running) {
+    for (const [id, job] of running) {
       running.delete(id);
       try {
-        callback(time);
+        runWork(job, time);
       } catch (error) {
         // One owner's failure is reported as the browser reports a frame callback's,
         // and the owners after it still paint.
@@ -122,14 +150,14 @@ async function pass(time) {
   if (queued.size) frame = requestAnimationFrame(pass);
 }
 
-const owedThisScript = new Set();
+const owedThisScript = new Map();
 function settleScript() {
-  // A callback asked for while the others run is visited too: a Set's iteration reaches
+  // A callback asked for while the others run is visited too: a Map's iteration reaches
   // what joins it before the end.
-  for (const callback of owedThisScript) {
+  for (const [callback, job] of owedThisScript) {
     owedThisScript.delete(callback);
     try {
-      callback();
+      runWork(job);
     } catch (error) {
       reportError(error);
     }
@@ -137,14 +165,18 @@ function settleScript() {
 }
 export function afterScript(callback) {
   if (!owedThisScript.size) queueMicrotask(settleScript);
-  owedThisScript.add(callback);
+  if (!owedThisScript.has(callback))
+    owedThisScript.set(callback, enqueueWork(callback));
 }
 
-/** A `ResizeObserver` whose deliveries the settled reading counts. */
-export function sizeObserver(callback) {
+/** A `ResizeObserver` whose deliveries the settled reading counts, unless it watches
+ * boxes that may move for as long as the page plays, which `counted: false` says. */
+export function sizeObserver(callback, { counted = true } = {}) {
   return new ResizeObserver((entries, observer) => {
-    heard = true;
-    unsettle();
+    if (counted) {
+      heard = true;
+      unsettle();
+    }
     callback(entries, observer);
   });
 }

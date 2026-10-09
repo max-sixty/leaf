@@ -1,13 +1,15 @@
 """One frozen input for browser validation and export previews."""
 
+from __future__ import annotations
+
 import copy
 import hashlib
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
-from .data import browser_data_from, read_data
-from .event_log import now_iso
+from .data import read_data
+from .data_contracts import resource_urls
 from .files import (
     list_revisions,
     revision_label,
@@ -18,14 +20,18 @@ from .passages import SourceReading
 from .presence import other_leaves, presence_fingerprint, presence_with_activity
 from .registry.storage import read_page_registry
 from .revision_artifact import (
+    Resource,
     RevisionArtifact,
     artifact_name,
     capture_artifact,
+    capture_local_resource,
     read_artifact,
     read_revision,
 )
+from .served_state.context import PageRead
 from .served_state.reading import join_reading
 from .service import PageTransaction
+from .state import now_iso
 from .structure import SourceDocument
 
 
@@ -35,26 +41,20 @@ class PageSnapshot:
 
     Everything it serves is read at capture: each revision's reading has its
     document and registry in hand, so a later request reads nothing from the page
-    directory for them."""
+    directory for them. Declared data media is frozen beside its current value;
+    it never changes an immutable authored revision's artifact."""
 
-    document: SourceDocument
-    active: dict
-    events: tuple[dict, ...]
-    registry: dict
-    layer: dict
-    data: dict
-    browser_data: dict
-    versions: tuple[dict, ...]
+    context: PageRead
     artifacts: dict[int, RevisionArtifact]
-    # Each revision's document under the registry its artifact captured.
-    readings: dict[int, SourceReading]
+    data_resources: dict[str, Resource]
     revision_names: dict[int, str]
-    presence: dict
-    live_stream: dict | None
     others: tuple[dict, ...]
-    now: str
-    taken: float
     reading: str
+
+    def through(self, sequence: int) -> PageSnapshot:
+        """This snapshot served as the page stood once event `sequence` was appended
+        (`PageRead.through`)."""
+        return replace(self, context=self.context.through(sequence))
 
 
 def capture_page_snapshot(
@@ -92,6 +92,20 @@ def capture_page_snapshot(
         artifacts[active["revision"]] = selected
         registry = copy.deepcopy(selected.registry)
         data = read_data(page_dir, registry)
+        # External data remains current even in a historical document. Its media
+        # belongs to this frozen reading, not the immutable authored revision.
+        data_urls = {
+            url
+            for source in data["sources"].values()
+            if "value" in source
+            for url in resource_urls(
+                source["value"], registry["$data"]["contracts"][source["contract"]]
+            )
+            if url.startswith("/media/")
+        }
+        data_resources = {
+            url: capture_local_resource(page_dir, url) for url in sorted(data_urls)
+        }
         layer = copy.deepcopy(registry["$layer"])
         # Stored revisions take their held readings; a candidate the snapshot
         # captured is the checked document under its capture's vocabulary.
@@ -125,7 +139,6 @@ def capture_page_snapshot(
         # revision's.
         snapshot_active["executable"] = artifacts[active["revision"]].executable
         taken = time.time()
-    browser_data = browser_data_from(data, registry)
     files_reading = hashlib.sha256(
         repr(
             (
@@ -139,21 +152,23 @@ def capture_page_snapshot(
     ).hexdigest()[:16]
     reading = join_reading(files_reading, presence_fingerprint(present, list(others)))
     return PageSnapshot(
-        document=document,
-        active=snapshot_active,
-        events=events,
-        registry=registry,
-        layer=layer,
-        data=data,
-        browser_data=browser_data,
-        versions=versions,
+        context=PageRead(
+            active=snapshot_active,
+            events=list(events),
+            revisions=frozenset(readings),
+            revision=readings.__getitem__,
+            registry=registry,
+            layer=layer,
+            stored_data=lambda: data,
+            versions=versions,
+            presence=copy.deepcopy(present),
+            live_stream=copy.deepcopy(live_stream),
+            now=observed_at,
+            taken=taken,
+        ),
         artifacts=artifacts,
-        readings=readings,
+        data_resources=data_resources,
         revision_names=revision_names,
-        presence=copy.deepcopy(present),
-        live_stream=copy.deepcopy(live_stream),
         others=others,
-        now=observed_at,
-        taken=taken,
         reading=reading,
     )

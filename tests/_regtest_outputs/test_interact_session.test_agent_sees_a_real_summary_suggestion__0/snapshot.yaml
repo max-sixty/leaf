@@ -1,14 +1,14 @@
 # The summary hint from real thread events and the delivery a hook hands the turn.
 
 delivery:
-  format: leaf-delivery-v3
+  format: leaf-delivery-v5
   id: <delivery>
   created_at: <time>
-  carrier: hook
   acknowledge: null
   batches:
     - page: <page>
-      through_seq: 14
+      claim: <claim-session>
+      through_seq: 8
       threads:
         - id: event-2
           title: null
@@ -16,7 +16,7 @@ delivery:
           detached_from: null
           resolved: null
           elided:
-            messages: 3
+            messages: 0
             actions: 0
           messages:
             - id: event-2
@@ -24,45 +24,30 @@ delivery:
               author: user
               text: >-
                 Which rollout?
+            - id: event-3
+              seq: 3
+              author: agent
+              text: >-
+                Rollout consideration 1.
+            - id: event-4
+              seq: 4
+              author: user
+              text: >-
+                Rollout consideration 2.
+            - id: event-5
+              seq: 5
+              author: agent
+              text: >-
+                Rollout consideration 3.
             - id: event-6
               seq: 6
               author: user
               text: >-
                 Rollout consideration 4.
-            - id: event-7
-              seq: 7
-              author: agent
-              text: >-
-                Rollout consideration 5.
-            - id: event-8
-              seq: 8
-              author: user
-              text: >-
-                Rollout consideration 6.
-            - id: event-9
-              seq: 9
-              author: agent
-              text: >-
-                Rollout consideration 7.
-            - id: event-10
-              seq: 10
-              author: user
-              text: >-
-                Rollout consideration 8.
-            - id: event-11
-              seq: 11
-              author: agent
-              text: >-
-                Rollout consideration 9.
-            - id: event-12
-              seq: 12
-              author: user
-              text: >-
-                Rollout consideration 10.
           summaries: []
           summary_hint:
             from: event-2
-            through: event-11
+            through: event-5
           actions: []
       handling:
         h1: >-
@@ -75,38 +60,41 @@ delivery:
           rather than its opening words. If Leaf has named it from its opening message
           by then, that name stands.
         h3: >-
-          This event's thread has grown long, and its entry in the batch's `threads`
-          carries a `summary_hint`. Once you have replied, read the messages from
-          its `from` through its `through` and summarize them with `leaf thread
-          summarize <page> --from <from> --through <through>`, as the Leaf skill's
-          `references/threads.md`, "Summarize a long discussion", says.
+          This thread's entry in the batch's `threads` carries a `summary_hint`,
+          a suggested earlier range to review. Follow the Leaf skill's `references/threads.md`,
+          "Summarize a long discussion", as you answer this input. The hint adds
+          no separate response obligation.
         h4: >-
-          When the event asks for work, name that work before any other, including
-          reading the source it concerns: `leaf status <page> working "<the work,
-          in a line>" --on <address>`, where `<address>` is the event's `answer.to`.
-          The move then reads Working, and the line stands beside the thread and
-          in the banner until you answer. Do the work and put its result on the
-          page, with whatever shows it (captures, a figure, the numbers), then answer
-          with `leaf thread reply <page> --for <event-id>`: what changed, in a sentence
-          or two, linking the section that shows it. When the event asks for no
-          work, as a question may not, answer it with that reply at once. The page
-          carries the work, and the thread only the conversation about it. `leaf
-          thread reply` checks any saved page edit and makes it live before posting.
-          If a revision removes what the thread is anchored on, move the thread
-          in the reply that reports it with `--section <id>` (narrowed by `--quote`
-          or `--part` if needed), or `--detach` it if its subject has left the page.
-          Add `--awaits` only if your reply's prose asks the user something.
+          When the event asks for work, say in its thread what you will do before
+          any other command, including reading the source it concerns: `leaf response
+          reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
+          The user reads it in the thread at once, and it takes the move in hand:
+          the move reads Working, and the line stands in the banner until you answer.
+          Do the work and put its result on the page, with whatever shows it (captures,
+          a figure, the numbers), then answer with `leaf response reply <answer.ref>
+          < reply.md`: what changed, in a sentence or two, linking the section that
+          shows it. When the event asks for no work, as a question may not, answer
+          it with that reply at once. The page carries the work, and the thread
+          only the conversation about it. `leaf response reply` checks any saved
+          page edit and makes it live before posting. If a revision removes what
+          the thread is anchored on, move the thread in the reply that reports it
+          with `--section <id>` (narrowed by `--quote` or `--part` if needed), or
+          `--detach` it if its subject has left the page. Add `--awaits` only if
+          your reply's prose asks the user something.
         h5: >-
-          Your reply renders as Markdown, so show code or markup in a fenced block.
+          Your reply renders as Markdown in a narrow column: give each point its
+          own short paragraph or list item, link a page section as `[its name](#section-id)`,
+          and fence code or markup.
       events:
-        - kind: reply
+        - attention: true
+          kind: reply
           author: user
           parent: event-2
           text: >-
             What do you recommend now?
-          id: event-14
+          id: event-8
           ts: <time>
-          seq: 14
+          seq: 8
           subject:
             kind: thread
             id: event-2
@@ -114,5 +102,7 @@ delivery:
           handling: [h1, h2, h3, h4, h5]
           answer:
             kind: reply
-            to: event-14
-            for: event-14
+            to: event-8
+            for: event-8
+            ref: <delivery>:0:event-8
+            writer: agent

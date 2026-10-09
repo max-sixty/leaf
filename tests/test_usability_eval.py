@@ -1,0 +1,573 @@
+"""Scenario checks require every phase and recover hidden context after delivery."""
+
+import json
+
+import pytest
+from leaf.delivery import record_pickup
+from leaf.event_log import read_cursor, read_events
+from leaf.service import PageTransaction
+from leaf_dev import ROOT
+from leaf_dev.usability_eval import (
+    CASES,
+    PREMISE,
+    Run,
+    admit,
+    append_elided_history,
+    attempt_key,
+    build_fixture,
+    checks_for,
+    expected_checks,
+    page_events,
+    post_round,
+    progress_shown,
+    score_elided,
+    score_mixed,
+)
+
+
+def test_every_scenario_has_fixed_nonvacuous_checks():
+    assert len(CASES) == 19
+    for case in CASES:
+        expected = expected_checks(case)
+        assert expected[0] == "completed"
+        from leaf_dev.usability_eval import rubrics
+
+        assert len(expected) > 1 or rubrics(case)
+        assert len(set(expected)) == len(expected)
+        actual = checks_for(case, {}, [], False)
+        assert list(actual) == expected
+        assert not any(actual.values())
+    handoff = checks_for("handoff", {"served": True}, [], True)
+    assert handoff["served"]
+    assert not handoff["question_delivered"]
+    assert not handoff["question_answered"]
+    near_miss = checks_for("near-miss", {"pages": 0}, [{"leaf_skill": False}], True)
+    assert all(near_miss.values())
+    assert not checks_for("near-miss", {"pages": 1}, [{"leaf_skill": True}], True)[
+        "no_page"
+    ]
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "reading",
+        "resume",
+        "constructs",
+        "board",
+        "package",
+        "shared-source",
+        "handoff",
+        "mixed",
+        "elided",
+    ],
+)
+def test_fixture_builds_through_current_leaf_admission(tmp_path, case):
+    run = Run(case, ROOT, tmp_path)
+    run.state.mkdir()
+    page = tmp_path / "page"
+    build_fixture(run, CASES[case].fixture, page)
+    assert page.is_dir()
+    assert (page / "index.html").is_file()
+    if case == "elided":
+        assert PREMISE not in str(page_events(page))
+        append_elided_history(run, page)
+        events = page_events(page)
+        assert PREMISE in str(events)
+        assert len([e for e in events if e["kind"] in ("comment", "reply")]) == 24
+        assert any(e["kind"] == "resolve" for e in events)
+        assert read_cursor(page) >= max(
+            e["seq"] for e in read_events(page) if e["author"] == "user"
+        )
+        (tmp_path / "work-dir").write_text(str(tmp_path))
+        latest = [e for e in events if e["kind"] == "reply"][-1]
+        admit(run, page, {
+            "kind": "reply", "parent": latest["id"], "revision": 1,
+            "attempt": "usability-eval-0-0", "text": "When does the copy start?",
+        })  # fmt: skip
+        read_premise = {
+            "type": "user",
+            "message": {"content": [{"type": "tool_result", "content": PREMISE}]},
+        }
+        trace = [
+            {"type": "result"},
+            {"type": "eval_post", "round": 1},
+            {"type": "system", "subtype": "hook_response",
+             "output": 'leaf-delivery-v {"elided":{"messages":16}}'},
+            {"type": "eval_received", "round": 1},
+            read_premise,
+            {"type": "result"},
+        ]  # fmt: skip
+        assert score_elided(run, trace)["middle_read"]
+        assert not score_elided(
+            run, [read_premise, *[r for r in trace if r is not read_premise]]
+        )["middle_read"]
+
+
+def test_live_completion_requires_every_declared_round(tmp_path):
+    run = Run("handoff", ROOT, tmp_path)
+    (tmp_path / "stream-1.jsonl").write_text(
+        '{"type":"result","is_error":false,"result":"initial handover"}\n'
+    )
+    assert not run.usable()
+
+
+def test_live_rounds_wait_for_delivery_and_cancel_the_completion_timer(
+    tmp_path, monkeypatch
+):
+    """A scripted model stream drives real HTTP admission and pickup records.
+
+    Two running injections must retain the first round's evidence
+    until its receipt arrives, and completion must leave no delayed child closure.
+    """
+    from dataclasses import replace
+
+    from leaf_dev import usability_eval
+
+    run = Run("handoff", ROOT, tmp_path)
+    run.state.mkdir()
+    page = tmp_path / "page"
+    build_fixture(run, "handoff", page)
+    (tmp_path / "work-dir").write_text(str(tmp_path))
+    case = replace(CASES["handoff"], injection=("running", "running"))
+    served = []
+    timers = []
+    timer = usability_eval.threading.Timer
+
+    def observed_timer(*args):
+        scheduled = timer(*args)
+        timers.append(scheduled)
+        return scheduled
+
+    def receive():
+        events = [event for event in page_events(page) if event.get("attention")]
+        with PageTransaction(page) as transaction:
+            record_pickup(transaction, events, session="eval", turn="active-turn")
+
+    class ModelStream:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            run.leaf("server", "start", str(page), check=True)
+            served.append(usability_eval.page_state(run, page)["server"]["url"])
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def close(self):
+            pass
+
+        def records(self):
+            yield {"type": "user", "text": "http://127.0.0.1:1/foreign-page"}
+            yield {"type": "assistant", "text": "working"}
+            assert len([e for e in page_events(page) if e.get("attempt")]) == 1
+            receive()
+            yield {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {"type": "tool_use", "id": "first", "name": "Bash", "input": {}}
+                    ]
+                },
+            }
+            assert len([e for e in page_events(page) if e.get("attempt")]) == 2
+            receive()
+            yield {"type": "result", "is_error": False}
+
+    monkeypatch.setattr(usability_eval, "LiveChild", ModelStream)
+    monkeypatch.setattr(usability_eval.threading, "Timer", observed_timer)
+    try:
+        usability_eval.execute_live(run, case, tmp_path, page)
+        records = [
+            json.loads(line)
+            for line in (tmp_path / "stream-1.jsonl").read_text().splitlines()
+        ]
+        assert [r["round"] for r in records if r["type"] == "eval_post"] == [1, 2]
+        assert [r["round"] for r in records if r["type"] == "eval_received"] == [1, 2]
+        assert [r["url"] for r in records if r["type"] == "eval_served"] == served
+        assert [
+            r["round"] for r in records if r["type"] == "eval_first_tool_state"
+        ] == [1]
+        assert len(timers) == 1
+        assert all(t.finished.is_set() for t in timers)
+    finally:
+        for scheduled in timers:
+            scheduled.cancel()
+
+
+def test_progress_uses_the_admitted_log_before_the_exact_answer():
+    """Observation delays and command failures cannot erase admitted progress."""
+    started = {"kind": "start", "seq": 2, "item": "comment", "text": "Edit"}
+    answered = {
+        "kind": "reply",
+        "seq": 3,
+        "author": "agent",
+        "parent": "root",
+        "responds": "comment",
+        "text": "Done",
+    }
+    assert progress_shown([], [started, answered], "comment")
+    assert not progress_shown([], [started, answered], "other-input")
+    assert not progress_shown([], [{**started, "seq": 4}, answered], "comment")
+    assert not progress_shown([], [{**started, "item": "other"}, answered], "comment")
+    for changes in (
+        {"ephemeral": True},
+        {"failure": "turn_failed"},
+        {"responds": "other"},
+        {"author": "user"},
+    ):
+        assert progress_shown([], [answered | changes, started | {"seq": 4}], "comment")
+    progress = {
+        "kind": "reply",
+        "author": "agent",
+        "seq": 2,
+        "ephemeral": True,
+        "start": {"item": "comment"},
+        "text": "Edit",
+    }
+    assert progress_shown([], [progress, answered], "comment")
+
+
+def test_native_opening_requires_page_response_evidence_during_handling():
+    opening = {
+        "type": "assistant",
+        "message": {
+            "content": [
+                {"type": "text", "text": "I’ll add the dry-run duration."},
+            ]
+        },
+    }
+    tool = {
+        "type": "assistant",
+        "message": {
+            "content": [
+                {"type": "tool_use", "id": "edit", "name": "ApplyPatch", "input": {}},
+            ]
+        },
+    }
+    workflow = {
+        "input": "comment",
+        "response": {"state": "active", "has_text": True},
+    }
+    state = {"type": "eval_first_tool_state", "workflows": [workflow]}
+    assert progress_shown([opening, tool, state], [], "comment")
+    assert not progress_shown([opening, tool], [], "comment")
+    assert not progress_shown([tool, state, opening], [], "comment")
+    assert not progress_shown([opening, tool, state], [], "other-input")
+    workflow["response"]["state"] = "failed"
+    assert not progress_shown([opening, tool, state], [], "comment")
+    workflow["response"]["state"] = "active"
+    workflow["response"]["has_text"] = False
+    assert not progress_shown([opening, tool, state], [], "comment")
+    workflow["response"] = None
+    assert not progress_shown([opening, tool, state], [], "comment")
+
+
+@pytest.mark.parametrize("membership", ["together", "split", "missing-error"])
+def test_mixed_delivery_requires_the_admitted_native_error_in_the_same_batch(
+    tmp_path, membership, _browser
+):
+    run = Run("mixed", ROOT, tmp_path)
+    run.state.mkdir()
+    page = tmp_path / "page"
+    build_fixture(run, "mixed", page)
+    (tmp_path / "work-dir").write_text(str(tmp_path))
+
+    class LocalTab:
+        origin = "http://127.0.0.1:12345"
+
+        def post(self, event):
+            admit(run, page, event)
+
+    before = {e["id"] for e in page_events(page)}
+    admitted_ids = post_round(run, page, LocalTab(), CASES["mixed"].rounds[0], 0)
+    admitted = [e for e in page_events(page) if e["id"] not in before]
+    assert len(admitted) == 6
+    assert len(admitted_ids) == 3
+    error = next(e for e in admitted if e["kind"] == "error")
+    assert error["author"] == "page"
+    assert "attempt" not in error
+    assert error["id"] in admitted_ids
+    users = [e for e in admitted if e["author"] == "user"]
+    batches = [admitted] if membership == "together" else [users]
+    if membership == "split":
+        batches.append([error])
+    with PageTransaction(page) as transaction:
+        for batch in batches:
+            record_pickup(transaction, batch, session="eval", turn="turn")
+    pickups = [e for e in page_events(page) if e["kind"] == "pickup"]
+    if membership == "together":
+        assert set(pickups[0]["events"]) == admitted_ids
+    trace = [
+        {"type": "result"},
+        {"type": "eval_post", "round": 1, "events": sorted(admitted_ids)},
+        {"type": "eval_received", "round": 1},
+        {"type": "result"},
+    ]
+    assert score_mixed(run, trace, _browser)["one_delivery"] == (
+        membership == "together"
+    )
+
+
+@pytest.mark.parametrize(
+    ("usage", "expected"),
+    [
+        ([None], {}),
+        ([{"input_tokens": 0, "output_tokens": 0}], {"prompt": 0, "completion": 0}),
+        ([{"input_tokens": 7}], {"prompt": 7}),
+        ([{"input_tokens": 7, "output_tokens": 2}, None], {}),
+        (
+            [
+                {"input_tokens": 7, "output_tokens": 2},
+                {"input_tokens": 3, "output_tokens": 1},
+            ],
+            {"prompt": 10, "completion": 3},
+        ),
+    ],
+)
+def test_native_scenario_output_preserves_unavailable_usage(
+    tmp_path, monkeypatch, usage, expected
+):
+    from leaf_dev import usability_eval
+    from leaf_dev.arms import read_trace, trace_summary
+
+    def observed_execution(run, work):
+        # Replace the external model call with its recorded result shape; retain
+        # actual trace files, metrics, scenario grading and provider translation.
+        (run.dir / "work-dir").write_text(str(work))
+        for phase, counts in enumerate(usage, 1):
+            record = {"type": "result", "is_error": False, "result": "A short reply."}
+            if counts is not None:
+                record["usage"] = counts
+            (run.dir / f"stream-{phase}.jsonl").write_text(json.dumps(record) + "\n")
+
+    monkeypatch.setattr(usability_eval, "execute", observed_execution)
+    response = usability_eval.execute_scenario(
+        "near-miss", ROOT, tmp_path, harness="codex"
+    )
+    assert response.get("tokenUsage", {}) == expected
+    if not expected:
+        assert "tokenUsage" not in response
+    phases = response["metadata"]["diagnostics"]["phases"]
+    for index, phase in enumerate(phases, 1):
+        arrangement = trace_summary(read_trace(tmp_path / f"stream-{index}.jsonl"))
+        for field in ("input_tokens", "output_tokens"):
+            assert phase[field] == (usage[index - 1] or {}).get(field)
+            assert arrangement[field] == phase[field]
+        assert phase["cost_usd"] is None
+        assert arrangement["cost_usd"] is None
+    assert "cost" not in response
+
+
+def test_mixed_round_requires_receipts_only_for_admitted_attention(tmp_path):
+    from leaf_dev.arms import inputs_received
+
+    run = Run("mixed", ROOT, tmp_path)
+    run.state.mkdir()
+    page = tmp_path / "page"
+    build_fixture(run, "mixed", page)
+
+    class Browser:
+        origin = "http://127.0.0.1:1"
+
+        def post(self, event):
+            admit(run, page, event)
+
+    moves = CASES["mixed"].rounds[0]
+    post_round(run, page, Browser(), moves, 0)
+    events = page_events(page)
+    attempts = {
+        attempt_key(0, i) for i, move in enumerate(moves) if move["kind"] != "error"
+    }
+    posted = [event for event in events if event.get("attempt") in attempts]
+    assert len(posted) == 5
+    assert [event["attention"] for event in posted] == [True, True, False, False, False]
+    assert not inputs_received(events, attempts)
+    attention = [event["id"] for event in posted if event["attention"]]
+    events.append({"kind": "pickup", "phase": "opened", "events": attention})
+    assert inputs_received(events, attempts)
+    assert not inputs_received(events, attempts | {"never-admitted"})
+
+
+def test_live_rounds_use_confirmed_receipts_before_successful_response():
+    from leaf_dev.usability_eval import live_rounds
+
+    trace = [
+        {"type": "eval_post", "round": 1},
+        {"type": "system", "subtype": "hook_response", "output": "leaf-delivery-v"},
+        {"type": "result", "is_error": False},
+    ]
+    assert live_rounds(trace)[0]["end"] is None
+    trace[1] = {"type": "eval_received", "round": 2}
+    assert live_rounds(trace)[0]["end"] is None
+    trace[1] = {"type": "eval_received", "round": 1}
+    assert live_rounds(trace)[0]["end"] == 2
+    assert live_rounds(trace)[0]["delivery"] == 0
+    assert live_rounds(trace[:-1])[0]["end"] is None
+
+
+def test_round_scoring_leaves_the_watch_with_leaf():
+    from leaf_dev.usability_eval import live_rounds, round_scores
+
+    trace = [
+        {"type": "eval_post", "round": 1},
+        {"type": "eval_received", "round": 1},
+        {"type": "result", "result": "http://127.0.0.1:1234/?t=abc", "is_error": False},
+        {"type": "eval_status", "status": {"state": "waiting"}},
+    ]
+    assert round_scores(trace, live_rounds(trace)[0], "input")[
+        "input_watch_left_to_leaf"
+    ]
+    trace.insert(
+        2,
+        {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "manual",
+                        "name": "Bash",
+                        "input": {
+                            "command": "leaf wait page",
+                            "run_in_background": True,
+                        },
+                    }
+                ]
+            },
+        },
+    )
+    assert not round_scores(trace, live_rounds(trace)[0], "input")[
+        "input_watch_left_to_leaf"
+    ]
+
+
+@pytest.mark.parametrize("harness", ["claude-code", "codex"])
+def test_live_injection_reads_the_claimants_turn_from_the_isolated_home(
+    tmp_path, harness, monkeypatch
+):
+    import os
+    from types import SimpleNamespace
+
+    from leaf.harness import ClaudeCodeHarness
+    from leaf.service import PageTransaction
+    from leaf.state import close_session_turn, prompt_turn
+    from leaf_dev.usability_eval import observed_active_turn
+
+    run = Run("mixed", ROOT, tmp_path, harness)
+    run.state.mkdir()
+    page = tmp_path / "page"
+    build_fixture(run, "mixed", page)
+    # Create actual session and page-claim publications in the child state home.
+    # Only the external model transport is replaced; the CLI joins the canonical
+    # claim and lifecycle under the arm's own isolated environment.
+    monkeypatch.setenv("XDG_STATE_HOME", str(run.state))
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    with PageTransaction(page) as transaction:
+        transaction.take_claim(
+            ClaudeCodeHarness(session="injection-observer", agent="Claude")
+        )
+    prompt_turn("injection-observer", "actual-parent-turn")
+    child = SimpleNamespace(task=SimpleNamespace(running={"actual-parent-turn"}))
+    assert observed_active_turn(run, page, child) == "actual-parent-turn"
+    if harness == "codex":
+        child.task.running.clear()
+        assert observed_active_turn(run, page, child) is None
+        child.task.running.add("actual-parent-turn")
+    assert close_session_turn("injection-observer", "actual-parent-turn")
+    assert observed_active_turn(run, page, child) is None
+
+
+def test_live_feedback_uses_its_page_server_despite_other_urls_in_agent_output(
+    tmp_path, monkeypatch
+):
+    """Replace only the model process; serving and comment admission are real.
+
+    A live candidate printed a neighboring probe's URL in `ps` output. The old
+    driver posted its comment to that other page before raising StopIteration.
+    """
+    from dataclasses import replace
+
+    from leaf_dev import usability_eval
+
+    run = Run("handoff", ROOT, tmp_path)
+    run.state.mkdir()
+    page = tmp_path / "page"
+    build_fixture(run, "handoff", page)
+    (tmp_path / "work-dir").write_text(str(tmp_path))
+
+    class ModelProcess:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            run.leaf("server", "start", str(page), check=True)
+            return self
+
+        def __exit__(self, *exc):
+            pass
+
+        def close(self):
+            pass
+
+        def records(self):
+            yield {
+                "type": "user",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "content": "A neighboring probe: http://127.0.0.1:9/?t=other-page",
+                        }
+                    ]
+                },
+            }
+            yield {"type": "result", "is_error": False, "result": "Ready."}
+
+    monkeypatch.setattr(usability_eval, "LiveChild", ModelProcess)
+    case = replace(CASES["handoff"], rounds=(CASES["handoff"].rounds[0],))
+    usability_eval.execute_live(run, case, tmp_path, page)
+    [comment] = [e for e in page_events(page) if e["kind"] == "comment"]
+    assert comment["attempt"] == attempt_key(0, 0)
+    assert comment["text"] == "Add how long the dry run took: 3 h 10 min."
+
+
+def test_handoff_url_must_match_the_server_observed_by_the_live_run():
+    from leaf_dev.usability_eval import handed_page_url
+
+    url = "http://127.0.0.1:42041/?t=this-page"
+    trace = [{"type": "eval_served", "url": url}]
+    assert handed_page_url(trace, f"[Dry run]({url}#dry-run)")
+    assert not handed_page_url(trace, "http://127.0.0.1:42042/?t=other-page")
+    assert not handed_page_url(trace, "http://127.0.0.1:42041/?t=this-page-other-key")
+    assert not handed_page_url([], url)
+
+
+def test_copy_repair_requires_the_button_to_copy(tmp_path, _browser):
+    from leaf_dev.usability_eval import copy_summary_works
+
+    run = Run("mixed", ROOT, tmp_path)
+    run.state.mkdir()
+    page = tmp_path / "page"
+    build_fixture(run, "mixed", page)
+    source = page / "index.html"
+    original = source.read_text()
+    assert not copy_summary_works(run, page, _browser)
+    source.write_text(original.replace("/\\s+/", "/\\s+/g"))
+    run.leaf("page", "stamp", str(page), "--text", "Repair copy", check=True)
+    assert copy_summary_works(run, page, _browser)
+    source.write_text(
+        original.replace("/\\s+/", "/\\s+/g").replace(
+            '"click", () => {',
+            '"click", async () => {\nawait new Promise(resolve => setTimeout(resolve, 100));',
+        )
+    )
+    run.leaf("page", "stamp", str(page), "--text", "Async copy", check=True)
+    assert copy_summary_works(run, page, _browser)
+    source.write_text(
+        original[: original.index('<script type="module">')] + "</main></body></html>"
+    )
+    run.leaf("page", "stamp", str(page), "--text", "Remove behavior", check=True)
+    assert not copy_summary_works(run, page, _browser)

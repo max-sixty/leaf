@@ -1,10 +1,13 @@
 """Lifecycle and trusted inputs for one browser color scheme."""
 
+import re
+import time
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
 from leaf.files import version_num
 from leaf.render_checks import (
+    HANDOVER_DEADLINE_MS,
     SERVED_TIMEOUT_MS,
     PageNotReady,
     evaluate_probe,
@@ -32,10 +35,20 @@ def served(page, url: str, path: str, timeout_ms: int | None = None):
     return page.request.get(urljoin(url, path), timeout=timeout_ms)
 
 
-def previous_stamp(revision: int, versions: list[dict]) -> dict | None:
-    """The newest stamped revision before ``revision``, if one exists."""
-    earlier = [version for version in versions if version["revision"] < revision]
-    return max(earlier, key=lambda version: version["revision"]) if earlier else None
+def answer_reports(page, heard) -> None:
+    """Answer every error the page reports to its agent here, handing `heard` each
+    report's text, so a reading neither writes to the page's log nor draws the
+    refusal a read-only server gives the post. Every other event goes through."""
+
+    def report(route):
+        event = route.request.post_data_json
+        if event["kind"] != "error":
+            route.continue_()
+            return
+        heard(event["text"])
+        route.fulfill(status=204)
+
+    page.route("**/api/event", report)
 
 
 def rendered_revision(url: str, state: dict) -> int:
@@ -63,9 +76,24 @@ def resize_observer_error(text: str) -> bool:
     return text.startswith(RESIZE_OBSERVER_ERROR)
 
 
+# The browser's own console entry for a response with an error status, in Chromium and
+# WebKit alike: it names the status but not the resource, which the entry's location
+# carries instead.
+_FAILED_LOAD = re.compile(
+    r"Failed to load resource: the server responded with a status of (\d{3})\b.*"
+)
+
+
 def console_problem(message) -> str | None:
-    """A console entry that says the page did not load cleanly."""
+    """A console entry that says the page did not load cleanly.
+
+    A response with an error status is reported as its status and URL. The console
+    entry is the browser's one report of it, from the page and every frame in it, so
+    nothing listens to responses for it: a response listener has every request of a
+    load — a few hundred modules — sent to and built in this process."""
     if message.type == "error":
+        if failed := _FAILED_LOAD.fullmatch(message.text):
+            return f"{failed[1]} {message.location['url']}"
         return message.text
     if message.type == "warning":
         return f"warning: {message.text}"
@@ -194,7 +222,7 @@ def _render_scheme(
     """Read and report the browser gate for one color scheme and viewport.
 
     `then`, when given, is handed the settled page and its registry after every reading
-    here, for the readings a version takes once rather than per scheme and viewport."""
+    here, for additional version-level readings before the page closes."""
     from playwright.sync_api import Error as PlaywrightError
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -229,13 +257,9 @@ def _render_scheme(
 
     page.on("console", console_message)
     page.on("pageerror", lambda e: errors.append(str(e)))
-    # The console's own word for a bad response is "Failed to load resource",
-    # which names nothing; carry the status and URL so a failure says what
-    # went missing.
-    page.on(
-        "response",
-        lambda r: errors.append(f"{r.status} {r.url}") if r.status >= 400 else None,
-    )
+    # The runtime writes each report to the console too, which is where this reading
+    # takes it.
+    answer_reports(page, lambda text: None)
     devtools = DevtoolsIssues(page)
     install_window_errors(page)
     try:
@@ -273,8 +297,16 @@ def _render_scheme(
     # Every reading below is of a settled page. The widget layer writes half the
     # document, so a box measured while it is still drawing belongs to no version of
     # the page — which is the stamp `page export` waits on for the same reason.
+    # Upgrade and readiness below are one handover, so they share its deadline: the
+    # upgrade is most of a heavy page's handover, and a probe's patience is not.
+    handover_ends = time.monotonic() + HANDOVER_DEADLINE_MS / 1000
+
+    def handover_left() -> int:
+        # At least 1ms: Playwright reads a zero timeout as none.
+        return max(1, round((handover_ends - time.monotonic()) * 1000))
+
     try:
-        wait_for_probe(page, "upgraded")
+        wait_for_probe(page, "upgraded", timeout_ms=handover_left())
     except PlaywrightTimeout:
         page.close()
         explanations = [*errors, *resize_notices]
@@ -327,12 +359,10 @@ def _render_scheme(
             )
         state = served_here("/api/state").json()
         markup = served_here(urlsplit(url).path).text()
-        # Every replay and conflict check is bounded by immutable revision.
+        # Every replay check is bounded by immutable revision.
         # A stamped URL resolves through the stamp map; an exact source preview
         # uses the synthetic active revision exposed only by its preview server.
         here = rendered_revision(url, state)
-        before = previous_stamp(here, state["versions"])
-        earlier = served_here(before["url"]).text() if before else None
     except PlaywrightTimeout as e:
         page.close()
         # The first line only: the rest is playwright's call log, which says
@@ -358,7 +388,7 @@ def _render_scheme(
     # under load alone, which is how one page passed at a desk and reported words
     # drawn over words under a full suite.
     try:
-        wait_until_ready(page, state)
+        wait_until_ready(page, state, timeout_ms=handover_left())
     except PageNotReady as error:
         failed_stage, unsettled = error.stage, [str(error)]
     else:
@@ -382,7 +412,6 @@ def _render_scheme(
         state=state,
         markup=markup,
         here=here,
-        earlier=earlier,
         replayed=replayed,
         unsettled=unsettled,
         devtools=devtools,

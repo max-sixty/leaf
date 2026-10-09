@@ -38,13 +38,12 @@ from leaf.structure import SourceDocument
 
 NOW = "2026-09-19T12:00:00+00:00"
 
-# A page nobody has claimed, as `presence.presence` reports one: the agent said
-# what it was doing while writing the page and no session holds it now. Written
-# out because these are the facts a fold is allowed to see, and a fixture that
-# reached for the real reading would bring the developer's own machine with it.
+# A page nobody has claimed, as `presence.presence` reports one: the agent has
+# declared nothing and no session holds it now. Written out because these are the
+# facts a fold is allowed to see, and a fixture that reached for the real reading
+# would bring the developer's own machine with it.
 UNCLAIMED = {
-    "status": {"state": "working", "detail": "Writing the page", "ts": NOW, "after": 0},
-    "claims": [],
+    "status": {"state": "waiting", "detail": ""},
     "listening": False,
     "cursor": 0,
     "pending": 0,
@@ -100,7 +99,9 @@ def reading(
     Each one then goes through the same append door the server admits it through,
     so what this folds is a log the page could really have. A command the door
     would refuse raises `EventRefused` here rather than folding: the fixture cannot
-    state a premise the product would not have accepted.
+    state a premise the product would not have accepted. The work the agent has in hand is
+    such a command too: a `start` naming a move or task, as `leaf task start`
+    writes it.
     """
     if isinstance(documents, str):
         documents = {1: documents}

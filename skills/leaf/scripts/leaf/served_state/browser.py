@@ -1,20 +1,18 @@
 """Assemble browser state from requested documents and the standing log."""
 
-from pathlib import Path
 from typing import NamedTuple
 
-from ..activity import canonical_activity, canonical_stream_reply
-from ..document_reading import DocumentReading
-from ..events import UndoReading, build_threads, taken_back
-from ..files import list_revisions, stamped_version
-from ..gesture_words import GestureWords, RevisionReader, revisions_on_disk
+from ..document_reading import DocumentReading, read_document
+from ..events import UndoReading
+from ..files import stamped_version
+from ..gesture_words import GestureWords, RevisionReader
 from ..history import history, wants_history
 from ..passages import SourceReading
 from ..projection import FrozenThreadReading, canonical_updates, page_reading
-from ..revision_artifact import read_revision
-from ..workflows import canonical_workflows
+from .context import PageRead
 from .document import browser_document, browser_undo_candidates
 from .thread import browser_thread
+from .work import WorkState, work_state
 
 
 class BrowserReading(NamedTuple):
@@ -30,83 +28,19 @@ class BrowserReading(NamedTuple):
     documents: dict[int, DocumentReading]
 
 
-# Delivery progress, furthest last. `answered` is only ever the retained failed
-# response, so within its category it is the furthest a move has come.
-_STAGE_RANK = {
-    "sent": 0,
-    "queued": 1,
-    "picked_up": 2,
-    "working": 3,
-    "replying": 4,
-    "answered": 5,
-}
-
-
-def _at_work(workflow: dict) -> bool:
-    return workflow["stage"] in {"working", "replying"}
-
-
-def _strength(workflow: dict) -> tuple:
-    """How strongly a workflow speaks for any surface that shows one of several: a
-    move handed back to the user first, then work under way, then an uncertain or
-    stopped one, then plain delivery; within each the further stage, then the newer
-    input."""
-    if workflow["condition"] is not None:
-        category = 2
-    elif _at_work(workflow):
-        category = 3
-    elif workflow["stage"] == "answered":
-        category = 0
-    else:
-        category = 1
-    return (
-        workflow["next_actor"] == "user",
-        category,
-        _STAGE_RANK[workflow["stage"]],
-        workflow["seq"],
-    )
-
-
-def served_workflows(
-    workflows: list[dict], thread_reading: FrozenThreadReading
-) -> list[dict]:
-    """The page's workflows as the browser and `page state` read them, strongest
-    first, each stamped with the two thread facts only the frozen thread document
-    knows.
-
-    `thread` is the thread the workflow stands in: a thread input's own, a widget
-    frozen into a message's thread, or null for a page widget. `holds_thread` is
-    whether it keeps that thread the agent's turn: every one of the thread's own
-    inputs and claims, and a widget move frozen into it while the move is owed or
-    the agent is at work on it. A frozen move that owes nothing shows its receipt on
-    its message and leaves the thread nobody's turn.
-
-    The order is the one comparator: whatever shows one workflow of several, a
-    thread's attention, its card's secondary status, a message's receipt, takes the
-    first. A reader that selects keeps the order; the browser places its own
-    unresolved sends against it."""
-    for workflow in workflows:
-        thread = thread_reading.subject_thread(workflow["subject"])
-        workflow["thread"] = thread
-        workflow["holds_thread"] = thread is not None and (
-            workflow["subject"]["kind"] == "thread"
-            or workflow["answer"] is not None
-            or _at_work(workflow)
-        )
-    return sorted(workflows, key=_strength, reverse=True)
-
-
 def _apply_thread_attention(
-    threads: list[dict], asks: dict, workflows: list[dict]
+    threads: list[dict], asks: dict, workflows: list[dict], tasks: list[dict]
 ) -> None:
     """Attach the shared attention aggregate, with user Asks taking precedence.
 
     This is the browser's one reading of whose turn a thread is: `needs_user` for
     an open Ask or a question the agent's latest turn leaves (`user_prompt`), or a
     response the user must recover; `waiting` while a workflow holds the thread with
-    the agent, which covers every input `events.unanswered_turns` holds and any work
-    claimed on the thread after it was answered; else None. `workflows` are
-    `served_workflows`, so the first that qualifies is the one the thread waits on."""
+    the agent, which covers every input `events.unanswered_turns` holds, or while a
+    task the agent opened on it stands; else None. `workflows` are
+    `served_workflows`, so the first that qualifies is the one the thread waits on,
+    and a workflow speaks before a task. `tasks` are the agent's open tasks, each
+    stamped with its `thread`."""
     user_threads = {ask["thread"] for ask in asks["user"]}
     by_thread: dict[str, list[dict]] = {}
     for workflow in workflows:
@@ -141,6 +75,22 @@ def _apply_thread_attention(
                 "reason": "uncertain" if waiting["condition"] else "workflow",
                 "workflow": waiting["id"],
             }
+        elif task := next(
+            (task for task in tasks if task["thread"] == thread["id"]), None
+        ):
+            thread["attention"] = {
+                "kind": "waiting",
+                "reason": "task",
+                "workflow": None,
+                # The line of the start running on it, while that start holds.
+                "task": {
+                    "id": task["id"],
+                    "title": task["title"],
+                    "line": task["running"]["text"]
+                    if task["running"] and task["running"]["condition"] is None
+                    else None,
+                },
+            }
         else:
             thread["attention"] = None
 
@@ -155,6 +105,8 @@ def browser_state(
     now: str,
     live_stream: dict | None = None,
     revisions: RevisionReader | None = None,
+    *,
+    work: WorkState | None = None,
 ) -> tuple[dict, BrowserReading]:
     """The browser's derived reading of one transaction-consistent page snapshot.
 
@@ -166,21 +118,21 @@ def browser_state(
     """
     through_seq = events[-1]["seq"] if events else 0
 
-    active_page = page_reading(readings[active_revision], events, active_revision)
+    work = work or work_state(
+        events, readings[active_revision], active_revision, present, now, live_stream
+    )
+    durable = work.durable
+    active_page = durable.page
     active_registry = active_page.registry
-    active_within = active_page.within
-    withdrawn = taken_back(events)
-    threads = build_threads(events, active_within, withdrawn=withdrawn)
+    withdrawn = durable.log.withdrawn
+    threads = durable.threads
     undo_reading = UndoReading(
         events,
         threads=threads,
         withdrawn=withdrawn,
         absorbed=active_page.projection.absorbed,
     )
-    live_reply = canonical_stream_reply(present, now, (live_stream or {}).get("reply"))
-    thread, thread_reading = browser_thread(
-        events, active_registry, threads, live_reply
-    )
+    thread, thread_reading = browser_thread(durable, work.live_reply)
     thread_projection = thread_reading.projection
 
     views = {}
@@ -189,9 +141,14 @@ def browser_state(
         page = (
             active_page
             if revision == active_revision
-            else page_reading(readings[revision], events, revision)
+            else page_reading(readings[revision], events, revision, withdrawn=withdrawn)
         )
-        document, reading = browser_document(page, threads)
+        reading = (
+            durable.document
+            if revision == active_revision
+            else read_document(page, threads)
+        )
+        document = browser_document(reading, revision)
         documents[revision] = reading
         projection = reading.projection
         classified = {
@@ -225,9 +182,7 @@ def browser_state(
         views[str(revision)] = {
             "basis": {"revision": revision, "through_seq": through_seq},
             "document": document,
-            "updates": canonical_updates(
-                projection, present["claims"], threads, events
-            ),
+            "updates": canonical_updates(projection),
             "undo": browser_undo_candidates(
                 events,
                 reading,
@@ -238,22 +193,19 @@ def browser_state(
             "coverage": coverage,
             "published_at": published_at,
         }
-    workflows = canonical_workflows(
-        present["claims"],
-        threads,
-        thread_reading,
-        page=active_page,
-    )
-    activity = canonical_activity(
-        present,
+    activity = {
+        key: value
+        for key, value in work.activity.items()
+        if key not in {"workflows", "tasks"}
+    }
+    workflows = work.workflows
+    tasks, ended_tasks = durable.page_tasks(work.activity["tasks"])
+    _apply_thread_attention(
+        thread["threads"],
+        thread["asks"],
         workflows,
-        now,
-        (live_stream or {}).get("activity"),
-        live_reply,
-        (live_stream or {}).get("reply_bindings"),
+        [task for task in tasks if task["owner"] == "agent"],
     )
-    workflows = served_workflows(activity.pop("workflows"), thread_reading)
-    _apply_thread_attention(thread["threads"], thread["asks"], workflows)
     if wants_history(readings[revision] for revision in view_revisions):
         words = GestureWords(events, active_registry, revisions or readings.__getitem__)
         page_history = {
@@ -274,6 +226,8 @@ def browser_state(
         "thread": thread,
         "activity": activity,
         "workflows": workflows,
+        "tasks": tasks,
+        "ended_tasks": ended_tasks,
         "receipts": [event for event in events if event.get("attempt")],
         "version_notes": {
             str(event["version"]): event["text"]
@@ -285,52 +239,33 @@ def browser_state(
 
 
 def project_browser_state(
-    page_dir: Path,
-    events: list,
-    view_revision: int | None,
-    active: dict | None,
-    present: dict,
-    now: str,
+    context: PageRead,
+    view_revision: int | None = None,
     *,
-    readings_override: dict[int, SourceReading] | None = None,
     include_active_view: bool = True,
-    live_stream: dict | None = None,
 ) -> tuple[dict, BrowserReading] | None:
     """Project only the documents one browser reading can consume.
 
-    A normal state needs the revision the tab is showing and the active revision it
-    may activate next. Older comparison bases are projected on demand at the tab's
-    exact log boundary, rather than making every state poll parse every immutable
-    revision the page has ever had.
+    A normal state needs the shown and active revisions. Comparison bases and
+    historical gesture words use the same context at the requested log boundary.
     """
+    active = context.active
     if active is None:
         return None
     active_revision = active["revision"]
     requested_revision = view_revision or active_revision
-    revisions = (
-        set(readings_override)
-        if readings_override is not None
-        else set(list_revisions(page_dir))
-    )
-    if requested_revision not in revisions:
+    if requested_revision not in context.revisions:
         raise ValueError(f"unknown view revision r{requested_revision}")
     wanted = {requested_revision, active_revision}
-    readings = {
-        revision: (
-            readings_override[revision]
-            if readings_override is not None
-            else read_revision(page_dir, revision)
-        )
-        for revision in sorted(wanted)
-    }
     return browser_state(
-        readings,
-        events,
+        {revision: context.revision(revision) for revision in sorted(wanted)},
+        context.events,
         active_revision,
-        present,
+        context.presence,
         active,
         wanted if include_active_view else {requested_revision},
-        now,
-        live_stream,
-        revisions_on_disk(page_dir),
+        context.now,
+        context.live_stream,
+        context.revision,
+        work=context.work,
     )

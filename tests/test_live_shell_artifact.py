@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 
 import pytest
 from interact_support import PAGE
-from leaf.event_log import append_event
+from interact_support import append_carried_log_record as append_event
 from leaf.files import replace_files, revision_path
 from leaf.hosting import TemporaryPageServer
 from leaf.live_shell import write_live_shell

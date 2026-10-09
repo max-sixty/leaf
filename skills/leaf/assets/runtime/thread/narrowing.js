@@ -5,10 +5,12 @@
    clears waiting because a resolved thread cannot owe a turn. Selecting a waiting
    party leaves Resolved for Open, preserving an already Open or unrestricted status.
    Counts describe the named subset under the other filters, including those status
-   and waiting transitions. The
-   conditional placement refinement finds detached anchored threads. Waiting choices
-   select predicates, not exclusive ownership: a thread can await both parties, so
-   their counts can overlap and an unrestricted view includes threads awaiting neither.
+   and waiting transitions. The conditional placement refinement finds detached
+   anchored threads and shows while any thread is detached. Every other facet shows in
+   every view, so a change of view, a refusal's return included, leaves each choice
+   where it stood. Waiting choices select predicates, not exclusive ownership: a thread
+   can await both parties, so their counts can overlap and an unrestricted view
+   includes threads awaiting neither.
 
    Order is the panel's other view question: Page reads the list in the page's order,
    and Recent puts the thread spoken in last first. It hides nothing, so it is not a
@@ -25,9 +27,12 @@
    filtered so reply widgets keep their identity and the rest of the runtime can still
    read them by id. The list captures one immutable user intent and checkpoints the
    resulting summary and facets with its rows; repainting that reading does not change
-   native editing or disclosure state. */
+   native editing or disclosure state. An explicit narrowing resets the list after its
+   presentation only while no newer user gesture has chosen another reading place. */
 import { anchorLabel } from "./messages.js";
 import { awaitsAgent, awaitsUser } from "./model.js";
+import { retainUserIntent } from "../user-intent.js";
+import { bindQueuedWork } from "../queued-work.js";
 
 const choice = (kind, value, label, className = "") =>
   Object.freeze({ kind, value, label, className });
@@ -85,10 +90,12 @@ const messageWords = (message) => {
 const threadWords = (thread, place) =>
   [
     anchorLabel(thread.detached_from ?? thread.anchor, thread.root.about),
+    // The words the card names after a version rewrote them find the thread too.
+    thread.rewritten_from?.quote,
     place.section,
     thread.title,
     ...thread.msgs.map(messageWords),
-    ...thread.summaries.map((summary) => summary.text),
+    ...thread.summaries.flatMap((summary) => [summary.label, summary.text]),
   ]
     .join("\n")
     .toLowerCase();
@@ -155,6 +162,7 @@ const entryReading = (declaration, selected, amount, disabled, hidden = false) =
 // broadens the results rather than changing what its label counts.
 function presentationReading(reading, threads, shown, places) {
   const rows = threads.map((thread) => ({ thread, place: places.get(thread) }));
+  const anyGone = rows.some(({ place }) => place.gone);
   const baseline = threads.filter((thread) => matchesStatus(reading, thread)).length;
   const lifecycle = reading.status === "all" ? "" : `${reading.status} `;
   const amount =
@@ -174,7 +182,6 @@ function presentationReading(reading, threads, shown, places) {
   const order = Object.freeze({
     kind: ORDER.kind,
     label: ORDER.label,
-    hidden: false,
     choices: Object.freeze(
       ORDER.choices.map((declaration) =>
         entryReading(declaration, reading.order === declaration.value, null, false),
@@ -185,7 +192,6 @@ function presentationReading(reading, threads, shown, places) {
     Object.freeze({
       kind: facet.kind,
       label: facet.label,
-      hidden: facet.kind === "waiting" && reading.status === "resolved",
       choices: Object.freeze(
         facet.choices.map((declaration) => {
           const selected =
@@ -206,7 +212,7 @@ function presentationReading(reading, threads, shown, places) {
             selected,
             switched,
             !selected && !recovery && !switched,
-            facet.kind === "gone" && !switched && !selected,
+            facet.kind === "gone" && !anyGone && !selected,
           );
         }),
       ),
@@ -218,6 +224,9 @@ function presentationReading(reading, threads, shown, places) {
     rows.some(({ thread, place }) => includesThread(userDestination, thread, place));
   return Object.freeze({
     summary,
+    // No count exceeds the number of threads, so its digits are the widest a count
+    // can be.
+    countDigits: String(threads.length).length,
     // Whether Reset has anything to put back: the view differs from the default.
     resettable: !(
       !reading.finding &&
@@ -289,11 +298,14 @@ export function createThreadNarrowing({ view, listRoot, readThreads, ready, repa
 
   function renarrow() {
     if (!ready()) return;
+    const mayReset = retainUserIntent();
     const ticket = repaint();
     // Reset after the keyed list commits. The coordinator reports rejection; observe
     // either outcome because event listeners can discard this ticket.
     void ticket.then(
-      () => (listRoot.scrollTop = 0),
+      () => {
+        if (mayReset()) listRoot.scrollTop = 0;
+      },
       () => {},
     );
     return ticket;
@@ -358,11 +370,16 @@ export function createThreadNarrowing({ view, listRoot, readThreads, ready, repa
         // lease then, but reject any user choice made while it awaits presentation.
         const preparing = before?.();
         const prepared = intent;
+        const restore = bindQueuedWork(() => {
+          if (intent !== prepared) return false;
+          intent = retained;
+          view.setSearchWords(retained.words);
+          return renarrow();
+        });
         await preparing;
-        if (intent !== prepared) return false;
-        intent = retained;
-        view.setSearchWords(retained.words);
-        await renarrow();
+        const restoring = restore();
+        if (restoring === false) return false;
+        await restoring;
         return true;
       },
     };
@@ -372,6 +389,14 @@ export function createThreadNarrowing({ view, listRoot, readThreads, ready, repa
     if (!clearNarrowing()) return false;
     renarrow();
     return true;
+  }
+
+  // An authored sample selects a complete view, rather than toggling whatever the
+  // controls happened to show. Use the same transitions as the facet controls.
+  function select({ status = "open", waiting = "all" } = {}) {
+    clearNarrowing(status);
+    intent = transition(intent, "waiting", waiting);
+    return renarrow();
   }
 
   // A direct destination selects the lifecycle that contains the requested thread.
@@ -393,6 +418,7 @@ export function createThreadNarrowing({ view, listRoot, readThreads, ready, repa
     listedInPageOrder,
     threadSearchActive,
     retainNarrowing,
+    select,
     revealThread,
     widen,
   });

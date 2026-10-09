@@ -1,0 +1,47 @@
+# Complete task; diagnostic contexts retain the original fixed checks.
+description: Dashboard
+metadata:
+  purpose: Compose and revise a dashboard; inspect its rendered output against the
+    request and, on Leaf, read and preserve a user choice on that page.
+  tags:
+  - workflow
+  conditions:
+  - leaf
+  - html
+  executor: leaf_dev.arrangement_eval
+  scenario: dashboard
+variants:
+  constructs:
+    metadata:
+      executor: leaf_dev.usability_eval
+      scenario: constructs
+      purpose: Read and revise authored constructs and chart data.
+      conditions:
+      - leaf
+  shared-source:
+    metadata:
+      executor: leaf_dev.usability_eval
+      scenario: shared-source
+      purpose: Update shared data without rewriting unaffected records.
+      conditions:
+      - leaf
+  reader-seeded:
+    metadata:
+      executor: leaf_dev.reader_eval
+      scenario: seeded
+      purpose: Calibrate the screenshot judge, which should find the triage board's
+        seeded count defect.
+      conditions:
+      - leaf
+      harnesses:
+      - claude-code
+  reader-clean:
+    metadata:
+      executor: leaf_dev.reader_eval
+      scenario: clean
+      purpose: Calibrate the screenshot judge, which should accept the triage board's
+        correct count.
+      conditions:
+      - leaf
+      harnesses:
+      - claude-code

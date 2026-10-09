@@ -1,87 +1,21 @@
-"""Append-only event log storage, locking, and attempt identity."""
+"""Append-only event log storage, raw readings, locking, and attempt identity."""
 
-import contextlib
 import json
 import os
 import secrets
+import signal
+import sys
 from collections.abc import Iterator
 from copy import deepcopy
-from datetime import datetime
 from pathlib import Path
 
 from leaf.files import file_stamp, next_reading, read_json
-from leaf.schema import CURSOR_FILE, EVENTS_FILE
-
-try:
-    import fcntl
-except ImportError:  # pragma: no cover - unsupported non-POSIX platform
-    fcntl = None
-
-
-def require_cross_process_locking() -> None:
-    """Refuse every writer/server path on a host without the log's lock."""
-    if fcntl is None:
-        raise RuntimeError(
-            "leaf requires POSIX cross-process file locking; this platform has no fcntl"
-        )
-
-
-@contextlib.contextmanager
-def flocked(path: Path):
-    """An exclusive lock held while the block runs — the one serialization
-    primitive here. The log serializes appends, cursor and status updates, and
-    claim and delivery transitions. Stable purpose locks serialize contract or service
-    transitions; a `.lock` beside a registry of JSON files serializes updates
-    to them, since the files themselves are replaced by rename and a lock on a
-    replaced inode holds nothing.
-
-    The event log is the successful-init marker as well as a lease. A transaction
-    racing page deletion must not recreate it and turn a deleted directory back into
-    an initialized page, so it is opened, never created, and it outlives the lock.
-
-    A purpose lock's file is the lock and nothing more, so it exists only while it
-    is held or awaited: it is minted on first use and its holder removes it on the
-    way out. A taker that waited on a file removed under it holds a lock on nothing
-    anyone else can find, so it takes the lock again on whatever the path names
-    now (`still_named`)."""
-    require_cross_process_locking()
-    if path.name == EVENTS_FILE:
-        with open(path, "r+b") as f:
-            fcntl.flock(f, fcntl.LOCK_EX)
-            yield f
-        return
-    while True:
-        f = open(path, "a+b")  # noqa: SIM115 - closed below, after the unlink
-        fcntl.flock(f, fcntl.LOCK_EX)
-        if still_named(f.fileno(), path):
-            break
-        f.close()
-    try:
-        yield f
-    finally:
-        path.unlink(missing_ok=True)
-        f.close()
-
-
-def still_named(held: int, path: Path) -> bool:
-    """Whether PATH still names the file the descriptor HELD was opened on.
-
-    A lock file is removed by whoever holds it, so a lock taken on a descriptor
-    opened before that removal is a lock on an unlinked inode. Every taker asks this
-    once it holds the lock and takes it again when the answer is no; the holder's
-    removal can then never let two processes each believe they hold one name."""
-    try:
-        return os.path.samestat(os.fstat(held), os.stat(path))
-    except FileNotFoundError:
-        return False
-
-
-def now_iso() -> str:
-    return datetime.now().astimezone().isoformat(timespec="seconds")
+from leaf.schema import CURSOR_FILE
+from leaf.state import EVENTS_FILE, flocked, now_iso
 
 
 def read_cursor(page_dir: Path) -> int:
-    """The seq the agent's carrier has confirmed through; 0 before any.
+    """The seq whose receipt is confirmed through; 0 before any.
 
     A cursor is a position in this log, so one past its end belongs to a log that
     is gone — what `page init` on a directory whose log was moved or renamed away
@@ -147,7 +81,8 @@ def _attempt_payload(event: dict) -> dict:
     return {
         key: value
         for key, value in event.items()
-        if key not in {"id", "ts", "author", "seq", "meaning"}
+        if key
+        not in {"id", "ts", "author", "seq", "meaning", "attention", "publication"}
     }
 
 
@@ -171,6 +106,19 @@ def _event_id_exists(events: list[dict], event_id: str) -> bool:
     return any(existing.get("id") == event_id for existing in events)
 
 
+def new_event_id(events: list[dict]) -> str:
+    """An unused page-local identity, allocated under the append lease.
+
+    Eight hex characters stay short enough to read and retype. Uniqueness comes
+    from checking the held log, not their width; a harness pairs the id with its page.
+    Admission allocates it before semantic folding and storage keeps that identity.
+    """
+    while True:
+        candidate = secrets.token_hex(4)
+        if not _event_id_exists(events, candidate):
+            return candidate
+
+
 def _append_event_unlocked(f, event: dict, events: list[dict]) -> tuple[dict, bool]:
     """Append while the caller holds this log file's exclusive lease."""
     # Attempt identity is checked under the log's append lock. Checking before
@@ -184,18 +132,7 @@ def _append_event_unlocked(f, event: dict, events: list[dict]) -> tuple[dict, bo
         if _event_id_exists(events, event["id"]):
             raise ValueError(f"event id {event['id']!r} already exists")
     else:
-        # An id is unique within this page and nowhere else. Eight hex
-        # characters, re-rolled while this log already holds the candidate,
-        # under the lease that serializes appends — so uniqueness is proven by
-        # the write rather than assumed from width, and the id stays short
-        # enough for an agent to read off a projection and retype into `leaf
-        # thread reply --for`. Nothing may treat one as a global identifier: a host
-        # keying an external operation on an event pairs the id with the page.
-        while True:
-            candidate = secrets.token_hex(4)
-            if not _event_id_exists(events, candidate):
-                event["id"] = candidate
-                break
+        event["id"] = new_event_id(events)
     event.setdefault("ts", now_iso())
     # A crash can tear the previous append mid-line: SIGKILL under a buffered
     # flush, a full disk. The line discipline is the writer's, so the writer
@@ -321,3 +258,31 @@ def follow_events(page_dir: Path, after: int) -> Iterator[dict]:
         read += len(complete)
         lines += complete.count(b"\n")
         stamp = next_reading(lambda: file_stamp(log), stamp)
+
+
+def cmd_events(page_dir: Path, after: int, *, follow: bool = False) -> None:
+    """Print each event after `after` as the log reads back, and with `follow` each
+    one appended from then on, until stopped.
+
+    A reader that goes away is the ordinary end rather than a failure, whether
+    `head` closed the pipe or a follower's consumer stopped it: SIGINT, SIGTERM, and
+    a closed stdout all exit 0. Each line is flushed as it is printed, since a
+    follower's stdout is a pipe whose reader waits on that line.
+    """
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    records = (
+        follow_events(page_dir, after)
+        if follow
+        else (event for event in read_events(page_dir) if event["seq"] > after)
+    )
+    try:
+        for event in records:
+            print(jsonl_line(event), flush=True)
+    except KeyboardInterrupt:
+        sys.exit(0)
+    except BrokenPipeError:
+        # The interpreter flushes stdout again on exit, into the same closed pipe.
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        sys.exit(0)
+    except FileNotFoundError as error:
+        sys.exit(str(error))

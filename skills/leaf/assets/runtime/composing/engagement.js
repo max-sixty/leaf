@@ -1,34 +1,31 @@
 /* User gestures and drafts that a document replacement would discard. */
-import { TEXT_BOX } from "../focus.js";
+import { TEXT_BOX } from "../control-selectors.js";
 import { runtime } from "../context.js";
 import { dragHeld } from "../widget-elements.js";
-import { focused } from "../keyboard/scopes.js";
-import { replyBoxHasDraft } from "../thread/replies.js";
+import { focused } from "../focus.js";
+import { replyCompositionHasDraft, hasReplyDraft } from "../thread/replies.js";
+import { pageSelection } from "./capture.js";
 import { draftOf } from "./input.js";
 import { composerOpen } from "./selection.js";
 
-export function createEngagement({
-  hasPending,
-  fabAnchorAt,
-  targetPickerOpen,
-  pageComposerDrawing,
-}) {
+export function createEngagement({ hasPending, fabAnchorAt, targetPickerOpen }) {
   function unaccountedGesture() {
     return runtime.undoing || hasPending() || dragHeld();
   }
 
   function midComposition() {
     const active = focused();
-    const replyDraft = replyBoxHasDraft(active);
+    const replyDraft = replyCompositionHasDraft(active);
     return (
       composerOpen ||
-      Boolean(pageComposerDrawing()) ||
       targetPickerOpen() ||
       Boolean(fabAnchorAt()) ||
+      Boolean(pageSelection()) ||
       unaccountedGesture() ||
+      hasReplyDraft() ||
+      replyDraft === true ||
       (active?.matches(TEXT_BOX) &&
         (draftOf(active) !== "" ||
-          replyDraft === true ||
           (replyDraft === null && active.hasAttribute("data-lf-offer"))))
     );
   }

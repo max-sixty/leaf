@@ -6,24 +6,37 @@
    before the native dialog moves focus. The resulting catalog contains evaluated display
    values and stable command ids, not callbacks or live predicates. Search, ranking,
    selection, and metadata are local user-session state projected through one Lit
-   template. The dispatcher still resolves an activated id afresh after the dialog closes,
-   so a stale row cannot run.
+   template. Activation closes the dialog and resolves its id afresh in the same gesture,
+   after returning focus to its origin. No deferred dispatch can reinterpret the command
+   at a newer control or take that control's focus; a stale row cannot run.
 
    The native dialog, retained Close button, return place, focus, selection, and scrolling
    stay with this controller. Modal entry follows the platform contract rather than
    rebuilding the popovers it dismisses.
 
+   Every row wears one face, whether or not it can run from where the user stands. Its
+   section heading already says where it applies, and pressing one that cannot run says
+   so in the meta line; muting those rows put most of a page's catalog in a second face
+   that read as a different font beside the first.
+
    The catalog is deliberately frozen while open. A command that becomes live waits until
    the next opening; one that becomes unavailable is rejected by fresh dispatch and causes
    the reference to reopen with an explanation. */
-import { nextRender } from "../rendering.js";
 import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
 
 import {
   bindings,
+  declaredBindings,
+  bindingEnabled,
+  quickShortcuts,
+  setQuickShortcuts,
   clampedRow,
   commandPresentations,
-  declaredBindings,
+  contextBindings,
+  allBindings,
+  descriptionOf,
+  titleOf,
+  lineOf,
   live,
   routedCommand,
   spell,
@@ -37,14 +50,21 @@ import {
   keySequenceTemplate,
   neutralStates,
 } from "./presentation.js";
-import { handBack, tabStops } from "../focus.js";
+import {
+  handBack,
+  tabStops,
+  focusDestination,
+  focused,
+  closeLayer,
+  openLayer,
+  openerOf,
+  rove,
+} from "../focus.js";
 import { closeControl } from "../widget-elements.js";
 import { keeps } from "../keeps.js";
 import { ELEMENTS, pageScope, pageScopes } from "./register.js";
 import { EVERYTHING } from "./text-entry.js";
 import {
-  byCommand,
-  focused,
   merge,
   pruneScopedElements,
   scopeRefs,
@@ -109,12 +129,21 @@ function declaredStack(origin) {
     );
   // Carry a scope's sequence down to each row before same-title sections merge. The prefix
   // belongs only to the rows that scope contributed.
+  // Intrinsic and contextual presentations share a canonical command id, but must survive
+  // the section merge independently until reachability chooses one. Internal map keys
+  // occupy a separate identity space; no authored command id can collide with them.
+  const contextualIds = new Map();
+  const referenceIdentity = (scope, row) => {
+    if (!scope.contextual) return row.id;
+    if (!contextualIds.has(row.id)) contextualIds.set(row.id, Symbol(row.id));
+    return contextualIds.get(row.id);
+  };
   const referenceRows = (scope) =>
-    byCommand(scope.rows).map(([id, row]) => [
-      id,
-      scope.sequence
-        ? { ...row, sequence: scope.sequencePrefix ?? scope.sequence }
-        : row,
+    scope.rows.map((row) => [
+      referenceIdentity(scope, row),
+      // Presentation metadata belongs beside the registered row. Cloning a sequence
+      // row loses the identity used by the dispatcher's route-availability snapshot.
+      { row, sequence: scope.sequencePrefix ?? scope.sequence ?? row.sequence },
     ]);
   for (const scope of pageScopes().toReversed()) {
     if (scope !== ELEMENTS) {
@@ -153,13 +182,14 @@ function declaredStack(origin) {
   const exit = (row) => (bindings(row).includes("Escape") ? 1 : 0);
   return [...sections.values()].map((section) => ({
     ...section,
-    rows: [...section.rows.values()].sort((left, right) => exit(left) - exit(right)),
+    rows: [...section.rows.values()].sort(
+      (left, right) => exit(left.row) - exit(right.row),
+    ),
   }));
 }
 
 let commandRoutesAtOpen = new Map();
 let commandReferenceIsOpen = false;
-let commandReferenceOrigin = null;
 let commandReferenceInvoke = null;
 
 const EMPTY_CATALOG = Object.freeze({
@@ -197,6 +227,12 @@ const commandReferenceBinding = (value) =>
     .replace(/^\s+/, "")
     .replace(/\s+/g, " ");
 
+// Titles are written for the surface that shows them most: a compact lowercase word
+// for the shortcut bar, a sentence for a route only the reference shows. Listed
+// together, the reference starts every one with a capital, as a menu does.
+const listedTitle = (title) =>
+  `${title.charAt(0).toLocaleUpperCase()}${title.slice(1)}`;
+
 const availableWhere = (row, scopeTitle, scopeReach) => {
   const place = word(row.reach) ?? word(scopeReach) ?? scopeTitle;
   return `Available ${place.charAt(0).toLocaleLowerCase()}${place.slice(1)}`;
@@ -215,29 +251,43 @@ const spokenReferenceSteps = (row, route, steps, declared) => {
 // Evaluate every dynamic declaration once while opening. Search never calls back into the
 // register, and rendered records retain no executable command or liveness function.
 function captureCommandReferenceCatalog() {
-  const referenceScopes = declaredStack(commandReferenceOrigin)
+  const referenceScopes = declaredStack(openerOf(commandReferenceDialog))
     .map((scope) => {
       const inScope = userIn(scope) || scope.liveInCommandReference;
       const rows = scope.rows
         .filter(
-          (row) =>
-            row.does &&
-            (!inScope ||
-              (row.commandReferenceWhen ? row.commandReferenceWhen() : live(row))),
+          ({ row }) =>
+            !inScope ||
+            (row.commandReferenceWhen ? row.commandReferenceWhen() : live(row)),
         )
-        .map((row) => {
-          const sequence = [...(word(row.sequence) ?? [])];
-          const declared = [...declaredBindings(row)];
-          const rowBindings = [...bindings(row)];
-          const baseDoes = word(row.does);
+        .map(({ row, sequence: prefix }) => {
+          const sequence = [...(word(prefix) ?? [])];
+          const declared = [...allBindings(row)];
+          const shownBindings = declared.filter(bindingEnabled);
+          const referenceRow = { ...row, keys: shownBindings };
+          const rowBindings = [...declaredBindings(row)];
+          const baseTitle = titleOf(row);
+          const baseDescription = descriptionOf(row);
           return {
             row,
             sequence,
             declared,
             rowBindings,
-            baseDoes,
-            familySteps: [...sequence, ...completeRowSteps(row)],
-            presentations: [...commandPresentations(row)],
+            referenceRow,
+            baseTitle,
+            baseDescription,
+            familySteps: shownBindings.length
+              ? [...sequence, ...completeRowSteps(referenceRow)]
+              : [],
+            presentations: commandPresentations(row, declared, {
+              includeUnavailable: true,
+            }).map(({ id, route }) => ({
+              id,
+              route:
+                route && route.binding == null
+                  ? { ...route, binding: contextBindings(route)[0] }
+                  : route,
+            })),
           };
         });
       return { scope, rows };
@@ -247,12 +297,18 @@ function captureCommandReferenceCatalog() {
   const available = (rowInfo, route) => {
     const routes = commandRoutesAtOpen.get(rowInfo.row) ?? new Set();
     const alternatives = route ? [route.binding] : rowInfo.rowBindings;
-    return alternatives.some((binding) => routes.has(binding));
+    return rowInfo.declared.length === 0
+      ? routes.has(undefined)
+      : alternatives.some((binding) => routes.has(binding));
   };
 
-  // One command id is one capability. Prefer its reachable presentation over an earlier
-  // unreachable one, as when an Ask digit replaces a shadowed intrinsic binding.
+  // One command id is one capability, with potentially several ways to reach it.
+  // Teach a keyboard route rather than an unbound control; among keyboard routes,
+  // prefer the reachable one (an Ask digit can replace a shadowed intrinsic key).
+  // Invoking the reference names the capability, so any executable route makes the
+  // entry available even when its displayed sequence has not been entered yet.
   const preferred = new Map();
+  const executable = new Set();
   for (const { rows } of referenceScopes)
     for (const rowInfo of rows)
       for (const { id, route } of rowInfo.presentations) {
@@ -260,9 +316,15 @@ function captureCommandReferenceCatalog() {
           row: rowInfo.row,
           binding: route?.binding ?? null,
           available: available(rowInfo, route),
+          keyed: rowInfo.declared.length > 0,
         };
+        if (candidate.available) executable.add(id);
         const prior = preferred.get(id);
-        if (!prior || (!prior.available && candidate.available))
+        if (
+          !prior ||
+          (!prior.keyed && candidate.keyed) ||
+          (prior.keyed === candidate.keyed && !prior.available && candidate.available)
+        )
           preferred.set(id, candidate);
       }
 
@@ -277,18 +339,6 @@ function captureCommandReferenceCatalog() {
     for (const rowInfo of rows) {
       for (const { id, route } of rowInfo.presentations) {
         const chosen = preferred.get(id);
-        // A keyless Decision an Ask seats (it carries the Ask's binding badge) is pressed
-        // by the digit that Ask gives it, which exists only while the user stands in the
-        // Ask. There the Ask's route presents it under that digit; anywhere else it has
-        // no press to name, and the Ask's own row says what the digits do. Any other
-        // keyless Decision, a draft's Edit, keeps its row under its control's name.
-        if (
-          !route &&
-          rowInfo.declared.length === 0 &&
-          rowInfo.row.decision !== undefined &&
-          rowInfo.row.bindingBadge
-        )
-          continue;
         if (
           chosen?.row !== rowInfo.row ||
           chosen.binding !== (route?.binding ?? null) ||
@@ -296,10 +346,18 @@ function captureCommandReferenceCatalog() {
         )
           continue;
         presented.add(id);
-        const action = word(route?.does ?? rowInfo.baseDoes);
-        const steps = [...rowInfo.sequence, ...completeRowSteps(rowInfo.row, route)];
-        const alternatives = route ? [route.binding] : rowInfo.rowBindings;
-        const isAvailable = available(rowInfo, route);
+        const title = listedTitle(route ? titleOf(route) : rowInfo.baseTitle);
+        const description =
+          route?.description !== undefined
+            ? descriptionOf(route)
+            : rowInfo.baseDescription;
+        const alternatives = (route ? [route.binding] : rowInfo.declared).filter(
+          bindingEnabled,
+        );
+        const steps = alternatives.length
+          ? [...rowInfo.sequence, ...completeRowSteps(rowInfo.referenceRow, route)]
+          : [];
+        const isAvailable = executable.has(id);
         const spokenSteps = spokenReferenceSteps(
           rowInfo.row,
           route,
@@ -310,17 +368,22 @@ function captureCommandReferenceCatalog() {
           id,
           rowId: `lf-command-reference-row-${entryIndex}`,
           keyId: `lf-command-reference-key-${entryIndex}`,
+          descriptionId: `lf-command-reference-description-${entryIndex}`,
           sectionId: `lf-command-reference-section-${sectionOrder}`,
           sectionTitle,
           order: sectionEntries.length,
           sequenceControl: Boolean(rowInfo.row.sequenceControl),
-          keyLabel: rowInfo.declared.length === 0 && rowInfo.row.decision !== undefined,
+          keyLabel: rowInfo.declared.length === 0 && word(rowInfo.row.label) == null,
           steps: Object.freeze(steps),
-          keySequence: keySequenceModel(steps, neutralStates(steps), spokenSteps),
-          action,
+          keySequence: steps.length
+            ? keySequenceModel(steps, neutralStates(steps), spokenSteps)
+            : null,
+          title,
+          description,
           actionable: Boolean(
             (rowInfo.row.run || routedCommand(route)) &&
-            rowInfo.row.runFromCommandReference !== false,
+            (routedCommand(route)?.row ?? rowInfo.row).runFromCommandReference !==
+              false,
           ),
           available: isAvailable,
           unavailableMessage: availableWhere(rowInfo.row, sectionTitle, scope.reach),
@@ -333,12 +396,10 @@ function captureCommandReferenceCatalog() {
             ),
           ),
           directWords: commandReferenceWords(
-            `${id} ${sectionTitle} ${steps.join(" ")} ${action} ${word(
-              route?.line ?? rowInfo.row.line,
-            )}`,
+            `${id} ${sectionTitle} ${steps.join(" ")} ${title} ${description ?? ""} ${lineOf(route ?? rowInfo.row) || ""}`,
           ),
           familyWords: commandReferenceWords(
-            `${rowInfo.row.id} ${rowInfo.familySteps.join(" ")} ${rowInfo.baseDoes}`,
+            `${rowInfo.row.id} ${rowInfo.familySteps.join(" ")} ${rowInfo.baseTitle} ${rowInfo.baseDescription ?? ""}`,
           ),
         });
         entryIndex += 1;
@@ -506,12 +567,14 @@ function activateCommandEntry(entry) {
     };
     return presentCommandReference();
   }
-  // Close the modal, then let fresh dispatch choose the command's destination on the
-  // next frame.
+  // Native modal close and the origin handoff are synchronous, so fresh dispatch sees
+  // the original gesture's context before another input can change it.
   const invokeCommand = commandReferenceInvoke;
   closeCommandReference();
-  nextRender(() => {
-    if (invokeCommand?.(entry.id)) return;
+  if (invokeCommand?.(entry.id)) return;
+  // Complete native close before opening its replacement. This microtask still belongs
+  // to the same input turn: no newer gesture can intervene as it could before a frame.
+  queueMicrotask(() => {
     openCommandReference(invokeCommand);
     commandReferenceState = {
       ...commandReferenceState,
@@ -523,7 +586,6 @@ function activateCommandEntry(entry) {
 
 function commandEntryTemplate(entry, promoted = false, shown = true) {
   const selected = commandReferenceView.selectedCommandId === entry.id;
-  const tabStop = commandReferenceView.tabStopCommandId === entry.id;
   const action = entry.actionable
     ? html`<button
         type="button"
@@ -531,19 +593,23 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
         data-lf-command=${entry.id}
         data-lf-available=${String(entry.available)}
         data-lf-selected=${String(selected)}
-        aria-describedby=${entry.keyId}
-        .tabIndex=${tabStop ? 0 : -1}
+        aria-describedby=${[
+          entry.keySequence ? entry.keyId : null,
+          entry.description ? entry.descriptionId : null,
+        ]
+          .filter(Boolean)
+          .join(" ")}
         title=${entry.available ? "Run command" : entry.unavailableMessage}
         @click=${() => activateCommandEntry(entry)}
-        .textContent=${entry.action}
+        .textContent=${entry.title}
       ></button>`
-    : entry.action;
+    : entry.title;
   const scope = promoted
     ? html`<span class="lf-command-reference-scope">${entry.sectionTitle}</span>`
     : nothing;
   // Whitespace in this cell is observable to accessibility and command consumers.
   // prettier-ignore
-  const actionBody = html`<div class="lf-command-reference-action">${action}${scope}</div>`;
+  const actionBody = html`<div class="lf-command-reference-action"><div class="lf-command-reference-action-main">${action}${scope}</div>${entry.description ? html`<span id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</span>` : nothing}</div>`;
   const actionCell = html`<td role="gridcell">${actionBody}</td>`;
   return html`
     <tr
@@ -555,10 +621,14 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
       ?hidden=${!shown}
     >
       <td role="gridcell">
-        ${keySequenceTemplate(entry.keySequence, {
-          id: entry.keyId,
-          label: entry.keyLabel,
-        })}
+        ${
+          entry.keySequence
+            ? keySequenceTemplate(entry.keySequence, {
+                id: entry.keyId,
+                label: entry.keyLabel,
+              })
+            : nothing
+        }
       </td>
       ${actionCell}
     </tr>
@@ -652,6 +722,26 @@ function commandReferenceTemplate() {
       <div class="lf-command-reference-title">Command reference</div>
       ${commandReferenceClose}
     </div>
+    <label class="lf-command-reference-preference">
+      <input
+        type="checkbox"
+        name="quick-keyboard-shortcuts"
+        autocomplete="off"
+        .checked=${quickShortcuts()}
+        aria-labelledby="lf-quick-keyboard-label"
+        aria-describedby="lf-quick-keyboard-help"
+        @change=${(event) => {
+          setQuickShortcuts(event.currentTarget.checked);
+          commandReferenceCatalog = captureCommandReferenceCatalog();
+          presentCommandReference();
+          repaint();
+        }}
+      />
+      <span id="lf-quick-keyboard-label">Quick keyboard shortcuts</span>
+      <small id="lf-quick-keyboard-help"
+        >Use letters, numbers and symbols for Leaf actions.</small
+      >
+    </label>
     <input
       type="search"
       name="shortcut-search"
@@ -699,6 +789,12 @@ function presentCommandReference() {
   updateCommandReferenceView();
   presentCommandReferenceClose();
   render(commandReferenceTemplate(), commandReferenceDialog);
+  // The results are one roving group: Tab reaches the selected command, or the first,
+  // and the arrows walk the rest (focus.js, `rove`).
+  rove(
+    commandReferenceDialog.querySelectorAll(".lf-command-reference-command"),
+    commandButton(commandReferenceView.tabStopCommandId),
+  );
 }
 
 function readCommandReferenceSearch(event) {
@@ -723,7 +819,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
   const preserveSelection = fresh && Boolean(pageSelection());
   const handingBack =
     !open && restoreFocus && commandReferenceDialog.contains(focused());
-  const restore = handingBack ? commandReferenceOrigin : null;
+  const restore = handingBack ? openerOf(commandReferenceDialog) : null;
   if (fresh) {
     commandReferenceInvoke = invokeCommand;
     for (const popover of openPopovers())
@@ -737,9 +833,8 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
     // and the user who opened the reference four screens down would Tab from there.
     // A popover opened while nothing held focus lets go as it closes (layer-stack.js),
     // so that user reads as standing on `body` here too.
-    const at = focused();
-    commandReferenceOrigin = at === document.body ? null : at;
-    commandRoutesAtOpen = availableCommandRoutes();
+    openLayer(commandReferenceDialog);
+    commandRoutesAtOpen = availableCommandRoutes({ commands: true });
   }
   commandReferenceIsOpen = open;
   if (fresh) {
@@ -761,35 +856,43 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
   }
   commandReferenceDialog.classList.toggle("open", open);
   if (open && !commandReferenceDialog.open) commandReferenceDialog.showModal();
-  else if (!open && commandReferenceDialog.open) commandReferenceDialog.close();
-  // A closed dialog's search box keeps focus until the browser's next focus fixup, so the
-  // repaint below would read the user as still typing there, and the shortcut bar would
-  // keep the More it hands back to standing down. Release it with the dialog.
-  if (!open && commandReferenceDialog.contains(document.activeElement))
-    document.activeElement.blur();
-
-  // The results are a real overflow region and must enter the modal Tab loop.
-  if (open) reachScrollers(commandReferenceDialog);
-  if (open)
-    commandReferenceDialog
-      .querySelector(
-        preserveSelection
-          ? ".lf-command-reference-close"
-          : ".lf-command-reference-search",
-      )
-      .focus({ preventScroll: true });
-  repaint();
   // The reference is a bounded interaction rather than a level of the page: it claims the
   // whole keyboard while it stands and hands the user back itself, to the control the
   // press displaced, or to the page where that control has gone — the layer it stood in
   // may have closed under the user while the reference was up — which is where a user
-  // who pressed `?` from the page was all along.
-  if (handingBack) handBack(restore);
+  // who pressed `?` from the page was all along. A closed dialog's search box keeps focus
+  // until the browser's next focus fixup, so the repaint below would read the user as
+  // still typing there, and the shortcut bar would keep the More it hands back to
+  // standing down: the close releases it with the dialog, and hands the user back once
+  // its repaint has drawn that More again.
+  if (!open) {
+    closeLayer(
+      () => {
+        if (commandReferenceDialog.open) commandReferenceDialog.close();
+        if (commandReferenceDialog.contains(document.activeElement))
+          document.activeElement.blur();
+        repaint();
+      },
+      handingBack && (() => handBack(restore)),
+    );
+    return;
+  }
+  // The results are a real overflow region and must enter the modal Tab loop.
+  reachScrollers(commandReferenceDialog);
+  focusDestination(
+    commandReferenceDialog.querySelector(
+      preserveSelection
+        ? ".lf-command-reference-close"
+        : ".lf-command-reference-search",
+    ),
+    "move",
+  );
+  repaint();
 }
 
 export function moveCommandReferenceFocus(dir) {
   const stops = tabStops(commandReferenceDialog);
-  if (!stops.length) return commandReferenceDialog.focus({ preventScroll: true });
+  if (!stops.length) return focusDestination(commandReferenceDialog, "step");
   const at = stops.indexOf(focused());
   const next =
     at < 0
@@ -797,7 +900,7 @@ export function moveCommandReferenceFocus(dir) {
         ? stops[0]
         : stops.at(-1)
       : stops[(at + dir + stops.length) % stops.length];
-  next.focus({ preventScroll: true });
+  focusDestination(next, "step");
 }
 
 const commandButton = (id) =>
@@ -832,13 +935,13 @@ export function moveCommandReferenceSelection(dir) {
   commandReferenceState = {
     ...commandReferenceState,
     selectedCommandId: nextId,
-    metaOverride: `${nextRecord.entry.action} · ${
+    metaOverride: `${nextRecord.entry.title} · ${
       nextRecord.entry.steps[0]
     } · ⏎ activate`,
   };
   presentCommandReference();
   const next = commandButton(nextId);
-  if (focusedId) next.focus({ preventScroll: true });
+  if (focusedId) focusDestination(next, "move");
   next.closest("tr").scrollIntoView({ block: "nearest" });
   beginWalk("shortcut-command", "Command", () => {
     const current = focusedCommandId() ?? commandReferenceState.selectedCommandId;
@@ -863,8 +966,6 @@ export function activateSelectedCommand() {
   return true;
 }
 
-commandReferenceClose.onclick = () => closeCommandReference();
-
 export const commandReferenceOpen = () => commandReferenceIsOpen;
 // The opening command supplies the action chosen from this particular reference. The
 // rendered catalog retains only ids and sends one back through that injected authority.
@@ -887,8 +988,8 @@ pageScope("command reference", {
     {
       id: "command.reference.focus.walk",
       keys: ["Tab", "Shift+Tab"],
-      does: "Move through the command reference",
-      line: "move",
+      description: "Move through the command reference",
+      title: "move",
       repeat: true,
       runFromCommandReference: false,
       run: (binding) => moveCommandReferenceFocus(binding === "Tab" ? 1 : -1),
@@ -896,8 +997,8 @@ pageScope("command reference", {
     {
       id: "command.reference.command.next",
       keys: ["ArrowDown"],
-      does: "Choose the next command",
-      line: "choose next",
+      description: "Choose the next command",
+      title: "choose next",
       repeat: true,
       runFromCommandReference: false,
       // The list is built before search receives focus, so physical liveness is false at
@@ -909,8 +1010,8 @@ pageScope("command reference", {
     {
       id: "command.reference.command.previous",
       keys: ["ArrowUp"],
-      does: "Choose the previous command",
-      line: "choose previous",
+      description: "Choose the previous command",
+      title: "choose previous",
       repeat: true,
       runFromCommandReference: false,
       commandReferenceWhen: () => true,
@@ -920,8 +1021,8 @@ pageScope("command reference", {
     {
       id: "command.reference.command.activate",
       keys: ["Enter"],
-      does: "Activate the chosen command",
-      line: "activate",
+      description: "Activate the chosen command",
+      title: "activate",
       runFromCommandReference: false,
       commandReferenceWhen: () => true,
       when: () => commandReferenceCommandActive(),
@@ -930,17 +1031,17 @@ pageScope("command reference", {
     {
       id: "command.reference.close",
       keys: ["Escape"],
-      does: () =>
+      description: () =>
         expandedBarBehindReference()
           ? "Back to more keyboard shortcuts"
           : "Close the command reference",
-      line: () =>
+      title: () =>
         expandedBarBehindReference()
           ? "back to more shortcuts"
           : "close command reference",
       control: () => commandReferenceClose,
       runFromCommandReference: false,
-      run: () => commandReferenceClose.click(),
+      run: () => closeCommandReference(),
     },
   ],
 });

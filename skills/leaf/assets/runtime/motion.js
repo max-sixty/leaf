@@ -15,7 +15,7 @@
 // final layout. A live drag defers the whole correction.
 
 import { runtime } from "./context.js";
-import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
+import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { LEAVING } from "./geometry.js";
 
 // The theme's reduced-motion guard covers CSS animation and transitions; motion
@@ -77,6 +77,17 @@ export function motion(el, keyframes, ms) {
     () => active.delete(played),
   );
   return played;
+}
+
+// How long an arrival flash lasts: a thread revealed in Threads, and Threads itself
+// once the page comment card has sent a thread there. chrome.css's `.flash` animation
+// states the same length.
+export const FLASH_MS = 1200;
+
+// A cue supplies only its starting tint. Its target's live CSS owns the endpoint,
+// so hover, theme changes and transparent surfaces never snap back when it ends.
+export function backgroundFlash(el, ms) {
+  return motion(el, [{ backgroundColor: "var(--hi-tint)", offset: 0 }], ms);
 }
 
 // How long room takes to go back. Long enough that the eye can follow a paragraph's

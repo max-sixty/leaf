@@ -9,7 +9,7 @@
    A new agent turn, or growth of the last one, follows while the user has not named
    another card and the previous last message is visible in the panel's landing band.
    Where the list scrolls, that thread's tail must still reach the landing edge.
-   Following keeps the reply box where it stands at the list's foot, and the turn's
+   Following keeps a pinned reply box at the list's foot, and the turn's
    newest words end above it however tall the turn has grown.
    Reading earlier turns keeps the place hold, and a reply in another thread does not
    move this one.
@@ -40,8 +40,8 @@
    actions reveals the focused control itself.
 
    `test_no_focus_mark_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered` and
-   `test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus` hold this
-   for the panel's own walk and for every shipped page's tab order. They ask one question: where the control can be seen, so can the ring
+   `test_each_sampled_focus_ring_is_shown_whole_in_its_surface` hold this
+   for the panel's own walk and for each surface a key opens. They ask one question: where the control can be seen, so can the ring
    that names it. A control that itself stands under a fixed bar is not a finding —
    that is a fact about where it was put — and neither is a box too tall for the region
    it is in. */
@@ -92,11 +92,6 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
   const emptyText =
     "No threads yet. Select any text on the page to comment on it, or use the box below.";
 
-  // Mounted once the chrome is (leaf.js): the list is the panel's.
-  function mountThreadList(panelIsOpen) {
-    holdThroughDisclosure(panelIsOpen);
-  }
-
   // Opening a card is the third thing that reflows this list, beside the two renders, and
   // the only one the browser performs on its own: the named group closes the card that was
   // open, and every card after it — the title the user just pressed among them — comes up
@@ -105,22 +100,15 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
   // did not change and lets the pressed title travel, measured at 186px on an ordinary
   // panel and off the top of the scrollport from the first visible row. So disclosure takes
   // the same hold the renders take. `toggle` arrives with the reflow already in the
-  // geometry, so the hold is taken on the way down, while the activation is still the click
-  // default action pending, and corrected on the frame that paints it. Both routes to that
-  // press land the right card: `takeScrollHold` leads with the card under the pointer, and
-  // with the card holding focus when the hand is elsewhere, which is where Enter or Space
-  // on a title is standing.
-  function holdThroughDisclosure(panelIsOpen) {
-    threadsBox.addEventListener(
-      "click",
-      (event) => {
-        const summary = event.target?.closest?.(".lf-thread-summary");
-        if (!summary || !summary.parentElement?.matches?.(".lf-thread")) return;
-        const hold = takeScrollHold(panelIsOpen);
-        if (hold) nextRender(() => finishScrollHold(hold, panelIsOpen));
-      },
-      true,
-    );
+  // geometry, so the list takes the hold before its choice opens the card, and corrects it on the
+  // frame that paints it. A title already open changes nothing, and a hold there would
+  // undo a landing's own scroll. Every route lands the right card: `takeScrollHold` leads
+  // with the card under the pointer, and with the card holding focus when the hand is
+  // elsewhere.
+  function holdThroughDisclosure(card, panelIsOpen) {
+    if (card.open) return;
+    const taken = takeScrollHold(panelIsOpen);
+    if (taken) nextRender(() => finishScrollHold(taken, panelIsOpen));
   }
 
   // The list's place through every change to its content (user-place.js). A card is
@@ -133,6 +121,10 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
       items: ".lf-thread",
       identity: (card) => card.dataset.id,
       active: panelIsOpen,
+      // The open transcript remains the reading when its title scrolls out of view.
+      // A later card explicitly named by pointer or focus still takes precedence.
+      preferred: () =>
+        threadsBox.querySelector(":scope > .lf-thread[open]:not([hidden])"),
     }));
   const takeScrollHold = (panelIsOpen) => listPlace(panelIsOpen).take();
   const finishScrollHold = (hold, panelIsOpen) =>
@@ -145,35 +137,11 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     if (!panelIsOpen()) return null;
     const card = threadsBox.querySelector(":scope > .lf-thread[open]:not([hidden])");
     if (namedCard && namedCard !== card) return null;
-    const prior = threadsBox.committed.rows.find(
-      (row) => row.kind === "thread" && row.descriptor.id === card?.dataset.id,
-    )?.descriptor;
-    const next = reading.rows.find(
-      (row) => row.kind === "thread" && row.descriptor.id === card?.dataset.id,
-    )?.descriptor;
-    if (!prior || !next) return null;
-    const known = new Set(prior.messages.map((message) => message.key));
-    const incoming = next.messages.filter(
-      (message) => message.author === "agent" && !known.has(message.key),
-    );
-    const latest = prior.messages.at(-1);
-    const nextLatest = next.messages.at(-1);
-    const grown =
-      latest?.key === nextLatest?.key &&
-      nextLatest?.author === "agent" &&
-      latest.body.text !== nextLatest.body.text;
-    if (!incoming.length && !grown) return null;
-    const node =
-      latest &&
-      card.querySelector(
-        latest.attempt
-          ? `.lf-msg[data-attempt="${CSS.escape(latest.attempt)}"]`
-          : `.lf-msg[data-mid="${CSS.escape(latest.id)}"]`,
-      );
+    const tail = threadsBox.incomingTail(reading, card);
     const band = landingBand(threadsBox);
-    if (!node || !band) return null;
-    const tailStart = node.getBoundingClientRect().bottom;
-    const tailEnd = card.getBoundingClientRect().bottom;
+    if (!tail?.pinned || !band) return null;
+    const tailStart = tail.tailStart;
+    const tailEnd = tail.end;
     const scrolls = threadsBox.scrollHeight > threadsBox.clientHeight;
     if (
       tailStart < band.top ||
@@ -182,10 +150,10 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     )
       return null;
     return {
-      id: incoming.at(-1)?.id ?? nextLatest.id,
+      id: tail.id,
       top: threadsBox.scrollTop,
       end: tailEnd,
-      box: card.querySelector(":scope > .lf-compose")?.getBoundingClientRect().top,
+      box: tail.box,
       current: retainUserIntent({ available: panelIsOpen }),
     };
   }
@@ -199,13 +167,13 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
   // it stood, so nothing after it moves, and the newest words end above the reply box,
   // however tall the turn has grown. The box stands at the list's foot (chrome.css), pinned
   // there while the card's end lies below it, so the words may reach past where it stood
-  // by more than the card grew. The scroll lands in the render's own frame; where the
-  // list is too short to scroll that far, the end grows into the room below.
+  // by more than the card grew. The scroll lands in the render's own frame. A short
+  // card's idle reply instead moves down as messages append, preserving its previous
+  // messages and the list's reading position.
   function followThreadEnd(newest, incoming) {
-    const card = newest.closest(".lf-thread");
     const by = Math.max(
-      card.getBoundingClientRect().bottom - incoming.end,
-      newest.getBoundingClientRect().bottom - (incoming.box ?? Infinity),
+      newest.end - incoming.end,
+      newest.bottom - (incoming.box ?? Infinity),
     );
     if (by > 0) threadsBox.scrollBy({ top: by, behavior: "instant" });
   }
@@ -236,7 +204,15 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     // and so is the order it shows it in. The page's order is kept either way for the
     // walk with the panel shut.
     const narrowing = commands.narrowing.model(threads, places);
-    const shown = narrowing.shown;
+    const kept = new Map(
+      threads
+        .filter((thread) => !narrowing.shown.includes(thread))
+        .map((thread) => [thread, threadsBox.keeping(thread, narrowing.intent)])
+        .filter(([, why]) => why),
+    );
+    const shown = threads.filter(
+      (thread) => narrowing.shown.includes(thread) || kept.has(thread),
+    );
     const inPage = inPageOrder(threads, commands.placedAt);
     const recent = narrowing.intent.order === "recent";
     const ordered = recent ? inRecentOrder(threads) : inPage;
@@ -254,7 +230,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     //
     // An open thread the narrowing hides keeps its node, hidden, rather than leaving the
     // list: a widget an agent sent in a reply is instantiated once, here, and every other
-    // reading of it — the banner's Asks count, the drawer's rows, the a/A walk — finds it by
+    // reading of it — the banner's Asks count, the drawer's rows, the q/Q walk — finds it by
     // id in the document. Pressing "Waiting on you" after answering a thread's question
     // took that thread's node out and, with it, the question from the page's count: 2/2
     // became 1/1 while the log said nothing had changed. Hidden is a fact about this list;
@@ -267,6 +243,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
           key: `thread:${threadKey(t)}`,
           descriptor: threadReading(t, "panel", commands.card, {
             visible: visible.has(t),
+            kept: kept.get(t) ?? null,
             grow,
             search: threadSearchReading(t, narrowing.intent.finding),
           }),
@@ -284,6 +261,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
       );
     return Object.freeze({
       rows: Object.freeze(rows),
+      intent: narrowing.intent,
       count: open.length,
       unread: threads.filter((t) => t.unread.length).length,
       narrowing: narrowing.presentation,
@@ -298,8 +276,10 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
           ...commands.card,
           openThreads,
           listRoot: threadsBox,
+          repaintThread: commands.repaintThread,
         },
         repaintThread: commands.repaintThread,
+        beforeChoose: (card) => holdThroughDisclosure(card, commands.panelIsOpen),
         presentSummary: (model) => postPaint(model, commands),
       },
       Object.freeze({
@@ -318,7 +298,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     commands.onListChanged();
     // Narrowing and reconciliation can move another card under a pointer that did not
     // move. Read :hover after the browser has laid out this list, in refreshHover's frame.
-    commands.refreshAnchorHover();
+    commands.refreshAnchorHover?.();
   }
 
   async function prepareFrozenWidgets(current) {
@@ -415,7 +395,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
       await prepareFrozenWidgets(current);
       const newest =
         current() && incoming?.current() && threadsBox.scrollTop >= incoming.top - 2
-          ? threadsBox.querySelector(`.lf-msg[data-mid="${CSS.escape(incoming.id)}"]`)
+          ? threadsBox.messageTail(incoming.id)
           : null;
       if (newest) followThreadEnd(newest, incoming);
     } catch (error) {
@@ -468,7 +448,6 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
 
   return {
     openThreads,
-    mountThreadList,
     renderThreads,
     renderThreadListUnavailable,
     restoreThreadList,

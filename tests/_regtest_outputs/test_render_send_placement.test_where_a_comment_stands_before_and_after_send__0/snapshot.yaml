@@ -1,0 +1,157 @@
+# Where each case's comment box, and the thread card it became, stand.
+
+column-passage-first-line:
+  expected: right
+  comment box:
+    side: right
+    stands: level with the words
+  thread card:
+    side: right
+    stands: level with the words
+  moves:
+    across: still
+    down: still
+
+column-passage-deep-line:
+  expected: right
+  comment box:
+    side: right
+    stands: level with the words
+  thread card:
+    side: right
+    stands: level with the words
+  moves:
+    across: still
+    down: still
+
+column-element:
+  expected: right
+  comment box:
+    side: right
+    stands: level with the words
+  thread card:
+    side: right
+    stands: level with the words
+  moves:
+    across: still
+    down: still
+
+wide-passage-deep-line:
+  expected: right
+  comment box:
+    side: right
+    stands: level with the words
+  thread card:
+    side: right
+    stands: level with the words
+  moves:
+    across: still
+    down: still
+
+laptop-passage:
+  expected: below or above
+  comment box:
+    side: below or above
+    stands: clear of the block
+  thread card:
+    side: below or above
+    stands: clear of the block
+  moves:
+    across: still
+    down: still
+
+laptop-element:
+  expected: below or above
+  comment box:
+    side: below or above
+    stands: clear of the block
+  thread card:
+    side: below or above
+    stands: clear of the block
+  moves:
+    across: still
+    down: still
+
+narrow-rail-passage:
+  expected: below or above
+  comment box:
+    side: below or above
+    stands: clear of the block
+  thread card:
+    side: below or above
+    stands: clear of the block
+  moves:
+    across: still
+    down: still
+
+beside-passage:
+  expected: below or above
+  comment box:
+    side: below or above
+    stands: clear of the block
+  thread card:
+    side: below or above
+    stands: clear of the block
+  moves:
+    across: still
+    down: still
+
+beside-element:
+  expected: below or above
+  comment box:
+    side: below or above
+    stands: clear of the block
+  thread card:
+    side: below or above
+    stands: clear of the block
+  moves:
+    across: still
+    down: still
+
+phone-passage:
+  expected: below or above
+  comment box:
+    side: below or above
+    stands: clear of the block
+  thread card:
+    side: below or above
+    stands: clear of the block
+  moves:
+    across: still
+    down: still
+
+phone-touch-passage:
+  expected: below or above
+  comment box:
+    side: below or above
+    stands: clear or window-constrained
+  thread card:
+    side: below or above
+    stands: clear or window-constrained
+  moves:
+    across: still
+    down: still
+
+beside-tall-element-clipped:
+  expected: below or above
+  comment box:
+    side: below or above
+    stands: clear of the block
+  thread card:
+    side: below or above
+    stands: clear of the block
+  moves:
+    across: still
+    down: still
+
+wide-passage-with-a-thread:
+  expected: right
+  comment box:
+    side: right
+    stands: level with the words
+  thread card:
+    side: right
+    stands: level with the words
+  moves:
+    across: still
+    down: still

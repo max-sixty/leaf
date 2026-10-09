@@ -12,7 +12,8 @@ const STATES = new Set(["neutral", "pressed"]);
 // words inside one step, never guessed back into a sequence.
 export const rowSteps = (row, route = null) => {
   if (route) return [spell(route.binding)];
-  return word(row.sequenceSteps) ?? [labelOf(row)];
+  const label = labelOf(row);
+  return word(row.sequenceSteps) ?? (label ? [label] : []);
 };
 
 export const completeRowSteps = (row, route = null) => {

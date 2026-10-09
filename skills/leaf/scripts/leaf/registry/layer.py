@@ -3,6 +3,9 @@
 import re
 from copy import deepcopy
 
+import jmespath
+import turbohtml
+from jmespath.exceptions import JMESPathError
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 
@@ -11,17 +14,18 @@ from leaf.schema import (
     DATA_CONTRACT_NAME,
     DECLARED_MARKS,
     EXTENSION_SCHEMA,
-    GUIDANCE_SCHEMA,
     HTML_NAME,
+    INSTRUCTIONS_SCHEMA,
 )
 
-from .contract import (
-    RegistryError,
+from .contract import RegistryError, stamp_decisions
+from .kernel import kernel_event_kinds
+from .schema import (
     json_validator,
+    json_value,
+    schema_error_message,
     unresolved_schema_reference,
 )
-from .kernel import kernel_event_kinds
-from .state import stamp_decisions
 
 
 def merge_layer_declarations(merged: dict, declarations: dict) -> None:
@@ -69,7 +73,7 @@ def merge_layer_declarations(merged: dict, declarations: dict) -> None:
 
 def stamp_composition(registry: dict) -> dict:
     """Write into a validated vocabulary what the browser reads rather than derives:
-    `$decisions` (`registry.state.stamp_decisions`) and `$marks`, the declared marks
+    `$decisions` (`registry.contract.stamp_decisions`) and `$marks`, the declared marks
     (`schema.DECLARED_MARKS`) it paints on a message it renders.
 
     Each composition that ends in a vocabulary stamps it, `page init`'s layer and a
@@ -103,7 +107,7 @@ def validate_event_handling(events: dict, kinds: dict, path) -> None:
     consumer assumes: a declared event kind or answer kind, a non-empty list of
     clauses, each a non-empty `text` and an optional `when` that is a valid JSON
     Schema. The complete vendored registry must carry both maps; individual kind
-    guidance remains optional."""
+    instructions remain optional."""
     for key, known in (("handling", kinds), ("answering", ANSWER_KINDS)):
         declared = events.get(key)
         if not isinstance(declared, dict) or any(
@@ -160,9 +164,36 @@ def validate_layer_declarations(
     ):
         raise RegistryError(
             f"{path}: $keys must carry a description and one paragraph per x- key the "
-            f"lint admits — missing {sorted(admitted - documented)}, "
-            f"unadmitted {sorted(documented - admitted)}"
+            f"lint admits — missing {json_value(sorted(admitted - documented))}, "
+            f"unadmitted {json_value(sorted(documented - admitted))}"
         )
+    # An idiom declares the marks `DECLARED_MARKS` admits on one (`idiom`), such as the
+    # room a `.callout` takes, which delivery paints on every element the idiom's
+    # selector matches (`revision_delivery.mark_declared`), so the selector has to be
+    # one delivery can match.
+    admitted = sorted(key for key, mark in DECLARED_MARKS.items() if mark.get("idiom"))
+    probe = turbohtml.parse("<p></p>").find("p")
+    for selector, entry in (registry.get("$idioms") or {}).items():
+        if not isinstance(entry, dict):
+            continue
+        declared = [key for key in entry if key.startswith("x-")]
+        for key in declared:
+            if key not in admitted or not Draft202012Validator(
+                EXTENSION_SCHEMA["properties"][key]
+            ).is_valid(entry[key]):
+                raise RegistryError(
+                    f"{path}: $idioms {selector!r} declares {key}={json_value(entry[key])}; an "
+                    f"idiom may declare {', '.join(admitted)}, with a value its $keys "
+                    "entry admits"
+                )
+        if declared:
+            try:
+                probe.matches(selector)
+            except turbohtml.SelectorSyntaxError as error:
+                raise RegistryError(
+                    f"{path}: $idioms {selector!r} declares {declared[0]}, and its "
+                    f"selector cannot be matched: {error}"
+                ) from None
     if (
         not isinstance(names, list)
         or not all(isinstance(name, str) for name in names)
@@ -207,15 +238,33 @@ def validate_layer_declarations(
         if (
             not isinstance(declaration, dict)
             or not {"description", "schema"} <= set(declaration)
-            or set(declaration) - {"description", "schema", "guidance", "records"}
+            or set(declaration)
+            - {"description", "schema", "instructions", "records", "resources"}
             or not isinstance(declaration.get("description"), str)
             or not declaration["description"]
             or not isinstance(declaration.get("schema"), dict)
         ):
             raise RegistryError(
                 f"{path}: $data contract {contract!r} must carry a description and "
-                "schema, with optional guidance and records"
+                "schema, with optional instructions, records and resources"
             )
+        resources = declaration.get("resources", [])
+        if not isinstance(resources, list) or any(
+            not isinstance(expression, str) or not expression
+            for expression in resources
+        ):
+            raise RegistryError(
+                f"{path}: $data contract {contract!r} resources must be a list of "
+                "non-empty JMESPath expressions"
+            )
+        for expression in resources:
+            try:
+                jmespath.compile(expression)
+            except JMESPathError as error:
+                raise RegistryError(
+                    f"{path}: $data contract {contract!r} resource expression "
+                    f"{expression!r} is invalid: {error}"
+                ) from error
         records = declaration.get("records")
         if records is not None and (
             not isinstance(records, dict)
@@ -229,23 +278,23 @@ def validate_layer_declarations(
                 f"{path}: $data contract {contract!r} records must name distinct "
                 "non-empty items and key fields, and optionally a deferred field"
             )
-        guidance_errors = sorted(
-            json_validator(GUIDANCE_SCHEMA).iter_errors(
-                declaration.get("guidance", {})
+        instructions_errors = sorted(
+            json_validator(INSTRUCTIONS_SCHEMA).iter_errors(
+                declaration.get("instructions", {})
             ),
             key=str,
         )
-        if guidance_errors:
+        if instructions_errors:
             raise RegistryError(
-                f"{path}: $data contract {contract!r} guidance is invalid: "
-                f"{guidance_errors[0].message}"
+                f"{path}: $data contract {contract!r} instructions are invalid: "
+                f"{schema_error_message(instructions_errors[0])}"
             )
         try:
             Draft202012Validator.check_schema(declaration["schema"])
         except SchemaError as error:
             raise RegistryError(
                 f"{path}: $data contract {contract!r} has an invalid JSON Schema: "
-                f"{error.message}"
+                f"{schema_error_message(error)}"
             ) from error
         if reference := unresolved_schema_reference(declaration["schema"]):
             raise RegistryError(

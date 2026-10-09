@@ -1,11 +1,11 @@
 /* Where the user stands: the page node a focused node stands at, one reading every
    feature takes (glossary, Standing target).
 
-   A node on the page stands at itself. So does a node inside any Ask of the inventory,
+   An ordinary node on the page stands at itself. So does a node inside any Ask of the inventory,
    answered or not, wherever it is drawn: an Ask frozen into a reply is where a user
-   working it is, never the page Ask its thread is about. Other chrome stands at the page
-   target it shows, as each side's owner declares (`declareSide`): the margin for its
-   cluster controls, the thread card, and a thread in the Threads panel; the Asks drawer
+   working it is, never the page Ask its thread is about. A presentation can stand at the
+   source target it shows in authored flow or chrome, as its owner declares (`declareSide`): the margin for its
+   cluster controls, the thread card, and a thread in the Threads panel; the Questions panel
    for its rows; the details shelf for the elements that name its notes. A side's answer
    drawn in the chrome itself, such as a margin control on a widget frozen into a reply,
    stands only where an Ask holds it. Chrome no side
@@ -13,20 +13,26 @@
    press made from it means the page whole.
 
    Each feature takes what it needs from that place by its own rule: the Ask view the
-   innermost Ask holding it, `c` and `e` the addressable element, the walks its document
+   innermost Ask holding it, `c` and `e` its semantic target, the walks its document
    position. The chrome stands over the page rather than in it and is appended after it,
    so a chrome node measured as a place would put the user behind every Ask and thread
-   there is; no reader measures from one that does not stand in an Ask. */
+   there is; no reader measures from one that does not stand in an Ask.
+
+   Page walks share `walkOrigin`: focus, then the selection's end, then the first
+   visible reading block. Every press reads the browser afresh; no walk remembers a
+   destination to use as the user's current place. */
 import { documentFocused } from "./keyboard/scopes.js";
 import { elementById, inChrome } from "./passages.js";
 import { allAsks } from "./asks/model.js";
-import { under } from "./shadow.js";
+import { hostIn, under } from "./shadow.js";
+import { pageReadingBlock } from "./reading-place.js";
 
-const sides = [];
+const sides = new Set();
 
-// A chrome owner's reading of the page target a node inside its chrome shows, or null.
+// A presentation owner's reading of the source target one of its nodes shows, or null.
 export function declareSide(bridge) {
-  sides.push(bridge);
+  sides.add(bridge);
+  return () => sides.delete(bridge);
 }
 
 // The innermost of `asks` whose element is or holds `node`. The list is in document
@@ -39,15 +45,27 @@ export const askHolding = (asks, node) =>
     })) ??
   null;
 
+// The source target a presentation node shows, by its owner's declaration, or null
+// for a node no side claims.
+export function sideOf(node) {
+  for (const side of sides) {
+    const place = side(node);
+    if (place) return place;
+  }
+  return null;
+}
+
 export function placeOf(node) {
   const at = node?.nodeType === 1 ? node : node?.parentElement;
   if (!at || at === document.body) return null;
-  if (!inChrome(at) || askHolding(allAsks(), at)) return at;
+  // An Ask is the user's current action wherever it is rendered. A source-linked
+  // presentation may otherwise stand in authored flow as well as fixed chrome.
+  if (askHolding(allAsks(), at)) return at;
   for (const side of sides) {
     const place = side(at);
     if (place) return inChrome(place) && !askHolding(allAsks(), place) ? null : place;
   }
-  return null;
+  return inChrome(at) ? null : at;
 }
 
 // Where the user stands now: where focus stands, or else the end of the selection, a
@@ -56,9 +74,13 @@ export function placeOf(node) {
 export const standingPlace = () =>
   placeOf(documentFocused()) ?? placeOf(getSelection()?.focusNode);
 
+// A page walk still has an origin when focus and selection name no page place. Order
+// is measured in the document's tree, where a shadow block stands at its host.
+export const walkOrigin = () => hostIn(standingPlace() ?? pageReadingBlock(), document);
+
 // The Ask the user stands in, answered or not: where letting go lands, and the extent
 // of what `c` counts as the element they stand at.
-export function heldAsk() {
-  const ask = askHolding(allAsks(), placeOf(documentFocused()));
+export function heldAsk(node = documentFocused()) {
+  const ask = askHolding(allAsks(), placeOf(node));
   return ask ? elementById(ask.id) : null;
 }

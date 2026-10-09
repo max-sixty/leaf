@@ -1,7 +1,7 @@
 version: 2
 
 # The uv entry watches the repository's Python lock. Its runtime packages are what
-# an install of leaf actually resolves — a bump there changes what every host
+# an install of leaf actually resolves — a bump there changes what every harness
 # runs — and the dev group is the suite's; the lock records both.
 #
 # The npm entry watches the root `package.json`, which names every JavaScript

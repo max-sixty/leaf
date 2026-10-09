@@ -1,10 +1,11 @@
 /* This module owns registry loading, pre-upgrade passage fences, dynamic widget
  * imports, and initial presentation. */
 import { dress, watchExternalLinks } from "./presentation.js";
+import { watchCodeBlocks } from "./code-copy.js";
 import { reachScrollers } from "./reach.js";
 import { adoptRegistry, registry, tagsDeclaring } from "./registry.js";
 import { loadShadowRules } from "./shadow.js";
-import { revealLayer, sameDelivery, sameLayer } from "./layer-client.js";
+import { revealLayer, admitResponse, sameLayer } from "./layer-client.js";
 import {
   applicationState,
   attachApplicationPresentation,
@@ -23,14 +24,17 @@ import {
   verbatimOwnerIdentity,
 } from "./passages.js";
 import { offlineInteractive, runtimeModule, runtimeResource } from "./context.js";
-import { prepareDeclaredInlineMarkdown } from "./markdown.js";
+import { loadDeclaredMarkdown, formatDeclaredMarkdown } from "./markdown.js";
+import { initialOrigin, initialSource } from "./initial-render.js";
+import { registeredTags, widgetImports } from "./widget-imports.js";
 
 /* Registry loading and the one initial widget-upgrade lifecycle.
 
-   A page loads what it uses. `importWidgets` is the one import-on-demand door: it takes
+   A page loads what it uses. `importWidgetModules` is the one import-on-demand door: it takes
    the markup about to be upgraded, imports each declared tag standing in it once per
-   tab, and loads the shadow rules only where an `x-shadow` widget is among them. Three
-   boundaries introduce markup and all three call it — startup with the document, a
+   tab. Shared dependency preparation loads shadow rules only where an `x-shadow`
+   widget is among them, alongside any declared Markdown parser. Three
+   boundaries introduce markup and all three use it — startup with the document, a
    version activation with the incoming `main`, and the state application with the frozen
    markup an agent's reply carries, ahead of the panel building a body. Each of them
    names the tags it needs, so nothing imports on a mutation after the element is already
@@ -39,6 +43,10 @@ import { prepareDeclaredInlineMarkdown } from "./markdown.js";
    widgets; that a declared module exists at all stays `package check`'s. An offline
    export embeds only the widget modules these boundaries can ask for
    (`_module_urls` in `exporting.py`), so a new boundary is one it has to read too.
+
+   Preloading a revision leaves its authored document intact; only copied arrival nodes
+   are formatted, after typed initial values and descriptors are captured and before
+   connection. Startup and frozen messages format after their own source capture.
 
    Required widget imports reject through the startup or activation boundary; a missing
    module cannot count as a completed upgrade. */
@@ -56,17 +64,20 @@ const within = (scope, selector) => [
 ];
 
 export function rememberPassageParts(scope = document, source = ["page", null]) {
+  scope = initialSource(scope);
   for (const tag of tagsDeclaring(
     (entry) => entry["x-upgrade"] && !entry["x-verbatim"],
   ))
     for (const root of within(scope, tag)) {
-      if (rememberedPassageRoots.has(root)) continue;
-      rememberedPassageRoots.add(root);
-      fencePassageParts(root);
+      const live = initialOrigin(root);
+      if (rememberedPassageRoots.has(live)) continue;
+      rememberedPassageRoots.add(live);
+      fencePassageParts(live, [...root.children].map(initialOrigin));
     }
   for (const [ownerIndex, root] of preservingOwners(scope).entries()) {
-    if (rememberedPassageRoots.has(root)) continue;
-    rememberedPassageRoots.add(root);
+    const live = initialOrigin(root);
+    if (rememberedPassageRoots.has(live)) continue;
+    rememberedPassageRoots.add(live);
     identifyPreserving(root, [...source, ownerIndex]);
   }
 }
@@ -75,12 +86,15 @@ const preservingOwners = (scope) =>
   within(scope, "*").filter((root) => registry[root.localName]?.["x-verbatim"]);
 
 function identifyPreserving(root, owner) {
-  verbatimOwnerIdentity.set(root, owner);
+  verbatimOwnerIdentity.set(initialOrigin(root), owner);
   let boundaryIndex = 0;
   const visit = (parent) => {
     for (const child of parent.children) {
       if (registry[child.localName]?.["x-upgrade"])
-        verbatimBoundaryIdentity.set(child, { owner, index: boundaryIndex++ });
+        verbatimBoundaryIdentity.set(initialOrigin(child), {
+          owner,
+          index: boundaryIndex++,
+        });
       else visit(child);
     }
   };
@@ -94,7 +108,7 @@ function identifyPreserving(root, owner) {
 // to the same name. Read from the document rather than from what the patch brought in,
 // for the same reason: the order is the whole document's.
 export function reindexPassageOwners(scope = document, source = ["page", null]) {
-  for (const [ownerIndex, root] of preservingOwners(scope).entries())
+  for (const [ownerIndex, root] of preservingOwners(initialSource(scope)).entries())
     identifyPreserving(root, [...source, ownerIndex]);
 }
 
@@ -115,15 +129,14 @@ export function reindexPassageOwners(scope = document, source = ["page", null]) 
 // the same thread again all cost nothing. A failed import stays rejected:
 // startup and activation must not present markup whose required module is absent.
 const modules = new Map();
+const initializers = new Map();
 const registryUrl = () => runtimeResource("/registry.json");
 const widgetUrl = (tag) =>
   offlineInteractive
     ? runtimeModule(`/widgets/${tag}.js`)
     : runtimeResource(`/widgets/${tag}.js`);
-const presentTags = (scope, holds) =>
-  tagsDeclaring(holds).filter((tag) => scope.querySelector(tag));
 
-export async function importWidgets(scope) {
+async function loadWidgetDependencies(scope) {
   // Before the modules import, because a widget's first render asks for these rules and
   // an async stage would put every x-shadow widget's look a fetch behind its own nodes.
   // Asked of the same scope for the same reason, and that is what makes the narrowing
@@ -131,17 +144,47 @@ export async function importWidgets(scope) {
   // tag stands in some scope, and a tag declaring x-shadow brings the rules in on that
   // same call. The theme is read once for the tab however many scopes ask.
   await Promise.all([
-    prepareDeclaredInlineMarkdown(scope),
-    ...(presentTags(scope, (entry) => entry["x-shadow"]).length
+    loadDeclaredMarkdown(scope),
+    ...(registeredTags(scope, registry).some((tag) => registry[tag]["x-shadow"])
       ? [loadShadowRules()]
       : []),
   ]);
+}
+
+async function importWidgetModules(scope) {
+  const required = widgetImports(scope, registry);
   await Promise.all(
-    presentTags(scope, (entry) => entry["x-upgrade"]).map((tag) => {
+    required.initializers.map(({ tag, path }) => {
+      if (document.documentElement.lfInitial.has(tag)) return;
+      if (!initializers.has(path))
+        initializers.set(
+          path,
+          import(offlineInteractive ? runtimeModule(path) : runtimeResource(path)),
+        );
+      return initializers.get(path);
+    }),
+  );
+  await Promise.all(
+    required.modules.map((tag) => {
       if (!modules.has(tag)) modules.set(tag, import(widgetUrl(tag)));
       return modules.get(tag);
     }),
   );
+}
+
+// Source-only preparation must not consume authored body records. Live revisions
+// import ahead of activation, then format their copied arrivals after typed capture.
+export async function preloadWidgets(scope) {
+  await loadWidgetDependencies(scope);
+  await importWidgetModules(scope);
+}
+
+// Startup and frozen-message presentation may consume their captured markup. Format
+// before module imports can synchronously connect an already-standing custom element.
+export async function importWidgets(scope) {
+  await loadWidgetDependencies(scope);
+  formatDeclaredMarkdown(scope);
+  await importWidgetModules(scope);
 }
 
 // The upgrade lifecycle for the whole authored body, at startup: read it while it is
@@ -162,6 +205,7 @@ async function installDocument(scope) {
     });
     commitWidgetDescriptors(descriptors);
     watchExternalLinks();
+    watchCodeBlocks();
     await importWidgets(scope);
     await settle(presentation, scope, [scope], whenApplicationPresented);
   } finally {
@@ -208,9 +252,9 @@ async function settle(presentation, scope, arrived, presented) {
 
 export async function upgradeWidgets({ buildReactionBar }) {
   const response = await fetch(registryUrl());
+  if (!admitResponse(response)) return false;
   if (!response.ok)
     throw new Error(`leaf: registry failed to load (${response.status})`);
-  if (!sameDelivery(response)) return false;
   adoptRegistry(await response.json());
   const registryGeneration = registry.$layer?.generation;
   if (typeof registryGeneration !== "string" || !registryGeneration)

@@ -4,7 +4,8 @@ A document and the captured resources it names use logical page paths: `/page/�
 the author's files, `/media/…` for the page's images, and the layer's own files at the
 root (`/icon.svg`, `/runtime/…`). Every host delivers the same captured bytes under an
 address of its own — an HTTP server beneath a revision's URL, a published site beneath
-a release, an offline export as embedded `data:` URLs — so each host passes one
+a release, an offline export through document-lifetime object URLs — so each host
+passes one
 `address` function, from a logical path to the URL it serves that path at, and the
 walks below apply it. HTML source spans preserve prose and unrelated attributes,
 JavaScript rewriting names only parsed imports, and CSS rewriting names only the URLs
@@ -22,9 +23,10 @@ A document is delivered once, by `compose_document`, whoever delivers it: the HT
 server and the static live shell, and a standalone export. A
 host states what it adds as a `Delivery` value, and the composer writes every document
 the same way. It also paints what each element's registry entry declares, and the size
-of the page media it names, for the stylesheet to read (`mark_declared`), so the first
-paint lays out what a script would otherwise only mark once the registry loads or an
-image once it decodes.
+of the page media it names, for the stylesheet to read, and writes in the structure a
+widget's module will draw (`x-prepaint`) (`mark_declared`), so the first paint lays out
+what a script would otherwise only mark once the registry loads, an image once it
+decodes, or a module once it runs.
 """
 
 import html
@@ -34,17 +36,32 @@ import re
 import struct
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from functools import lru_cache
 from urllib.parse import quote, unquote, urlsplit
 
 import turbohtml
 
-from .revision_artifact import Resource, authored_imports, bind_imports, rewrite_css
-from .schema import BROWSER_DIRS, DECLARED_MARKS, MEDIA_DIR, VENDORED_FILES
+from .layer import CASCADE_LAYERS
+from .passages import markdown_markup
+from .registry.contract import prepaint_markup
+from .revision_artifact import (
+    Resource,
+    RevisionArtifact,
+    authored_imports,
+    bind_imports,
+    rewrite_css,
+)
+from .schema import (
+    BROWSER_DIRS,
+    DECLARED_MARKS,
+    MEDIA_DIR,
+    RENDER_CHECKS_DIR,
+    VENDORED_FILES,
+)
 from .structure import (
     DELIVERY_ENCODING_META,
     UTF8_BOM,
     SourceDocument,
+    annotation_mode,
     element_attrs,
     rel_tokens,
     review_mode,
@@ -53,8 +70,8 @@ from .structure import (
     source_index,
 )
 
-# From a logical page path to the URL one host serves it at.
-Address = Callable[[str], str]
+# From a page-local URL (path and suffix) to its delivery URL, or None if unavailable.
+Address = Callable[[str], str | None]
 
 # The paths of a page's namespace a document or resource may name: the author's files,
 # the page's media, and the layer. The API and the page's documents are the runtime's
@@ -113,17 +130,16 @@ def _rebase(reference: str, base: str, address: Address) -> str:
     if located is None:
         return reference
     path, suffix = located
-    return address(path) + suffix
+    return address(quote(path, safe="/") + suffix)
 
 
-@lru_cache(maxsize=32)
 def rebase_css(
     source: str, base: str, address: Address, *, declarations: bool = False
 ) -> str:
     """Re-address every URL a stylesheet at `base` loads, the rest byte-for-byte.
 
-    Held for the addresses a server answers again and again: parsing the theme costs
-    tens of milliseconds, and every document and stylesheet request would pay it.
+    Cheap for a sheet read before at any address: `rewrite_css` keeps each sheet's
+    parse by its text.
     """
     return rewrite_css(
         source,
@@ -145,6 +161,8 @@ def rebase_document(
 ) -> str:
     """Re-address every reference an HTML document makes, and nothing else in it.
 
+    An unavailable address removes the attribute; unavailable executable delivery
+    removes script elements. CSS omits only declarations that load unavailable assets.
     The references are an authored script's `src` and its literal imports, a
     stylesheet link, every URL `attribute_references` reads, and the URLs of each
     `style` element and attribute — in the document and in each declarative shadow
@@ -178,6 +196,11 @@ def rebase_document(
                 continue
             attrs = element_attrs(element)
             tag = element.tag
+            if tag == "script" and address("/leaf.js") is None:
+                start = span(location.start_tag)[0]
+                end = span(location.end_tag or location.start_tag)[1]
+                edits.append((start, end, ""))
+                continue
             stylesheet = tag == "link" and "stylesheet" in rel_tokens(attrs)
             if (
                 stylesheet
@@ -211,7 +234,13 @@ def rebase_document(
                 if delivered != value:
                     start, end = span(location.attrs[name])
                     edits.append(
-                        (start, end, f'{name}="{html.escape(delivered, quote=True)}"')
+                        (
+                            start,
+                            end,
+                            f'{name}="{html.escape(delivered, quote=True)}"'
+                            if delivered is not None
+                            else "",
+                        )
                     )
             if tag in {"script", "style"} and location.end_tag is not None:
                 start = index(location.start_tag.end_line, location.start_tag.end_col)
@@ -274,42 +303,79 @@ def media_size(data: bytes) -> tuple[int, int] | None:
     return None
 
 
+# What marks an element delivery wrote for the first paint (`x-prepaint`): not the
+# author's, so the runtime's reading of the source leaves it out (`runtime/prepaint.js`,
+# `unmarked`; `runtime/version.js`) and passages skip it as generated words. The theme
+# holds its room and paints none of its placeholder words (theme.css).
+_PREPAINT_MARKS = ' data-lf-prepaint data-lf-gen="1"'
+
+
 def mark_declared(
-    source: str, registry: Mapping, resources: Mapping[str, Resource]
+    source: str,
+    registry: Mapping,
+    resources: Mapping[str, Resource],
+    *,
+    initial: bool = False,
 ) -> str:
     """Paint each element's declared marks (`DECLARED_MARKS`) onto its start tag, the
-    rest byte-for-byte, and the size of the page media it names.
+    rest byte-for-byte, the size of the page media it names, and its declared
+    `x-prepaint` as its first child. With `initial`, an `x-initial` host receives
+    an inert source template and a parser invocation immediately after that template
+    closes. The complete host is then inserted and drawn in one synchronous turn;
+    nested initial hosts share the outer template and draw deepest-first.
+
+    The opening script writes only the fixed template delimiter at the parser's
+    active insertion point. With scripts disabled, or in a DOMParser source reading,
+    no template opens and the unmatched closing delimiter is ignored: the one raw
+    authored host remains readable, including code containing raw-text delimiters.
 
     A mark painted by the runtime would land a registry fetch after the document first
     draws, so a workspace would draw its panes before knowing they are panes. An image
     has no size until it decodes, so an element naming page media in its attributes is
     painted with the box that holds any of them, the largest width and the largest
     height (`data-lf-media-width`, `data-lf-media-height`), for the stylesheet to lay
-    out a frame that the images arrive in. What a template holds is inert until a
+    out a frame that the images arrive in. A widget whose module draws its structure,
+    such as Command Hub's outcome and its count tiles, would otherwise stand in a room
+    the theme reserved by summing that structure's line heights and paddings, a sum
+    that cannot follow how its words wrap; with the structure written in, the browser
+    sizes it as it will size the drawing. What a template holds is inert until a
     module clones it, and a declarative shadow tree's content is its host's to style, so
     neither is marked.
+
+    A mark is declared by the element's tag or by an idiom (`$idioms`) whose selector
+    the element matches, as a `.callout` declares the room it takes; the tag's
+    declaration comes first.
     """
     tree = turbohtml.parse(source, scripting=True, source_locations=True)
     index = source_index(source)
+    idioms = [
+        (selector, entry)
+        for selector, entry in registry.get("$idioms", {}).items()
+        if isinstance(entry, dict) and not entry.keys().isdisjoint(DECLARED_MARKS)
+    ]
     edits = []
     for element in tree.find_all(True):
         location = element.source_location
         if location is None or element.closest("template") is not None:
             continue
-        declaration = registry.get(element.tag, {})
+        declarations = [registry.get(element.tag, {})] + [
+            entry for selector, entry in idioms if element.matches(selector)
+        ]
         attrs = element_attrs(element)
         marks = {}
         for key, mark in DECLARED_MARKS.items():
+            declared = next((d[key] for d in declarations if d.get(key)), None)
             if (authored := mark.get("authored")) in attrs:
                 marks[mark["paint"]] = attrs[authored]
-            elif declared := declaration.get(key):
+            elif declared:
                 marks[mark["paint"]] = "" if declared is True else str(declared)
         sizes = [
             size
             for value in attrs.values()
             if value
             and value.startswith(f"/{MEDIA_DIR}/")
-            and (media := resources.get(value)) is not None
+            and (media := resources.get(urlsplit(value).path)) is not None
+            and media.mime.startswith("image/")
             and (size := media_size(media.data)) is not None
         ]
         if sizes:
@@ -318,9 +384,102 @@ def mark_declared(
         if marks:
             start = index(location.start_tag.start_line, location.start_tag.start_col)
             edits.append((start + 1 + len(element.tag), _attributes(marks)))
+        if registry.get(element.tag, {}).get("x-text-format") == "markdown":
+            pre = element.select_one(":scope > pre")
+            if pre is not None:
+                body = "".join(
+                    child.data
+                    for child in pre.children
+                    if isinstance(child, turbohtml.Text)
+                )
+                text = body
+                edits.append(
+                    (
+                        index(location.start_tag.end_line, location.start_tag.end_col),
+                        (
+                            '<div class="lf-markdown-body" data-lf-prepaint data-lf-gen="1" '
+                            f'data-lf-source-words="{html.escape(text, quote=True)}">'
+                            f"{markdown_markup(text)}</div>"
+                        ),
+                    )
+                )
+        if prepaint := prepaint_markup(registry, element.tag):
+            root = len(re.match(r"<[a-z][a-z0-9]*", prepaint)[0])
+            edits.append(
+                (
+                    index(location.start_tag.end_line, location.start_tag.end_col),
+                    prepaint[:root] + _PREPAINT_MARKS + prepaint[root:],
+                )
+            )
+        if (
+            initial
+            and registry.get(element.tag, {}).get("x-initial")
+            and not any(
+                registry.get(getattr(parent, "tag", ""), {}).get("x-initial")
+                for parent in element.ancestors
+            )
+        ):
+            if location.end_tag is None:
+                raise ValueError(
+                    f"<{element.tag}> initial rendering needs a closing tag"
+                )
+            start = index(location.start_tag.start_line, location.start_tag.start_col)
+            end = index(location.end_tag.end_line, location.end_tag.end_col)
+            edits.append(
+                (
+                    start,
+                    (
+                        "<script data-lf-runtime data-lf-initial>"
+                        'document.write("<template data-lf-runtime data-lf-initial-source>");'
+                        "</script>"
+                    ),
+                )
+            )
+            edits.append(
+                (
+                    end,
+                    (
+                        "</template>"
+                        "<script data-lf-runtime data-lf-initial>"
+                        "document.documentElement.lfInitial.mount("
+                        "document.currentScript.previousElementSibling);"
+                        "document.currentScript.remove();</script>"
+                    ),
+                )
+            )
     for offset, text in sorted(edits, reverse=True):
         source = source[:offset] + text + source[offset:]
     return source
+
+
+def initial_scripts(
+    source: str, registry: Mapping, resources: Mapping[str, Resource]
+) -> str:
+    """Inline only the captured producers this document uses, before its body parses.
+
+    Bundles register synchronous package renderers with the prepaint coordinator. The
+    widget loader imports its same bundle only for unregistered later arrivals;
+    serving and export need neither a compiler nor a second implementation of the
+    widget's structure.
+    """
+    tree = turbohtml.parse(source, scripting=True)
+    used = dict.fromkeys(
+        path
+        for element in tree.find_all(True)
+        if element.closest("template") is None
+        and (path := registry.get(element.tag, {}).get("x-initial"))
+    )
+    return "".join(
+        "<script data-lf-runtime>"
+        + re.sub(
+            r"</script",
+            r"<\\/script",
+            resources[path].data.decode(),
+            flags=re.IGNORECASE,
+        )
+        + "</script>"
+        for path in used
+    )
 
 
 @dataclass(frozen=True)
@@ -328,16 +487,23 @@ class DeliveryAddress:
     """Where an HTTP host serves each logical path of one revision's document.
 
     Media is the page's own and answers at the page root. Every other path is the
-    revision's and answers beneath `asset_root`, where its capture is served. A value,
-    so a stylesheet addressed for one revision is parsed once (`rebase_css`).
+    revision's and answers beneath `asset_root`, where its capture is served.
     """
 
     page_root: str
     asset_root: str
 
     def __call__(self, path: str) -> str:
-        root = self.page_root if path.startswith(f"/{MEDIA_DIR}/") else self.asset_root
-        return root.rstrip("/") + quote(path, safe="/")
+        located = urlsplit(path)
+        root = (
+            self.page_root
+            if located.path.startswith(f"/{MEDIA_DIR}/")
+            else self.asset_root
+        )
+        suffix = ("?" + located.query if located.query else "") + (
+            "#" + located.fragment if located.fragment else ""
+        )
+        return root.rstrip("/") + quote(unquote(located.path), safe="/") + suffix
 
 
 def layer_import_map(asset_root: str) -> dict:
@@ -349,10 +515,19 @@ def layer_import_map(asset_root: str) -> dict:
     render probe importing `/runtime/widget-api.js` reaches the runtime's own instance.
     """
     root = asset_root.rstrip("/")
-    return {"imports": {f"/{name}/": f"{root}/{name}/" for name in BROWSER_DIRS}}
+    # Server-owned passive checks must read this document's runtime instance too.
+    # Their source is server-owned; their captured bytes belong to this revision.
+    return {
+        "imports": {
+            f"/{name}/": f"{root}/{name}/"
+            for name in (*BROWSER_DIRS, RENDER_CHECKS_DIR)
+        }
+    }
 
 
-def deliver_resource(resource: Resource, logical_path: str, address: Address) -> bytes:
+def deliver_resource(
+    resource: Resource, logical_path: str, address: Address
+) -> Resource:
     """Address one captured resource, including a page widget served under an alias.
 
     A stylesheet's URLs and an authored module's imports are re-addressed; a layer
@@ -361,12 +536,39 @@ def deliver_resource(resource: Resource, logical_path: str, address: Address) ->
     (``/page/widgets/<tag>.js``), which is the base of its authored imports.
     """
     if resource.mime == "application/javascript" and logical_path.startswith("/page/"):
-        return rebase_module(resource.data, logical_path, address)
-    if resource.mime == "text/css":
-        return rebase_css(resource.data.decode("utf-8"), logical_path, address).encode(
-            "utf-8"
+        return Resource(
+            rebase_module(resource.data, logical_path, address), resource.mime
         )
-    return resource.data
+    if resource.mime == "text/css":
+        return Resource(
+            rebase_css(resource.data.decode("utf-8"), logical_path, address).encode(
+                "utf-8"
+            ),
+            resource.mime,
+        )
+    return resource
+
+
+def delivered_resource(
+    artifact: RevisionArtifact, logical_path: str, address: Address
+) -> Resource | None:
+    """One resource as an HTTP or static host serves it, including widget aliases.
+
+    Aliases re-export the addressed captured implementation rather than copying
+    its module: loading either path then shares one module instance. Ordinary
+    resources are rebased against their own captured path, and a missing path
+    remains absent for the transport to report.
+    """
+    source = artifact.widget_aliases.get(logical_path, logical_path)
+    if source != logical_path:
+        return Resource(
+            f"export * from {json.dumps(address(source))};\n".encode(),
+            "application/javascript",
+        )
+    resource = artifact.resources.get(source)
+    if resource is None:
+        return None
+    return deliver_resource(resource, source, address)
 
 
 def delivery_identity(
@@ -419,22 +621,15 @@ def json_script(value) -> str:
     )
 
 
-def delivery_sheets(resources: Mapping[str, Resource], address: Address) -> str:
-    """Carry the layer's adopted stylesheets in the document that runs the layer.
+def delivery_sheets(
+    resources: Mapping[str, Resource], address: Address, document: SourceDocument
+) -> str:
+    """Carry the selected layer's adopted sheets, with their own text and addressed URLs.
 
-    `runtime/stylesheets.js` constructs the chrome's and the marks' sheets while it
-    evaluates, so their text must be in hand without a request. WebKit has no CSS module
-    scripts to import them with, and a fetch awaited at module scope would make every
-    page module that imports the widget API evaluate after `DOMContentLoaded`. Every
-    document that runs the layer carries this (`compose_document`), with the sheets'
-    own URLs at the delivery's `address`: a constructed sheet resolves them against the
-    document.
-
-    The sheets go out as they are written, comments included. They used to be stripped
-    here, which is the one thing that made the text a user receives differ from the
-    file a maintainer reads, and a page has no build step to make that difference
-    anywhere else. The comments are most of the weight: 62KB of sheet becomes 134KB,
-    or 11KB against 39KB over the wire, at the head of every delivered document.
+    `runtime/stylesheets.js` constructs these synchronously while it evaluates, so
+    every document running the layer carries their text without a request or await.
+    Shared chrome and marks are always present; physical annotation sheets are absent
+    in page mode. The browser constructs only the sheets this carrier actually holds.
     """
     sheets = {
         name: rebase_css(resources[path].data.decode("utf-8"), path, address)
@@ -443,6 +638,14 @@ def delivery_sheets(resources: Mapping[str, Resource], address: Address) -> str:
             ("marks", "/runtime/marks.css"),
         )
     }
+    if annotation_mode(document) == "overlay":
+        sheets["annotations"] = {
+            name: rebase_css(resources[path].data.decode("utf-8"), path, address)
+            for name, path in (
+                ("chrome", "/runtime/annotation-overlay/annotation-chrome.css"),
+                ("marks", "/runtime/annotation-overlay/annotation-marks.css"),
+            )
+        }
     return (
         '<script type="application/json" data-lf-runtime data-lf-sheets>'
         f"{json_script(sheets)}</script>"
@@ -489,7 +692,7 @@ class Delivery:
     inline_stylesheet: Callable[[str], str] | None = None
     import_map: dict | None = None
     # The runtime's own inline script. A document with one runs the layer, so it also
-    # carries the layer's adopted sheets (`delivery_sheets`).
+    # carries the layer's adopted sheets (`delivery_sheets`) and the prepaint.
     runtime: str | None = None
     # The host's own head metadata, such as a published page's link card.
     head: str = ""
@@ -518,16 +721,30 @@ def compose_document(
     it names (`mark_declared`), re-addressed (`rebase_document`), and then receives
     delivery's head
     right after the head's start tag, ahead of any authored executable content: the
-    prelude, the import map, the runtime script, the theme, the adopted
-    sheets, the host's metadata, the runtime entry, and the canonical address, each
-    where the host has one. The root carries the host's attributes and the page's
+    prelude, the import map, the canonical address, the prepaint, the runtime script,
+    the theme, the adopted sheets, the host's metadata, and the runtime entry, each
+    where the host has one. A document with a runtime, served or exported, carries the
+    prepaint (`runtime/prepaint.js`), which says before the first paint what the
+    runtime will draw and whether it could not start. It reads the canonical address,
+    so that comes first; it names a startup fault before the host's runtime script
+    hears of it, so it comes before that. Used `x-initial` bundles follow it and
+    register the package producers that the body's parser invocations run; and it
+    stands before the theme, since a
+    script after a stylesheet still loading waits for it. The root carries the host's attributes and the page's
     declared review (`data-lf-review`), which the render-blocking theme reads to
     reserve the banner a sign-off page will draw before the runtime draws it. The
     import map precedes every script, since a browser reads no map once a module has
     begun to load.
     """
+    initial = (
+        initial_scripts(source, registry, resources)
+        if delivery.runtime is not None
+        else ""
+    )
     source = rebase_document(
-        mark_declared(source, registry, resources),
+        mark_declared(
+            source, registry, resources, initial=delivery.runtime is not None
+        ),
         delivery.address,
         inline_stylesheet=delivery.inline_stylesheet,
     )
@@ -539,6 +756,20 @@ def compose_document(
         if delivery.inline_stylesheet is not None
         else f'<link rel="stylesheet" href="{html.escape(delivery.address("/theme.css"), quote=True)}" data-lf-runtime>'
     )
+    # Physical page-side placement keeps the theme's lf-base contract, below package
+    # and authored overrides. An adopted sheet would rank after those same defaults.
+    if delivery.runtime is not None and annotation_mode(document) == "overlay":
+        annotation_theme = rebase_css(
+            resources["/runtime/annotation-overlay/annotation-theme.css"].data.decode(
+                "utf-8"
+            ),
+            "/runtime/annotation-overlay/annotation-theme.css",
+            delivery.address,
+        )
+        theme = (
+            f"<style data-lf-runtime data-lf-annotation-theme>@layer {', '.join(CASCADE_LAYERS)};\n"
+            f"@layer lf-base {{\n{_inline_css(annotation_theme)}\n}}</style>" + theme
+        )
     head = (
         delivery_prelude(document, revision, version, executable, widgets)
         + (
@@ -547,23 +778,44 @@ def compose_document(
             if delivery.import_map is not None
             else ""
         )
-        + (delivery.runtime or "")
-        + theme
-        + (
-            delivery_sheets(resources, delivery.address)
-            if delivery.runtime is not None
-            else ""
-        )
-        + delivery.head
-        + f'<script type="module" src="{html.escape(delivery.address("/leaf.js"), quote=True)}" data-lf-runtime></script>'
         + (
             f'<link rel="canonical" href="{html.escape(delivery.page_root, quote=True)}/" data-lf-runtime>'
             if delivery.page_root is not None
             else ""
         )
+        + (
+            "<script data-lf-runtime>"
+            f"{resources['/runtime/prepaint.js'].data.decode()}</script>" + initial
+            if delivery.runtime is not None
+            else ""
+        )
+        + (delivery.runtime or "")
+        + theme
+        + (
+            delivery_sheets(resources, delivery.address, document)
+            if delivery.runtime is not None
+            else ""
+        )
+        + delivery.head
+        + (
+            f'<script type="module" src="{html.escape(entry, quote=True)}" data-lf-runtime></script>'
+            if (entry := delivery.address("/leaf.js")) is not None
+            else ""
+        )
     )
     head_start, head_end = document.wrapper_tags["head"]
     insertions = [(head_end, head)]
+    if delivery.runtime is not None:
+        # A classic parser checkpoint waits for every preceding stylesheet, including
+        # the author's head overrides. The initial observer then receives styled body
+        # nodes before their first paint, rather than seating residents on CSS load's
+        # later task. It shares the same residency computation used after upgrade.
+        insertions.append(
+            (
+                document.wrapper_tags["body"][1],
+                "<script data-lf-runtime>document.documentElement.lfInitial.residency()</script>",
+            )
+        )
     root = dict(delivery.html_attributes)
     if (review := review_mode(document)) is not None:
         root["data-lf-review"] = review

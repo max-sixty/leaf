@@ -5,8 +5,9 @@
 import { recordedWidgetSelector, stateSpecs } from "../registry.js";
 import { elementReading } from "../passages.js";
 import { readApplication } from "../semantic-state.js";
-import { bodyText } from "../widget-upgrade.js";
+import { dataBody } from "../widget-upgrade.js";
 import { authoredRank } from "./model.js";
+import { initialParent, initialSource } from "../initial-render.js";
 
 /* The authored initial condition, read once from validated source before upgrade.
    These typed values are inputs to the complete widget projection; no cloned DOM,
@@ -19,9 +20,9 @@ import { authoredRank } from "./model.js";
    and frozen thread markup use the same boundary, so presentation never becomes a
    semantic input.
 
-   `authoredStates` holds the one typed initial condition per owner. The lossy
-   comparison reading provenance origins need is folded from those same values by
-   `projection/model.js`, which owns the one reading of them.
+   `authoredStates` holds the one typed initial condition per owner. Provenance
+   origins compare those same typed values through `projection/model.js`; a body's
+   Markdown source is never reconstructed from its rendered words.
 
    The complete initial value, by record kind:
 
@@ -29,7 +30,7 @@ import { authoredRank } from "./model.js";
    - `value`: the attribute string, or `null` when absent;
    - `position`: ordered id lists per container and each listed unit's authored rank
      (projection/model.js);
-   - `body`: the data body's exact words, with source-layout indentation removed;
+   - `body`: the parsed data body's exact text, including indentation and trailing whitespace;
    - no record: `null` for a widget verb, an empty unit map otherwise.
 
    Ownership of record members stops at `recordedOwner`, the nearest widget with a
@@ -63,23 +64,10 @@ export function domValue(el, record) {
 // document answers for itself.
 export function rememberAuthoredParents(root = document, parent = root.parentElement) {
   if (root.nodeType === Node.ELEMENT_NODE && !authoredParents.has(root))
-    authoredParents.set(root, parent);
+    authoredParents.set(root, root.parentElement ? initialParent(root) : parent);
   for (const element of root.querySelectorAll("*"))
     if (!authoredParents.has(element))
-      authoredParents.set(element, element.parentElement);
-}
-
-// A body record is licensed only for x-content: data, whose validated source is one
-// direct <pre>. Keep the source's words while removing the layout its surrounding HTML
-// needed: the data body's own trim (`bodyText`), then the common indentation of its
-// nonblank lines.
-function decodeBodyRecord(widget) {
-  const lines = bodyText(widget).split("\n");
-  const indents = lines
-    .filter((line) => line.trim())
-    .map((line) => line.match(/^[ \t]*/)[0].length);
-  const cut = indents.length ? Math.min(...indents) : 0;
-  return lines.map((line) => line.slice(cut)).join("\n");
+      authoredParents.set(element, initialParent(element));
 }
 
 function initialState(widget, spec) {
@@ -104,11 +92,12 @@ function initialState(widget, spec) {
       .filter(Boolean)
       .sort();
   else if (record?.kind === "value") value = widget.getAttribute(record.attr);
-  else if (record?.kind === "body") value = decodeBodyRecord(widget);
-  return { action: null, value, detail: record ? { [record.value]: value } : {} };
+  else if (record?.kind === "body") value = dataBody(widget);
+  return { action: null, value, detail: record ? { value } : {} };
 }
 
 export function stageAuthoredStates(root = document, existing = authoredStates()) {
+  root = initialSource(root);
   const captured = new Map();
   const byTag = new Map();
   for (const { tag, verb, spec } of stateSpecs()) {

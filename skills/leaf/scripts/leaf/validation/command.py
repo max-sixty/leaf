@@ -28,23 +28,25 @@ def _check(page_dir: Path, render: bool, events_override: list | None) -> int:
     events = read_events(page_dir) if events_override is None else events_override
     result = check_source(page_dir, events)
     if result.errors:
-        print(f"✗ index.html: {len(result.errors)} issue(s)", file=sys.stderr)
+        print(
+            f"Error: index.html has {len(result.errors)} validation issue{'s' if len(result.errors) != 1 else ''}",
+            file=sys.stderr,
+        )
         for error in result.errors:
             print(f"  - {error}", file=sys.stderr)
         for line in result.advice:
             print(f"  · {line}", file=sys.stderr)
         return 1
     print(
-        "✓ index.html: parses, widgets, authored scripts, and styles validate, "
-        "protected ids and decisions carried over",
+        "✓ index.html: valid",
         # Ahead of any browser gate's stderr, which a piped reader gets unbuffered.
         flush=True,
     )
     for line in result.advice:
         print(f"  · {line}")
-    from leaf.render_gate.page_code import authors_code
+    from leaf.render_gate.page_code import needs_browser
 
-    runs_code = authors_code(result.document, result.artifact)
+    runs_code = needs_browser(result.document, result.artifact)
     if not (runs_code or render):
         return 0
     from leaf.render_gate.command import page_code_check, render_check

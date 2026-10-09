@@ -1,8 +1,9 @@
 /* Where a command's readings stand when the page puts them beside its tree. The element
- * is a seat: the lf-command it names renders the outcome, stopped-work, and fleet panels
- * into it (lf-command.js, `home`), because the command owns the snapshot, the focus
- * repair across repaints, and the views its counts open. Being an upgraded element is
- * what fences those generated words from the authored grid around them.
+ * is a seat: the lf-command whose `readings` names it renders the outcome, stopped-work,
+ * and fleet panels into it (lf-command.js, `home`), because the command owns the
+ * snapshot, the focus repair across repaints, and the views its counts open. Being an
+ * upgraded element is what fences those generated words from the authored grid around
+ * them.
  *
  * The seat tells its command when it connects and disconnects, so the command moves its
  * panels in or back to its own head then, rather than at the next state reading. The
@@ -29,7 +30,7 @@ customElements.define(
     // `reseat` is absent while the command's module has not upgraded it yet; the
     // command finds its seat itself on its first paint.
     #command() {
-      return this.#scope.querySelector(`lf-command[id="${this.getAttribute("for")}"]`);
+      return this.#scope.querySelector(`lf-command[readings="${this.id}"]`);
     }
   },
 );

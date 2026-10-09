@@ -114,7 +114,7 @@ describe("deployment configuration", () => {
     ]);
   });
 
-  it("ships the pinned Codex host and the ready Leaf CLI without the authoring plugin", () => {
+  it("ships the pinned Codex harness and the ready Leaf CLI without the authoring plugin", () => {
     expect(packageManifest.dependencies["@openai/codex"]).toBe("0.153.4");
     expect(dockerfile).toContain("/app/.venv/bin/leaf --version");
     expect(dockerfile).not.toContain("codex plugin add leaf@leaf");

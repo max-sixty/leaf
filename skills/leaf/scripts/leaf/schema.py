@@ -3,6 +3,8 @@
 import re
 from pathlib import Path
 
+from .state import EVENTS_FILE
+
 # A session-managed server gives a replacement session one short poll window to
 # claim the page before it closes. The external claim record is the ownership
 # source; a standing lifetime ignores it and remains enabled until `server stop`.
@@ -16,24 +18,22 @@ ACTIVITY_GRACE_SECS = 4 * 60 * 60
 UNNAMED_AGENT = "Agent"
 # Non-message gesture kinds eligible for withdrawal; events.undo_error handles
 # reactions. The complete eligibility contract is events.md, "Undo".
-UNDOABLE_KINDS = {"resolve", "unresolve", "action", "done"}
+UNDOABLE_KINDS = {"resolve", "unresolve", "action", "done", "task_end"}
 MESSAGE_KINDS = {"comment", "reply"}
 # The kinds a widget owns, admitted against the page's registry before they append.
 WIDGET_KINDS = {"action", "report"}
 # The operations that settle a user move the agent owes, as `workflows` and
-# `activity` address them and `$events.answering` explains them. A `turn` answer is
-# a thread reply the claimant's turn writes with its own opening and final messages.
-ANSWER_KINDS = ("reply", "turn", "markup")
-# The answer kinds that post a message in a thread.
-THREAD_ANSWER_KINDS = frozenset({"reply", "turn"})
+# `activity` address them and `$events.answering` explains them. Reply writer custody
+# is separate: a provider turn may own its opening and final messages.
+ANSWER_KINDS = ("reply", "markup")
 ANSWER_ASK_INSTRUCTION = (
-    "Each move takes the answer named for it. Read current obligations with "
+    "Each update takes the answer named for it. Read current obligations with "
     "`leaf page state <page>` and thread history with `leaf page state <page> <id>`."
 )
 WAIT_BATCH_OUTPUT_INSTRUCTION = (
     "Print one page's complete ordered batch, thread context, and response "
     "requirements as an immutable delivery, whose `acknowledge` says how to confirm "
-    "it. `leaf delivery read <id>` reads that same delivery. Where the host's hook "
+    "it. `leaf delivery read <id>` reads that same delivery. Where the harness's hook "
     "carries input into the turn, as in Claude Code, print one line naming the page "
     "with new input instead, and end."
 )
@@ -60,9 +60,8 @@ _RECORD_ATTRIBUTE = {
     "properties": {
         "kind": {"const": "attribute"},
         "attr": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-        "value": {"type": "string", "minLength": 1},
     },
-    "required": ["kind", "attr", "value"],
+    "required": ["kind", "attr"],
     "additionalProperties": False,
 }
 _RECORD_POSITION = {
@@ -70,23 +69,14 @@ _RECORD_POSITION = {
     "properties": {
         "kind": {"const": "position"},
         "within": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
-        "value": {"type": "string", "minLength": 1},
-        # The detail field holding the unit's rank among its container's siblings.
-        # Comparison stays at the container's granularity (see $state), but a
-        # reader that has to *state* a position needs both halves: a record naming
-        # only the column would put a card back on the right list in the wrong place.
-        "rank": {"type": "string", "minLength": 1},
     },
-    "required": ["kind", "within", "value", "rank"],
+    "required": ["kind", "within"],
     "additionalProperties": False,
 }
 _RECORD_BODY = {
     "type": "object",
-    "properties": {
-        "kind": {"const": "body"},
-        "value": {"type": "string", "minLength": 1},
-    },
-    "required": ["kind", "value"],
+    "properties": {"kind": {"const": "body"}},
+    "required": ["kind"],
     "additionalProperties": False,
 }
 _RECORD_VALUE = {
@@ -94,12 +84,10 @@ _RECORD_VALUE = {
     "properties": {
         "kind": {"const": "value"},
         "attr": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-        "value": {"type": "string", "minLength": 1},
     },
-    "required": ["kind", "attr", "value"],
+    "required": ["kind", "attr"],
     "additionalProperties": False,
 }
-
 
 # A `when` predicate selects instances by attribute values (or by a flag's being
 # present or absent). One condition shape serves Asks and threads because they
@@ -156,6 +144,8 @@ ACTION_CREATES = {
 # One package-neutral relation shape for authored attributes. An empty object accepts
 # any authored element. A typed relation selects a package registry map
 # and an equality predicate within that map; the names and values remain vocabulary.
+# `owns` makes the relation one-to-one within a document: the referrer fills its
+# target (`validation.instances.reference_errors`).
 REFERENCE_SCHEMA = {
     "type": "object",
     "minProperties": 1,
@@ -174,16 +164,17 @@ REFERENCE_SCHEMA = {
                     "type": ["string", "number", "boolean", "null"]
                 },
             },
+            "owns": {"const": True},
         },
-        "dependentRequired": {"via": ["where"], "where": ["via"]},
+        "dependentRequired": {"via": ["where"], "where": ["via"], "owns": ["via"]},
         "additionalProperties": False,
     },
 }
 
 
-# Each verb is {detail, unit, record}. `writer: "agent"` makes it a verb the agent
-# reports through `leaf page report` rather than one the user acts on;
-# absent, the user writes it. The two writers differ in what their state may be, not in its shape.
+# Each verb declares its coordinate and a recorded effect or custom detail schema.
+# `writer: "agent"` makes it a report through `leaf page report`; otherwise the
+# user writes it. The writers differ in what their state may be, not its shape.
 STATE_SCHEMA = {
     "type": "object",
     "minProperties": 1,
@@ -203,12 +194,17 @@ STATE_SCHEMA = {
             },
             "writer": {"const": "agent"},
             "creates": ACTION_CREATES,
-            # A report may carry one short prose update beside the structured state it
-            # records. Naming the detail field is what lets the common update feed
-            # expose those words without guessing from a widget, verb, or field name.
-            "update": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+            # The effect owns the payload; update adds required nonempty detail.text.
+            "update": {"const": True},
         },
-        "required": ["detail", "unit"],
+        "required": ["unit"],
+        "allOf": [
+            {
+                "if": {"required": ["record"]},
+                "then": {"properties": {"detail": False, "creates": False}},
+                "else": {"required": ["detail"]},
+            }
+        ],
         "additionalProperties": False,
         # An agent's verb moves declared state only, never body words — so the
         # passage reading never has to model one — and never a part's place, which
@@ -233,20 +229,16 @@ AWAITS_SCHEMA = {
     "properties": {
         "when": AWAITING_CONDITION,
         "answered": ANSWERED_SCHEMA,
-        # This widget supplies the answer control but not its own question title.
-        # A matching instance therefore stands inside an x-ask-surface region, whose direct
-        # heading owns the reading and arrival.
-        "region": {"const": True},
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     },
     "additionalProperties": False,
 }
-# A list of the widget's own attribute names. One shape for the three keys that hold
-# one, since the shape is a consequence of what they name rather than three decisions.
-GUIDANCE_SCHEMA = {
+# Package and data-contract instructions address their declared audiences. Widget
+# authoring instructions have one reader and therefore use a plain string below.
+INSTRUCTIONS_SCHEMA = {
     "type": "object",
     "propertyNames": {"pattern": f"^{HTML_NAME}$"},
-    "additionalProperties": {"type": "string", "minLength": 1},
+    "additionalProperties": {"type": "string", "pattern": r"\S"},
 }
 DATA_INPUTS_SCHEMA = {
     "type": "object",
@@ -310,11 +302,11 @@ EXTENSION_SCHEMA = {
         },
         "x-required-members": CHILDREN_SCHEMA,
         "x-content": {"enum": ["markup", "members", "data", "empty"]},
-        "x-text-format": {"const": "inline-markdown"},
+        "x-text-format": {"enum": ["inline-markdown", "markdown"]},
         "x-data": DATA_INPUTS_SCHEMA,
         "x-example": {"type": "string"},
         "x-exhibit": {"type": "boolean"},
-        "x-guidance": GUIDANCE_SCHEMA,
+        "x-instructions": {"type": "string", "pattern": r"\S"},
         "x-inline": {"type": "boolean"},
         "x-language": _ATTRIBUTE_NAME,
         "x-reading-role": {"enum": ["pane"]},
@@ -375,7 +367,7 @@ EXTENSION_SCHEMA = {
                 },
             ]
         },
-        "x-space": {"enum": ["wide", "available"]},
+        "x-space": {"enum": ["column", "wide", "available"]},
         "x-bound": {"enum": ["start", "end"]},
         # A default height in CSS pixels, or `true` for a widget that has none and
         # reserves only what an occurrence's data-height states.
@@ -394,6 +386,35 @@ EXTENSION_SCHEMA = {
             "uniqueItems": True,
         },
         "x-history": {"const": True},
+        # A captured classic bundle registering one synchronous DOM producer. Delivery
+        # runs it after each occurrence closes; the module adopts its existing nodes.
+        "x-initial": {
+            "type": "string",
+            "pattern": r"^/(?:[a-z0-9-]+/)*[a-z0-9.-]+\.js$",
+        },
+        # The markup an upgraded widget's first paint shows until its module draws:
+        # one element, the structure the module will draw, with words that size it
+        # as the drawing will. Delivery writes it as each occurrence's first child,
+        # marked `data-lf-prepaint` (`revision_delivery.mark_declared`), so the
+        # browser lays out the widget's real structure before any module runs, and
+        # the module takes it out in the step that draws its replacement. `{"as": tag}`
+        # writes another widget's, for one that first paints as that widget will
+        # stand in it: a command with no seat draws a readings seat at its head.
+        "x-prepaint": {
+            "oneOf": [
+                # Its form is held where it is parsed (`registry/widgets.py`).
+                {"type": "string"},
+                {
+                    "type": "object",
+                    "properties": {
+                        "as": {"type": "string", "pattern": f"^{WIDGET_NAME}$"}
+                    },
+                    "required": ["as"],
+                    "additionalProperties": False,
+                },
+            ]
+        },
+        "x-views": {"const": True},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-word": {"enum": ["module"]},
         "x-name": {"type": "string", "pattern": f"^{HTML_NAME}$"},
@@ -433,12 +454,19 @@ ATTRIBUTE_KEYS = (
 # The declarations a stylesheet reads, each painted on the element as `paint`: the room
 # it takes (x-space), whether it sets inline among words (x-inline), quotes what it holds
 # (x-exhibit), holds its own height (x-bound), draws into a box of a stated height
-# (x-height), and the reading structure it supplies (x-reading-role). A stylesheet
-# cannot read the registry, so each is painted where a selector can ask. `authored` is
-# the attribute an occurrence writes to override its tag's declaration. `message` says
+# (x-height), the reading structure it supplies (x-reading-role), and whether it shows
+# one member at a time (x-views). Neither a stylesheet nor the prepaint, which runs
+# before the registry has loaded (`runtime/prepaint.js`), can read the registry, so
+# each is painted where a selector can ask. `authored` is
+# the attribute an occurrence writes to override its tag's or idiom's declaration.
+# `message` says
 # whether the mark holds in a thread's message too:
 # each is the element's own fact wherever it renders, except the room, which is the
 # document's to hand out; a message renders in the panel, whose width bounds it.
+# `idiom` says an `$idioms` entry may declare the mark for the elements its selector
+# matches, as `.callout` declares the room: the mark's every reader reads its paint and
+# nothing paints it in a message, so delivery's paint is the whole of it. The others
+# are also read by tag (the asks fold, the render checks, the runtime's descriptors).
 #
 # Delivery paints a page's document from this (`revision_delivery.mark_declared`).
 # Composition stamps it into the vocabulary as `$marks` (`registry.layer.
@@ -446,12 +474,18 @@ ATTRIBUTE_KEYS = (
 # paint from the author's attributes (`isPagePaint`). The paint names are also the
 # theme's contract: the stylesheets that read them spell them out.
 DECLARED_MARKS = {
-    "x-space": {"paint": "data-lf-space", "authored": "data-width", "message": False},
+    "x-space": {
+        "paint": "data-lf-space",
+        "authored": "data-width",
+        "message": False,
+        "idiom": True,
+    },
     "x-inline": {"paint": "data-lf-inline", "message": True},
     "x-exhibit": {"paint": "data-lf-exhibit", "message": True},
     "x-bound": {"paint": "data-lf-bound", "authored": "data-bound", "message": True},
     "x-height": {"paint": "data-lf-height", "authored": "data-height", "message": True},
     "x-reading-role": {"paint": "data-lf-reading-role", "message": True},
+    "x-views": {"paint": "data-lf-views", "message": True},
 }
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -461,14 +495,14 @@ BUNDLED_PACKAGES = SKILL_ROOT / "packages"
 DEFAULT_PACKAGE = BUNDLED_PACKAGES / "default"
 VENDORED_FILES = ("leaf.js", "theme.css", "shadow.css", "registry.json", "icon.svg")
 BROWSER_DIRS = ("runtime", "widgets", "vendor")
-GUIDANCE_DIR = "guidance"
-PACKAGE_DIRS = (*BROWSER_DIRS, GUIDANCE_DIR)
+INSTRUCTIONS_DIR = "instructions"
+PACKAGE_DIRS = (*BROWSER_DIRS, INSTRUCTIONS_DIR)
 # A package's own command-line tools, run by `leaf package run` from wherever the
 # package is installed or bundled. A page never vendors them: they are the agent's.
 SCRIPTS_DIR = "scripts"
-GUIDANCE_FILE = re.compile(rf"{HTML_NAME}\.md")
+INSTRUCTIONS_FILE = re.compile(rf"{HTML_NAME}\.md")
 LAYER_PLACEHOLDER = b'"__LEAF_LAYER_GENERATION__"'
-# Images the page shows, named by the hash of their bytes (`page media`). Not vendored
+# Media the page shows, named by the hash of their bytes (`page media`). Not vendored
 # — they are the page's content, not the layer's — but served like it, and the
 # naming is what keeps the directory's promise: same name, same bytes, so a
 # version the user approved cannot show them something else later.
@@ -480,6 +514,12 @@ MEDIA_TYPES = {
     ".gif": "image/gif",
     ".webp": "image/webp",
     ".svg": "image/svg+xml",
+    ".mp4": "video/mp4",
+    ".webm": "video/webm",
+    ".mp3": "audio/mpeg",
+    ".m4a": "audio/mp4",
+    ".ogg": "audio/ogg",
+    ".wav": "audio/wav",
 }
 # A media file's name is the first MEDIA_DIGEST hex characters of its bytes' SHA-256
 # and a lowercase MEDIA_TYPES suffix: `media.media_name` mints it, `DIR_FILES` serves
@@ -489,15 +529,13 @@ MEDIA_DIGEST = 16
 NO_KEY = "open the link leaf printed; it carries the key"
 DATA_FILE = "data.json"
 DATA_DIR = "data"
-EVENTS_FILE = "events.jsonl"
 # The diagnostic request and interaction trace (`interaction_log.py`).
 INTERACTIONS_FILE = "interactions.jsonl"
 PREVIEW_FILE = "preview.json"
 VIEWED_FILE = "viewed.json"
-# One name, because there is one key (`host_key`). Cookies are scoped by host and
-# blind to the port, so every page this machine serves shares a jar — on 127.0.0.1,
-# with every other server the user has running, which is what the prefix is for.
-KEY_COOKIE = "lf_key"
+USER_VIEWS_FILE = "user-views.json"
+USER_VIEWS_LOCK = "user-views.lock"
+RENDER_CHECKS_DIR = "checks"
 # How long a bare address stays authorized after the last handover link (`host_key`),
 # the lifetime Jupyter gives its login cookie.
 KEY_COOKIE_MAX_AGE = 30 * 24 * 60 * 60
@@ -515,6 +553,8 @@ SESSION_FILES = (
     WAITER_LOCK,
     CURSOR_FILE,
     VIEWED_FILE,
+    USER_VIEWS_FILE,
+    USER_VIEWS_LOCK,
     SERVICE_FILE,
     SERVER_LOCK,
     PREVIEW_FILE,
@@ -535,15 +575,15 @@ VERSION_NAME = r"v(?P<version>[1-9][0-9]*)"
 # `leaf-dev site` writes: a static miss under a session directory is a file the
 # page's container has. `api` is the page server's protocol prefix, which the Worker
 # names with the endpoints under it.
-SESSION_ROUTE_DIRS = (MEDIA_DIR, "revisions", "versions")
+SESSION_ROUTE_DIRS = (MEDIA_DIR, "revisions", "versions", RENDER_CHECKS_DIR)
 PAGE_ROUTE_DIRS = ("api", *BROWSER_DIRS, *SESSION_ROUTE_DIRS)
 # What the server exposes from a page: the browser layer, media, immutable revisions,
-# and event-backed version addresses. Agent-side guidance stays vendored but is read
+# and event-backed version addresses. Agent-side instructions stay vendored but are read
 # only through the CLI.
 # The dir patterns are keyed by the public directories themselves, so growing
 # that surface without saying what it may serve fails here, at import.
 DIR_FILES = {
-    "runtime": r"(?:[a-z0-9-]+/)*[a-z0-9-]+\.(?:js|css)",
+    "runtime": r"(?:[A-Za-z0-9-]+/)*[A-Za-z0-9-]+\.(?:js|css)",
     "widgets": r"(?:[a-z0-9-]+/)*[a-z0-9-]+\.js",
     "vendor": (r"(?:(?!\.{1,2}/)[A-Za-z0-9._-]+/)*" r"(?!\.{1,2}$)[A-Za-z0-9._-]+"),
     MEDIA_DIR: rf"[a-f0-9]{{{MEDIA_DIGEST}}}(?:"
@@ -573,8 +613,8 @@ BINARY_TYPES = frozenset(MEDIA_TYPES.values()) - {"image/svg+xml"}
 def agent_name(event: dict) -> str | None:
     """The name an agent-authored event is shown under, and None for any other
     author's: its posting session's `agent`, or `UNNAMED_AGENT` where it was written
-    outside a host session and so carries none. The log stores no placeholder
-    (`host.message_identity`); every reading that shows the event names it through
+    outside a harness session and so carries none. The log stores no placeholder
+    (`harness.message_identity`); every reading that shows the event names it through
     here, so the browser, the margin, the activity feed and the transcript agree."""
     if event["author"] != "agent":
         return None

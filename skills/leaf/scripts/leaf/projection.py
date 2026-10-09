@@ -1,23 +1,32 @@
 """Declaration-driven state and retirement projections."""
 
 import re
-from datetime import datetime
-from itertools import chain
 from typing import NamedTuple
 
 from leaf.events import (
-    action_rests_on,
     action_retracted,
-    anchored_ids,
     event_coordinate,
-    note_settlements,
     report_settlements,
     retractions,
     taken_back,
 )
-from leaf.passages import EMPTY, SourceReading, collapse, enclosing_of
-from leaf.registry.contract import WRITERS, decides, event_spec, state_specs
-from leaf.registry.state import retirement_slots
+from leaf.passages import (
+    EMPTY,
+    SourceReading,
+    enclosing_of,
+)
+from leaf.registry.contract import (
+    WRITERS,
+    decides,
+    detail_schema,
+    event_spec,
+    retirement_slots,
+    same_state_definition,
+    same_state_operation,
+    state_definition,
+    state_specs,
+)
+from leaf.registry.schema import schema_error
 from leaf.schema import agent_name
 from leaf.structure import SourceDocument
 from leaf.thread_context import (
@@ -45,7 +54,6 @@ def _report_updates(projection) -> list[dict]:
     for _coordinate, (event, spec) in projection.classified.values():
         if event["kind"] != "report":
             continue
-        update_field = spec.get("update")
         updates.append(
             {
                 "id": event["id"],
@@ -53,7 +61,7 @@ def _report_updates(projection) -> list[dict]:
                 "source": "report",
                 "action": event["action"],
                 "detail": event["detail"],
-                "text": event["detail"][update_field] if update_field else None,
+                "text": event["detail"]["text"] if spec.get("update") else None,
                 "ts": event["ts"],
                 "revision": event["revision"],
                 "seq": event["seq"],
@@ -71,63 +79,9 @@ def _report_updates(projection) -> list[dict]:
     return updates
 
 
-def _claim_effective(claim: dict, threads: dict, events: list) -> bool:
-    target = claim["target"]
-    if target["kind"] == "thread":
-        thread = threads.get(target["id"])
-        return bool(
-            thread
-            and not thread["resolved"]
-            and not any(
-                message["kind"] == "reply"
-                and message["author"] == "agent"
-                and message["seq"] > claim["log_floor"]
-                for message in thread["msgs"]
-            )
-        )
-    return not any(
-        event["kind"] == "note"
-        and event["seq"] > claim["log_floor"]
-        and target["id"] in note_settlements(event, "work")
-        for event in events
-    )
-
-
-def _claim_updates(claims: list, threads: dict, events: list) -> list[dict]:
-    return [
-        {
-            **claim,
-            "disposition": (
-                "effective" if _claim_effective(claim, threads, events) else "settled"
-            ),
-        }
-        for claim in claims
-    ]
-
-
-def _update_order(update: dict) -> tuple:
-    return (
-        update["seq"] if update["source"] == "report" else update["log_floor"],
-        0 if update["source"] == "report" else 1,
-        datetime.fromisoformat(update["ts"]),
-        update["source"],
-        update["target"]["kind"],
-        update["target"]["id"],
-        update["id"],
-    )
-
-
-def canonical_updates(
-    projection,
-    claims: list,
-    threads: dict,
-    events: list,
-) -> list[dict]:
-    """Normalize projected reports and ephemeral claims into one update feed."""
-    return sorted(
-        [*_report_updates(projection), *_claim_updates(claims, threads, events)],
-        key=_update_order,
-    )
+def canonical_updates(projection) -> list[dict]:
+    """Normalize projected reports into the one update feed, in log order."""
+    return sorted(_report_updates(projection), key=lambda update: update["seq"])
 
 
 def enclosing_widgets(rec: dict):
@@ -185,125 +139,6 @@ def retirement_holders(parser: SourceDocument, registry: dict) -> list:
         if held is not None:
             held["retires"][registry[slot["tag"]]["x-retired-when"]].add(wid)
     return list(holders.values())
-
-
-def retirable_ids(
-    holders: list, events: list, dropped: set, outcomes: dict, spk: dict
-) -> set:
-    """Ids the previous version's settled widgets let the next one drop, given
-    what it actually dropped. A logged outcome settles a widget: the slots
-    declaring that outcome leave the page, and the widget holding them goes with
-    them, its question answered — a suggestion accepted retires the markup it
-    replaced, rejected retires the proposal, and either retires the wrapper.
-    Which widgets those are is the registry's relation rather than a list here
-    (`retirement_holders`), so a family a layer adds is licensed the day it is
-    declared instead of failing three versions in with "ids dropped".
-
-    A widget no one has answered can still be withdrawn — no decision rested on
-    it — where the entry says what withdrawing it means (`x-withdrawn-as`:
-    taking a suggestion back leaves the page as a `reject` outcome would). That is the
-    author asserting a state the user never gave, so it is hedged where a
-    decision is not: only whole, every id under the slots it retires going with
-    the widget, so a version can't quietly keep an unanswered proposal as
-    settled content — and not while an unresolved thread is anchored in any of
-    it. What the withdrawal doesn't name stays: the markup a pending deletion
-    wraps is the page's own, and only the user's own `accept` outcome consents to losing
-    it.
-
-    The outcomes are replay's own (`retirement_outcomes`, folded over the version these
-    widgets are on), so a decision a later version restated away settles
-    nothing here either — replay hands the widget back as pending, and the
-    slots stay needed. `spk` is that same version's reading, so the thread half of
-    this answer stands on the page the outcomes were folded against."""
-    anchored = anchored_ids(events, enclosing_of(spk))
-    licensed = set()
-    for holder in holders:
-        answered = holder["id"] in outcomes
-        outcome = outcomes[holder["id"]] if answered else holder["withdrawn_as"]
-        retires = holder["retires"].get(outcome)
-        if retires is None:
-            continue
-        whole = {holder["id"]} | retires
-        if not answered and (whole & anchored or not retires <= dropped):
-            continue
-        licensed |= whole
-    return licensed
-
-
-def protected_ids(
-    holders: list,
-    events: list,
-    dropped: set,
-    projection,
-    spk: dict,
-    registry: dict,
-) -> dict:
-    """Ids the next version must retain, each with every reason it is needed:
-    `thread`, `state`, `report`, or `retirement`. Each reason leaves a different way
-    out, which the gate's refusal names, so an id held twice is refused for both at
-    once.
-
-    Anchored unresolved threads keep their current target; an explicit detachment
-    releases it while retaining the thread. Effective standing state keeps its owner
-    and fold unit, plus every page id its canonical liveness reading rests on. An older
-    report superseded by a newer one remains in the log, but the newest is the state
-    the page must preserve.
-
-    Declared retirement remains the explicit route for removing decision
-    markup. Its holder and slots stay protected until ``retirable_ids`` licenses
-    the outcome or a complete unanswered withdrawal.
-    """
-    within = enclosing_of(spk)
-    needed: dict = {}
-    for identity in anchored_ids(events, within):
-        needed.setdefault(identity, set()).add("thread")
-    for (widget, unit, _verb), (event, _spec) in projection.desired.items():
-        # A user's action and a worker's report stand the same way and leave
-        # differently: one is retracted, the other absorbed or overruled.
-        why = "report" if event["kind"] == "report" else "state"
-        for identity in (widget, unit, *action_rests_on(event, within)):
-            needed.setdefault(identity, set()).add(why)
-    for holder in holders:
-        for identity in (holder["id"], *chain(*holder["retires"].values())):
-            needed.setdefault(identity, set()).add("retirement")
-    licensed = retirable_ids(
-        holders,
-        events,
-        dropped,
-        retirement_outcomes(projection.actions),
-        spk,
-    )
-    return {
-        identity: reasons
-        for identity, reasons in needed.items()
-        if identity not in licensed
-    }
-
-
-def action_subjects(event: dict, byid: dict, within: dict, registry: dict) -> list:
-    """What an action was *about*, at the finest grain the vocabulary allows.
-
-    An action names the widget that sent it, but on a container that is rarely
-    the thing decided: a `move` names the board and carries {card, to, index}, a
-    `choose` names the group and carries {option}. So the subjects are the parts
-    of the widget its detail points at, minus containers (x-content "members") —
-    the column a card landed in is where the decision *put* it, not what it was
-    about, and holding a version to a column's contents would refuse it for
-    adding an unrelated card. Where a detail names no part of the widget (an
-    `edit` carries text, a `decide` carries its outcome) the widget is its own
-    subject.
-
-    Admission records the direct identities declared by the verb. This reading
-    keeps the identities currently inside the sending widget; ordinary detail
-    text never becomes a subject because it happens to match an element id."""
-    widget = event["widget"]
-    parts = action_rests_on(event, within)[1:]
-    subjects = [
-        v
-        for v in parts
-        if registry.get(byid.get(v, {}).get("tag"), {}).get("x-content") != "members"
-    ]
-    return subjects or [widget]
 
 
 NO_RECORD = object()
@@ -413,6 +248,8 @@ def state_projection(
     registry: dict,
     upto,
     floors: dict | None = None,
+    *,
+    withdrawn: set | None = None,
 ) -> StateProjection:
     """Project user actions and agent reports onto owner-unit-verb coordinates.
 
@@ -426,10 +263,15 @@ def state_projection(
     different facts: undo or a retraction floor ends an action, while a note
     settling a report ends that report. `report_settlements` retains the answer
     version for gate diagnostics; `classified` retains valid entries for other
-    derived readings. An event whose widget the markup lacks stands nowhere."""
+    derived readings. Events apply where their admitted operation still matches
+    the widget and their payload remains valid in its current domain. A domain
+    may broaden without losing valid decisions. The log and captured document
+    retain the original operation; changing a declaration never applies it to a
+    different record or constructor."""
     if floors is None:
         floors = retractions(events, upto)
-    withdrawn = taken_back(events)
+    if withdrawn is None:
+        withdrawn = taken_back(events)
     settled = report_settlements(events, upto)
     actions = {}
     standing = set()
@@ -448,7 +290,17 @@ def state_projection(
         if rec is None:
             continue
         spec = event_spec(registry.get(rec["tag"], {}), event)
-        if not spec:
+        if spec is None:
+            continue
+        recorded = event["meaning"].get("state")
+        current = state_definition(rec["tag"], registry[rec["tag"]], spec)
+        if not same_state_operation(recorded, current):
+            continue
+        # Admission already checked this payload. Only a changed domain needs
+        # the validator again; it may broaden without losing the old operation.
+        if not same_state_definition(recorded, current) and schema_error(
+            detail_schema(registry[rec["tag"]], spec), event["detail"]
+        ):
             continue
         coordinate = event_coordinate(event)
         entry = (event, spec)
@@ -502,7 +354,9 @@ def with_action(
     )
 
 
-def frozen_thread_reading(events: list, registry: dict) -> FrozenThreadReading:
+def frozen_thread_reading(
+    events: list, registry: dict, *, withdrawn: set | None = None
+) -> FrozenThreadReading:
     """Project every frozen message fragment through one shared reading."""
     structure = thread_structure(events)
     by_name = thread_names(events)
@@ -515,7 +369,9 @@ def frozen_thread_reading(events: list, registry: dict) -> FrozenThreadReading:
         spk,
         by_name,
         by_widget,
-        state_projection(events, structure.by_id, spk, registry, None, floors={}),
+        state_projection(
+            events, structure.by_id, spk, registry, None, floors={}, withdrawn=withdrawn
+        ),
     )
 
 
@@ -554,7 +410,8 @@ def markup_value(unit: str, spec: dict, byid: dict, spk: dict, registry: dict):
     if record["kind"] == "value":
         rec = byid.get(unit)
         return rec["attrs"].get(record["attr"]) if rec else None
-    return collapse(spk.get(unit, EMPTY).words)  # "body"
+    rec = byid.get(unit)
+    return rec["body"] if rec else ""  # "body"
 
 
 def authored_positions(
@@ -593,7 +450,7 @@ def move_absorbed(
     owner = event["widget"]
     if owner not in orders:
         orders[owner] = authored_positions(owner, record, byid, spk, registry)
-    return orders[owner].get(event["detail"][record["value"]]) != among
+    return orders[owner].get(event["detail"]["value"]) != among
 
 
 def folded_positions(
@@ -626,14 +483,14 @@ def folded_positions(
             or move_absorbed(event, spec, byid, spk, registry, orders)
         ):
             continue
-        destination = order.get(event["detail"][record["value"]])
+        destination = order.get(event["detail"]["value"])
         if destination is None or unit not in ranks:
             continue
         for units in order.values():
             if unit in units:
                 units.remove(unit)
         destination.append(unit)
-        ranks[unit] = event["detail"][record["rank"]]
+        ranks[unit] = event["detail"]["rank"]
     return {
         container: sorted(units, key=lambda unit: (ranks[unit], unit))
         for container, units in order.items()
@@ -690,21 +547,23 @@ def recorded_state(
 
 
 def folded_value(e: dict, spec: dict):
-    """The state the folded action left: the detail field the record declares,
-    collapsed the way `spoken` collapses where it compares against words, and
-    sorted where it compares against a set of marked elements."""
+    """The exact state left in detail.value, sorted only for unordered id sets.
+
+    Body source includes Markdown syntax and meaningful whitespace. Visible passage
+    words are a separate reading and never determine semantic equality.
+    """
     record = spec.get("record")
     if not record:
         return NO_RECORD
-    value = e["detail"].get(record["value"])
-    if record["kind"] == "body":
-        return collapse(str(value))
+    value = e["detail"]["value"]
     if record["kind"] == "attribute":
         return sorted(value)
     return value
 
 
-def page_reading(reading: SourceReading, events: list, revision: int) -> PageReading:
+def page_reading(
+    reading: SourceReading, events: list, revision: int, *, withdrawn: set | None = None
+) -> PageReading:
     """Read one page's markup and log window through one construction.
 
     Document inspection and the passage readings used by `leaf thread open` and
@@ -722,6 +581,7 @@ def page_reading(reading: SourceReading, events: list, revision: int) -> PageRea
             reading.spoken,
             reading.registry,
             revision,
+            withdrawn=withdrawn,
         ),
     )
 
@@ -733,7 +593,7 @@ def rewritten_bodies(actions: dict) -> dict:
     whose state is words rather than markup, so the passage reading can hold
     those words where the authored body was."""
     return {
-        unit: (e["action"], e["detail"][spec["record"]["value"]])
+        unit: (e["action"], e["detail"]["value"])
         for (_widget, unit, _verb), (e, spec) in actions.items()
         if (spec.get("record") or {}).get("kind") == "body"
     }

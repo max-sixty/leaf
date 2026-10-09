@@ -9,8 +9,10 @@ const runtimePrimitives = [
   "chrome.js",
   "dom-children.js",
   "focus.js",
+  "control-selectors.js",
   "keeps.js",
   "rendering.js",
+  "queued-work.js",
   "repaint.js",
   "root-state.js",
   "thread/identity.js",
@@ -46,11 +48,13 @@ const browserGlobals = Object.fromEntries(
     "HTMLSpanElement",
     "Highlight",
     "IntersectionObserver",
+    "MessageChannel",
     "MouseEvent",
     "MutationObserver",
     "Node",
     "NodeFilter",
     "OffscreenCanvas",
+    "PerformanceObserver",
     "Range",
     "Response",
     "ResizeObserver",
@@ -258,7 +262,7 @@ const runtimeName = (file) =>
 let pagePaintAttributeValues;
 function pagePaintAttributesFrom(parser) {
   if (pagePaintAttributeValues) return pagePaintAttributeValues;
-  const file = path.join(runtimeRoot, "presentation.js");
+  const file = path.join(runtimeRoot, "page-paint.js");
   const ast = parser.parse(fs.readFileSync(file, "utf8"), {
     ecmaVersion: "latest",
     sourceType: "module",
@@ -379,16 +383,315 @@ export const semanticStoreOwnershipRule = {
   },
 };
 
+// Where the user stands, and what moved them there, is focus.js's one reading
+// (`onStanding`). A `focusin` or `focusout` listener hears nothing of a move between two
+// nodes of one shadow tree beneath it, and a reader that tells the runtime's returns or
+// the keyboard's arrivals apart for itself answers a question focus.js already answers.
+// So the two event names appear nowhere else, in a listener, a list of event types, a
+// comparison or a Lit binding, and `focus` and `blur` are not heard on the document or
+// captured anywhere, which would hear every element beneath. An element's own `focus`
+// or `blur`, and the window's, which is the system's focus, are other questions. The option names,
+// by path from the repository root, the files that may still name a focus event, each
+// with the reason in the config that grants it.
+const standingRepoRoot = path.dirname(fileURLToPath(import.meta.url));
+const STANDING_MESSAGE =
+  "Read where the user stands from onStanding (runtime/focus.js): a focusin or focusout listener misses moves inside a shadow tree beneath it and guesses its own cause.";
+export const standingListenersRule = {
+  meta: {
+    type: "problem",
+    schema: [{ type: "object", additionalProperties: { type: "array" } }],
+  },
+  create(context) {
+    const file = path
+      .relative(standingRepoRoot, context.filename ?? context.getFilename())
+      .split(path.sep)
+      .join("/");
+    const allowed = new Set(context.options[0]?.[file] ?? []);
+    const named = (node, type) => {
+      if (!allowed.has(type)) context.report({ node, message: STANDING_MESSAGE });
+    };
+    // Capturing `focus` or `blur` on any node hears every element beneath it, the
+    // window's included.
+    const capturing = (options) =>
+      (options?.type === "Literal" && options.value === true) ||
+      (options?.type === "ObjectExpression" &&
+        options.properties.some(
+          (property) =>
+            property.key?.name === "capture" &&
+            property.value.type === "Literal" &&
+            property.value.value === true,
+        ));
+    const documentReceiver = (callee) =>
+      callee.type === "MemberExpression" &&
+      callee.object.type === "Identifier" &&
+      callee.object.name === "document";
+    return {
+      Literal(node) {
+        if (node.value === "focusin" || node.value === "focusout")
+          named(node, node.value);
+      },
+      TemplateElement(node) {
+        for (const [, type] of node.value.raw.matchAll(/@(focusin|focusout)\s*=/gu))
+          named(node, type);
+      },
+      CallExpression(node) {
+        const { callee } = node;
+        const method =
+          callee.type === "MemberExpression" && !callee.computed
+            ? callee.property.name
+            : null;
+        const type = node.arguments[0];
+        if (
+          method === "addEventListener" &&
+          (documentReceiver(callee) || capturing(node.arguments[2])) &&
+          type?.type === "Literal" &&
+          (type.value === "focus" || type.value === "blur")
+        )
+          named(node, type.value);
+      },
+    };
+  },
+};
+
+// Every focus the runtime and the packages place says what moved the user there
+// (`focusDestination(node, cause)` in focus.js), since that call is the only place that
+// knows whether it is a route or a return, and each reader of where they stand acts on
+// the word. A plain `focus()` publishes as the user's own move. The rule knows the
+// element method by its shape, no argument or an options object, so a method of the same
+// name taking a key, as a contribution's `focus(entryKey, cause)` does, is another
+// question. Each call to `focusDestination` names its cause, and the function is not
+// handed around as a value, where a caller would call it without one. The option names
+// the files that may still call `focus()`: the owner, and an element whose own `focus()`
+// hands on to the editor inside it.
+const PLACEMENT_MESSAGE =
+  "Put the user on an element with focusDestination(node, cause) (runtime/focus.js): a plain focus() publishes as the user's own move, so a return reads as one.";
+export const placementsRule = {
+  meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
+  create(context) {
+    const file = path
+      .relative(standingRepoRoot, context.filename ?? context.getFilename())
+      .split(path.sep)
+      .join("/");
+    const owner = (context.options[0] ?? []).includes(file);
+    const optionsLike = (arg) =>
+      arg.type === "ObjectExpression" ||
+      arg.type === "SpreadElement" ||
+      (arg.type === "Identifier" && /^opt/u.test(arg.name));
+    return {
+      CallExpression(node) {
+        const { callee, arguments: args } = node;
+        if (callee.type === "Identifier" && callee.name === "focusDestination") {
+          if (args.length < 2)
+            context.report({ node, message: "focusDestination names its cause." });
+          return;
+        }
+        if (
+          owner ||
+          callee.type !== "MemberExpression" ||
+          callee.computed ||
+          callee.property.name !== "focus"
+        )
+          return;
+        if (args.length === 0 || (args.length === 1 && optionsLike(args[0])))
+          context.report({ node, message: PLACEMENT_MESSAGE });
+      },
+      Identifier(node) {
+        if (node.name !== "focusDestination") return;
+        const { parent } = node;
+        if (
+          (parent.type === "CallExpression" && parent.callee === node) ||
+          parent.type === "ImportSpecifier" ||
+          parent.type === "ExportSpecifier" ||
+          (parent.type === "FunctionDeclaration" && parent.id === node)
+        )
+          return;
+        context.report({
+          node,
+          message: "Call focusDestination with its cause rather than passing it on.",
+        });
+      },
+    };
+  },
+};
+
+// A layer hands the user back as it closes in one act (`closeLayer(close, land)` in
+// focus.js), so the platform's own hand-back and the owner's reach readers once, as where
+// the user ends up. A return made anywhere else is a layer return beside it, which
+// readers hear as a second move and holds read as a newer word. The rule admits
+// `handBack(...)` only in a landing's own body: the function passed as a close's `land`,
+// or one `layerLanding(...)` wraps, which a closer builds away from the call and which
+// throws if it runs at any other time. A landing is synchronous, since what it does
+// after an await or in a callback happens beside the close. The `close` argument hides
+// the layer and places nothing, so a placement written there is refused too. So is a
+// `focusDestination(..., "return")` outside a landing where a statement before it in its
+// function hides something by the platform's means, a layer return spelled out by hand;
+// a hide through an owner's own function, as `showFab(null)`, is out of the rule's
+// sight. `letGo` lands the user on the page by a route, as `g p` does, so it is no layer
+// return of itself. The option names the files that may still return the user directly.
+const LAYER_RETURN_MESSAGE =
+  "Hand the user back as the layer closes, in the body of closeLayer(close, land)'s land or a layerLanding (runtime/focus.js): a return beside it reaches readers as a second move.";
+const CLOSE_PLACES_MESSAGE =
+  "closeLayer's close hides the layer and places nothing; put the user in its land (runtime/focus.js).";
+const HIDING_CALLS = new Set(["hide", "hidePopover", "close"]);
+// Whether `node` hides something by the platform's own means: a dialog's or popover's
+// close, `hidden = true`, or a style that takes the box out of view. A function it
+// defines runs later, so what that does is not this statement's.
+function hidesSomething(node) {
+  if (!node || typeof node.type !== "string" || /Function/u.test(node.type))
+    return false;
+  if (
+    node.type === "CallExpression" &&
+    node.callee.type === "MemberExpression" &&
+    !node.callee.computed &&
+    HIDING_CALLS.has(node.callee.property.name)
+  )
+    return true;
+  if (
+    node.type === "AssignmentExpression" &&
+    node.left.type === "MemberExpression" &&
+    !node.left.computed &&
+    ((node.left.property.name === "hidden" && node.right.value === true) ||
+      (node.left.property.name === "visibility" && node.right.value === "hidden") ||
+      (node.left.property.name === "display" && node.right.value === "none"))
+  )
+    return true;
+  return Object.entries(node).some(
+    ([key, value]) =>
+      key !== "parent" &&
+      (Array.isArray(value) ? value.some(hidesSomething) : hidesSomething(value)),
+  );
+}
+const isCall = (node, name) =>
+  node?.type === "CallExpression" &&
+  ((node.callee.type === "Identifier" && node.callee.name === name) ||
+    (node.callee.type === "MemberExpression" &&
+      !node.callee.computed &&
+      node.callee.property.name === name));
+const isFunction = (node) => /Function/u.test(node.type);
+// The function `node` runs in, if any.
+const enclosingFunction = (node) => {
+  for (let at = node.parent; at; at = at.parent) if (isFunction(at)) return at;
+  return null;
+};
+// The argument a function value is passed as, through the choices that pick it
+// (`open && (() => …)`, `standing ? () => … : letGo`).
+const argumentOf = (fn) => {
+  let at = fn;
+  while (
+    at.parent.type === "LogicalExpression" ||
+    (at.parent.type === "ConditionalExpression" && at.parent.test !== at)
+  )
+    at = at.parent;
+  const call = at.parent;
+  return call.type === "CallExpression"
+    ? { call, index: call.arguments.indexOf(at) }
+    : null;
+};
+export const layerReturnsRule = {
+  meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
+  create(context) {
+    const file = path
+      .relative(standingRepoRoot, context.filename ?? context.getFilename())
+      .split(path.sep)
+      .join("/");
+    if ((context.options[0] ?? []).includes(file)) return {};
+    // Whether the function `node` runs in is a landing: a close's `land` or a function
+    // `layerLanding` wraps, and synchronous.
+    const landing = (node) => {
+      const fn = enclosingFunction(node);
+      if (!fn || fn.async) return false;
+      const passed = argumentOf(fn);
+      return Boolean(
+        passed &&
+        ((isCall(passed.call, "closeLayer") && passed.index === 1) ||
+          (isCall(passed.call, "layerLanding") && passed.index === 0)),
+      );
+    };
+    // Whether the function `node` runs in is a close's `close`.
+    const inClose = (node) => {
+      const fn = enclosingFunction(node);
+      const passed = fn && argumentOf(fn);
+      return Boolean(passed && isCall(passed.call, "closeLayer") && passed.index === 0);
+    };
+    // Whether a statement before `node` in its own function hides something.
+    const afterHide = (node) => {
+      for (let at = node; at.parent; at = at.parent) {
+        const { parent } = at;
+        if (isFunction(parent)) return false;
+        const run =
+          parent.type === "SequenceExpression"
+            ? parent.expressions
+            : parent.type === "SwitchCase"
+              ? parent.consequent
+              : Array.isArray(parent.body)
+                ? parent.body
+                : null;
+        if (run?.slice(0, run.indexOf(at)).some(hidesSomething)) return true;
+      }
+      return false;
+    };
+    // The local names each placement goes by in this file, an alias included.
+    const names = {
+      handBack: new Set(["handBack"]),
+      focusDestination: new Set(["focusDestination"]),
+      letGo: new Set(["letGo"]),
+    };
+    const calls = (node, which) =>
+      (node.callee.type === "Identifier" && names[which].has(node.callee.name)) ||
+      (node.callee.type === "MemberExpression" &&
+        !node.callee.computed &&
+        node.callee.property.name === which);
+    return {
+      ImportSpecifier(node) {
+        names[node.imported.name]?.add(node.local.name);
+      },
+      CallExpression(node) {
+        const handsBack = calls(node, "handBack");
+        const places =
+          handsBack || calls(node, "focusDestination") || calls(node, "letGo");
+        if (places && inClose(node)) {
+          context.report({ node, message: CLOSE_PLACES_MESSAGE });
+          return;
+        }
+        const returnsAfterHide =
+          calls(node, "focusDestination") &&
+          node.arguments[1]?.value === "return" &&
+          afterHide(node);
+        if ((handsBack || returnsAfterHide) && !landing(node))
+          context.report({ node, message: LAYER_RETURN_MESSAGE });
+      },
+      // Handed on as a value, it is called where no landing frames it.
+      Identifier(node) {
+        if (!names.handBack.has(node.name)) return;
+        const { parent } = node;
+        if (
+          (parent.type === "CallExpression" && parent.callee === node) ||
+          parent.type === "ImportSpecifier" ||
+          parent.type === "ExportSpecifier" ||
+          (parent.type === "MemberExpression" && parent.property === node) ||
+          (parent.type === "FunctionDeclaration" && parent.id === node)
+        )
+          return;
+        context.report({ node, message: LAYER_RETURN_MESSAGE });
+      },
+    };
+  },
+};
+
 const architecturePlugin = {
   rules: {
     "semantic-store-ownership": semanticStoreOwnershipRule,
+    "standing-listeners": standingListenersRule,
+    placements: placementsRule,
+    "layer-returns": layerReturnsRule,
     "root-state-ownership": {
       meta: { type: "problem", schema: [] },
       create(context) {
         const file = runtimeName(context.filename ?? context.getFilename());
-        // The prepaint bootstrap runs before the module graph and writes only
-        // provisional choices. root-state.js is the sole standing mutation boundary.
-        if (file === "bootstrap.js" || file === "root-state.js") return {};
+        // The bootstrap and the prepaint run before the module graph and write only
+        // what the first paint needs, before any authored revision has replaced the
+        // root's attributes. root-state.js is the sole standing mutation boundary.
+        if (["bootstrap.js", "prepaint.js", "root-state.js"].includes(file)) return {};
         const source = context.sourceCode ?? context.getSourceCode();
         const pagePaintAttributes = pagePaintAttributesFrom(
           context.languageOptions.parser,
@@ -463,7 +766,7 @@ const architecturePlugin = {
                 definition.type === "ImportBinding" &&
                 definition.node.type === "ImportSpecifier" &&
                 definition.node.imported.name === "PAGE_PAINT_ATTRIBUTE" &&
-                /(?:^|\/)presentation\.js$/u.test(definition.parent.source.value),
+                /(?:^|\/)page-paint\.js$/u.test(definition.parent.source.value),
             ),
           );
         };
@@ -702,11 +1005,31 @@ export default [
     rules: publicRuntimeBoundary,
   },
   {
-    // The runtime's own fold tests. A private owner is what they are about, so the
-    // facade rule would forbid their subject; the entry stays out of reach, because a
+    // Build tools share private runtime declarations with the browser rather than
+    // duplicating them. The public facade boundary applies to page consumers.
+    files: ["build/**/*.mjs", "worker/*.mjs"],
+    rules: entryBoundary,
+  },
+  {
+    // Compiler tests load their newly generated temporary output. Those paths
+    // are build results, not authored browser imports hiding dependency edges.
+    files: ["build/**/*.test.mjs"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        ...publicRuntimeBoundary["no-restricted-syntax"]
+          .slice(1)
+          .filter(
+            (rule) => rule.selector !== 'ImportExpression:not([source.type="Literal"])',
+          ),
+      ],
+    },
+  },
+  {
+    // The browser framework's and runtime's own fold tests exercise private owners,
+    // which the facade rule would forbid; the entry stays out of reach, because a
     // test is not a page and booting one would import the whole layer to read one fold.
-    files: ["tests/runtime/**/*.mjs"],
-    languageOptions: { globals: browserGlobals },
+    files: ["tests/runtime/**/*.mjs", "build/browser/**/*.test.mjs"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -721,9 +1044,18 @@ export default [
           selector: 'ImportExpression[source.value="/leaf.js"]',
           message: entryMessage,
         },
+        {
+          selector: "ImportExpression[source.value=/^\\.{1,2}\\/(?:.*\\/)?leaf\\.js$/]",
+          message: entryMessage,
+        },
       ],
-      "no-undef": "error",
     },
+  },
+  {
+    // Runtime tests exercise browser owners; compiler tests run in Node.
+    files: ["tests/runtime/**/*.mjs"],
+    languageOptions: { globals: browserGlobals },
+    rules: { "no-undef": "error" },
   },
   {
     files: ["build/pierre/*.mjs"],
@@ -734,9 +1066,21 @@ export default [
     languageOptions: { globals: { process: "readonly" } },
   },
   {
-    // The site verifier resolves the release-scoped runtime URL from the page under
-    // test. That URL is data, so its two imports cannot be static dependency edges.
-    files: ["dev/leaf_dev/verify_site_browser.js"],
+    // Python executes these test expressions and modules inside the browser. Their
+    // source is linted here rather than hidden inside Python string literals.
+    files: ["tests/browser/**/*.js"],
+    languageOptions: { globals: browserGlobals },
+    rules: { "no-undef": "error" },
+  },
+  {
+    files: ["dev/leaf_dev/startup.js", "dev/leaf_dev/bench_latency.js"],
+    languageOptions: { globals: browserGlobals, sourceType: "script" },
+    rules: { "no-undef": "error" },
+  },
+  {
+    // Browser diagnostics resolve published runtime entries from the page under
+    // test. Those scoped URLs are data rather than static dependency edges.
+    files: ["dev/leaf_dev/verify_site_browser.js", "dev/leaf_dev/bench_latency.js"],
     languageOptions: { globals: browserGlobals, sourceType: "script" },
     rules: {
       "no-undef": "error",
@@ -817,11 +1161,11 @@ export default [
     files: [
       "skills/leaf/scripts/leaf/render-checks/replay.js",
       "skills/leaf/scripts/leaf/render-checks/runtime.js",
+      "skills/leaf/scripts/leaf/render-checks/widgets.js",
     ],
     rules: {
-      // Render checks compare the publisher's historical selections. That validation
-      // reading is deliberately private rather than part of the package-facing widget
-      // controller.
+      // Render checks use their diagnostic adapter alongside the public widget API.
+      // Validation and visual-part owners remain private to the kernel.
       "no-restricted-imports": [
         "error",
         {
@@ -833,8 +1177,8 @@ export default [
           ],
           patterns: [
             {
-              regex: "^/runtime/(?!widget-api\\.js$|validation\\.js$)",
-              message: "Render checks use the public API or validation adapter.",
+              regex: "^/runtime/(?!widget-api\\.js$|check-api\\.js$)",
+              message: "Render checks use the public API or diagnostic adapter.",
             },
             {
               regex: "^\\.{1,2}/(?:.*/)?runtime/",
@@ -899,7 +1243,53 @@ export default [
     },
   },
   {
-    files: ["skills/leaf/assets/runtime/**/*.js"],
+    files: ["skills/leaf/assets/**/*.js", "skills/leaf/packages/*/**/*.js"],
+    ignores: ["skills/leaf/assets/vendor/**", "skills/leaf/packages/*/vendor/**"],
+    plugins: { architecture: architecturePlugin },
+    rules: {
+      "architecture/standing-listeners": [
+        "error",
+        {
+          // The owner of every focus event.
+          "skills/leaf/assets/runtime/focus.js": ["focusin", "focusout"],
+          // Records the raw events of a session for the interaction log, the one
+          // exception that is not one element's or one subtree's own question: it is a
+          // recorder of events, and reads no standing from them.
+          "skills/leaf/assets/runtime/interaction-log.js": ["focusin", "focusout"],
+          // A reply row's own entry begins its composition. The box's host is in the
+          // row's tree, so entering its shadow tree reaches the row, and a move inside
+          // it is no new entry.
+          "skills/leaf/assets/runtime/thread/replies.js": ["focusin"],
+          // A widget's own subtree, whose controls stand in its tree: whether focus is
+          // within the gloss, and the contents link the user last stood on.
+          "skills/leaf/packages/default/widgets/lf-gloss.js": ["focusin", "focusout"],
+          "skills/leaf/packages/default/widgets/lf-toc.js": ["focusin"],
+        },
+      ],
+      "architecture/placements": [
+        "error",
+        [
+          // The one placement, and the one handing on an arrival in progress.
+          "skills/leaf/assets/runtime/focus.js",
+          // The text field's own `focus()`, which the placement calls, hands on to the
+          // editor its shadow tree holds.
+          "skills/leaf/assets/runtime/composing/text-field.js",
+        ],
+      ],
+      "architecture/layer-returns": [
+        "error",
+        [
+          // The owner of the hand-back and the let-go.
+          "skills/leaf/assets/runtime/focus.js",
+        ],
+      ],
+    },
+  },
+  {
+    files: [
+      "skills/leaf/assets/runtime/**/*.js",
+      "skills/leaf/packages/*/runtime/**/*.js",
+    ],
     plugins: { architecture: architecturePlugin },
     rules: {
       ...ownerBoundary,

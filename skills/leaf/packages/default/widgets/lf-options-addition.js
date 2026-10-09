@@ -40,10 +40,14 @@ export class OptionAddition {
     if (!this.#offered) return;
     if (!this.#form) this.#buildForm();
     if (!this.#stopDraftWatch) {
-      this.#stopDraftWatch = watchDraft(this.#context, (value) => {
-        if (!this.#form.isConnected) return this.disconnect();
-        this.#syncInput.load(value ?? "");
-      });
+      this.#stopDraftWatch = watchDraft(
+        this.#context,
+        (value) => {
+          if (!this.#form.isConnected) return this.disconnect();
+          this.#syncInput.load(value ?? "");
+        },
+        { input: this.#input },
+      );
     }
   }
 
@@ -114,14 +118,12 @@ export class OptionAddition {
   #draftChoice(payload) {
     if (
       !payload ||
-      !Array.isArray(payload.options) ||
-      !payload.options.every((id) => typeof id === "string")
+      !Array.isArray(payload.value) ||
+      !payload.value.every((id) => typeof id === "string")
     )
       return this.detailFor(this.#picked());
     return {
-      options: payload.options.filter(
-        (id) => this.#standing.has(id) || this.#authored(id),
-      ),
+      value: payload.value.filter((id) => this.#standing.has(id) || this.#authored(id)),
     };
   }
 
@@ -139,17 +141,15 @@ export class OptionAddition {
     const accepted = await sendDraft(this.#context, owns, (attempt, payload) => {
       const id = `${this.#host.id}-option-${attempt}`;
       const standing = this.#draftChoice(payload);
-      const picked = new Set(
-        this.#host.hasAttribute("multiple") ? standing.options : [],
-      );
+      const picked = new Set(this.#host.hasAttribute("multiple") ? standing.value : []);
       picked.add(id);
-      return this.#commit({ option: id, text }, { options: [...picked] }, attempt);
+      return this.#commit({ option: id, text }, { value: [...picked] }, attempt);
     });
     if (accepted) notice(`Added and selected “${text}” — sent`);
   }
 
   detailFor(picked) {
-    return { options: [...picked].map((option) => option.id) };
+    return { value: [...picked].map((option) => option.id) };
   }
 
   /* Keep surviving nodes: replay must not discard focus or selection. Return only

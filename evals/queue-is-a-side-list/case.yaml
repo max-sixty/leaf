@@ -1,18 +1,24 @@
 # Added with a queue as one `lf-tabs list="side"` (#1363). Base at b4cda1c37 built
 # the queue as panes or a table (0 of 3); the change 2 of 3, the third writing its
-# tickets as `section` elements, after which the guide named `lf-tab`.
-schema_version: '1.0'
-name: queue-is-a-side-list
-description: "A queue whose items open one at a time beside it is one `lf-tabs list=\"side\"`: its list is the queue, each item a tab, and the page writes no script to select, hide or mark an item."
-tags:
-- layout
-execution:
+# tickets as `section` elements, after which the guide named `lf-tab`. The prompt
+# gained the user's wish to take the tickets by outcome when `lf-tab` gained `group`.
+# Two runs on each harness: base grouped 0 of 4 (no `group` existed), the change 4 of
+# 4, each ordering escalate, fix, close.
+description: queue-is-a-side-list
+metadata:
+  purpose: 'A queue whose items open one at a time beside it is one `lf-tabs list="side"`: its list is
+    the queue, each item a tab, and the page writes no script to select, hide or mark an item.
+    Items the user takes by kind carry that kind as their tab''s `group`.'
+  tags:
+  - layout
+vars:
   prompt: |
     Five customer escalations came in overnight. Write a Leaf page where the user works
     through them one at a time: the queue down one side, each row saying enough to scan
     it (severity, age, the suggested outcome), and the ticket they pick open beside it
     with what they need to decide it and a choice of refund, fix, escalate or close. They
-    will go through all five in one sitting on a laptop.
+    will go through all five in one sitting on a laptop, taking every escalation first,
+    then the fixes, then the close.
 
     ESC-4107 Northwind Labs, severity 1, 9 h: SSO fails since their IdP certificate
     rotated; suggested fix. ESC-4114 Vela Analytics, severity 1, 1 h: sees another
@@ -23,23 +29,21 @@ execution:
 
     The page directory is not reachable from here, so reply with the complete
     `index.html`, rather than writing a file.
-graders:
-- name: loads-leaf
-  type: tool_used
-  tool: Skill
-  input_match: leaf
-- name: reads-page-authoring
-  type: tool_used
-  tool: Read
-  input_match: skills/leaf/references/page-authoring\.md
-- name: side-list
-  type: regex
-  pattern: <lf-tabs\b[^>]*\blist="side"
-- name: judgment
-  type: llm
-  criteria: |
+assert:
+- type: regex
+  metric: side-list
+  value: <lf-tabs\b[^>]*\blist="side"
+- type: regex
+  metric: grouped
+  value: <lf-tab\b[^>]*\bgroup="
+- type: llm-rubric
+  metric: judgment
+  value: |
     Read the HTML. Pass only if all of these hold. The queue is one `lf-tabs` with
     `list="side"`, and each of the five tickets is one `lf-tab` in it holding that
     ticket's detail and its choice. The page has no `<script>` of its own and links no
     page module that selects, hides or marks tickets. The queue is not written a second
     time elsewhere on the page, such as a separate list or table of the same tickets.
+    Each ticket's `lf-tab` carries its suggested outcome as `group`, and the tickets
+    sharing an outcome stand next to each other, the escalations before the fixes and
+    the fixes before the close.

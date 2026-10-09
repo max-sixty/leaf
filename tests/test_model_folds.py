@@ -32,9 +32,7 @@ HELD_REQUEST = (
 # One draft, three revisions of it. The user rewrote the authored words in r1;
 # r2 rewrote them again and said so; r3 is an unrelated edit on r2's words.
 DRAFT = """<h1 id="t">Journey</h1>
-<lf-draft id="draft-ops"{attrs}><pre>
-    {text}
-</pre></lf-draft>"""
+<lf-draft id="draft-ops"{attrs}><pre>{text}</pre></lf-draft>"""
 AUTHORED = "Run the migration before deploying."
 USER_EDIT = "Run the migration before deploying. It takes about a minute."
 CORRECTED = "Run the migration after deploying — it needs the new column."
@@ -108,7 +106,165 @@ def test_summary_leaves_messages_after_its_range_visible():
 
     thread = model.threads(state)["e1"]
     assert thread["summaries"][0]["covers"] == ["e1", "e2"]
+    assert thread["summaries"][0]["label"] == "Earlier discussion"
     assert thread["msgs"][-1]["text"] == "new message"
+
+
+def test_folds_without_summary_prose_keep_corrected_originals():
+    identity = {"author": "agent", "agent": "Agent", "session": "session-1"}
+    state = model.reading(
+        HUB,
+        (
+            {"kind": "comment", "text": "one"},
+            {"kind": "reply", "parent": "e1", "text": "two"},
+            {"kind": "reply", "parent": "e1", "text": "three"},
+            {"kind": "reply", "parent": "e1", "text": "four"},
+            {
+                "kind": "summary",
+                **identity,
+                "thread": "e1",
+                "from": "e1",
+                "through": "e2",
+                "label": "Previous updates",
+                "text": "",
+            },
+            {
+                "kind": "summary",
+                **identity,
+                "thread": "e1",
+                "from": "e3",
+                "through": "e4",
+                "text": "The later exchange.",
+            },
+            {"kind": "edit", **identity, "message": "e2", "text": "two, revised"},
+            {"kind": "edit", **identity, "message": "e4", "text": "four, revised"},
+        ),
+    )
+
+    thread = model.threads(state)["e1"]
+    [fold] = thread["summaries"]
+    assert (fold["covers"], fold["label"], fold["text"]) == (
+        ["e1", "e2"],
+        "Previous updates",
+        "",
+    )
+    assert [message["text"] for message in thread["msgs"]] == [
+        "one",
+        "two, revised",
+        "three",
+        "four, revised",
+    ]
+
+
+def test_ephemeral_updates_wait_for_an_answer_and_preserve_user_interjections():
+    """Only marked progress folds, including one-message runs split by the user."""
+    identity = {"author": "agent", "agent": "Codex", "session": "session-1"}
+    messages = (
+        {"kind": "comment", "text": "Check the schedule."},
+        {
+            "kind": "reply",
+            **identity,
+            "parent": "e1",
+            "text": "Checking mounts.",
+            "ephemeral": True,
+        },
+        {"kind": "reply", "parent": "e1", "text": "And the camera?"},
+        {
+            "kind": "reply",
+            **identity,
+            "parent": "e1",
+            "text": "Checking the camera.",
+            "ephemeral": True,
+        },
+    )
+    pending = model.threads(model.reading(HUB, messages))["e1"]
+    assert pending["summaries"] == []
+
+    answer = {"kind": "reply", **identity, "parent": "e1", "text": "Both fit."}
+    later_progress = {
+        "kind": "reply",
+        **identity,
+        "parent": "e1",
+        "text": "Checking the next week.",
+        "ephemeral": True,
+    }
+    completed = model.threads(model.reading(HUB, (*messages, answer, later_progress)))[
+        "e1"
+    ]
+    assert [
+        (fold["covers"], fold["label"], fold["text"], fold["trigger"])
+        for fold in completed["summaries"]
+    ] == [
+        (["e2"], "Previous updates", "", "e5"),
+        (["e4"], "Previous updates", "", "e5"),
+    ]
+    assert [message["text"] for message in completed["msgs"]] == [
+        "Check the schedule.",
+        "Checking mounts.",
+        "And the camera?",
+        "Checking the camera.",
+        "Both fit.",
+        "Checking the next week.",
+    ]
+
+
+def test_explicit_summaries_own_progress_overlap_and_progress_edits_keep_the_fold():
+    identity = {"author": "agent", "agent": "Codex", "session": "session-1"}
+    messages = (
+        {"kind": "comment", "text": "Check the schedule."},
+        {
+            "kind": "reply",
+            **identity,
+            "parent": "e1",
+            "text": "Checking mounts.",
+            "ephemeral": True,
+        },
+        {
+            "kind": "reply",
+            **identity,
+            "parent": "e1",
+            "text": "Checking the camera.",
+            "ephemeral": True,
+        },
+        {"kind": "reply", **identity, "parent": "e1", "text": "Both fit."},
+    )
+    corrected = model.threads(
+        model.reading(
+            HUB,
+            (
+                *messages,
+                {
+                    "kind": "edit",
+                    **identity,
+                    "message": "e2",
+                    "text": "Mounts checked.",
+                },
+            ),
+        )
+    )["e1"]
+    assert [fold["covers"] for fold in corrected["summaries"]] == [["e2", "e3"]]
+    assert corrected["msgs"][1]["text"] == "Mounts checked."
+
+    explicit = model.threads(
+        model.reading(
+            HUB,
+            (
+                *messages,
+                {
+                    "kind": "summary",
+                    **identity,
+                    "thread": "e1",
+                    "from": "e1",
+                    "through": "e2",
+                    "text": "The mounts were checked.",
+                },
+            ),
+        )
+    )["e1"]
+    assert [(fold["covers"], fold["text"]) for fold in explicit["summaries"]] == [
+        (["e1", "e2"], "The mounts were checked."),
+        (["e3"], ""),
+    ]
 
 
 def test_a_decision_on_any_message_settles_the_thread_it_belongs_to():
@@ -155,7 +311,7 @@ def test_a_retraction_outlives_the_version_that_made_it():
             "kind": "action",
             "widget": "draft-ops",
             "action": "edit",
-            "detail": {"text": USER_EDIT},
+            "detail": {"value": USER_EDIT},
         },
         {
             "kind": "note",
@@ -187,7 +343,7 @@ def test_a_retraction_outlives_the_version_that_made_it():
 
 
 def test_every_served_agent_record_carries_the_name_it_is_shown_under():
-    """An agent command run outside a host session writes no `agent`, and the
+    """An agent command run outside a harness session writes no `agent`, and the
     reading names it `Agent` wherever it reaches the browser: a thread's messages,
     its root, the event that closed it, and the activity feed's rows. A named
     session keeps its own name, and a user's record carries none."""
@@ -247,7 +403,7 @@ def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it
                 "kind": "action",
                 "widget": "feeder-board",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
+                "detail": {"unit": "card-baffle", "value": "col-doing", "rank": "0i"},
             },
             {"kind": "comment", "text": "And the heater?"},
         ),
@@ -290,9 +446,9 @@ def test_each_served_action_says_whether_it_still_stands():
     state = model.reading(
         page,
         (
-            {**edit, "detail": {"text": USER_EDIT}},
-            {**edit, "detail": {"text": CORRECTED}},
-            {**edit, "detail": {"text": AUTHORED}},
+            {**edit, "detail": {"value": USER_EDIT}},
+            {**edit, "detail": {"value": CORRECTED}},
+            {**edit, "detail": {"value": AUTHORED}},
             {"kind": "undo", "undoes": "e3"},
         ),
     )
@@ -301,3 +457,125 @@ def test_each_served_action_says_whether_it_still_stands():
         entry["event"]["id"]: entry["stands"] for entry in projection["entries"]
     } == {"e1": True, "e2": True, "e3": False}
     assert projection["actions"] == ["e2"]
+
+
+def test_question_lifecycle_selects_current_prompt_and_preserves_first_settlement():
+    """Only the latest question is on the user; a settled later question uncovers
+    an older one, and a reply after a task end does not change that end."""
+    events = []
+
+    def add(kind, identity, author="agent", **fields):
+        events.append({"kind": kind, "id": identity, "author": author, **fields})
+        return model.reading(HUB, events)
+
+    add("comment", "first", text="Which route?")
+    add("reply", "update", parent="first", text="Checking.")
+    add("reply", "progress", parent="first", text="Still checking.", ephemeral=True)
+    state = add("reply", "second", parent="first", text="Which colour?", awaits=True)
+    assert model.threads(state)["first"]["user_prompt"] == {
+        "message": "second",
+        "version": "second",
+    }
+    assert [task["id"] for task in state["tasks"]] == ["second"]
+    state = add("reply", "reaction", "user", parent="second", token="keep")
+    assert model.threads(state)["first"]["user_prompt"] == {
+        "message": "first",
+        "version": "first",
+    }
+    assert [task["id"] for task in state["tasks"]] == ["first"]
+    assert [(task["id"], task["outcome"]["id"]) for task in state["ended_tasks"]] == [
+        ("second", "reaction")
+    ]
+    state = add(
+        "task_end", "end", task="first", outcome="dropped", detail="Asked elsewhere"
+    )
+    assert model.threads(state)["first"]["user_prompt"] is None
+    state = add("reply", "answer", "user", parent="first", text="Route A")
+    assert [
+        (task["id"], task["state"], task["outcome"]["id"])
+        for task in state["ended_tasks"]
+    ] == [("first", "dropped", "end"), ("second", "done", "reaction")]
+    state = add("reply", "third", parent="first", text="Which size?", awaits=True)
+    state = add("resolve", "close", "user", parent="first")
+    assert state["tasks"] == []
+    assert model.threads(state)["first"]["user_prompt"] is None
+    state = add("unresolve", "reopen", "user", parent="first")
+    assert [task["id"] for task in state["tasks"]] == ["third"]
+    assert model.threads(state)["first"]["user_prompt"] == {
+        "message": "third",
+        "version": "third",
+    }
+
+
+def test_frozen_ask_attention_comes_from_its_widget_without_a_prose_task():
+    """Frozen widgets have no independent thread seat: their user and unanswered
+    lists agree, and later prose or reactions cannot retire the widget Ask."""
+    events = [
+        {
+            "kind": "comment",
+            "author": "agent",
+            "text": "Choose a route.",
+            "markup": '<lf-options id="routes" choose><lf-option id="route-a">A</lf-option><lf-option id="route-b">B</lf-option></lf-options>',
+        },
+        {"kind": "reply", "author": "agent", "parent": "e1", "text": "Still checking."},
+        {"kind": "reply", "parent": "e1", "token": "keep"},
+    ]
+    state = model.reading(HUB, events)
+    thread = model.threads(state)["e1"]
+    assert thread["user_prompt"] is None
+    assert thread["attention"] == {
+        "kind": "needs_user",
+        "reason": "ask",
+        "workflow": None,
+    }
+    [task] = state["tasks"]
+    assert task["id"] == "routes"
+    assert task["ends"] == "widget"
+    assert task["ask"]["held_by_seat"] is False
+    events.append(
+        {
+            "kind": "action",
+            "widget": "routes",
+            "action": "choose",
+            "detail": {"value": ["route-a"]},
+        }
+    )
+    state = model.reading(HUB, events)
+    assert model.threads(state)["e1"]["user_prompt"] is None
+    assert state["tasks"] == []
+    assert [(task["id"], task["ends"]) for task in state["ended_tasks"]] == [
+        ("routes", "widget")
+    ]
+
+
+def test_summary_protects_the_unanswered_question_after_later_agent_updates():
+    """A summary cannot hide the question the user owes merely because a newer
+    agent update is the last turn. Protection selects the canonical prompt."""
+    state = model.reading(
+        HUB,
+        (
+            {"kind": "comment", "author": "agent", "text": "Which route?"},
+            {"kind": "reply", "author": "agent", "parent": "e1", "text": "Checking."},
+            {
+                "kind": "reply",
+                "author": "agent",
+                "parent": "e1",
+                "text": "Found one lead.",
+            },
+            {
+                "kind": "summary",
+                "author": "agent",
+                "agent": "Codex",
+                "session": "summary-session",
+                "thread": "e1",
+                "from": "e1",
+                "through": "e2",
+                "text": "Asked route; checking.",
+            },
+        ),
+    )
+    thread = model.threads(state)["e1"]
+    assert thread["user_prompt"] == {"message": "e1", "version": "e1"}
+    [summary] = thread["summaries"]
+    assert summary["covers"] == ["e1", "e2"]
+    assert summary["protected"] == ["e1"]

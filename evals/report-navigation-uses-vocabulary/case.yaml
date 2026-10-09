@@ -1,0 +1,40 @@
+# Added after a simplification audit queried lf-toc's example and schema, then
+# wrote a custom anchor index without reading its behavioral description.
+# The initial cold prompt passed 3/3 on both arms; this less directive prompt
+# passed 2/2 on both. It guards navigation and comparison together rather than
+# reproducing the long session. Also passed 2/2 with both the landed Contents
+# rule and its short-document exception. Native history replays, rather than
+# this cold prompt, discriminate the long-session instruction changes.
+description: report-navigation-uses-vocabulary
+metadata:
+  purpose: 'Contents navigation: retain comparison metadata alongside the report outline.'
+  tags:
+  - authoring
+  - navigation
+vars:
+  prompt: "Write up the independently checked simplification opportunities as a Leaf\nreport. Order the\
+    \ eight candidates below by developer benefit. For each,\nexplain the scope, estimated net LOC cut,\
+    \ functionality change, validator's\nverdict, and remaining verification. Keep the estimated savings\
+    \ available\ntogether for comparison, and give each candidate a substantial section with\nenough detail\
+    \ for the user to decide whether to implement it.\n\nCandidates: one captured page-read context, 80\u2013\
+    150 LOC, preserve behavior;\none binding-history fold, 55\u201395 LOC, preserve behavior; pushed data\
+    \ snapshots,\n600\u2013800 LOC, lose polling producers; whole-region revision replacement,\n130\u2013\
+    210 LOC, preserve drafts and focus; one Threads reading surface,\n300\u2013450 LOC, lose inline conversation\
+    \ cards; remove smart margin placement,\n3500\u20134200 LOC, lose local markers; remove the hosted\
+    \ AI agent, 1200\u20131400 LOC,\nretain public interactive demos; remove drawing comments, 900\u2013\
+    1050 LOC,\nkeep ordinary anchored text comments. Mark implementation proofs as pending.\n\nThe vendored\
+    \ vocabulary is `packages/default/registry.json` under the Leaf\nskill's base directory. The page\
+    \ directory is not reachable from here, so\nreply with the complete `index.html`, rather than writing\
+    \ a file.\n"
+assert:
+- type: llm-rubric
+  metric: judgment
+  value: |
+    Pass if the long scrolling report uses an empty, identified lf-toc for
+    heading-derived navigation, or lf-tabs/lf-tab for candidate views with built-in
+    navigation. Fail if a manually duplicated list of candidate anchor links or
+    page-authored selection script supplies the report's navigation instead.
+    Estimates and functionality changes remain available together for comparison;
+    a summary table carrying those facts may contain links and is not a duplicate
+    navigation list. Each candidate's details are reachable. Do not require a
+    particular visual arrangement, or a widget for ordinary prose or tabular facts.

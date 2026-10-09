@@ -3,7 +3,7 @@ import { clocked } from "./presence.js";
 import { pagePresented } from "./presentation.js";
 import { liveLeavesList, drawerIsOpen, othersPanel } from "./drawers.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
-import { activityFacts, countUpdates } from "./banner.js";
+import { activityFacts, countResponses } from "./banner.js";
 import { rowWalk } from "./walk-position.js";
 
 let others = [];
@@ -12,7 +12,7 @@ let rows = Object.freeze([]);
 // The drawer's one offer: something to show, or the drawer already standing — the key that
 // opened it must still close it, and its button must still be pressable. The button's
 // visibility and the key both ask the drawer's own predicate, so the two surfaces cannot
-// disagree about whether there is a drawer to open. A leaves drawer of one — the page the
+// disagree about whether there is a drawer to open. A pages drawer of one — the page the
 // user is already on — is not worth a control.
 export const leavesOffered = () =>
   pagePresented() && (others.length > 0 || drawerIsOpen("leaves"));
@@ -22,7 +22,7 @@ export const leavesOffered = () =>
 const presentationModel = () =>
   Object.freeze({
     offered: leavesOffered(),
-    label: `All leaves (${rows.length})`,
+    label: `All pages (${rows.length})`,
     rows,
   });
 export const presentLeaves = () => liveLeavesList.present(presentationModel());
@@ -38,15 +38,14 @@ export const othersLinks = () => [...othersPanel.querySelectorAll("a.lf-others-r
 export function declareLeavesKeys() {
   keys(
     othersPanel,
-    "In the leaves drawer",
-    rowWalk({ id: "leaf", noun: "Leaf", plural: "leaves", rows: othersLinks }),
+    "In the pages drawer",
+    rowWalk({ id: "leaf", noun: "Page", plural: "pages", rows: othersLinks }),
     () => othersLinks().length > 0,
   );
 }
 
-// A row's whole account of a page: the dot's tone and one line of words, from the
-// same judgment the banner's sentences come from — the judgment is shared, the
-// wording is the seat's.
+// A row's whole account of a page: the dot's tone and one line of words, from an
+// canonical activity computed by each serving page. The wording is the seat's.
 function rowPresence(entry) {
   const { kind, counts, detail } = entry.activity;
   const facts = activityFacts(entry);
@@ -57,7 +56,7 @@ function rowPresence(entry) {
   // first is the whole question the panel was opened to answer.
   const stated = (word) => word + (detail ? " — " + detail : "");
   // The banner's two silences, dated the same way and worded for a row.
-  const silence = `${facts.left ? "Left" : "Quiet"} (${facts.silentSince})`;
+  const silence = `${facts.left ? "Left" : "Quiet"}${facts.silentSince ? ` (${facts.silentSince})` : ""}`;
   const work = facts.work.replace(/^./, (letter) => letter.toUpperCase());
   const primary =
     kind === "working"
@@ -73,7 +72,7 @@ function rowPresence(entry) {
               ? silence
               : "Away"
             : kind === "unheld"
-              ? "Unheld"
+              ? "No session"
               : "Closed";
   const line = facts.waiting.length
     ? `${primary} · ${facts.waiting.join(" · ")}`
@@ -87,6 +86,7 @@ function rowPresence(entry) {
 // session behind the leaf is working. A title is a sentence somebody wrote and two
 // pages a week apart share one; the work each came out of is the thing the user
 // already holds in their head, so it is worth the room a hover has and a row hasn't.
+// Each serving page publishes the same compact account of its own canonical activity.
 //
 // One tooltip for the row rather than one per part. The innermost title wins where two
 // overlap, so a title left on the line would answer the hover most likely to be asking
@@ -94,12 +94,17 @@ function rowPresence(entry) {
 // part of the account they can already read.
 const activityAccount = ({ counts }) => {
   const parts = [];
-  if (counts.active) parts.push(`${countUpdates(counts.active)} active`);
-  if (counts.handling) parts.push(`${countUpdates(counts.handling)} being handled`);
-  if (counts.queued) parts.push(`${countUpdates(counts.queued)} queued`);
+  if (counts.active) parts.push(`${countResponses(counts.active)} being worked on`);
+  if (counts.handling)
+    parts.push(`${countResponses(counts.handling)} owed on picked-up updates`);
+  if (counts.queued)
+    parts.push(`${countResponses(counts.queued)} owed on queued updates`);
   if (counts.picked_up)
-    parts.push(`${countUpdates(counts.picked_up)} picked up; turn ended`);
-  if (counts.pending) parts.push(`${countUpdates(counts.pending)} waiting`);
+    parts.push(
+      `${countResponses(counts.picked_up)} owed on picked-up updates; no current turn observed`,
+    );
+  if (counts.pending)
+    parts.push(`${countResponses(counts.pending)} owed on updates awaiting delivery`);
   return parts.length ? parts.join("; ") : null;
 };
 
@@ -125,26 +130,34 @@ function renderOthersNow(state) {
   // so: its server stays up so the page stays readable — a standing one for good —
   // so nothing else would ever take the row off, and a count the user glances at
   // to find who needs them would silently become a tally of everything that has run
-  // here. Judged by the same canonical `activity` the rows read, never by a second
-  // reading of the status the server ships. This page's own row is not in the list and so is
-  // never dropped: a user looking at a closed page is still looking at it.
+  // here. Judged by the `activity` the rows read. This page's own row is not in the
+  // list and so is never dropped: a user looking at a closed page is still looking at
+  // it.
   others =
     state === null
       ? []
       : state.others.filter((entry) => entry.activity.kind !== "closed");
+  // A neighbour's row is its page, keyed by `page_key`, and its link is wherever that
+  // page is served now. A server restarted on another port keeps the row, and the focus
+  // on it, where they were; only the destination changes.
   const wanted = state
     ? [
-        { key: "self", title: document.title, entry: state },
-        ...others.map((entry) => ({ key: entry.url, title: entry.title, entry })),
+        { key: "self", href: null, title: document.title, entry: state },
+        ...others.map((entry) => ({
+          key: entry.page_key,
+          href: entry.url,
+          title: entry.title,
+          entry,
+        })),
       ]
     : [];
   rows = Object.freeze(
-    wanted.map(({ key, title, entry }) => {
+    wanted.map(({ key, href, title, entry }) => {
       const { tone, line } = rowPresence(entry);
       return Object.freeze({
         key,
         self: key === "self",
-        href: key === "self" ? null : key,
+        href,
         title,
         tone,
         line,

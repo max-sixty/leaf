@@ -1,6 +1,39 @@
-import { declarationFor, inChrome } from "/runtime/widget-api.js";
+import { declarationFor, inChrome, upFrom } from "/runtime/widget-api.js";
 import { at } from "./locate.js";
 import { openRoots } from "./open-roots.js";
+
+const generated = ".lf-ui, [data-lf-gen]";
+const declared = (el) =>
+  declarationFor(el, "type") !== undefined || customElements.get(el.localName);
+const frames = (style) =>
+  ["1", "trim"].includes(style.getPropertyValue("--lf-block-frame").trim());
+
+// Markup containers keep the page's boxes; member containers keep only declared
+// member hosts. Their other descendants are implementation layout. Generated
+// apparatus stays module-owned in either case, including across a shadow host.
+const moduleOwnsBox = (el) => {
+  for (
+    let child = el, parent = upFrom(child);
+    parent && parent.localName !== "main";
+    child = parent, parent = upFrom(parent)
+  ) {
+    if (!declared(parent)) continue;
+    const content = declarationFor(parent, "x-content");
+    if (content === "markup") return false;
+    return (
+      content !== "members" ||
+      !(declarationFor(child, "x-owners") || []).includes(parent.localName)
+    );
+  }
+  return false;
+};
+const pageOwnsFrame = (el) => {
+  if (el.getRootNode() instanceof ShadowRoot || inChrome(el) || moduleOwnsBox(el))
+    return false;
+  for (let node = el; node; node = upFrom(node))
+    if (node.matches(generated)) return false;
+  return true;
+};
 
 // A box that draws an inset and shows a different one. A child's outer margin normally
 // collapses through its parent and is spent between blocks; where the parent draws
@@ -27,7 +60,6 @@ import { openRoots } from "./open-roots.js";
 // page itself put there, so this looks for the same, and a card's absolutely-positioned
 // pick mark is not the thing under its last paragraph.
 //
-// Deduped per tag and edge, because one mistake is on every instance of that widget.
 export function trappedMargins() {
   // Which document each box is in is OPEN_ROOTS', imported rather than restated, for
   // the same reason UNMARKABLE_ITEMS imports its two: the runtime's layer holds shadow
@@ -69,7 +101,7 @@ export function trappedMargins() {
           });
         continue;
       }
-      if (node.matches(".lf-ui, [data-lf-gen]")) {
+      if (node.matches(generated)) {
         out.push({});
         continue;
       }
@@ -134,6 +166,8 @@ export function trappedMargins() {
         const leak = edgeMargin(kid, edge);
         if (leak && leak.margin > 0.5)
           found.push({
+            at: at(el),
+            authored: pageOwnsFrame(el),
             tag: el.tagName.toLowerCase(),
             id: el.id || null,
             cls: el.classList[0] || null,
@@ -142,7 +176,7 @@ export function trappedMargins() {
             margin: leak.margin,
             child: leak.child,
             through: leak.through,
-            frameDeclared: s.getPropertyValue("--lf-block-frame").trim() === "1",
+            frameDeclared: frames(s),
             chrome: inChrome(el),
           });
       }
@@ -155,17 +189,17 @@ export function trappedMargins() {
 // generated boxes. The arrangement reading (layout.js) counts the same items.
 export const laidOutItems = (box) =>
   [...box.children].filter((child) => {
-    if (child.matches(".lf-ui, [data-lf-gen]")) return false;
+    if (child.matches(generated)) return false;
     const c = getComputedStyle(child);
     return c.display !== "none" && c.position !== "absolute" && c.position !== "fixed";
   });
 
-// A box that lays its children out side by side and stands at a frame's edge, where the
-// shared trim took the margin off its edge item but not off the items beside it: the row
-// no longer lines up. The trim follows the edge through whatever stands at it, and a
-// stylesheet cannot ask a box for its display, so a flex or grid box says so itself
-// (`--lf-holds-edge: 1`, theme.css) and this says when one hasn't. Items are in one row
-// when their margin boxes start (or end) on the same line.
+// A frame's trim can split a row either at a box declaring the frame itself or where
+// its edge passes through a wrapper: one item's margin goes and those beside it stay.
+// A stylesheet cannot ask a box for its display, so a flex or grid box declares
+// --lf-holds-edge: 1 (theme.css) to hold either route. This names the actual split when
+// it hasn't; unequal margins outside a frame's trim remain the author's placement.
+// Items are in one row when their margin boxes start (or end) on the same line.
 export function splitEdges() {
   const px = (v) => parseFloat(v) || 0;
   const found = [];
@@ -193,19 +227,21 @@ export function splitEdges() {
           (b, m) => b.bottom + m,
         ],
       ]) {
-        if (s.getPropertyValue(token).trim() !== "1") continue;
+        if (!frames(s) && s.getPropertyValue(token).trim() !== "1") continue;
         const own = px(getComputedStyle(item)[prop]);
         if (own > 0.5) continue;
-        const at = line(item.getBoundingClientRect(), own);
+        const edgeLine = line(item.getBoundingClientRect(), own);
         const beside = items
           .filter((other) => other !== item)
           .map((other) => {
             const m = px(getComputedStyle(other)[prop]);
             return { m, at: line(other.getBoundingClientRect(), m) };
           })
-          .find(({ m, at: other }) => m > 0.5 && Math.abs(other - at) < 2);
+          .find(({ m, at: other }) => m > 0.5 && Math.abs(other - edgeLine) < 2);
         if (beside)
           found.push({
+            at: at(el),
+            authored: pageOwnsFrame(el),
             tag: el.tagName.toLowerCase(),
             id: el.id || null,
             cls: el.classList[0] || null,
@@ -228,24 +264,15 @@ export function splitEdges() {
 // The page's own elements are the document tree under `main`, the authored content root.
 // A widget's own children are its module's to arrange, whether the layer declares it or
 // the page defines it, and so is everything inside one whose content is not the page's
-// markup; inside a markup container, such as a tab's panel, the page's elements are the
-// page's again. The developer gallery's section asks for the runtime's replay controls
+// markup or members; inside those containers, the page's elements are the page's again.
+// The developer gallery's section asks for the runtime's replay controls
 // (`data-interaction-gallery`), so its row is furniture the page requested. An inline box's children are
 // its run of words, where the question is not which block comes first or next, so a code
 // block's highlighting or the mark ending a link's words is not this.
 export function apparatusAmongAuthored() {
-  const generated = ".lf-ui, [data-lf-gen]";
-  const declared = (el) =>
-    declarationFor(el, "type") !== undefined || customElements.get(el.localName);
   const modules = (parent) => {
     if (declared(parent) || parent.matches("[data-interaction-gallery]")) return true;
-    for (
-      let at = parent.parentElement;
-      at && at.localName !== "main";
-      at = at.parentElement
-    )
-      if (declared(at)) return declarationFor(at, "x-content") !== "markup";
-    return false;
+    return moduleOwnsBox(parent);
   };
   const found = new Set();
   for (const el of document.querySelectorAll(`main :is(${generated})`)) {

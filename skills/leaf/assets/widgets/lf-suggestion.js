@@ -10,7 +10,7 @@
  * without restating it on screen, and refusal restores actionable failure controls.
  *
  * The suggestion owns only those entries and their semantics. It contributes an immutable
- * reading through `registerMarginContribution`; the margin projection joins it to comment threads,
+ * reading through `registerContribution`; the margin projection joins it to comment threads,
  * decisions, delivery status, activity, and temporary reaction controls for this same
  * target.
  * That owner renders and places the resulting entries, in the rail or as a pin, and
@@ -23,14 +23,14 @@ import {
   commands,
   FOLD_MS,
   keeps,
-  marginEntry,
+  contributionEntry,
   motion,
   once,
   paintKeys,
   quietWord,
   quoted,
   renderRetired,
-  registerMarginContribution,
+  registerContribution,
   says,
   shownParts,
   textNodesUnder,
@@ -120,13 +120,17 @@ function toRanges(segments, spans) {
 customElements.define(
   "lf-suggestion",
   class extends HTMLElement {
+    // What the Ask was answered with: the decision.
+    static answerWords(state) {
+      return outcomeOf(state) === "accept" ? "Accepted" : "Rejected";
+    }
+
     #deciding = null; // the decision in flight, so a second press joins it
     #staging = false; // the synchronous span before that promise exists
     #failed = null;
     #undoing = false;
     #margin = null;
     #commandScope = null;
-    #stopReading = null;
     #controller = null;
     #presentedOutcome = null;
 
@@ -135,7 +139,6 @@ customElements.define(
       // restore this target's contribution to the shared margin entry cluster.
       if (!once(this)) {
         this.#offer();
-        this.#watchReading();
         return;
       }
       this.#controller = widgetController(this);
@@ -148,7 +151,7 @@ customElements.define(
       // exhibit shows what a pending change looks like, so it keeps the marks
       // the theme draws and never grows controls to decide it with.
       if (quoted(this)) {
-        this.#watchReading();
+        this.#subscribeReading();
         return;
       }
       // The runtime says it just opened this element's containers (reveal): the entry
@@ -159,12 +162,11 @@ customElements.define(
         this.#margin?.update({ immediate: true }),
       );
       this.#offer();
-      this.#watchReading();
+      this.#subscribeReading();
     }
 
-    #watchReading() {
-      this.#controller ??= widgetController(this);
-      this.#stopReading ??= this.#controller.subscribe((reading) => {
+    #subscribeReading() {
+      this.#controller.subscribe((reading) => {
         if (quoted(this) || !this.#margin) return;
         if (
           this.#margin.contains(document.activeElement) &&
@@ -181,8 +183,6 @@ customElements.define(
     }
 
     disconnectedCallback() {
-      this.#stopReading?.();
-      this.#stopReading = null;
       this.#margin?.unregister();
       this.#margin = null;
       emphasized.delete(this);
@@ -192,7 +192,7 @@ customElements.define(
     #offer() {
       if (quoted(this) || this.#margin) return;
       this.#ensureCommands();
-      this.#margin = registerMarginContribution({
+      this.#margin = registerContribution({
         key: `suggestion:${this.id}`,
         // An accepted deletion (or rejected insertion) has no surviving slot and the
         // suggestion itself leaves layout. Undo still belongs to the containing passage,
@@ -232,7 +232,7 @@ customElements.define(
       let words;
       const change = () => (words ??= this.#label());
       const failed = (key, icon, label, rank) =>
-        marginEntry({
+        contributionEntry({
           key,
           icon,
           label,
@@ -243,7 +243,7 @@ customElements.define(
         });
       const entry = {
         undo: () =>
-          marginEntry({
+          contributionEntry({
             key: "undo",
             icon: "undo",
             label: "Undo",
@@ -258,7 +258,7 @@ customElements.define(
         "cancel-failure": () => failed("cancel-failure", "cross", "Cancel", "escape"),
       };
       const decision = (kind) =>
-        marginEntry({
+        contributionEntry({
           key: kind,
           ...FACE[kind],
           label: WORDS[kind],
@@ -313,7 +313,7 @@ customElements.define(
                 text: outcome
                   ? `${outcome === "accept" ? "Accepted" : "Rejected"} suggested change`
                   : "Accept or reject suggested change",
-                activate: () => this.#margin?.focus(this.#focusKey()),
+                activate: () => this.#margin?.focus(this.#focusKey(), "move"),
               },
             ]
           : [],
@@ -348,21 +348,18 @@ customElements.define(
         "On a suggested change",
         Object.entries(labels).map(([key, label]) => ({
           id: `suggestion.${key}`,
-          keys: [],
+          contextKeys: () => {
+            const position = this.#offered().indexOf(key);
+            return position === -1 ? [] : [String(position + 1)];
+          },
           control: () => this.#margin?.control(key),
-          decision: label,
-          does: `${label} the suggested change`,
-          line: label.toLowerCase(),
+          bindingBadge: null,
+          decision: true,
+          title: label,
+          description: `${label} the suggested change`,
           when: () => this.#offered().includes(key),
           run: () => this.#margin?.activate(key),
         })),
-        {
-          answer: () => {
-            const outcome = this.#outcome();
-            if (!outcome) return "";
-            return outcome === "accept" ? "Accepted" : "Rejected";
-          },
-        },
       );
       commands(this, this.#commandScope);
     }
@@ -658,7 +655,7 @@ customElements.define(
     }
 
     // Which of the three changes this is, for anything naming it away from the page:
-    // a row on the Asks drawer, the label on a comment anchored here. The slots are the
+    // a row in the Questions panel, the label on a comment anchored here. The slots are the
     // whole of the answer — both is a rewrite, lf-new alone inserts, lf-old alone
     // deletes — and it is the reading #voice already speaks on the slots themselves,
     // said once for the element. A settled suggestion keeps the word it had: the

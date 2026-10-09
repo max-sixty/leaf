@@ -1,8 +1,16 @@
 /* Synchronous Lit message presentation and frozen authored message islands.
 
-   Generated metadata, prose, workflow and reaction placement have one owner. An
+   Every surface uses the same message, header and body vocabulary. Generated
+   metadata, prose, workflow and reaction placement have one owner. Each message
+   retains its header and body together, sharing delivery, unread and fold state.
+   Its header declares its stationary text-reflow boundary and hosts the thread's
+   disclosure for progress completed by that reply. An
    immutable descriptor changes prose without reconnecting the validated authored
-   fragment. The fragment is captured inertly before its first upgrade; panel
+   fragment. A new message cues its own words once on first presentation, in every
+   surface: one the user just sent, and any turn, whoever wrote it, joining a thread
+   view that was already presented. Opening a view cues nothing it already holds, and
+   admission and later descriptor paints never replay the cue.
+   The fragment is captured inertly before its first upgrade; panel
    presentation waits for preparation before capturing typed authored state. */
 import { html, render, nothing } from "../../vendor/browser-runtime.js";
 import {
@@ -20,7 +28,12 @@ import {
 } from "../projection/authored.js";
 import { stageWidgetDescriptors } from "../widget-descriptors.js";
 import { strongestWorkflow, workflowLabel, workflowTitle } from "./workflow.js";
-import { markDeclared, renderQuiet, renderSaid } from "../presentation.js";
+import {
+  markDeclared,
+  renderQuiet,
+  renderSaid,
+  writePrepaint,
+} from "../presentation.js";
 import { highlightBlocks } from "../syntax.js";
 import { ago } from "../presence.js";
 import { elementById, pageQueryAll } from "../passages.js";
@@ -33,8 +46,9 @@ import {
 import { rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";
 import { keeps } from "../keeps.js";
+import { motion } from "../motion.js";
 
-export const loadMarked = () =>
+export const loadMessageMarkdown = () =>
   loadMarkdown((error) =>
     reportPageError(`markdown renderer failed to load: ${error?.message ?? error}`),
   );
@@ -96,11 +110,13 @@ export function prepareAuthoredMessage(message, thread) {
     });
     const authored = stageAuthoredStates(template.content, new Map());
     rememberPassageParts(template.content, ["event", message.id]);
+    const text = template.content.textContent;
+    writePrepaint(template.content);
     const nodes = Object.freeze([...template.content.childNodes]);
     authoredMessages.set(key, {
       message: message.id,
       body: {
-        text: template.content.textContent,
+        text,
         document: { thread, message: message.id },
       },
       authored,
@@ -176,6 +192,7 @@ export class MessageView {
   #reaction = null;
   #authored = null;
   #dressed = false;
+  #arrivalMotion = null;
   #header = document.createElement("div");
 
   constructor(commands) {
@@ -183,15 +200,15 @@ export class MessageView {
     this.node = document.createElement("div");
   }
 
-  present(model, externalHeader = false) {
+  present(model, { arrived = false, headerControls = nothing } = {}) {
     const prior = this.#model;
     this.#model = model;
     const panel = model.panel;
     // A view presents messages of one surface for its whole life, so what the surface
     // makes of the node is written once, on the first presentation.
     if (!prior) {
-      this.node.classList.add(panel ? "lf-msg" : "lf-page-thread-msg");
-      this.#header.className = panel ? "lf-msg-head" : "lf-page-thread-head";
+      this.node.classList.add("lf-msg");
+      this.#header.className = "lf-msg-head";
       if (panel) this.node.tabIndex = -1;
       else {
         this.node.classList.add("lf-ui");
@@ -199,6 +216,7 @@ export class MessageView {
         this.node.dataset.lfOffer = "";
       }
     }
+    keeps(this.#header, "data-lf-reflow", "text");
     if (prior && prior.author !== model.author)
       this.node.classList.toggle(prior.author, false);
     this.node.classList.toggle(model.author, true);
@@ -218,24 +236,23 @@ export class MessageView {
           model.reactions,
         )
       : nothing;
+    const receipt = model.workflowLabel
+      ? html`<span class="lf-msg-sending" title=${model.workflowTitle}
+          >${model.workflowLabel}</span
+        >`
+      : nothing;
     render(
       html`
         <b>${model.by}</b
         ><span class="lf-msg-meta"
-          ><time datetime=${model.timestamp}>${model.age}</time> ${
-            model.workflowLabel
-              ? html`<span class="lf-msg-sending" title=${model.workflowTitle}
-                  >${model.workflowLabel}</span
-                >`
-              : nothing
-          }
+          ><time datetime=${model.timestamp}>${model.age}</time> ${receipt}
           ${
             model.failure
               ? html`<span class="lf-msg-failure">${FAILURE_LABEL}</span>`
               : nothing
           }
           ${
-            model.body.kind === "suggestion" && panel
+            model.body.kind === "suggestion"
               ? html`<span class="lf-suggest-label">Suggestion</span>`
               : nothing
           }
@@ -245,29 +262,24 @@ export class MessageView {
               : nothing
           }
         </span>
+        ${headerControls}
       `,
       this.#header,
     );
     render(
       html`
-        ${externalHeader ? nothing : this.#header}
-        ${
-          panel
-            ? html`<div
-                class=${`lf-msg-body${model.body.kind === "suggestion" ? " lf-suggest-body" : ""}`}
-              >
-                ${this.#body(model.body)}
-                ${
-                  model.body.drawing
-                    ? html`<span class="lf-drawing-reference">Drawing comment</span>`
-                    : nothing
-                }
-                ${
-                  model.nativeAuthored && model.body.authored ? this.#authored : nothing
-                }
-              </div>`
-            : this.#inlineBody(model.body)
-        }
+        ${this.#header}
+        <div
+          class=${`lf-msg-body${model.body.kind === "suggestion" ? " lf-suggest-body" : ""}`}
+        >
+          ${this.#body(model.body)}
+          ${
+            model.body.drawing
+              ? html`<span class="lf-drawing-reference">Drawing comment</span>`
+              : nothing
+          }
+          ${model.nativeAuthored && model.body.authored ? this.#authored : nothing}
+        </div>
         ${
           model.body.authored && !model.nativeAuthored
             ? html`<button
@@ -295,16 +307,22 @@ export class MessageView {
     highlightBlocks(this.node);
     this.#commands.read.observeBody(
       this.node,
-      this.node.querySelector(
-        panel ? ":scope > .lf-msg-body" : ":scope > .lf-page-thread-body",
-      ),
+      this.node.querySelector(":scope > .lf-msg-body"),
       model,
     );
+    if (!prior && (model.pending || arrived)) {
+      // One phase drives the message's ground and its sticky header. CSS resolves
+      // the tint and resting colour at this message after insertion; Firefox's
+      // Web Animations interpolates a var() colour keyframe discretely.
+      // The shared motion gate answers for restoration and reduced motion; the
+      // delivery receipt and busy cursor remain independent of the arrival tint.
+      this.#arrivalMotion = motion(
+        this.node,
+        [{ "--lf-msg-arrival": 1, offset: 0 }],
+        1200,
+      );
+    }
     return this.node;
-  }
-
-  get header() {
-    return this.#header;
   }
 
   #body(body) {
@@ -319,26 +337,6 @@ export class MessageView {
     return html`<div class="lf-msg-text" .innerHTML=${body.html}></div>`;
   }
 
-  #inlineBody(body) {
-    if (body.kind === "suggestion")
-      return html`<div class="lf-page-thread-body" .textContent=${body.text}></div>`;
-    if (body.kind === "reaction")
-      return html`<div class="lf-page-thread-body">
-        <span class="lf-react-said" title=${body.meaning ?? nothing}
-          >${`${body.glyph} ${body.token}`.trim()}</span
-        >
-      </div>`;
-    return html`<div
-      class="lf-page-thread-body"
-      .innerHTML=${
-        body.html +
-        (body.drawing
-          ? '<span class="lf-drawing-reference">Drawing comment</span>'
-          : "")
-      }
-    ></div>`;
-  }
-
   commit() {
     if (!this.#model.reactions && this.#reaction) {
       this.#reaction.retire();
@@ -347,6 +345,7 @@ export class MessageView {
   }
 
   retire() {
+    this.#arrivalMotion?.cancel();
     this.#reaction?.retire();
     this.#commands.read.forgetBody(this.node);
   }

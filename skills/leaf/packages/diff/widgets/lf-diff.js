@@ -1,14 +1,30 @@
 /* lf-diff uses Pierre's static renderer rather than hydrating Pierre's custom
  * element. Its ordinary DOM can live in Leaf's declared shadow root, so the
- * rendered lines support selection anchors. */
+ * rendered lines support selection anchors. A source revision updates evidence
+ * under stable file owners: reader controls, disclosure and code scrollports stay
+ * connected. The toolbar reserves its current source's longest count label, so
+ * filtering or reviewing files leaves its field and controls in place. A changed file
+ * kind replaces only its inner presentation and hands
+ * source focus to that same file; supplied thread/composer outlets keep core focus
+ * ownership across replacement. Unchanged parsed files keep their rendering; changed files
+ * reconcile unchanged lines by their datum coordinate, retaining selection and line threads.
+ * Manifest evidence commits together after open files load. Lazy disclosure joins
+ * the pending source render before reading its evidence, and a closed file shows
+ * none of the previous revision while it loads current evidence. Passage reveal
+ * clears this widget's file filter; addressed datum reveal also hydrates its file. */
 import {
   DISCLOSE,
+  HOLDS_WORD,
   announce,
   beginWalk,
   dataBody,
   failSoft,
+  ensureSyntaxLanguage,
   focusDestination,
+  holdFocus,
   inChrome,
+  inBaseLayer,
+  isPagePaint,
   commands,
   keeps,
   keepsText,
@@ -17,20 +33,33 @@ import {
   loadDeferred,
   listWalkPosition,
   offer,
+  once,
   paintKeys,
   projectData,
-  consumeThreads,
+  projectedDatum,
+  placeThreads,
   relabel,
+  reserve,
   retainUserIntent,
   scrollBehavior,
+  scrollIntoReadingBand,
+  setChildren,
   shadowStage,
+  sizeObserver,
   notice,
   widgetController,
   watchData,
+  watchOwner,
 } from "/runtime/widget-api.js";
+import {
+  diffDatumKey,
+  findDiffFile,
+  findDiffLine,
+  readDiffCoordinate,
+} from "./diff-coordinates.js";
 import "../vendor/webawesome.esm.js";
-// Pierre's renderer is by far the largest thing a Leaf page can pull, and only a diff
-// that is actually rendering has any use for it — an authored <lf-diff> bound to data
+// Only a diff that is actually rendering has any use for Pierre's renderer —
+// an authored <lf-diff> bound to data
 // that has not arrived yet does not. So it is imported on first use rather than at
 // module load: the page pays for the renderer when it draws a diff, and a version whose
 // diff has been taken back out stops paying on the next load. The promise is kept, so
@@ -46,40 +75,19 @@ const OPTIONS = Object.freeze({
   hunkSeparators: "line-info-basic",
   lineDiffType: "word-alt",
   overflow: "scroll",
-  theme: { light: "github-light", dark: "github-dark" },
 });
 
-// Pierre's two fixed Shiki themes are reduced to the same small role vocabulary
-// lf-code uses. The diff geometry and inline spans remain Pierre's; Leaf's theme
-// keeps syntax ink consistent across the two code surfaces.
-const TOKEN_ROLES = new Map([
-  ["#6A737D/#6A737D", "cm"],
-  ["#D73A49/#F97583", "kw"],
-  ["#032F62/#9ECBFF", "st"],
-  ["#032F62/#DBEDFF", "st"],
-  ["#005CC5/#79B8FF", "nu"],
-  ["#6F42C1/#B392F0", "fn"],
-  ["#22863A/#85E89D", "ty"],
-  ["#E36209/#FFAB70", "ty"],
-  ["#B31D28/#FDAEB7", "kw"],
-]);
-
-function adoptSyntaxRoles(root) {
-  for (const token of root.querySelectorAll("[style*='--diffs-token-light']")) {
-    const light = token.style
-      .getPropertyValue("--diffs-token-light")
-      .trim()
-      .toUpperCase();
-    const dark = token.style
-      .getPropertyValue("--diffs-token-dark")
-      .trim()
-      .toUpperCase();
-    const role = TOKEN_ROLES.get(`${light}/${dark}`);
-    token.style.removeProperty("--diffs-token-light");
-    token.style.removeProperty("--diffs-token-dark");
-    if (!token.style.length) token.removeAttribute("style");
-    if (role) token.dataset.lfSyn = role;
-  }
+// Keep Pierre's Shiki styles intact. The marker lets the render gate inspect
+// themed glyphs without prescribing their colors or translating them into roles.
+function markSyntax(root, foreground) {
+  for (const token of root.querySelectorAll("span[style]"))
+    if (
+      (token.style.color && token.style.color !== foreground) ||
+      token.style.fontStyle ||
+      token.style.fontWeight ||
+      token.style.textDecoration
+    )
+      token.dataset.lfSyn = "";
 }
 
 const changeCounts = (file) =>
@@ -99,7 +107,7 @@ const changeCounts = (file) =>
 // rendered rows are a flat run with the separator chrome between them, so recovering
 // the grouping from the DOM afterwards would be reading a rendering for a fact the
 // parse already had. It rides on the same record the anchor coordinate is read off,
-// and `lineKey` names only the four fields that make a comment's coordinate, so a row
+// and `diffDatumKey` names only the fields that make a comment's coordinate, so a row
 // knowing which hunk it is in changes no anchor.
 function sourceLines(file) {
   const lines = [];
@@ -133,12 +141,7 @@ const hunkHeads = (entry) =>
     (line, index) => index === 0 || line.hunk !== entry.lines[index - 1].hunk,
   );
 
-const lineKey = ({ path, side, oldLine, newLine }) =>
-  JSON.stringify(
-    side === "both"
-      ? [path, side, oldLine, newLine]
-      : [path, side, side === "old" ? oldLine : newLine],
-  );
+const LINE_KEY = "data-lf-line";
 
 const lineLabel = ({ path, side, oldLine, newLine }) => {
   const file = path || "(unnamed file)";
@@ -147,7 +150,6 @@ const lineLabel = ({ path, side, oldLine, newLine }) => {
   return `${file} · old line ${oldLine} · new line ${newLine}`;
 };
 
-const fileKey = ({ path }) => JSON.stringify([path, "file"]);
 const fileLabel = ({ path }) => `${path || "(unnamed file)"} · file`;
 const fileNode = (entry) => entry.node;
 const fileDatum = (entry, origin = null) => ({
@@ -156,8 +158,12 @@ const fileDatum = (entry, origin = null) => ({
   node: fileNode(entry),
   ...(origin ? { origin } : {}),
 });
-const datumKey = (record) => (record.file ? fileKey(record) : lineKey(record));
-const datumLabel = (record) => (record.file ? fileLabel(record) : lineLabel(record));
+const projectionDatum = (record) => ({
+  node: record.node,
+  key: diffDatumKey(record),
+  label: record.file ? fileLabel(record) : lineLabel(record),
+  ...(record.origin ? { origin: record.origin } : {}),
+});
 
 function renderedLines(file, rendered) {
   const records = sourceLines(file);
@@ -182,21 +188,21 @@ function renderedLines(file, rendered) {
       (alternate !== null && node.dataset.altLine !== String(alternate))
     )
       throw new Error(`Pierre returned an unexpected source line for ${file.name}`);
+    // The line's identity, which its gutter's Comment carries too, so a hold across a
+    // re-render finds the same line under its new node (`holdFileFocus`).
+    node.setAttribute(LINE_KEY, diffDatumKey(record));
     return { ...record, node };
   });
 }
 
 // A path is its folders and then the file's own name, each a span, so a row too narrow
-// for the whole path gives way from the folders and keeps the name (shadow.css). Where
+// for the whole path gives way from the folders before the name (shadow.css). Where
 // a path wraps, as in a rename's row, it breaks after its slashes before anywhere else:
 // with no break in it but the one the stylesheet forces, a narrow row cut names mid-word
 // ("skills/wor|ktrunk", "preview.|rs"). The text is unchanged; a <wbr> adds only the
-// opportunity, and the title holds the whole path wherever the row cuts it.
+// opportunity.
 function pathNode(className, path) {
-  const node = Object.assign(document.createElement("span"), {
-    className,
-    title: path,
-  });
+  const node = Object.assign(document.createElement("span"), { className });
   const parts = path.split("/");
   const base = parts.pop();
   if (parts.length) {
@@ -215,26 +221,119 @@ function pathNode(className, path) {
   return node;
 }
 
+// While a file's row cuts its path short, the row wears `data-path-cut`, which draws the
+// whole path for the keyboard and a held press (shadow.css), and the path's title holds
+// it for a pointer resting there. A path the row shows whole has neither, since each
+// would repeat it. Whether the row cuts the path changes only with the width of a part
+// of it, the folders or the name (at a new window width, face or press beside it), so
+// each part's size is watched rather than polled. A part is cut where its words run
+// past its box, measured by a Range to the layout unit: `scrollWidth` rounds to whole
+// pixels, and the ellipsis is drawn for a fraction of one. A folder region too small
+// for this font's ellipsis is left blank: the browser otherwise paints a glyph sliver.
+// Its CSS measurement box supplies the native width. Opacity elides only paint, leaving
+// flex allocation and the full path for accessibility, title and held-word intact.
+//
+// One observer watches every file's row, so a delivery reads every row it names before
+// writing any. A row is watched from when it becomes its file's row (`fileRow`,
+// `replaceFileRendering`) until another replaces it; a fresh rendering whose content
+// goes into the kept row (`replaceFileContent`) brings a row that is never watched. A
+// row that leaves the page with its file or its diff is not unwatched: an observer
+// holds what it watches weakly, so the row is collected with its observation.
+const runsPast = (part) => {
+  const words = new Range();
+  words.selectNodeContents(part);
+  return words.getBoundingClientRect().width > part.getBoundingClientRect().width;
+};
+const pathParts = (details) =>
+  details?.matches("details")
+    ? [...details.firstElementChild.querySelectorAll(".lf-diff-dir, .lf-diff-base")]
+    : [];
+const pathSizes = sizeObserver((entries) => {
+  const paths = new Set(
+    entries.map(({ target }) =>
+      target.closest(".lf-diff-head").querySelector(".lf-diff-path"),
+    ),
+  );
+  const readings = [...paths].map((path) => {
+    const parts = [...path.querySelectorAll(".lf-diff-dir, .lf-diff-base")];
+    return {
+      path,
+      cut: parts.some(runsPast),
+      folders: parts
+        .filter((part) => part.matches(".lf-diff-dir"))
+        .map((part) => {
+          return [
+            part,
+            Number.parseFloat(getComputedStyle(part, "::before").width) >
+              part.getBoundingClientRect().width,
+          ];
+        }),
+    };
+  });
+  for (const { path, cut, folders } of readings) {
+    path.parentElement.toggleAttribute("data-path-cut", cut);
+    keeps(path, "title", cut ? path.textContent : null);
+    for (const [part, hidden] of folders)
+      part.toggleAttribute("data-folder-hidden", hidden);
+  }
+});
+function watchPathCut(details) {
+  for (const part of pathParts(details)) pathSizes.observe(part);
+}
+function unwatchPathCut(details) {
+  for (const part of pathParts(details)) pathSizes.unobserve(part);
+}
+
+function filePathNode(file) {
+  const named = file.prevName
+    ? Object.assign(document.createElement("span"), { className: "lf-diff-path" })
+    : pathNode("lf-diff-path", file.name || "(unnamed file)");
+  if (file.prevName) {
+    const arrow = Object.assign(document.createElement("span"), {
+      className: "lf-diff-arrow",
+      textContent: " → ",
+    });
+    named.append(
+      pathNode("lf-diff-source-path", file.prevName),
+      arrow,
+      pathNode("lf-diff-destination-path", file.name),
+    );
+  }
+  named.dataset.path = named.textContent.replaceAll("/", "/\u200b");
+  return named;
+}
+
+// Keep the disclosure's native owner while its source/destination mapping changes.
+function updateSummaryPath(details, next) {
+  const current = details.querySelector(".lf-diff-head > .lf-diff-path");
+  if (current.dataset.path === next.dataset.path) return;
+  unwatchPathCut(details);
+  current.replaceWith(next);
+  watchPathCut(details);
+}
+
 function summaryNode(file, open) {
   const details = document.createElement("details");
   details.className = "lf-diff-fold";
   details.open = open;
+  // The row's path gives way from its folders, so a row that cuts it short says the
+  // whole path (`watchPathCut`), and a press held on the row reads it as the keyboard
+  // standing there does (held-word.js). It says `data-path`: the path with a zero-width
+  // space after each slash, since generated content takes no <wbr>.
   const summary = document.createElement("summary");
-  summary.className = "lf-diff-head";
-  const path = file.name || "(unnamed file)";
+  summary.className = `lf-diff-head ${HOLDS_WORD}`;
   const { adds, dels } = changeCounts(file);
   const stat = Object.assign(document.createElement("span"), {
     className: "lf-diff-stat",
     textContent: `+${adds} −${dels}`,
   });
   stat.dataset.lfGen = "1";
-  summary.append(pathNode("lf-diff-path", path), stat);
+  summary.append(filePathNode(file), stat);
   commands(summary, "On a diff", [
     {
       id: "diff.toggle",
       keys: () => DISCLOSE(summary),
-      does: () => `${details.open ? "Hide" : "Show"} that file's diff`,
-      line: () => `${details.open ? "hide" : "show"} this file`,
+      title: () => `${details.open ? "hide" : "show"} this file`,
     },
   ]);
   details.append(summary);
@@ -256,6 +355,7 @@ function fileRow(row) {
   actions.className = "lf-diff-file-actions lf-ui";
   actions.dataset.lfGen = "1";
   file.append(actions, row);
+  watchPathCut(row);
   return file;
 }
 
@@ -283,6 +383,145 @@ function diffBody(nodes) {
   return body;
 }
 
+// File and listing controls are browser-owned inspection state. Updating the evidence
+// keeps their owners connected; only changed rendered content is replaced. A line's
+// existing datum coordinate supplies its focus counterpart when that content changes.
+function rowSpan(node) {
+  const value = node.style.gridRow || getComputedStyle(node).gridRow;
+  const matches = [...value.matchAll(/span\s+(\d+)/g)];
+  const count = Number(matches.at(-1)?.[1]);
+  if (!Number.isInteger(count))
+    throw new Error("Pierre returned a diff grid without a finite row span");
+  return count;
+}
+
+// A file's datum owns its controls even when its evidence changes kind. Only the
+// inner presentation changes; a focus that no longer has a line or disclosure lands
+// on that same file, while surviving controls keep their own native focus.
+// Supplied outlets belong to core thread/composition presentation. It carries focus
+// when one leaves this file; the file's source fallback must not replace that standing.
+function holdFileFocus(entry, outlets) {
+  for (const { outlet } of outlets?.values() ?? []) if (holdFocus(outlet)) return null;
+  return holdFocus(entry.node, { key: LINE_KEY });
+}
+
+function replaceFileRendering(entry, rendered, outlets) {
+  const restore = holdFileFocus(entry, outlets);
+  unwatchPathCut(entry.details);
+  setChildren(entry.node, [entry.node.firstElementChild, rendered.node]);
+  entry.details = rendered.node.matches("details") ? rendered.node : null;
+  watchPathCut(entry.details);
+  entry.lines = rendered.lines;
+  entry.renderKey = null;
+  return () => restore?.(entry.details?.firstElementChild, entry.node);
+}
+
+function replaceFileContent(entry, rendered, pairs, outlets) {
+  const restore = holdFileFocus(entry, outlets);
+  const details = entry.details;
+  const pre = details.querySelector("pre");
+  const nextPre = rendered.node.querySelector("pre");
+  const prior = new Map(entry.lines.map((record) => [diffDatumKey(record), record]));
+  const retained = new Map();
+  const gutters = new Map();
+  for (const next of rendered.lines) {
+    const previous = prior.get(diffDatumKey(next));
+    if (!previous || previous.node.innerHTML !== next.node.innerHTML) continue;
+    retained.set(next.node, previous.node);
+    const nextGutter = nextPre.querySelector(
+      `[data-gutter] [data-line-index="${next.node.dataset.lineIndex}"]`,
+    );
+    const gutter = pre.querySelector(
+      `[data-gutter] [data-line-index="${previous.node.dataset.lineIndex}"]`,
+    );
+    gutters.set(nextGutter, gutter);
+    keeps(previous.node, "data-line-index", next.node.dataset.lineIndex);
+    keeps(gutter, "data-line-index", next.node.dataset.lineIndex);
+    next.node = previous.node;
+    next.comment = previous.comment;
+  }
+  if (pre && nextPre) {
+    // The fresh render's attributes, and whatever the runtime painted on the kept box,
+    // which a fresh render never carries (a scroller's marks, reach.js).
+    for (const { name } of [...pre.attributes])
+      if (!nextPre.hasAttribute(name) && !isPagePaint(name)) pre.removeAttribute(name);
+    for (const { name, value } of nextPre.attributes) keeps(pre, name, value);
+    setChildren(
+      pre,
+      [...nextPre.childNodes].map((next) => {
+        if (!next.matches?.("code[data-code]")) return next;
+        const code = pre.querySelector("code[data-code]");
+        if (!code) return next;
+        code.style.gridRow = next.style.gridRow;
+        setChildren(
+          code,
+          [...next.childNodes].map((column) => {
+            const kind = column.hasAttribute?.("data-content")
+              ? "content"
+              : column.hasAttribute?.("data-gutter")
+                ? "gutter"
+                : null;
+            if (!kind) return column;
+            const current = code.querySelector(`[data-${kind}]`);
+            if (!current) return column;
+            const content = code.querySelector("[data-content]");
+            const pair = pairs?.get(content);
+            if (pair) {
+              pair[`${kind}Rows`] = rowSpan(column);
+              pair[`${kind}GridRow`] = column.style.gridRow;
+            }
+            current.style.gridRow = column.style.gridRow;
+            const kept = kind === "content" ? retained : gutters;
+            const children = [...column.childNodes].flatMap((child) => {
+              const previous = kept.get(child);
+              if (!previous) return [child];
+              const outlets = [];
+              for (
+                let sibling = previous.nextElementSibling;
+                sibling?.matches(".lf-diff-thread-outlet, .lf-diff-thread-gutter");
+                sibling = sibling.nextElementSibling
+              )
+                outlets.push(sibling);
+              return [previous, ...outlets];
+            });
+            setChildren(current, children);
+            return current;
+          }),
+        );
+        return code;
+      }),
+    );
+  }
+  updateSummaryPath(
+    details,
+    rendered.node.querySelector(".lf-diff-head > .lf-diff-path"),
+  );
+  keepsText(
+    details.querySelector(".lf-diff-stat"),
+    rendered.node.querySelector(".lf-diff-stat").textContent,
+  );
+  setChildren(details, [
+    details.firstElementChild,
+    ...[...rendered.node.children]
+      .slice(1)
+      .map((node) => (node === nextPre && pre ? pre : node)),
+  ]);
+  entry.lines = rendered.lines;
+  return () => restore?.(details.firstElementChild);
+}
+
+function setWrappedLines(body, wrapped) {
+  if (!body) return;
+  const mode = wrapped ? "wrap" : "scroll";
+  for (const pre of body.querySelectorAll("pre[data-overflow]")) {
+    if (pre.dataset.overflow !== mode) pre.dataset.overflow = mode;
+    if (wrapped && pre.style.getPropertyValue("--lf-diff-row-fill") !== "0")
+      pre.style.setProperty("--lf-diff-row-fill", "0");
+    else if (!wrapped && pre.style.getPropertyValue("--lf-diff-row-fill"))
+      pre.style.removeProperty("--lf-diff-row-fill");
+  }
+}
+
 // The checkbox is the complete wrap state.
 function wrapSwitch() {
   const label = offer("label", "lf-diff-wrap-label");
@@ -291,8 +530,11 @@ function wrapSwitch() {
   // The words beside the control are its accessible name (WCAG Label in Name); the
   // label element supplies them, so nothing here restates them as an aria-label.
   label.append(box, "Soft wrap");
-  // A toggle moves no focus, so nothing else would repaint the word this press changes.
-  box.addEventListener("change", paintKeys);
+  // Pierre owns line wrapping through the rendered pre's overflow mode.
+  box.addEventListener("change", () => {
+    setWrappedLines(box.closest(".lf-diff-body"), box.checked);
+    paintKeys();
+  });
   return { node: label, box };
 }
 
@@ -305,6 +547,7 @@ function diffTools(host, reviewing) {
   search.label = "Filter diff files";
   search.name = "diff-search";
   search.placeholder = "Filter files";
+  search.value = "";
   search.setAttribute("aria-label", "Filter diff files");
   search.addEventListener("input", () => host.filterFiles(search.value));
   label.append(search);
@@ -326,12 +569,7 @@ function renameNode(file) {
   row.className = "lf-diff-rename";
   row.dataset.lfGen = "1";
   row.append(
-    pathNode("lf-diff-path lf-diff-before", file.prevName),
-    Object.assign(document.createElement("span"), {
-      className: "lf-diff-arrow",
-      textContent: " → ",
-    }),
-    pathNode("lf-diff-path lf-diff-after", file.name),
+    filePathNode(file),
     Object.assign(document.createElement("span"), {
       className: "lf-diff-stat",
       textContent: "renamed",
@@ -407,10 +645,17 @@ function pathOnlyRenames(source) {
 }
 
 async function renderFile(file, sharedStyles, open) {
-  const { preloadDiffHTML } = await pierre();
-  file.lang = langForPath(file.name) ?? "text";
+  const lang = langForPath(file.name);
+  const [{ preloadDiffHTML }, { themeName, foreground }] = await Promise.all([
+    pierre(),
+    ensureSyntaxLanguage(lang),
+  ]);
+  file.lang = lang ?? "text";
   const template = document.createElement("template");
-  template.innerHTML = await preloadDiffHTML({ fileDiff: file, options: OPTIONS });
+  template.innerHTML = await preloadDiffHTML({
+    fileDiff: file,
+    options: { ...OPTIONS, theme: themeName },
+  });
   const rendered = template.content;
 
   // The static rendering has no Pierre interaction manager, so its unused icon sprite
@@ -427,15 +672,19 @@ async function renderFile(file, sharedStyles, open) {
   for (const style of [...rendered.children].filter(
     (child) => child.localName === "style",
   )) {
+    // Vendor sublayers stay inside widget defaults, below Leaf's shared shadow rules.
+    style.textContent = inBaseLayer(style.textContent);
     const kind = style.hasAttribute("data-core-css") ? "core" : "theme";
     if (!sharedStyles.has(kind)) sharedStyles.set(kind, style);
     else style.remove();
   }
-  adoptSyntaxRoles(rendered);
+  markSyntax(rendered, foreground);
 
   const pre = rendered.querySelector("pre");
   if (!pre) throw new Error(`Pierre returned no diff for ${file.name || "a file"}`);
   const viewport = pre.querySelector("code[data-code]") ?? pre;
+  // Its last row clears the overlay scrollbar the pointer widens (shadow.css).
+  viewport.classList.add("lf-text-scroller");
   viewport.setAttribute("role", "region");
   viewport.setAttribute("aria-label", file.name || "diff");
 
@@ -494,24 +743,31 @@ customElements.define(
   "lf-diff",
   class extends HTMLElement {
     controller = widgetController(this);
+    revealPassage = ({ detail }) => {
+      const entry = this.fileEntries?.find(({ node }) => node.contains(detail.target));
+      if (entry?.filtered) this.clearFilter();
+    };
 
     connectedCallback() {
-      this.stopActions ??= this.controller.subscribe(this.paintReviewAvailability);
-      if (!this.threadSurface)
-        this.threadSurface = consumeThreads(this, (collection, surfaces) => {
-          this.beginThreadSurface();
-          for (const thread of collection.threads) {
-            if (thread.anchor?.section !== this.id || !thread.anchor.datum) continue;
-            const target = surfaces.target(thread.key);
-            const outlet = target && this.threadOutletFor(target);
-            if (outlet) surfaces.place(thread.key, outlet);
-          }
-          const outlet =
-            surfaces.composition && this.threadOutletFor(surfaces.composition);
-          if (outlet) surfaces.placeComposition(outlet);
-          this.endThreadSurface();
+      this.addEventListener("lf-reveal", this.revealPassage);
+      const firstConnection = once(this);
+      if (firstConnection) {
+        this.controller.subscribe(this.paintReviewAvailability);
+        watchOwner(this, {
+          disconnect: () => {
+            this.rendering = (this.rendering ?? 0) + 1;
+            this.manifestEntries = null;
+            this.manifestSnapshot = null;
+          },
         });
-      if (this.stopWatching) return;
+      }
+      if (!this.threadSurface)
+        this.threadSurface = placeThreads(this, (targets) => {
+          this.beginThreadSurface();
+          const outlets = targets.map((target) => this.threadOutletFor(target));
+          this.endThreadSurface();
+          return outlets;
+        });
       // A page diff's file header pins at `--lf-top`, the top of the page's box that
       // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
       // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
@@ -536,32 +792,30 @@ customElements.define(
             {
               id: "diff.next-hunk",
               keys: ["]"],
-              does: "Go to the next hunk",
-              line: "next hunk",
+              title: "next hunk",
               when: () => this.hasHunks(),
               run: () => this.present(this.stepHunk(false)),
             },
             {
               id: "diff.previous-hunk",
               keys: ["["],
-              does: "Go to the previous hunk",
-              line: "previous hunk",
+              title: "previous hunk",
               when: () => this.hasHunks(),
               run: () => this.present(this.stepHunk(true)),
             },
             {
               id: "diff.next-file",
               keys: ["}"],
-              does: "Go to the next file's header",
-              line: "next file",
+              title: "next file",
+              description: "Go to the next file's header",
               when: () => this.shownEntries().length > 1,
               run: () => this.stepFile(false),
             },
             {
               id: "diff.previous-file",
               keys: ["{"],
-              does: "Go to the previous file's header",
-              line: "previous file",
+              title: "previous file",
+              description: "Go to the previous file's header",
               when: () => this.shownEntries().length > 1,
               run: () => this.stepFile(true),
             },
@@ -574,17 +828,18 @@ customElements.define(
             {
               id: "diff.wrap",
               keys: ["Alt+w"],
-              does: () =>
-                this.wrapped() ? "Show long lines unwrapped" : "Wrap long lines",
-              line: () => (this.wrapped() ? "stop wrapping" : "wrap long lines"),
+              title: () => (this.wrapped() ? "stop wrapping" : "wrap long lines"),
               run: () => this.diffTools?.wrap.click(),
             },
             {
               id: "diff.search",
               keys: ["/"],
-              does: "Filter the files in this diff",
-              line: "filter files",
-              run: () => this.diffTools?.search.focus(),
+              title: "filter files",
+              description: "Filter the files in this diff",
+              run: () => {
+                const search = this.diffTools?.search;
+                if (search) focusDestination(search, "move", { scroll: true });
+              },
             },
             // The filter is a layer of this widget, so its way out is read off the
             // filter rather than off the press that put it on: a live query goes
@@ -600,29 +855,29 @@ customElements.define(
                   (search.value || this.diffTools.node.matches(":focus-within")),
                 );
               },
-              does: () =>
+              title: () => (this.diffTools?.search.value ? "show all files" : "back"),
+              description: () =>
                 this.diffTools?.search.value
                   ? "Show every file again"
                   : "Leave the diff filter",
-              line: () => (this.diffTools?.search.value ? "show all files" : "back"),
               run: () => {
                 const search = this.diffTools?.search;
                 if (search?.value) {
                   this.clearFilter();
-                  search.focus({ preventScroll: true });
+                  focusDestination(search, "return");
                   return;
                 }
                 // The box's container is the patch it filters, so that is where it hands
                 // the user back: a blur alone would drop them out of this widget's
                 // scope with no ring anywhere, and the file walk would stop answering.
-                focusDestination(this);
+                focusDestination(this, "return");
               },
             },
             {
               id: "diff.next-unreviewed",
               keys: ["Alt+ArrowDown"],
-              does: "Open the next unreviewed matching file",
-              line: "next unreviewed file",
+              title: "next unreviewed file",
+              description: "Open the next unreviewed matching file",
               when: () => this.nextReviewEntry() !== null,
               run: () => this.present(this.nextUnreviewed()),
             },
@@ -641,20 +896,16 @@ customElements.define(
         this.present(this.render(this.inlineSource));
         return;
       }
-      this.stopWatching = watchData(this, "document", (snapshot) =>
-        this.render(snapshot?.value ?? null, snapshot),
-      );
+      if (firstConnection)
+        watchData(this, "document", (snapshot) => {
+          const rendering = this.render(snapshot?.value ?? null, snapshot);
+          this.sourceRendering = rendering;
+          return rendering;
+        });
     }
 
     disconnectedCallback() {
-      this.stopActions?.();
-      this.stopActions = null;
-      this.rendering = (this.rendering ?? 0) + 1;
-      this.stopWatching?.();
-      this.stopWatching = null;
-      this.manifestEntries = null;
-      this.manifestSnapshot = null;
-      this.sharedStyles = null;
+      this.removeEventListener("lf-reveal", this.revealPassage);
       this.threadSurface?.unregister();
       this.threadSurface = null;
       this.threadOutlets = null;
@@ -671,15 +922,10 @@ customElements.define(
           this.fileEntries = null;
           this.sharedStyles = null;
           this.diffTools = null;
+          this.manifestBody = null;
           this.replaceChildren();
           shadowStage(this, []);
-          projectData(
-            this,
-            [],
-            () => "",
-            () => null,
-            { nested: true, snapshot },
-          );
+          projectData(this, [], { snapshot });
           this.classList.toggle("lf-rendered", false);
           return;
         }
@@ -689,53 +935,85 @@ customElements.define(
         }
         if (typeof source !== "string")
           throw new Error("diff data must be unified patch text or a file manifest");
-        this.manifestEntries = null;
-        this.sharedStyles = null;
         // Strict parsing keeps a malformed hunk from becoming incomplete evidence.
         const files = await parsedFiles(source);
-        const sharedStyles = new Map();
-        const rendered = [];
+        const sharedStyles = this.sharedStyles ?? new Map();
+        const prior = new Map(
+          (this.fileEntries ?? []).map((entry) => [entry.record.path, entry]),
+        );
+        const prepared = [];
         const open = !this.hasAttribute("collapsed");
-        for (const file of files)
-          rendered.push(
-            file.type === "rename-pure"
-              ? { node: renameNode(file), lines: [] }
-              : await renderFile(file, sharedStyles, open),
-          );
+        for (const file of files) {
+          const renderKey = JSON.stringify(file);
+          const previous = prior.get(file.name);
+          const rendered =
+            previous?.renderKey === renderKey
+              ? null
+              : file.type === "rename-pure"
+                ? { node: renameNode(file), lines: [] }
+                : await renderFile(file, sharedStyles, previous?.details?.open ?? open);
+          prepared.push({ file, renderKey, previous, rendered });
+        }
         if (rendering !== this.rendering || !this.isConnected) return;
-        const entries = rendered.map((renderedFile, index) => ({
-          ...renderedFile,
-          record: {
-            path: files[index].name,
-            ...(files[index].prevName ? { previousPath: files[index].prevName } : {}),
-          },
-          node: fileRow(renderedFile.node),
-          details: renderedFile.node.matches("details") ? renderedFile.node : null,
-          loaded: true,
-          reviewed: false,
-          filtered: false,
-        }));
-        if (bound) for (const { node } of entries) node.dataset.lfGen = "1";
+        const restores = [];
+        const fresh = [];
+        const entries = prepared.map(({ file, renderKey, previous, rendered }) => {
+          if (rendered && this.wrapped()) setWrappedLines(rendered.node, true);
+          let entry = previous;
+          if (!entry) {
+            entry = {
+              ...rendered,
+              node: fileRow(rendered.node),
+              details: rendered.node.matches("details") ? rendered.node : null,
+              reviewed: false,
+              filtered: false,
+            };
+            fresh.push(entry);
+          } else if (rendered && entry.details && file.type !== "rename-pure") {
+            restores.push(
+              replaceFileContent(entry, rendered, this.threadPairs, this.threadOutlets),
+            );
+          } else if (rendered) {
+            restores.push(replaceFileRendering(entry, rendered, this.threadOutlets));
+          }
+          entry.record = {
+            path: file.name,
+            ...(file.prevName ? { previousPath: file.prevName } : {}),
+          };
+          entry.renderKey = renderKey;
+          entry.loaded = true;
+          entry.details?.querySelector("pre")?.toggleAttribute("hidden", false);
+          return entry;
+        });
+        if (bound) for (const { node } of entries) keeps(node, "data-lf-gen", "1");
         const resume = this.controller.defer();
         try {
           this.fileEntries = entries;
-          this.diffTools = diffTools(this, this.reviewing());
-          for (const entry of entries)
+          this.manifestEntries = null;
+          this.sharedStyles = sharedStyles;
+          this.diffTools ??= diffTools(this, this.reviewing());
+          for (const entry of fresh)
             this.attachEntryControls(entry, { commentable: bound });
-          this.replaceChildren();
-          shadowStage(this, [
-            ...sharedStyles.values(),
-            diffBody([this.diffTools.node, ...entries.map(({ node }) => node)]),
+          for (const entry of entries) this.attachDisclosure(entry);
+          if (bound) for (const entry of entries) this.attachLineComments(entry);
+          this.manifestBody ??= diffBody([]);
+          setChildren(this.manifestBody, [
+            this.diffTools.node,
+            ...entries.map(({ node }) => node),
           ]);
+          this.replaceChildren();
+          this.stageFiles();
           if (bound)
             projectData(
               this,
-              entries.flatMap((entry) => [fileDatum(entry), ...entry.lines]),
-              datumKey,
-              ({ node }) => node,
-              { nested: true, labelOf: datumLabel, snapshot },
+              entries
+                .flatMap((entry) => [fileDatum(entry), ...entry.lines])
+                .map(projectionDatum),
+              { snapshot },
             );
           this.classList.toggle("lf-rendered", true);
+          this.filterFiles(this.diffTools.search.value);
+          for (const restore of restores) restore();
         } finally {
           resume();
         }
@@ -745,17 +1023,11 @@ customElements.define(
         this.fileEntries = null;
         this.sharedStyles = null;
         this.diffTools = null;
+        this.manifestBody = null;
         this.classList.toggle("lf-rendered", false);
         failSoft(this, err, source);
         if (this.shadowRoot) shadowStage(this, [...this.childNodes]);
-        if (bound)
-          projectData(
-            this,
-            [],
-            () => "",
-            () => null,
-            { nested: true, snapshot },
-          );
+        if (bound) projectData(this, [], { snapshot });
       }
     }
 
@@ -763,10 +1035,13 @@ customElements.define(
       const source = snapshot.value;
       if (!Array.isArray(source.files) || !source.files.length)
         throw new Error("empty diff manifest");
-      const entries = [];
+      const prior = new Map(
+        (this.fileEntries ?? []).map((entry) => [entry.record.path, entry]),
+      );
+      const sharedStyles = this.sharedStyles ?? new Map();
       const paths = new Set();
       const open = !this.hasAttribute("collapsed");
-      for (const record of source.files) {
+      const plans = source.files.map((record) => {
         if (
           !record ||
           typeof record !== "object" ||
@@ -777,102 +1052,188 @@ customElements.define(
         )
           throw new Error("diff manifest needs one unique path-keyed record per file");
         paths.add(record.path);
-        if (record.kind === "rename") {
-          if (typeof record.previousPath !== "string" || !record.previousPath)
-            throw new Error(`rename ${record.path} needs its previous path`);
-          entries.push({
-            record,
-            node: fileRow(
-              renameNode({ prevName: record.previousPath, name: record.path }),
-            ),
-            lines: [],
-            loaded: true,
-            reviewed: false,
-            filtered: false,
-          });
-          continue;
-        }
-        const details = summaryNode(
-          {
-            name: record.path,
-            additions: record.additions,
-            deletions: record.deletions,
-          },
-          open,
+        if (
+          record.kind === "rename" &&
+          (typeof record.previousPath !== "string" || !record.previousPath)
+        )
+          throw new Error(`rename ${record.path} needs its previous path`);
+        return { record, previous: prior.get(record.path), prepared: null };
+      });
+      // Open evidence is prepared without changing the current entries or their native
+      // outlets. A disclosure opened while another file loads joins this same commit.
+      for (;;) {
+        const pending = plans.filter(
+          ({ record, previous, prepared }) =>
+            record.kind !== "rename" && !prepared && (previous?.details?.open ?? open),
         );
-        const entry = {
-          record,
-          node: fileRow(details),
-          details,
-          lines: [],
-          loaded: false,
-          failed: false,
-          loading: null,
-          reviewed: false,
-          filtered: false,
-        };
-        details.addEventListener("toggle", () => {
-          if (!details.open) return;
-          entry.failed = false;
-          this.present(this.loadManifestEntry(entry));
-        });
-        entries.push(entry);
+        if (!pending.length) break;
+        await Promise.all(
+          pending.map(async (plan) => {
+            plan.prepared = await this.prepareManifestEntry(
+              snapshot,
+              plan.record,
+              plan.previous?.details ? plan.previous.renderKey : null,
+              sharedStyles,
+            );
+          }),
+        );
+        if (rendering !== this.rendering || !this.isConnected) return;
       }
       if (rendering !== this.rendering || !this.isConnected) return;
-      for (const { node } of entries) node.dataset.lfGen = "1";
+      const fresh = [];
+      const restores = [];
       const resume = this.controller.defer();
       try {
+        const entries = plans.map(({ record, previous, prepared }) => {
+          let entry = previous;
+          if (record.kind === "rename") {
+            if (
+              !previous ||
+              previous.details ||
+              previous.record.previousPath !== record.previousPath
+            ) {
+              const rendered = {
+                node: renameNode({ prevName: record.previousPath, name: record.path }),
+                lines: [],
+              };
+              if (entry)
+                restores.push(
+                  replaceFileRendering(entry, rendered, this.threadOutlets),
+                );
+              else {
+                entry = {
+                  node: fileRow(rendered.node),
+                  lines: [],
+                  reviewed: false,
+                  filtered: false,
+                };
+                fresh.push(entry);
+              }
+            }
+            entry.record = record;
+            entry.loaded = true;
+            return entry;
+          }
+          if (!entry?.details) {
+            const details = summaryNode(
+              {
+                name: record.path,
+                prevName: record.previousPath,
+                additions: record.additions,
+                deletions: record.deletions,
+              },
+              open,
+            );
+            if (entry)
+              restores.push(
+                replaceFileRendering(
+                  entry,
+                  { node: details, lines: [] },
+                  this.threadOutlets,
+                ),
+              );
+            else {
+              entry = {
+                node: fileRow(details),
+                details,
+                lines: [],
+                reviewed: false,
+                filtered: false,
+              };
+              fresh.push(entry);
+            }
+          }
+          Object.assign(entry, {
+            record,
+            loaded: false,
+            failed: false,
+            loading: null,
+            prepared,
+          });
+          const { adds, dels } = changeCounts({
+            additions: record.additions,
+            deletions: record.deletions,
+          });
+          updateSummaryPath(
+            entry.details,
+            filePathNode({ name: record.path, prevName: record.previousPath }),
+          );
+          keepsText(entry.details.querySelector(".lf-diff-stat"), `+${adds} −${dels}`);
+          if (prepared) this.applyManifestEntry(entry);
+          else entry.details.querySelector("pre")?.toggleAttribute("hidden", true);
+          return entry;
+        });
         this.manifestEntries = entries;
         this.manifestSnapshot = snapshot;
         this.fileEntries = entries;
-        this.sharedStyles = new Map();
-        this.diffTools = diffTools(this, this.reviewing());
-        for (const entry of entries)
+        this.sharedStyles = sharedStyles;
+        this.diffTools ??= diffTools(this, this.reviewing());
+        for (const entry of fresh)
           this.attachEntryControls(entry, { commentable: true });
-        this.manifestBody = diffBody([
+        for (const entry of entries) {
+          keeps(entry.node, "data-lf-gen", "1");
+          this.attachDisclosure(entry);
+        }
+        this.manifestBody ??= diffBody([]);
+        setChildren(this.manifestBody, [
           this.diffTools.node,
           ...entries.map(({ node }) => node),
         ]);
         this.replaceChildren();
-        this.stageManifest();
+        this.stageFiles();
         this.projectManifest();
         this.classList.toggle("lf-rendered", true);
+        this.filterFiles(this.diffTools.search.value);
+        for (const restore of restores) restore();
       } finally {
         resume();
       }
-      if (open)
-        await Promise.all(entries.map((entry) => this.loadManifestEntry(entry)));
     }
 
-    stageManifest() {
-      if (!this.manifestEntries) return;
+    async prepareManifestEntry(snapshot, record, renderKey, sharedStyles) {
+      try {
+        const patch = await loadDeferred(snapshot, record.key);
+        if (typeof patch !== "string")
+          throw new Error("the deferred patch is not unified patch text");
+        const files = await parsedFiles(patch);
+        if (files.length !== 1 || files[0].name !== record.path)
+          throw new Error(
+            `the deferred patch for ${record.path} does not contain that one file`,
+          );
+        const nextKey = JSON.stringify(files[0]);
+        const rendered =
+          renderKey === nextKey ? null : await renderFile(files[0], sharedStyles, true);
+        return { renderKey: nextKey, rendered };
+      } catch (error) {
+        return { error };
+      }
+    }
+
+    stageFiles() {
+      if (!this.manifestBody) return;
+      if (this.wrapped()) setWrappedLines(this.manifestBody, true);
       shadowStage(this, [...this.sharedStyles.values(), this.manifestBody]);
     }
 
     projectManifest() {
       projectData(
         this,
-        (this.manifestEntries ?? []).flatMap((entry, index) => [
-          fileDatum(entry, {
-            ...this.manifestSnapshot.origin,
-            path: ["files", index, "path"],
-          }),
-          ...entry.lines.map((line) => ({
-            ...line,
-            origin: {
+        (this.manifestEntries ?? [])
+          .flatMap((entry, index) => [
+            fileDatum(entry, {
               ...this.manifestSnapshot.origin,
-              path: ["files", index, "patch"],
-            },
-          })),
-        ]),
-        datumKey,
-        ({ node }) => node,
-        {
-          nested: true,
-          labelOf: datumLabel,
-          snapshot: this.manifestSnapshot,
-          originOf: ({ origin }) => origin,
-        },
+              path: ["files", index, "path"],
+            }),
+            ...(entry.loaded ? entry.lines : []).map((line) => ({
+              ...line,
+              origin: {
+                ...this.manifestSnapshot.origin,
+                path: ["files", index, "patch"],
+              },
+            })),
+          ])
+          .map(projectionDatum),
+        { snapshot: this.manifestSnapshot },
       );
     }
 
@@ -907,19 +1268,11 @@ customElements.define(
         throw new Error("Pierre returned a diff line without its paired gutter row");
       let pair = this.threadPairs.get(content);
       if (!pair) {
-        const span = (node) => {
-          const value = node.style.gridRow || getComputedStyle(node).gridRow;
-          const matches = [...value.matchAll(/span\s+(\d+)/g)];
-          const count = Number(matches.at(-1)?.[1]);
-          if (!Number.isInteger(count))
-            throw new Error("Pierre returned a diff grid without a finite row span");
-          return count;
-        };
         pair = {
           content,
           gutter,
-          contentRows: span(content),
-          gutterRows: span(gutter),
+          contentRows: rowSpan(content),
+          gutterRows: rowSpan(gutter),
           contentGridRow: content.style.gridRow,
           gutterGridRow: gutter.style.gridRow,
         };
@@ -929,22 +1282,17 @@ customElements.define(
     }
 
     threadOutletFor({ anchor, placement }) {
-      const entry = this.fileEntryForDatum(anchor.datum);
+      const coordinate = readDiffCoordinate(anchor.datum);
+      const entry = findDiffFile(this.fileEntries, coordinate);
       if (!entry || entry.filtered) return null;
-      let coordinate;
-      try {
-        coordinate = JSON.parse(anchor.datum);
-      } catch {
-        return null;
-      }
-      const file = coordinate[1] === "file";
+      const file = coordinate.file;
       if (file) {
         if (placement.datumElement !== entry.node) return null;
       } else if (
         !entry.loaded ||
         (entry.details && !entry.details.open) ||
         placement.datumElement !==
-          entry.lines.find((line) => lineKey(line) === anchor.datum)?.node
+          entry.lines.find((line) => diffDatumKey(line) === anchor.datum)?.node
       )
         return null;
 
@@ -1012,116 +1360,94 @@ customElements.define(
     }
 
     async loadManifestEntry(entry) {
-      if (entry.loaded) return;
+      for (;;) {
+        const rendering = this.sourceRendering;
+        await rendering;
+        if (!this.isConnected) return;
+        if (rendering === this.sourceRendering) break;
+      }
+      if (!this.manifestEntries?.includes(entry)) return;
+      if (entry.loaded || entry.prepared) return;
       if (entry.loading) return entry.loading;
       const rendering = this.rendering;
       entry.loading = (async () => {
-        try {
-          const patch = await loadDeferred(this.manifestSnapshot, entry.record.key);
-          if (rendering !== this.rendering || !this.isConnected) return;
-          if (typeof patch !== "string")
-            throw new Error("the deferred patch is not unified patch text");
-          const files = await parsedFiles(patch);
-          if (files.length !== 1 || files[0].name !== entry.record.path)
-            throw new Error(
-              `the deferred patch for ${entry.record.path} does not contain that one file`,
-            );
-          const rendered = await renderFile(files[0], this.sharedStyles, true);
-          if (rendering !== this.rendering || !this.isConnected) return;
-          entry.details.replaceChildren(
-            entry.details.firstElementChild,
-            ...[...rendered.node.children].slice(1),
-          );
-          entry.lines = rendered.lines;
-          entry.loaded = true;
-          this.attachLineComments(entry);
-          this.stageManifest();
-          this.projectManifest();
-        } catch (error) {
-          if (rendering !== this.rendering || !this.isConnected) return;
-          entry.failed = true;
-          deferredError(entry.details, error);
-        } finally {
-          entry.loading = null;
-        }
+        const prepared = await this.prepareManifestEntry(
+          this.manifestSnapshot,
+          entry.record,
+          entry.renderKey,
+          this.sharedStyles,
+        );
+        if (rendering !== this.rendering || !this.isConnected) return;
+        entry.loading = null;
+        entry.prepared = prepared;
+        this.applyManifestEntry(entry);
+        this.stageFiles();
+        this.projectManifest();
       })();
       return entry.loading;
     }
 
-    fileEntryForDatum(key) {
-      if (!this.fileEntries) return null;
-      let coordinate;
-      try {
-        coordinate = JSON.parse(key);
-      } catch {
-        return null;
+    applyManifestEntry(entry) {
+      const { error, renderKey, rendered } = entry.prepared;
+      entry.prepared = null;
+      if (error) {
+        entry.failed = true;
+        entry.lines = [];
+        entry.renderKey = null;
+        deferredError(entry.details, error);
+        return;
       }
-      if (!Array.isArray(coordinate) || typeof coordinate[0] !== "string") return null;
-      return (
-        this.fileEntries.find(({ record }) => record.path === coordinate[0]) ?? null
-      );
+      if (rendered && this.wrapped()) setWrappedLines(rendered.node, true);
+      const restore =
+        rendered &&
+        replaceFileContent(entry, rendered, this.threadPairs, this.threadOutlets);
+      entry.renderKey = renderKey;
+      entry.loaded = true;
+      entry.details.querySelector("pre")?.toggleAttribute("hidden", false);
+      this.attachLineComments(entry);
+      restore?.();
     }
 
     // Core can place a standing line thread at its file disclosure before that file's
     // patch exists in the DOM. Navigation asks the second method to make the exact line
     // real, then the ordinary datum resolver and anchor painter take over.
     lfDataDatum(key, { outdated = false } = {}) {
-      const entry = this.fileEntryForDatum(key);
+      const coordinate = readDiffCoordinate(key);
+      const entry = findDiffFile(this.fileEntries, coordinate);
       if (!entry) return null;
-      let coordinate;
-      try {
-        coordinate = JSON.parse(key);
-      } catch {
-        return null;
-      }
-      if (coordinate[1] === "file") return fileNode(entry);
+      if (coordinate.file) return fileNode(entry);
       if (outdated) return entry.node;
       if (!entry.loaded || entry.filtered) return entry.node;
-      const exact = entry.lines.find((line) => lineKey(line) === key);
-      if (exact) return exact.node;
-      const [, side, at] = coordinate;
-      if (!Number.isInteger(at) || !["old", "new"].includes(side)) return null;
-      const context = entry.lines.find(
-        (line) =>
-          line.side === "both" && (side === "old" ? line.oldLine : line.newLine) === at,
-      );
-      if (context) return context.node;
-      if (side === "new") {
-        const priorContext = entry.lines.find(
-          (line) => line.side === "both" && line.oldLine === at,
-        );
-        if (priorContext) return priorContext.node;
-      }
-      // A non-removed call-tree item normally names the new side. Falling back to an
-      // old coordinate preserves travel for analyzers whose location still names the
-      // pre-change call site, without making callers understand diff coordinates.
-      if (side === "new")
-        return (
-          entry.lines.find((line) => line.side === "old" && line.oldLine === at)
-            ?.node ?? null
-        );
-      return null;
+      const line = findDiffLine(entry.lines, coordinate);
+      return line ? projectedDatum(this, diffDatumKey(line)) : null;
     }
 
     lfRevealDatum(key) {
-      const entry = this.fileEntryForDatum(key);
+      const coordinate = readDiffCoordinate(key);
+      const entry = findDiffFile(this.fileEntries, coordinate);
       if (!entry) return null;
       if (entry.filtered) this.clearFilter();
-      try {
-        if (JSON.parse(key)[1] === "file") return null;
-      } catch {
-        return null;
-      }
+      if (coordinate.file) return null;
       if (!entry.details || entry.loaded || entry.failed) return null;
       entry.details.toggleAttribute("open", true);
       return this.loadManifestEntry(entry);
     }
 
+    attachDisclosure(entry) {
+      if (entry.disclosureNode === entry.details) return;
+      entry.disclosureNode?.removeEventListener("toggle", entry.disclose);
+      entry.disclosureNode = entry.details;
+      if (!entry.details) return;
+      entry.disclose ??= () => {
+        this.threadSurface?.update();
+        if (!entry.details.open || !this.manifestEntries?.includes(entry)) return;
+        entry.failed = false;
+        this.present(this.loadManifestEntry(entry));
+      };
+      entry.details.addEventListener("toggle", entry.disclose);
+    }
+
     attachReview(entry) {
-      if (entry.details && !entry.threadSurfaceToggle) {
-        entry.threadSurfaceToggle = () => this.threadSurface?.update();
-        entry.details.addEventListener("toggle", entry.threadSurfaceToggle);
-      }
       if (!this.reviewing()) return;
       entry.review = reviewButton(entry, (target, reviewed) => {
         if (!this.controller.read().actions.review.available) return;
@@ -1160,8 +1486,8 @@ customElements.define(
 
     attachLineComments(entry) {
       for (const line of entry.lines) {
-        if (line.comment?.isConnected) continue;
         const { gutterRow } = this.threadPair(line.node);
+        if (line.comment?.parentElement === gutterRow) continue;
         line.comment = commentButton(
           lineLabel(line),
           () => this.threadSurface?.open(line.node, { origin: line.comment }),
@@ -1171,11 +1497,12 @@ customElements.define(
         // target picker is the keyboard route to the same exact datum; this control is
         // the conventional pointer affordance in the line-number gutter.
         line.comment.tabIndex = -1;
+        line.comment.setAttribute(LINE_KEY, diffDatumKey(line));
         line.node.addEventListener("pointerenter", () =>
-          gutterRow.classList.add("lf-diff-line-hover"),
+          gutterRow.classList.toggle("lf-diff-line-hover", true),
         );
         line.node.addEventListener("pointerleave", () =>
-          gutterRow.classList.remove("lf-diff-line-hover"),
+          gutterRow.classList.toggle("lf-diff-line-hover", false),
         );
         gutterRow.append(line.comment);
       }
@@ -1233,12 +1560,26 @@ customElements.define(
       const shown = this.fileEntries.filter((entry) => !entry.filtered);
       const reviewed = this.fileEntries.filter((entry) => entry.reviewed).length;
       const total = this.fileEntries.length;
-      const suffix = shown.length === total ? "" : ` · ${shown.length} matching`;
+      const label = (done, matching) => {
+        if (!this.reviewing())
+          return matching === null
+            ? `${total} file${total === 1 ? "" : "s"}`
+            : `${matching} of ${total}`;
+        const count = `${done} of ${total} reviewed`;
+        return matching === null ? count : `${count} · ${matching} matching`;
+      };
+      // Filtering and review change this count, never the field or the adjacent
+      // controls. Reserve both count forms in their actual face. A compact ratio
+      // leaves room for the field and wrap control; a review retains its fuller
+      // reading. A changed source total needs a new reservation.
+      const room = label(total, total);
+      if (this.diffTools.progressRoom !== room) {
+        this.diffTools.progressRoom = room;
+        reserve(this.diffTools.progress, [label(total, null), room]);
+      }
       keepsText(
         this.diffTools.progress,
-        this.reviewing()
-          ? `${reviewed} of ${total} reviewed${suffix}`
-          : `${total} file${total === 1 ? "" : "s"}${suffix}`,
+        label(reviewed, shown.length === total ? null : shown.length),
       );
       this.diffTools.next?.toggleAttribute("disabled", this.nextReviewEntry() === null);
       paintKeys();
@@ -1374,24 +1715,11 @@ customElements.define(
     // already is one, and writing a tabindex of -1 onto it would take it out of the
     // order a user tabs through.
     //
-    // A landing moves the reading down, never sideways. A row is as wide as its file's
-    // longest line, so where one line ran past the code box, "nearest" on the inline
-    // axis scrolled that box to put the row's start at its edge: the width of the line
-    // numbers, which stand over the code there, so every line in the file lost its
-    // change marker and first characters under them. Each box between the target and
-    // the shadow root keeps the sideways place the user left it at.
+    // The shared reading-region landing moves only vertically, including through
+    // the shadow host. Neither the file nor a region around it loses its sideways place.
     land(box, node = box) {
-      if (node.tabIndex < 0) keeps(node, "tabindex", -1);
-      const sideways = [];
-      for (let el = box.parentElement; el; el = el.parentElement)
-        if (el.scrollWidth > el.clientWidth) sideways.push([el, el.scrollLeft]);
-      box.scrollIntoView({
-        behavior: scrollBehavior(),
-        block: "start",
-        inline: "nearest",
-      });
-      for (const [el, left] of sideways) el.scrollLeft = left;
-      node.focus({ preventScroll: true });
+      scrollIntoReadingBand(box, box, "start", scrollBehavior());
+      focusDestination(node, "move");
     }
 
     entryAroundFocus() {
@@ -1430,8 +1758,8 @@ customElements.define(
         if (!mayLand()) return;
       }
       const target = entry.details?.firstElementChild ?? entry.review;
-      target.scrollIntoView({ behavior: scrollBehavior(), block: "center" });
-      target.focus({ preventScroll: true });
+      scrollIntoReadingBand(target, target, "center", scrollBehavior());
+      focusDestination(target, "move");
       this.markFileWalk("diff-unreviewed", "unreviewed");
       notice(`Next unreviewed file: ${entry.record.path}`);
     }

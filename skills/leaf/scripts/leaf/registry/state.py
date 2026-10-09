@@ -5,13 +5,12 @@ from leaf.schema import ELEMENT_ID
 from .contract import (
     RegistryError,
     deciding_outcomes,
-    deciding_verb,
     deciding_verbs,
     declares_string,
-    json_validator,
     state_specs,
     verb_writer,
 )
+from .schema import json_validator, json_value, schema_error_message
 
 
 def validate_widget_state_relations(
@@ -119,156 +118,89 @@ def validate_widget_record_contracts(
     # One rule set for both writers: they differ in who sends the state, not in
     # how a verb, its unit, and record hang together.
     for verb, spec in state_specs(entry):
-        detail_properties = spec["detail"].get("properties", {})
-        required = set(spec["detail"].get("required", []))
         unit = spec["unit"]
-        fields = [] if unit == "widget" else [unit]
         record = spec.get("record")
-        if record:
-            fields.append(record["value"])
-            if record["kind"] == "position":
-                fields.append(record["rank"])
-                if record["within"] not in declarations:
-                    raise RegistryError(
-                        f"{path}: <{tag}> x-state verb `{verb}` records a "
-                        f"position within unknown widget <{record['within']}>"
-                    )
-                # A rank is read between the unit's neighbours, which only the
-                # widget holding the container has; a node cannot place itself.
-                if unit == "widget":
-                    raise RegistryError(
-                        f"{path}: <{tag}> x-state verb `{verb}` records a "
-                        "position, so its unit must be the part it places, "
-                        "not the widget"
-                    )
-            if record["kind"] == "body":
-                if entry.get("x-content") != "data":
-                    raise RegistryError(
-                        f"{path}: <{tag}> x-state verb `{verb}` records "
-                        "its body, so x-content must be data; projection "
-                        "states text rather than a prose subtree"
-                    )
-                nested = sorted(
-                    child
-                    for child, child_entry in declarations.items()
-                    if tag in child_entry.get("x-owners", [])
-                )
-                if nested:
-                    raise RegistryError(
-                        f"{path}: <{tag}> x-state verb `{verb}` records "
-                        f"its body but admits nested widgets {nested}; a "
-                        "text statement cannot reconstruct their state"
-                    )
-            if record["kind"] == "value":
-                attr = record["attr"]
-                if attr not in properties:
-                    raise RegistryError(
-                        f"{path}: <{tag}> x-state verb `{verb}` records "
-                        f"undeclared attribute `{attr}`"
-                    )
-                # An x-says value is words the user sees, and the file's
-                # reading takes them from the markup — replay writing one
-                # would change what the page says while that reading held
-                # still, the desync the fence rules exist to prevent.
-                if attr in said:
-                    raise RegistryError(
-                        f"{path}: <{tag}> x-state verb `{verb}` records "
-                        f"x-says attribute `{attr}`, whose value is words "
-                        "the user sees — declared state may not move the "
-                        "page's words"
-                    )
-        undeclared = [field for field in fields if field not in detail_properties]
-        optional = [field for field in fields if field not in required]
-        if undeclared or optional:
-            problem = (
-                f"does not declare {undeclared}"
-                if undeclared
-                else f"does not require {optional}"
-            )
-            raise RegistryError(
-                f"{path}: <{tag}> x-state verb `{verb}` reads detail fields "
-                f"its schema {problem}"
-            )
-        if unit != "widget" and record and record["kind"] != "position":
-            raise RegistryError(
-                f"{path}: <{tag}> x-state verb `{verb}` records per-part "
-                "state; only position records support that"
-            )
-
-        if unit != "widget" and not declares_string(detail_properties[unit]):
-            raise RegistryError(
-                f"{path}: <{tag}> x-state verb `{verb}` fold unit `{unit}` "
-                "must be a string"
-            )
-        if record:
-            value = record["value"]
-            schema = detail_properties[value]
-            # An attribute record names the set of elements wearing it, so its
-            # detail field is a list of ids however many the group allows —
-            # nothing downstream has to ask which kind of group it came from.
-            if record["kind"] == "attribute":
-                items = schema.get("items") if isinstance(schema, dict) else None
-                if not (
-                    isinstance(schema, dict)
-                    and schema.get("type") == "array"
-                    and isinstance(items, dict)
-                    and items.get("type") == "string"
-                ):
-                    raise RegistryError(
-                        f"{path}: <{tag}> x-state verb `{verb}` record "
-                        f"value `{value}` must be an array of strings"
-                    )
-            elif record["kind"] == "value":
-                # The record reads and writes the attribute, so its detail
-                # field speaks the attribute's own schema — one vocabulary,
-                # or the log's contract and the markup's drift apart.
-                if schema != properties[record["attr"]]:
-                    raise RegistryError(
-                        f"{path}: <{tag}> x-state verb `{verb}` record "
-                        f"value `{value}` must carry attribute "
-                        f"`{record['attr']}`'s own schema"
-                    )
-                string_enum = (
-                    isinstance(schema, dict)
-                    and isinstance(schema.get("enum"), list)
-                    and bool(schema["enum"])
-                    and all(isinstance(value, str) for value in schema["enum"])
-                )
-                if not (declares_string(schema) or string_enum):
-                    raise RegistryError(
-                        f"{path}: <{tag}> x-state verb `{verb}` record "
-                        f"value `{value}` must be a string or string enum; "
-                        "HTML attributes cannot restore another JSON type"
-                    )
-            elif not declares_string(schema):
+        if record is None:
+            if unit == "widget":
+                continue
+            detail = spec["detail"]
+            if unit not in detail.get("properties", {}) or unit not in detail.get(
+                "required", []
+            ):
                 raise RegistryError(
-                    f"{path}: <{tag}> x-state verb `{verb}` record "
-                    f"value `{value}` must be a string"
+                    f"{path}: <{tag}> x-state verb `{verb}` must declare and require "
+                    f"its fold unit `{unit}` in detail"
                 )
-            if record["kind"] == "position":
-                rank = detail_properties[record["rank"]]
-                if not (isinstance(rank, dict) and rank.get("type") == "string"):
-                    raise RegistryError(
-                        f"{path}: <{tag}> x-state verb `{verb}` record "
-                        f"rank `{record['rank']}` holds a rank key, so its "
-                        "detail field must be a string"
-                    )
+            if not declares_string(detail["properties"][unit]):
+                raise RegistryError(
+                    f"{path}: <{tag}> x-state verb `{verb}` fold unit `{unit}` must be a string"
+                )
+            continue
+        kind = record["kind"]
+        expected_unit = "unit" if kind == "position" else "widget"
+        if unit != expected_unit:
+            raise RegistryError(
+                f"{path}: <{tag}> x-state verb `{verb}` record `{kind}` "
+                f"requires unit: {expected_unit!r}"
+            )
+        if kind == "position" and record["within"] not in declarations:
+            raise RegistryError(
+                f"{path}: <{tag}> x-state verb `{verb}` records a "
+                f"position within unknown widget <{record['within']}>"
+            )
+        if kind == "body":
+            if entry.get("x-content") != "data":
+                raise RegistryError(
+                    f"{path}: <{tag}> x-state verb `{verb}` records "
+                    "its body, so x-content must be data; projection "
+                    "states text rather than a prose subtree"
+                )
+            nested = sorted(
+                child
+                for child, child_entry in declarations.items()
+                if tag in child_entry.get("x-owners", [])
+            )
+            if nested:
+                raise RegistryError(
+                    f"{path}: <{tag}> x-state verb `{verb}` records "
+                    f"its body but admits nested widgets {json_value(nested)}; a "
+                    "text statement cannot reconstruct their state"
+                )
+        if kind == "value":
+            attr = record["attr"]
+            if attr not in properties:
+                raise RegistryError(
+                    f"{path}: <{tag}> x-state verb `{verb}` records "
+                    f"undeclared attribute `{attr}`"
+                )
+            if attr in said:
+                raise RegistryError(
+                    f"{path}: <{tag}> x-state verb `{verb}` records "
+                    f"x-says attribute `{attr}`, whose value is words "
+                    "the user sees — declared state may not move the page's words"
+                )
+            schema = properties[attr]
+            string_enum = (
+                isinstance(schema, dict)
+                and isinstance(schema.get("enum"), list)
+                and bool(schema["enum"])
+                and all(isinstance(value, str) for value in schema["enum"])
+            )
+            if not (declares_string(schema) or string_enum):
+                raise RegistryError(
+                    f"{path}: <{tag}> x-state verb `{verb}` record attribute "
+                    f"`{attr}` must be a string or string enum; "
+                    "HTML attributes cannot restore another JSON type"
+                )
 
 
-def validate_widget_retirement(
-    tag: str, entry: dict, slots: dict, declarations: dict, path
-) -> None:
-    # Withdrawal is the author taking an unanswered question back, and the
-    # declaration says which of its own outcomes that leaves the page in
-    # (retirable_ids). A verb no slot of this widget retires under would
-    # license nothing but the wrapper, so the withdrawal it promises would
-    # fail as "ids dropped" on the version that tried it — the misdeclaration
-    # is invisible until then, and this is where its author is standing.
+def validate_widget_retirement(tag: str, entry: dict, declarations: dict, path) -> None:
+    # Withdrawal names a declared deciding outcome; it does not require slots
+    # whose historical ids a future revision must retain.
     withdrawn = entry.get("x-withdrawn-as")
-    if withdrawn is not None and withdrawn not in slots.get(tag, {}):
+    if withdrawn is not None and withdrawn not in deciding_outcomes(entry):
         raise RegistryError(
-            f"{path}: <{tag}> x-withdrawn-as `{withdrawn}` retires none of its "
-            "slots; withdrawing it would leave their ids on the page"
+            f"{path}: <{tag}> x-withdrawn-as `{withdrawn}` is not a deciding outcome"
         )
     retired = entry.get("x-retired-when")
     if retired is None:
@@ -291,7 +223,7 @@ def validate_deciding_verb(tag: str, entry: dict, path) -> None:
     deciding = deciding_verbs(entry)
     if len(deciding) > 1:
         raise RegistryError(
-            f"{path}: <{tag}> x-state verbs {deciding} all declare detail field "
+            f"{path}: <{tag}> x-state verbs {json_value(deciding)} all declare detail field "
             "`outcome`, a reserved name only one deciding verb may carry"
         )
     if not deciding:
@@ -375,41 +307,6 @@ def validate_answered_conditions(declarations: dict, path) -> None:
                     ):
                         raise RegistryError(
                             f"{path}: <{tag}> x-awaits answering verb `{verb}` tests "
-                            f"<{within}> `{attr}` at {value!r}, which its schema "
-                            f"does not admit: {errors[0].message}"
+                            f"<{within}> `{attr}` at {json_value(value)}, which its schema "
+                            f"does not admit: {schema_error_message(errors[0])}"
                         )
-
-
-def retirement_slots(registry: dict) -> dict:
-    """owner tag → {outcome verb → the tags that leave the page under it}: every
-    owner/member pair `x-retired-when` relates, the member naming the outcome and
-    `x-owners` the widgets whose decision reaches it. Read out of the merged
-    registry rather than known here, so which widgets a decision settles is a
-    fact about this page's vocabulary and never a list in the code."""
-    slots = {}
-    for tag, entry in registry.items():
-        if not tag.startswith("lf-") or not entry.get("x-retired-when"):
-            continue
-        outcome = entry["x-retired-when"]
-        for owner in entry["x-owners"]:
-            slots.setdefault(owner, {}).setdefault(outcome, []).append(tag)
-    return slots
-
-
-def stamp_decisions(registry: dict) -> dict:
-    """Write `$decisions` into a validated vocabulary: owner tag → {`verb`, its deciding
-    x-state verb; `retires`, `retirement_slots`' outcome → member tags}, for every tag
-    that declares a deciding verb.
-
-    Each composition stamps it (`registry.layer.stamp_composition`), so the browser
-    reads which verb decides a widget and what its outcome takes off the page rather
-    than walking the declarations a second time. Python reads `deciding_verb` and
-    `retirement_slots` themselves, the definitions this is derived from, since
-    validation asks them of declarations that no composition has stamped yet."""
-    slots = retirement_slots(registry)
-    registry["$decisions"] = {
-        tag: {"verb": verb, "retires": slots.get(tag, {})}
-        for tag, entry in registry.items()
-        if tag.startswith("lf-") and (verb := deciding_verb(entry)) is not None
-    }
-    return registry

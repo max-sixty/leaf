@@ -470,11 +470,9 @@ const scenarios = {
       const openThread = demo.frameApi.submitComment(
         demo.figure.dataset.interactionThreadId,
       );
-      await demo.waitFor(
-        openThread,
-        "the comment did not open its inline thread",
-        generation,
-      );
+      const destination = await openThread();
+      demo.assertCurrent(generation);
+      if (!destination) throw new Error("the comment did not reach its Thread");
       await demo.frame(generation);
       await Promise.all(
         demo

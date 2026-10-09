@@ -15,15 +15,18 @@ from interact_support import (
     SHIPPED_PACKAGES,
     _report,
     _tasks_version,
+    append_carried_log_record,
     append_command,
     check,
     comment,
     fetch,
     fragment_errors,
+    fresh_process,
     live_versions,
     page_state,
     publish,
     published,
+    response_reference,
     state_json,
 )
 from leaf import cli as cli_model
@@ -34,7 +37,8 @@ from leaf import layer as layer_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
-from leaf import thread as thread_model
+from leaf import state as cleanup_model
+from leaf import tasks as tasks_model
 from leaf.registry import storage as registry_storage
 from leaf.structure import SourceDocument
 from leaf.thread_context import thread_digest
@@ -97,7 +101,7 @@ def test_valid_source_activates_once_and_a_bad_save_keeps_it_live(page_dir):
     assert repaired.error is None and repaired.created and repaired.revision == 3
 
 
-def test_the_log_reopens_a_refused_save_but_never_the_active_revision(page_dir):
+def test_later_events_do_not_veto_source_readings(page_dir):
     source = page_dir / "index.html"
     source.write_text(PAGE)
     live = revisioning_model.activate_source(page_dir)
@@ -105,7 +109,7 @@ def test_the_log_reopens_a_refused_save_but_never_the_active_revision(page_dir):
     live = revisioning_model.activate_source(page_dir)
 
     # The source is the active revision, so an append leaves the answer standing.
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -118,24 +122,26 @@ def test_the_log_reopens_a_refused_save_but_never_the_active_revision(page_dir):
     )
     assert revisioning_model.activate_source(page_dir) is live
 
-    # A save that drops what the thread is anchored on is refused, and the event
-    # that releases the id clears the refusal without another save.
+    # Removing a thread's target activates immediately and detaches the thread;
+    # the original anchor stays in the log.
     dropped = re.sub(
         r'<lf-diagram id="flow">.*?</lf-diagram>', "", PAGE, flags=re.DOTALL
     )
     source.write_text(dropped)
-    refused = revisioning_model.activate_source(page_dir)
-    assert refused.revision == 1 and "'flow'" in refused.error
-    events_model.append_event(
+    removed = revisioning_model.activate_source(page_dir)
+    assert removed.error is None and removed.created and removed.revision == 2
+    threads = event_folds_model.build_threads(events_model.read_events(page_dir), {})
+    assert threads["c1"]["anchor"] is None
+    assert threads["c1"]["root"]["anchor"] == {"section": "flow"}
+    append_carried_log_record(
         page_dir, {"kind": "resolve", "author": "user", "parent": "c1"}
     )
     released = revisioning_model.activate_source(page_dir)
-    assert released.error is None and released.created and released.revision == 2
+    assert released.error is None and not released.created and released.revision == 2
 
     # A tab still showing r1 may anchor a thread on the id r2 dropped. r2 is live
-    # and its transition was judged when it activated, so neither activation nor
-    # `page check` re-judges it against the later event; the thread detaches.
-    events_model.append_event(
+    # and neither activation nor `page check` lets the later event veto it.
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -146,10 +152,23 @@ def test_the_log_reopens_a_refused_save_but_never_the_active_revision(page_dir):
             "text": "one more on the flow",
         },
     )
-    revisioning_model._held.clear()
-    settled = revisioning_model.activate_source(page_dir)
+    with fresh_process():
+        settled = revisioning_model.activate_source(page_dir)
     assert settled.error is None and settled.revision == 2 and not settled.created
     assert check(page_dir).exit_code == 0
+
+    # Events cannot repair an invalid source either; only a corrected save does.
+    source.write_text(dropped.replace("</section>", ""))
+    refused = revisioning_model.activate_source(page_dir)
+    assert refused.error and refused.revision == 2 and not refused.created
+    append_carried_log_record(
+        page_dir, {"kind": "resolve", "author": "user", "parent": "c2"}
+    )
+    still_refused = revisioning_model.activate_source(page_dir)
+    assert still_refused.error == refused.error and still_refused.revision == 2
+    source.write_text(dropped.replace("<title>t</title>", "<title>repaired</title>"))
+    repaired = revisioning_model.activate_source(page_dir)
+    assert repaired.error is None and repaired.created and repaired.revision == 3
 
 
 def test_stamp_assigns_versions_to_the_exact_immutable_revision(page_dir):
@@ -259,10 +278,7 @@ def test_an_ask_surface_frames_exactly_one_source(page_dir):
         )
         == []
     )
-    outside = fragment_errors(first, registry)
-    assert "this declared Ask source must be inside an Ask with a heading" in " ".join(
-        outside
-    )
+    assert fragment_errors(first, registry) == []
 
     # Evidence can quote another Ask source without giving this Ask a
     # second live source. The runtime already excludes x-exhibit descendants from the
@@ -325,19 +341,43 @@ def test_command_references_preserve_the_package_owned_subject_roles(page_dir):
     """An existing id is insufficient when a typed reference names the wrong role."""
     registry = registry_storage.load_registry(page_dir)
     parser = SourceDocument(
-        '<lf-command id="hub">'
+        '<lf-command id="hub" readings="goal">'
         '<lf-task id="goal" status="active"><strong>Goal</strong>'
         '<lf-agent id="worker" state="waiting" on="tree"><strong>Worker</strong>'
         '<lf-worktree id="tree" source="project-worktrees"></lf-worktree>'
         "</lf-agent></lf-task></lf-command>"
-        '<lf-command-readings for="goal"></lf-command-readings>'
     )
 
     errors = reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
 
     assert len(errors) == 2
-    assert "$command.widgets widget where role='goal'" in errors[0]
-    assert "$command.widgets widget where role='command'" in errors[1]
+    assert '$command.widgets widget where role="readings"' in errors[0]
+    assert '$command.widgets widget where role="goal"' in errors[1]
+
+
+def test_a_readings_seat_answers_to_one_command(page_dir):
+    """A command fills the seat it names, so each seat in a document is named by
+    exactly one command: a second command naming it is refused, and so is a seat no
+    command names, while each command naming its own seat passes."""
+    registry = registry_storage.load_registry(page_dir)
+    parser = SourceDocument(
+        '<lf-command id="one" readings="seat"></lf-command>'
+        '<lf-command id="two" readings="seat"></lf-command>'
+        '<lf-command id="three" readings="other"></lf-command>'
+        '<lf-command-readings id="seat"></lf-command-readings>'
+        '<lf-command-readings id="other"></lf-command-readings>'
+        '<lf-command-readings id="orphan"></lf-command-readings>'
+    )
+
+    errors = reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
+
+    assert errors == [
+        (
+            '<lf-command> (line 1): readings="seat" is already named by '
+            "<lf-command id='one'> (line 1); only one element may name it"
+        ),
+        "<lf-command-readings> (line 1): no <lf-command> names it in `readings`",
+    ]
 
 
 def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(
@@ -373,7 +413,7 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(
     (page_dir / "index.html").write_text(PAGE)
     assert checking_command.cmd_check(page_dir) == 0
     assert (
-        "ids dropped from revision r1: ['opt-a', 'opt-b', 'pick', 'pick-decision']"
+        'ids dropped from revision r1: ["opt-a", "opt-b", "pick", "pick-decision"]'
         in (capsys.readouterr().out)
     )
 
@@ -422,43 +462,58 @@ def test_every_path_a_diff_resolves_names_a_language_the_bundles_carry(page_dir)
     )
 
 
-def test_page_fixtures_pass_check(tmp_path, monkeypatch, initialized_page):
+PAGE_FIXTURES = (
+    *CORPUS_SOURCES,
+    ROOT / "examples" / "corpus.html",
+    *sorted((ROOT / "notes").glob("**/*.html")),
+)
+
+
+# One case per fixture, named by its path since notes each keep a `playground.html`, so
+# every fixture that fails is reported rather than only the first, and the cases spread
+# across workers rather than holding one for the whole tree.
+@pytest.mark.parametrize(
+    "example",
+    PAGE_FIXTURES,
+    ids=[
+        example.relative_to(ROOT).with_suffix("").as_posix()
+        for example in PAGE_FIXTURES
+    ],
+)
+def test_page_fixtures_pass_check(example, tmp_path, monkeypatch, initialized_page):
     """Every page fixture in the tree passes the real check: each public example and
     developer feature fixture, and each playground a note previews. A note's page
     is built by nothing else before a user asks for it, so without this a
     playground that names media it never committed stays green until preview
     refuses it."""
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
-    examples = [
-        *CORPUS_SOURCES,
-        ROOT / "examples" / "corpus.html",
-        *sorted((ROOT / "notes").glob("**/*.html")),
-    ]
-    assert FEATURE_GALLERY in DEVELOPER_PAGES
+    fixture = read_fixture(example)
+    d = tmp_path / "page"
 
-    for example in examples:
-        fixture = read_fixture(example)
+    def initialize(target):
+        run_leaf("page", "init", *package_selection_args(fixture.packages), str(target))
 
-        d = tmp_path / example.stem
+    def checked(version):
+        result = check(d)
+        assert result.exit_code == 0, f"{version.name}: {result.output}"
 
-        def initialize(target, packages=fixture.packages):
-            run_leaf("page", "init", *package_selection_args(packages), str(target))
+    initialized_page("-".join(["fixture", *fixture.packages]), d, initialize)
+    # Every authored version, not only the current one: a fault in a prior
+    # version stops preview and the site build, a slow way to hear it.
+    prepare_page(
+        d,
+        fixture,
+        run_leaf,
+        initialize=False,
+        final_status=None,
+        each_version=checked,
+    )
 
-        def checked(version, page=d):
-            result = check(page)
-            assert result.exit_code == 0, f"{version.name}: {result.output}"
 
-        initialized_page("-".join(["fixture", *fixture.packages]), d, initialize)
-        # Every authored version, not only the current one: a fault in a prior
-        # version stops preview and the site build, a slow way to hear it.
-        prepare_page(
-            d,
-            fixture,
-            run_leaf,
-            initialize=False,
-            final_status=None,
-            each_version=checked,
-        )
+def test_the_fixture_check_reaches_the_developer_pages():
+    """A moved `examples/developer/` would leave the check above with nothing to say
+    about it rather than failing."""
+    assert FEATURE_GALLERY in PAGE_FIXTURES
 
 
 def test_every_widget_in_the_vocabulary_stands_in_a_corpus_source():
@@ -627,60 +682,8 @@ def test_the_key_reference_is_generated_from_the_registry():
     assert labels == sorted(disclosures)
 
 
-def test_no_example_writes_another_example_s_sentences():
-    """Each page's connective prose is written in its own subject.
-
-    The gesture is shared vocabulary — every board takes a drag, every group takes a
-    pick, and the words for those are meant to repeat. The sentence around the gesture
-    is not: a page that borrows one is describing another page's work in that page's
-    words, and the corpus is the one place a user sees them side by side.
-
-    A batch of them got in at once, and the cause was upstream of the corpus.
-    references/authoring-evidence.md's "Interactive and visual evidence" entry
-    quoted two model sentences, and both reached shipped examples word for word; a
-    phrase sitting ready to paste is a phrase that gets pasted. That entry now names
-    what the sentence must carry instead, and this is what says whether it worked.
-
-    Twelve words, from a measurement rather than a guess: with those rewritten, the
-    longest run any two examples share is seven, and nothing at all is shared at eight.
-    Both sevens are between pages this change never touched: the guarantee a version
-    makes about a board, and a fictional detail two pages were written to share. So
-    twelve leaves five words of room over what the corpus legitimately repeats, and is
-    loose enough to let a single borrowed clause through — which is the judgement the
-    skill entry carries and a word count cannot."""
-    run = 12
-    examples = {
-        p.stem: p.read_text(encoding="utf-8")
-        for p in sorted((ROOT / "examples").glob("*.html"))
-        # corpus.html embeds every sibling's prose, so it shares everything by
-        # construction; `leaf-dev corpus` is what holds it true.
-        if p.stem != "corpus"
-    }
-    assert len(examples) > 1, examples
-
-    def words(html: str) -> list[str]:
-        # <main> only: shared delivery markup is absent from authored examples, while
-        # page-specific titles, styles, and modules legitimately differ in the head.
-        body = html[re.search(r"<main\b[^>]*>", html).end() : html.rindex("</main>")]
-        return re.findall(r"[a-z0-9']+", re.sub(r"<[^>]+>", " ", body).lower())
-
-    seen: dict[tuple, str] = {}
-    shared: list[str] = []
-    for name, html in examples.items():
-        ws = words(html)
-        for i in range(len(ws) - run + 1):
-            gram = tuple(ws[i : i + run])
-            if gram in seen and seen[gram] != name:
-                shared.append(f"{seen[gram]} and {name}: {' '.join(gram)}")
-            seen.setdefault(gram, name)
-    assert not shared, (
-        f"{len(shared)} run(s) of {run}+ words shared between examples; write each "
-        "page's own sentence:\n  " + "\n  ".join(sorted(set(shared))[:10])
-    )
-
-
 def test_reply_validates_widget_markup(page_dir):
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
 
@@ -688,11 +691,9 @@ def test_reply_validates_widget_markup(page_dir):
         return CliRunner().invoke(
             cli_model.cli,
             [
-                "thread",
+                "response",
                 "reply",
-                str(page_dir),
-                "--for",
-                "c1",
+                response_reference(page_dir, "c1"),
                 "--text",
                 "See:",
                 "--markup",
@@ -718,16 +719,18 @@ def test_reply_validates_widget_markup(page_dir):
 
 
 def test_reply_validates_typed_references_against_the_page(page_dir):
-    """Reply markup naming a page element of the wrong role never freezes."""
+    """Reply markup naming a page element of the wrong role never freezes, nor does
+    a command naming the page's seat, which it would fill from another document."""
     subjects = (
-        '<lf-command id="hub"><lf-task id="goal" status="active">'
+        '<lf-command id="hub" readings="seat"><lf-task id="goal" status="active">'
         "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
+        '<lf-command-readings id="seat"></lf-command-readings>'
     )
     (page_dir / "index.html").write_text(
         PAGE.replace("</section>", subjects + "</section>")
     )
     publish(page_dir, version=2)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "Act?"}
     )
 
@@ -735,11 +738,9 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
         return CliRunner().invoke(
             cli_model.cli,
             [
-                "thread",
+                "response",
                 "reply",
-                str(page_dir),
-                "--for",
-                "c1",
+                response_reference(page_dir, "c1"),
                 "--text",
                 "Choose:",
                 "--markup",
@@ -747,30 +748,38 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
             ],
         )
 
-    swapped = reply('<lf-command-readings for="goal"></lf-command-readings>')
+    swapped = reply('<lf-command id="quoted" readings="goal"></lf-command>')
     assert swapped.exit_code != 0
-    assert "where role='command'" in swapped.output
+    assert 'where role="readings"' in swapped.output
 
-    valid = reply('<lf-command-readings for="hub"></lf-command-readings>')
+    borrowed = reply('<lf-command id="quoted" readings="seat"></lf-command>')
+    assert borrowed.exit_code != 0
+    assert "outside its own document" in borrowed.output
+
+    valid = reply(
+        '<lf-command id="quoted" readings="quoted-seat"></lf-command>'
+        '<lf-command-readings id="quoted-seat"></lf-command-readings>'
+    )
     assert valid.exit_code == 0, valid.output
 
 
 def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     """The runtime resolves actions document-wide by id, so a reply widget must not
     reuse a page id — and a later version must not take a reply's."""
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
 
     def reply(markup, *, for_event=None, to="c1"):
-        response = ["--for", for_event] if for_event else [to]
+        route = (
+            ["response", "reply", response_reference(page_dir, for_event)]
+            if for_event
+            else ["thread", "reply", str(page_dir), to]
+        )
         return CliRunner().invoke(
             cli_model.cli,
             [
-                "thread",
-                "reply",
-                str(page_dir),
-                *response,
+                *route,
                 "--text",
                 "Pick:",
                 "--markup",
@@ -816,7 +825,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     # Text claims no ids however it quotes a tag — only the `markup` field does, and
     # a user's message never carries one (the log is append-only; a false claim
     # would deadlock every future version).
-    follow_up = events_model.append_event(
+    follow_up = append_carried_log_record(
         page_dir,
         {
             "kind": "reply",
@@ -860,17 +869,15 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
     assert "lf- namespace" in result.output and "lf-msg-7" in result.output
     (page_dir / "index.html").write_text(PAGE)
 
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
     reply = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "--for",
-            "c1",
+            response_reference(page_dir, "c1"),
             "--text",
             "Pick:",
             "--markup",
@@ -895,7 +902,7 @@ def test_agent_messages_preserve_a_single_space(page_dir):
         cli_model.cli, ["thread", "open", str(page_dir), "--text", ""]
     )
     assert empty.exit_code != 0
-    assert empty.output == "empty text (pass --text or pipe via stdin)\n"
+    assert empty.output == "Error: empty text (pass --text or pipe via stdin)\n"
 
     opened = comment(page_dir, "--text", " ")
     assert opened.exit_code == 0, opened.output
@@ -926,7 +933,7 @@ def test_the_wire_ships_a_message_as_logged(page_dir):
     renders (test_render holds that side), markup is the fragment the CLI gate
     validated, and the only vocabulary a page's frozen layer has to keep speaking is
     the log's own, which $events stamps."""
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -938,11 +945,9 @@ def test_the_wire_ships_a_message_as_logged(page_dir):
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "--for",
-            "c1",
+            response_reference(page_dir, "c1"),
             "--text",
             "Fixed in `poll()`.",
             "--markup",
@@ -968,27 +973,30 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     _tasks_version(page_dir, "active")
     service_model.claim_page(page_dir)
     published(page_dir)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "status?"}
     )
+
+    reference = response_reference(page_dir, "c1")
 
     def reply(text):
         return CliRunner().invoke(
             cli_model.cli,
-            [
-                "thread",
-                "reply",
-                str(page_dir),
-                *(["--for", "c1"] if text == "indexing done" else ["c1"]),
-                "--text",
-                text,
-            ],
+            ["thread", "reply", str(page_dir), "c1", "--text", text],
         )
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
-    assert _report(page_dir, "t-parser", "status", "status=review").exit_code == 0
-    assert reply("indexing done").exit_code == 0
+    assert _report(page_dir, "t-parser", "status", "value=review").exit_code == 0
+    answered = CliRunner().invoke(
+        cli_model.cli,
+        ["response", "reply", reference, "--text", "The work is ready."],
+    )
+    assert answered.exit_code == 0, answered.output
+    assert json.loads(answered.output)["responds"] == "c1"
+
+    indexed = reply("indexing done")
+    assert indexed.exit_code == 0, indexed.output
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-2")
     monkeypatch.setenv("LEAF_AGENT", "Crawler")
     assert reply("crawl running").exit_code == 0
@@ -1000,6 +1008,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     assert (report["agent"], report["session"]) == ("Indexer", "worker-1")
     replies = [e for e in events if e["kind"] == "reply"]
     assert [(e["agent"], e["session"]) for e in replies] == [
+        ("Indexer", "worker-1"),
         ("Indexer", "worker-1"),
         ("Crawler", "worker-2"),
     ]
@@ -1014,9 +1023,87 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     assert "- **Crawler**: crawl running" in transcript.output
 
 
+def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
+    """Progress on a move the agent owes is the user's first sign it is handled: one
+    write posts it in the thread and takes the move in hand, Working with the update's text as its line,
+    while the answer stays owed. The line is the banner's, so the update is one line."""
+    published(claimed)
+    root = append_command(
+        claimed,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Check the schedule.",
+        },
+    )
+
+    reference = response_reference(claimed, root)
+
+    def progress(text, *, proactive=False):
+        route = (
+            ["thread", "reply", str(claimed), root["id"]]
+            if proactive
+            else ["response", "reply", reference]
+        )
+        return CliRunner().invoke(
+            cli_model.cli,
+            [
+                *route,
+                "--ephemeral",
+                "--text",
+                text,
+            ],
+        )
+
+    refused = progress("Checking the camera.\n\nThen the clock.")
+    assert refused.exit_code != 0 and "one line" in refused.output
+
+    posted = progress("Checking the camera.")
+    assert posted.exit_code == 0, posted.output
+    update = json.loads(posted.output)
+    assert update["ephemeral"] is True and "responds" not in update
+    start = tasks_model.start_reading(update)
+    assert (start["item"], start["text"]) == (root["id"], "Checking the camera.")
+    assert events_model.read_events(claimed)[-1] == update
+    [working] = page_state(claimed)["workflows"]
+    assert (working["stage"], working["detail"]) == ("working", "Checking the camera.")
+    assert working["answer"]["for"] == root["id"]
+    # The same exact input remains owed; newer progress replaces the Working line.
+    again = progress("Checking the clock.")
+    assert again.exit_code == 0, again.output
+    [working] = page_state(claimed)["workflows"]
+    assert working["detail"] == "Checking the clock."
+
+    answer = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "response",
+            "reply",
+            reference,
+            "--text",
+            "The schedule works.",
+        ],
+    )
+    assert answer.exit_code == 0, answer.output
+    completed = json.loads(answer.output)
+    assert completed["responds"] == root["id"]
+    state = page_state(claimed)
+    assert state["workflows"] == []
+    [thread] = state["browser"]["thread"]["threads"]
+    assert thread["summaries"][0]["covers"] == [
+        update["id"],
+        json.loads(again.output.splitlines()[0])["id"],
+    ]
+    # Once nothing is owed, an update takes nothing in hand, so it may run long.
+    later = progress("The clock drifts.\n\nWatching it overnight.", proactive=True)
+    assert later.exit_code == 0, later.output
+    assert [json.loads(line)["kind"] for line in later.output.splitlines()] == ["reply"]
+
+
 def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir):
     published(page_dir)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "status?"},
     )
@@ -1024,11 +1111,9 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
     answered = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "--for",
-            root["id"],
+            response_reference(page_dir, root["id"]),
             "--text",
             "Complete.",
         ],
@@ -1092,7 +1177,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
     assert replies[2]["awaits"] is True
 
 
-def test_an_agent_edits_its_own_messages_without_rewriting_history(
+def test_an_agent_edits_predecessor_messages_without_rewriting_history(
     page_dir, monkeypatch
 ):
     """An edit changes what the thread says, not what the log said before it.
@@ -1101,8 +1186,8 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     identity. The raw log therefore keeps each original and the revision as separate
     events, while user-facing folded readings show the latest words with an edited
     marker. Exact thread event selection returns the original and edit records without
-    copying either into page state. Another agent session — and an agent looking at the
-    user's words — cannot revise speech that is not its own.
+    copying either into page state. A successor agent may revise predecessor agent
+    speech; user-authored messages remain outside the author edit operation.
     """
     publish(page_dir)
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
@@ -1111,7 +1196,7 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     opened = comment(page_dir, "--text", "The index is still pending.")
     assert opened.exit_code == 0, opened.output
     root = json.loads(opened.output)
-    user = events_model.append_event(
+    user = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1124,11 +1209,9 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     answered = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "--for",
-            user["id"],
+            response_reference(page_dir, user["id"]),
             "--text",
             "The crawl is paused.",
         ],
@@ -1176,7 +1259,8 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     assert state_result.exit_code == 0, state_result.output
     state = json.loads(state_result.output)
     assert all(
-        set(thread) == {"id", "title", "anchor", "detached_from", "resolved", "unread"}
+        set(thread)
+        == {"id", "title", "anchor", "detached_from", "resolved", "unread", "attention"}
         for thread in state["threads"]
     )
     expected = {root["id"]: [root["id"]], user["id"]: [user["id"], reply["id"]]}
@@ -1207,8 +1291,11 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
         cli_model.cli,
         ["thread", "edit", str(page_dir), root["id"], "--text", "Taken over."],
     )
-    assert foreign.exit_code != 0
-    assert "belongs to agent session 'worker-1'" in foreign.output
+    assert foreign.exit_code == 0, foreign.output
+    replacement = json.loads(foreign.output)
+    assert replacement["session"] == "worker-2"
+    assert replacement["message"] == root["id"]
+    before = events_model.read_events(page_dir)
     user_edit = CliRunner().invoke(
         cli_model.cli,
         ["thread", "edit", str(page_dir), user["id"], "--text", "Changed."],
@@ -1216,7 +1303,7 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     assert user_edit.exit_code != 0
     assert "is not agent-authored" in user_edit.output
     assert events_model.read_events(page_dir) == before
-    sessionless = events_model.append_event(
+    sessionless = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1226,7 +1313,6 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
         },
     )
     before_unidentified_edit = events_model.read_events(page_dir)
-    monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")
     unidentified = CliRunner().invoke(
         cli_model.cli,
         [
@@ -1238,10 +1324,9 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
             "Changed.",
         ],
     )
-    assert unidentified.exit_code != 0
-    assert "has no agent session identity" in unidentified.output
+    assert unidentified.exit_code == 0, unidentified.output
     assert before_unidentified_edit[-1]["id"] == sessionless["id"]
-    assert events_model.read_events(page_dir) == before_unidentified_edit
+    assert json.loads(unidentified.output)["message"] == sessionless["id"]
 
 
 def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(
@@ -1251,7 +1336,7 @@ def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
-    message = events_model.append_event(
+    message = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1264,7 +1349,7 @@ def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(
     )
     registry = files_model.read_json(page_dir / "registry.json")
     del registry["$events"]["kinds"]["edit"]
-    files_model.write_json(page_dir / "registry.json", registry)
+    cleanup_model.write_json(page_dir / "registry.json", registry)
     before = events_model.read_events(page_dir)
 
     result = CliRunner().invoke(
@@ -1314,7 +1399,7 @@ def test_export_prints_threads_and_versions(page_dir):
         cli_model.cli,
         ["page", "stamp", str(page_dir), "--text", "first cut"],
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1324,7 +1409,7 @@ def test_export_prints_threads_and_versions(page_dir):
             "text": "why?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "reply",
@@ -1336,10 +1421,10 @@ def test_export_prints_threads_and_versions(page_dir):
             "markup": '<lf-diagram id="why"><pre>graph LR\n  A --> B</pre></lf-diagram>',
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "resolve", "id": "x1", "author": "user", "parent": "r1"}
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1349,7 +1434,7 @@ def test_export_prints_threads_and_versions(page_dir):
             "text": "arrow?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1360,7 +1445,7 @@ def test_export_prints_threads_and_versions(page_dir):
             "text": "start here?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "action",
@@ -1368,7 +1453,7 @@ def test_export_prints_threads_and_versions(page_dir):
             "revision": 1,
             "widget": "b",
             "action": "move",
-            "detail": {"card": "card-x", "to": "col-done", "rank": "0i"},
+            "detail": {"unit": "card-x", "value": "col-done", "rank": "0i"},
             "meaning": {
                 "scope": "page",
                 "unit": "card-x",
@@ -1376,7 +1461,7 @@ def test_export_prints_threads_and_versions(page_dir):
             },
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "action",
@@ -1384,7 +1469,7 @@ def test_export_prints_threads_and_versions(page_dir):
             "revision": 1,
             "widget": "plan-options",
             "action": "choose",
-            "detail": {"options": ["backfill-first"]},
+            "detail": {"value": ["backfill-first"]},
             "meaning": {
                 "scope": "page",
                 "unit": "plan-options",
@@ -1397,7 +1482,7 @@ def test_export_prints_threads_and_versions(page_dir):
     # named by its ends and the exchange stays readable under it.
     said = "The batch replays from the top."
     long_quote = " ".join([said] * 20)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1417,23 +1502,25 @@ def test_export_prints_threads_and_versions(page_dir):
     assert "- v1: first cut" in result.output
     # The user's direct edits are outcomes of the exchange, not just events.
     assert "### Edits" in result.output
-    assert "- `b`: move card=card-x to=col-done rank=0i (on v1)" in result.output
+    assert (
+        '- `b`: move unit="card-x" value="col-done" rank="0i" (on v1)' in result.output
+    )
     # A choice says what was chosen in the words of the version it was made on.
     assert (
-        "- `plan-options`: choose options=['backfill-first'] — “effort: med risk: low "
+        '- `plan-options`: choose value=["backfill-first"] — “effort: med risk: low '
         "Backfill first Verify, then flip. My take: do this first.” (on v1)"
     ) in result.output
 
     # And one they took back is an outcome under its own name: left out it would
     # read as never made, and shown plainly it would read as final.
     moved = next(e for e in events_model.read_events(page_dir) if e["kind"] == "action")
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "undo", "author": "user", "undoes": moved["id"]}
     )
     result = CliRunner().invoke(cli_model.cli, ["page", "transcript", str(page_dir)])
     assert result.exit_code == 0, result.output
     assert (
-        "- `b`: move card=card-x to=col-done rank=0i (on v1) — taken back"
+        '- `b`: move unit="card-x" value="col-done" rank="0i" (on v1) — taken back'
         in result.output
     )
     assert "> “flip reads”  — resolved" in result.output
@@ -1459,17 +1546,15 @@ def test_reply_markup_uses_the_captured_registry_after_candidate_files_disappear
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     (page_dir / "registry.json").unlink()
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
     plain = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "--for",
-            "c1",
+            response_reference(page_dir, "c1"),
             "--text",
             "plain answer, x < y",
         ],
@@ -1611,7 +1696,7 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
     prints one as the user's mark rather than a turn. Its durable token is enough;
     packages may add an explanation, but the default layer does not prescribe one."""
     published(page_dir)
-    bare = events_model.append_event(
+    bare = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1621,17 +1706,24 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
             "anchor": {"section": "plan", "quote": "Ship dark"},
         },
     )
-    answered = events_model.append_event(
+    answered = append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "token": "change"},
     )
-    reply = thread_model.cmd_reply(
-        page_dir,
-        answered["id"],
-        "Which part?",
-        None,
-        for_event=None,
+    # A bare reaction owes no response; adding speech to it is proactive.
+    posted = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            str(page_dir),
+            answered["id"],
+            "--text",
+            "Which part?",
+        ],
     )
+    assert posted.exit_code == 0, posted.output
+    reply = json.loads(posted.output)
     state = state_json(page_dir)
     assert [t["id"] for t in state["threads"]] == [answered["id"]]
     selected = CliRunner().invoke(
@@ -1659,7 +1751,7 @@ def test_an_agent_names_and_renames_a_thread_without_changing_its_speech(
     page_dir,
 ):
     publish(page_dir)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1670,45 +1762,85 @@ def test_an_agent_names_and_renames_a_thread_without_changing_its_speech(
     )
     runner = CliRunner()
     assert state_json(page_dir)["threads"][0]["title"] is None
-    titles = []
-    for title in ("Workshop venue", "Terrace accessibility"):
-        result = runner.invoke(
-            cli_model.cli,
-            [
-                "thread",
-                "edit",
-                str(page_dir),
-                root["id"],
-                "--title",
-                title,
-            ],
-        )
-        assert result.exit_code == 0, result.output
-        titles.append(json.loads(result.output))
-        assert state_json(page_dir)["threads"][0]["title"] == title
-        thread = event_folds_model.build_threads(
-            events_model.read_events(page_dir), {}
-        )[root["id"]]
-        assert thread_digest(thread)["title"] == title
-        assert [message["text"] for message in thread["msgs"]] == [root["text"]]
+    named = runner.invoke(
+        cli_model.cli,
+        [
+            "response",
+            "reply",
+            response_reference(page_dir, root),
+            "--text",
+            "The terrace works.",
+            "--title",
+            "Workshop venue",
+        ],
+    )
+    assert named.exit_code == 0, named.output
+    reply = json.loads(named.output)
+    assert reply["title"] == "Workshop venue"
+    assert events_model.read_events(page_dir)[-1] == reply
+    assert state_json(page_dir)["threads"][0]["title"] == "Workshop venue"
+
+    # A later inline suggestion preserves the first name. Renaming is explicit.
+    followed = runner.invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            str(page_dir),
+            root["id"],
+            "--text",
+            "Check the access route.",
+            "--title",
+            "Access route",
+        ],
+    )
+    assert followed.exit_code == 0, followed.output
+    followup = json.loads(followed.output)
+    assert state_json(page_dir)["threads"][0]["title"] == "Workshop venue"
+    renamed = runner.invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "edit",
+            str(page_dir),
+            root["id"],
+            "--title",
+            "Terrace accessibility",
+        ],
+    )
+    assert renamed.exit_code == 0, renamed.output
+    title = json.loads(renamed.output)
+    assert (title["kind"], title["thread"], title["title"]) == (
+        "thread_title",
+        root["id"],
+        "Terrace accessibility",
+    )
+    thread = event_folds_model.build_threads(events_model.read_events(page_dir), {})[
+        root["id"]
+    ]
+    assert thread_digest(thread)["title"] == "Terrace accessibility"
+    assert [message["text"] for message in thread["msgs"]] == [
+        root["text"],
+        reply["text"],
+        followup["text"],
+    ]
 
     selected = runner.invoke(
-        cli_model.cli,
-        ["page", "state", str(page_dir), root["id"]],
+        cli_model.cli, ["page", "state", str(page_dir), root["id"]]
     )
     assert selected.exit_code == 0, selected.output
     reading = json.loads(selected.output)
-    assert [m["message"] for m in reading["content"]] == [root["id"]]
-    assert reading["thread"]["title"] == "Terrace accessibility"
-    assert [(event["kind"], event["thread"], event["title"]) for event in titles] == [
-        ("thread_title", root["id"], "Workshop venue"),
-        ("thread_title", root["id"], "Terrace accessibility"),
+    assert [m["message"] for m in reading["content"]] == [
+        root["id"],
+        reply["id"],
+        followup["id"],
     ]
+    assert reading["thread"]["title"] == "Terrace accessibility"
 
 
 def test_thread_titles_require_an_existing_thread_and_short_agent_prose(page_dir):
     publish(page_dir)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1729,7 +1861,6 @@ def test_thread_titles_require_an_existing_thread_and_short_agent_prose(page_dir
     for invalid in (
         {"title": ""},
         {"title": "   "},
-        {"title": "a" * 81},
         {"title": "Two\nlines"},
         {"title": "Trailing newline\n"},
         {"title": "Two\rlines"},

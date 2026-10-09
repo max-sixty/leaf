@@ -3,8 +3,9 @@
    Widget controllers run each module's own rendering of total state and own its
    presentation proof. This adapter paints what the layer derives for every widget,
    whether or not its module subscribed: the restated and origin marks and each
-   holder's settlement. It retains the coordinate commits needed by coverage,
-   provenance, chrome, and pending release. It is an epoch presenter and paints first
+   holder's settlement. Coverage and update narration consume the same coordinator
+   proof as widget rendering, asynchronous preparation, and pending release. It is an
+   epoch presenter and paints first
    in the pass, because the words it materializes inside authored elements are nodes
    the thread then resolves its passages over. Its one document-wide drag gate
    withholds that global projection work while the gesture's own controller holds its
@@ -16,6 +17,8 @@ import { projectionDeferred, setProjectionDeferred } from "./state.js";
 import {
   applicationPresenter,
   applicationState,
+  projectionRegionsPresented,
+  watchPresentation,
   PRESENTATION_HELD,
   PRESENTATION_ORDER,
 } from "../semantic-state.js";
@@ -30,9 +33,9 @@ import {
   pageQueryAll,
   renderRetired,
 } from "../passages.js";
-import { PAGE_PAINT_ATTRIBUTE, isPagePaint, renderQuiet } from "../presentation.js";
+import { isPagePaint, renderQuiet } from "../presentation.js";
+import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { keeps } from "../keeps.js";
-const committedEvent = (commit) => commit?.entry?.e.id ?? null;
 
 function paintStateOrigins(projection) {
   const marks = new Map(
@@ -87,8 +90,6 @@ function paintSettlements(widgets) {
 }
 
 export function createProjectionPresentation({ onDeferredReady }) {
-  const committedProjection = new Map();
-
   let stopWatchingDrag = null;
 
   const presenter = applicationPresenter({
@@ -109,66 +110,39 @@ export function createProjectionPresentation({ onDeferredReady }) {
   // the fold, so an unchanged fold is not an unchanged chrome reading.
   applicationState.select((snapshot) => snapshot.semanticEpoch).subscribe(present);
 
-  function coordinateProjectionCommitted(projection, entry) {
-    const desired = projection.desired.get(entry.coordinate);
-    const commit = committedProjection.get(entry.coordinate);
-    return (
-      commit?.widget === elementById(entry.e.widget) &&
-      commit.unit === elementById(entry.unit) &&
-      committedEvent(commit) === (desired?.e.id ?? null)
-    );
-  }
-
-  function projectionCommitted(projection, event) {
-    const entry = projection.classified.get(event.id);
-    return Boolean(
-      entry && (entry.terminal || coordinateProjectionCommitted(projection, entry)),
-    );
-  }
-
-  // Every action reaches the send door after its widget has painted the semantic
-  // outcome. Give recorded and recordless actions the same local coordinate so later
-  // gestures and all projection consumers read that outcome before delivery settles.
-  // An exact undo uses the target's same entry rather than a reverse action or DOM
-  // snapshot; the pure fold derives whichever prior value still stands.
-  function stageOptimistic(entry) {
-    const e = entry.event;
-    const local = entry.projection;
-    if (!local) return false;
-    if (e.kind === "undo") return true;
-    const widget = elementById(e.widget);
-    committedProjection.set(local.coordinate, {
-      widgetId: e.widget,
-      widget,
-      unit: elementById(local.unit),
-      entry: local,
-    });
-    return true;
-  }
-
-  function projectionCoverage(projection, coverage) {
-    let covered = 0;
-    for (const record of coverage ?? []) {
-      if (record.coordinate === null) {
-        covered += 1;
-        continue;
-      }
+  // The stamp retains the last complete coverage. Only the widgets whose events
+  // it covers owe proof, so unrelated preparation cannot hold this log reading.
+  const coverage = () => {
+    const root = applicationState.read();
+    if (
+      root.phase === "waiting" ||
+      root.authoritative === null ||
+      !projectionRegionsPresented([])
+    )
+      return;
+    const projection = root.effective.projection;
+    const records = root.effective.view?.coverage ?? [];
+    const ready = records.every((record) => {
+      if (record.coordinate === null) return true;
       const e = record.event;
       const target = projection.classified.get(e.kind === "undo" ? e.undoes : e.id);
-      if (!target || target.terminal || projectionCommitted(projection, target.e))
-        covered += 1;
-    }
-    return covered;
-  }
-
-  // Page widgets leaving the document, told as a live revision takes them out. Their
-  // baselines describe markup the document no longer carries and their coordinate
-  // commits describe elements it no longer holds, so both go with them, while the
-  // widgets the revision left standing keep theirs.
-  function forgetAuthoredOwners(owners) {
-    for (const coordinate of [...committedProjection.keys()])
-      if (owners.has(JSON.parse(coordinate)[0])) committedProjection.delete(coordinate);
-  }
+      return (
+        !target || target.terminal || projectionRegionsPresented([target.e.widget])
+      );
+    });
+    if (ready)
+      keeps(document.body, PAGE_PAINT_ATTRIBUTE.applied, String(records.length));
+  };
+  let coverageQueued = false;
+  const updateCoverage = () => {
+    if (coverageQueued) return;
+    coverageQueued = true;
+    queueMicrotask(() => {
+      coverageQueued = false;
+      coverage();
+    });
+  };
+  watchPresentation(updateCoverage);
 
   // The coverage stamp says how much of the log the last complete projection covered,
   // and it is what a waiter outside the page reads to know the page has caught up. A
@@ -214,35 +188,9 @@ export function createProjectionPresentation({ onDeferredReady }) {
     for (const entry of projection.classified.values())
       for (const id of entry.restated ?? [])
         keeps(elementById(id), PAGE_PAINT_ATTRIBUTE.restated, "1");
-    for (const [widgetId, { entries }] of snapshot.effective.widgets) {
-      const widget = elementById(widgetId);
-      if (!widget) continue;
-      const coordinates = new Map();
-      for (const entry of projection.classified.values())
-        if (!entry.terminal && entry.e.widget === widgetId)
-          coordinates.set(entry.coordinate, entry);
-      for (const entry of entries) coordinates.set(entry.coordinate, entry);
-      for (const [coordinate, commitEntry] of committedProjection)
-        if (commitEntry.widgetId === widgetId && commitEntry.entry)
-          coordinates.set(coordinate, commitEntry.entry);
-      for (const [coordinate, sample] of coordinates)
-        committedProjection.set(coordinate, {
-          widgetId,
-          widget,
-          unit: elementById(sample.unit),
-          entry: projection.desired.get(coordinate) ?? null,
-        });
-    }
-    for (const [coordinate, commit] of committedProjection)
-      if (!elementById(commit.widgetId)) committedProjection.delete(coordinate);
     paintSettlements(snapshot.effective.widgets);
     const originTargets = paintStateOrigins(projection);
     renderQuiet(document.body, originTargets);
-    keeps(
-      document.body,
-      PAGE_PAINT_ATTRIBUTE.applied,
-      String(projectionCoverage(projection, snapshot.effective.view?.coverage)),
-    );
     return projection;
   }
 
@@ -273,10 +221,7 @@ export function createProjectionPresentation({ onDeferredReady }) {
   // knowing which regions are alive. A third, handed to one caller, is how the Ask
   // inventory came to be left out of a document-wide repaint.
   return {
-    stageOptimistic,
-    forgetAuthoredOwners,
     retireProjectionCoverage,
-    coordinateProjectionCommitted,
   };
 }
 

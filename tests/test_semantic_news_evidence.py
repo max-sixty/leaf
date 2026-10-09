@@ -1,8 +1,7 @@
 """Response identities exposed by the canonical browser activity readings."""
 
-from interact_support import page_state, publish
-from leaf import activity, event_log, thread
-from leaf.served_state.thread import _thread_awaits_user
+from interact_support import append_carried_log_record, page_state, publish
+from leaf import activity, thread
 
 
 def test_live_response_evidence_keeps_its_attempt_without_text():
@@ -41,11 +40,11 @@ def test_live_response_evidence_keeps_its_attempt_without_text():
 
 def test_terminal_failure_workflow_names_exact_reply_source(page_dir):
     publish(page_dir)
-    source = event_log.append_event(
+    source = append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "user-input", "author": "user", "text": "A"},
     )
-    failure = thread.cmd_reply(
+    failure = thread.post_reply(
         page_dir,
         source["id"],
         "The agent turn ended.",
@@ -67,11 +66,11 @@ def test_terminal_failure_workflow_names_exact_reply_source(page_dir):
 
 def test_user_prompt_names_the_latest_question_content_version(page_dir):
     publish(page_dir)
-    root = event_log.append_event(
+    root = append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "root", "author": "user", "text": "Help"},
     )
-    first = event_log.append_event(
+    first = append_carried_log_record(
         page_dir,
         {
             "kind": "reply",
@@ -83,7 +82,7 @@ def test_user_prompt_names_the_latest_question_content_version(page_dir):
             "text": "First question?",
         },
     )
-    event_log.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "reply",
@@ -96,7 +95,7 @@ def test_user_prompt_names_the_latest_question_content_version(page_dir):
     [thread] = page_state(page_dir)["browser"]["thread"]["threads"]
     assert thread["user_prompt"] == {"message": first["id"], "version": first["id"]}
 
-    second = event_log.append_event(
+    second = append_carried_log_record(
         page_dir,
         {
             "kind": "reply",
@@ -107,7 +106,7 @@ def test_user_prompt_names_the_latest_question_content_version(page_dir):
             "text": "Second question?",
         },
     )
-    edited = event_log.append_event(
+    edited = append_carried_log_record(
         page_dir,
         {
             "kind": "edit",
@@ -119,14 +118,3 @@ def test_user_prompt_names_the_latest_question_content_version(page_dir):
     )
     [thread] = page_state(page_dir)["browser"]["thread"]["threads"]
     assert thread["user_prompt"] == {"message": second["id"], "version": edited["id"]}
-
-
-def test_structural_ask_owns_attention_without_a_duplicate_plain_prompt():
-    assert _thread_awaits_user(
-        "thread",
-        {"resolved": False},
-        {},
-        {},
-        None,
-        {"thread"},
-    ) == (True, None)

@@ -5,26 +5,20 @@ Everything here is bound to the machine rather than to a page. The state home
 holds this machine's claims, leases, page records, packages, and serving key,
 while the process readings say whether a pid a record names still runs and
 which programs run above this one — the walk a Codex session's lifetime comes
-from when its host states no pid.
+from when its harness states no pid.
 
 psutil owns the process readings. It asks the kernel directly, which is what
 these need: the portable tool is `ps`, macOS ships it setuid root, and the
 seatbelt sandbox Codex runs its shell tool under refuses to exec it (measured
 inside `codex exec --sandbox workspace-write`: `/bin/ps: Operation not
-permitted`). psutil does not own `pid_alive`, whose comment records why."""
+permitted`). Only those readings import it: paths and `pid_alive` need no
+third-party library, so ownership discovery need not import process inspection.
+psutil does not own `pid_alive`, whose comment records why."""
 
 import os
 from pathlib import Path
 
-import psutil
-
-from .state_paths import state_home_path
-
-# A process reading fails in two ways worth answering with None: the process is
-# gone (NoSuchProcess, and ZombieProcess under it), or it belongs to another user
-# and its command line is closed to us (AccessDenied). psutil's other errors come
-# from calls this module does not make.
-_UNREADABLE = (psutil.NoSuchProcess, psutil.AccessDenied)
+from .state import state_home_path
 
 
 def pid_alive(pid: int) -> bool:
@@ -50,10 +44,12 @@ def process_info(pid: int) -> tuple[int, str] | None:
     which is what `CodexHarness.lifetime` asks of an ancestor. The kernel truncates
     it to 15 or 16 characters; psutil restores a truncated name from the program
     path the command line starts with."""
+    import psutil
+
     try:
         process = psutil.Process(pid)
         return process.ppid(), process.name()
-    except _UNREADABLE:
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
         return None
 
 
@@ -82,9 +78,11 @@ def process_argv(pid: int) -> list[str] | None:
     `process_info` answers which program a process *is*; this answers what it
     was told to do, which is the only thing that separates a `codex` hosting one
     session from a `codex` hosting all of them (`CodexHarness.lifetime`)."""
+    import psutil
+
     try:
         return psutil.Process(pid).cmdline()
-    except _UNREADABLE:
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
         return None
 
 
@@ -92,7 +90,8 @@ def state_home() -> Path:
     """$XDG_STATE_HOME/leaf (~/.local/state/leaf/) — pages/ holds page
     directories by convention, claims/ the last claimant of every known page,
     sessions/ the live watcher leases, packages/ the packages `package install` copied here,
-    screens/ the last render check's screens of each page, and access.json
+    screens/ the last render check's screens of each page, pictures/ the
+    pictures `page picture` drew of its drawing comments, and access.json
     the one key every page here is served with (`host_key`). State, not config:
     claim records carry pids and absolute paths, while page service records
     carry ports, so this state is bound to this machine, as is the key that

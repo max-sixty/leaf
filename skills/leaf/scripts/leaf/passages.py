@@ -1,13 +1,13 @@
 """Text-passage readings of authored HTML."""
 
 import re
-from functools import cached_property
+from functools import cached_property, lru_cache
+from html import escape
 from html.parser import HTMLParser
 from typing import NamedTuple
 from urllib.parse import urlsplit
 
 import turbohtml
-from markdown_it import MarkdownIt
 
 from .structure import VOID_TAGS, SourceDocument
 
@@ -75,47 +75,112 @@ COLLAPSE = re.compile("[" + re.escape("".join(sorted(COLLAPSE_CHARS))) + "]+")
 
 
 class _RenderedInlineWords(HTMLParser):
-    """Read the text of inline Markdown as the browser DOM does."""
+    """Read rendered text as the DOM does; image labels also read nested image alts."""
 
-    def __init__(self):
+    def __init__(self, *, image_alt=False):
         super().__init__(convert_charrefs=True)
         self.parts = []
+        self.image_alt = image_alt
 
     def handle_data(self, data):
         self.parts.append(data)
 
     def handle_starttag(self, tag, attrs):
-        if tag == "br":
-            self.parts.append("\n")
-        # The browser's renderer leaves the alt word where an image URL is refused.
-        if tag == "img":
-            image = dict(attrs)
-            if urlsplit(image.get("src", "")).scheme not in (
-                "",
-                "http",
-                "https",
-                "mailto",
-            ):
-                self.parts.append(image.get("alt", ""))
+        if self.image_alt and tag == "img":
+            self.parts.append(dict(attrs)["alt"])
 
 
-_inline_markdown = MarkdownIt(
-    "default", {"html": False, "strikethrough_single_tilde": True}
-)
-_added_inline_markdown = MarkdownIt(
-    "default", {"html": False, "breaks": True, "strikethrough_single_tilde": True}
-)
-# The browser accepts syntax first, then removes unsafe link destinations while
-# retaining their label. Parse those links here too, where only visible text is read.
-_inline_markdown.validateLink = lambda _url: True
-_added_inline_markdown.validateLink = lambda _url: True
+@lru_cache(maxsize=2)
+def _inline_markdown(added: bool):
+    from markdown_it import MarkdownIt
+    from mdit_py_plugins.tasklists import tasklists_plugin
+
+    parser = MarkdownIt("gfm-like", {"html": False, "breaks": added}).use(
+        tasklists_plugin
+    )
+    # The browser accepts syntax first, then removes unsafe link destinations while
+    # retaining their label. Parse those links here too, where only visible text is read.
+    parser.validateLink = lambda _url: True
+    # Nested image labels may retain entity/escape tokens after text joining.
+    parser.renderer.rules["text_special"] = parser.renderer.rules["text"]
+
+    def safe_image(tokens, idx, options, env):
+        token = tokens[idx]
+        words = _RenderedInlineWords(image_alt=True)
+        words.feed(parser.renderer.renderInline(token.children, options, env))
+        alt = "".join(words.parts)
+        token.attrSet("alt", alt)
+        if urlsplit(token.attrGet("src") or "").scheme not in (
+            "",
+            "http",
+            "https",
+            "mailto",
+        ):
+            return escape(alt)
+        return parser.renderer.renderToken(tokens, idx, options, env)
+
+    parser.renderer.rules["image"] = safe_image
+    link = parser.renderer.rules.get("link_open")
+
+    def safe_link(tokens, idx, options, env):
+        token = tokens[idx]
+        if urlsplit(token.attrGet("href") or "").scheme not in (
+            "",
+            "http",
+            "https",
+            "mailto",
+        ):
+            for following in tokens[idx + 1 :]:
+                if following.type == "link_close":
+                    following.meta["unsafe"] = True
+                    break
+            return ""
+        return (
+            link(tokens, idx, options, env)
+            if link
+            else parser.renderer.renderToken(tokens, idx, options, env)
+        )
+
+    parser.renderer.rules["link_open"] = safe_link
+
+    def safe_link_close(tokens, idx, options, env):
+        return (
+            ""
+            if tokens[idx].meta.get("unsafe")
+            else parser.renderer.renderToken(tokens, idx, options, env)
+        )
+
+    parser.renderer.rules["link_close"] = safe_link_close
+    return parser
 
 
 def inline_markdown_words(source: str, *, added: bool = False) -> str:
     reader = _RenderedInlineWords()
-    parser = _added_inline_markdown if added else _inline_markdown
-    reader.feed(parser.renderInline(source))
+    reader.feed(_inline_markdown(added).renderInline(source))
     return "".join(reader.parts)
+
+
+def markdown_markup(source: str) -> str:
+    """The shared safe block Markdown dialect, as inert markup for passage reading."""
+    return _inline_markdown(True).render(source)
+
+
+def feed_markdown(parser, source: str) -> None:
+    """Apply inert rendered markup through the ordinary passage handlers."""
+
+    class Fragment(HTMLParser):
+        def handle_starttag(self, tag, attrs):
+            parser.handle_starttag(tag, attrs)
+
+        def handle_endtag(self, tag):
+            parser.handle_endtag(tag)
+
+        def handle_data(self, data):
+            parser.handle_data(data)
+
+    fragment = Fragment(convert_charrefs=True)
+    fragment.feed(markdown_markup(source))
+    fragment.close()
 
 
 def shown_words(words: str, entry: dict, *, added: bool) -> str:
@@ -125,6 +190,10 @@ def shown_words(words: str, entry: dict, *, added: bool) -> str:
     pass `added=True`."""
     if entry.get("x-text-format") == "inline-markdown":
         return inline_markdown_words(words, added=added)
+    if entry.get("x-text-format") == "markdown":
+        reader = _RenderedInlineWords()
+        reader.feed(markdown_markup(words))
+        return "".join(reader.parts)
     return words
 
 
@@ -348,6 +417,8 @@ class _PassageParser:
     def handle_starttag(self, tag, attrs):
         attrs_d = dict(attrs)
         parent = self.stack[-1] if self.stack else None
+        if tag == "br" and parent and not parent["skip"]:
+            self._write(" ", parent["block"], parent["ids"])
         # Recorded before the void check, and before anything asks what this element
         # shows: where an element sits is a fact about the markup, so an image, an
         # opaque widget and a slot a decision retired each answer it like any other.
@@ -471,7 +542,12 @@ class _PassageParser:
             # The body's own write path, so a quote across the element's edge sees
             # the same adjacency the screen shows — no fence, nothing withheld.
             verb, their_text = sub
-            self._write(their_text, frame["block"], frame["ids"])
+            if entry.get("x-text-format") == "markdown":
+                frame["skip"] = False
+                feed_markdown(self, their_text)
+                frame["skip"] = True
+            else:
+                self._write(their_text, frame["block"], frame["ids"])
             self.rewritten[frame["id"]] = verb
 
     def handle_data(self, data):
@@ -541,8 +617,22 @@ def page_passages(
         if not isinstance(node, turbohtml.Element):
             return
         parser.handle_starttag(node.tag, attrs(node))
-        for child in node.children:
-            walk(child)
+        entry = (registry or {}).get(node.tag, {})
+        if entry.get("x-text-format") == "markdown":
+            pre = next(
+                child
+                for child in node.children
+                if isinstance(child, turbohtml.Element) and child.tag == "pre"
+            )
+            body = "".join(
+                child.data
+                for child in pre.children
+                if isinstance(child, turbohtml.Text)
+            )
+            feed_markdown(parser, body)
+        else:
+            for child in node.children:
+                walk(child)
         parser.handle_endtag(node.tag)
 
     for child in document.tree.children:

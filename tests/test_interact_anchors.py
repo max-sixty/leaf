@@ -2,13 +2,16 @@
 
 import json
 
+import pytest
 from click.testing import CliRunner
 from interact_support import (
     DRAFTED,
     PAGE,
     SUGGESTED,
     SUGGESTION,
+    append_carried_log_record,
     append_command,
+    asks_on_you,
     before_choice,
     check,
     comment,
@@ -18,6 +21,7 @@ from interact_support import (
     page_state,
     publish,
     published,
+    response_reference,
     stamp,
     state_json,
     suggested,
@@ -27,9 +31,42 @@ from leaf import cli as cli_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import files as files_model
-from leaf import hook_carrier as hook_carrier_model
+from leaf import hook_transport as hook_transport_model
+from leaf import passages as passages_model
+from leaf import structure as structure_model
 from leaf.delivery import current_responses
+from leaf.events import build_threads
 from leaf.registry import storage as registry_storage
+
+
+def test_an_explicit_line_break_separates_quoted_words():
+    document = structure_model.SourceDocument(
+        "<main><p id='line'>Short label here<br>Then a second line.</p></main>"
+    )
+    assert passages_model.page_passages(document).text == (
+        "Short label here Then a second line."
+    )
+
+
+def test_an_empty_quote_neighbour_is_an_exact_boundary():
+    """The browser treats a missing side as the page edge, never a wildcard."""
+    from leaf.anchor_capture import resolve_quote
+
+    anchor = {"section": "labels", "quote": "Alpha", "suffix": "Beta Alpha Beta"}
+    previous = passages_model.page_passages(
+        structure_model.SourceDocument('<p id="labels">Alpha Beta Alpha Beta</p>')
+    )
+    revised = passages_model.page_passages(
+        structure_model.SourceDocument('<p id="labels">Start Alpha Beta Alpha Beta</p>')
+    )
+    assert resolve_quote(previous, anchor) == 0
+    assert resolve_quote(revised, anchor) is None
+    anchor = {"section": "labels", "quote": "Beta", "prefix": "Alpha Beta Alpha"}
+    revised = passages_model.page_passages(
+        structure_model.SourceDocument('<p id="labels">Alpha Beta Alpha Beta End</p>')
+    )
+    assert resolve_quote(previous, anchor) is not None
+    assert resolve_quote(revised, anchor) is None
 
 
 def test_comment_anchors_on_a_quote_and_posts_as_agent(page_dir, sessionless):
@@ -43,7 +80,7 @@ def test_comment_anchors_on_a_quote_and_posts_as_agent(page_dir, sessionless):
         and event["author"] == "agent"
         and event["revision"] == 1
     )
-    # A bare run has no host session behind it, so the event carries no voice
+    # A bare run has no harness session behind it, so the event carries no voice
     # fields — users' generic label covers it — rather than a stored
     # placeholder wearing a name.
     assert "agent" not in event and "session" not in event
@@ -161,7 +198,7 @@ def test_a_section_handed_a_message_id_is_sent_to_the_option_that_takes_one(page
     reaches for `--section`, and `no element id` alone leaves it guessing at the page's
     markup for an id that was never going to be there. So the refusal names the writer
     that settles what the log still owes for the value."""
-    root = events_model.append_event(
+    root = append_carried_log_record(
         published(page_dir),
         {"kind": "comment", "author": "user", "text": "how long?"},
     )
@@ -176,16 +213,15 @@ def test_a_section_handed_a_message_id_is_sent_to_the_option_that_takes_one(page
     assert f"no element id {root['id']!r}" in mistaken.output
     assert (
         f"{root['id']} is a comment in this page's log — "
-        f"`leaf thread reply <page> --for {root['id']}` answers it"
+        f"`leaf response reply <answer.ref>` for {root['id']} answers it"
     ) in mistaken.output
     assert all(event["kind"] != "reply" for event in events_model.read_events(page_dir))
 
 
 def test_a_section_handed_a_message_owed_nothing_is_sent_to_its_thread(page_dir):
     """A message the log owes nothing still names its thread to `leaf thread reply`.
-    Naming a thread is the one writer keyed on the kind rather than the obligation, and
-    it is refused without `--for` only while a response is owed, so the agent's own comment — owed nothing — is
-    replied to there, and a refusal calling it unroutable would be a dead end."""
+    Proactive replies name PAGE THREAD when nothing is owed; the diagnostic
+    must provide a route the writer can take."""
     own = json.loads(
         comment(published(page_dir), "--quote", "Ship dark", "--text", "note").output
     )
@@ -204,19 +240,15 @@ def test_a_section_handed_a_message_owed_nothing_is_sent_to_its_thread(page_dir)
     assert followed.exit_code == 0, followed.output
 
 
-def test_a_message_whose_thread_owes_a_reply_is_sent_to_for(page_dir):
-    """A thread's response is owed by the thread, not by the message carrying it.
-
-    A message with nothing against its own id can sit in a thread waiting on
-    one, and naming the thread without `--for` is refused for the whole thread. A refusal
-    reading the message's own obligation sent the agent to name the thread there, which the writer it named then
-    refused — so both readings are one, and the route is the `--for` that the
-    guard would have demanded.
-    """
+def test_a_message_whose_thread_owes_a_reply_is_sent_to_its_delivery_reference(
+    page_dir,
+):
+    """A diagnostic on any message names the delivery route for the thread's
+    exact owed input; proactive replies cannot infer that input."""
     own = json.loads(
         comment(published(page_dir), "--quote", "Ship dark", "--text", "note").output
     )
-    asked = events_model.append_event(
+    asked = append_carried_log_record(
         page_dir,
         {"kind": "reply", "author": "user", "parent": own["id"], "text": "how long?"},
     )
@@ -225,7 +257,7 @@ def test_a_message_whose_thread_owes_a_reply_is_sent_to_for(page_dir):
     assert mistaken.exit_code != 0
     assert (
         f"{own['id']} is a comment in this page's log, and its thread is owed "
-        f"a reply — `leaf thread reply <page> --for {asked['id']}` answers it"
+        f"a reply — `leaf response reply <answer.ref>` for {asked['id']} answers it"
     ) in mistaken.output
 
     # The writer the refusal names takes it, and the one it passed over says so too.
@@ -234,10 +266,19 @@ def test_a_message_whose_thread_owes_a_reply_is_sent_to_for(page_dir):
         ["thread", "reply", str(page_dir), own["id"], "--text", "more"],
     )
     assert posted.exit_code != 0
-    assert f"`leaf thread reply <page> --for {asked['id']}` answers it" in posted.output
+    assert (
+        f"`leaf response reply <answer.ref>` for {asked['id']} answers it"
+        in posted.output
+    )
     answered = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", str(page_dir), "--for", asked["id"], "--text", "a week"],
+        [
+            "response",
+            "reply",
+            response_reference(page_dir, asked["id"]),
+            "--text",
+            "a week",
+        ],
     )
     assert answered.exit_code == 0, answered.output
 
@@ -245,9 +286,9 @@ def test_a_message_whose_thread_owes_a_reply_is_sent_to_for(page_dir):
 def test_a_section_handed_a_settled_move_is_told_nothing_is_owed(page_dir):
     """A route is only worth naming where the writer it names takes the value. What a
     writer takes is what the log still owes, not the event's kind: a resolve is owed
-    nothing, so sending the agent to `--for` with it hands it a second refusal with no
+    nothing, so sending the agent to a response command hands it a second refusal with no
     route at all."""
-    root = events_model.append_event(
+    root = append_carried_log_record(
         published(page_dir),
         {"kind": "comment", "author": "user", "text": "how long?"},
     )
@@ -268,12 +309,11 @@ def test_a_section_handed_a_settled_move_is_told_nothing_is_owed(page_dir):
 
 def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
     """A message is not the only id an agent is handed. A user's press on a widget
-    frozen into a reply is answered through that action's own id and nothing else —
-    `--for` is the only route to it — so a refusal that names no option is the one the
-    agent needed. The recourse names `--for` for every kind the log holds, and reserves
-    naming the thread for the kinds a message id also answers to."""
+    frozen into a reply is answered through its exact delivery reference. The
+    diagnostic must name that response route for the action rather than treating
+    its event id as a page element or a proactive thread destination."""
     publish(page_dir)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "Choose?"},
     )
@@ -285,11 +325,9 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
     answered = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "--for",
-            "c1",
+            response_reference(page_dir, "c1"),
             "--markup",
             frozen,
             "--text",
@@ -305,7 +343,7 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
             "revision": files_model.latest_revision(page_dir),
             "widget": "thread-picks",
             "action": "choose",
-            "detail": {"options": ["thread-option"]},
+            "detail": {"value": ["thread-option"]},
         },
     )
     events = events_model.read_events(page_dir)
@@ -314,11 +352,9 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
     mistaken = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "--for",
-            pressed["id"],
+            response_reference(page_dir, pressed["id"]),
             "--section",
             pressed["id"],
             "--text",
@@ -328,7 +364,7 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
     assert mistaken.exit_code != 0
     assert (
         f"{pressed['id']} is an action in this page's log — "
-        f"`leaf thread reply <page> --for {pressed['id']}` answers it"
+        f"`leaf response reply <answer.ref>` for {pressed['id']} answers it"
     ) in mistaken.output
     assert "`leaf thread reply <page> <id>`" not in mistaken.output
 
@@ -417,7 +453,7 @@ def test_a_comment_may_name_a_declared_visual_part(page_dir):
         "x",
     )
     assert unknown.exit_code != 0
-    assert "known: ['node:A', 'node:B']" in unknown.output
+    assert 'known: ["node:A", "node:B"]' in unknown.output
 
     unseated = comment(page_dir, "--part", "node:A", "--text", "x")
     assert unseated.exit_code != 0
@@ -443,7 +479,8 @@ def test_a_visual_admits_the_parts_its_prefixes_begin(page_dir):
         page_dir, "--section", "flow", "--part", "node:B", "--text", "and this?"
     )
     assert named.exit_code == 0, named.output
-    assert json.loads(named.output)["anchor"] == {"section": "flow", "visual": "node:B"}
+    root = json.loads(named.output)
+    assert root["anchor"] == {"section": "flow", "visual": "node:B"}
 
     outside = comment(page_dir, "--section", "flow", "--part", "edge:B", "--text", "x")
     assert outside.exit_code != 0
@@ -469,8 +506,12 @@ def test_a_visual_admits_the_parts_its_prefixes_begin(page_dir):
     # that stops admitting a part a thread holds is what drops it.
     declare_part_prefixes(page_dir, "edge:")
     dropped = check(page_dir)
-    assert dropped.exit_code != 0
-    assert "flow · node:B" in dropped.output
+    assert dropped.exit_code == 0, dropped.output
+    assert root["id"] in dropped.output
+    assert stamp(page_dir, "Changed the diagram's parts").exit_code == 0
+    thread = build_threads(events_model.read_events(page_dir), {})[root["id"]]
+    assert thread["anchor"] == {"section": "flow"}
+    assert thread["rewritten_from"] == root["anchor"]
 
 
 def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
@@ -547,6 +588,7 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
             "detached_from": None,
             "resolved": None,
             "unread": [root["id"], reply["id"]],
+            "attention": {"kind": "needs_user", "reason": "ask", "workflow": None},
         }
     ]
     transcript = CliRunner().invoke(
@@ -557,6 +599,463 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
 
     checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
     assert checked.exit_code == 0, checked.output
+
+
+def test_revising_quotes_reparents_every_open_thread_without_answering_it(page_dir):
+    """A source save repairs all affected threads, including those not answered.
+
+    Opening records remain historical, closed threads stay put, and reaction
+    marks follow their subject. Automatic anchor bookkeeping leaves messages and exact
+    response obligations intact. Repeated reads append no duplicate transition.
+    """
+    original = PAGE.replace(
+        "<h2>Plan</h2>",
+        '<h2>Plan</h2><table id="labels"><tr><th>Alpha</th><th>Gamma</th><th>Unchanged</th></tr></table>',
+    )
+    (page_dir / "index.html").write_text(original)
+    publish(page_dir)
+    roots = {}
+    for quote in ("Alpha", "Gamma", "Unchanged"):
+        roots[quote] = json.loads(
+            comment(page_dir, "--quote", quote, "--text", f"About {quote}").output
+        )
+    closed = json.loads(
+        comment(page_dir, "--quote", "Gamma", "--text", "Already settled").output
+    )
+    append_command(
+        page_dir, {"kind": "resolve", "author": "user", "parent": closed["id"]}
+    )
+    append_command(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": roots["Gamma"]["id"],
+            "text": "Please revise this too.",
+        },
+    )
+    reaction = append_command(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": roots["Alpha"]["anchor"],
+            "token": "shorten",
+        },
+    )
+    before = state_json(page_dir)["activity"]["obligations"]
+    assert before
+    messages = [
+        e
+        for e in events_model.read_events(page_dir)
+        if e["kind"] in {"comment", "reply"}
+    ]
+    (page_dir / "index.html").write_text(
+        original.replace("Alpha", "Beta").replace("Gamma", "Delta")
+    )
+    checked = check(page_dir)
+    assert checked.exit_code == 0, checked.output
+    assert all(
+        root["id"] in checked.output for root in (roots["Alpha"], roots["Gamma"])
+    )
+    assert roots["Unchanged"]["id"] not in checked.output
+    assert closed["id"] not in checked.output
+    assert not any(e["kind"] == "reanchor" for e in events_model.read_events(page_dir))
+    state = state_json(page_dir)
+    threads = {t["id"]: t for t in state["threads"]}
+    for quote in ("Alpha", "Gamma"):
+        assert threads[roots[quote]["id"]]["anchor"] == {"section": "labels"}
+    assert threads[roots["Unchanged"]["id"]]["anchor"] == roots["Unchanged"]["anchor"]
+    assert threads[closed["id"]]["anchor"] == closed["anchor"]
+    assert reaction["id"] not in threads
+    assert state["activity"]["obligations"] == before
+    events = events_model.read_events(page_dir)
+    moves = [e for e in events if e["kind"] == "reanchor"]
+    assert {e["thread"] for e in moves} == {
+        roots["Alpha"]["id"],
+        roots["Gamma"]["id"],
+        reaction["id"],
+    }
+    assert all(
+        e["revision"] == 2 and e["author"] == "page" and not e["attention"]
+        for e in moves
+    )
+    assert [e for e in events if e["kind"] in {"comment", "reply"}] == messages
+    assert all(
+        e["anchor"] == root["anchor"]
+        for q, root in roots.items()
+        for e in events
+        if e["id"] == root["id"]
+    )
+    state_json(page_dir)
+    assert events_model.read_events(page_dir) == events
+
+    from leaf.events import build_threads
+    from leaf.thread_context import sample_events
+
+    document = structure_model.SourceDocument((page_dir / "index.html").read_text())
+    selected = {roots["Alpha"]["id"], roots["Gamma"]["id"]}
+    copied = sample_events(document, events, selected)
+    assert len([e for e in copied if e["kind"] == "reanchor"]) == 2
+    child_threads = build_threads(copied, document.within)
+    assert all(
+        child_threads[identity]["anchor"] == {"section": "labels"}
+        for identity in selected
+    )
+
+    # The fold keeps the words each automatic move left, which the panel goes on
+    # naming, until a reply places the thread again, even on that same section.
+    folded = build_threads(events, {})
+    assert folded[roots["Alpha"]["id"]]["rewritten_from"] == roots["Alpha"]["anchor"]
+    assert folded[roots["Unchanged"]["id"]]["rewritten_from"] is None
+    assert folded[reaction["id"]]["anchor"] == {"section": "labels"}
+    assert folded[reaction["id"]]["rewritten_from"] == reaction["anchor"]
+    placed = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            str(page_dir),
+            roots["Alpha"]["id"],
+            "--section",
+            "labels",
+            "--text",
+            "This section now.",
+        ],
+    )
+    assert placed.exit_code == 0, placed.output
+    replaced = build_threads(events_model.read_events(page_dir), {})
+    assert replaced[roots["Alpha"]["id"]]["anchor"] == {"section": "labels"}
+    assert replaced[roots["Alpha"]["id"]]["rewritten_from"] is None
+
+
+def test_reply_replacement_precedes_automatic_fallback_for_other_threads(page_dir):
+    original = PAGE.replace(
+        "<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha and Gamma</p>'
+    )
+    (page_dir / "index.html").write_text(original)
+    publish(page_dir)
+    roots = [
+        json.loads(comment(page_dir, "--quote", q, "--text", q).output)
+        for q in ("Alpha", "Gamma")
+    ]
+    (page_dir / "index.html").write_text(
+        original.replace("Alpha and Gamma", "Beta and Delta")
+    )
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            str(page_dir),
+            roots[0]["id"],
+            "--quote",
+            "Beta",
+            "--text",
+            "Revised this.",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    reply = json.loads(result.output)
+    assert reply["anchor"]["quote"] == "Beta"
+    threads = {t["id"]: t for t in state_json(page_dir)["threads"]}
+    assert threads[roots[0]["id"]]["anchor"] == reply["anchor"]
+    assert threads[roots[1]["id"]]["anchor"] == {"section": "wording"}
+    moves = [e for e in events_model.read_events(page_dir) if e["kind"] == "reanchor"]
+    assert [e["thread"] for e in moves] == [roots[1]["id"]]
+
+
+def test_a_quote_without_a_section_detaches_when_its_words_disappear(page_dir):
+    original = PAGE.replace("</main>", "<p>Alpha</p></main>")
+    (page_dir / "index.html").write_text(original)
+    publish(page_dir)
+    root = json.loads(
+        comment(
+            page_dir, "--quote", "Alpha", "--text", "Keep this discussion attached."
+        ).output
+    )
+    assert root["anchor"]["section"] is None
+    (page_dir / "index.html").write_text(original.replace("Alpha", "Beta"))
+    checked = check(page_dir)
+    assert checked.exit_code == 0, checked.output
+    assert stamp(page_dir, "Revised the unsectioned passage").exit_code == 0
+    thread = build_threads(events_model.read_events(page_dir), {})[root["id"]]
+    assert thread["anchor"] is None
+    assert thread["detached_from"] == root["anchor"]
+    moved = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            str(page_dir),
+            root["id"],
+            "--quote",
+            "Beta",
+            "--text",
+            "Updated the same subject.",
+        ],
+    )
+    assert moved.exit_code == 0, moved.output
+    assert json.loads(moved.output)["anchor"]["quote"] == "Beta"
+
+
+def test_a_stamp_preserves_threads_its_restatement_reopens(page_dir):
+    from leaf.events import build_threads
+
+    original = SUGGESTED.replace(
+        "<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha</p>'
+    )
+    (page_dir / "index.html").write_text(original)
+    publish(page_dir)
+    root = json.loads(
+        comment(page_dir, "--quote", "Alpha", "--text", "Discuss this.").output
+    )
+    anchored = original.replace(
+        '<lf-suggestion id="sug-refill">',
+        f'<lf-suggestion id="sug-refill" resolves="{root["id"]}">',
+    )
+    (page_dir / "index.html").write_text(anchored)
+    assert stamp(page_dir, "Proposal").exit_code == 0
+    decide(page_dir, "accept")
+    assert build_threads(events_model.read_events(page_dir), {})[root["id"]]["resolved"]
+    revised = (
+        anchored.replace("Alpha", "Beta")
+        .replace(
+            '<lf-suggestion id="sug-refill"', '<lf-suggestion restated id="sug-refill"'
+        )
+        .replace(
+            "Refill when the camera shows it half-empty.", "Refill every afternoon."
+        )
+    )
+    (page_dir / "index.html").write_text(revised)
+    result = stamp(page_dir, "Revised the proposal")
+    assert result.exit_code == 0, result.output
+    events = events_model.read_events(page_dir)
+    thread = build_threads(events, {})[root["id"]]
+    assert not thread["resolved"] and thread["anchor"] == {"section": "wording"}
+    assert events[-1]["kind"] == "reanchor" and events[-1]["revision"] == 3
+
+
+def test_quote_preservation_reads_restated_body_at_the_candidate_revision(page_dir):
+    (page_dir / "index.html").write_text(DRAFTED)
+    publish(page_dir)
+    edit(page_dir, "Alpha")
+    root = json.loads(
+        comment(
+            page_dir, "--section", "note", "--quote", "Alpha", "--text", "Discuss this."
+        ).output
+    )
+    revised = DRAFTED.replace(
+        '<lf-draft id="note">', '<lf-draft id="note" restated>'
+    ).replace("Adds --dry-run to every mutating command.", "Beta")
+    (page_dir / "index.html").write_text(revised)
+    result = stamp(page_dir, "Restated the draft")
+    assert result.exit_code == 0, result.output
+    thread = next(
+        thread
+        for thread in state_json(page_dir)["threads"]
+        if thread["id"] == root["id"]
+    )
+    assert thread["anchor"] == {"section": "note"}
+
+
+def test_a_stamp_detaches_a_reopened_quote_without_a_surviving_section(page_dir):
+    original = SUGGESTED.replace("</main>", "<p>Alpha</p></main>")
+    (page_dir / "index.html").write_text(original)
+    publish(page_dir)
+    root = json.loads(
+        comment(page_dir, "--quote", "Alpha", "--text", "Discuss this.").output
+    )
+    anchored = original.replace(
+        '<lf-suggestion id="sug-refill">',
+        f'<lf-suggestion id="sug-refill" resolves="{root["id"]}">',
+    )
+    (page_dir / "index.html").write_text(anchored)
+    assert stamp(page_dir, "Proposal").exit_code == 0
+    decide(page_dir, "accept")
+    before = events_model.read_events(page_dir)
+    revised = (
+        anchored.replace("Alpha", "Beta")
+        .replace(
+            '<lf-suggestion id="sug-refill"', '<lf-suggestion restated id="sug-refill"'
+        )
+        .replace(
+            "Refill when the camera shows it half-empty.", "Refill every afternoon."
+        )
+    )
+    (page_dir / "index.html").write_text(revised)
+    result = stamp(page_dir, "Revised the proposal")
+    assert result.exit_code == 0, result.output
+    assert files_model.latest_revision(page_dir) == 3
+    events = events_model.read_events(page_dir)
+    assert events[: len(before)] == before
+    thread = build_threads(events, {})[root["id"]]
+    assert not thread["resolved"]
+    assert thread["anchor"] is None
+    assert thread["detached_from"] == root["anchor"]
+    assert events[-1]["kind"] == "reanchor" and events[-1]["revision"] == 3
+
+
+def test_a_refused_stamp_does_not_publish_quote_fallbacks(page_dir):
+    original = PAGE.replace("<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha</p>')
+    (page_dir / "index.html").write_text(original)
+    publish(page_dir)
+    root = json.loads(
+        comment(page_dir, "--quote", "Alpha", "--text", "Keep this").output
+    )
+    before = events_model.read_events(page_dir)
+    (page_dir / "index.html").write_text(original.replace("Alpha", "Beta"))
+    refused = stamp(page_dir, "Revised", completes=("unknown-widget",))
+    assert refused.exit_code == 1 and "no open task on" in refused.output
+    assert files_model.latest_revision(page_dir) == 1
+    assert events_model.read_events(page_dir) == before
+    accepted = stamp(page_dir, "Revised")
+    assert accepted.exit_code == 0, accepted.output
+    events = events_model.read_events(page_dir)
+    assert events[-1]["kind"] == "reanchor" and events[-1]["thread"] == root["id"]
+    assert events[-2]["kind"] == "note" and events[-2]["revision"] == 2
+
+
+def test_an_interrupted_stamp_recovers_the_exact_journaled_revision(
+    page_dir, monkeypatch
+):
+    from leaf import revisioning
+    from leaf.service import PageTransaction
+
+    original = PAGE.replace(
+        "<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha Gamma</p>'
+    )
+    (page_dir / "index.html").write_text(original)
+    publish(page_dir)
+    roots = [
+        json.loads(comment(page_dir, "--quote", quote, "--text", "Keep this").output)
+        for quote in ("Alpha", "Gamma")
+    ]
+    revised = original.replace("Alpha Gamma", "Beta Delta")
+    (page_dir / "index.html").write_text(revised)
+    append = revisioning.append_admitted
+
+    def interrupted(page, event, **kwargs):
+        accepted = append(page, event, **kwargs)
+        if event["kind"] == "note":
+            raise RuntimeError("interrupted after durable note")
+        return accepted
+
+    with monkeypatch.context() as fault:
+        fault.setattr(revisioning, "append_admitted", interrupted)
+        refused = stamp(page_dir, "Revised")
+        assert isinstance(refused.exception, RuntimeError)
+    assert files_model.latest_revision(page_dir) == 1
+    pending = events_model.read_events(page_dir)
+    assert pending[-1]["kind"] == "note" and pending[-1]["revision"] == 2
+    assert not any(e["kind"] == "reanchor" for e in pending)
+    (page_dir / "index.html").write_text(
+        original.replace("Alpha Gamma", "Later unrelated edit")
+    )
+    with PageTransaction(page_dir) as page:
+        assert files_model.latest_revision(page_dir) == 2
+        assert files_model.revision_path(page_dir, 2).read_text() == revised
+        moves = [event for event in page.events if event["kind"] == "reanchor"]
+        assert {event["thread"] for event in moves} == {root["id"] for root in roots}
+    recovered = events_model.read_events(page_dir)
+    with PageTransaction(page_dir):
+        pass
+    assert events_model.read_events(page_dir) == recovered
+
+
+def test_an_explicit_replacement_is_durable_before_its_revision_appears(
+    page_dir, monkeypatch
+):
+    from leaf import revisioning
+    from leaf.service import PageTransaction
+
+    original = PAGE.replace("</main>", "<p>Alpha</p></main>")
+    (page_dir / "index.html").write_text(original)
+    publish(page_dir)
+    root = json.loads(
+        comment(page_dir, "--quote", "Alpha", "--text", "Keep this").output
+    )
+    revised = original.replace("Alpha", "Beta")
+    (page_dir / "index.html").write_text(revised)
+    args = [
+        "thread",
+        "reply",
+        str(page_dir),
+        root["id"],
+        "--quote",
+        "Beta",
+        "--text",
+        "Revised this.",
+    ]
+
+    def interrupted(*args, **kwargs):
+        raise RuntimeError("interrupted before required reply")
+
+    with monkeypatch.context() as fault:
+        fault.setattr(revisioning, "append_admitted", interrupted)
+        refused = CliRunner().invoke(cli_model.cli, args)
+        assert isinstance(refused.exception, RuntimeError)
+    with PageTransaction(page_dir) as page:
+        assert files_model.latest_revision(page_dir) == 1
+        assert not any(event["kind"] == "reply" for event in page.events)
+
+    with monkeypatch.context() as fault:
+        fault.setattr(revisioning, "publish_artifact", interrupted)
+        refused = CliRunner().invoke(cli_model.cli, args)
+        assert isinstance(refused.exception, RuntimeError)
+    assert files_model.latest_revision(page_dir) == 1
+    pending = events_model.read_events(page_dir)
+    assert pending[-1]["kind"] == "reply" and pending[-1]["anchor"]["quote"] == "Beta"
+    (page_dir / "index.html").write_text(original.replace("Alpha", "Gamma"))
+    with PageTransaction(page_dir) as page:
+        assert files_model.latest_revision(page_dir) == 2
+        assert files_model.revision_path(page_dir, 2).read_text() == revised
+        assert page.events == pending
+
+
+def test_an_interrupted_activation_finishes_all_anchor_transitions(
+    page_dir, monkeypatch
+):
+    from leaf import revisioning
+
+    original = PAGE.replace(
+        "<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha Gamma</p>'
+    )
+    (page_dir / "index.html").write_text(original)
+    publish(page_dir)
+    roots = [
+        json.loads(comment(page_dir, "--quote", q, "--text", q).output)
+        for q in ("Alpha", "Gamma")
+    ]
+    (page_dir / "index.html").write_text(original.replace("Alpha Gamma", "Beta Delta"))
+    append = revisioning.append_admitted
+
+    def interrupted(page, event, **kwargs):
+        append(page, event, **kwargs)
+        raise RuntimeError("interrupted after one anchor append")
+
+    with monkeypatch.context() as fault:
+        fault.setattr(revisioning, "append_admitted", interrupted)
+        import pytest
+
+        with pytest.raises(RuntimeError, match="interrupted after"):
+            revisioning.activate_source(page_dir)
+    assert files_model.latest_revision(page_dir) == 1
+    assert (
+        len([e for e in events_model.read_events(page_dir) if e["kind"] == "reanchor"])
+        == 1
+    )
+    recovered = revisioning.activate_source(page_dir)
+    assert recovered.error is None and recovered.revision == 2 and not recovered.created
+    threads = {t["id"]: t for t in state_json(page_dir)["threads"]}
+    assert all(
+        threads[root["id"]]["anchor"] == {"section": "wording"} for root in roots
+    )
+    assert (
+        len([e for e in events_model.read_events(page_dir) if e["kind"] == "reanchor"])
+        == 2
+    )
 
 
 def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir):
@@ -631,6 +1130,7 @@ def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir
             "detached_from": root["anchor"],
             "resolved": None,
             "unread": [root["id"], reply["id"]],
+            "attention": {"kind": "needs_user", "reason": "ask", "workflow": None},
         }
     ]
     stored_root = next(event for event in events if event["id"] == root["id"])
@@ -683,7 +1183,7 @@ def test_detach_is_a_distinct_reply_target_transition(page_dir):
 
 def test_a_withdrawn_reaction_root_can_still_be_moved_but_not_detached(page_dir):
     published(page_dir)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -693,7 +1193,7 @@ def test_a_withdrawn_reaction_root_can_still_be_moved_but_not_detached(page_dir)
             "anchor": {"section": "flow"},
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {"kind": "undo", "author": "user", "undoes": root["id"]},
     )
@@ -740,7 +1240,7 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
     )
     (page_dir / "index.html").write_text(v1)
     published(page_dir)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -755,11 +1255,9 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
     moved = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "--for",
-            root["id"],
+            response_reference(page_dir, root["id"]),
             "--section",
             "backfill-first",
             "--text",
@@ -773,11 +1271,9 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
     detached = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "--for",
-            root["id"],
+            response_reference(page_dir, root["id"]),
             "--detach",
             "--text",
             "Detach this hold.",
@@ -845,15 +1341,8 @@ def drop_node_a(page_dir):
     return check(page_dir)
 
 
-def test_a_version_keeps_the_visual_parts_a_thread_anchors_on(page_dir):
-    """A declared part is held by the threads pointing at it, not by having
-    once been declared. The picture a diagram draws changes, so a part no thread
-    holds is dropped like an element id no thread holds; one a thread still names
-    is refused by the same check that protects the id, and by that one alone —
-    naming the moves that release it, rather than repeating the refusal as a
-    vocabulary the layer no longer speaks."""
+def test_a_removed_visual_part_moves_its_thread_to_the_surviving_section(page_dir):
     assert drop_node_a(parted(page_dir)).exit_code == 0
-
     (page_dir / "index.html").write_text(PARTED)
     root = json.loads(
         comment(
@@ -861,12 +1350,14 @@ def test_a_version_keeps_the_visual_parts_a_thread_anchors_on(page_dir):
         ).output
     )
     assert root["anchor"] == {"section": "flow", "visual": "node:A"}
-    refused = drop_node_a(page_dir)
-    assert refused.exit_code != 0
-    assert "visual parts an open thread anchors on" in refused.output
-    assert "flow · node:A" in refused.output
-    assert "move, detach, or resolve those threads first" in refused.output
-    assert "1 issue(s)" in refused.output
+    result = drop_node_a(page_dir)
+    assert result.exit_code == 0, result.output
+    assert stamp(page_dir, "Removed the node").exit_code == 0
+    events = events_model.read_events(page_dir)
+    thread = build_threads(events, {})[root["id"]]
+    assert thread["anchor"] == {"section": "flow"}
+    assert thread["rewritten_from"] == root["anchor"]
+    assert next(e for e in events if e["id"] == root["id"])["anchor"] == root["anchor"]
 
 
 def test_a_detached_thread_releases_the_visual_part_it_left(page_dir):
@@ -972,7 +1463,7 @@ def test_a_bare_reaction_holds_no_visual_part(page_dir):
     a version — the rule `anchored_ids` already states for the section id. It has no
     turn to reply with either, so holding the part would leave the author no move
     that releases it."""
-    events_model.append_event(
+    append_carried_log_record(
         parted(page_dir),
         {
             "kind": "comment",
@@ -1012,7 +1503,7 @@ def test_reopening_a_thread_does_not_reclaim_a_released_visual_part(page_dir):
     assert drop_node_a(page_dir).exit_code == 0
     publish(page_dir, version=2)
 
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "unresolve", "author": "user", "parent": root["id"]}
     )
     reopened = check(page_dir)
@@ -1048,7 +1539,7 @@ def test_a_quote_may_not_run_across_a_widgets_parts(page_dir):
 
 
 def test_a_verbatim_body_is_quotable_where_a_source_body_is_not(page_dir):
-    """The registry draws the line: lf-draft renders the authored text into a plain div
+    """The registry draws the line: lf-draft renders the authored Markdown into a body
     the anchor pass can see (x-verbatim), and lf-diagram renders a picture instead."""
     result = comment(
         drafted(page_dir), "--quote", "every mutating command", "--text", "which ones?"
@@ -1057,14 +1548,20 @@ def test_a_verbatim_body_is_quotable_where_a_source_body_is_not(page_dir):
     assert json.loads(result.output)["anchor"]["section"] == "note"
 
 
-def test_an_edited_draft_reads_as_the_users_words(page_dir):
+@pytest.mark.parametrize("formatted", [False, True], ids=["plain", "markdown"])
+def test_an_edited_draft_reads_as_the_users_words(page_dir, formatted):
     """An `edit` is absolute — the log carries the whole new body, and replay writes
     exactly that into the DOM the anchor pass searches — so the reading
     `leaf thread open` captures against holds the user's words in the authored
     body's place: quotable, collapsed like any passage, genuinely adjacent to the
     prose around them (no fence — the screen shows that adjacency too)."""
     drafted(page_dir)
-    edit(page_dir, "Adds --dry-run to purge\nand rebuild only.")
+    text = (
+        "*Adds* `--dry-run` to **purge**\nand rebuild only."
+        if formatted
+        else "Adds --dry-run to purge\nand rebuild only."
+    )
+    edit(page_dir, text)
     result = comment(page_dir, "--quote", "purge and rebuild only", "--text", "x")
     assert result.exit_code == 0, result.output
     assert json.loads(result.output)["anchor"]["section"] == "note"
@@ -1080,8 +1577,8 @@ def test_comments_reach_user_generated_choices_without_source_copying(page_dir):
     words = "Use <a literal> & keep the source unchanged."
     moves = [
         ("add", {"option": identity, "text": words}),
-        ("choose", {"options": [identity]}),
-        ("choose", {"options": ["flag-first"]}),
+        ("choose", {"value": [identity]}),
+        ("choose", {"value": ["flag-first"]}),
     ]
     for action, detail in moves:
         append_command(
@@ -1160,33 +1657,36 @@ def test_a_restated_draft_takes_the_pen_back_from_the_reading(page_dir):
     assert again.exit_code == 0, again.output
 
 
-def test_restating_what_an_earlier_version_took_back_names_that_version(page_dir):
-    """The retraction lives in the log, so a later version has nothing to repeat.
-
-    An author who carries `restated` forward — the habit the design exists to break —
-    is refused, and told which version already did it. The answer is its own rather
-    than the never-decided one, which would read as if the user had done nothing.
-    """
+def test_repeating_restatement_retracts_a_new_edit_without_blocking_revision(page_dir):
+    """Each revision may restate its draft, including after a fresh user edit."""
     drafted(page_dir)
     edit(page_dir, "Adds --dry-run to purge and rebuild only.")
     (page_dir / "index.html").write_text(RESTATED)
     assert stamp(page_dir, "took the pen back").exit_code == 0
+    edit(page_dir, "Keep a fresh dry-run choice.", version=2)
+    assert (
+        comment(page_dir, "--quote", "fresh dry-run choice", "--text", "x").exit_code
+        == 0
+    )
 
     (page_dir / "index.html").write_text(
         RESTATED.replace("<title>t</title>", "<title>t · again</title>")
     )
     repeated = stamp(page_dir, "again")
-    assert repeated.exit_code != 0
-    assert "r2 already took that back" in repeated.output
+    assert repeated.exit_code == 0, repeated.output
+    assert files_model.latest_revision(page_dir) == 3
+    assert (
+        comment(page_dir, "--quote", "the rest apply live", "--text", "x").exit_code
+        == 0
+    )
+    gone = comment(page_dir, "--quote", "fresh dry-run choice", "--text", "x")
+    assert gone.exit_code != 0 and "doesn't say" in gone.output
 
 
-def test_a_verb_no_captured_registry_speaks_refuses_the_page(page_dir):
-    """Recorded meaning cannot make up a declaration the captured revision never had.
-
-    The door admitted everything logged against the active revision, so the next
-    revision is where history is checked against the vocabulary again."""
+def test_a_record_without_captured_state_does_not_block_or_rewrite_a_revision(page_dir):
+    """Unusable historical state stays in the log without becoming current state."""
     drafted(page_dir)
-    events_model.append_event(
+    historical = append_carried_log_record(
         page_dir,
         {
             "kind": "action",
@@ -1206,8 +1706,18 @@ def test_a_verb_no_captured_registry_speaks_refuses_the_page(page_dir):
         DRAFTED.replace("<title>t</title>", "<title>t · revised</title>")
     )
     result = comment(page_dir, "--quote", "every mutating command", "--text", "x")
-    assert result.exit_code != 0
-    assert "<lf-draft> does not declare action verb 'scribble'" in result.output
+    assert result.exit_code == 0, result.output
+    assert files_model.latest_revision(page_dir) == 2
+    gone = comment(page_dir, "--quote", "Words no layer speaks", "--text", "x")
+    assert gone.exit_code != 0 and "doesn't say" in gone.output
+    assert (
+        next(
+            event
+            for event in events_model.read_events(page_dir)
+            if event["id"] == historical["id"]
+        )
+        == historical
+    )
 
 
 def test_an_unhonored_edit_outlives_a_republish(page_dir):
@@ -1370,9 +1880,7 @@ def test_a_restated_suggestion_hands_its_slot_back(page_dir):
 def test_a_decision_the_user_took_back_hands_its_slot_back(page_dir):
     """Withdrawing is the second way a decision stops standing, and the file's
     reading owes it the same answer as `restated`: the retired half is on the page
-    again, so a quote reaches it. Both are read in the one fold, which is what makes
-    a single clause serve the anchor pass, the lint's state gate, and the ids a
-    version honoring the decision would have been allowed to drop."""
+    again, so a quote reaches it while the authored suggestion still exists."""
     suggested(page_dir)
     decide(page_dir, "accept")
     retired = ["--quote", "Refill every feeder each morning.", "--text", "x"]
@@ -1381,20 +1889,15 @@ def test_a_decision_the_user_took_back_hands_its_slot_back(page_dir):
     accepted = next(
         e for e in events_model.read_events(page_dir) if e["kind"] == "action"
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "undo", "author": "user", "undoes": accepted["id"]}
     )
     result = comment(page_dir, *retired)
     assert result.exit_code == 0, result.output
 
 
-def test_a_version_may_not_honor_a_decision_the_user_took_back(page_dir):
-    """The sharpest reading of whether a withdrawal actually undid anything, because
-    it is the one the user never sees: honoring a decision is how a version drops
-    the ids the decision retired, and `page check` licenses that only from the
-    standing fold. The same v2 is therefore accepted while the accept stands and
-    refused the moment it is taken back — which is the file side saying the page is
-    pending again, in the one place it could not be saying it out of politeness."""
+def test_withdrawing_a_decision_does_not_veto_an_authored_replacement(page_dir):
+    """Undo withdraws a gesture; it does not restore markup the author replaced."""
     suggested(page_dir)
     decide(page_dir, "accept")
     # What honoring an accept looks like: the surviving half written straight,
@@ -1410,10 +1913,26 @@ def test_a_version_may_not_honor_a_decision_the_user_took_back(page_dir):
     accepted = next(
         e for e in events_model.read_events(page_dir) if e["kind"] == "action"
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "undo", "author": "user", "undoes": accepted["id"]}
     )
-    assert check(page_dir).exit_code == 1
+    checked = check(page_dir)
+    assert checked.exit_code == 0, checked.output
+    assert stamp(page_dir, "Replaced the suggestion").exit_code == 0
+    kept = comment(page_dir, "--quote", "camera shows it half-empty", "--text", "x")
+    assert kept.exit_code == 0, kept.output
+    gone = comment(
+        page_dir, "--quote", "Refill every feeder each morning", "--text", "x"
+    )
+    assert gone.exit_code != 0 and "doesn't say" in gone.output
+    assert (
+        next(
+            event
+            for event in events_model.read_events(page_dir)
+            if event["id"] == accepted["id"]
+        )
+        == accepted
+    )
 
 
 def test_what_the_user_never_sees_is_not_quotable(page_dir):
@@ -1451,7 +1970,7 @@ def test_the_agents_own_comment_is_not_printed_back_to_it(page_dir):
     published(page_dir)
     assert comment(page_dir, "--quote", "Ship dark", "--text", "x").exit_code == 0
     assert page_state(page_dir)["pending"] == 0
-    assert hook_carrier_model.unattended_pages("") == []
+    assert hook_transport_model.unattended_pages("") == []
 
 
 def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
@@ -1462,7 +1981,7 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s-7")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
     published(page_dir)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1476,11 +1995,9 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
         .invoke(
             cli_model.cli,
             [
-                "thread",
+                "response",
                 "reply",
-                str(page_dir),
-                "--for",
-                root["id"],
+                response_reference(page_dir, root["id"]),
                 "--text",
                 "fixed in v2",
             ],
@@ -1521,7 +2038,7 @@ def test_unresolve_reopens_a_thread_in_agent_readings(page_dir):
     """The agent-side fold reads the inverse transition from the same log as the
     browser, so page state and the transcript both show the thread open again."""
     published(page_dir)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1530,10 +2047,10 @@ def test_unresolve_reopens_a_thread_in_agent_readings(page_dir):
             "text": "Still relevant?",
         },
     )
-    resolved = events_model.append_event(
+    resolved = append_carried_log_record(
         page_dir, {"kind": "resolve", "author": "user", "parent": root["id"]}
     )
-    reopened = events_model.append_event(
+    reopened = append_carried_log_record(
         page_dir, {"kind": "unresolve", "author": "user", "parent": root["id"]}
     )
 
@@ -1557,7 +2074,7 @@ def test_a_closed_thread_stops_asking(page_dir):
     closed threads live in."""
     (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1571,19 +2088,19 @@ def test_a_closed_thread_stops_asking(page_dir):
             "</lf-options></lf-ask>",
         },
     )
-    assert state_json(page_dir)["asks"] == [
+    assert asks_on_you(state_json(page_dir)) == [
         {
             "id": "gm-decision",
             "tag": "lf-ask",
-            "source": "gm",
-            "source_tag": "lf-options",
+            "widget": "gm",
+            "widget_tag": "lf-options",
             "thread": root["id"],
         }
     ]
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "resolve", "author": "agent", "parent": root["id"]}
     )
-    assert state_json(page_dir)["asks"] == []
+    assert asks_on_you(state_json(page_dir)) == []
 
 
 def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
@@ -1592,7 +2109,7 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
     roots = []
     for suffix in ("a", "b"):
         roots.append(
-            events_model.append_event(
+            append_carried_log_record(
                 page_dir,
                 {
                     "kind": "comment",
@@ -1608,19 +2125,19 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
                 },
             )
         )
-    assert state_json(page_dir)["asks"] == [
+    assert asks_on_you(state_json(page_dir)) == [
         {
             "id": "group-a-decision",
             "tag": "lf-ask",
-            "source": "group-a",
-            "source_tag": "lf-options",
+            "widget": "group-a",
+            "widget_tag": "lf-options",
             "thread": roots[0]["id"],
         },
         {
             "id": "group-b-decision",
             "tag": "lf-ask",
-            "source": "group-b",
-            "source_tag": "lf-options",
+            "widget": "group-b",
+            "widget_tag": "lf-options",
             "thread": roots[1]["id"],
         },
     ]
@@ -1633,15 +2150,15 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
             "revision": 1,
             "widget": "group-a",
             "action": "choose",
-            "detail": {"options": ["option-a"]},
+            "detail": {"value": ["option-a"]},
         },
     )
-    assert state_json(page_dir)["asks"] == [
+    assert asks_on_you(state_json(page_dir)) == [
         {
             "id": "group-b-decision",
             "tag": "lf-ask",
-            "source": "group-b",
-            "source_tag": "lf-options",
+            "widget": "group-b",
+            "widget_tag": "lf-options",
             "thread": roots[1]["id"],
         }
     ]
@@ -1701,8 +2218,8 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
 
     `page state` projects the published version's elements, and a widget carried by a
     message is in none of them — so a press on an AskUserQuestion resolved no
-    declaration and stood nowhere. A session picking the page up read `asks` reporting
-    the question answered and `state` reporting that nobody had answered anything,
+    declaration and stood nowhere. A session picking the page up read the question's
+    task as answered and `state` reporting that nobody had answered anything,
     while the browser had been folding that same action all along.
 
     It is named by its thread rather than by a version, because thread markup is
@@ -1731,7 +2248,7 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
             "revision": 1,
             "widget": "ps-q",
             "action": "choose",
-            "detail": {"options": ["ps-cookie"]},
+            "detail": {"value": ["ps-cookie"]},
         },
     )
     out = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
@@ -1739,7 +2256,7 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
     state = json.loads(out.stdout)
     assert [
         (s["widget"], s["action"], s["detail"], s["thread"]) for s in state["state"]
-    ] == [("ps-q", "choose", {"options": ["ps-cookie"]}, thread)]
+    ] == [("ps-q", "choose", {"value": ["ps-cookie"]}, thread)]
 
 
 def test_message_markup_may_not_declare_the_document(page_dir):
@@ -1781,17 +2298,15 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
         ).exit_code
         == 0
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
     clash = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "--for",
-            "c1",
+            response_reference(page_dir, "c1"),
             "--text",
             "See:",
             "--markup",
@@ -1803,11 +2318,9 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
     plain_clash = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "--for",
-            "c1",
+            response_reference(page_dir, "c1"),
             "--text",
             "See:",
             "--markup",

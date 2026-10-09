@@ -11,14 +11,14 @@
    one declaration that reads other owners' state — the modes, the captured target, the
    Page Map's rung — so `declareStanding` is the one export, and the boot entry calls it
    once those owners stand. */
-import { letGo, release, takesLetters } from "../focus.js";
+import { letGo, release, focused } from "../focus.js";
 import { inChrome, pageQueryAll } from "../passages.js";
 import { inUi } from "../shadow.js";
 import { pageSelection } from "../composing/capture.js";
 import { heldThread } from "../thread/focus.js";
 import { heldAsk } from "../standing-target.js";
-import { boxHandsBack } from "../thread/landing.js";
-import { claimsEsc, documentFocused, focused } from "./scopes.js";
+import { leavesBox } from "../thread/landing.js";
+import { claimsEsc, documentFocused } from "./scopes.js";
 import { DISCLOSE, DISCLOSURE_SELECTOR, disclosed } from "./disclosure.js";
 import { nativeLayers } from "./layer-stack.js";
 import { pageCommand, pageRung, pageScope } from "./register.js";
@@ -59,7 +59,7 @@ function standingOn(name, title, sel, rows) {
 // nothing the browser does not already do, and what it adds is the promise being on
 // screen. Enter alone, Space under a link being the page's own scroll.
 standingOn("link", "On a link", "a[href]", [
-  { id: "link.follow", keys: ["Enter"], does: "Follow it", line: "follow" },
+  { id: "link.follow", keys: ["Enter"], title: "Follow" },
 ]);
 
 // A disclosure, in either spelling the page has for one. The platform's <details> keeps the
@@ -78,11 +78,11 @@ standingOn("disclosure", "On a disclosure", DISCLOSURE_SELECTOR, [
   {
     id: "disclosure.toggle",
     keys: () => DISCLOSE(focused()),
-    does: "Open or close it",
+    description: "Open or close it",
     // Read where it is painted rather than named once for both branches, the way a diff's
     // own file rows read theirs: what the press does is whichever way the disclosure is
     // standing, and a word fixed at declaration could only ever say one of them.
-    line: () => (disclosed(focused()) ? "close" : "open"),
+    title: () => (disclosed(focused()) ? "close" : "open"),
     // Through the element's own click, so keyboard and pointer are one behaviour: a
     // <summary>'s click is the toggle the browser was already making, and a widget's
     // control runs the handler its own pointer press runs. Enter and Space are the
@@ -98,32 +98,33 @@ pageCommand({
   id: "browser.caret",
   touch: false,
   keys: ["F7"],
-  does: "Caret browsing (the browser's): select text by keyboard, then c",
+  title: "Caret browsing",
+  description:
+    "Select text with the browser's keyboard caret, then comment on the selection",
+  line: false,
 });
 
-// Standing is a destination on the page or a thread in the panel, including its
-// title and controls. Releasing it lands at its floor: the document or the whole
-// panel. Disclosure is independent; neither expanding nor collapsing a thread adds
-// another selection level.
+// Standing is a destination on the page. Releasing it lands at its floor, the document.
+// A thread in the panel has no floor of its own: the list holding focus hands it to the
+// thread it shows open (thread-list-view.js), so the panel's own rungs — its narrowing,
+// then closing it — are the way out of a panel thread.
 //
-// Inner controls, reply boxes, and native layers answer first. A panel thread then
-// releases before the panel's narrowing; page-side state waits while focus is in
-// the panel. On the page, a selection or mode unwinds before the destination does.
-// Chrome controls outside a thread belong to the surface's own Escape ladder.
+// Inner controls, reply boxes, and native layers answer first. Page-side state waits
+// while focus is in the panel. On the page, a selection or mode unwinds before the
+// destination does. Chrome controls belong to the surface's own Escape ladder.
 const holding = () => {
   const active = documentFocused();
   return Boolean(active) && active !== document.body;
 };
 let standingFloor = () => null;
-export function declareStanding({ pageState, narrowing, threadsBox }) {
+export function declareStanding({ pageState }) {
   standingFloor = () => {
     if (!holding()) return null;
     if (nativeLayers().length) return null;
-    if (takesLetters(focused()) && boxHandsBack()) return null;
+    if (leavesBox()) return null;
     if (claimsEsc(focused())) return null;
-    const thread = heldThread();
-    if (thread?.matches(".lf-thread")) return threadsBox;
     if (inChrome(documentFocused())) return null;
+    const thread = heldThread();
     if (pageSelection() || pageState()) return null;
     return thread || heldAsk() || !inUi(focused()) ? document.body : null;
   };
@@ -136,16 +137,10 @@ export function declareStanding({ pageState, narrowing, threadsBox }) {
       {
         id: "navigation.release",
         keys: ["Escape"],
-        does: "Let go of what you are standing on",
-        line: () => (standingFloor() === threadsBox ? "back to panel" : "let go"),
-        lineWhen: () =>
-          !narrowing.threadSearchActive() || standingFloor() !== threadsBox,
+        description: "Let go of what you are standing on",
+        title: "let go",
         when: () => Boolean(standingFloor()),
-        run: () => {
-          const floor = standingFloor();
-          if (floor === document.body) release();
-          else floor.focus({ preventScroll: true });
-        },
+        run: release,
       },
     ],
   });
@@ -165,15 +160,19 @@ pageRung("page", () => {
   if (holding())
     return standingFloor()
       ? null
-      : { says: "back to the page", does: "Back out onto the page", out: letGo };
+      : {
+          title: "back to the page",
+          description: "Back out onto the page",
+          out: letGo,
+        };
   // A sample has one more containing page. Its own controls and standing unwind
   // first; the frame's owner takes the focus back, not another keyboard listener
   // competing with this register.
   const frame = window.frameElement;
   return frame?.hasAttribute("data-lf-contained")
     ? {
-        says: "return to containing page",
-        does: "Leave this sample and return to its containing page",
+        title: "return to containing page",
+        description: "Leave this sample and return to its containing page",
         out: () => frame.dispatchEvent(new Event("lf-sample-return")),
       }
     : null;

@@ -31,12 +31,12 @@
    the ordinary text-entry row to return to the panel, keeping the query. Exact input
    rows stand before the general text-entry claim, which stands before ancestor widgets.
 
-   A key may repeat across nesting scopes to mean the same intent in context. `c` reads
-   that way: from the page it enters the nearest comment box; from the Threads list it
-   enters the page-comment box one layer below that list. `g T`, not `c`, is what enters
-   Threads as a navigable surface and leaves `w` and `/` live. `activeCommandLabel`
-   projects the dispatcher's live result into the destination composition box's
-   placeholder. Each box's `aria-label` remains its shortcut-free accessible name.
+   A page command that a covering surface should not drop says so with `covering`, and
+   gates its own liveness on what it can reach there, rather than standing as a copy in
+   the surface's scope. `c` answers that way from a covering Threads panel, reading the
+   one comment destination the page reads. `activeCommandLabel` projects the
+   dispatcher's live result into the destination composition box's placeholder. Each
+   box's `aria-label` remains its shortcut-free accessible name.
 
    Escape is an ordinary binding in each row and a semantic ordering in the dispatcher.
    It unwinds the state standing in front of the user rather than a history of how they
@@ -59,11 +59,6 @@
    while an unhandled Escape reaches the browser and cannot fall through. The universal
    reference is the boundary's one route through to another layer.
 
-   A covering auxiliary surface uses the same modal command floor without entering the browser's
-   top layer. Its owner makes the background DOM inert, and this dispatcher keeps only
-   scopes rooted in the auxiliary surface. A native layer opened above the auxiliary
-   surface keeps its own scopes above that floor.
-
    A popover hands focus back to whatever had it when the popover showed — not to its
    invoker, and not to `showPopover({source})`, which buys the anchor and the invoker
    relationship and nothing about focus. So a key that opens a layer runs the press from
@@ -73,41 +68,50 @@
    purpose, and a user who pressed away into the page is not asking to be moved to the
    control they pressed away from.
 
-   When Leaf handles a binding that promises a visible control's activation, its command
-   path calls that control's `click()`; it does not call the handler or reproduce its
-   result. A platform-native press stays native. Arrival may focus or reveal the control
-   before activation. Modality checks belong only to gesture guards before activation,
-   such as refusing the mouseup that ends a text-selection drag. */
+   A declared native button's click and keyboard route invoke the same semantic `run`.
+   Native inputs and links retain their platform activation. Arrival may focus or reveal
+   a control before activation. Modality checks belong only to gesture guards before
+   activation, such as refusing the mouseup that ends a text-selection drag. */
 import {
   answers,
   bindings,
+  bindingEnabled,
+  declaredBindings,
+  allBindings,
+  lineOf,
+  titleOf,
   commandEntries,
   commandRoutes,
   live,
-  parsed,
   routedCommand,
+  referencedCommandEntry,
   spell,
   word,
 } from "./bindings.js";
 import {
-  coveringAuxiliarySurface,
   ELEMENTS,
   pageScopes,
   textEntryScope,
   universalCommandReference,
 } from "./register.js";
-import { EVERYTHING } from "./text-entry.js";
-import { controlNavigationKeys, takesLetters } from "../focus.js";
-import { focused, recoveredLabelFocus, scopesAt, scopesFor } from "./scopes.js";
+import { EVERYTHING, nativeClaimAt } from "./text-entry.js";
+import { takesLetters, focused, recoveredLabelFocus } from "../focus.js";
+import { scopesAt, scopesFor, scopeIdentity } from "./scopes.js";
 import { nativeLayers } from "./layer-stack.js";
-import { shadowHost, under } from "../shadow.js";
+import { shadowHost, under, excludedByInert } from "../shadow.js";
 
 // The two questions a scope answers, named apart because the surfaces ask them apart: the
 // reference lists a scope the page *has* and filters its rows by liveness only where the user
 // is standing in it, while the dispatcher and the line want both at once. Spelled `!x || x()`
 // in three places before, which is a rule written three times and named nowhere.
 const pageHas = (scope) => !scope.when || scope.when();
-export const userIn = (scope) => !scope.at || scope.at();
+export const userIn = (scope) => {
+  // Native modality excludes everything below its layer floor. An explicitly inert
+  // subtree can also stand inside that floor (the suspended bottom bar in Threads),
+  // and none of its latent scopes may answer a key or advertise a live command.
+  if (excludedByInert(scopeRoot(scope))) return false;
+  return !scope.at || scope.at();
+};
 // Where the user is first, and what the page has second: both are pure and the and is
 // the same either way round, but `at` is a class check and a `when` may be the whole event
 // log folded — so the walk asks the cheap question of every scope and the dear one only of
@@ -120,7 +124,8 @@ export const userIn = (scope) => !scope.at || scope.at();
 export const standing = (scope) => userIn(scope) && pageHas(scope);
 const nativeBoundary = (claims) => ({
   get rows() {
-    return [universalCommandReference()];
+    const reference = universalCommandReference();
+    return reference ? [reference] : [];
   },
   claims,
   escapeBoundary: true,
@@ -192,19 +197,24 @@ export function stack(binding = null) {
   const elementStack = scopesFor(active);
   const typing = takesLetters(active);
   const TYPING = textEntryScope();
-  const navigationKeys = controlNavigationKeys(active);
-  const controlScope = navigationKeys.length
-    ? {
-        root: active,
-        rows: [],
-        claims: (binding) => navigationKeys.includes(parsed(binding).key),
-      }
-    : null;
+  const nativeClaims = nativeClaimAt(active);
+  const controlScope =
+    nativeClaims && !typing
+      ? {
+          root: active,
+          rows: [],
+          claims: nativeClaims,
+        }
+      : null;
   const expanded = pageScopes().flatMap((scope) => {
     if (scope === ELEMENTS) {
       if (!typing && !controlScope) return elementStack;
-      const own = elementStack.filter(({ el }) => el === active);
-      const ancestors = elementStack.filter(({ el }) => el !== active);
+      const own = elementStack.filter(
+        ({ el, contextual }) => el === active && !contextual,
+      );
+      const ancestors = elementStack.filter(
+        ({ el, contextual }) => el !== active || contextual,
+      );
       return [...own, ...(typing ? [TYPING] : [controlScope]), ...ancestors];
     }
     if (scope === TYPING && typing) return [];
@@ -219,13 +229,8 @@ export function stack(binding = null) {
   const layers = nativeLayers();
   const modalAt = layers.findLastIndex((layer) => layer.kind === "modal");
   const visible = modalAt < 0 ? layers : layers.slice(modalAt);
-  const auxiliarySurface = coveringAuxiliarySurface();
-  // The floor is the newest modal, or a covering auxiliary surface taking modal semantics
-  // without the browser's top layer. What it makes inert is out of reach however near the
-  // user it stands, so a focused control inside a layer keeps the widget ancestors that
-  // are inside the floor too and drops the ones outside it. The layers themselves stand
-  // above the floor rather than under it, and each takes its own scopes below.
-  const floor = modalAt < 0 ? auxiliarySurface : visible[0].root;
+  // The newest native modal is the one boundary the browser makes inert behind it.
+  const floor = modalAt < 0 ? null : visible[0].root;
   const aboveFloor = (scope) => !floor || under(scopeRoot(scope), floor);
   const top = visible.at(-1) ?? null;
   // The topmost layer also holds the focused control and explicitly inner modes: they
@@ -250,12 +255,7 @@ export function stack(binding = null) {
     );
     parts.push(layer.kind === "modal" ? MODAL_BOUNDARY : POPOVER_BOUNDARY);
   }
-  if (modalAt < 0) {
-    if (auxiliarySurface) {
-      take(aboveFloor);
-      parts.push(MODAL_BOUNDARY);
-    } else parts.push(...pool);
-  }
+  if (modalAt < 0) parts.push(...pool);
   return ordered(parts);
 }
 // The ownership of every scope nearer the user than this one, accumulated as either
@@ -294,20 +294,16 @@ export const shadow = () => {
 // an intrinsic key press. The source scope need not be where focus stands: that is the
 // point of an ancestor projection such as Ask.
 function referencedInvocation(reference) {
-  if (!reference?.source?.isConnected) return null;
-  if (!scopesAt(reference.source).includes(reference.scope)) return null;
-  if (!pageHas(reference.scope) || !reference.scope.rows.includes(reference.row))
-    return null;
-  if (!live(reference.row)) return null;
-  const current = commandEntries(reference.row, bindings(reference.row)).find(
-    ({ id, binding }) => id === reference.id && (binding ?? null) === reference.binding,
-  );
-  if (!current) return null;
+  if (!reference) return null;
+  const current = referencedCommandEntry(reference);
+  if (!current || !scopesAt(reference.source).includes(reference.scope)) return null;
   const run = reference.row.run
     ? () => reference.row.run(reference.binding ?? undefined)
-    : reference.control?.isConnected
-      ? () => reference.control.click()
-      : null;
+    : current.route
+      ? () => word(current.route.control ?? reference.row.control).click()
+      : word(reference.row.control)?.isConnected
+        ? () => word(reference.row.control).click()
+        : null;
   return run
     ? {
         id: reference.id,
@@ -320,12 +316,16 @@ function referencedInvocation(reference) {
 }
 
 function invocationFor(row, binding, command, recovered = null) {
-  const reference = routedCommand(command?.route);
+  if (!command || !live(row)) return null;
+  const current = commandEntries(row, [binding]).find(({ id }) => id === command.id);
+  if (!current) return null;
+  const reference = routedCommand(current.route);
   if (reference) return referencedInvocation(reference);
+  const nativeControl = recovered ?? word(current.route?.control ?? row.control);
   const run = row.run
-    ? () => row.run(binding)
-    : recovered
-      ? () => recovered.click()
+    ? () => row.run(current.route?.binding ?? binding)
+    : nativeControl?.isConnected
+      ? () => nativeControl.click()
       : null;
   return run
     ? { id: command?.id ?? row.id, row, binding, run, native: Boolean(row.native) }
@@ -357,15 +357,15 @@ export function lineOwner(binding) {
   for (const scope of stack(binding)) {
     const owners = scope.rows.filter(
       (row) =>
-        row.line &&
         bindings(row).includes(binding) &&
         !nearer.takes(binding) &&
-        live(row),
+        commandEntries(row, [binding]).length > 0 &&
+        lineOf(row) !== false,
     );
     if (owners.length > 1)
       throw new Error(
         `leaf: ${scope.title ?? "a scope"} has two live meanings for ${binding}: ` +
-          owners.map((owner) => word(owner.does)).join("; "),
+          owners.map(titleOf).join("; "),
       );
     if (owners.length)
       return {
@@ -385,7 +385,7 @@ function unclaimedScopes(binding) {
   const unclaimed = new Set();
   const nearer = shadow();
   for (const scope of stack(binding)) {
-    if (!nearer.takes(binding)) unclaimed.add(scope);
+    if (!nearer.takes(binding)) unclaimed.add(scopeIdentity(scope));
     nearer.past(scope);
   }
   return unclaimed;
@@ -417,7 +417,7 @@ export function dispatchKey(ev, { beforeCommand }) {
       if (matched)
         throw new Error(
           `leaf: ${scope.title ?? "a scope"} has two live meanings for ${binding}: ` +
-            `${word(matched.row.does)}; ${word(row.does)}`,
+            `${titleOf(matched.row)}; ${titleOf(row)}`,
         );
       matched = invocation;
     }
@@ -448,56 +448,72 @@ export function dispatchKey(ev, { beforeCommand }) {
 // An action chosen from the reference has no keydown to match, but it still belongs to
 // exactly one live scope. Resolve it through the same innermost-first stack and the same
 // shadowing as a key press.
-function commandMatching(matches) {
+// A deliberately disabled shortcut leaves its command unbound and executable;
+// nearer key claims still constrain every shortcut that remains enabled.
+const reachableBindings = (row, scope, nearer, unclaimedEscape, commands) =>
+  (commands ? declaredBindings(row) : bindings(row)).filter((binding) =>
+    commands && !bindingEnabled(binding)
+      ? true
+      : binding === "Escape"
+        ? unclaimedEscape.has(scopeIdentity(scope))
+        : !nearer.takes(binding),
+  );
+function commandMatching(matches, commands = false) {
   const unclaimedEscape = unclaimedScopes("Escape");
   const nearer = shadow();
   for (const scope of stack()) {
     for (const row of scope.rows) {
       if (!live(row)) continue;
-      const reachable = bindings(row).filter((binding) =>
-        binding === "Escape" ? unclaimedEscape.has(scope) : !nearer.takes(binding),
+      const reachable = reachableBindings(
+        row,
+        scope,
+        nearer,
+        unclaimedEscape,
+        commands,
       );
       const entry = commandEntries(row, reachable).find(
         (command) =>
           matches(command, row) && invocationFor(row, command.binding, command),
       );
-      if (entry?.binding != null) return { row, binding: entry.binding, entry };
+      if (entry && (entry.binding != null || allBindings(row).length === 0))
+        return { row, binding: entry.binding, entry };
     }
     nearer.past(scope);
   }
   return null;
 }
-const commandFor = (id) => commandMatching((command) => command.id === id);
-// A contextual surface asks the dispatcher which of several routes to one capability is
-// reachable from the user's current scope — `c` on the page and `c` from the Threads
-// list both enter the page-comment box, and the box's placeholder names whichever one
+const commandFor = (id) => commandMatching((command) => command.id === id, true);
+// A contextual surface asks the dispatcher which of its routes to one capability is
+// reachable from the user's current scope, and the box's placeholder names whichever one
 // dispatch would answer. Asked by command id rather than by row, so the surface holds no
 // reference into another scope's declaration. This includes shadowing by native text entry
 // and modes, not only each row's own liveness.
 export function activeCommandLabel(ids) {
   const wanted = new Set(ids);
   const command = commandMatching((entry) => wanted.has(entry.id));
-  return command ? spell(command.binding) : "";
+  return command?.binding != null ? spell(command.binding) : "";
 }
-// Snapshot every executable route while focus is still on the page. Keep both readings:
-// command ids answer whether a semantic result can be invoked, while row bindings answer
-// whether this exact advertised route works. The distinction matters when a widget's
-// intrinsic key and an Ask alias share one command id but only one binding is shadowed.
-function availableRouteSnapshot() {
-  const commands = new Set();
+// Snapshot executable bindings by row while focus is still on the page. A widget's
+// intrinsic key and an Ask alias can share a command id while only one is shadowed.
+// The reference is a modal scope and shadows the page once it opens, so callers take
+// this snapshot before opening it.
+export function availableCommandRoutes({ commands = false } = {}) {
   const routes = new Map();
   const unclaimedEscape = unclaimedScopes("Escape");
   const nearer = shadow();
   for (const scope of stack()) {
     for (const row of scope.rows) {
       if (!live(row)) continue;
-      const reachable = bindings(row).filter((binding) =>
-        binding === "Escape" ? unclaimedEscape.has(scope) : !nearer.takes(binding),
+      const reachable = reachableBindings(
+        row,
+        scope,
+        nearer,
+        unclaimedEscape,
+        commands,
       );
-      for (const binding of reachable) {
+      for (const binding of allBindings(row).length ? reachable : [undefined]) {
         for (const command of commandEntries(row, [binding])) {
           if (!invocationFor(row, binding, command)) continue;
-          commands.add(command.id);
           if (!routes.has(row)) routes.set(row, new Set());
           routes.get(row).add(binding);
         }
@@ -505,12 +521,8 @@ function availableRouteSnapshot() {
     }
     nearer.past(scope);
   }
-  return { commands, routes };
+  return routes;
 }
-// The reference is a modal scope and correctly shadows the page once it opens; callers
-// take this snapshot before that point.
-export const availableCommands = () => availableRouteSnapshot().commands;
-export const availableCommandRoutes = () => availableRouteSnapshot().routes;
 // A control standing in for a press (touch-controls.js) makes that press itself: the
 // binding names which of a routed row's results it is, and a nearer claim on the key is
 // about the key, not the command.

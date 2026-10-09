@@ -147,7 +147,10 @@ function target(row) {
   if (row.thread) {
     const button = offer("button", "lf-activity-target");
     relabel(button, row.label, { says: "echo" });
-    button.addEventListener("click", () => openThread(row.thread, { focus: "thread" }));
+    button.addEventListener(
+      "click",
+      () => void openThread(row.thread, { focus: "thread" }),
+    );
     return button;
   }
   if (!row.widget && !row.label) return null;
@@ -207,7 +210,6 @@ function fill(item, row) {
 customElements.define(
   "lf-activity",
   class extends HTMLElement {
-    #stop = null;
     #list = null;
     #empty = null;
     // Event id to its row and the description it was last filled from.
@@ -215,30 +217,24 @@ customElements.define(
     #history = [];
 
     connectedCallback() {
-      if (once(this)) {
-        this.#list = document.createElement("ol");
-        this.#list.className = "lf-activity-list";
-        this.#list.dataset.lfGen = "1";
-        this.#empty = document.createElement("p");
-        this.#empty.className = "lf-activity-empty";
-        this.#empty.dataset.lfGen = "1";
-        this.#empty.textContent = "Nothing has happened on this page yet.";
-        this.replaceChildren(this.#list, this.#empty);
-      }
-      this.#stop ??= watchHistory(this, (history) => {
+      if (!once(this)) return;
+      this.#list = document.createElement("ol");
+      this.#list.className = "lf-activity-list";
+      this.#list.dataset.lfGen = "1";
+      this.#empty = document.createElement("p");
+      this.#empty.className = "lf-activity-empty";
+      this.#empty.dataset.lfGen = "1";
+      this.#empty.textContent = "Nothing has happened on this page yet.";
+      this.replaceChildren(this.#list, this.#empty);
+      watchHistory(this, (history) => {
         this.#history = history;
         this.#render(history);
         // Excerpts painted from the source take the parser's words once it lands.
         if (!markdownReady())
           loadMarkdown().then((loaded) => {
-            if (loaded && this.#stop) this.#render(this.#history);
+            if (loaded && this.isConnected) this.#render(this.#history);
           });
       });
-    }
-
-    disconnectedCallback() {
-      this.#stop?.();
-      this.#stop = null;
     }
 
     #render(history) {

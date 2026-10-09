@@ -1,5 +1,5 @@
-/* Shared visibility for addressable targets and placement for predictable numeric Ask
-   binding badges. The banner clips every target's usable box. An Ask face hangs off its
+/* Shared visibility for addressable targets and placement for command
+   binding badges. The banner clips every target's usable box. A binding face hangs off its
    control's upper-left corner, and off another of its corners where that one would cover
    a different control: a digit laid over a neighbour's corner reads as that neighbour's.
    It may move back inside the viewport, but it yields wherever that move would cover
@@ -20,19 +20,11 @@
    element of its own and is the one reading that does subtract the chrome at the foot,
    because what it measures is drawn where it stands rather than moved somewhere legible. */
 import { closestAcross, elementFromPointAcross, inChrome } from "../passages.js";
-import { PRESSES } from "../widget-elements.js";
+import { PRESSES } from "../control-selectors.js";
 import { bottomChromeBoxes } from "./shortcut-bar.js";
-import {
-  bannerFoot,
-  boxAt,
-  placeChip,
-  shownParts,
-  shownRect,
-  startsAt,
-} from "../geometry.js";
+import { bannerFoot, shownParts, shownRect, startsAt } from "../geometry.js";
 import { clamp, overlaps } from "../rect.js";
 import { under } from "../shadow.js";
-import { setChildren } from "../dom-children.js";
 
 // A rectangle, or nothing where its edges crossed. `clippedTop` records that the source
 // box began above the room the user has, which a chip hung on the surviving corner
@@ -217,57 +209,56 @@ export function keyBadgePlacement() {
     });
   }
 
-  // Attach every Ask chip in one write and measure them before moving or hiding any.
-  // Each seat names its chip, the control it labels, the corner box the chip hangs off,
-  // and the place `at` in the layer that hangs it there; a chip moves to the first corner
-  // of that box whose place, pulled back inside the window, covers no other control and
-  // no chrome or badge, and failing every one keeps the first corner's place where that is
-  // free. Each chip is read at its anchor where it stands and written once, to its seat. A
-  // chip already standing stays where it is in the layer, and one with no room is hidden
-  // rather than removed, so a pass that changes nothing writes nothing.
-  function paint(layer, seats) {
-    setChildren(
-      layer,
-      seats.map(({ chip }) => chip),
-    );
+  // Put every binding chip in its seat (chip-seats.js) in one write and measure them
+  // before seating or hiding any. Each names its chip, the control it labels, and the
+  // corner box the chip hangs off; a chip moves to the first corner of that box whose
+  // place, pulled back inside the window, covers no other control and no chrome or
+  // badge, and failing every one keeps the first corner's place where that is free. A
+  // chip with no room is hidden rather than removed, so a pass that changes nothing
+  // writes nothing.
+  function paint(seats, chips) {
     const right = document.documentElement.clientWidth;
     const bottom = document.documentElement.clientHeight;
-    const measured = seats.map(({ chip, owner, corner, at }) => ({
-      chip,
-      owner,
-      corner,
-      at,
-      start: boxAt(chip, at),
-    }));
+    const measured = chips.map(({ chip, owner, corner }) => {
+      const seat = seats.seat(owner);
+      if (chip.parentElement !== seat) seat.replaceChildren(chip);
+      return { chip, seat, owner, corner };
+    });
+    for (const one of measured) one.start = seats.boxAt(one.seat, one.corner);
     const free = (box) =>
       box.right > box.left &&
       box.bottom > box.top &&
       !kept.some((standing) => overlaps(box, standing));
-    for (const { chip, owner, corner, at, start } of measured) {
+    const seated = [];
+    for (const { chip, seat, owner, corner, start } of measured) {
       const places = [
         [corner.left, corner.top],
         [corner.right, corner.top],
         [corner.left, corner.bottom],
         [corner.right, corner.bottom],
-      ].map(
-        ([x, y]) =>
-          new DOMRect(
-            clamp(start.left + x - corner.left, 0, right - start.width),
-            clamp(start.top + y - corner.top, covered, bottom - start.height),
-            start.width,
-            start.height,
-          ),
-      );
+      ].map(([x, y]) => {
+        const left = start.left + x - corner.left;
+        const top = start.top + y - corner.top;
+        const place = new DOMRect(
+          clamp(left, 0, right - start.width),
+          clamp(top, covered, bottom - start.height),
+          start.width,
+          start.height,
+        );
+        // Pulled down below the banner or up above the window's foot, the chip is held
+        // by that edge rather than by its control's corner.
+        place.held = Math.abs(place.top - top) >= 0.5;
+        return place;
+      });
       const box =
         places.find((place) => free(place) && !coversAnotherControl(place, owner)) ??
         places[0];
       if (!reserve(box)) {
-        chip.style.visibility = "hidden";
-        continue;
-      }
-      chip.style.removeProperty("visibility");
-      placeChip(chip, at.left + box.left - start.left, at.top + box.top - start.top);
+        if (chip.style.visibility !== "hidden") chip.style.visibility = "hidden";
+      } else if (chip.style.visibility) chip.style.removeProperty("visibility");
+      seated.push({ seat, target: owner, at: corner, start, box, held: box.held });
     }
+    seats.place(seated);
   }
 
   return {

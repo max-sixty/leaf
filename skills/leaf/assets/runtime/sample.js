@@ -1,6 +1,9 @@
 /* A sample is a normally served Leaf page with its own disposable event log.
  * The server captures an authored template and its layer; this owner handles the
- * frame's readiness and reset. The child arrives inert, so its startup cannot take
+ * frame's readiness and reset. Allocation keeps the authored owner's captured
+ * revision: a live patch connects arriving widgets before it publishes that revision,
+ * and a retained sample resets from the same immutable template it first mounted.
+ * The child arrives inert, so its startup cannot take
  * focus from the page; this owner releases a live child once it presents, and after
  * that focus entering the frame is entry, the way it is for any iframe. The child's
  * final Escape asks the frame's owner to take focus back with `lf-sample-return`. Passive demonstrations use the
@@ -11,14 +14,15 @@
  * whole Leaf window, chrome included, at the frame's size. The child's bootstrap asks
  * its frame for that marker and its dress (dress.js) before it paints. */
 import { layerHeaders } from "./layer-client.js";
-import { pageUrl } from "./context.js";
+import { pageUrl, runtime } from "./context.js";
 import { discardPageStorage } from "./storage.js";
 import { dressFor, wear } from "./dress.js";
+import { widgetDescriptor } from "./widget-descriptors.js";
 
-async function request(url, body) {
+async function request(url, body, headers = {}) {
   const response = await fetch(url, {
     method: "POST",
-    headers: layerHeaders({ "Content-Type": "application/json" }),
+    headers: layerHeaders({ "Content-Type": "application/json", ...headers }),
     body: JSON.stringify(body),
     keepalive: true,
   });
@@ -27,11 +31,14 @@ async function request(url, body) {
   return answer;
 }
 
+// Presentation waits on the child's state read, which can be slow without failing.
+// The child reports startup errors; the owner cancels a replaced or detached frame.
 function presented(frame, url, signal) {
+  const expected = new URL(url);
+  expected.hash = "";
   return new Promise((resolve, reject) => {
     let observer;
     const cleanup = () => {
-      clearTimeout(timeout);
       observer?.disconnect();
       detached.disconnect();
       frame.removeEventListener("load", loaded);
@@ -49,7 +56,20 @@ function presented(frame, url, signal) {
     });
     const loaded = () => {
       const doc = frame.contentDocument;
-      if (!doc || frame.contentWindow.location.href !== url) return;
+      if (!doc) return;
+      // Startup may select a tab or restore a fragment before load. That changes
+      // the child's reading place, while the loaded document remains the one requested.
+      const actual = new URL(doc.URL);
+      actual.hash = "";
+      if (actual.href !== expected.href) return;
+      // A failed document response can load without any Leaf scripts to report it.
+      if (
+        !doc.documentElement.hasAttribute("data-lf-live") &&
+        !doc.documentElement.dataset.lfStartupError
+      ) {
+        finish(new Error(`Leaf sample document did not start: ${url}`));
+        return;
+      }
       const inspect = () => {
         const failure = doc.documentElement.dataset.lfStartupError;
         if (failure) finish(new Error(failure));
@@ -59,10 +79,6 @@ function presented(frame, url, signal) {
       observer.observe(doc, { attributes: true, childList: true, subtree: true });
       inspect();
     };
-    const timeout = setTimeout(
-      () => finish(new Error(`Leaf sample did not present: ${url}`)),
-      30000,
-    );
     signal.addEventListener("abort", aborted, { once: true });
     if (signal.aborted || !frame.isConnected) {
       finish(signal.reason ?? new DOMException("sample disconnected", "AbortError"));
@@ -79,6 +95,15 @@ export function mountSample(
   { template, passive = false, window: asWindow = false },
 ) {
   if (!template) throw new Error("a sample needs an authored template id");
+  // A widget's descriptor was captured before connection. The application can still
+  // be reading the outgoing revision while that widget prepares its new child.
+  let revision = runtime.currentRevision;
+  for (let owner = frame.parentElement; owner; owner = owner.parentElement) {
+    const descriptor = widgetDescriptor(owner);
+    if (!descriptor) continue;
+    if (descriptor.document.kind === "page") revision = descriptor.document.revision;
+    break;
+  }
   let current = null;
   let destroyed = false;
   let operation = null;
@@ -103,6 +128,7 @@ export function mountSample(
     const parent = frame.parentNode;
     const next = frame.nextSibling;
     frame.remove();
+    delete frame.lfShowThread;
     frame.removeAttribute("src");
     frame.removeAttribute("srcdoc");
     discardPageStorage(previous);
@@ -113,7 +139,11 @@ export function mountSample(
   async function replace() {
     await retire();
     if (destroyed) throw new DOMException("sample destroyed", "AbortError");
-    const { url } = await request(pageUrl("api/samples"), { template, passive });
+    const { url } = await request(
+      pageUrl("api/samples"),
+      { template, passive },
+      revision ? { "Leaf-View-Revision": String(revision) } : {},
+    );
     current = new URL(url, location.href).href;
     try {
       if (destroyed) throw new DOMException("sample destroyed", "AbortError");
@@ -145,6 +175,7 @@ export function mountSample(
   const host = {
     ready: null,
     reset,
+    showThread: (id, options) => frame.lfShowThread(id, options),
     destroy() {
       if (closing) return closing;
       destroyed = true;

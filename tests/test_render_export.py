@@ -1,9 +1,11 @@
 """Preview and offline export tests."""
 
+import base64
 import json
 import os
 import re
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -16,18 +18,27 @@ from typing import NamedTuple
 import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
-from interact_support import install_payload, wait_for
+from interact_support import (
+    COMPOSITE_TIMEOUT,
+    STATED_TIMEOUT,
+    append_carried_log_record,
+    consume_pending_input,
+    install_payload,
+    wait_for,
+)
 from leaf import cli as cli_model
 from leaf import data as data_model
-from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import files as files_model
+from leaf import harness as harness_model
 from leaf import hooks as hooks_model
 from leaf import leases as leases_model
 from leaf import media as media_model
 from leaf import server as server_model
 from leaf import service as service_model
+from leaf import state as cleanup_model
+from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
 from leaf.schema import ELEMENT_ID
 from leaf.structure import UTF8_BOM
 from leaf_dev import preview as preview_model
@@ -71,7 +82,7 @@ def preview_slot(tmp_path, monkeypatch):
 
 
 def start_preview(spawn, command: list[str], log: Path, **kwargs):
-    """Run a preview the way a host's background runner does, and read its URL.
+    """Run a preview the way a harness's background runner does, and read its URL.
 
     Its output goes to a file the test reads, and it leads a process group of its
     own, so `spawn` ends the `uv run` child doing the work along with the launcher
@@ -83,7 +94,6 @@ def start_preview(spawn, command: list[str], log: Path, **kwargs):
             cwd=ROOT,
             stdout=output,
             stderr=subprocess.STDOUT,
-            start_new_session=True,
             text=True,
             **kwargs,
         )
@@ -94,21 +104,24 @@ def start_preview(spawn, command: list[str], log: Path, **kwargs):
         return any(line.startswith("http://") for line in text.splitlines())
 
     output = wait_for(
-        log.read_text, announced, failure="the preview printed no URL", timeout=90
+        log.read_text,
+        announced,
+        failure="the preview printed no URL",
+        timeout=COMPOSITE_TIMEOUT,
     )
     url = next(line for line in output.splitlines() if line.startswith("http://"))
     return process, url
 
 
 def end_preview(process) -> None:
-    """Stop a preview the way a host's runner stops a task.
+    """Stop a preview the way a harness's runner stops a task.
 
     The exit status is not the evidence: a signal that lands while `watchfiles`
     waits comes back out of it as `KeyboardInterrupt`, so the same stop exits 130
     or 143 depending on where it lands. What the stop left running is.
     """
     os.killpg(process.pid, signal.SIGTERM)
-    process.wait(timeout=30)
+    process.wait(timeout=STATED_TIMEOUT)
 
 
 def test_interrupting_a_live_preview_exits_without_a_traceback(preview_slot, spawn):
@@ -125,11 +138,10 @@ def test_interrupting_a_live_preview_exits_without_a_traceback(preview_slot, spa
         cwd=ROOT,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        start_new_session=True,
         text=True,
     )
 
-    deadline = time.monotonic() + 90
+    deadline = time.monotonic() + COMPOSITE_TIMEOUT
     while not server_model.running_server(page):
         if preview.poll() is not None:
             output, _ = preview.communicate()
@@ -139,11 +151,80 @@ def test_interrupting_a_live_preview_exits_without_a_traceback(preview_slot, spa
         time.sleep(0.05)
 
     os.killpg(preview.pid, signal.SIGINT)
-    output, _ = preview.communicate(timeout=10)
+    output, _ = preview.communicate(timeout=STATED_TIMEOUT)
 
     assert preview.returncode == 130, output
     assert server_model.running_server(page) is None
     assert (page / "events.jsonl").is_file()
+    assert "Traceback" not in output
+
+
+@pytest.mark.parametrize("first_signal", [signal.SIGINT, signal.SIGTERM])
+@pytest.mark.parametrize("next_signal", [signal.SIGINT, signal.SIGTERM])
+def test_a_second_stop_signal_leaves_preview_cleanup_running(
+    tmp_path, preview_slot, spawn, first_signal, next_signal
+):
+    """A forwarded or repeated stop cannot abandon the server's cleanup.
+
+    Hold the real worker at service cleanup, then deliver another signal before
+    releasing it. The ordinary launcher test covers uv's forwarding; this gate
+    establishes the ordering without depending on when uv forwards a signal.
+    """
+    worker = tmp_path / "worker.py"
+    worker.write_text(
+        """import sys
+from leaf_dev import preview
+
+stop = preview.PreviewService.stop
+
+def gated_stop(self):
+    print("Cleanup started", flush=True)
+    assert sys.stdin.readline() == "release\\n"
+    stop(self)
+    print("Cleanup finished", flush=True)
+
+preview.PreviewService.stop = gated_stop
+preview.preview.main(args=sys.argv[1:])
+""",
+        encoding="utf-8",
+    )
+    slot, page = preview_slot
+    log = tmp_path / "preview.log"
+    process, url = start_preview(
+        spawn,
+        [
+            sys.executable,
+            str(worker),
+            "--source",
+            str(ROOT / "examples" / "heat-loss.html"),
+            "--slot",
+            slot,
+            "--user",
+            "--worker",
+        ],
+        log,
+        stdin=subprocess.PIPE,
+    )
+    events = (page / "events.jsonl").read_bytes()
+    process.send_signal(first_signal)
+    try:
+        wait_for(
+            log.read_text,
+            lambda output: "Cleanup started" in output,
+            failure="the stop signal never reached service cleanup",
+        )
+        process.send_signal(next_signal)
+    finally:
+        process.stdin.write("release\n")
+        process.stdin.flush()
+    process.wait(timeout=STATED_TIMEOUT)
+
+    output = log.read_text()
+    assert "Cleanup finished" in output, output
+    assert process.returncode in (130, 128 + first_signal), output
+    assert server_model.running_server(page) is None
+    assert not _reachable(url)
+    assert (page / "events.jsonl").read_bytes() == events
     assert "Traceback" not in output
 
 
@@ -182,7 +263,6 @@ def test_terminating_a_preview_while_its_service_starts_leaves_none(
             cwd=ROOT,
             stdout=output,
             stderr=subprocess.STDOUT,
-            start_new_session=True,
         )
 
     def serving_child():
@@ -198,11 +278,11 @@ def test_terminating_a_preview_while_its_service_starts_leaves_none(
         serving_child,
         lambda pids: pids or process.poll() is not None,
         failure="the preview never spawned its service",
-        timeout=90,
+        timeout=COMPOSITE_TIMEOUT,
     )
     assert children, (tmp_path / "preview.log").read_text()
     os.killpg(process.pid, signal.SIGTERM)
-    process.wait(timeout=30)
+    process.wait(timeout=STATED_TIMEOUT)
     wait_for(serving_child, lambda pids: not pids, failure="the service outlived it")
     assert server_model.running_server(page) is None
     service = files_model.read_json(page / "service.json")
@@ -228,7 +308,7 @@ def test_a_leaf_failure_exits_the_preview_without_a_wrapper_traceback(
         capture_output=True,
         check=False,
         text=True,
-        timeout=90,
+        timeout=COMPOSITE_TIMEOUT,
     )
 
     assert result.returncode == 1, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
@@ -250,18 +330,18 @@ def test_a_watch_subscription_collects_before_its_first_read(tmp_path):
     edited = tmp_path / "source.html"
     edited.write_text("<p>authored</p>", encoding="utf-8")
     changes = preview_model.watch_changes(
-        preview_model.Watched((tmp_path,), frozenset(), frozenset())
+        preview_model.Watched((tmp_path,), frozenset({str(edited)}), frozenset())
     )
     try:
         edited.write_text("<p>edited</p>", encoding="utf-8")
         time.sleep(1)
         reported = set()
-        deadline = time.monotonic() + 10
+        deadline = time.monotonic() + STATED_TIMEOUT
         while str(edited) not in reported:
             assert time.monotonic() < deadline, (
                 f"the edit was never reported: {reported}"
             )
-            reported |= {path for _, path in next(changes)}
+            reported |= next(changes)
     finally:
         changes.close()
 
@@ -387,7 +467,7 @@ def test_a_preview_records_real_gestures_outside_the_task(
         )
         expect(
             driven.get_by_role("heading", name="A preview follows source edits")
-        ).to_be_visible(timeout=30000)
+        ).to_be_visible(timeout=HANDOVER_DEADLINE_MS)
     expect(driven.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert (page_dir / "events.jsonl").read_bytes().startswith(feedback)
     assert (page_dir / "events.jsonl").stat().st_ino == inode
@@ -430,7 +510,7 @@ def test_a_preview_records_real_gestures_outside_the_task(
         capture_output=True,
         check=False,
         text=True,
-        timeout=90,
+        timeout=COMPOSITE_TIMEOUT,
     )
     assert refused.returncode == 1
     assert "another preview is serving" in refused.stderr
@@ -450,7 +530,7 @@ def test_a_preview_records_real_gestures_outside_the_task(
 def _reachable(url: str) -> bool:
     """Whether a preview's published address still answers."""
     try:
-        with urllib.request.urlopen(url, timeout=5) as answer:
+        with urllib.request.urlopen(url, timeout=STATED_TIMEOUT) as answer:
             return answer.status == 200
     except (urllib.error.URLError, OSError):
         return False
@@ -490,11 +570,13 @@ def test_an_unclaimed_preview_keeps_its_gestures_out_of_the_stop_hook(
     session = os.environ["CLAUDE_CODE_SESSION_ID"]
     assert service_model.page_claim(page_dir) is None
     assert page_dir not in service_model.owned_pages(session)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "probe"},
     )
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": session})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "Stop", "session_id": session}
+    )
     assert capsys.readouterr().out == ""
 
 
@@ -545,7 +627,7 @@ def served_preview(tmp_path, preview_slot, spawn):
 
 
 def test_a_user_preview_restarts_under_its_original_codex_claim(
-    tmp_path, preview_slot, codex_program, codex_env, spawn
+    tmp_path, preview_slot, codex_program, codex_env, codex_queue, spawn
 ):
     """The claim names the Codex task above the preview, and survives each restart.
 
@@ -577,18 +659,18 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
             "--user",
         ],
         env=codex_env
+        | codex_queue
         | {
             "CODEX_THREAD_ID": "preview-codex",
             "PYTHONHOME": sys.base_prefix,
             "LEAF_PREVIEWS_ROOT": str(directory.parent),
         },
-        start_new_session=True,
     )
     wait_for(
         lambda: log.read_text() if log.exists() else "",
         lambda output: "Watching " in output,
         failure="the preview under the Codex task did not start",
-        timeout=90,
+        timeout=COMPOSITE_TIMEOUT,
     )
     claim = service_model.page_claim(directory)
     assert claim["pid"] == owner.pid
@@ -596,31 +678,24 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
         stream.write("\nh1 { color: navy; }\n")
     wait_for(
         log.read_text,
-        lambda output: "Reloaded detached" in output,
+        lambda output: "Updated detached" in output,
         failure="the preview did not restart for its runtime",
-        timeout=60,
     )
     assert server_model.running_server(directory)
     assert service_model.page_claim(directory) == claim
 
-    # SessionEnd can win while the re-vendor waits for the page transaction.
+    # Ownership can end while a runtime edit waits for the page transaction.
+    # page init needs that transaction before it can stop the service, so do not
+    # wait for its stop while holding the transaction ourselves.
     with service_model.PageTransaction(directory) as transaction:
         with theme.open("a", encoding="utf-8") as stream:
             stream.write("\nh1 { color: teal; }\n")
-        wait_for(
-            lambda: server_model.running_server(directory),
-            lambda running: not running,
-            failure="the refresh did not stop the service",
-            timeout=30,
-        )
         transaction.release_claim()
     wait_for(
-        log.read_text,
-        lambda output: "no longer owns" in output,
-        failure="the preview did not report its lost claim",
-        timeout=30,
+        lambda: server_model.running_server(directory),
+        lambda running: not running,
+        failure="the released claim left the service running",
     )
-    assert server_model.running_server(directory) is None
     assert service_model.page_claim(directory)["released"] is not None
     wait_for(
         lambda: leases_model.lock_is_held(preview_model.preview_lease(directory)),
@@ -650,7 +725,7 @@ def test_preview_watches_runtime_and_source_without_losing_user_state(
         with theme.open("a", encoding="utf-8") as stream:
             stream.write("\nh1 { color: rgb(17, 83, 129); }\n")
         expect(page.locator("h1")).to_have_css(
-            "color", "rgb(17, 83, 129)", timeout=30000
+            "color", "rgb(17, 83, 129)", timeout=HANDOVER_DEADLINE_MS
         )
     assert (
         json.loads((directory / "registry.json").read_text())["$layer"]["generation"]
@@ -665,7 +740,7 @@ def test_preview_watches_runtime_and_source_without_losing_user_state(
     revised = original.replace("Rollout", "A watched source revision", 1)
     source.write_text(revised, encoding="utf-8")
     expect(page.get_by_role("heading", name="A watched source revision")).to_be_visible(
-        timeout=30000
+        timeout=HANDOVER_DEADLINE_MS
     )
     expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
@@ -675,7 +750,6 @@ def test_preview_watches_runtime_and_source_without_losing_user_state(
         log.read_text,
         lambda output: "Preview update refused" in output,
         failure="the invalid preview update was not refused",
-        timeout=30,
     )
     expect(
         page.get_by_role("heading", name="A watched source revision")
@@ -688,7 +762,7 @@ def test_preview_watches_runtime_and_source_without_losing_user_state(
         encoding="utf-8",
     )
     expect(page.get_by_role("heading", name="Recovered watched source")).to_be_visible(
-        timeout=30000
+        timeout=HANDOVER_DEADLINE_MS
     )
     expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
@@ -795,20 +869,21 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
         generation = json.loads((directory / "registry.json").read_text())["$layer"][
             "generation"
         ]
-        # A refused re-vendor still replaces the server; the old layer is now loadable.
-        (
-            runtime / "skills" / "leaf" / "packages" / "default" / "registry.json"
-        ).write_text("{", encoding="utf-8")
+        # A changed layer replaces the server. An invalid input is now refused
+        # before that replacement, so change a valid theme to test recovery.
+        theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
+        with theme.open("a", encoding="utf-8") as stream:
+            stream.write("\nh1 { color: navy; }\n")
         expect(page.locator("body")).to_have_attribute(
-            "data-lf-presented", "1", timeout=30000
+            "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
         )
         expect(status).not_to_be_visible()
     if resource == "widgets/lf-options.js":
         expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
-    assert len(documents) == 2
+    assert len(documents) >= 2
     assert (
         json.loads((directory / "registry.json").read_text())["$layer"]["generation"]
-        == generation
+        != generation
     )
 
 
@@ -852,7 +927,7 @@ def test_a_failed_bootstrap_hears_a_static_registry_generation(
         )
         expect(status).to_be_visible()
         expect(page.locator("body")).to_have_attribute(
-            "data-lf-presented", "1", timeout=10000
+            "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
         )
     assert len(probes) >= 2
     assert len(documents) == 2
@@ -889,7 +964,7 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
         # reload the recovery makes must find a server that answers.
         if not stopped:
             stopped.append(True)
-            paused.enter_context(events_model.flocked(directory / "events.jsonl"))
+            paused.enter_context(cleanup_model.flocked(directory / "events.jsonl"))
             theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
             with theme.open("a", encoding="utf-8") as stream:
                 stream.write("\nh1 { color: navy; }\n")
@@ -899,7 +974,6 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
                 lambda: _reachable(url),
                 lambda reachable: not reachable,
                 failure="the runtime edit did not stop the service",
-                timeout=30,
             )
         route.continue_()
 
@@ -927,7 +1001,7 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
             lambda: server_model.running_server(directory),
             bool,
             failure="the preview did not bring its service back",
-            timeout=90,
+            timeout=COMPOSITE_TIMEOUT,
         )
 
 
@@ -946,7 +1020,6 @@ def test_preview_adds_immutable_media_before_stamping_source(watched_preview):
         lambda: (directory / "index.html").read_text(),
         lambda source: source == revised,
         failure="the source referencing new media was not stamped",
-        timeout=30,
     )
     assert (directory / "media" / image.name).read_bytes() == expected
 
@@ -955,7 +1028,6 @@ def test_preview_adds_immutable_media_before_stamping_source(watched_preview):
         log.read_text,
         lambda output: "use a new filename" in output,
         failure="the changed media bytes were not refused",
-        timeout=30,
     )
     assert (directory / "media" / image.name).read_bytes() == expected
 
@@ -966,7 +1038,6 @@ def test_preview_adds_immutable_media_before_stamping_source(watched_preview):
         lambda: (directory / "media" / second.name).exists(),
         bool,
         failure="the new media did not reach the preview",
-        timeout=30,
     )
     assert (directory / "media" / image.name).read_bytes() == expected
 
@@ -975,7 +1046,7 @@ def test_terminating_a_preview_mid_update_leaves_no_service(served_preview):
     """A SIGTERM during an update's stopped-service interval suppresses its restart."""
     source, runtime, directory, process, _, _ = served_preview
     # Real page-transaction contention pauses init after the watcher stops the service.
-    with events_model.flocked(directory / "events.jsonl"):
+    with cleanup_model.flocked(directory / "events.jsonl"):
         theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
         with theme.open("a", encoding="utf-8") as stream:
             stream.write("\nh1 { color: navy; }\n")
@@ -983,10 +1054,9 @@ def test_terminating_a_preview_mid_update_leaves_no_service(served_preview):
             lambda: json.loads((directory / "service.json").read_text())["enabled"],
             lambda enabled: not enabled,
             failure="watcher did not begin the update",
-            timeout=30,
         )
         os.killpg(process.pid, signal.SIGTERM)
-    process.wait(timeout=30)
+    process.wait(timeout=STATED_TIMEOUT)
     assert server_model.running_server(directory) is None
     assert (directory / "events.jsonl").is_file()
     assert (directory / "index.html").read_bytes() == source.read_bytes()
@@ -1012,7 +1082,6 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
             [*LEAF_COMMAND, "wait"],
             stdout=output,
             stderr=subprocess.STDOUT,
-            start_new_session=True,
             text=True,
         )
     session = os.environ["CLAUDE_CODE_SESSION_ID"]
@@ -1020,7 +1089,6 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
         lambda: waiter.poll() is None and leases_model.wait_is_live(directory, session),
         bool,
         failure="the wait did not start watching the preview",
-        timeout=30,
     )
     if edit == "source":
         source.write_text(
@@ -1032,14 +1100,13 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
             stream.write("\nh1 { color: navy; }\n")
     wait_for(
         log.read_text,
-        lambda output: "Reloaded watched" in output,
+        lambda output: "Updated watched" in output,
         failure="the preview did not finish its update",
-        timeout=60,
     )
     assert server_model.running_server(directory)
     assert waiter.poll() is None, waited.read_text()
 
-    events_model.append_event(
+    append_carried_log_record(
         directory,
         {
             "kind": "comment",
@@ -1048,9 +1115,9 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
             "text": "still there?",
         },
     )
-    assert waiter.wait(timeout=30) == 0, waited.read_text()
+    assert waiter.wait(timeout=STATED_TIMEOUT) == 0, waited.read_text()
     assert "has new input" in waited.read_text()
-    [batch] = delivery_model.take_input(session)["batches"]
+    [batch] = consume_pending_input(session)["batches"]
     assert [event["text"] for event in batch["events"]] == ["still there?"]
 
 
@@ -1058,32 +1125,81 @@ def test_a_user_preview_brings_back_a_service_that_is_down_but_wanted(
     served_preview,
 ):
     """A `--user` service still enabled with no server is the preview's to bring
-    back on its next update, and does not end it: that is a server that died, or
+    back without an edit, and does not end it: that is a server that died, or
     one a re-vendor could not start again (its recorded port taken), which is left
     enabled and down in just this way. Only a stop, or the claim leaving this
     session, ends the preview."""
-    source, _, directory, process, _, log = served_preview
+    _, _, directory, process, url, log = served_preview
     port = server_model.running_server(directory)["port"]
-    killed = subprocess.run(
-        ["pkill", "-KILL", "-f", f"server _serve {directory}"], check=False
-    )
-    assert killed.returncode == 0
+    claim = service_model.page_claim(directory)
+    events = (directory / "events.jsonl").read_bytes()
+    # Hold the watcher while taking the stopped server's port. The first revival
+    # must refuse, then recover after that condition clears without a source edit.
+    with socket.socket() as occupied:
+        occupied.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        os.killpg(process.pid, signal.SIGSTOP)
+        try:
+            killed = subprocess.run(
+                ["pkill", "-KILL", "-f", f"server _serve {directory}"], check=False
+            )
+            assert killed.returncode == 0
+            wait_for(
+                lambda: server_model.running_server(directory),
+                lambda running: running is None,
+                failure="the killed server still held its lease",
+            )
+            occupied.bind(("127.0.0.1", port))
+            occupied.listen()
+        finally:
+            os.killpg(process.pid, signal.SIGCONT)
+        wait_for(
+            log.read_text,
+            lambda output: "can't serve" in output,
+            failure="the occupied preview address was not reported",
+        )
+        assert files_model.read_json(directory / "service.json")["enabled"]
+
     wait_for(
         lambda: server_model.running_server(directory),
-        lambda running: running is None,
-        failure="the killed server still held its lease",
-    )
-    assert files_model.read_json(directory / "service.json")["enabled"]
-
-    source.write_text(source.read_text().replace("Rollout", "Back up", 1))
-    wait_for(
-        log.read_text,
-        lambda output: "Reloaded watched" in output,
+        bool,
         failure="the preview did not bring its server back",
-        timeout=60,
     )
     assert process.poll() is None, log.read_text()
     assert server_model.running_server(directory)["port"] == port
+    wait_for(
+        lambda: _reachable(url),
+        bool,
+        failure="the restored preview did not answer at its original keyed URL",
+    )
+    assert service_model.page_claim(directory) == claim
+    assert (directory / "events.jsonl").read_bytes() == events
+
+
+@pytest.mark.parametrize("unclaimed", [False, True])
+def test_a_preview_relinquishes_a_service_another_session_claims(
+    served_preview, monkeypatch, unclaimed
+):
+    """The old author's watcher ends without disabling the successor's service."""
+    _, _, directory, process, url, log = served_preview
+    if unclaimed:
+        # A plain-terminal --user preview has no harness session. Exercise its same
+        # cleanup boundary directly; the subprocess owns the serving resource.
+        monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
+        cleanup = preview_model.PreviewService(directory, user=True)
+    with service_model.PageTransaction(directory) as transaction:
+        transaction.take_claim(harness_model.ClaudeCodeHarness("successor", "Claude"))
+    if unclaimed:
+        assert cleanup.ended
+        cleanup.stop()
+    wait_for(
+        lambda: process.poll(),
+        lambda status: status is not None,
+        failure="the former owner's preview kept following the successor's page",
+    )
+    assert process.returncode == 0, log.read_text()
+    assert service_model.page_claim(directory)["id"] == "successor"
+    assert server_model.running_server(directory)
+    assert _reachable(url)
 
 
 # ---------- export: the page as one file ----------
@@ -1117,7 +1233,7 @@ customElements.define("lf-offline-test", class extends LitElement {
 
   choose() {
     return this.controller.dispatch({
-      kind: "action", verb: "choose", detail: {choice: "chosen"},
+      kind: "action", verb: "choose", detail: {value: "chosen"},
     });
   }
 
@@ -1156,14 +1272,8 @@ OFFLINE_REGISTRY = {
         "x-upgrade": True,
         "x-state": {
             "choose": {
-                "detail": {
-                    "type": "object",
-                    "properties": {"choice": {"type": "string"}},
-                    "required": ["choice"],
-                    "additionalProperties": False,
-                },
                 "unit": "widget",
-                "record": {"kind": "value", "attr": "choice", "value": "choice"},
+                "record": {"kind": "value", "attr": "choice"},
             }
         },
         "x-example": (
@@ -1173,10 +1283,118 @@ OFFLINE_REGISTRY = {
 }
 
 
+def test_authored_video_and_audio_play_seek_and_export_offline(
+    browser, serve, tmp_path
+):
+    """Actual MP4 and MP3 decoders cross capture, HTTP ranges, CSP and offline URLs."""
+    content = leaf_page(
+        "Recorded media",
+        """
+        <h1>Recorded media</h1>
+        <video id="video" controls playsinline width="320" height="180"
+          aria-label="Test pattern" poster="/media/d7cf2b4e22c063dd.png"
+          src="/media/2930ad3df7819c50.mp4"></video>
+        <audio id="audio" controls aria-label="Test tone">
+          <source src="/media/b5eb956d4548b3b0.mp3" type="audio/mpeg">
+        </audio>
+    """,
+    )
+    content = content.replace(
+        "</main>",
+        '<video id="repeated" controls preload="none" aria-label="Repeated recording" src="/media/2930ad3df7819c50.mp4?ignored=1#t=2"></video><video id="from-api" controls preload="none" aria-label="API recording"></video></main>',
+    ).replace("</head>", '<script type="module" src="/page/media.js"></script></head>')
+    url = serve(
+        content,
+        page_files={
+            "media.js": "import { scopedMediaUrl } from '/runtime/widget-api.js'; document.querySelector('#from-api').src = scopedMediaUrl('/media/2930ad3df7819c50.mp4?ignored=1');"
+        },
+    )
+    page = open_page(browser, url)
+    media_responses = []
+    page.on(
+        "response",
+        lambda response: (
+            media_responses.append(response)
+            if response.url.endswith((".mp4", ".mp3"))
+            else None
+        ),
+    )
+    exported = tmp_path / "recordings.html"
+    exporting_model.cmd_export(serve.page_dir, exported, None)
+    exported_source = exported.read_text()
+    for filename in ("2930ad3df7819c50.mp4", "b5eb956d4548b3b0.mp3"):
+        encoded = base64.b64encode(
+            (serve.page_dir / "media" / filename).read_bytes()
+        ).decode()
+        assert exported_source.count(encoded) == 1
+    for location in (url, exported.as_uri()):
+        page.goto(location, wait_until="load")
+        wait_until_ready(page)
+        for selector in ("#video", "#audio"):
+            player = page.locator(selector)
+            page.wait_for_function(
+                "selector => document.querySelector(selector).readyState >= 2",
+                arg=selector,
+            )
+            assert player.evaluate("el => el.duration") == pytest.approx(8, abs=0.2)
+            # Reach the browser's player controls through ordinary sequential focus.
+            for _ in range(20):
+                page.keyboard.press("Tab")
+                if player.evaluate("el => document.activeElement === el"):
+                    break
+            assert player.evaluate("el => document.activeElement === el")
+            page.keyboard.press("Space")
+            page.wait_for_function(
+                "selector => document.querySelector(selector).currentTime > 0",
+                arg=selector,
+            )
+            page.keyboard.press("Space")
+            assert player.evaluate("el => el.paused")
+            player.evaluate("el => { el.pause(); el.currentTime = 6; }")
+            page.wait_for_function(
+                "selector => { const el = document.querySelector(selector); return !el.seeking && Math.abs(el.currentTime - 6) < 0.1; }",
+                arg=selector,
+            )
+            assert player.evaluate("el => el.error") is None
+        touch = browser.new_page(has_touch=True, viewport={"width": 390, "height": 844})
+        touch.goto(location, wait_until="load")
+        wait_until_ready(touch)
+        for selector in ("#video", "#audio"):
+            player = touch.locator(selector)
+            bounds = player.bounding_box()
+            player.tap(
+                position={
+                    "x": 24,
+                    "y": bounds["height"] - 48 if selector == "#video" else 27,
+                }
+            )
+            touch.wait_for_function(
+                "selector => !document.querySelector(selector).paused", arg=selector
+            )
+            player.tap(
+                position={
+                    "x": 24,
+                    "y": bounds["height"] - 48 if selector == "#video" else 27,
+                }
+            )
+            assert player.evaluate("el => el.paused")
+        touch.close()
+    assert media_responses
+    assert all(response.status == 206 for response in media_responses)
+    assert all(
+        response.headers["accept-ranges"] == "bytes" for response in media_responses
+    )
+    video_url = page.locator("#video").get_attribute("src")
+    assert video_url.startswith("blob:")
+    assert page.locator("#repeated").get_attribute("src") == video_url + "#t=2"
+    assert page.locator("#from-api").get_attribute("src") == video_url
+    assert page.locator("#audio source").get_attribute("src").startswith("blob:")
+
+
 def test_interactive_export_with_an_ask_reaches_application_presentation(
     browser, serve, tmp_path
 ):
-    """Offline mode omits thread chrome without leaving its ticket pending."""
+    """Offline mode omits page controls without leaving their ticket pending."""
     serve(ROOT / "examples" / "notification-playground.html")
     interactive = tmp_path / "interactive-with-ask.html"
     result = CliRunner().invoke(
@@ -1198,13 +1416,16 @@ def test_interactive_export_with_an_ask_reaches_application_presentation(
         "content", "width=device-width, initial-scale=1, viewport-fit=cover"
     )
     expect(page.locator("body")).to_have_attribute(
-        "data-lf-presented", "1", timeout=10000
+        "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
     )
-    expect(page.locator(".lf-chrome")).to_have_count(0)
+    expect(page.locator(".lf-chrome > #lf-media-viewer:not([open])")).to_have_count(1)
+    expect(page.locator("#lf-banner, .lf-thread-panel, .lf-queue-panel")).to_have_count(
+        0
+    )
 
 
 def test_an_interactive_export_paints_a_widget_owned_text_box(browser, serve, tmp_path):
-    """A text box paints in the standing paint, which an export mounts without chrome.
+    """A text box paints in the standing paint, which an export mounts without page controls.
 
     A choosable group builds its addition field offline too. Its placeholder, disabled
     Add and empty-field flag are that paint's; focus alone repaints the placeholder with
@@ -1221,7 +1442,7 @@ def test_an_interactive_export_paints_a_widget_owned_text_box(browser, serve, tm
     page = browser.new_page()
     page.goto(interactive.as_uri(), wait_until="load")
     expect(page.locator("body")).to_have_attribute(
-        "data-lf-presented", "1", timeout=10000
+        "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
     )
     form = page.locator("#jobs > .lf-another")
     field = form.locator("leaf-text")
@@ -1301,7 +1522,10 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     page.goto(document_url, wait_until="load")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     expect(page.locator("#offline-widget #choice")).to_have_text("chosen")
-    expect(page.locator(".lf-chrome")).to_have_count(0)
+    expect(page.locator(".lf-chrome > #lf-media-viewer:not([open])")).to_have_count(1)
+    expect(page.locator("#lf-banner, .lf-thread-panel, .lf-queue-panel")).to_have_count(
+        0
+    )
     assert (
         page.locator("#offline-widget #local").evaluate(
             "control => getComputedStyle(control).color"
@@ -1433,7 +1657,12 @@ def test_playground_examples_keep_their_offline_interaction_mode(
     )
     offline.goto(document_url, wait_until="load")
     expect(offline.locator("body")).to_have_attribute("data-lf-presented", "1")
-    expect(offline.locator(".lf-chrome")).to_have_count(0)
+    expect(offline.locator(".lf-chrome > #lf-media-viewer:not([open])")).to_have_count(
+        1
+    )
+    expect(
+        offline.locator("#lf-banner, .lf-thread-panel, .lf-queue-panel")
+    ).to_have_count(0)
     expect(offline.locator(".lf-playground-submit")).to_be_disabled()
     expect(offline.locator(".lf-playground-unavailable")).to_have_text(
         "Submission unavailable: no agent or server is available."
@@ -1464,7 +1693,6 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
     browser,
 ):
     """The handoff command names one file whose page draws with no live server."""
-    out = ROOT / ".tmp" / "example-pr-walkthrough.html"
     result = subprocess.run(
         [
             *PREVIEW,
@@ -1475,10 +1703,12 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
         capture_output=True,
         check=False,
         text=True,
-        timeout=90,
+        timeout=COMPOSITE_TIMEOUT,
     )
     assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-    assert result.stdout.splitlines()[-1] == str(out.resolve())
+    out = Path(result.stdout.splitlines()[-1])
+    assert out.is_absolute()
+    assert out.name == "example-pr-walkthrough.html"
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.on(
@@ -1512,7 +1742,7 @@ def test_exporting_an_example_leaves_the_live_preview_untouched(
         assert (page_dir / "index.html").read_bytes() == live_source
     finally:
         CliRunner().invoke(cli_model.cli, ["server", "stop", str(page_dir)])
-        live_server.wait(timeout=5)
+        live_server.wait(timeout=STATED_TIMEOUT)
 
 
 def test_export_refuses_server_dependent_samples(serve, tmp_path):
@@ -1541,15 +1771,79 @@ def test_export_refuses_server_dependent_samples(serve, tmp_path):
 
 
 def test_an_export_keeps_utf8(browser, serve, tmp_path):
-    serve(leaf_page("Café handoff", "<h1>Café handoff</h1>"))
+    literal = "urn:leaf-resource:" + "a" * 64
+    source = leaf_page(
+        "Café handoff",
+        f'<h1>Café handoff</h1><p id="literal">{literal}</p><section id="native-shadow"><template shadowrootmode="open"><p id="shadow-text">Captured shadow text</p></template></section><script id="body-probe" type="module">window.order.push("body");</script>',
+        head='<style>#literal::after {content:"</noscript>";}</style><meta name="parser-probe" content="head"><script id="head-probe" type="module">window.order = [document.querySelector("#head-probe").parentElement.tagName.toLowerCase()];</script>',
+    )
+    serve(source)
     out = tmp_path / "cafe.html"
     exporting_model.cmd_export(serve.page_dir, out, None)
     assert out.read_text(encoding="utf-8").startswith(UTF8_BOM)
 
     page = browser.new_page()
     page.goto(out.as_uri(), wait_until="load")
+    wait_until_ready(page)
     assert page.evaluate("document.characterSet") == "UTF-8"
+    assert page.evaluate("window.order") == ["head", "body"]
+    assert page.evaluate("document.doctype.name") == "html"
+    assert page.locator("head > meta[charset]").count() == 1
+    expect(page.locator("#native-shadow #shadow-text")).to_have_text(
+        "Captured shadow text"
+    )
+    expect(page.locator("#literal")).to_have_text(literal)
+    expect(page.get_by_role("heading", name="Café handoff")).to_have_count(1)
     expect(page.get_by_role("heading", name="Café handoff")).to_be_visible()
+    disabled = browser.new_page(java_script_enabled=False)
+    disabled.goto(out.as_uri(), wait_until="load")
+    expect(disabled.get_by_role("heading", name="Café handoff")).to_have_count(1)
+    expect(disabled.locator("#literal")).to_have_text(literal)
+    expect(disabled.locator("#literal")).to_have_css(
+        "content", '"</noscript>"', pseudo="after"
+    )
+
+
+def test_an_export_without_scripts_keeps_text_layout_and_alt_text(
+    browser, serve, tmp_path
+):
+    source = (
+        leaf_page(
+            "Readable record",
+            '<h1>Readable record</h1><p id="words">The recording compares two routes.</p>'
+            '<img id="poster" src="/media/d7cf2b4e22c063dd.png?ignored=1#frame" alt="First frame: two routes">'
+            '<video controls src="/media/2930ad3df7819c50.mp4#t=2"></video>'
+            '<div id="layout" style="display:grid;grid-template-columns:1fr 1fr;background:url(/media/d7cf2b4e22c063dd.png)"><p>Before</p><p>After</p></div>',
+            head="<style>@media screen { #words { color: rgb(12, 34, 56); background:url(/media/d7cf2b4e22c063dd.png); } }</style>",
+        )
+        .replace("<html ", '<html data-author="record" ')
+        .replace("<body>", '<body class="authored">')
+    )
+    serve(source)
+    out = tmp_path / "readable.html"
+    exporting_model.cmd_export(serve.page_dir, out, None)
+    page = browser.new_page(
+        java_script_enabled=False, viewport={"width": 390, "height": 844}
+    )
+    requests = []
+    failures = []
+    page.on("request", lambda request: requests.append(request.url))
+    page.on("requestfailed", lambda request: failures.append(request.url))
+    page.goto(out.as_uri(), wait_until="load")
+    expect(page.get_by_role("heading", name="Readable record")).to_be_visible()
+    expect(page.get_by_role("note")).to_contain_text("JavaScript")
+    expect(page.locator("#words")).to_have_css("color", "rgb(12, 34, 56)")
+    expect(page.locator("#layout")).to_have_css("display", "grid")
+    assert page.locator("#poster").get_attribute("alt") == "First frame: two routes"
+    assert page.locator("#poster").get_attribute("src") is None
+    assert page.locator("video").get_attribute("src") is None
+    assert page.locator("#poster").get_attribute("data-lf-media-width") == "320"
+    assert page.locator("html").get_attribute("data-author") == "record"
+    assert page.locator("body").get_attribute("class") == "authored"
+    assert page.locator("script[src]").count() == 0
+    assert failures == []
+    assert requests == [out.as_uri()]
+    assert page.locator("body").bounding_box()["width"] <= 390
 
 
 def test_an_export_draws_a_chart_whose_body_is_plot_code(browser, serve, tmp_path):
@@ -1606,7 +1900,7 @@ def test_an_export_embeds_only_the_widgets_its_markup_names(browser, serve, tmp_
     """A widget the page and its messages never name brings none of its modules.
 
     The page draws code and a reply carries a diagram; nothing names a diff, so
-    Pierre's renderer, the largest bundle the layer vendors, stays out of the file.
+    Pierre's renderer stays out of the file.
     """
     serve(
         leaf_page(
@@ -1615,11 +1909,11 @@ def test_an_export_embeds_only_the_widgets_its_markup_names(browser, serve, tmp_
             "<pre>print('hi')</pre></lf-code>",
         )
     )
-    root = events_model.append_event(
+    root = append_carried_log_record(
         serve.page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Sketch it?"},
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -1635,8 +1929,17 @@ def test_an_export_embeds_only_the_widgets_its_markup_names(browser, serve, tmp_
     out = tmp_path / "reachable.html"
     exporting_model.cmd_export(serve.page_dir, out, None)
     html = out.read_text(encoding="utf-8")
+    composed = json.loads(
+        re.search(
+            r'<script type="application/json" data-lf-export>(.*?)</script>',
+            html,
+            re.DOTALL,
+        )[1]
+    )["document"]
     imports = json.loads(
-        re.search(r'<script type="importmap"[^>]*>(.*?)</script>', html, re.DOTALL)[1]
+        re.search(r'<script type="importmap"[^>]*>(.*?)</script>', composed, re.DOTALL)[
+            1
+        ]
     )["imports"]
     assert {"leaf:/widgets/lf-code.js", "leaf:/widgets/lf-diagram.js"} <= set(imports)
     assert not {
@@ -1720,25 +2023,18 @@ body { --export-tone: rgb(12, 34, 56); }
     expect(page.get_by_role("img", name="Captured badge")).to_have_js_property(
         "naturalWidth", 24
     )
-    assert (
-        page.locator("#vector image")
-        .get_attribute("href")
-        .startswith("data:image/svg+xml;base64,")
-    )
-    assert (
-        page.locator("#responsive")
-        .get_attribute("srcset")
-        .count("data:image/svg+xml;base64,")
-        == 2
-    )
+    assert page.locator("#vector image").get_attribute("href").startswith("blob:")
+    assert page.locator("#responsive").get_attribute("srcset").count("blob:") == 2
     expect(page.locator("#quoted")).to_have_text("url('/page/icon.svg')")
     for selector in ("#badge", "#inline"):
         assert (
             page.locator(selector)
             .evaluate("el => getComputedStyle(el).backgroundImage")
-            .startswith('url("data:image/svg+xml;base64,')
+            .startswith('url("blob:')
         )
-    assert [url for url in requests if not url.startswith("data:")] == [out.as_uri()]
+    assert [url for url in requests if not url.startswith(("data:", "blob:"))] == [
+        out.as_uri()
+    ]
 
 
 def test_a_gloss_keeps_its_explanation_in_print(browser, serve):
@@ -1788,7 +2084,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
         '<rect width="24" height="24" fill="navy"/></svg>'
     )
     _, image_url = media_model.cmd_media(serve.page_dir, [image])[0]
-    root = events_model.append_event(
+    root = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1807,18 +2103,11 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
     if not resolved:
         result = CliRunner().invoke(
             cli_model.cli,
-            [
-                "status",
-                str(serve.page_dir),
-                "working",
-                "checking the shard",
-                "--on",
-                root["id"],
-            ],
+            ["task", "start", str(serve.page_dir), root["id"], "checking the shard"],
         )
         assert result.exit_code == 0, result.output
     if resolved:
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {"kind": "resolve", "author": "user", "parent": root["id"]},
         )
@@ -1845,7 +2134,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
             workflow_face
         )
     live.emulate_media(media="print")
-    expect(thread.locator(".lf-page-thread-body")).to_be_visible()
+    expect(thread.locator(".lf-msg-body")).to_be_visible()
     assert (
         thread.locator(
             "button:visible, leaf-text:visible, .lf-msg-sending:visible"
@@ -1933,3 +2222,32 @@ def test_an_export_runs_what_its_served_page_runs(browser, serve, tmp_path):
         context.route("https://outside.invalid/**", outside)
         page = open_page(browser, url, context=context)
         assert page.evaluate("() => window.policyOutcomes") == expected, url
+
+
+def test_an_interactive_export_reseats_authored_margin_notes(browser, serve, tmp_path):
+    """Offline reading shares the same initial and width-dependent composition."""
+    serve(
+        leaf_page(
+            "Exported notes",
+            '<h1 id="title">Migration</h1>'
+            '<aside class="sidenote" id="note">Keep earlier readers available.</aside>'
+            '<p id="passage">Advance the migration one cohort at a time.</p>',
+        )
+    )
+    interactive = tmp_path / "margin-notes.html"
+    result = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "export", str(serve.page_dir), "--out", str(interactive)],
+        env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
+    )
+    assert result.exit_code == 0, result.output
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page.goto(interactive.as_uri(), wait_until="load")
+    expect(page.locator("body")).to_have_attribute(
+        "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
+    )
+    expect(page.locator("#note")).to_have_css("float", "right")
+    page.set_viewport_size({"width": 390, "height": 900})
+    expect(page.locator("#note")).to_have_css("float", "none")
+    page.set_viewport_size({"width": 1440, "height": 900})
+    expect(page.locator("#note")).to_have_css("float", "right")

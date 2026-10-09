@@ -4,17 +4,17 @@ import hashlib
 import json
 import os
 import re
-import secrets
 import sys
 import time
 from collections.abc import Callable, Collection
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from stat import S_ISDIR, S_ISREG
-from typing import TypeVar
 
 from .locations import path_location
+from .page_memory import Slot, memo
 from .schema import REVISION_NAME, VERSION_NAME
+from .state import replace_bytes
 
 # The name an atomic write stages under, beside its target, for the moment before the
 # rename (`replace_files` below). A reader of the directory looks past it: it is not yet
@@ -49,7 +49,7 @@ def file_stamp(path: Path):
     stamps as None, which keeps nothing and reads every time.
 
     Every freshness key in leaf is built from these stamps — the page's reading that
-    `leaf wait`, the news stream and activation follow, neighbour discovery, and the
+    `leaf wait`, browser freshness reads and activation follow, neighbour discovery, and the
     caches of parsed files — so this is where a stamp is made exact. The time alone is
     not, while `write_clock` is still in the tick that stamped the last write: a second
     write inside it, to the same size, would leave the stamp unmoved — a data file
@@ -114,21 +114,17 @@ def entry_stamps(directory: Path, ignored: Collection[str]) -> list[tuple[str, o
     )
 
 
-# How often a reader waiting on a page looks for news: the browser's news stream,
-# `leaf page events --follow`, and `leaf wait`. The look is a re-stat rather than an
+# How often a synchronous reader waiting on page files looks for news:
+# `leaf page events --follow` and `leaf wait`. The look is a re-stat rather than an
 # in-process signal because an append does not have to come from the reader's process —
 # `leaf thread reply` and every other command write these same files from outside a server,
 # and a follower has no server at all — so one mechanism covers a browser's POST and an
-# agent's command alike. Measured at 70us a look of the whole page, 0.14% of a core per
-# open tab, against the full state read and log parse a timed poll cost every two
-# seconds whether or not anything had happened.
+# agent's command alike. The browser chooses its own finite request cadence in
+# `state-feed.js`; the same file stamps name changes at either boundary.
 LOOK_S = 0.05
 
 
-Reading = TypeVar("Reading")
-
-
-def next_reading(
+def next_reading[Reading](
     look: Callable[[], Reading], seen: Reading, timeout: float | None = None
 ) -> Reading:
     """The first reading `look` gives that differs from `seen`, looking every
@@ -171,29 +167,54 @@ def revision_num(name: str) -> int:
     return int(REVISION_FILE.fullmatch(name).group("revision"))
 
 
-def list_revisions(page_dir: Path) -> list[int]:
-    revisions_dir = page_dir / "revisions"
-    if not revisions_dir.exists():
-        return []
-    revisions = sorted(
-        revision_num(path.name)
-        for path in revisions_dir.iterdir()
-        if path.is_file() and REVISION_FILE.fullmatch(path.name)
-    )
-    if len(revisions) != len(set(revisions)):
+class _RevisionFiles(Slot):
+    """The revision markers a page's `revisions/` holds, by order, kept under that
+    directory's stamp. A marker appears by a link into the directory
+    (`revision_artifact.publish_artifact`), and every entry added, removed or renamed
+    there moves the stamp, so a held listing is the directory's current one. A server
+    answers each of a document's few hundred module requests from this listing,
+    which would otherwise be a directory scan apiece."""
+
+
+def _revision_files(page_dir: Path) -> dict[int, tuple[str, ...]]:
+    """Each revision's marker file names, in revision order."""
+    directory = page_dir / "revisions"
+    stamp = file_stamp(directory)
+    if stamp is None:
+        return {}
+    return memo(page_dir, _RevisionFiles).get(stamp, lambda: _scan_revisions(directory))
+
+
+def _scan_revisions(directory: Path) -> dict[int, tuple[str, ...]]:
+    found: dict[int, list[str]] = {}
+    with os.scandir(directory) as entries:
+        for entry in entries:
+            if REVISION_FILE.fullmatch(entry.name) and entry.is_file():
+                found.setdefault(revision_num(entry.name), []).append(entry.name)
+    return {revision: tuple(sorted(found[revision])) for revision in sorted(found)}
+
+
+def revision_names(page_dir: Path) -> dict[int, str]:
+    """Each revision's immutable marker file name, in revision order."""
+    markers = _revision_files(page_dir)
+    if any(len(names) > 1 for names in markers.values()):
         sys.exit("more than one immutable revision has the same order")
-    return revisions
+    return {revision: names[0] for revision, names in markers.items()}
+
+
+def list_revisions(page_dir: Path) -> list[int]:
+    return list(revision_names(page_dir))
 
 
 def revision_path(page_dir: Path, revision: int) -> Path:
     """Resolve one ordered revision to its content-addressed immutable file."""
-    matches = sorted((page_dir / "revisions").glob(f"r{revision}-*.html"))
-    matches = [path for path in matches if REVISION_FILE.fullmatch(path.name)]
-    if len(matches) != 1:
-        if not matches:
-            sys.exit(f"no revision r{revision} in {page_dir / 'revisions'}")
+    revisions = page_dir / "revisions"
+    names = _revision_files(page_dir).get(revision, ())
+    if len(names) != 1:
+        if not names:
+            sys.exit(f"no revision r{revision} in {revisions}")
         sys.exit(f"more than one immutable file records revision r{revision}")
-    return matches[0]
+    return revisions / names[0]
 
 
 def latest_revision(page_dir: Path) -> int | None:
@@ -212,6 +233,18 @@ def require_revision(page_dir: Path) -> int:
     if revision is None:
         sys.exit(missing_revision(page_dir))
     return revision
+
+
+def unfinished_publications(page_dir: Path, events: list) -> list[dict]:
+    """The first admitted event naming each publication whose revision marker is
+    not yet written: a publication interrupted between its prerequisite and its
+    marker (`revision_artifact`), in log order."""
+    published = set(list_revisions(page_dir))
+    unfinished = {}
+    for event in events:
+        if event.get("publication") and event["revision"] not in published:
+            unfinished.setdefault(event["revision"], event)
+    return list(unfinished.values())
 
 
 def version_revisions(events: list) -> dict[int, int]:
@@ -272,9 +305,7 @@ def active_descriptor(page_dir: Path, events: list) -> dict | None:
         # only when the two differ. Read once here, so every consumer of the
         # active revision works from one reading of it.
         "executable": reading.manifest.get("executable"),
-        "activated_at": datetime.fromtimestamp(
-            path.stat().st_mtime, timezone.utc
-        ).isoformat(),
+        "activated_at": datetime.fromtimestamp(path.stat().st_mtime, UTC).isoformat(),
     }
 
 
@@ -302,24 +333,8 @@ def read_json(path: Path):
         return None
 
 
-def fsync_parents(paths) -> None:
-    """Make these files' directory entries durable, not just their contents.
-
-    A create or a rename is a directory write, and it survives a crash only once
-    the directory itself is synced, so every writer that adds or replaces a page
-    or package member ends with this.
-    """
-    for parent in {path.parent for path in paths}:
-        fd = os.open(parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
-        try:
-            os.fsync(fd)
-        finally:
-            os.close(fd)
-
-
 def replace_files(files: list) -> None:
     """Durably stage every write before replacing its target."""
-    staged = []
     targets = [
         path.resolve() if follow_symlink and path.is_symlink() else path
         for path, _, follow_symlink in files
@@ -331,49 +346,9 @@ def replace_files(files: list) -> None:
         for right in located_targets[index + 1 :]
     ):
         sys.exit("two staged files resolve to the same target")
-    try:
-        for (path, data, follow_symlink), target in zip(files, targets, strict=True):
-            for _ in range(100):
-                tmp = target.with_name(f".{secrets.token_hex(8)}.tmp")
-                try:
-                    fd = os.open(
-                        tmp,
-                        os.O_WRONLY
-                        | os.O_CREAT
-                        | os.O_EXCL
-                        | getattr(os, "O_BINARY", 0),
-                        0o666,
-                    )
-                    break
-                except FileExistsError:
-                    continue
-            else:  # pragma: no cover - 64 random bits collided 100 times
-                raise FileExistsError(f"could not reserve a temp file beside {target}")
-            staged.append((tmp, target))
-            with os.fdopen(fd, "wb") as stream:
-                stream.write(data)
-                if follow_symlink or not path.is_symlink():
-                    try:
-                        os.fchmod(stream.fileno(), target.stat().st_mode & 0o777)
-                    except FileNotFoundError:
-                        pass  # no target to preserve a mode from
-                stream.flush()
-                os.fsync(stream.fileno())
-        for tmp, target in staged:
-            os.replace(tmp, target)
-        fsync_parents(targets)
-    finally:
-        for tmp, _ in staged:
-            tmp.unlink(missing_ok=True)
-
-
-def json_bytes(obj, *, indent=None) -> bytes:
-    return (json.dumps(obj, ensure_ascii=False, indent=indent) + "\n").encode()
-
-
-def write_json(path: Path, obj) -> None:
-    # Atomic: the serve process reads these files while the CLI commands write them;
-    # a torn cursor or status would make the page report false state. Each writer
-    # stages through an exclusively created name so simultaneous writers cannot
-    # replace one another's temp file.
-    replace_files([(path, json_bytes(obj), False)])
+    replace_bytes(
+        [
+            (target, data, follow_symlink or not path.is_symlink())
+            for (path, data, follow_symlink), target in zip(files, targets, strict=True)
+        ]
+    )

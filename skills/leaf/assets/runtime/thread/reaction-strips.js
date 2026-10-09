@@ -2,6 +2,7 @@
    registers template-owned controls and owns only disclosure, keyboard and focus. */
 import { html, render, repeat } from "../../vendor/browser-runtime.js";
 import { iconTemplate } from "../icons.js";
+import { HOLDS_WORD } from "../held-word.js";
 
 let ordinal = 0;
 export class ReactionStripView {
@@ -38,7 +39,11 @@ export class ReactionStripView {
         <span
           class="lf-react-palette"
           id=${this.#paletteId}
+          popover="auto"
           role="group"
+          @toggle=${(event) => {
+            if (event.newState === "closed") this.#registration.close();
+          }}
           aria-label="Reactions for this reply"
         >
           ${repeat(
@@ -47,7 +52,7 @@ export class ReactionStripView {
             (choice) =>
               html` <button
                 type="button"
-                class="lf-outline-chip lf-react lf-ui"
+                class="lf-outline-chip lf-react ${HOLDS_WORD} lf-ui"
                 data-lf-gen="1"
                 data-lf-offer="button"
                 data-token=${choice.name}
@@ -73,8 +78,14 @@ export class ReactionStripView {
 
   #press(name) {
     const model = this.#model;
-    const sent = this.#commands.actions.toggleReaction(model.key, model.parent, name);
+    const sent = this.#commands.actions.toggleReaction(
+      model.key,
+      model.parent,
+      name,
+      Boolean(model.choices.find((choice) => choice.name === name).standing),
+    );
     this.#registration.close();
+    this.#commands.pressed();
     void sent;
   }
 

@@ -3,8 +3,8 @@
 import json
 from datetime import datetime, timedelta
 
-from interact_support import add_test_widget, append_command
-from leaf import event_log as events_model
+from browser_sources import browser_source
+from interact_support import add_test_widget, append_carried_log_record, append_command
 from leaf.schema import ELEMENT_ID
 from render_harness import (
     EXAMPLES,
@@ -60,7 +60,7 @@ def panel_comment(d, text, anchor=None, author="user"):
         event["agent"] = "Claude"
     if anchor:
         event["anchor"] = anchor
-    return events_model.append_event(d, event)["id"]
+    return append_carried_log_record(d, event)["id"]
 
 
 # What the list is holding, from the one query that answers both halves of the
@@ -478,6 +478,9 @@ HOLD_MOTION = """
   const inner = Element.prototype.animate;
   Element.prototype.animate = function (...args) {
     const motion = inner.apply(this, args);
+    // A scroll timeline owns its progress; assigning an absolute time to it throws.
+    // The hold is for gesture animations on the document timeline.
+    if (motion.timeline !== document.timeline) return motion;
     motion.pause();
     motion.currentTime = 0;
     window.__lfHeld.push(motion);
@@ -664,10 +667,8 @@ ASK_IN_A_CARD_PAGE = leaf_page(
 # shows through — every shipped widget draws one, and a wrapper a page styles boxless
 # hangs it on the boxes its contents make — so what says the walk is in one place is
 # the outermost page element wearing it, never the count of elements that do. Scoped to
-# main because the Asks drawer's row mirrors the same fact in the chrome.
+# main because the Questions panel's row mirrors the same fact in the chrome.
 STANDING_ASK = "main [data-lf-ask]:not([data-lf-ask] [data-lf-ask])"
-# Where the drawer's rows say their decision's own words, which is the half of a row a static
-# lint can never read: the words are whatever the page renders, after every upgrade.
 # Every widget that measures a number off a live box, authored into the page and sent in
 # a reply, so the two readings of each can be compared instead of pinned to a number. The
 # words are the same in both, which is what makes the room they need the same.
@@ -703,12 +704,15 @@ MESSAGE_ROOM_PAGE = leaf_page(
 )
 
 
-ASK_ROW_SAYS = """() => [...document.querySelectorAll('button.lf-asks-row')].map((r) => ({
+# What each Questions panel row says, with the list it stands in ("you", "agent" or "done").
+# Rows under a closed Done fold are in the document and measure as nothing.
+QUEUE_ROW_SAYS = """() => [...document.querySelectorAll('button.lf-queue-row')].map((r) => ({
   at: r.getAttribute('data-lf-at'),
-  kind: r.querySelector('.lf-asks-kind').textContent,
-  says: r.querySelector('.lf-asks-says').textContent,
-  answer: r.querySelector('.lf-asks-answer').textContent,
-  state: r.getAttribute('data-lf-answer-state'),
+  list: r.closest('[data-lf-queue]').dataset.lfQueue,
+  kind: r.dataset.lfKind,
+  word: r.querySelector('.lf-queue-kind').textContent,
+  title: r.querySelector('.lf-queue-title').textContent,
+  where: r.querySelector('.lf-queue-where').textContent,
   w: Math.round(r.getBoundingClientRect().width),
   h: Math.round(r.getBoundingClientRect().height),
 }))"""
@@ -1028,7 +1032,7 @@ def stale_report(page_dir, widget, doing, hours, state="working"):
             "agent": "wren",
             "widget": widget,
             "action": "state",
-            "detail": {"state": state, "doing": doing},
+            "detail": {"value": state, "text": doing},
             "revision": 1,
             "ts": (datetime.now().astimezone() - timedelta(hours=hours)).isoformat(
                 timespec="seconds"
@@ -1147,16 +1151,16 @@ diff --git a/ab/bracket.py b/ab/bracket.py
 # ranks are the ones lf-board sends: importer before the authored notes ("1"), then
 # notes before importer.
 STANDING_ACTIONS = [
-    ("ab-pick", "choose", {"options": ["ab-stage"]}),
+    ("ab-pick", "choose", {"value": ["ab-stage"]}),
     ("ab-pick", "answer", {}),
     ("ab-pick", "add", {"option": "ab-rewrite", "text": "Rewrite the callers first"}),
-    ("ab-work", "move", {"card": "ab-importer", "to": "ab-done", "rank": "0i"}),
-    ("ab-work", "move", {"card": "ab-notes", "to": "ab-done", "rank": "09"}),
-    ("ab-email", "edit", {"text": "The words as the user rewrote them."}),
+    ("ab-work", "move", {"unit": "ab-importer", "value": "ab-done", "rank": "0i"}),
+    ("ab-work", "move", {"unit": "ab-notes", "value": "ab-done", "rank": "09"}),
+    ("ab-email", "edit", {"value": "The words as the user rewrote them."}),
     ("ab-sug-410", "decide", {"outcome": "accept"}),
     ("ab-sug-logs", "decide", {"outcome": "reject"}),
-    ("ab-triage", "swipe", {"card": "ab-expiry", "to": "ab-pass", "rank": "i"}),
-    ("ab-triage", "swipe", {"card": "ab-capacity", "to": "ab-keep", "rank": "i"}),
+    ("ab-triage", "swipe", {"unit": "ab-expiry", "value": "ab-pass", "rank": "i"}),
+    ("ab-triage", "swipe", {"unit": "ab-capacity", "value": "ab-keep", "rank": "i"}),
     ("ab-patch", "review", {"file": "ab/bracket.py", "reviewed": True}),
     (
         "ab-visual",
@@ -1211,26 +1215,7 @@ RELATIVE_WIDGET_PAGE = leaf_page(
 """,
 )
 
-RELATIVE_WIDGET_MODULE = """\
-import { keeps, once, widgetController } from "/runtime/widget-api.js";
-
-customElements.define(
-  "lf-tally",
-  class extends HTMLElement {
-    #controller = widgetController(this);
-    #stop;
-    connectedCallback() {
-      once(this);
-      this.#stop ??= this.#controller.subscribe(() => {});
-    }
-    disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-    renderState(state) {
-      keeps(this, "count", Number(this.getAttribute("count")) + Number(state.step.value));
-      this.querySelector("pre").append(state.caption.value);
-    }
-  },
-);
-"""
+RELATIVE_WIDGET_MODULE = browser_source("widgets/relative.js")
 # A widget that stands out of place and settles into it, for the two tests below. The
 # distance is more than the blocks under it are tall, so while it is out of place its
 # words are over a neighbour's — which is a page the gate reports, and the whole of
@@ -1249,69 +1234,7 @@ DRIFT_PAGE = leaf_page(
 """,
 )
 
-DRIFT_MODULE = """\
-import { motion, once, widgetController } from "/runtime/widget-api.js";
-
-customElements.define(
-  "lf-drift",
-  class extends HTMLElement {
-    #controller = widgetController(this);
-    #stop;
-    connectedCallback() {
-      if (!once(this)) {
-        this.#stop ??= this.#controller.subscribe(() => {});
-        return;
-      }
-      // `deep` renders the same words from inside the widget's own root, and moves
-      // them there: an animation a document-level reading cannot see.
-      if (this.hasAttribute("deep")) {
-        const root = this.attachShadow({ mode: "open" });
-        // `bare` stages the words with no element over them — the page refuses that,
-        // and the refusal is what one of the tests below reads.
-        if (this.hasAttribute("bare")) {
-          root.append(...this.childNodes);
-          this.#stop ??= this.#controller.subscribe(() => {});
-          return;
-        }
-        const held = document.createElement("div");
-        held.append(...this.childNodes);
-        root.append(held);
-        held.animate(
-          [{ transform: "translateY(120px)" }, { transform: "none" }],
-          { duration: 30000 },
-        );
-      }
-      this.#place();
-      this.#stop ??= this.#controller.subscribe(() => {});
-    }
-    disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-    // Absolute, as every renderState is: the offset is stated, never stepped.
-    renderState(state) {
-      const from = this.getAttribute("offset");
-      if (from === String(state.settle.value)) return;
-      this.setAttribute("offset", String(state.settle.value));
-      this.#place();
-      // Held at the old offset for nine tenths of the run, so the words are over
-      // their neighbour's for as long as the motion lasts. A move that eased the
-      // whole way would leave a last fifth of a second in which a reading taken
-      // then happened to be clean, and the test would be measuring when the gate
-      // looked rather than whether it waited.
-      motion(
-        this,
-        [
-          { transform: `translateY(${from}px)` },
-          { transform: `translateY(${from}px)`, offset: 0.9 },
-          { transform: "none" },
-        ],
-        1200,
-      );
-    }
-    #place() {
-      this.style.transform = `translateY(${this.getAttribute("offset")}px)`;
-    }
-  },
-);
-"""
+DRIFT_MODULE = browser_source("widgets/drift.js")
 
 
 def drifting_widget(tmp_path, monkeypatch, deep=False, bare=False):
@@ -1341,14 +1264,8 @@ def drifting_widget(tmp_path, monkeypatch, deep=False, bare=False):
     declarations["lf-drift"]["properties"]["restated"] = {"type": "boolean"}
     declarations["lf-drift"]["x-state"] = {
         "settle": {
-            "detail": {
-                "type": "object",
-                "properties": {"offset": {"type": "string", "pattern": "^[0-9]+$"}},
-                "required": ["offset"],
-                "additionalProperties": False,
-            },
             "unit": "widget",
-            "record": {"kind": "value", "attr": "offset", "value": "offset"},
+            "record": {"kind": "value", "attr": "offset"},
         }
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
@@ -1407,7 +1324,7 @@ TWO_HOLDER_SPARE_PAGE = TWO_HOLDER_PAGE.replace(
 </lf-trial>
 </main>""",
 )
-MARKDOWN_REPLY = """Two things, then the fix — details in https://example.com/notes:
+MARKDOWN_REPLY = """Two things, then the fix — details in https://example.com/notes.
 
 - the poll drops a response **behind** the one already rendered
 - `lastEventSeq` is what it compares, a Vec<T> of them
@@ -1512,57 +1429,21 @@ SEATED_ASK_ENTRY = {
     "x-thread-seat": {"when": {"asks": [True]}},
     "x-example": '<lf-verdict id="verdict-example" asks>Ship it?</lf-verdict>',
 }
+
+
 # The press paints before it sends, which is what `lf-options` does with a pick and the
 # reason the browser door matters as much as the POST one: with the wrong list read here
 # the answer is already on the page, so a refusal is not a refusal the user can see —
 # the control flips, nothing is logged, and the next poll puts it back saying nothing.
-SEATED_ASK_MODULE = """\
-import { keeps, keepsText, threadBox, offer, once, widgetController } from "/runtime/widget-api.js";
+def seated_ask_module(*, seat_attribute=None):
+    """Build a seated Ask with the optional attribute its case's registry requires."""
+    configuration = {"seatAttribute": seat_attribute}
+    return (
+        browser_source("widgets/seated-ask.js")
+        + f"\ndefineSeatedAsk({json.dumps(configuration)});\n"
+    )
 
-customElements.define(
-  "lf-verdict",
-  class extends HTMLElement {
-    #controller;
-    #stop = null;
 
-    connectedCallback() {
-      this.#controller ??= widgetController(this);
-      if (!once(this)) {
-        this.#stop ??= this.#controller.subscribe(() => {});
-        return;
-      }
-      this.press = offer("button", "lf-settle", "Accept");
-      this.press.onclick = () => {
-        this.settled();
-        this.#controller.dispatch({
-          kind: "action", verb: "settle", detail: {answer: "yes"},
-        });
-      };
-      this.append(this.press);
-      const seat = threadBox(this, "Say something about this");
-      if (seat) this.append(seat);
-      this.#stop ??= this.#controller.subscribe(() => {});
-    }
-
-    disconnectedCallback() {
-      this.#stop?.();
-      this.#stop = null;
-    }
-
-    settled() {
-      keepsText(this.press, "Accepted");
-      keeps(this.press, "aria-pressed", true);
-    }
-
-    renderState(state) {
-      if (state.settle.value) this.settled();
-      else {
-        keepsText(this.press, "Accept");
-        keeps(this.press, "aria-pressed", false);
-      }
-    }
-  },
-);
-"""
+SEATED_ASK_MODULE = seated_ask_module()
 SEATED_ASK_LAYER = {SEATED_ASK_TAG: SEATED_ASK_ENTRY}
 SEATED_ASK_WIDGETS = {f"{SEATED_ASK_TAG}.js": SEATED_ASK_MODULE}

@@ -23,7 +23,8 @@
  * Modules restore their own stored state, such as tabs and drafts, through their own
  * lifecycles. `version.js` owns when capture and restoration run for each install.
  */
-import { TEXT_BOX, focusDestination, readCaret } from "./focus.js";
+import { focusDestination, readCaret } from "./focus.js";
+import { TEXT_BOX } from "./control-selectors.js";
 import { skipped } from "./geometry.js";
 import { readingRegions } from "./reading-regions.js";
 
@@ -90,7 +91,7 @@ export function restoreCarry(
   // input generation and adopts the synchronous transfer when still permitted.
   handoffFocus(() => {
     for (const [arrived, record] of positions)
-      if (record.focus) focusDestination(arrived, record.caret);
+      if (record.focus) focusDestination(arrived, "return", { caret: record.caret });
   });
   return () => {
     for (const [arrived, record] of positions) {

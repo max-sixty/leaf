@@ -1,16 +1,47 @@
 /* Focus readings shared by thread paint and commands. */
-import { holdStanding } from "../focus.js";
-import { focused } from "../keyboard/scopes.js";
+import {
+  focusDestination,
+  holdStanding,
+  forwardFocus,
+  focused,
+  onPress,
+} from "../focus.js";
+import { shownBox } from "../geometry.js";
+import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { closestAcross } from "../passages.js";
 import { nextRender } from "../rendering.js";
 import { repaint } from "../repaint.js";
 import { SAY_BOX, THREAD } from "./selectors.js";
 import { allThreads } from "./state.js";
+import { replyAvailable, replyControlDestination } from "./replies.js";
 
 // Native disclosure owns the panel thread's focus stop. Inline divs have no summary,
 // so their established root remains the destination.
-export function focusThread(thread, options) {
-  (thread.querySelector(":scope > summary:not([hidden])") ?? thread).focus(options);
+export const threadFocusStop = (thread) =>
+  thread.querySelector(":scope > summary:not([hidden])") ?? thread;
+export function focusThread(thread, cause, options) {
+  focusDestination(threadFocusStop(thread), cause, options);
+}
+// The Threads list handing the focus it is gaining on to the open thread's title.
+export function forwardToThread(thread) {
+  forwardFocus(threadFocusStop(thread));
+}
+
+export const threadReplyInput = (thread) => {
+  const input = thread?.querySelector(SAY_BOX);
+  return input && (shownBox(input).height || input.lfRevealReply) ? input : null;
+};
+
+// A closed native disclosure is its own first stop. An explicit reply can name a
+// compact editor before it has height: the editor's reveal owns opening it on focus.
+export function threadFocusDestination(thread, { focus = "reply" } = {}) {
+  const summary = thread?.querySelector(":scope > summary");
+  return (
+    (focus === "thread" ? threadFocusStop(thread) : null) ??
+    (summary && !thread.hasAttribute("open") ? summary : null) ??
+    threadReplyInput(thread) ??
+    threadFocusStop(thread)
+  );
 }
 
 // An inline thread root may itself hold focus. A control inside it keeps its own
@@ -49,17 +80,9 @@ export function heldThreadId() {
 // such press. So the thread held at pointerdown stays the standing until the frame after
 // the press ends, when the standing repaint reads focus again. This is standing as drawn,
 // which lags focus across a press; a command acts on the held thread (`heldThreadId`).
+// The press is focus.js's (`onPress`), which ends it every way it can end.
 let pressed = null;
 let release = 0;
-document.addEventListener(
-  "pointerdown",
-  (ev) => {
-    if (ev.isPrimary && ev.button === 0) pressed = heldThreadId();
-  },
-  { capture: true },
-);
-// Every way a press can end: its release, the browser taking the pointer, a native menu
-// the press opened, which swallows the release, or the window losing it altogether.
 function releasePress() {
   if (!pressed || release) return;
   release = nextRender(() => {
@@ -68,9 +91,11 @@ function releasePress() {
     repaint();
   });
 }
-for (const type of ["pointerup", "pointercancel", "contextmenu"])
-  document.addEventListener(type, releasePress, { capture: true });
-window.addEventListener("blur", releasePress);
+onPress((start) => {
+  if (start.button !== 0) return null;
+  pressed = heldThreadId();
+  return releasePress;
+});
 
 export const standingThreadId = () => heldThreadId() ?? pressed;
 
@@ -85,25 +110,43 @@ export const standingThreadId = () => heldThreadId() ?? pressed;
 // runs once the pass has drawn every surface, and lands the user through `open`, which
 // puts the thread up where it stands. Typing on in the box during the pass keeps them
 // in it; standing anywhere else, a press on the page included, is a newer word, and so
-// is a surface that landed them itself, as a resolved thread lands them on its card. A
-// box is carried once, and only to a thread with a reply box to carry it to: one the
-// reading still holds, open. Nothing is put up for a thread that has none, and one that
+// is a surface that landed them itself. A box is carried once, to a thread the reading
+// still holds and whose editor lifetime continues: an open conversation, or a resolved
+// one with a reply still being edited. Nothing is put up for a thread that has none, and one that
 // comes back later does not pull the user to it.
+// Replacement resolves through the current route, never another visible mirror of
+// the same draft. Both in-document paint and executable replacement use this admission.
+export async function replyDestination(
+  id,
+  open,
+  intent,
+  destination = (thread) => thread.querySelector(SAY_BOX),
+) {
+  const mayReply = restrictUserIntent(intent, () => {
+    const standing = allThreads().find((candidate) => candidate.id === id);
+    return Boolean(standing && replyAvailable(standing));
+  });
+  if (!mayReply()) return null;
+  const shown = await open(id, { focus: "reply", intent: mayReply });
+  const thread = shown instanceof Element ? closestAcross(shown, THREAD) : null;
+  const control = thread && destination(thread);
+  if (!control || focused() !== shown || !mayReply()) return null;
+  if (control !== shown) mayReply.handoff(() => focusDestination(control, "move"));
+  return focused() === control && mayReply() ? control : null;
+}
+
 const carried = new WeakSet();
 export function holdReply(open) {
   const held = holdStanding();
   const box = held?.node;
   const thread = box && closestAcross(box, THREAD);
-  if (!thread || thread.querySelector(SAY_BOX) !== box || carried.has(box)) return null;
+  const destination = replyControlDestination(box);
+  if (!thread || !destination || carried.has(box)) return null;
   const id = thread.dataset.id ?? thread.dataset.thread;
+  const intent = retainUserIntent({ source: box });
   return () =>
     held.restore(() => {
       carried.add(box);
-      const standing = allThreads().find((candidate) => candidate.id === id);
-      if (!standing || standing.resolved) return null;
-      const shown = open(id);
-      return shown instanceof Element
-        ? closestAcross(shown, THREAD)?.querySelector(SAY_BOX)
-        : null;
+      return replyDestination(id, open, intent, destination);
     });
 }

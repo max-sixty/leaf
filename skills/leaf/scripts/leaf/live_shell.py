@@ -7,7 +7,6 @@ candidate inputs never participate in publishing. Content-addressed media is wri
 at the page root, where every document, message, and card addresses it.
 """
 
-import json
 from dataclasses import replace
 from pathlib import Path
 
@@ -21,7 +20,7 @@ from .files import (
 )
 from .http import page_delivery
 from .revision_artifact import read_artifact
-from .revision_delivery import DeliveryAddress, compose_document, deliver_resource
+from .revision_delivery import DeliveryAddress, compose_document, delivered_resource
 from .schema import MEDIA_DIR, SERVED_PATH
 
 
@@ -80,19 +79,12 @@ def write_live_shell(
             registry=artifact.registry,
             delivery=replace(delivery, head=head),
         ).encode()
-        aliases = {
-            f"/widgets/{tag}.js": implementation["path"]
-            for tag, implementation in artifact.implementations.items()
-        }
         address = DeliveryAddress(page_root, revision_root)
-        for logical in sorted(artifact.resources.keys() | aliases.keys()):
-            source = aliases.get(logical, logical)
-            body = (
-                f"export * from {json.dumps(revision_root + source)};\n".encode()
-                if logical != source
-                else deliver_resource(artifact.resources[source], source, address)
-            )
-            write(relative_root / logical.lstrip("/"), body)
+        for logical in sorted(
+            artifact.resources.keys() | artifact.widget_aliases.keys()
+        ):
+            resource = delivered_resource(artifact, logical, address)
+            write(relative_root / logical.lstrip("/"), resource.data)
 
     write(Path("index.html"), documents[active])
     for version in published_versions(page_dir, events):

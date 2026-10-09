@@ -1,6 +1,5 @@
 """Filesystem path identity, containment, and overlap."""
 
-import ctypes
 import hashlib
 import os
 import sys
@@ -28,11 +27,6 @@ class PathLocation(NamedTuple):
 
     lineage: tuple
     tail: tuple
-
-
-def page_key(page_dir: Path) -> str:
-    """A filesystem-safe identity for state held outside one page directory."""
-    return hashlib.sha256(str(page_dir.resolve()).encode()).hexdigest()
 
 
 def path_location(path: Path) -> PathLocation:
@@ -64,6 +58,8 @@ def _filesystem_case_sensitive(path: Path) -> bool:
     """Whether new names on path's filesystem distinguish letter case."""
     if sys.platform != "darwin":
         return os.path.normcase("A") != os.path.normcase("a")
+
+    import ctypes
 
     # Darwin exposes this per volume rather than through normcase: APFS can be
     # mounted either way, and normcase leaves names unchanged in both cases.
@@ -146,3 +142,20 @@ def paths_same(left: Path, right: Path) -> bool:
     # Containment both ways is equality of the canonical form: neither path can
     # be a strict ancestor of the other and still contain it.
     return path_location(left) == path_location(right)
+
+
+def path_lock_key(path: Path) -> str:
+    """A destination's lock name, stable across creation and atomic replacement.
+
+    Resolve symlink aliases and fold case only when this volume ignores it. Inode
+    identities used for containment change when a writer creates or replaces the
+    destination, so a lock must instead name its filesystem-normalized path.
+    """
+    resolved = path.expanduser().resolve()
+    ancestor = resolved
+    while not ancestor.exists():
+        ancestor = ancestor.parent
+    name = str(resolved)
+    if not _filesystem_case_sensitive(ancestor):
+        name = name.casefold()
+    return hashlib.sha256(name.encode()).hexdigest()

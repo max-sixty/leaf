@@ -44,7 +44,7 @@ import { threadSummary } from "./model.js";
 const inPage = (el) => hostIn(el, document);
 
 const threadPlace = (t, placedAt) =>
-  inPage(placedAt(t.id)?.element ?? (t.anchor ? sectionOf(t.anchor) : null));
+  inPage(placedAt(t.id)?.place ?? (t.anchor ? sectionOf(t.anchor) : null));
 
 // Which of two elements the user reaches first. `compareDocumentPosition` answers for
 // a containing element too — a section reaches the user before the paragraph inside it

@@ -1,5 +1,5 @@
 """Browser probe readings for one settled color scheme, the once-per-version width
-sweep, the advice read from the desktop page and from the sweep, and the finding each
+sweep, the advice read from the sweep and from the desktop page, and the finding each
 becomes.
 
 A reading refuses a version only for a fault its author can fix by editing the page.
@@ -7,7 +7,6 @@ A reading about Leaf's own chrome or theme, including one that would have to
 recognize a Leaf control by its markup to judge it, belongs in the suite, which holds
 Leaf's half."""
 
-import json
 from dataclasses import dataclass
 from itertools import pairwise
 
@@ -20,23 +19,18 @@ from leaf.projection import (
     retirement_outcomes,
     rewritten_bodies,
 )
-from leaf.registry.state import retirement_slots
+from leaf.registry.contract import retirement_slots
+from leaf.registry.schema import json_value
 from leaf.render_checks import evaluate_probe, one_frame, rendered
 from leaf.structure import SourceDocument
 
 # A probe's arguments cross as JSON, so a node only CDP can name is handed to the
 # `issueNode` probe as the receiver of a call made on the node itself.
 _ISSUE_NODE = (
-    "function () { return globalThis.__leafRenderDriver"
-    ".call({name: 'issueNode', args: [this]}); }"
-)
-# A node in a child frame is that frame's to show, and the frame is the page's, so the
-# issue is placed at the frame element in the page's own document, where the probes
-# run. A cross-origin frame withholds that element, and the issue goes unplaced.
-_IN_PAGE = (
-    "function () { let node = this; const view = (n) => (n.ownerDocument ?? n)"
-    ".defaultView; while (node && view(node) !== top) node = view(node).frameElement;"
-    " return node; }"
+    "function () { const view = (this.ownerDocument ?? this).defaultView;"
+    " let driver; try { driver = view.top.__leafRenderDriver; }"
+    " catch (error) { if (error.name === 'SecurityError') return null; throw error; }"
+    " return driver.call({name: 'issueNode', args: [this]}); }"
 )
 
 
@@ -77,18 +71,9 @@ class DevtoolsIssues:
             node = self._cdp.send("DOM.resolveNode", {"backendNodeId": backend_id})
         except PlaywrightError:
             return None  # the node left the document after Chrome raised the issue
-        in_page = self._call(node["object"], _IN_PAGE, by_value=False)
-        if in_page.get("subtype") == "null":
-            return None
-        # The frame element came back as the child frame's object. Resolving it again
-        # by id answers in its own document's context, where the probes are loaded.
-        described = self._cdp.send(
-            "DOM.describeNode", {"objectId": in_page["objectId"]}
-        )
-        page_node = self._cdp.send(
-            "DOM.resolveNode", {"backendNodeId": described["node"]["backendNodeId"]}
-        )
-        return self._call(page_node["object"], _ISSUE_NODE, by_value=True)["value"]
+        # Preserve the actual node for the ownership reading. Lifting a shadow
+        # input to its iframe first would turn a control's issue into the page's.
+        return self._call(node["object"], _ISSUE_NODE, by_value=True)["value"]
 
     def _call(self, receiver: dict, function: str, *, by_value: bool) -> dict:
         answer = self._cdp.send(
@@ -116,7 +101,11 @@ class DevtoolsIssues:
         for issue in self._raised:
             fields = list(_issue_fields(issue["details"]))
             nodes = [v for k, v in fields if k == "nodeId" or k.endswith("NodeId")]
-            facts = [f"{k}={v}" for k, v in fields if not k.endswith("Id") and v != ""]
+            facts = [
+                f"{k}={json_value(v)}"
+                for k, v in fields
+                if not k.endswith("Id") and v != ""
+            ]
             node = self._node(nodes[0]) if nodes else None
             if node is not None and not node["owned"]:
                 continue
@@ -139,7 +128,6 @@ class _SchemeContext:
     state: dict
     markup: str
     here: int
-    earlier: str | None
     replayed: bool
     unsettled: list
     devtools: DevtoolsIssues
@@ -217,8 +205,8 @@ def _verbatim_findings(context: _SchemeContext) -> list[str]:
         findings.append(
             f"{owner}{where} declares x-verbatim but shows "
             f"{reading['says'][:80]!r} with owned structure "
-            f"{reading['compositional']!r} where the file reads "
-            f"{expected.get(key, [])!r}"
+            f"{json_value(reading['compositional'])} where the file reads "
+            f"{json_value(expected.get(key, []))}"
         )
     return findings
 
@@ -231,23 +219,24 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     state = context.state
     markup = context.markup
     here = context.here
-    earlier = context.earlier
     replayed = context.replayed
     errors = context.errors
     resize_notices = context.resize_notices
     unsettled = context.unsettled
-    failsoft = evaluate_probe(page, "failSoftErrors")
     invalid_paints = evaluate_probe(page, "invalidPaints")
     missing_upgrades = evaluate_probe(page, "missingUpgrades", declarations)
     tiny = evaluate_probe(page, "tinyBoxes", declarations)
     unmarkable = evaluate_probe(page, "unmarkableElements")
-    overflow = evaluate_probe(page, "rootOverflow")
-    misplaced = evaluate_probe(page, "misplacedBoxes")
-    stranded = evaluate_probe(page, "strandedMargins")
+    column = evaluate_probe(page, "columnGeometry")
+    overflow = column["overflow"]
+    misplaced = column["misplaced"]
+    # This experiment writes and removes a temporary wrapping rule. Preserve its
+    # position between the two read-only groups so each reads the same restored page.
     squeezed = evaluate_probe(page, "squeezedTables")
-    clipped = evaluate_probe(page, "clippedControls")
-    unreachable = evaluate_probe(page, "unreachableWords")
-    covered = evaluate_probe(page, "coveredWords")
+    reachability = evaluate_probe(page, "reachabilityReading")
+    clipped = reachability["clipped"]
+    unreachable = reachability["unreachable"]
+    covered = reachability["covered"]
     unread = evaluate_probe(page, "unreadSyntax")
     # Shadow roots the registry doesn't declare: the passage walk, the
     # capture and the id lookups cross exactly the declared ones, so an
@@ -261,7 +250,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     # already reported by the readiness wait and supplies no comparison.
     dishonest_verbatim = _verbatim_findings(context) if replayed else []
     # Replay is scheme-blind, so one scheme's reading covers both.
-    conflicts = []
     silent = []
     missing_threads = []
     undeclared_attrs = []
@@ -314,44 +302,17 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
                     )
                 if holders:
                     retired = evaluate_probe(page, "retiredSlots", holders)
-    # Last: these probes render temporary complete states. Compare carried actions
-    # against the authored baseline, restore current state, then prove idempotence.
+    # Last: render the complete state again to prove idempotence.
     # The caught-up wait ensures they observe the same settled projection as the
     # preceding read-only probes.
     relative = []
     if scheme == "light" and replayed:
-        if earlier is not None:
-            projection = page_reading(
-                SourceReading(SourceDocument(markup), registry),
-                state["events"],
-                here,
-            ).projection
-            carried = [
-                event["id"]
-                for event, _spec in projection.actions.values()
-                if event["revision"] < here
-            ]
-            if carried:
-                conflicts = evaluate_probe(
-                    page,
-                    "replayOverrides",
-                    {
-                        "curHtml": markup,
-                        "prevHtml": earlier,
-                        "carriedActions": carried,
-                    },
-                )
         relative = evaluate_probe(page, "relativeReplays")
     # The replay above can resize what an observer watches. Chrome
     # delivers that notice in the next rendering turn, so closing on the write
     # would call an attempt complete before its last error channel had spoken.
     one_frame(page)
     found = [f"[{scheme}] console: {e}" for e in errors]
-    for failure in failsoft:
-        owner = f"<{failure['tag']}" + (
-            f" id={failure['id']!r}>" if failure["id"] else ">"
-        )
-        found.append(f"[{scheme}] {owner} failed soft: {failure['message']}")
     for paint in invalid_paints:
         owner = f"<{paint['tag']}" + (f" id={paint['id']!r}>" if paint["id"] else ">")
         part = f" for data-id={paint['part']!r}" if paint["part"] else ""
@@ -367,7 +328,7 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         )
     if tiny:
         found.append(
-            f"[{scheme}] widgets rendered with no usable size: {json.dumps(tiny)}"
+            f"[{scheme}] widgets rendered with no usable size: {json_value(tiny)}"
         )
     found += [
         f"[{scheme}] <{u['tag']} id={u['id']!r}> shows {u['w']}x{u['h']}px of words"
@@ -378,7 +339,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         for u in unmarkable
     ]
     found += [f"[{scheme}] {text}" for _key, text in _overflow(overflow, misplaced)]
-    found += [f"[{scheme}] {s}" for s in stranded]
     found += [f"[{scheme}] {s}" for s in squeezed]
     found += [
         f"[{scheme}] the control .{c['ctrl'].split()[0]}"
@@ -414,14 +374,13 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         )
     found += [f"[{scheme}] {r}" for r in retired]
     found += [f"[{scheme}] {u}" for u in unsettled]
-    found += [f"[{scheme}] {c}" for c in conflicts]
     found += [f"[{scheme}] {r}" for r in relative]
     notices = [f"[{scheme}] console: {e}" for e in resize_notices]
     return found, notices
 
 
 def _overflow(overflow: int, misplaced: list) -> list[tuple[tuple[str, str], str]]:
-    """The sideways readings at one width, each keyed by its element and kind."""
+    """The sideways readings at one width, each keyed by its element's place and kind."""
     found = []
     if overflow > 0:
         found.append(
@@ -430,7 +389,7 @@ def _overflow(overflow: int, misplaced: list) -> list[tuple[tuple[str, str], str
                 f"the page scrolls sideways by {overflow}px",
             )
         )
-    return found + [((m["at"], m["kind"]), m["text"]) for m in misplaced]
+    return found + [((m["place"], m["kind"]), m["text"]) for m in misplaced]
 
 
 # The widths the sweep takes a loaded page through: a version holds at every width from
@@ -440,16 +399,8 @@ def _overflow(overflow: int, misplaced: list) -> list[tuple[tuple[str, str], str
 # above the desktop viewport.
 SWEEP_WIDTHS = range(360, 1921, 40)
 
-# What of the page's own stands in its margin: the tokens the margin pass writes on
-# `main` (margin-layout.js, `settleResidency`), less the rail, which holds only Leaf's
-# markers and never moves the column.
-MARGIN_READING = (
-    "(document.querySelector('main')?.getAttribute('data-lf-margin') ?? '')"
-    ".split(' ').filter(t => t && t !== 'rail').join(' ')"
-)
 
-
-def _settle_at(page, width: int, height: int) -> None:
+def settle_at(page, width: int, height: int) -> None:
     page.set_viewport_size({"width": width, "height": height})
     # What the resize set moving in script (an observer, the layout that observer's
     # write causes, and whatever that chains into) has run and been laid out.
@@ -468,11 +419,11 @@ def open_widgets(registry: dict) -> list[str]:
 def sweep(page, viewports, open_tags) -> list[tuple[int, dict]]:
     """The loaded page's geometry at every sweep width, widest first.
 
-    Resizes the loaded page rather than rendering it again, and reads only geometry:
-    the rest of the gate reads words, paint and state, which the fixed viewports
-    already see. The fixed widths are swept too. The sweep runs at the desktop height,
-    so a fault only a phone-height workspace posture shows is the phone viewport's to
-    report."""
+    Resizes the loaded page rather than rendering it again, and reads only the
+    geometry the functions below report across widths (`geometryReading`): the rest
+    of the gate is read at the fixed viewports. The fixed widths are swept too. The
+    sweep runs at the desktop height, so a fault only a phone-height workspace
+    posture shows is the phone viewport's to report."""
     height = viewports[0]["height"]
     fixed = {viewport["width"] for viewport in viewports}
     readings = []
@@ -480,20 +431,40 @@ def sweep(page, viewports, open_tags) -> list[tuple[int, dict]]:
     # than from the desktop: a jump from 1200px straight to 360px left an lf-shot laid
     # out for the desktop for a frame under load, and the sweep read that frame.
     for width in sorted({*SWEEP_WIDTHS, *fixed}, reverse=True):
-        _settle_at(page, width, height)
-        readings.append(
-            (
-                width,
-                {
-                    "overflow": evaluate_probe(page, "rootOverflow"),
-                    "misplaced": evaluate_probe(page, "misplacedBoxes"),
-                    "margin": page.evaluate(MARGIN_READING),
-                    "arrangement": evaluate_probe(page, "arrangedBoxes", open_tags),
-                    "panes": evaluate_probe(page, "heldPanes"),
-                },
-            )
-        )
+        settle_at(page, width, height)
+        readings.append((width, evaluate_probe(page, "geometryReading", open_tags)))
     return readings
+
+
+def _span(widths) -> str:
+    low, high = min(widths), max(widths)
+    return f"{low}px" if low == high else f"{low}–{high}px"
+
+
+def _swept(readings, faults) -> list[tuple[list[int], object]]:
+    """Each unbroken run of sweep steps a fault stands across, widest first, with
+    its widths and what the fault reads at the narrowest of them.
+
+    `faults` names each fault in one width's reading as (key, reading), keyed by the
+    element's place (locate.js) rather than its name, which two elements can share. A
+    fault that clears at some width and returns at a narrower one is two runs, each
+    reported on its own. A window that narrows leaves less room for what the page
+    holds, so a run's narrowest width is where its fault usually stands at its
+    worst."""
+    runs = []
+    latest = {}
+    for step, (width, reading) in enumerate(readings):
+        for key, fault in faults(reading):
+            last = latest.get(key)
+            if last is not None and last[0] == step - 1:
+                run = last[1]
+                run[0].append(width)
+                run[1] = fault
+            else:
+                run = [[width], fault]
+                runs.append(run)
+            latest[key] = (step, run)
+    return [(widths, fault) for widths, fault in runs]
 
 
 def arrangement_changes(readings) -> list[tuple[int, str, str]]:
@@ -531,27 +502,26 @@ def stacked_panes(readings, desktop: int) -> list[str]:
     which the page is, so a body of rows that adds columns only in an ultrawide window
     is not in question."""
     meant = {
-        body["at"]
+        body["place"]
         for width, reading in readings
         if width == desktop
         for body in reading["panes"]
         if body["beside"] > 1
     }
-    stacked = {}
-    for width, reading in readings:
-        for body in reading["panes"]:
-            if body["held"] and body["beside"] == 1 and body["at"] in meant:
-                stacked.setdefault(body["at"], []).append(width)
-    found = []
-    for at, widths in stacked.items():
-        low, high = min(widths), max(widths)
-        span = f"{low}px" if low == high else f"{low}–{high}px"
-        found.append(
-            f"at {span} wide, {at} stacks its panes in one column while the workspace "
-            "fills the window, so they share one window's height; stack them only "
-            "where the Layout stops holding it (page-authoring.md, A workspace)"
-        )
-    return found
+    stacked = _swept(
+        readings,
+        lambda reading: (
+            (body["place"], body)
+            for body in reading["panes"]
+            if body["held"] and body["beside"] == 1 and body["place"] in meant
+        ),
+    )
+    return [
+        f"at {_span(widths)} wide, {body['at']} stacks its panes in one column while "
+        "the workspace fills the window, so they share one window's height; stack "
+        "them only where the Layout stops holding it (page-authoring.md, A workspace)"
+        for widths, body in stacked
+    ]
 
 
 def margin_changes(page, readings, height: int) -> list[int]:
@@ -568,8 +538,8 @@ def margin_changes(page, readings, height: int) -> list[int]:
             continue
         while high - low > 1:
             middle = (low + high) // 2
-            _settle_at(page, middle, height)
-            if page.evaluate(MARGIN_READING) == above:
+            settle_at(page, middle, height)
+            if evaluate_probe(page, "marginResidents") == above:
                 high = middle
             else:
                 low = middle
@@ -578,60 +548,98 @@ def margin_changes(page, readings, height: int) -> list[int]:
 
 
 def swept_overflow(readings, viewports) -> list[str]:
-    """Sideways overflow the fixed viewports miss, at the narrowest width it starts.
+    """Sideways overflow the fixed viewports miss, with the widths each run of it
+    spans and what it reads at the narrowest.
 
-    A fault met at a fixed width is dropped here, because that viewport's own reading
-    already reports it in both schemes."""
+    A run that takes in a fixed width is dropped here, because that viewport's own
+    reading already reports it in both schemes."""
     fixed = {viewport["width"] for viewport in viewports}
-    seen = {}
-    for width, reading in readings:
-        for key, text in _overflow(reading["overflow"], reading["misplaced"]):
-            widths, _text = seen.setdefault(key, ([], text))
-            widths.append(width)
-    found = []
-    for widths, text in seen.values():
-        if fixed & set(widths):
-            continue
-        low, high = min(widths), max(widths)
-        span = f"{low}px" if low == high else f"{low}–{high}px"
-        found.append(f"at {span} wide, {text}")
-    return found
+    return [
+        f"at {_span(widths)} wide, {text}"
+        for widths, text in _swept(
+            readings,
+            lambda reading: _overflow(reading["overflow"], reading["misplaced"]),
+        )
+        if not fixed & set(widths)
+    ]
 
 
-# The drawn size below which a shrunk label is advised about. The theme's drawing idiom
-# sets its labels at 10–12px in the viewBox's units (theme.css, `svg.drawing`; its 9px
-# step glyph is one bold numeral on a dot), so an idiom drawing shown at its own width
-# stays clear of it, and one shrunk by a fifth does not.
-LEGIBLE_LABEL_PX = 10
+# The advice below is read from the sweep, at every swept width, since a narrower window
+# can draw a page worse than either fixed viewport does. Each item names the widths it
+# spans and what it reads at the narrowest. Which of those widths a page answers for is
+# the author's call, so none of it refuses a version.
 
 
-def shrunk_label_advice(page) -> list[str]:
+def shrunk_label_advice(readings) -> list[str]:
     """Advice naming each drawing whose fit to its box draws labels too small to read.
 
-    Read at the desktop viewport, where the other advice is: a narrower window scales a
-    drawing further still, and which of its widths a page answers for is not settled here.
     Advice rather than a failure because the remedy is a choice of composition — larger
     labels, fewer of them, a narrower drawing, more room — that only the author can make,
     and a page that makes none of them still says everything it says."""
-    width = page.viewport_size["width"]
+    drawings = _swept(
+        readings,
+        lambda reading: (
+            (d["place"], (d, reading["labels"]["threshold_px"]))
+            for d in reading["labels"]["drawings"]
+        ),
+    )
     return [
-        f"at {width}px wide {d['at']} draws {d['labels']} label(s) below "
-        f"{LEGIBLE_LABEL_PX}px, the smallest ({d['words']!r}) at {d['drawn']:g}px from "
-        f"the {d['set']:g}px it was set at: the drawing is scaled to fit its box and its "
-        "labels with it, so set them larger in the viewBox's units, draw the viewBox "
-        "nearer the width it is shown at, or give it more room "
-        "(authoring-evidence.md, Interactive and visual evidence)"
-        for d in evaluate_probe(page, "shrunkLabels", LEGIBLE_LABEL_PX)
+        f"at {_span(widths)} wide {d['at']} draws labels below {threshold}px, "
+        f"{d['labels']} at {min(widths)}px, the smallest ({d['words']!r}) at "
+        f"{d['drawn']:g}px from the {d['set']:g}px it was set at: the drawing is "
+        "scaled to fit its box and its labels with it, so set them larger in the "
+        "viewBox's units, draw the viewBox nearer the width it is shown at, or give it "
+        "more room (authoring-evidence.md, Interactive and visual evidence)"
+        for widths, (d, threshold) in drawings
     ]
+
+
+def overflowing_region_advice(readings, height: int) -> list[str]:
+    """Advice naming each region of a screen that runs past the room it has, as
+    `overflowingRegions` reads it in a sweep taken at `height`.
+
+    A full-height workspace is a screen the reader moves through rather than scrolls,
+    so its regions should show what they hold, and one that scrolls is the exception
+    (page-authoring.md, A workspace). Advice rather than a failure: a region that
+    scrolls still shows everything, and whether to trim it or split it is the author's
+    call. A region holding more than one open Ask is a queue of items to decide
+    stacked into one scroll, so its advice names the queue form instead of trimming."""
+    found = []
+    regions = _swept(
+        readings,
+        lambda reading: ((region["id"], region) for region in reading["regions"]),
+    )
+    for widths, region in regions:
+        where = (
+            f"at {_span(widths)} wide and {height}px tall {region['at']} runs past "
+            f"the region it scrolls in, {region['over']}px at {min(widths)}px"
+        )
+        if region["asks"] > 1:
+            found.append(
+                f"{where}, and holds {region['asks']} open Asks: a reader decides "
+                "them one at a time, so make the items a queue, one "
+                '`lf-tabs list="side"` whose tabs each hold one (page-authoring.md, '
+                "A workspace)"
+            )
+        else:
+            found.append(
+                f"{where}: a workspace is a screen the reader moves through, so trim "
+                "it to what the region shows or split it, unless the region is a "
+                "reader for something long, such as a source file or a log "
+                "(page-authoring.md, A workspace)"
+            )
+    return found
 
 
 def unreserved_height_advice(page, declarations: dict) -> list[str]:
     """Advice naming each widget whose module drew it at a height its first paint did
     not reserve (x-height), with the data-height that would have.
 
-    Read at the desktop viewport, where the other advice is. Advice rather than a
-    failure: the page reads the same once the drawing lands, and only the moment it
-    lands moves what follows it."""
+    Read at the desktop viewport the page first painted at, before the sweep resizes
+    it: the reading compares each box with its first paint, and at another width a
+    box's height moves with its reflow whatever its first paint reserved. Advice
+    rather than a failure: the page reads the same once the drawing lands, and only
+    the moment it lands moves what follows it."""
     return [
         f"<{w['tag']} id={w['id']!r}> draws {w['drawn']}px tall where its first paint "
         + (
@@ -642,3 +650,41 @@ def unreserved_height_advice(page, declarations: dict) -> list[str]:
         + f', so what follows it moves when it is drawn: state data-height="{w["drawn"]}"'
         for w in evaluate_probe(page, "unreservedHeights", declarations)
     ]
+
+
+def framing_advice(page) -> list[str]:
+    """Report authored boxes whose visible inset includes a child's outer margin,
+    and rows whose edge trim separates their items.
+
+    Padding and margins can be intentional, so these measurements refuse nothing.
+    The shared probes also inspect Leaf's chrome and module implementations; their
+    findings belong to the suite rather than the author editing the page.
+    """
+
+    found = []
+    for box in evaluate_probe(page, "trappedMargins"):
+        if not box["authored"]:
+            continue
+        through = "".join(f" through <{tag}>" for tag in box["through"])
+        trim = (
+            "Restore the declared frame's content-edge trim"
+            if box["frameDeclared"]
+            else "Use --lf-block-frame: 1 for a drawn frame, or --lf-block-frame: trim "
+            "for a transparent grouping"
+        )
+        found.append(
+            f"{box['at']} draws {box['drawn']:g}px of inset and shows "
+            f"{box['drawn'] + box['margin']:g}px {box['edge']} its <{box['child']}>"
+            f"{through}: {box['margin']:g}px of child margin stays inside the box. "
+            f"{trim}; put spacing between selectable blocks in the parent's gap "
+            "or outside margins"
+        )
+    for row in evaluate_probe(page, "splitEdges"):
+        if not row["authored"]:
+            continue
+        found.append(
+            f"{row['at']} trims only one item at its {row['edge']} edge while "
+            f"another keeps {row['margin']:g}px of margin. Declare "
+            "--lf-holds-edge: 1 on this flex or grid row to keep its items aligned"
+        )
+    return list(dict.fromkeys(found))

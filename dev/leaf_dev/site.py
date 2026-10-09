@@ -34,6 +34,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from dataclasses import replace
 from functools import partial
 from html.parser import HTMLParser
 from pathlib import Path
@@ -53,17 +54,17 @@ from leaf.schema import (
 from leaf.structure import FRAME_ANCESTORS_CSP, SourceDocument
 from leaf_website import SITE_MANIFEST, SITE_ORIGIN, initial_state, site_metadata
 
-from leaf_dev import ROOT
+from leaf_dev import LEAF_COMMAND, ROOT
+from leaf_dev.arms import environment
 from leaf_dev.example_data import catalog_sources
-from leaf_dev.harness import environment
 from leaf_dev.leaf_assets import pinned_assets
 from leaf_dev.page_fixtures import (
     package_selection_args,
     prepare_page,
     read_fixture,
+    source_packages,
 )
 
-LEAF = ROOT / "bin" / "leaf"
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
 INTERNAL_EXAMPLES = {"corpus"}
@@ -78,8 +79,8 @@ PRODUCT_ROUTES = {
     "extending.html": "/extending/",
     "registry.html": "/registry/",
     "event-log.html": "/event-log/",
+    "threads.html": "/threads/",
 }
-SITE_PACKAGE = "./docs/package"
 # The card a link to a product page unfurls into, shot at the 1.91:1 an unfurler draws
 # by `leaf_dev.record_demo`, relative to the asset tree. An example names its own
 # catalog preview instead.
@@ -194,7 +195,7 @@ def check_links(out: Path) -> None:
 def leaf(env: dict, *args: str, input_text: str | None = None) -> None:
     """A leaf command, quiet unless it fails, and then exiting with what it said."""
     done = subprocess.run(
-        [str(LEAF), *args],
+        [*LEAF_COMMAND, *args],
         cwd=ROOT,
         env=env,
         capture_output=True,
@@ -240,9 +241,8 @@ def social_images(assets: Path) -> dict[str, str]:
     """The public card image behind each page root.
 
     Both are named at the page root that publishes the file: the product shot at the
-    site root, and an example's preview in the catalog, which is the page the previews
-    were stored against. Every root serves the whole media set, so the two paths hold
-    for a card unfurled from any page.
+    site root, and an example's preview in the catalog, whose authored markup selects
+    those images. These website paths address the publishing page from any link.
     """
     catalog = PRODUCT_ROUTES["examples.html"].rstrip("/")
     images = {
@@ -320,7 +320,7 @@ def deduplicate_tree(root: Path, *, mutable_names: set[str] = frozenset()) -> No
         os.link(existing, path)
 
 
-def publish_examples(out: Path, env: dict) -> None:
+def publish_examples(out: Path, env: dict, *, assets: Path) -> None:
     """Publish worked examples and developer references without product pages."""
     for source in published_page_sources():
         published = out / "examples" / source.stem
@@ -331,36 +331,51 @@ def publish_examples(out: Path, env: dict) -> None:
             partial(leaf, env),
             final_status="idle",
             current_note="As published",
+            assets=assets,
         )
         print(f"  {source.stem}")
 
 
-def publish_pages(out: Path, env: dict, assets: Path) -> None:
-    """Canonical interactive product documents and worked examples."""
+def publish_pages(
+    out: Path, env: dict, assets: Path, source_markup: dict[Path, str]
+) -> None:
+    """Publish product documents with build-local markup and authored companions.
+
+    Overrides are private source files, consumed by validation and the final stamp;
+    their companions and prior versions still come from the authored source. The
+    supplied asset tree provides media selected by those documents.
+    """
     with tempfile.TemporaryDirectory() as tmp:
         template = Path(tmp) / "product-page"
-        packages = json.loads((EXAMPLES / "layer.json").read_text(encoding="utf-8"))
-        selection = package_selection_args([*packages, SITE_PACKAGE])
+        selection = package_selection_args(source_packages(DOCS / "index.html"))
         leaf(env, "page", "init", *selection, str(template))
-        # Put the authored images behind the content-addressed paths the product
-        # sources name before validating and rendering them.
-        product_media = [
-            assets / SOCIAL_CARD,
-            *(
-                assets / "examples" / f"example-{source.stem}.jpg"
-                for source in catalog_sources()
-            ),
-        ]
-        leaf(env, "page", "media", str(template), *map(str, product_media))
-        # Each product document is checked in the template, then published as a copy.
+        # Reuse the initialized layer; each document prepares its own authored inputs.
         for source in product_sources():
-            shutil.copyfile(source, template / "index.html")
-            leaf(env, "page", "check", str(template))
+            fixture = read_fixture(source)
+            if source in source_markup:
+                private_source = Path(tmp) / source.name
+                private_source.write_text(source_markup[source], encoding="utf-8")
+                fixture = replace(
+                    fixture,
+                    source=private_source,
+                    versions=tuple(
+                        private_source if version == source else version
+                        for version in fixture.versions
+                    ),
+                )
             target = product_page(out, source.name)
             shutil.copytree(template, target)
-            leaf(env, "page", "stamp", str(target), "--text", "As published")
-            leaf(env, "status", str(target), "idle")
-    publish_examples(out, env)
+            prepare_page(
+                target,
+                fixture,
+                partial(leaf, env),
+                initialize=False,
+                final_status="idle",
+                current_note="As published",
+                assets=assets,
+            )
+            leaf(env, "page", "check", str(target))
+    publish_examples(out, env, assets=assets)
 
 
 def publish_live_shells(
@@ -368,6 +383,16 @@ def publish_live_shells(
 ) -> Path:
     """Materialize the public bytes of every private page directory."""
     images = social_images(assets)
+    if include_products:
+        # This image belongs to website-generated social metadata. Authored images
+        # have already been materialized by the shared fixture preparation.
+        leaf(
+            environment(),
+            "page",
+            "media",
+            str(product_page(out, "index.html")),
+            str(assets / SOCIAL_CARD),
+        )
     digest = hashlib.sha256()
     for path in sorted(
         candidate for candidate in out.rglob("*") if candidate.is_file()
@@ -457,16 +482,22 @@ def build_examples(out: Path, *, assets: Path) -> None:
     """Build only the public example routes used to record catalog previews."""
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
-    # `environment()` keeps the builder's host session out of published version notes.
-    publish_examples(out, environment())
+    # `environment()` keeps the builder's harness session out of published version notes.
+    publish_examples(out, environment(), assets=assets)
     publish_live_shells(out, assets, include_products=False)
 
 
-def build(out: Path, *, assets: Path | None = None) -> None:
+def build(
+    out: Path,
+    *,
+    assets: Path | None = None,
+    source_markup: dict[Path, str] | None = None,
+) -> None:
+    """Build one site, optionally validating draft markup without editing its sources."""
     assets = assets or pinned_assets()
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
-    publish_pages(out, environment(), assets)
+    publish_pages(out, environment(), assets, source_markup or {})
     publish_live_shells(out, assets)
     check_links(out)
 
@@ -486,10 +517,22 @@ def bundle_published_runtime(out: Path) -> None:
 
 
 @click.command("site")
-def site() -> None:
-    """Build leaf.page into .tmp/site."""
-    build(OUT)
-    bundle_published_runtime(OUT)
+@click.option(
+    "--output",
+    type=click.Path(path_type=Path),
+    default=OUT,
+    help="Build destination (default: .tmp/site).",
+)
+def site(output: Path) -> None:
+    """Build leaf.page and its edge assets."""
+    from leaf.state import flocked
+
+    output = output.resolve()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    # One destination is one publication; independent builds use separate outputs.
+    with flocked(output.with_name(f"{output.name}.lock")):
+        build(output)
+        bundle_published_runtime(output)
     click.echo(
-        f"✓ {len(list(OUT.rglob('*.html')))} pages → {OUT} and {asset_site(OUT)}"
+        f"✓ {len(list(output.rglob('*.html')))} pages → {output} and {asset_site(output)}"
     )

@@ -1,6 +1,9 @@
 """Shared fixtures, and the address the suite starts a leaf process at."""
 
+import contextlib
+import inspect
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -8,18 +11,21 @@ import sys
 from pathlib import Path
 from typing import NamedTuple
 
+import psutil
 import pytest
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import host as host_model
+from leaf import codex as codex_model
+from leaf import harness as harness_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf.render_gate import browser as browser_model
+from leaf_dev import LEAF_COMMAND
+from leaf_dev.browser import LINUX_FONTCONFIG, require_linux_fonts
 from playwright.sync_api import sync_playwright
 
-# The canonical subprocess command. Tests of the installed host boundary invoke
+__all__ = ["LEAF_COMMAND"]
+
+# The canonical subprocess command. Tests of the installed harness boundary invoke
 # that payload's `bin/leaf`; every other process test runs the checkout directly.
-LEAF_COMMAND = [sys.executable, "-m", "leaf"]
 # Start every child the way a terminal starts one. A run launched as a shell's
 # background job is handed SIGINT set to SIG_IGN, and an inherited SIG_IGN
 # survives both Python startup and `exec`, so everything the run spawns ignores
@@ -43,8 +49,10 @@ pytest_plugins = (
 # was 146, copying them all made a complete nightly run 2,272 pages and 393,473
 # directory entries, which is the number a filesystem event watcher charges for
 # — hard links share the bytes but not the entry. So the layer is written once
-# per shape and lent, and only what a test actually changed is put back.
-LENT_LINKED_DIRS = frozenset({"runtime", "vendor"})
+# per shape and lent, and only what a test actually changed is put back. A
+# stamped revision's bundle is immutable too, so a shape's revisions are linked
+# like its layer.
+LENT_LINKED_DIRS = frozenset({"runtime", "vendor", "revisions"})
 
 
 class PagePool:
@@ -209,10 +217,6 @@ def initialized_page(_page_pool):
     def lend(name, destination, initialize):
         page = _page_pool.lend(name, Path(destination), initialize)
         lent.append((name, page))
-        status_path = page / "status.json"
-        status = files_model.read_json(status_path)
-        status["ts"] = events_model.now_iso()
-        files_model.write_json(status_path, status)
         return page
 
     yield lend
@@ -230,18 +234,18 @@ def pytest_addoption(parser):
     parser.addoption(
         "--nightly-changed-since",
         metavar="REF",
-        help="Also run the nightly-marked tests in the test files changed since REF",
+        help="Also run the nightly-marked tests whose own lines changed since REF",
     )
 
 
 @pytest.hookimpl(wrapper=True)
 def pytest_runtest_call(item):
-    """A test body that returns has its last shifts judged before its fixtures end
-    (`render_harness.judge_shifts`)."""
-    from render_harness import judge_shifts
+    """A test body that returns has its last shifts and lost words judged before its
+    fixtures end (`render_harness.judge_watches`)."""
+    from render_harness import judge_watches
 
     result = yield
-    judge_shifts()
+    judge_watches()
     return result
 
 
@@ -249,8 +253,9 @@ def pytest_collection_modifyitems(config, items):
     """Broad discovery stays cheap; explicit selections run what they name.
 
     A change that moves a browser behaviour usually edits the test that holds it, so both
-    landing gates add the nightly tests in the test files the change touches
-    (`--nightly-changed-since`): those run before it lands rather than on main after."""
+    landing gates add the nightly tests whose own lines the change touches
+    (`--nightly-changed-since`): those run before it lands, and CI's `test` job runs
+    the rest on main after."""
     selected = (
         config.getoption("keyword")
         or config.getoption("markexpr")
@@ -259,50 +264,74 @@ def pytest_collection_modifyitems(config, items):
     )
     if config.getoption("--run-nightly") or selected:
         return
-    changed = set()
+    changed = {}
     if since := config.getoption("--nightly-changed-since"):
-        diff = subprocess.run(
-            ["git", "diff", "--name-only", f"{since}...HEAD", "--", "tests"],
-            cwd=config.rootpath,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if diff.returncode:
-            raise pytest.UsageError(
-                f"--nightly-changed-since {since}: {diff.stderr.strip()}"
-            )
-        changed = {config.rootpath / path for path in diff.stdout.split()}
+        changed = _changed_test_lines(config.rootpath, since)
     kept, nightly = [], []
     for item in items:
-        skipped = "nightly" in item.keywords and item.path not in changed
+        skipped = "nightly" in item.keywords and not _touches(item, changed)
         (nightly if skipped else kept).append(item)
     items[:] = kept
     config.hook.pytest_deselected(items=nightly)
 
 
-# A host session states its identity in the environment, under names of its own
-# (`host.IDENTITY_VARIABLES`). The suite is a Claude Code session, and
-# `session_harness` reads that set first, so a test about a Codex session takes
-# this away, and a test about no session at all takes the whole set (`sessionless`).
-CLAUDE_IDENTITY = host_model.ClaudeCodeHarness.identity_variables
+def _changed_test_lines(root, since):
+    """The lines under `tests/` that `since...HEAD` adds or edits, by file. A deletion
+    counts as the lines on either side of it, so deleting a test's decorators or its
+    last lines both touch the test."""
+    diff = subprocess.run(
+        ["git", "diff", "--unified=0", f"{since}...HEAD", "--", "tests"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if diff.returncode:
+        raise pytest.UsageError(
+            f"--nightly-changed-since {since}: {diff.stderr.strip()}"
+        )
+    changed, lines = {}, None
+    for line in diff.stdout.splitlines():
+        if line.startswith("+++ "):
+            lines = changed.setdefault(root / line.removeprefix("+++ b/"), set())
+        elif hunk := re.match(r"@@ -\S+ \+(\d+)(?:,(\d+))? @@", line):
+            start, count = int(hunk[1]), int(hunk[2] or 1)
+            lines.update(range(start, start + count) if count else (start, start + 1))
+    return changed
+
+
+def _touches(item, changed):
+    """Whether a change edits the test's own function, decorators included."""
+    if item.path not in changed:
+        return False
+    source, first = inspect.getsourcelines(item.function)
+    return not changed[item.path].isdisjoint(range(first, first + len(source)))
+
+
+# A harness session states its identity in the environment, under names of its own
+# (`harness.IDENTITY_VARIABLES`). The suite is a Claude Code session, and
+# `session_harness` answers with it wherever no nearer harness's process runs above
+# the command, so a test about a Codex session takes this away, and a test about
+# no session at all takes the whole set (`sessionless`).
+CLAUDE_IDENTITY = harness_model.ClaudeCodeHarness.identity_variables
 # The Claude Code sessions `isolated_session` marks as hooked: the worker's own
 # and the id lifecycle fixtures claim under (`record_claim`).
 HOOKED_SESSIONS = (f"pytest-{os.getpid()}", "s1")
 
 
 @pytest.fixture(scope="session", autouse=True)
-def failing_claude(tmp_path_factory):
-    """Put a `claude` that fails at once ahead of the developer's own on PATH, for
-    the rest of the run, before any fixture starts a server. A Claude Code page
-    server asks `claude` to name each thread a user opens (`thread_titles`), from a
-    thread that can outlive the test that posted the comment, so no teardown may
-    restore the real one under it; a test about titling puts its own `claude`
+def failing_harness_programs(tmp_path_factory):
+    """Put a `claude` and a `codex` that fail at once ahead of the developer's own on
+    PATH, for the rest of the run, before any fixture starts a server. A page server
+    asks the claimant's harness to name each thread a user opens (`thread_titles`),
+    from a thread that can outlive the test that posted the comment, so no teardown
+    may restore the real ones under it; a test about titling puts its own program
     first."""
-    programs = tmp_path_factory.mktemp("host-programs")
-    claude = programs / "claude"
-    claude.write_text("#!/bin/sh\nexit 1\n")
-    claude.chmod(0o755)
+    programs = tmp_path_factory.mktemp("harness-programs")
+    for name in ("claude", "codex"):
+        program = programs / name
+        program.write_text("#!/bin/sh\nexit 1\n")
+        program.chmod(0o755)
     os.environ["PATH"] = f"{programs}{os.pathsep}{os.environ['PATH']}"
 
 
@@ -313,7 +342,9 @@ def isolated_session(tmp_path_factory, monkeypatch):
     Keep the developer's session and machine state out of every fixture. A page
     tagged with the session running the tests is otherwise reported as unattended
     by the loop guard. Isolate XDG_STATE_HOME, where Leaf stores claims and installed
-    packages, while retaining HOME so subprocesses share the host's uv cache.
+    packages, and CODEX_HOME, where Codex reads its configuration and sessions,
+    while retaining HOME so subprocesses share the host's uv cache. Clear the
+    developer's App Server endpoint so a fake task cannot connect to it.
 
     The session the tests run as is this worker: a synthetic id, so nothing of
     the developer's answers for it, and the worker's own pid. Every page a test
@@ -323,7 +354,7 @@ def isolated_session(tmp_path_factory, monkeypatch):
     outright (tests/AGENTS.md, "Processes and servers"). A
     run started from a background job leaves that job's directory behind too, as
     it would any other fact about the developer's session. A test about a
-    command run from outside a host session strips the identity:
+    command run from outside a harness session strips the identity:
     `sessionless`.
 
     The state home is the fixture's value, for `_no_page_outlives_its_test`:
@@ -331,15 +362,17 @@ def isolated_session(tmp_path_factory, monkeypatch):
     it would read before this fixture sets it and after `monkeypatch` unsets it
     (tests/AGENTS.md, "Processes and servers")."""
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path_factory.mktemp("state")))
-    for name in host_model.IDENTITY_VARIABLES:
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path_factory.mktemp("codex")))
+    monkeypatch.delenv(codex_model.APP_SERVER_ENV, raising=False)
+    for name in harness_model.IDENTITY_VARIABLES:
         monkeypatch.delenv(name, raising=False)
     # Claude Code's session registry, where a live turn is read
-    # (`host.claude_code_session_records`): empty, so no session of the developer's
+    # (`harness.claude_code_session_records`): empty, so no session of the developer's
     # answers for a test's.
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path_factory.mktemp("claude")))
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", f"pytest-{os.getpid()}")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    # A Claude Code session whose host runs Leaf's hooks, as the plugin installs
+    # A Claude Code session whose harness runs Leaf's hooks, as the plugin installs
     # them, so its `leaf wait` only wakes it (`Harness.hooks_carry`).
     for session in HOOKED_SESSIONS:
         leases_model.mark_hooks(session)
@@ -348,8 +381,8 @@ def isolated_session(tmp_path_factory, monkeypatch):
 
 @pytest.fixture
 def sessionless(monkeypatch):
-    """A command run from outside any host session: a terminal, a login item."""
-    for name in host_model.IDENTITY_VARIABLES:
+    """A command run from outside any harness session: a terminal, a login item."""
+    for name in harness_model.IDENTITY_VARIABLES:
         monkeypatch.delenv(name, raising=False)
 
 
@@ -357,41 +390,53 @@ def sessionless(monkeypatch):
 def codex_env():
     """The environment a Codex session's commands run in, for the tests that put
     a real one above a leaf: everything this process holds but the Claude Code
-    identity, which `session_harness` would answer with instead."""
+    identity, which `session_harness` answers with wherever no codex runs above
+    the command, as for a process the Codex task detaches."""
     return {k: v for k, v in os.environ.items() if k not in CLAUDE_IDENTITY}
 
 
 def _retire(process: subprocess.Popen) -> None:
-    """End one started process, and anything still in the group it leads.
+    """End one started process and everything still in the group it leads.
 
-    A child given a session of its own leads a group, and what it spawns joins
-    that group: `leaf-dev preview` re-executes into `uv run`, which holds the
-    watcher as a child, so the handle the test keeps names the launcher rather
-    than the process doing the work. Ending the handle alone leaves the watcher
-    running — past the test, past the run, still serving its page and still
-    watching the checkout every later test reads. A child that shares the run's
-    own group is ended through its handle, because signalling that group would
-    signal the worker running the test.
+    The handle a test keeps often names a launcher rather than the process doing
+    the work: `leaf-dev preview` re-executes into `uv run`, which holds the
+    watcher as a child, and `under_codex`'s fake host holds the shell that runs
+    the command. Ending the handle alone leaves those running past the test and
+    the run, serving pages or watching the checkout. Closing the stdin a test
+    piped ends what waits on it, as a held `under_codex` shell does, even where
+    the test already ended the leader itself.
     """
-    if process.poll() is None:
-        # Read the group only while the process is running and unreaped, so the
-        # pid cannot have become someone else's by the time it is signalled.
-        if os.getpgid(process.pid) == process.pid:
+    # Imported here: `interact_support` imports this module, and is loaded as the
+    # plugin `pytest_plugins` names so that its assertions are rewritten.
+    from interact_support import STATED_TIMEOUT
+
+    if process.stdin:
+        with contextlib.suppress(BrokenPipeError):
+            process.stdin.close()
+    # The group outlives a leader that exits before its children. A pid is not
+    # reused while a group bears it, so a reaped leader whose pid nothing holds
+    # still names this group, and one whose pid a process holds again names a
+    # group that has already ended. A group left with only zombies, as when the
+    # leader exits during the signal, is one macOS refuses to signal.
+    if process.poll() is None or not psutil.pid_exists(process.pid):
+        with contextlib.suppress(ProcessLookupError, PermissionError):
             os.killpg(process.pid, signal.SIGTERM)
-        else:
-            process.terminate()
-    process.wait(timeout=5)
+    process.wait(timeout=STATED_TIMEOUT)
 
 
 @pytest.fixture
 def spawn():
-    """A process the test starts, ended when the test ends — the ones it expects
-    to have exited already included, since a run that fails before its own
-    assertion is exactly the one that would leave a process behind."""
+    """A process the test starts, ended with everything it started when the test
+    ends — the ones it expects to have exited already included, since a run that
+    fails before its own assertion is exactly the one that would leave a process
+    behind. Each leads a session of its own, so `_retire` can end it and the
+    descendants still in its group without signalling the worker running the test.
+    A descendant that starts a session of its own, as a detached server does, is
+    left to the fixture that owns it."""
     started = []
 
     def start(*args, **kwargs) -> subprocess.Popen:
-        process = subprocess.Popen(*args, **kwargs)
+        process = subprocess.Popen(*args, start_new_session=True, **kwargs)
         started.append(process)
         return process
 
@@ -404,8 +449,10 @@ def spawn():
 def dead_pid(spawn):
     """A pid that is certainly not running, for a record whose writer — a
     session, a server — has gone."""
+    from interact_support import STATED_TIMEOUT
+
     spent = spawn([sys.executable, "-c", ""])
-    spent.wait(timeout=5)
+    spent.wait(timeout=STATED_TIMEOUT)
     return spent.pid
 
 
@@ -423,7 +470,7 @@ def _browser(_playwright):
 
     With no channel named, Playwright uses its separate headless shell rather than
     installed Chrome's platform-window path. Session scope gives xdist one browser
-    per worker that requests it; the everyday smoke requests one, and the complete
+    per worker that requests it; the broad selection's smoke requests one, and the complete
     run can occupy all eight.
 
     Each test receives this process through the function-scoped `browser` fixture,
@@ -455,6 +502,32 @@ def browser(_browser, request):
     finally:
         for context in reversed(_browser.contexts):
             context.close()
+
+
+@pytest.fixture
+def firefox_browser(_playwright, request):
+    """Desktop Firefox, including its compositor's inherited-colour painting."""
+    from render_harness import WatchedBrowser, clean_browser
+
+    firefox = _playwright.firefox.launch()
+    try:
+        with clean_browser(request.node):
+            yield WatchedBrowser(firefox)
+    finally:
+        firefox.close()
+
+
+@pytest.fixture
+def webkit_browser(_playwright, request):
+    """Desktop WebKit, where wheel gestures can exercise nested scroll boundaries."""
+    from render_harness import WatchedBrowser, clean_browser
+
+    webkit = _playwright.webkit.launch()
+    try:
+        with clean_browser(request.node):
+            yield WatchedBrowser(webkit)
+    finally:
+        webkit.close()
 
 
 @pytest.fixture
@@ -507,7 +580,7 @@ def headless_shell():
 
     Playwright reports where its full Chromium build would be whether or not that
     build is installed, and the documented setup installs the shell alone
-    (tests/AGENTS.md, "Running tests"). Both sit under one
+    (tests/AGENTS.md, "Run what the change needs"). Both sit under one
     registry root at one build number, so the shell's path follows from Chromium's;
     where a developer installed the full build instead, that is the browser to hand
     over and the same tests hold on it. The `chromium-<build>` directory is found by
@@ -518,6 +591,9 @@ def headless_shell():
     here: a second `sync_playwright()` inside this process raises where the
     session's `browser` fixture already holds one open, so which tests had run
     first would decide whether the fixture worked."""
+    if sys.platform == "linux":
+        require_linux_fonts()
+        os.environ["FONTCONFIG_FILE"] = str(LINUX_FONTCONFIG)
     read = subprocess.run(
         [
             sys.executable,

@@ -1,9 +1,9 @@
 """Page-bound external data: one plain JSON file per source.
 
-`data.json` records the contract each source id was first bound to, which it keeps
-for the page's lifetime; `data/<source>.json` holds that source's current value as
-ordinary JSON. `leaf data set` validates before it writes, but any
-process may replace a value file, so every reading validates the value against its
+`data.json` records the contract each source id was last set under;
+`data/<source>.json` holds that source's current value as ordinary JSON.
+`leaf data set` validates before it writes, but any process may replace a value
+file, so every reading validates the value against its
 contract and reports a failing one as that source's `error` rather than its value.
 
 A source's revision is a digest of its file's bytes and `updated` its modification
@@ -14,6 +14,7 @@ value binds a source id nothing rewrites.
 
 import hashlib
 import json
+import os
 import re
 from datetime import datetime
 from pathlib import Path
@@ -21,10 +22,12 @@ from pathlib import Path
 import click
 
 from .data_contracts import DataError, payload_error, working_data_bindings
-from .files import json_bytes, replace_files
+from .files import replace_files
+from .registry.schema import json_value
 from .registry.storage import read_page_registry
 from .schema import DATA_CONTRACT_NAME, DATA_DIR, DATA_FILE, DATA_SOURCE_NAME
 from .service import PageTransaction
+from .state import json_bytes
 
 
 class StaleDataError(DataError):
@@ -65,6 +68,7 @@ def read_contracts(page_dir: Path) -> dict[str, str]:
 # re-reads each value file, and a large value costs far more to validate than to
 # digest, so a server judges each distinct value once.
 _JUDGED: dict[tuple[str, str, str], str | None] = {}
+_UNJUDGED = object()
 
 
 def _value_error(source: str, contract: str, value, revision: str, registry: dict):
@@ -72,11 +76,14 @@ def _value_error(source: str, contract: str, value, revision: str, registry: dic
         registry.get("$data", {}).get("contracts", {}).get(contract), sort_keys=True
     )
     key = source, declaration, revision
-    if key not in _JUDGED:
-        if len(_JUDGED) >= 1024:
-            _JUDGED.clear()
-        _JUDGED[key] = payload_error(source, contract, value, registry)
-    return _JUDGED[key]
+    held = _JUDGED.get(key, _UNJUDGED)
+    if held is not _UNJUDGED:
+        return held
+    if len(_JUDGED) >= 1024:
+        _JUDGED.clear()
+    error = payload_error(source, contract, value, registry)
+    _JUDGED[key] = error
+    return error
 
 
 def _refuse_constant(name: str):
@@ -89,8 +96,9 @@ def read_source(page_dir: Path, source: str, contract: str, registry: dict) -> d
     exists, that file's revision, `updated` instant, and `value` or `error`."""
     path = source_file(page_dir, source)
     try:
-        data = path.read_bytes()
-        modified = path.stat().st_mtime
+        with path.open("rb") as stream:
+            data = stream.read()
+            modified = os.fstat(stream.fileno()).st_mtime
     except FileNotFoundError:
         return {"contract": contract}
     reading = {
@@ -112,8 +120,9 @@ def read_source(page_dir: Path, source: str, contract: str, registry: dict) -> d
 def read_data(page_dir: Path, registry: dict | None) -> dict:
     """Every recorded source, read and judged against `registry`.
 
-    `version` digests the source revisions, so two readings of the same values
-    compare equal whatever else changed between them. A page whose layer cannot be
+    `version` digests each source's contract, byte revision and validity, so a
+    changed binding or validation result is news even when the file bytes match.
+    Modification time alone does not change a delivery. A page whose layer cannot be
     read has no contracts to judge its values by, and reads as holding none."""
     sources = (
         {
@@ -124,7 +133,15 @@ def read_data(page_dir: Path, registry: dict | None) -> dict:
         else {}
     )
     identity = json.dumps(
-        {source: reading.get("revision") for source, reading in sources.items()}
+        {
+            source: [
+                reading["contract"],
+                reading.get("revision"),
+                reading.get("error"),
+                "value" in reading,
+            ]
+            for source, reading in sources.items()
+        }
     )
     return {
         "version": hashlib.sha256(identity.encode()).hexdigest()[:16],
@@ -256,28 +273,19 @@ def _write_source(page_dir: Path, source: str, value) -> dict:
             page_dir, registry, page.events
         )
         if binding_errors:
-            raise DataError(
-                "the page history has conflicting data bindings: "
-                + "; ".join(binding_errors)
-            )
+            raise DataError("conflicting data bindings: " + "; ".join(binding_errors))
         contract = bindings.get(source)
         if contract is None:
             raise DataError(
                 f"source {source!r} is not bound by the page source, a version, or "
-                f"a thread widget; choose one of {sorted(bindings)}"
+                f"a thread widget; choose one of {json_value(sorted(bindings))}"
             )
         contracts = read_contracts(page_dir)
         recorded = contracts.get(source)
-        if recorded is not None and recorded != contract:
-            raise DataError(
-                f"source {source!r} is now bound to contract {contract!r}, but it "
-                f"was recorded with {recorded!r}; use a new source id for the new "
-                "meaning"
-            )
         if error := payload_error(source, contract, value, registry):
             raise DataError(error)
         writes = [(source_file(page_dir, source), json_bytes(value), False)]
-        if recorded is None:
+        if recorded != contract:
             contracts[source] = contract
             index = {
                 "sources": {
@@ -301,7 +309,7 @@ def cmd_data_set(page_dir: Path, source: str, value) -> None:
 
 
 def cmd_data_clear(page_dir: Path, source: str) -> None:
-    """Remove one source's value; its id keeps the contract it was recorded with."""
+    """Remove one source's current value; its next write uses its current binding."""
     if re.fullmatch(DATA_SOURCE_NAME, source) is None:
         raise DataError(f"invalid source name {source!r}")
     with PageTransaction(page_dir):

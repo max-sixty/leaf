@@ -8,45 +8,59 @@ import { runtime, runtimeResource } from "./context.js";
 import {
   BANNER_CONTROL_RANK,
   bannerActions,
+  markBannerControl,
   registerBannerControl,
   showBannerControl,
   showNews,
 } from "./banner-toolbar.js";
+import { iconElement } from "./icons.js";
 import { latestChip, versionBtn } from "./version-picker.js";
-import { asksBtn, othersBtn } from "./drawers.js";
-import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
+import { othersBtn, queueBtn } from "./drawers.js";
+import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { repaint } from "./repaint.js";
-import { announce, notice } from "./notifications.js";
+import { sizeObserver } from "./rendering.js";
+import {
+  announce,
+  notice,
+  noticeReading,
+  registerNoticePresentation,
+} from "./notifications.js";
 import { watchProjection } from "./projection-watch.js";
 import { createBannerApprovalFace } from "./banner-approval.js";
 import { createBannerStatusView } from "./banner-status-view.js";
 import { declareBanner } from "./geometry.js";
+import { agentName, readApplication, watchSemantic } from "./semantic-state.js";
+import { taskNoun } from "./queues.js";
 
 export const banner = el("header", "lf-ui lf-banner");
 banner.id = "lf-banner";
 declareBanner(banner);
 const bannerStatus = createBannerStatusView(repaint);
+registerNoticePresentation(() => bannerStatus.presentNotice(noticeReading()));
 export const dot = bannerStatus.dot;
+// The agent's Tasks count, which opens the Questions panel listing them (drawers.js).
+export const queueCounts = bannerStatus.queues;
 
-export const toggleBtn = el(
-  "button",
-  "lf-btn lf-auxiliary-toggle lf-threads-toggle",
-  "Threads",
-);
+// Threads reads "Threads: 3" on a desk and, on a phone's one row, a thread icon with its
+// count, which chrome.css draws from `data-lf-count`; the accessible name is the same
+// words on both. The desk's words stay one run of text, so they draw as they always have.
+export const toggleBtn = el("button", "lf-btn lf-auxiliary-toggle lf-threads-toggle");
+const threadsLabel = el("span", "lf-threads-label", "Threads");
+toggleBtn.append(iconElement("comment", "lf-threads-icon"), threadsLabel);
 toggleBtn.title = "Show or hide the thread panel";
 toggleBtn.setAttribute("aria-expanded", "false");
 let openThreads = null;
 let unreadThreads = 0;
 function paintThreadCounts() {
-  keepsText(
-    toggleBtn,
-    openThreads === null ? "Threads" : `Open threads: ${openThreads}`,
-  );
+  const label = openThreads === null ? "Threads" : `Threads: ${openThreads}`;
+  const accessible = openThreads === null ? "Threads" : `Open threads: ${openThreads}`;
+  keepsText(threadsLabel, label);
+  keeps(toggleBtn, "data-lf-count", openThreads === null ? null : String(openThreads));
   toggleBtn.toggleAttribute("data-unread-threads", unreadThreads > 0);
   const unread = unreadThreads
     ? `${unreadThreads} unread ${unreadThreads === 1 ? "thread" : "threads"}`
     : null;
-  keeps(toggleBtn, "aria-label", unread && `${toggleBtn.textContent}, ${unread}`);
+  keeps(toggleBtn, "aria-label", unread ? `${accessible}, ${unread}` : accessible);
   keeps(
     toggleBtn,
     "data-lf-key-title",
@@ -81,13 +95,13 @@ registerBannerControl({
   control: latestChip,
   rank: BANNER_CONTROL_RANK.latest,
   conditional: true,
-  urgent: true,
+  urgent: "new",
 });
 registerBannerControl({
-  key: "asks",
-  control: asksBtn,
-  rank: BANNER_CONTROL_RANK.asks,
-  conditional: true,
+  key: "queue",
+  control: queueBtn,
+  rank: BANNER_CONTROL_RANK.queue,
+  seat: { desk: "row", phone: "menu" },
 });
 registerBannerControl({
   key: "versions",
@@ -98,7 +112,7 @@ registerBannerControl({
   key: "approval",
   control: approveBtn,
   rank: BANNER_CONTROL_RANK.approval,
-  seat: "row",
+  seat: { desk: "row", phone: "menu" },
   present: false,
 });
 registerBannerControl({
@@ -125,7 +139,7 @@ const WORK_WORDS = {
   awaiting_user: "waiting for you",
   replying: "replying",
 };
-export const countUpdates = (count) => `${count} update${count === 1 ? "" : "s"}`;
+export const countResponses = (count) => `${count} response${count === 1 ? "" : "s"}`;
 // What the banner and the leaves drawer both read off one page's server-owned `activity`
 // before either words it. Each seat keeps its own sentences; a fact they share changes
 // here once:
@@ -135,12 +149,14 @@ export const countUpdates = (count) => `${count} update${count === 1 ? "" : "s"}
 //   for a dropped claim.
 // - `listening` is whether input is still on its way to the agent (pending or queued),
 //   which turns a listening page's standing request into "listening".
-// - `waiting` phrases the queued and pending updates, in that order.
+// - `waiting` phrases the queued and pending moves, in that order.
 export function activityFacts({ activity }) {
   const { counts } = activity;
   const waiting = [];
-  if (counts.queued) waiting.push(`${countUpdates(counts.queued)} queued`);
-  if (counts.pending) waiting.push(`${countUpdates(counts.pending)} waiting`);
+  if (counts.queued)
+    waiting.push(`${countResponses(counts.queued)} owed on queued updates`);
+  if (counts.pending)
+    waiting.push(`${countResponses(counts.pending)} owed on updates awaiting delivery`);
   return Object.freeze({
     tone: TONE[activity.kind],
     work: WORK_WORDS[activity.observed_kind] || "working",
@@ -234,14 +250,69 @@ function paintTab() {
 // begins waiting for user input or approval, not on every observed work step or poll.
 let saidKind;
 let saidActionableWork;
-const presentStatus = ({
-  kind,
-  tone,
-  summary,
-  explanation,
-  publication = null,
-  actionableWork = null,
-}) => {
+
+// The page's two queues (`runtime/queues.js`) are told apart in the banner by where
+// they stand. What waits on the user, which `q` walks, is the Questions door beside
+// Threads (queue-panel.js paints its count), and on a phone's one row it waits in More.
+// What waits on the agent, its Tasks, stands beside the status, apart from the sentence,
+// as the banner's whole account of the agent's side, with the disclosure naming both
+// sides' kinds and each open task's title. The Tasks count is a page fact, like the
+// Threads count, and stands apart from the sentence so the agent's words changing never
+// carries it. On one row it ends the status's room, which gives up its words to the
+// ellipsis first; where the banner takes two rows, the sentence has the first to itself
+// and the count leads the second, ahead of the controls, and a phone's one row leaves it
+// to the disclosure (chrome.css). Its box is reserved for the count it usually reaches,
+// as the Threads control is for "Threads: 999", and only grows, so a count changing
+// moves none of its words. Both are read from the application's publication rather
+// than the state answer: a reply the user sends leaves their count and joins the
+// agent's in the turn it is sent. A press on either opens the Questions panel, which
+// lists both.
+const QUEUE_WORDS = Object.freeze({
+  ask: ["Ask", "Asks"],
+  question: ["question", "questions"],
+  recovery: ["update to send again", "updates to send again"],
+  answer: ["answer", "answers"],
+  reply: ["reply", "replies"],
+  work: ["update with work started", "updates with work started"],
+  task: ["task", "tasks"],
+});
+function queueKinds(items) {
+  const byKind = new Map();
+  for (const item of items)
+    byKind.set(taskNoun(item), [...(byKind.get(taskNoun(item)) ?? []), item]);
+  return [...byKind].map(([kind, all]) => {
+    const words = `${all.length} ${QUEUE_WORDS[kind][all.length === 1 ? 0 : 1]}`;
+    // A task outlasts the turns and the thread that opened it (`tasks.py`), so each
+    // open one is named, including one on a thread the user has resolved.
+    return kind === "task"
+      ? `${words} (${all.map((task) => task.title).join(" · ")})`
+      : words;
+  });
+}
+function queueWords() {
+  const { onYou, onAgent } = readApplication().effective.queues;
+  const agent = agentName();
+  const named = (items, whom) =>
+    items.length ? `Waiting on ${whom}: ${queueKinds(items).join(", ")}.` : "";
+  return {
+    summary: onAgent.length ? `Tasks: ${onAgent.length}` : "",
+    explanation: [named(onYou, "you"), named(onAgent, agent)].filter(Boolean).join(" "),
+    // The widest the count usually reaches, under ten, which its box keeps; more
+    // widens it once (banner-status-view.js).
+    widest: "Tasks: 9",
+  };
+}
+const WITHOUT_QUEUES = new Set(["broken", "unreachable", "publication"]);
+let lastStatus = null;
+const presentStatus = (status) => {
+  lastStatus = status;
+  const { kind, tone, summary, publication = null, actionableWork = null } = status;
+  let { explanation } = status;
+  const queues = WITHOUT_QUEUES.has(kind)
+    ? { summary: "", explanation: "", widest: "" }
+    : queueWords();
+  if (queues.explanation)
+    explanation = `${explanation}${explanation.endsWith(".") ? "" : "."} ${queues.explanation}`;
   let publicationModel = null;
   if (publication) {
     // A publication's introduction and links remain an ordinary reading row.
@@ -261,6 +332,8 @@ const presentStatus = ({
     Object.freeze({
       tone,
       summary,
+      queues: queues.summary,
+      queuesWidest: queues.widest,
       explanation,
       publication: publicationModel,
     }),
@@ -290,7 +363,7 @@ function copyControl(trigger, success, error) {
 }
 
 // How old a Leaf payload is, so a user who meets a problem can tell whether it
-// predates the fixes since. A payload read from Git carries its commit's date; a host's
+// predates the fixes since. A payload read from Git carries its commit's date; a harness's
 // plugin cache, which drops `.git`, carries the time it copied the commit, one update
 // sweep after it landed (`layer.payload_provenance`).
 const payloadAge = (provenance) => ago(provenance.committed ?? provenance.installed);
@@ -358,7 +431,7 @@ function renderPreview(state) {
 }
 
 // The vendored layer is the Leaf version this page actually runs. It can remain older
-// than the plugin now installed on the host, so this reads the provenance captured by
+// than the plugin now installed in the harness, so this reads the provenance captured by
 // `page init` rather than a live package or server version. Pages built outside Git
 // retain a stable identity through the composed layer fingerprint.
 let layerReferenceElement = null;
@@ -428,6 +501,11 @@ function renderLayerReference(state) {
 // Status sentences for an unreachable server or a state the page cannot apply.
 const OFFLINE_LINE =
   "Server offline — reconnecting. Keep this page open so pending changes can send.";
+// A refused key leaves the page as cut off as a dead server, but the server is up and
+// only the user can end it. Opening the link in another tab sets the key this tab's
+// next request carries, so its pending changes send without a reload.
+const KEY_REFUSED_LINE =
+  "The server no longer accepts this tab's key. Open the link Leaf printed in a new tab, and keep this one open so pending changes can send.";
 const BROKEN_LINE = "Page couldn't apply current state — reload";
 // A published page states who replies and where to install Leaf.
 const publicationWords = (published) => [
@@ -439,8 +517,23 @@ const publicationWords = (published) => [
   "Install Leaf",
 ];
 
+// The moves an open turn picked up, by kind: a comment in a thread, or an answer to an
+// Ask. A lone move is the user's own; several are counted.
+function pickedUpWords({ comments, answers }) {
+  if (comments + answers === 1) return comments ? "your comment" : "your answer";
+  const counted = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
+  return [
+    comments && counted(comments, "comment"),
+    answers && counted(answers, "answer"),
+  ]
+    .filter(Boolean)
+    .join(" and ");
+}
+
 // Both levels of wording follow server-owned activity. Short summaries retain the
-// actionable distinction: listening, saved for a later session, or browser-only work.
+// actionable distinction: working, listening, away, or nobody holding the page. How many
+// moves are waiting or saved is the disclosure's; the row counts what waits on each
+// side instead (`queueWords`).
 function statusWords({
   age,
   agent,
@@ -451,16 +544,13 @@ function statusWords({
   kind,
   listening,
   overdue,
-  progressSummary,
   saved,
-  total,
   work,
 }) {
-  const savedSummary = total ? ` · ${total} saved` : "";
-  if (kind === "closed") return ["Leaf closed", "Leaf closed"];
+  if (kind === "closed") return ["Page closed", "Page closed"];
   if (kind === "unheld")
     return [
-      `No session${savedSummary}`,
+      "No session",
       `No session holds this page. ${saved} It picks up again when a session does.`,
     ];
   // The agent's own sentence is the reason to look at the row while it works, so the
@@ -470,16 +560,17 @@ function statusWords({
   // reading this row must not give.
   //
   // Until the agent writes that sentence, what Leaf knows is which of the user's
-  // updates its open turn took up, so the row names them rather than standing on a
-  // bare "working", and the disclosure says the agent's own words are still to come.
+  // moves its open turn picked up, so the row names them, in the words of their
+  // Picked up stage, rather than standing on a bare "working", and the disclosure
+  // says the agent's own words are still to come.
   if (kind === "working") {
-    const held = handling === 1 ? "your update" : `your ${handling} updates`;
-    const said = detail ? " — " + detail : handling ? " — on " + held : "";
+    const picked = pickedUpWords(handling);
+    const said = detail ? " — " + detail : picked ? " — picked up " + picked : "";
     return [
-      `${agent} ${work}${age && age !== JUST_NOW ? " · " + age : ""}${said}${progressSummary}`,
-      detail || !handling
+      `${agent} ${work}${age && age !== JUST_NOW ? " · " + age : ""}${said}`,
+      detail || !picked
         ? `${agent} is ${work}${said}`
-        : `${agent} is ${work} on ${held}, and hasn't said what it is doing yet`,
+        : `${agent} picked up ${picked} and hasn't said what it's doing yet`,
     ];
   }
   // A declared request tells the user what to do. Preserve it on the row when
@@ -487,10 +578,7 @@ function statusWords({
   if (kind === "listening") {
     const awaits = `${agent} awaits — ${detail || "select text to comment"}`;
     return listening
-      ? [
-          `${agent} listening${progressSummary}`,
-          `${agent} is listening${detail ? " — " + detail : ""}.`,
-        ]
+      ? [`${agent} listening`, `${agent} is listening${detail ? " — " + detail : ""}.`]
       : [awaits, awaits];
   }
   if (kind === "stalled")
@@ -500,11 +588,11 @@ function statusWords({
   // can reach once it has seen the turn end.
   return overdue
     ? [
-        `Nudge ${agent} in terminal${savedSummary}`,
+        `Nudge ${agent} in terminal`,
         `${dated}. ${saved} Nothing is answering them, so nudge it in the terminal.`,
       ]
     : [
-        `${agent} away${savedSummary}`,
+        `${agent} away`,
         `${agent} isn't watching right now. ${saved} It picks them up next turn.`,
       ];
 }
@@ -563,8 +651,15 @@ function renderStatusNow(state) {
     presentStatus({
       kind: "unreachable",
       tone: "offline",
-      summary: "Server offline — reconnecting; keep page open",
-      explanation: OFFLINE_LINE,
+      ...(runtime.keyRefused
+        ? {
+            summary: "Key refused — open Leaf's link in a new tab",
+            explanation: KEY_REFUSED_LINE,
+          }
+        : {
+            summary: "Server offline — reconnecting; keep page open",
+            explanation: OFFLINE_LINE,
+          }),
     });
     return;
   }
@@ -581,29 +676,25 @@ function renderStatusNow(state) {
   const { agent } = state;
   // What the user's words do meanwhile. The log takes them with nobody on the other
   // end; the only thing attendance changes is when they are read.
-  const saved = activity.counts.total
-    ? `${activity.counts.total} update${activity.counts.total === 1 ? " is" : "s are"} saved.`
-    : "Your comments are saved.";
-  const checkedIn = `${agent} last checked in ${facts.silentSince}`;
+  const saved = "Your updates are saved.";
+  const checkedIn = facts.silentSince
+    ? `${agent} last checked in ${facts.silentSince}`
+    : `No check-in from ${agent} is recorded`;
+  const ended = `${agent}’s turn ended${facts.silentSince ? " " + facts.silentSince : ""}`;
   const age = kind === "working" && activity.ts ? ago(activity.ts) : "";
-  const progress = [];
-  if (activity.counts.queued) progress.push(`${activity.counts.queued} queued`);
-  if (activity.counts.pending) progress.push(`${activity.counts.pending} waiting`);
-  const progressSummary = progress.length ? ` · ${progress.join(" · ")}` : "";
   const [summary, text] = statusWords({
     age,
     agent,
-    dated: facts.left
-      ? `${agent} left this when its turn ended ${facts.silentSince}`
-      : checkedIn,
-    shortDate: facts.left ? `${agent}’s turn ended ${facts.silentSince}` : checkedIn,
+    dated: facts.left ? ended : checkedIn,
+    shortDate: facts.left ? ended : checkedIn,
     detail,
-    handling: activity.counts.handling,
+    handling: {
+      comments: activity.counts.handling_comments,
+      answers: activity.counts.handling - activity.counts.handling_comments,
+    },
     kind,
-    total: activity.counts.total,
     listening: facts.listening,
     overdue: activity.counts.overdue,
-    progressSummary,
     saved,
     work: facts.work,
   });
@@ -651,8 +742,23 @@ export function mountBanner({ approveVersion, paintApproval }) {
   signoff = isSignoffDeclared();
   showBannerControl(approveBtn, signoff);
   watchProjection(document.body, paintApproval);
-  for (const control of [asksBtn, othersBtn]) showNews(control, false);
-  banner.append(bannerStatus, bannerActions);
+  // The queues move with the application's publication, not only with a state answer.
+  watchSemantic(() => lastStatus && presentStatus(lastStatus));
+  showNews(othersBtn, false);
+  banner.append(bannerStatus, bannerStatus.queues, bannerActions);
+  // On two rows the Tasks count stands on the second line only where the run leaves it
+  // room whole, else on a third the banner does not draw, and a phone's one row leaves
+  // it out (chrome.css). A press there is a stop nobody can see, so an undrawn count is
+  // inert; the Questions door and the status's disclosure still reach what it says.
+  const counts = bannerStatus.queues;
+  const seatCounts = sizeObserver(() => {
+    const drawn =
+      counts.checkVisibility() &&
+      counts.getBoundingClientRect().bottom <=
+        banner.getBoundingClientRect().bottom + 0.5;
+    keeps(counts, "inert", drawn ? null : "");
+  });
+  for (const box of [banner, bannerActions, counts]) seatCounts.observe(box);
   reserveBannerControls();
   approveBtn.onclick = async () => {
     if (approving) return;
@@ -677,7 +783,7 @@ export function mountBanner({ approveVersion, paintApproval }) {
 // Sign-off belongs to the authored revision, and the head it rides in is the only copy
 // of it: a revision this document takes on in place brings its own, so the reading is
 // taken from the document each time rather than kept beside it. The control stands for
-// the declaration alone, which the banner's rows follow too (theme.css): a control a
+// the declaration alone; the banner's allocation is independent of it: a control a
 // stamp put up would be news taking room on the row. Before a stamp the press is refused
 // with its reason (paintApproval) instead.
 export function stateSignoff(next, syncLayout, paintApproval) {
@@ -690,12 +796,14 @@ export function stateSignoff(next, syncLayout, paintApproval) {
   syncLayout();
 }
 
-// The two primary controls hold the widest words they can show, so an asynchronous
-// count or approval result cannot move its sibling. Secondary controls can grow inside
+// The primary controls reserve the widest words they can show, so an asynchronous
+// count or approval result cannot move a sibling. CSS bounds Approval's room when
+// the complete words cannot fit. Secondary controls can grow inside
 // More without changing the page's reading loop.
 function reserveBannerControls() {
   if (signoff) reserve(approveBtn, ["Approve version", "✓ Version approved"]);
-  reserve(toggleBtn, ["Threads", "Open threads: 999"]);
+  reserve(queueBtn, ["Questions: 99"]);
+  reserve(toggleBtn, ["Threads", "Threads: 999"]);
 }
 
 let approving = false;
@@ -714,7 +822,7 @@ export function paintApproval(pendingApprovals, blockingAsks, acceptedApprovals)
   // Why a press is refused now, or null where it approves. A press already in flight
   // is refused silently: its aria-busy says so.
   const reason = approved
-    ? "Approved. Press z to take it back while it is still your last gesture"
+    ? "Approved. Press z to undo while approval is still your latest update"
     : runtime.currentStamp === null
       ? "There is no stamped version to approve yet"
       : !signoff ||
@@ -731,5 +839,9 @@ export function paintApproval(pendingApprovals, blockingAsks, acceptedApprovals)
       title: reason ?? "Approve this work; the page stays open for follow-up",
     }),
   );
+  // Approval is open while a press would approve this version, and behind More, on a
+  // phone, that puts More's dot up. A refused press does not: the dot comes up when the
+  // last Ask holding approval is answered, which is when the user can act on it.
+  markBannerControl(approveBtn, reason === null ? "approval open" : null);
   repaint();
 }

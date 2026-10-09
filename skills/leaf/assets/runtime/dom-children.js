@@ -1,8 +1,17 @@
 /* Retained DOM child reconciliation. */
 import { diffArrays } from "/vendor/jsdiff.esm.js";
+import { render as renderTemplate } from "/vendor/browser-runtime.js";
 import { holdFocus } from "./focus.js";
 
 const detach = (node) => node.remove();
+
+// Keyed template moves preserve the native editor that the user stands in.
+export function render(value, container, options) {
+  const restore = holdFocus(container);
+  const part = renderTemplate(value, container, options);
+  restore?.();
+  return part;
+}
 
 // Make `parent`'s children `nodes`, in order, without moving a node already in place.
 // Removing stale nodes first leaves each following survivor exactly one place forward.
@@ -14,12 +23,29 @@ export function setChildren(parent, nodes, remove = detach) {
   order(parent, nodes);
 }
 
+// Replace a renderer-owned subtree using the same matching and text edits as an
+// authored revision. The caller owns every descendant's attributes and contents;
+// controls with independent state belong outside it. Current nodes pair to themselves,
+// so unchanged text and native Ranges stay in place without a source mirror.
+export function setRenderedChildren(parent, nodes) {
+  const after = document.createDocumentFragment();
+  after.append(...nodes);
+  patchChildren(parent, parent, after, {
+    pairs: new Map([...sourceNodes(parent)].map((node) => [node, node])),
+    arrive: (node) => node,
+    sameValue: (name, held, wanted) => held === wanted,
+    touched: () => {},
+    declared: () => false,
+    same: (held, wanted) => held.isEqualNode(wanted),
+    generated: () => false,
+  });
+}
+
 // Put `nodes` in order under `parent`, walking past the children `passed` names, and
-// moving only a node that is not already where it belongs. A node that does move keeps
-// the user standing in it: the hold is read before the first move, while the focus it
-// reads is still intact, and only a pass that moves anything takes one.
+// moving only a node that is not already where it belongs. A retained move within one
+// shadow-including tree preserves the browser's own state, including iframe documents
+// and editor focus. New nodes and nodes adopted from another tree arrive by insertion.
 function order(parent, nodes, passed = () => false) {
-  let restoreFocus = null;
   let cursor = parent.firstChild;
   for (const node of nodes) {
     while (cursor && passed(cursor)) cursor = cursor.nextSibling;
@@ -27,10 +53,10 @@ function order(parent, nodes, passed = () => false) {
       cursor = cursor.nextSibling;
       continue;
     }
-    restoreFocus ??= holdFocus(parent) ?? (() => false);
-    parent.insertBefore(node, cursor);
+    if (node.getRootNode({ composed: true }) === parent.getRootNode({ composed: true }))
+      parent.moveBefore(node, cursor);
+    else parent.insertBefore(node, cursor);
   }
-  restoreFocus?.();
 }
 
 /* Apply the difference between two authored revisions to the page standing between them.
@@ -67,7 +93,6 @@ function order(parent, nodes, passed = () => false) {
      A resource address is written per revision, so it is read past that root.
    - `touched(element)`: this live element's attributes changed, and whatever a dressing
      pass reads off its attributes is owed again.
-   - `retire(element)`: this live element is leaving, with every element under it.
    - `declared(element)`: an upgraded widget, whose children are its controller's. Asked
      of the held element; a match names the same element on both sides.
    - `reaches(before, after)`: this widget's controller leaves its members where the
@@ -104,7 +129,7 @@ const tree = (node) => (node.localName === "template" ? node.content : node);
 // revision that never mentioned them.
 function patchAttributes(live, before, after, rules) {
   let changed = false;
-  for (const { name, value } of before.attributes) {
+  for (const { name, value } of [...before.attributes]) {
     if (after.hasAttribute(name)) continue;
     if (name === "class") live.classList.remove(...tokens(value));
     else live.removeAttribute(name);
@@ -153,20 +178,11 @@ function writeText(node, next) {
   );
 }
 
-// Everything leaving, told to the caller before it goes. The element itself and every
-// element under it: a widget inside a replaced wrapper is as gone as the wrapper.
-function retire(node, rules) {
-  if (node.nodeType !== Node.ELEMENT_NODE) return;
-  rules.retire(node);
-  for (const inner of node.querySelectorAll("*")) rules.retire(inner);
-}
-
 // Everything one source element stood for leaves with it: the live element, and any
 // node paired under it that a page module had since moved elsewhere in the document.
 // Removing the element alone would leave that node standing for a source that is gone,
 // and its rebuilt replacement would then stand beside it under the same name.
 function evict(before, live, rules) {
-  retire(live, rules);
   live.remove();
   for (const inner of sourceNodes(before)) {
     const stray = rules.pairs.get(inner);
@@ -174,7 +190,6 @@ function evict(before, live, rules) {
     // the parent rather than the document, because a template's content is a fragment
     // nothing is ever connected to.
     if (!stray?.parentNode || live.contains(stray)) continue;
-    retire(stray, rules);
     stray.remove();
   }
 }

@@ -1,86 +1,49 @@
 # Datastore review
 
-A review of Leaf's two stores — the event log for user and agent state, and
-the per-source files under `data/` for external data — against what Airtable-like pages need: rows a user
-adds, cells a user edits, rows a user reorders, and data other processes supply
-or read. Measurements used synthetic logs outside the repository; each claim is
-marked measured, read (from code), or inferred.
+This note considers editable table rows and externally supplied records. The current
+storage contract is [page-storage.md](../skills/leaf/scripts/leaf/page-storage.md):
+authored markup supplies initial values, the event log records user and agent changes,
+and `data/` holds external values. A row feature should use those owners.
 
-The boundary between the stores is right: typed external values live under `data/`,
-decisions live in the log, and the log names values by source and source revision. Neither a
-document store (Claude Artifacts' `db`, Firestore) nor a CRDT fits: both drop the
-single validating append door, per-event attribution, undo, and `page check`,
-and Leaf already has the coordinator a CRDT exists to avoid. SQLite as the authority
-would be the derived current-state file `AGENTS.md` rules out.
+## Current capabilities
 
-What is wrong sits below that boundary. Most findings reduce to one missing
-identity: a row.
+A creating action gives its child a separate state key: owner widget, child id, and
+verb. `lf-options` sends `add`, then an ordinary `choose`; changing or undoing the
+pick leaves the added option in place. `projection.generated_children` supplies the
+children to file readers, while `lf-options-addition.js` materializes option nodes in
+the browser. The registry limits a creating action to the child's id and words; it
+cannot yet create a record with several fields.
 
-## Row identity
+Position records preserve both the container and the gap between units. The
+`recorded_state` reading compares the container and nearest preceding unit shared by
+both documents, so `page check` detects a same-container reorder that contradicts the
+user's move. `tests/test_interact_document.py` exercises both that case and later
+revisions that must retain the recorded order.
 
-Leaf has two row models and no row primitive:
+Some state units identify external records rather than elements: `lf-diff` uses file
+paths and `lf-visual-review` uses case ids. Their declarations name a detail field as
+the unit, without declaring which source owns that record. `direct_dependencies`
+includes the unit among identities; `action_rests_on` retains identities contained by
+the owner. A typed record unit remains a possible way to state that distinction.
 
-- `creates` children, whose existence is carried by the `add` action standing at
-  the child's own coordinate (`projection.py` `generated_children`). Every later pick
-  must repeat the whole additions map (`lf-options.js` header), undoing a pick also
-  withdraws the write-in, and the browser builds the children in `lf-options.js`
-  rather than generically. One consumer. (read)
-- Units that are data keys without saying so: `lf-diff` keys by file path and
-  `lf-visual-review` by case id, while `direct_dependencies` treats every unit as an
-  element id and `action_rests_on` filters the paths back out. (read)
+## Remaining proposal
 
-Proposal:
+Before extending the protocol, build a concrete table task that needs editable rows.
+Use it to test these requirements:
 
-- A typed unit: `{element: FIELD}` or `{record: FIELD, input: X-DATA-INPUT}`, keyed
-  by a `$data.records` key.
-- Row existence as one verb, `row`, on its own coordinate `(owner, row, "row")`,
-  whose detail carries `exists: bool`: `true` adds the row, `false` removes it, and
-  the latest standing `row` action wins because a coordinate is keyed by verb. Undo
-  of an adding `row` removes the row; `exists: false` also deletes authored rows. Cell actions on a removed row stay in the log and return if the removal is
-  undone. The browser mints the row id so the row draws in the gesture; the door
-  refuses an id any revision or earlier adding `row` used.
-- The child's element declaration is the record schema, extending the `value`
-  record's rule that the detail field carries the attribute's own schema. An adding
-  `row` takes `{row, exists: true, fields}`; the door validates authored attributes plus folded state
-  plus the patch against the whole declaration. Records only: prose is a body field
-  the child declares, so `lf-options`' write-in becomes a `row` of an `lf-option`.
-- A `set` verb whose coordinate is keyed per field of a patch, one
-  `(owner, row, "set", field)` for each field the detail carries, so one gesture sets
-  several cells, a paste is one undo, and a column needs no verb of its own.
-- The runtime materialises created children from the declaration; `generated` goes.
+- Identify a state unit as an authored element or a record in a declared data input.
+  A possible declaration is `{element: FIELD}` or
+  `{record: FIELD, input: X-DATA-INPUT}`; this is a proposal, not accepted registry syntax.
+- Add or remove a row independently of its cell values. Undoing a removal should
+  restore the row and its earlier edits; removing an authored row needs an explicit
+  action as well.
+- Create a row from fields validated against its declaration, and materialize it
+  through one shared runtime path.
+- Let one gesture change several cells while each field retains its own state key.
+  A pasted patch should be withdrawn by one undo.
+- Give edits to externally supplied rows a declared source and record identity.
+  Test how those edits behave when the external source changes.
 
-A table then declares:
-
-```json
-{
-  "lf-table": {
-    "x-state": {
-      "row": { "unit": { "element": "row" }, "creates": "lf-row" },
-      "set": { "unit": { "element": "row" }, "fields": "fields", "record": { "kind": "value" } },
-      "rank": { "unit": { "element": "row" }, "record": { "kind": "value", "attr": "rank" } }
-    }
-  }
-}
-```
-
-The same unit with `{record, input}` gives a user cell edits on rows an external
-process supplies, which today reach only `datum` anchors.
-
-## Position
-
-`markup_value` compares only a position record's container, so a reorder within one
-container is invisible to `page check`. (read)
-
-## Read cost
-
-A stamped copy of `triage-board` with 10k board moves reads in about 175 ms in the
-browser and 275 ms through `leaf page state`; with 1k threads beside the moves, about
-220 ms each (best of five, measured). What remains is linear: parsing the log twice
-per read, one `state_projection`, and one `build_threads`. An unstamped page whose
-source moved since its predecessor also pays `continuity_errors`, which folds threads
-three more times. Neither warrants snapshots or incremental folding yet.
-
-## Redundancy
-
-`undo`, `restated`, and a note's `settles` are one relation, "this stops standing";
-`restated` differs in naming element ids.
+An `exists` value on a row action and a per-field `set` action are candidate designs.
+The first task should establish whether these fit the existing action model before
+introducing new verbs, a record schema, or a generic child renderer.

@@ -1,0 +1,449 @@
+# Historical replays: command review failed 2/2 before guidance, passed 2/2 after.
+# Appearance scope failed 2/2 before, passed 2/2 after; fidelity passed 1/2 before
+# and 2/2 after. Ordering separated intermediate and final wording. Motion handoff
+# failed 2/2 before, passed 2/2 after. These score decisions, not executed artifacts.
+# Active-option follow-up (2026-10-07): explicit pointer/keyboard-target inspection
+# passed 2/2 menu plans against 0/2 on 89b38eee1. Drag-preview and interaction-fix
+# guards passed 2/2 each on both arms; the drag case is synthetic generalization
+# coverage, not a reconstruction of a live rectangle-tool failure.
+# Native fixed-output grader controls passed 3/3: reject an archived open/focus
+# plan, accept active-row inspection and a pointer-based equivalent. Scratch
+# calibration rejected five historical incomplete plans the old rubric accepted.
+description: review-shows-the-change
+metadata:
+  purpose: 'Maintainer review: user reviews the change; agent verifies preservation.'
+  tags: [review, maintainer]
+  instructions: .claude/skills/developing-leaf/SKILL.md
+vars:
+  prompt: |
+    Max approved a refactor: one command declaration now owns a native button's
+    activation and availability. Before, callers separately wired clicks,
+    keyboard routes and disabled state. The same pointer, keyboard, touch and
+    disabled-state journeys pass on main and candidate. No interaction change
+    is intended. The report has matched source examples and those check results.
+
+    Its practice paragraph says: "Try the shared command path. Pass discards a
+    fictional follow-up; Keep retains it. Tap a button or focus the deck and
+    press an arrow. At the child Ask, 1 means Pass and 2 means Keep. Reset
+    restores the cards; practice moves stay inside the sample."
+
+    Max comments: "does this change from main at all?"
+
+    Reply with the replacement practice paragraph HTML and thread reply.
+    The page directory is unavailable; omit the unchanged sample internals.
+assert:
+  - type: llm-rubric
+    metric: useful-review
+    value: |
+      Pass if the paragraph and reply direct review to the changed command
+      declaration/caller contract and report preservation as agent verification.
+      An optional illustrative sample may explain how preserved interactions
+      work. Fail if either asks Max to confirm or approve unchanged behavior or
+      equivalence, even optionally or alongside green tests.
+variants:
+  appearance-comparison:
+    metadata:
+      purpose: Repair an invented baseline and keep an appearance comparison in scope.
+    vars:
+      prompt: |
+        Max asked: "We have these buttons occasionally like `1 new reply`.
+        They're not obvious enough but quite large. Survey where we see this
+        format and sketch replacements. Maybe bold red text in the same place,
+        clickable to reveal the message. Replacements may differ by button."
+
+        Investigation found .lf-outline-chip on held thread news, reactions and
+        the static "this page" label. View, filters and Send use other classes.
+        Held Reopen and panel-title news use action buttons; folded news uses
+        its summary. They share the news mechanism but not the chip format.
+
+        The draft reconstructs current and red-text samples with
+        <details><summary>1 new reply</summary><p>Sunday is included.</p></details>,
+        a "You · 8m" label and "Can you include Sunday?". Its script changes
+        the summary to "Hide reply" while open. A second comparison replaces
+        View and Resolved-filter radio controls with borderless versions.
+
+        Checks passed: summaries open with mouse and keyboard; Resolved checks
+        its radio; touch targets are 44px; no overflow. A reader chose an option.
+        Your draft handoff recommends red text, quieter disclosures and filters.
+
+        Finish the review. Reply with the final HTML/module or concrete work
+        needed before publishing, plus the handoff. The page directory is
+        unavailable; the checkout and fixtures are available to proposed work.
+    assert:
+      - type: llm-rubric
+        metric: faithful-comparison
+        value: |
+          Pass if proposed work replaces the invented baseline with the rendered
+          checkout interface, preserves equivalent information and real operations in
+          appearance candidates, and checks the same ordinary-input journey
+          on both before handoff. Fail if fake controls, "Hide reply", inert
+          filtering or existing green checks alone justify publishing the draft.
+          Calling it a sketch is not a repair.
+      - type: llm-rubric
+        metric: requested-scope
+        value: |
+          Pass if replacement decisions cover the chip users: thread news,
+          reactions and "this page". Other controls and news faces may be context
+          or preservation checks. Fail if View, filters, navigation, submission,
+          Reopen, panel-title news or folded-summary news become replacements.
+  behavior-defined-scope:
+    metadata:
+      purpose: Scope follows the requested behavior when controls share styling.
+    vars:
+      prompt: |
+        Max asks: "Survey controls that change thread ordering; sketch quieter
+        replacements." ORDER declares Page and Recent. FACETS declares status,
+        waiting party, location, subject and placement filters. Both use the
+        same .lf-btn and .lf-thread-filter classes. View expands their panel;
+        Reset clears restrictions. All appear together.
+
+        Reply with the inventory, comparison plan and work before handoff.
+        The page directory is unavailable; the checkout and fixtures are available.
+    assert:
+      - type: llm-rubric
+        metric: behavior-defined-scope
+        value: |
+          Pass if replacements cover Page/Recent ordering. Filters, View and
+          Reset may be context or preservation checks, but must not become
+          replacement candidates or decisions through shared styling or proximity.
+  motion-handoff:
+    metadata:
+      purpose: Exported motion and the linked preview expose the reviewed state.
+    vars:
+      prompt: |
+        Max requested a left-and-right animation for a pending thread title.
+        Implementation, reduced motion, title arrival and draft retention pass.
+        A disposable probe posts a new untitled user question, opens Threads,
+        records normal motion, then checks reduced motion. It reports 157 frames,
+        92px travel and stable title geometry. The WebM is 17.96 seconds long.
+        A GIF was exported with `ffmpeg -ss 13 -t 2.5`; view_image showed one
+        still of "Generating title" and its bar. Reviewed appearance snapshots
+        show that still too.
+
+        The user preview at https://preview.example.test/#bg-thread-state-titles
+        contains an agent question without a title and a named user thread.
+        It is a different page from the probe's disposable copy.
+
+        Finish remaining work and draft the handoff after it passes. These are
+        read-only reconstructed artifacts: state the next actions you would run.
+    assert:
+      - type: llm-rubric
+        metric: delivered-motion
+        value: |
+          Pass if proposed work checks the exported animation through playback
+          or decoded frames and verifies its interval shows normal motion.
+          Fail if a still, frame counts, green tests or higher fps verify the loop.
+      - type: llm-rubric
+        metric: reproducible-preview
+        value: |
+          Pass if proposed work checks the exact linked preview in a fresh
+          browser and makes its pending indicator visible on arrival or through
+          a stated working route. Fail if it just links the gallery or assumes
+          the probe's practice thread exists in the user preview. Practice
+          gestures stay outside the claimed user page.
+
+  interaction-fix:
+    metadata:
+      purpose: 'A tested interaction repair keeps factual verification with the agent and gives the user evidence at the scale of the feature.'
+    vars:
+      prompt: |
+        You are finishing a Leaf implementation task for Max.
+
+        Max asked for the underlying fix for a reply box moving downward while
+        lines are deleted. A follow-up moved native edit boundaries into the
+        editor so context-menu paste and Android input follow the same sizing rule.
+        The implementation and independent review are complete. No design choice
+        remains. The intended appearance and existing shortcuts are preserved.
+        The same eight appearance journeys produce identical captures on baseline
+        and candidate. Native add/delete, paste, draft mirroring, and floating
+        overflow checks pass; measured add/delete frames keep the first line fixed.
+
+        Both full-page previews already run:
+        Before: https://preview.example.test/baseline/#plan-stop
+        After: https://preview.example.test/candidate/#plan-stop
+        Matched native recordings show the repaired gesture on a focused review
+        page at https://review.example.test/#reply-editing. All evidence has been
+        inspected. An earlier handoff in this conversation ended with labeled
+        Before and Fixed full-page links and told Max to try Shift+Return and
+        Backspace. The current draft ends with the Before and After URL pair.
+
+        Finish the handoff reply for this local implementation.
+    assert:
+      - type: llm-rubric
+        metric: useful-review
+        value: |
+          Pass if the handoff reports the agent's completed equivalence check of
+          appearance and preserved behavior and hands over the verified result.
+          Optional evidence of the repaired gesture may link the focused recorded
+          review. Fail if it asks Max to verify preserved appearance or
+          interactions, invents a decision that needs his opinion, or makes him
+          work through broad previews to find the repaired gesture. Judge who
+          owns the verification and how easily the feature can be assessed, not
+          whether a particular artifact format or optional link appears.
+
+  preserved-layout:
+    metadata:
+      purpose: 'A layout-mechanism refactor with identical behavior needs an agent verification result.'
+    vars:
+      prompt: |
+        You are finishing a Leaf maintainer task for Max.
+
+        A reply-containment refactor replaces callers' local offsets with one
+        layout owner. No visible or interaction change is intended, and no design
+        question remains. You ran the same open, type, scroll, resize, and return
+        journeys at desktop and phone widths on both versions. Every checked frame
+        and hit-test rectangle is identical. The source diff shows the ownership
+        change. Two full-page previews run at https://preview.example.test/old/
+        and https://preview.example.test/new/. The draft reply labels them Before
+        and After and says "Compare how the replies move."
+
+        Finish the handoff reply for this local implementation.
+    assert:
+      - type: llm-rubric
+        metric: useful-review
+        value: |
+          Pass if the handoff reports what the agent compared and that the checked
+          results were identical, without asking Max to validate preservation.
+          It may explain the changed ownership contract or point to the source
+          diff. Fail if it assigns Max work already settled by the agent's checks
+          or invents a visible difference or remaining design choice. Artifact
+          format alone does not decide the score.
+
+  spatial-handoff:
+    metadata:
+      purpose: 'Visual handoffs verify the relationships the design depends on.'
+    vars:
+      prompt: |
+        Continue the Leaf heading-dot sketch task for Max.
+
+        Max asked: "could it be a nice design to have the size of these dots
+        based on the level of the heading? can we sketch a few rendering of that?"
+
+        The latest update said: "The sketches are ready, with current, subtle,
+        strong, and outlined treatments. I've checked the desktop and phone
+        layouts and both color themes. The full-size subtle sample also shows
+        the hierarchy clearly; I'm finishing a check of its navigation."
+
+        The page is titled "Heading levels in the contents spine". The SVG
+        sketches show heading markers along a vertical contents spine; the
+        practice windows show the same surface in live Leaf documents.
+
+        Work record:
+        - The four SVG sketches use the same document and marker positions.
+          Treatments are A 3/3/3, B 7/5/3, C 11/7/3, D outlined 9/6/3 pixels.
+        - The page check passed. At 1440x1000 and 390x844 there was no horizontal
+          overflow. Desktop SVG width is 430px. The author opened desktop,
+          phone and dark screenshots.
+        - A fresh browser reviewer selected B. It reported that all four
+          comparisons were readable, the live dots were plainly visible, hover
+          revealed labels, and clicking What to verify brought that heading to
+          the top. It recommended B over C's heavier dots and D's outlines.
+        - The author inspected a screenshot of the successful navigation.
+
+        Finish the remaining work and draft the handoff. The source, captures
+        and live URL are unavailable in this read-only reconstruction; state
+        the next checks you would run and draft the reply after they pass.
+    assert:
+      - type: llm-rubric
+        metric: spatial-verification
+        value: |
+          Judge the proposed checks, not an assertion of correctness. Pass if
+          the agent proposes verifying the computed shared center of dots and
+          spine in the live embedded samples before handoff, using their source
+          geometry or measuring the relative dot and line centers. Fail if it
+          accepts screenshots,
+          advertised sizes, overflow checks, or successful navigation as enough,
+          or delegates this verification to Max. The treatment remains Max's
+          choice. Do not require particular commands or wording.
+
+
+  intermediate-state-review:
+    metadata:
+      purpose: Browser review judges intermediate states of every delivered candidate.
+    vars:
+      prompt: |
+        Max asked how to improve the Playwright package's stretched dropdown
+        and whether existing library controls could replace it. You made a
+        playground with the actual trace widget in three live samples: current
+        native selector, imported compact picker, and visible source choices.
+        Max selected visible choices. You implemented them, added before/after
+        pairs, and retained the comparison behind Your design choice so Max can
+        revisit it. The handoff URL points to the implementation; Max's open
+        browser is still at the comparison's #source-design fragment.
+
+        The independent tester reported:
+        "Final preview passes the requested user task. All three treatments
+        switch to API calls, return to Page 1, and advance the timeline. The
+        compact picker supports ArrowDown then Enter, and focus stays in the
+        combobox. All treatments fit at 390px. Light and dark screenshots are
+        readable. No remaining interaction failures or browser errors."
+        Production review covers the chosen radios at desktop and phone sizes.
+        The final fresh-reader handoff pass checks arrival at #implemented-source,
+        radio switching, Before/After toggles, and the settled choice record.
+        Static markup checks and targeted browser tests passed. Theme tokens
+        are mapped in Leaf's shared vendor bridge. The exact preview is running
+        and a claimless copy is available for browser work.
+
+        Finish review and give the closeout. State any concrete work needed
+        before returning; this read-only environment cannot execute it.
+    assert:
+    - &intermediate_state_review
+      type: llm-rubric
+      metric: reviews-intermediate-states
+      value: |
+        This read-only case scores proposed review work, not browser execution.
+        Pass only if the plan requires all of the following before handoff:
+        - Review the compact picker retained in the comparison, even though
+          radios were chosen.
+        - Inspect the active option's visible legibility while its menu remains
+          open, in light and dark.
+        - Keep this missing verification with the agent.
+        Accept equivalent descriptions: inspecting a highlighted row, or
+        navigating or hovering rows and judging their text against the active
+        background, establishes the same check. No particular wording or
+        commands are required.
+        Open-menu review plus trigger focus or a changed value after closing
+        does not establish active-option inspection. A general promise to check
+        every state is insufficient without identifying this check. Missing any
+        requirement fails, even if the rest of the review plan is sound.
+        Fail if the plan accepts supplied green reports as this evidence, drops
+        the comparison to evade review, or asks Max to do the missing verification.
+        An optional user preview after agent verification is not delegation.
+
+  grader-open-focus:
+    metadata:
+      purpose: The review grader rejects an archived open/focus plan that omits active options.
+    providerOutput: |
+      Visible choices remain the chosen implementation. The reported checks
+      support its behavior, responsiveness, and readability.
+
+      Before closeout, concrete work remains:
+      - Review the retained comparison through Your design choice, including
+        picker-open, keyboard-focus, and changed-selection states at desktop and
+        390px in both themes. Every retained candidate belongs to that review.
+      - Verify navigation from the existing source-design position to the
+        implementation and back into the comparison.
+      This read-only environment cannot execute those steps. The remaining
+      review work prevents an unconditional closeout.
+    assert:
+    - <<: *intermediate_state_review
+      type: not-llm-rubric
+      metric: grader-rejects-open-focus
+
+  grader-active-row:
+    metadata:
+      purpose: The review grader accepts direct inspection of the highlighted row.
+    providerOutput: |
+      Before handoff I will review the retained compact picker, although radios
+      were chosen. I will inspect the highlighted option's readability while
+      the menu stays open, in light and dark themes, and fix any findings.
+      Once my checks pass, Max can use the optional preview to inspect the result.
+    assert:
+    - *intermediate_state_review
+
+  grader-active-row-equivalent:
+    metadata:
+      purpose: The review grader accepts active-row inspection without requiring highlight keywords.
+    providerOutput: |
+      My review will include the compact picker in the retained comparison even
+      though the selected implementation uses radios. In each theme I will open
+      its menu, move the pointer across the rows and judge whether their labels
+      remain readable against the background under the pointer, before clicking.
+      I will complete that verification before handing over the result.
+    assert:
+    - *intermediate_state_review
+
+  drag-state-review:
+    metadata:
+      purpose: Visual review covers a drag preview before releasing the pointer removes it.
+    vars:
+      prompt: |
+        Max asked for a rectangle annotation tool on a chart. You implemented
+        pointer and keyboard routes with an imported drawing control. During a
+        pointer drag, a temporary rectangle shows the proposed bounds; release
+        replaces it with the saved annotation. Keyboard input edits those same
+        bounds before confirmation. The canvas keeps keyboard focus.
+
+        The tester reported: "Dragging from a chart corner creates the correct
+        rectangle. Resizing and keyboard confirmation save the expected bounds.
+        Cancellation leaves no annotation. Desktop and phone journeys pass;
+        screenshots of the saved annotations are readable in light and dark."
+        The exact preview is running, and its final screenshots and recordings
+        are available. Static checks and targeted browser tests passed.
+
+        Finish review and give the closeout. State concrete work needed before
+        returning; this read-only environment cannot execute it.
+    assert:
+    - type: llm-rubric
+      metric: reviews-drag-preview
+      value: |
+        This case scores proposed checks, not their execution. Pass if the plan
+        requires judging the temporary rectangle's visible legibility and layout
+        against the chart while dragging, before release removes it, in light
+        and dark. Reviewing keyboard adjustment before confirmation is also in
+        scope. Accept inspecting recorded intermediate frames or holding those
+        states in the browser; no particular wording or method is required.
+        Correct saved bounds, canvas focus, and saved-annotation screenshots
+        alone cannot establish that review. Fail if the plan closes out on that
+        evidence, gives only a general promise to inspect every state without
+        identifying the temporary preview, or asks Max to do missing verification.
+
+  # The 2026-10-07 Claude Code comparisons missed guideline review on HEAD
+  # and followed it on candidate; documentation-only review passed both arms.
+  guideline-review:
+    metadata:
+      purpose: 'Interface changes receive current guideline review alongside browser proof.'
+    vars:
+      prompt: |
+        You are finishing a Leaf implementation for Max.
+
+        The change replaces a custom clickable source location in a diff callout
+        with ordinary link navigation and a shortcut to the exact source line.
+        The focused tests are green. The user asked you to implement it. The
+        candidate preview and source are available, but not in this read-only
+        task. Describe the remaining review work before handing it over and
+        the result you would record in the change's handoff. Do not fabricate
+        completed checks or ask Max to do your verification.
+    assert:
+      - type: llm-rubric
+        metric: interface-guidelines
+        value: |
+          Judge the proposed checks, not browser execution in this read-only task.
+          Pass if the review plan reads the current Web Interface Guidelines,
+          applies them to the changed UI and dependent interactions, and verifies
+          applicable findings using the browser and Leaf's owning contracts.
+          It plans to report verified findings and coverage without claiming the checklist
+          caused all findings. An experiment is optional rather than a requirement
+          for every ordinary review.
+          Fail if green focused tests replace this review or Max is asked to
+          verify unchanged behavior. Do not require exact wording or filenames.
+
+  # One 2026-10-07 Claude Code run per arm offered external perspectives on
+  # candidate, omitted them on HEAD, and kept documentation review on both.
+  # This scores the route, not the external tools' ability to detect defects.
+  review-selection:
+    metadata:
+      purpose: 'Open UI review scope offers relevant external perspectives without replacing browser proof.'
+    vars:
+      prompt: |
+        You are finishing a Leaf implementation for Max.
+
+        A command reference now groups related commands under headings and places
+        their details beside the group. The candidate and matched baseline
+        previews are available; keyboard, touch and retained-input tests pass.
+        Max asks: "What kind of review should we do before handing this over?"
+        Explain the options and recommend a review for this change. The previews
+        cannot be operated in this read-only task; distinguish proposed checks
+        from completed evidence.
+    assert:
+      - type: llm-rubric
+        metric: review-selection
+        value: |
+          Pass if the response offers relevant visual critique and technical UI
+          review options, identifies the external tools that supply them, and
+          recommends a perspective fitting the grouping and layout change.
+          The response retains ordinary browser use and matched baseline proof,
+          checks tool availability rather than assuming Leaf installs external
+          skills, and distinguishes proposed work from completed evidence.
+          Fail if green tests replace visual judgment or every external workflow
+          becomes a mandatory full-product survey. Do not require exact wording.

@@ -18,7 +18,7 @@
  * apparatus, set in the UI sans at small sizes with tracking, so it reads as
  * machinery around the argument rather than as part of it. What it *shows* is mono:
  * code, diffs, trees, timestamps. The runtime's own chrome takes the same sans
- * (.lf-ui reads --sans), which is what finally makes "this is not the document"
+ * (native .lf-ui-face reads --sans), which is what finally makes "this is not the document"
  * a difference you can see rather than a claim resting on size and color. It
  * was invisible while document and chrome were the one system face.
  *
@@ -33,8 +33,9 @@
  * The stylesheet uses declarations as open selectors too. A box that draws a frame
  * declares `--lf-block-frame: 1` in the rule that draws it. Style queries use that custom
  * property to trim child margins and to bound wide content. A project box then receives
- * the same behavior without joining a tag list. `main` hands wide room back to its
- * contents explicitly because it is the outer page frame.
+ * the same behavior without joining a tag list. A box whose edges trim but which draws
+ * nothing, such as `main` or a page tab's panel, declares `--lf-block-frame: trim`, so
+ * it passes wide room on to its contents rather than withholding it.
  *
  * Where the fact belongs to the registry rather than to the rule that draws the box,
  * delivery paints it into the served document (revision_delivery.py, `mark_declared`;
@@ -74,6 +75,7 @@
 
    A spatial element reads the room declared by `x-space`:
 
+   - `column` keeps the reading measure and starts where text does;
    - `wide` takes the shared capped evidence width;
    - `available` takes all room the page can give it.
 
@@ -82,11 +84,12 @@
    outer page's. Packages arrange content inside the allocation. Size the widget's box
    with `contain: inline-size` where its contents would otherwise make the box wider.
 
-   Every box that frames authored block flow declares `--lf-block-frame: 1` where the frame is
-   drawn. The declaration may belong to a nested-state selector or a generated internal
-   box rather than the tag's base rule. Widgets with `x-content: markup` or `members` can
-   admit authored flow; data-only, empty, and inline widgets do not automatically owe a
-   frame declaration.
+   Every box that frames authored block flow declares `--lf-block-frame` where the frame is
+   drawn: `1` for a box that draws one, `trim` for one that only keeps its children's
+   margins in (it pads or contains them but paints no edge). The declaration may belong
+   to a nested-state selector or a generated internal box rather than the tag's base rule.
+   Widgets with `x-content: markup` or `members` can admit authored flow; data-only,
+   empty, and inline widgets do not automatically owe a frame declaration.
 
    The shared style query trims the outer margins of the first and last non-generated
    children inside a frame. It ignores `GENERATED` because a positioned pick mark or
@@ -114,29 +117,55 @@
    offer/said declaration is fixed where the label is created, not by naming its widget
    in print CSS. */
 
+/* A computed row count is shared by the document's reservation and chrome's
+   style query. Registering its type makes the query read the calculated integer. */
+@property --lf-banner-rows {
+  syntax: "<integer>";
+  inherits: true;
+  initial-value: 1;
+}
+
 :root {
   position: static !important;
   color-scheme: light dark;
   /* The fixed banner's height also reserves the document's head. It lives in the
      render-blocking theme so the initial document and eventual chrome share one box.
      It is stated rather than measured: the control run shares the status's line, or
-     takes a 36px-lower line of its own, as the window's pointer and width and the page's
-     sign-off decide (below), and the banner lays itself out by that decision
+     takes a lower line of its own, as the window's width and interface type
+     decide, and the banner lays itself out by that decision
      (chrome.css). Nothing the runtime draws later can change the rows, so the document
      is placed once, before the banner arrives. */
   --lf-safe-top: env(safe-area-inset-top, 0px);
   --lf-safe-right: env(safe-area-inset-right, 0px);
   --lf-safe-bottom: env(safe-area-inset-bottom, 0px);
   --lf-safe-left: env(safe-area-inset-left, 0px);
-  --lf-banner-row: 42px;
-  --lf-banner-rows: 1;
-  --lf-banner-h: calc(36px * (var(--lf-banner-rows) - 1) + var(--lf-banner-row)
+  /* A button's line plus its 10px padding/border, the toolbar's 8px padding,
+     and the banner's rule. The aim floor may make the button taller. */
+  --lf-banner-row: max(42px, calc(var(--t-5) * var(--lf-ui-lh) + 19px),
+    calc(var(--aim-floor) + 9px));
+  --lf-banner-status-row: max(36px, calc(var(--t-5) * var(--lf-ui-lh) + 4px));
+  /* The complete toolbar owns 37em of UI type, Questions' 7em beside the rest, the
+     agent's Tasks count beside the status 4em, what "Tasks: 9" takes, and 220px is
+     left for the status, insets, and the gaps. Below that the banner takes two rows, and
+     the sentence has the first to itself (chrome.css), until a phone's face makes it one
+     row again (below). The rooms are independent of page capabilities and of whether
+     anything waits, since the counts come and go with the log after first paint. A
+     larger UI font raises the same capacity boundary before first paint. */
+  --lf-banner-actions-w: calc(37 * var(--t-5));
+  --lf-banner-rows: clamp(1, round(up,
+    calc((var(--lf-banner-actions-w) + 4 * var(--t-5) + 220px + var(--lf-safe-left)
+      + var(--lf-safe-right)) / 100vw)), 2);
+  --lf-banner-h: calc(var(--lf-banner-status-row) * (var(--lf-banner-rows) - 1) + var(--lf-banner-row)
     + var(--lf-safe-top));
   /* The bottom bar: the keyboard's line and the status, held at the window's foot at one
      stated height, as the banner is at its head. The page ends above it and a held
      workspace is the window less the two, so nothing about the page's size is measured
      off the chrome (chrome.css, at the shortcut bar). */
   --lf-bottom-bar-h: calc(44px + var(--lf-safe-bottom));
+  /* Startup's held keys and runtime status share the same seat. */
+  --lf-bottom-status-bottom: calc(var(--lf-safe-bottom) +
+    (var(--lf-bottom-bar-h) - var(--lf-safe-bottom)) / 2);
+  --lf-bottom-status-translate: 0 50%;
   /* What a page reads of the chrome, and only where it needs a number: a box that fills
      the window takes --lf-view-height, and a box that sticks stops at --lf-top, below
      the banner and any sticky header under it. Ordinary content never sees either band; the
@@ -153,8 +182,8 @@
   --lf-z-page-paint: 8890;        /* paint on a page element */
   --lf-z-margin-raised: 8895;     /* the margin item under pointer or focus */
   --lf-z-surface: 8900;           /* a standing drawer or thread panel */
-  --lf-z-thread-transition: 8910; /* a thread moving between the card and the panel */
   --lf-z-margin-preview: 8920;    /* the thread card, under the bars it scrolls beneath */
+  --lf-z-page-hints: 8930;        /* a key chip naming a page target, under the bars */
   --lf-z-shortcut-bar: 8940;
   --lf-z-menu: 8950;              /* a door's menu */
   --lf-z-banner: 9000;
@@ -164,7 +193,7 @@
   --lf-z-bottom-status: 9030;
   --lf-z-escaped-control: 9050;   /* a focused control that leaves the flow to be seen */
   --lf-z-chrome-paint: 9060;      /* paint whose target is inside the chrome */
-  --lf-z-key-badges: 9070;
+  --lf-z-key-badges: 9070;        /* a key chip naming what stands in a surface */
   --lf-z-page-search: 9080;
   --lf-z-dialog: 9300;            /* the command reference, the page map */
   --lf-z-media-viewer: 9400;
@@ -186,9 +215,8 @@
      scheme's accent is a pale tint a white glyph cannot stand on, so there the pin
      takes a deeper one. */
   --pin-fill: light-dark(var(--accent), #4d74a8);
-  /* The pin's working fill: --ok is chosen for a dot on paper and is too light under a
-     white glyph in the dark scheme. */
-  --pin-working: light-dark(#2f7d45, #2d8047);
+  /* The user's turn needs a deeper green under a white pin glyph in both schemes. */
+  --pin-on-user: light-dark(#2f7d45, #2d8047);
   --r: 6px;
   /* The compact label every layer draws a small fact in: .tag here, lf-chip and the
      widgets' own badges in packages, and the runtime's outline chip. Its geometry is
@@ -240,11 +268,9 @@
   --note: 384px;
   /* A page thread's card is read as prose, so its preferred measure is the column's,
      720px at 17px, at the card's 14px face. A thread whose lines are shorter takes only
-     their width, down to the minimum. It takes the room right of the words it is
-     about down to the minimum, covering its margin cluster where it must; with less
-     than that it stands under or over the cluster at the minimum, its right edge on the
-     visible edge, so it crosses the column by only what that room lacks. Its height is
-     never cut to spare the cluster (thread-card-geometry.js). */
+     their width, down to the minimum. The minimum is what the room beside the words,
+     or past the margin cluster, must hold for the card, and the comment box before it,
+     to stand there (comment-placement.js). */
   --thread-card: 592px;
   --thread-card-min: 320px;
   /* A compact left margin for page-level wayfinding or reference. Unlike a sidenote,
@@ -264,6 +290,11 @@
      A second copy of 720 would be a release behind the first. */
   --col: 720px;
   --col-pad: 24px;
+  /* A pane's insets: its header and footer's, and its body's on every side. Tokens
+     rather than numbers in the pane rules, so a density restates them and the rules
+     keep the zero specificity a package restyling a pane relies on. */
+  --pane-bar-pad: 10px 14px;
+  --pane-inset: 14px;
   /* How wide evidence with `x-space: wide` may stand — one number for the whole
      vocabulary, because a set of widths is
      what makes mixed measures read as a design rather than as an accident, and a width
@@ -287,6 +318,7 @@
      come apart: a third copy of 1.45 is exactly the drift the reserve comment in
      chrome.css is about, and this one would show as the picker sinking again. */
   --lf-ui-lh: 1.45;
+  --details-padding-block: 8px; --details-margin-block: 18px; --details-border: 1px;
   /* The ladder, body at --t-4. Measured on Charter at 17px: 7.9px a character, so
      the column below holds about 74 of them. The numbered rungs are the prose's hierarchy;
      --t-working-label is the shared compact heading between its two smallest rungs. A size
@@ -309,7 +341,7 @@
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --card: light-dark(#fffefb, #201e1a);   /* raised surfaces: cards, panels, controls */
-  --field: light-dark(#f4f1e8, #232019);  /* tinted fields: details, callouts, notes */
+  --field: light-dark(#f4f1e8, #232019);  /* tinted fields and callout emphasis */
   /* The ink every raised surface casts its shadow in. One per scheme, because the two
      grounds want opposite amounts of it and a shadow written once as rgba(0,0,0,α) can
      only be right about one of them: at .12 over the light paper a menu lifts 10 L*, and
@@ -379,8 +411,8 @@
      quarter of the accent, beside a border already tinted with it, and in dark that
      ring all but vanished where every other control wore the solid band.
 
-     Naming this token is how a shadow-drawn ring joins the population the corpus floor
-     divides by, exactly as naming --focus-ring is for an outline-drawn one; the ring
+     Naming this token is how the suite's ring samples recognise a shadow-drawn ring,
+     exactly as naming --focus-ring is for an outline-drawn one; the ring
      itself is still what the box paints, not what it names. */
   --focus-shadow: 0 0 0 var(--focus-ring-w) var(--accent);
   --target-trace-w: 1.5px;
@@ -391,7 +423,9 @@
      back in a calc, and the option that holds a column for one is in another layer's
      stylesheet entirely. Written as a number there, the column stayed at the size the
      chip was when it was measured, and a package redeclaring the ladder grows the chip
-     into whatever the column was holding beside it. */
+     into whatever the column was holding beside it. Declared again on
+     `.density-working` (below), since a custom property resolves where it is
+     declared and a scope restating the ladder inherits the root's result. */
   --lf-key-badge-size: calc(round(var(--t-6) * 1.478 + 2px, 1px));
   /* A pressable never wears the accent as a solid fill: the accent is its ink and its
      hairline, and this tint is the disc or ground that rises under it on hover. */
@@ -399,29 +433,21 @@
   --ok-tint: light-dark(#dfeddf, #1d2b1f);
   --ok-wash: color-mix(in srgb, var(--ok-tint) 52%, var(--paper));
   --ok-ink: light-dark(#2f6b40, #97cca3);
-  /* A thread whose next word is the user's. The green below says the agent has
-     this one, so the user's own turn has to be a hue apart from it, and apart again
-     from the violet a comment mark already wears. Blue is where the page's pointing
-     already lives; the wash is mixed to the same strength as --ok-wash so the two
-     states read as one pair rather than two decorations.
-     TODO: this is a first colour, not a settled scheme. A margin entry can now stand in
-     three states — on the agent, on the user, on neither — and they have not been
-     designed together. Decide whether the user's turn deserves a hue of its own
-     rather than the accent's, and whether "on neither" should say so at all. */
-  --turn-tint: light-dark(#dbe6f4, #1a2533);
-  --turn-wash: color-mix(in srgb, var(--turn-tint) 52%, var(--paper));
-  --turn-ink: var(--accent);
+  /* Green identifies the user's next move. Unread and agent progress keep the blue
+     accent, so neither can be mistaken for a request to the user. */
+  --turn-wash: var(--ok-wash);
+  --turn-ink: var(--ok-ink);
   --warn-tint: light-dark(#f7ecd2, #322715);   --warn-ink: light-dark(#8a5a12, #e2bb75);
   --danger-tint: light-dark(#f7e0da, #35211b); --danger-ink: light-dark(#9c3526, #e0a091);
   --add-tint: light-dark(#e4efe0, #1b2a1c); --del-tint: light-dark(#f7e2dc, #33201b);
   --hi-tint: light-dark(#fff8c5, #342d14);
-  /* Six syntax roles are enough to find structure without turning evidence into a
-     paint box. Unmapped scopes keep the inherited code ink. Each role clears 4.5:1
-     on the code canvas and semantic line tints; the render gate checks the result. */
-  --syn-comment: light-dark(#696458, #a59d8e); --syn-keyword: light-dark(#a3372c, #e59a8c);
+  /* Shiki's theme reads these CSS variables directly. The palette follows the
+     page's color scheme and can be overridden wherever code is drawn. The render
+     gate checks the colors the browser actually paints on each code canvas. */
+  --syn-comment: light-dark(#5a5549, #cac2b3); --syn-keyword: light-dark(#8d251d, #efafa0);
   --syn-string: light-dark(#1d4f6b, #9dc4dd);
-  --syn-number: light-dark(#2f5480, #a8c4e2); --syn-name: light-dark(#6b4a9e, #c3a8de);
-  --syn-type: light-dark(#8a5a12, #dcb27e);
+  --syn-number: light-dark(#2f5480, #a8c4e2); --syn-name: light-dark(#573387, #cdb2e8);
+  --syn-type: light-dark(#6b4305, #e6bc88);
 
   /* Series colors, for a chart's marks. Five, and the sixth is refused rather than
      drawn: these are the most a user can hold apart, and a palette that runs out and
@@ -447,32 +473,28 @@
   --series-5: light-dark(#8c2d2a, #b13d54);
 }
 /* The narrow face a phone held upright wears (chrome.css) holds forty-pixel controls,
-   and a finger's row 44px aims wherever it stands. */
-@media screen and (width <= 480px) { :root { --lf-banner-row: 52px; } }
-@media screen and (pointer: coarse) { :root { --lf-banner-row: 53px; } }
-/* The rows. More and Threads stand on the row, and Approval where the page asks for
-   sign-off (banner.js), each held at its widest words, so the run's width is known;
-   beside it the status wants a readable start of its sentence, about 24ch. Chrome on
-   macOS finds no room for both at 436px and narrower under a fine pointer and 456px
-   under a coarse one, or 636px and 644px with Approval. Each bound here sits a few
-   pixels under its measure, so no window takes a second row it could do without; the
-   status there starts a little short of 24ch, as it does beside a classic scrollbar. A
-   finger's steps, such as page search's, stand in the reading loop's place and fit the
-   same row (banner-toolbar.js). Delivery writes the declaration on the root
-   (`data-lf-review`), since a :has() reading the page's meta from the root would restyle
-   the whole page on every change below it. */
-@media screen and (width <= 430px), screen and (pointer: coarse) and (width <= 450px) {
-  :root { --lf-banner-rows: 2; }
-}
-@media screen and (width <= 630px), screen and (pointer: coarse) and (width <= 640px) {
-  html[data-lf-review="sign-off"] { --lf-banner-rows: 2; }
+   and a finger's row 44px aims wherever it stands. It is one row, whatever the toolbar's
+   desk capacity: the status in words, then Threads as an icon with its count, then
+   More, which holds Approval and everything else. */
+@media screen and (width <= 480px) {
+  :root { --lf-banner-row: max(52px, calc(var(--t-5) * var(--lf-ui-lh) + 19px),
+    calc(var(--aim-floor) + 9px));
+    --lf-banner-rows: 1; }
 }
 /* Only a live page draws the banner. Without one, what sticks below the banner sticks
    to the top of the window. */
-html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-bottom-bar-h: 0px; }
+html:not([data-lf-live]) {
+  --lf-banner-h: 0px; --lf-bottom-bar-h: 0px;
+  --lf-bottom-status-bottom: calc(14px + var(--lf-safe-bottom));
+  --lf-bottom-status-translate: none;
+}
 /* A touch screen has no keys to hint, so it draws no band (chrome.css); a status that
    shows there stands over the page like any other passing notice. */
-@media screen and (pointer: coarse) { :root { --lf-bottom-bar-h: 0px; } }
+@media screen and (pointer: coarse) { :root {
+  --lf-bottom-bar-h: 0px;
+  --lf-bottom-status-bottom: calc(14px + var(--lf-safe-bottom));
+  --lf-bottom-status-translate: none;
+} }
 /* The other half of --aim-floor and --entry-floor, and the whole of what a coarse pointer
    changes about how small a control, or the words typed in one, may be. Every rule that
    states a floor reads its token, so a control joins both answers by joining one of them. */
@@ -501,8 +523,9 @@ html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-bottom-bar-h: 0px; }
    spelled out in full — falls back to `none` rather than reading as one.
 
    Naming is not how the layer says a ring is there; the outline is, and nothing the
-   product ships reads this. What holds the layer to naming what it draws is the corpus
-   floor, in the suite, which divides by these names and credits what the page paints. */
+   product ships reads this. What holds the layer to naming what it draws is the suite's
+   ring samples, which require every rule drawing the ring to name it and credit what
+   the page paints. */
 @property --lf-focus-ring {
   syntax: "<custom-ident>";
   inherits: false;
@@ -522,13 +545,19 @@ html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-bottom-bar-h: 0px; }
  * the content is an inset the box did not state, and it is the whole of the marking on a
  * quotation, where 16px of bar ran past the exhibit at each end.
  *
- * `margin-trim` is the property for this and Chrome hasn't got it (151: `CSS.supports`
- * says no, and the declaration lays nothing out), so the trim is written here — and the
- * half worth thinking about is who writes it. A list of the boxes that frame what they
+ * Native `margin-trim` is not available in every served browser and does not share
+ * this contract for generated children and non-collapsing layout contexts
+ * (notes/browser-support.md, "Frame margin trimming"), so the trim is written here.
+ * A list of the boxes that frame what they
  * hold is the closed list the norms forbid: a layer's stylesheet can only name that
  * layer's own, so a project's card is outside it and the failure is a silent 13px rather
  * than an error. A box says so itself instead, in the same declaration where it draws the
- * frame, and the trim finds it through a style query. `--lf-block-frame` inherits, so the reset
+ * frame, and the trim finds it through a style query. Every box that draws a frame traps
+ * its children's margins, and some boxes trap them without drawing anything (`main`'s
+ * padding, a page tab's panel, a goal's float containment), so the declaration has one
+ * value for each: `1` draws a frame, and `trim` only trims. The trim reads both; what
+ * else a frame does (withholding the page's room, layouts.css; filling it with a table,
+ * below) reads `1`. `--lf-block-frame` inherits, so the reset
  * inside holds the claim to the box's own children; a nested frame outranks the reset
  * by being a selector rather than `*`.
  *
@@ -558,7 +587,9 @@ html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-bottom-bar-h: 0px; }
  * the edge stops being right: its first item at the frame's edge would lose its margin
  * and the items beside it keep theirs, so the row no longer lines up. A stylesheet cannot
  * ask a box for its display, so such a box says so, --lf-holds-edge: 1, and the trim
- * stops at it. */
+ * stops at it. Direct frames and propagated edges share one rule per edge, so that
+ * boundary holds even when the row draws its own frame. The frame reset remains
+ * independent: a row still bounds its content when its children keep their margins. */
 @property --lf-frame-start {
   syntax: "<integer>";
   inherits: false;
@@ -574,24 +605,16 @@ html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-bottom-bar-h: 0px; }
   inherits: false;
   initial-value: 0;
 }
-@container style(--lf-block-frame: 1) {
-  :nth-child(1 of :not(.lf-ui, [data-lf-gen])) {
-    margin-block-start: 0;
-    --lf-frame-start: 1;
-  }
-  :nth-last-child(1 of :not(.lf-ui, [data-lf-gen])) {
-    margin-block-end: 0;
-    --lf-frame-end: 1;
-  }
+@container style(--lf-block-frame: 1) or style(--lf-block-frame: trim) {
   * { --lf-block-frame: 0; }
 }
-@container style(--lf-frame-start: 1) and (not style(--lf-holds-edge: 1)) {
+@container (style(--lf-block-frame: 1) or style(--lf-block-frame: trim) or style(--lf-frame-start: 1)) and (not style(--lf-holds-edge: 1)) {
   :nth-child(1 of :not(.lf-ui, [data-lf-gen])) {
     margin-block-start: 0;
     --lf-frame-start: 1;
   }
 }
-@container style(--lf-frame-end: 1) and (not style(--lf-holds-edge: 1)) {
+@container (style(--lf-block-frame: 1) or style(--lf-block-frame: trim) or style(--lf-frame-end: 1)) and (not style(--lf-holds-edge: 1)) {
   :nth-last-child(1 of :not(.lf-ui, [data-lf-gen])) {
     margin-block-end: 0;
     --lf-frame-end: 1;
@@ -618,8 +641,9 @@ html { background: var(--paper); }
  * the useful initial HTML paints where it will remain. The root stays the document
  * scrollport. Its definite height lets the body's percentage minimum fill a short
  * viewport while a longer body still overflows it. A standing scrollbar prevents a
- * later height change from recentering the page. The server's prepaint bootstrap marks
- * a live page before its graph has loaded, and paper has no fixed chrome. */
+ * later height change from recentering the page. A served page's bootstrap marks it
+ * live before its graph has loaded (runtime/bootstrap.js); an export draws no chrome,
+ * and paper has no fixed chrome. */
 @media screen {
   html[data-lf-live] {
     height: 100%;
@@ -645,14 +669,16 @@ html { background: var(--paper); }
     --lf-banner-row: 48px;
     --lf-banner-rows: 1;
     --lf-bottom-bar-h: 0px;
+    --lf-bottom-status-bottom: calc(14px + var(--lf-safe-bottom));
+    --lf-bottom-status-translate: none;
     overflow-y: hidden;
     body { min-height: 0; }
     main { padding-block: 24px; }
   }
 }
-/* The auxiliary surfaces — the Asks drawer on the left, the thread panel on the right, the
- * Leaves drawer — stand over the page and never take room from it. The page's geometry is
- * the author's, and a surface the user raises for a moment does not reflow it: the shell
+/* The auxiliary surfaces — the thread panel and the Questions panel on the right, the
+ * Leaves drawer on the left — stand over the page and never take room from it. The
+ * page's geometry is the author's, and a surface the user raises for a moment does not reflow it: the shell
  * is the same width with a surface up as without one, so every container query, rail and
  * wide exhibit reads what the author laid out.
  *
@@ -698,13 +724,23 @@ body {
     var(--lf-auxiliary-width, 0px));
 }
 @media screen {
-  html[data-lf-live] body[data-lf-auxiliary-surface="asks"] {
-    --lf-auxiliary-width: var(--lf-drawer-slot-width, 300px);
-  }
-  html[data-lf-live] body[data-lf-auxiliary-surface="threads"] {
+  /* Threads and Questions share the right edge and its width. */
+  html[data-lf-live] body:is([data-lf-auxiliary-surface="threads"],
+      [data-lf-auxiliary-surface="queue"]) {
     --lf-auxiliary-width: var(--lf-thread-panel-width, 420px);
   }
 }
+/* What delivery writes into an upgraded widget for its first paint (`x-prepaint`,
+ * revision_delivery.py): the structure its module will draw, so the browser sizes the
+ * widget as it will size the drawing. It holds that room and shows none of its
+ * placeholder words, which the drawing replaces with the log's. A reading with no
+ * runtime gets no drawing, so the room goes with it. */
+[data-lf-prepaint] { visibility: hidden; }
+/* Declared Markdown is the readable first paint, with its exact authored pre
+   retained for semantic capture until the formatter adopts these same nodes. */
+.lf-markdown-body[data-lf-prepaint] { visibility: visible; }
+:has(> .lf-markdown-body[data-lf-prepaint]) > pre { display: none; }
+html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) { display: none; }
 /* Authored HTML is the page's useful initial condition, so it paints from stylesheet
  * parse while JavaScript upgrades widgets and reads the standing log. Generated page
  * interface joins it as soon as widget and page-interface upgrade gives that apparatus
@@ -717,30 +753,33 @@ body {
  * version gate refuses it for the display and visibility properties this boundary owns. */
 @layer {
   @media screen {
-    html[data-lf-live] body:not([data-lf-presented]),
-    html[data-lf-live] body:not([data-lf-presented]) > main,
-    html[data-lf-live] body:not([data-lf-presented]) > main *,
-    html[data-lf-live] body:not([data-lf-presented]) .lf-ui {
+    html[data-lf-interactive] body:not([data-lf-presented]),
+    html[data-lf-interactive] body:not([data-lf-presented]) > main,
+    html[data-lf-interactive] body:not([data-lf-presented]) > main *,
+    html[data-lf-interactive] body:not([data-lf-presented]) .lf-ui {
       transition: none !important;
     }
-    html[data-lf-live] body:not([data-lf-upgraded]) > main .lf-ui {
+    html[data-lf-interactive] body:not([data-lf-upgraded]) > main .lf-ui {
       visibility: hidden !important;
     }
   }
 }
-/* The keys the prepaint bootstrap holds until presentation (runtime/bootstrap.js). It
- * stands where the chrome's bottom status will, and is styled here because it can
+/* The keys a served page's bootstrap holds until presentation (runtime/bootstrap.js).
+ * It stands where the chrome's bottom status will, and is styled here because it can
  * appear before the runtime has adopted chrome.css. */
 .lf-held-keys {
   position: fixed; z-index: var(--lf-z-bottom-status); pointer-events: none;
   right: calc(18px + var(--lf-safe-right));
-  bottom: calc(var(--lf-safe-bottom) + (var(--lf-bottom-bar-h) - var(--lf-safe-bottom)) / 2);
-  translate: 0 50%; margin: 0; padding: 5px 10px;
+  bottom: var(--lf-bottom-status-bottom);
+  translate: var(--lf-bottom-status-translate); margin: 0; padding: 5px 10px;
   max-width: calc(100vw - 36px - var(--lf-safe-left) - var(--lf-safe-right));
   overflow: hidden; display: flex; gap: 0.4em; align-items: center;
   color: var(--muted); font: var(--t-6)/var(--lf-ui-lh) var(--sans); white-space: nowrap;
   border: 1px solid var(--rule); border-radius: var(--r); background: var(--card);
 }
+/* The room a text field keeps after its last words for the action standing in its
+   trailing corner (composing/text-field.js). Typed, so a reading resolves to a length. */
+@property --lf-field-end-room { syntax: "<length>"; inherits: true; initial-value: 0px; }
 /* The general leaf text box, in one rule. It is stated page-side like the rest of the
    shared vocabulary's faces (chrome.css), so a widget's own box that names the same
    property wins. The compact response field is excluded because it shares its complete
@@ -759,22 +798,22 @@ body {
   border: 1px solid var(--border-2);
   border-radius: 6px; background: var(--card); color: inherit; resize: none;
   field-sizing: content; max-height: 50vh; overflow-y: auto; }
-/* A single-line field or select a widget offers wears the text box's frame at a
+/* A single-line field or select, authored as .field or offered by a widget, wears the text box's frame at a
    button's height, so a row of them beside .lf-btn reads as one set of controls. With
    no face the browser drew its own: a 2px inset border and square corners, 21px tall
    beside 30px buttons. At a class's weight, so a component rule naming its own field
    still wins by standing later. */
 :where(select, input:not([type=checkbox], [type=radio], [type=range], [type=color],
-       [type=file], [type=button], [type=submit], [type=reset], [type=image])).lf-ui {
+       [type=file], [type=button], [type=submit], [type=reset], [type=image])):is(.lf-ui, .field) {
   box-sizing: border-box; min-height: max(var(--aim-floor), calc(1em * var(--lf-ui-lh) + 10px));
   padding: 4px 8px; border: 1px solid var(--border-2); border-radius: 6px;
   background: var(--card); color: var(--ink); }
 :where(select, input:not([type=checkbox], [type=radio], [type=range], [type=color],
-       [type=file], [type=button], [type=submit], [type=reset], [type=image])).lf-ui:focus-visible {
+       [type=file], [type=button], [type=submit], [type=reset], [type=image])):is(.lf-ui, .field):focus-visible {
   outline: var(--focus-ring); --lf-focus-ring: text-box; outline-offset: 0;
   border-color: transparent; }
 .lf-ui :is(input, textarea)::placeholder,
-:is(input, textarea).lf-ui::placeholder { color: var(--muted); opacity: 1; }
+:is(input, textarea):is(.lf-ui, .field)::placeholder { color: var(--muted); opacity: 1; }
 .lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input)):is(:focus, .lf-focus),
 :is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input)):is(:focus, .lf-focus) { outline: var(--focus-ring);
   --lf-focus-ring: text-box; outline-offset: 0; border-color: transparent; }
@@ -785,7 +824,7 @@ body {
  * either side. */
 main {
   position: relative;
-  --lf-block-frame: 1;
+  --lf-block-frame: trim;
   container-name: lf-content-frame;
   padding-block: 72px 96px;
   --lf-free-l: 0px;
@@ -800,19 +839,42 @@ main {
  * widget back. */
 @property --lf-width { syntax: "<length>"; inherits: true; initial-value: 0px; }
 /* Where a box sticking here stops: the sticky headers standing over the top of its
- * scroller, stacked. On the root it starts at the banner's height (above); a box the
- * theme makes scroll that can hold a header starts it again from its own top (a bounded
- * block, a table, a board; a workspace pane's body from minus its top padding,
- * layouts.css). A sticky header (a page tab strip, a diff's file header) has a stated
- * height and sticks at the `--lf-top` it inherits; what it stands over takes that value
- * plus its height, which the header's holder passes on under a second name, since a
- * custom property cannot read itself. The stacked value goes on a box that does not
- * itself scroll, since a box that scrolls is read where it stands. A landing clears the
+ * scroller, stacked. On the root it starts at the banner's height (above). Every other
+ * box that scrolls starts it again from its own top. A box the theme makes scroll
+ * states that beside its overflow, so it holds from the first paint, before the runtime
+ * runs (a bounded block, a table, a board; a workspace pane's body from minus its top
+ * padding, layouts.css). The runtime marks every box it finds scrolling, whoever made
+ * it scroll (reach.js, `paintSlot`), and the mark restarts the slot ([data-lf-scrolls],
+ * state.css), so a box the page or a package makes scroll restarts too. The mark sits
+ * above packages and Layouts, so it outranks a value stacked onto a box that scrolls (a
+ * page tab's panel the page makes scroll), and it restarts at `--lf-top-start`, which a
+ * box that starts its slot other than at 0 states beside its `--lf-top` (a workspace
+ * pane's body, a thread list). A box that clips without scrolling says
+ * `overflow: clip`, since `hidden` scrolls, for a script, and so holds the headers
+ * inside it. A box that sticks keeps the value it met for its own `top`, so a sticking
+ * box that scrolls headers restarts the slot for them itself (a column's sidebar,
+ * layouts.css).
+ * A sticky header (a page tab strip, a diff's file header) has a stated height and
+ * sticks at the `--lf-top` it inherits; what it stands over takes that value plus its
+ * height, which the header's holder passes on under a second name, since a custom
+ * property cannot read itself. The stacked value goes on a box that does not itself
+ * scroll, since a box that scrolls is read where it stands. A landing clears the
  * headers over a whole scroller through its `scroll-padding` and one over part of it
  * through `scroll-margin` on the rows under it, and the runtime's reading of what is on
  * screen takes the value at each element (geometry.js, `headerInset`). Registered so
  * that reading is a length. */
 @property --lf-top { syntax: "<length>"; inherits: true; initial-value: 0px; }
+/* Where a box that scrolls starts the slot for what it holds, read by the restart above;
+ * its own, so not inherited, which would start a scroller inside it there too. */
+@property --lf-top-start { syntax: "<length>"; inherits: false; initial-value: 0px; }
+/* The same for a box sticking at its scroller's foot: what it stands over takes its
+ * height and offset as `--lf-bottom`, and the runtime's reading of what is on screen
+ * leaves that band out too (geometry.js, `footerInset`). A long open thread's reply
+ * row is one (chrome.css). No box restarts it. Nothing inside what a footer stands
+ * over carries a footer of its own, and the slot's other reader, the landing margin of
+ * every box in that thread's content (chrome.css), is read on a box that scrolls too:
+ * a restart there would let a landing on that box stop under the reply row. */
+@property --lf-bottom { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --lf-free-l { syntax: "<length>"; inherits: true; initial-value: 99999px; }
 @property --lf-free-r { syntax: "<length>"; inherits: true; initial-value: 99999px; }
 /* Registered so the runtime reads each margin resident's width in pixels, whatever
@@ -821,169 +883,50 @@ main {
 @property --map { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --sidebar { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --note { syntax: "<length>"; inherits: true; initial-value: 0px; }
-/* Content that needs more space than the argument about it. The column above is the measure
- * prose is read at, and a board's columns or a diagram's graph are as wide as what they
- * hold — so a page carrying one was a cramped board, or a page whose every paragraph had
- * been widened to suit its widest exhibit. Neither is a choice a page should have to
- * make, and the tradition this borrows from doesn't: Distill sets text at l-body and
- * figures at l-page, Tufte holds the column and lets a figure go fullwidth. What keeps it
- * reading as design is that the prose axis never moves and there is one wider width, so
- * wide evidence is either in the column or at --wide and never at a number of its own.
- *
- * Which widgets those are is the registry's to say (x-space) and not this file's: a rule
- * naming lf-board would work perfectly for lf-board and do nothing at all for the
- * twelfth widget, which is the failure the whole vocabulary is arranged against. The
- * runtime marks what the registry declares, so this reaches a widget nobody has written
- * yet.
- *
- * The element grows out of the column rather than widening the prose around it. That is
- * the floor for free — a margin with nothing
- * to give gives nothing, and a widget nobody has stated a room for is exactly the column,
- * which is the layout the page already had. It is what makes an estimate safe to state,
- * too: a room read short can only fail to widen an exhibit, never narrow one below the
- * measure its own page is set to.
- *
- * The growth stops at main's gutters, less what the page's own residents take in each
- * margin (`--lf-taken-l`, `--lf-taken-r`, layouts.css). The rail takes nothing, so an
- * exhibit may grow into the room it would stand in. What stands level with an exhibit in
- * the margin is decided by what put it there. A sidenote is the page's own, so the exhibit
- * clears it (`clear`, at aside.sidenote). A margin row is Leaf's, so where a block grows
- * into the rail, the row stands on it as a pin (margin-placement.js): nothing Leaf draws
- * moves the page's content, and an exhibit keeps the same width however many comments
- * arrive beside it.
- *
- * Where one side has less room than the other, the freer side takes what the other
- * lacks instead of losing half the allocation to symmetry. With both sides equally free,
- * the element keeps the prose axis.
- *
- * Screen only. Paper has no window to take room from and a printed page is the column's
- * width, so leaving the rule out of print is the whole of what paper needs. On screen,
- * `body` is the size container. No surface Leaf opens changes its inline size, since each
- * stands over the page, and `main` subtracts the page's own two margin claims from that
- * one browser reading. */
+/* The column: the reading measure, and the one rule that sets it. Text keeps it wherever
+ * it stands: a paragraph, a list item or a heading is never set wider than the column,
+ * however wide the box around it. So does a block allocated the column
+ * (`data-lf-space="column"`): a widget whose content is read as lines of text, or a box
+ * that frames prose (an Ask, a callout, which declares it as an idiom), declares it
+ * (`x-space: column`), and an occurrence asks for it with `data-width`. Both start at
+ * their holder's start edge, so in a flow wider than the column (a wide page, a pane, a
+ * sidebar Layout's body) the widget's box and the prose around it share one left edge
+ * and one width. It caps the width and sets no margin, so a widget's own arrangement,
+ * such as an Ask's options track, still places the box. Package captions may span their
+ * own frame, so this rule shares their base layer at zero specificity. */
 @media screen {
-  /* `data-lf-space` is the room an element takes: what its tag declares (x-space), or
-   * the page's own occurrence saying so (`data-width`). Delivery paints it into the
-   * served document (revision_delivery.py, `mark_declared`), so a width is in the first
-   * paint rather than a reflow once leaf.js resolves. In a message the runtime withholds
-   * the room deliberately, the document's rather than the panel's, by not painting it. */
-  [data-lf-space] {
-    /* Held to what is free beside the page (main's --lf-free-l and --lf-free-r), and
-     * spent evenly each way where both sides are free; otherwise the freer side takes
-     * what the other lacks. */
-    --lf-surplus: clamp(0px, calc(var(--lf-reach) - 100%),
-      calc(var(--lf-free-l) + var(--lf-free-r)));
-    --lf-grow-l: clamp(calc(var(--lf-surplus) - var(--lf-free-r)),
-      calc(var(--lf-surplus) / 2), var(--lf-free-l));
-    --lf-grow-r: calc(var(--lf-surplus) - var(--lf-grow-l));
-    max-width: none;
-    margin-left: calc(-1 * var(--lf-grow-l));
-    margin-right: calc(-1 * var(--lf-grow-r));
-    /* The box's width is the room's and never its content's — that is the whole
-     * contract above — and this is where layout is told so. Without it the content's
-     * minimum is what every shrink-to-fit holder is floored at, and the row-form
-     * option is one: a table box hugging its label hugged a 985px graph instead,
-     * grew past the joined group's border, and the group's clip cut the exhibit off
-     * with nothing reported. Size containment zeroes the box's say in any ancestor's
-     * intrinsic width; what it holds already scrolls. */
-    contain: inline-size;
-  }
-  [data-lf-space="column"] {
-    --lf-reach: min(var(--col), var(--lf-room, 0px));
-    --lf-surplus: 0px;
-    width: min(100%, var(--col));
-    margin-inline: auto;
-  }
-  table[data-lf-space]:not([data-lf-space="column"]) {
-    width: calc(100% + var(--lf-surplus));
-  }
-  [data-lf-space="wide"] {
-    --lf-reach: min(var(--wide), var(--lf-room, 0px));
-  }
-  [data-lf-space="available"] {
-    --lf-reach: var(--lf-room, 0px);
-  }
-  [data-lf-space] [data-lf-space] {
-    --lf-room: 100%;
-  }
-  /* A widget whose upgrade failed is showing the message and the source it choked on
-   * (failSoft), and prose is the column's. The room it declared was for the drawing it
-   * did not manage to make, so a parse error came out as a red slab across the whole
-   * window with its message set on one 1600px line — the degrade path, which is the
-   * worst place to be shouting. `.lf-error` is the layer's own word for this rather than
-   * any widget's, so the next widget to fail soft is covered by having failed.
-   *
-   * The box is the message's holder here and not a clip, so the message fills it and
-   * wraps. Both halves of that are said: a flex item is floored at its own content's
-   * minimum unless told otherwise, and the source it holds is a `pre` that never wraps,
-   * so the box came out as wide as the longest line — 854px of it in a 720px column,
-   * scrolling, on the first real diagram source anyone fed it. The `pre` scrolls inside
-   * the message instead, which is what a `pre` does everywhere else on the page. */
-  [data-lf-space]:has(> .lf-error) { --lf-room: 0px; }
-  /* A box that draws one of its own is a box a wide widget stays inside. The room is the
-   * page's to give, and inside a disclosure or a callout the page is not what holds the
-   * widget — a board that took the window from inside a <details> hung out over both
-   * edges of the frame it was filed under, which reads as a broken page rather than as a
-   * wide exhibit. Stated as no room rather than as an exception to the rule above, so the
-   * widget falls back to the floor that rule already has and fills its holder exactly.
-   *
-   * A box declares that it frames what it holds in the rule where it draws the frame
-   * (`--lf-block-frame`), and the room is the second thing the layer reads out of that one
-   * declaration: whoever draws a box gets both by saying one thing, in the layer that
-   * draws it, and a project's card is covered the day it says it. Two lists of tags said
-   * it before, one here and one in packages/default/theme.css, and a list beside a declaration is
-   * a copy of it — every tag in them declared the frame, five boxes that declared were in
-   * neither, and `figure`, which draws no box at all, was withholding the room.
-   *
-   * `--lf-room` inherits, so one rule at a box's own children reaches a widget however
-   * deep inside it sits, and `--lf-block-frame` is reset one level in (above), so no box
-   * answers for its grandparent's frame.
-   *
-   * The column declares the frame too — it is a padded box like any other and its first
-   * line wants the trim — so it hands the room straight back to what it holds. That is
-   * the whole difference between the page and a box on it, and the gate says it the same
-   * way, by walking up no further than `main`.
-   *
-   * A transparent wrapper declares nothing: a section and a page tab's panel are the page's
-   * own flow, and an exhibit breaking out through one is the point. What says so when a
-   * box that draws has not declared is `page check --render`, which measures every
-   * wide element against the nearest ancestor that draws one. It could not see through a
-   * scroll container until a diagram in a board card was drawn 332px across the next
-   * column, and four widgets letting a diagram out were found the day it could. */
-  @container style(--lf-block-frame: 1) {
-    * { --lf-room: 0px; }
-  }
-  main > * { --lf-room: inherit; }
-
-
-  /* Text keeps the reading measure wherever it stands: a paragraph, a list item or a
-   * heading is never set wider than the column, however wide the box around it. This is
-   * typography, not layout, so it holds with or without a Layout; boxes are the page's. */
-  :where(p, li, dt, dd, blockquote, figcaption, h1, h2, h3, h4, h5, h6) {
+  :where(p, li, dt, dd, blockquote, figcaption, h1, h2, h3, h4, h5, h6,
+    [data-lf-space="column"]) {
     max-inline-size: var(--col);
   }
-
-  /* A block that bounds its own height scrolls inside it (x-bound, or data-bound on an
-   * occurrence), so a long log or feed never grows the page. `end` follows the newest
-   * entry (bounds.js). Paper has no scroller to hold it, so print shows it whole. What
-   * sticks inside it sticks at its own top, which no chrome covers (`--lf-top`). */
+  /* The measure is a text's line length, and an allocated box's outer width: the box
+   * the column would give it, its border and padding inside. The box states the column
+   * as the width it may reach (`--lf-reach`, as a breakout states its own in
+   * layouts.css), so a widget whose minimum reads it, such as a board's columns, keeps
+   * to the column and scrolls inside it. */
+  :where([data-lf-space="column"]) {
+    box-sizing: border-box;
+    --lf-reach: min(var(--col), var(--lf-room, 0px));
+  }
+  /* A box allocated the column widens to the widest allocation among its own blocks, so
+   * an Ask or a callout around a chart or table that declares `wide` or `available`
+   * frames that block rather than clipping it to the measure. On a column page the box
+   * stays in the column and the block breaks out of it (layouts.css); in a wider flow
+   * the box takes the room. Only its children count: a block inside one of them, such as
+   * a table in an option or a folded disclosure, is held to that child's width, so an
+   * option list keeps the measure whatever one option holds. */
+  :where([data-lf-space="column"]:has(> [data-lf-space="wide"])) {
+    max-inline-size: var(--wide);
+  }
+  :where([data-lf-space="column"]:has(> [data-lf-space="available"])) {
+    max-inline-size: none;
+  }
+  /* A bounded block scrolls within its stated height. A widget can assign that bound to
+   * an inner reader instead, keeping its own caption outside the scroller. */
   [data-lf-bound] {
     max-block-size: var(--lf-bound, 28rem);
     overflow: auto;
-    overscroll-behavior: contain;
     --lf-top: 0px;
-  }
-  /* A widget with a stated height (x-height, or data-height on an occurrence) has that
-   * box from the first paint until its module has drawn (`lf-rendered`), so the drawing
-   * lands in room the page already laid out. What the element holds before then is its
-   * source, which the box clips rather than grows around. Once drawn, the box is the
-   * drawing's: one drawn at the stated height keeps it, and one whose content has a
-   * height of its own takes that. A failure is shown whole, since the user has to read
-   * it. */
-  html[data-lf-live] [data-lf-height]:not(.lf-rendered, :has(> .lf-error)) {
-    box-sizing: border-box;
-    block-size: attr(data-lf-height px);
-    overflow: clip;
   }
 }
 /* A phone's vertical rhythm is a fact about the device, so this asks the window. */
@@ -1001,83 +944,48 @@ h2 { font-size: var(--t-2); line-height: 1.25; letter-spacing: -0.008em;
      margin: 48px 0 12px; text-wrap: balance; }
 h3 { font-size: var(--t-3); line-height: 1.3; margin: 32px 0 8px;
      text-wrap: balance; }
+/* A page as wide as the window (`--lf-wide-page`, set by the wide Layouts on `main`)
+ * sets its title a size up and tighter, to hold its line above panels as wide as the
+ * window. The Layout says how wide the page is; the size is answered here. */
+@container style(--lf-wide-page: 1) {
+  h1 { font-size: clamp(36px, 3.2cqi, 46px); font-weight: 700; letter-spacing: -0.02em;
+       line-height: 1.1; }
+}
 p { margin: 13px 0; }
 ul, ol { margin: 10px 0; padding-left: 24px; }
 li { margin: 6px 0; }
-a { color: var(--accent); text-underline-offset: var(--link-underline-offset);
-    text-decoration-color: var(--link-underline); }
-a:hover { text-decoration-color: currentColor; }
 hr { border: none; border-top: 1px solid var(--rule); margin: 40px 0; }
-/* An identifier breaks where it must. A test name or a path is one word to the line
- * breaker, and a word a box cannot hold is either drawn past the box or holds the
- * box to its own width — in a table cell the latter: a column of 79-character test
- * names beside a column of prose held its column at 583px of the 720px measure, the
- * prose was squeezed to 118px and a few words a line, and the table ran 3174px tall
- * and scrolled 83px sideways for the rest. `anywhere` rather than `break-word`
- * because only `anywhere` counts the break when a box's minimum is measured, and a
- * table's columns are sized from exactly that: with it the same table stood
- * 112/352/256 and 1047px tall, scrolling nothing. On code and not on every cell,
- * because a cell's minimum is its longest word, and that is what keeps a column of
- * row names from being squeezed under the prose beside it — with every cell
- * breakable the same table's row names measured 55px. The minimum is what every
- * shrinking box is sized from, so a flex item or a grid track holding a long name
- * hands room to its neighbour the same way (a flex item measured 691px to 359px).
- * A block (pre) wraps nothing, so this reaches nothing there.
+/* Working density: the same faces, set for operating a surface rather than reading
+ * down it, on whatever block takes the class. A workspace's `main` is the usual one,
+ * and a dense pane or table on a column page is another, since how much a block holds
+ * per line is a style and not where the block stands. The ladder and the spacing scale
+ * are restated for the block's subtree, so every rule that reads them, a Layout's gutter
+ * and a widget's padding included, sets at working size; shadow trees too, since custom
+ * properties cross into them. A token derived from the ladder at the root is declared
+ * again here, since it resolves where it is declared. The flow's own margins are numbers
+ * rather than tokens, so they are restated here.
  *
- * Slice the decoration across lines so side padding belongs only to the span's
- * start and end. Cloning each fragment adds padding after line breaking and can
- * paint past the column. */
-code { background: var(--code-bg); border-radius: var(--code-inline-r);
-       padding: var(--code-inline-pad); font-size: var(--code-inline-size);
-       font-family: var(--mono); overflow-wrap: anywhere;
-       box-decoration-break: slice; }
-/* A code block is sized by how many characters it takes across, which is why its size
- * is off the serif ladder above. At --code-size, the column keeps comfortably more
- * than the 80 characters most source is written to.
- *
- * The size and leading are tokens because plain blocks, upgraded widgets, and the diff's
- * shadow tree must keep one density through upgrade. */
-pre { background: var(--pre-bg); border: 1px solid var(--code-border); border-radius: var(--r);
-      padding: 12px var(--pre-inset); overflow-x: auto; font-size: var(--code-size);
-      line-height: var(--code-line); font-family: var(--mono); color: var(--code-ink);
-      font-variant-ligatures: none;
-      /* A block that scrolls its own lines never sizes what holds it: without this a
-       * long line is every flex item's and grid track's minimum up the tree. */
-      contain: inline-size; }
-pre code { background: none; padding: 0; font-size: 100%; }
-/* Paper has no scrollbar, so a line past the column is not a scroll away but gone. Code
-   wraps on the sheet whatever it does on screen, the trade lf-diff's own sheet already
-   makes for its rows. `anywhere` because what runs long in source is paths, URLs and
-   minified data, none of which offer the line box a break to find. `overflow-x` is left
-   alone: once the line wraps there is nothing to scroll, and releasing the clip would
-   only let what cannot wrap paint out through the block's own border. A rule that
-   restates `white-space` for its own box states the paper half beside itself, because
-   naming that box here would tie on specificity and lose on source order, and `@media`
-   contributes nothing to break the tie. */
-@media print {
-  pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+ * `--lf-density` names the setting for what a size alone cannot carry: a widget whose
+ * form changes, such as an option card becoming a row, reads it with a style query, as
+ * it reads any other token, and never asks what holds it. */
+.density-working {
+  --lf-density: working;
+  --t-1: 22px; --t-2: 18px; --t-3: 15.5px; --t-4: 14px; --t-5: 12.5px; --t-6: 10.5px;
+  --t-working-label: 12px;
+  --sp-1: 3px; --sp-2: 6px; --sp-3: 10px; --sp-4: 14px;
+  --code-size: 12px; --code-line: 17px;
+  --lf-key-badge-size: calc(round(var(--t-6) * 1.478 + 2px, 1px));
+  --pane-bar-pad: 6px 12px;
+  --pane-inset: 12px;
+  font-size: var(--t-4);
+  line-height: 1.45;
 }
-/* Syntax roles. The runtime writes these into any code block that names a language —
-   a <pre><code class="language-*"> or a lf-code with `language` — having collapsed the
-   tokenizer's scopes into six of leaf's own first. Styled at document level like
-   the marks, because they land on the page's own elements; one attribute rather than
-   six classes, so the shared class vocabulary doesn't widen at all. A tokenizer swap
-   costs one table in leaf.js and no page that has already shipped. */
-[data-lf-syn="cm"] { color: var(--syn-comment); font-style: italic; }
-[data-lf-syn="kw"] { color: var(--syn-keyword); }
-[data-lf-syn="st"] { color: var(--syn-string); }
-[data-lf-syn="nu"] { color: var(--syn-number); }
-[data-lf-syn="fn"] { color: var(--syn-name); }
-[data-lf-syn="ty"] { color: var(--syn-type); }
-/* A diff's own lines take the tints lf-diff and lf-suggestion already carry, so an
-   added line reads the same whichever of the three drew it. Ink only: these spans
-   cover a line's text and not its box, and a background would print as a ragged
-   half-width band. */
-[data-lf-syn="ins"] { color: var(--ok-ink); }
-[data-lf-syn="del"] { color: var(--danger-ink); }
-blockquote { margin: 18px 0; padding: 2px var(--quote-inset);
-             border-left: var(--quote-rule); color: var(--muted);
-             font-style: var(--quote-style); --lf-block-frame: 1; }
+.density-working :is(p, ul, ol) { margin-block: 6px; }
+.density-working li { margin-block: 3px; }
+.density-working h2 { margin: 18px 0 6px; }
+.density-working h3 { margin: 12px 0 4px; }
+.density-working h4 { margin: 10px 0 4px; }
+.density-working :is(th, td) { padding: 4px 10px; }
 figure { margin: 22px 0; }
 figcaption { font-size: var(--t-6); color: var(--muted); margin-top: 8px; }
 img, svg, video { max-width: 100%; height: auto; }
@@ -1124,30 +1032,25 @@ img { aspect-ratio: attr(width type(<number>)) / attr(height type(<number>)); }
  * one. */
 /* A table scrolls its own columns, so, like `pre`, its rows never size what holds it.
  * Scrolling sideways makes it the scroller for anything sticking inside it, which
- * sticks at the table's own top (`--lf-top`). */
-table { display: block; overflow-x: auto; container-type: inline-size; --lf-top: 0px;
+ * sticks at the table's own top (`--lf-top`), and, like `pre`, leaves room under its
+ * last row for an overlay scrollbar (shadow.css, beside `pre`). */
+table { display: block; overflow-x: auto; container-type: inline-size scroll-state; --lf-top: 0px;
         border-collapse: collapse;
         font: var(--t-5)/1.5 var(--sans); margin: 18px 0; font-variant-numeric: tabular-nums; }
-/* A table standing in a drawn frame (a panel, a callout, a pane, a cell) fills it. The
-   frame's inner edge is a line the eye measures the rules against, so a table that
-   kept to its content there read as cut short: live-progress's Checks rules stopped
-   158px before the panel's edge. In the column the same shortfall is only the measure,
-   and the rule above keeps it, which is why `main`, the one frame that draws nothing,
-   hands the table back.
+/* A table's painted grid fills an explicit spatial allocation or a drawn frame.
+   The allocation may belong to the table or a containing block. Without either,
+   the grid keeps its columns' natural width; a frame that only trims draws no edge
+   to fill (`--lf-block-frame: trim`).
 
-   The grid is an anonymous box inside the block that scrolls, which no rule can size,
-   and a table box doesn't stretch as a flex or grid item. What it does do is grow to
-   its widest caption, so the frame asks through an empty generated one as wide as the
-   table's own box (100cqi). The automatic layout shares the leftover among the columns
-   in proportion to what each holds. A table too wide for the frame is already the
-   frame's width, so the caption changes nothing there and the columns still scroll.
-   Registered so the claim stays on the table and a table nested deeper in it asks its
-   own holder. */
+   The grid is an anonymous box inside the scrolling block, so CSS cannot size it
+   directly. An empty caption as wide as the scrollport (100cqi) supplies its minimum;
+   automatic table layout distributes that width among the columns. Wider content
+   still scrolls. The claim stays on each table, so a nested table asks its own frame. */
 @property --lf-fills-frame { syntax: "<integer>"; inherits: false; initial-value: 0; }
+table:where([data-lf-space], [data-lf-space] *) { --lf-fills-frame: 1; }
 @container style(--lf-block-frame: 1) {
   table { --lf-fills-frame: 1; }
 }
-main > table { --lf-fills-frame: 0; }
 @container style(--lf-fills-frame: 1) {
   table::before { content: ""; display: table-caption; min-inline-size: 100cqi; }
 }
@@ -1187,8 +1090,11 @@ th:not([scope="row"]) { font-size: var(--t-working-label);
      color: var(--muted); font-weight: 600;
      border-bottom-color: var(--border-2); }
 th[scope="row"] { font-weight: 600; }
-details { background: var(--field); border: 1px solid var(--rule);
-          border-radius: var(--r); padding: 8px 14px; margin: 18px 0; --lf-block-frame: 1; }
+/* Supporting detail stays unfilled whether closed or open. Its chevron and hairline
+   offer inspection; the stronger fill belongs to the callout's emphasis. */
+details { border: var(--details-border) solid var(--rule);
+          border-radius: var(--r); padding: var(--details-padding-block) 14px;
+          margin: var(--details-margin-block) 0; --lf-block-frame: 1; }
 summary { cursor: pointer; font-weight: 600; font-size: var(--t-5); }
 details pre { margin: 10px 0 6px; }
 dl { margin: 10px 0; }
@@ -1287,8 +1193,10 @@ dd { margin: 0 0 8px 0; }
    than the body, looser, and in the ink the body isn't. */
 .lede { color: var(--ink-2); font-size: var(--t-3); line-height: 1.5;
         margin: 0 0 10px; }
-/* Riding in a line of prose is all this adds to the chip above. */
-.tag { vertical-align: middle; }
+/* Riding in a line is all this adds to the chip above: in the middle of a line of prose,
+ * and of a row a page lays out as flex or grid, at its own height. Stretched, it took
+ * the height of a link a size up beside it, its text at the top of a tall box. */
+.tag { vertical-align: middle; align-self: center; }
 /* A tinted field with a hairline border — never a left-accent bar. What sits in it is the
    page's own prose at the page's own size, so the tint is the whole of the marking and
    this says nothing about size at all. It held 16px once, a pixel under the body around it
@@ -1323,77 +1231,19 @@ section.panel > :last-child { margin-bottom: 0; }
   border-color: color-mix(in srgb, var(--lf-tone-ink) 22%, transparent); }
 .callout:is(.ok, .warn, .danger) > strong:first-child { color: var(--lf-tone-ink); }
 /* A sidebar is page-level supporting material rather than an annotation on one block:
-   contents, a facts list, a short aside. In flow it is a block where it was written. A
-   column's first sidebar is a margin resident, as is every sidenote: each states which it
-   is (`--lf-resident`), and the margin pass admits it where the room beside the column
-   holds it (margin-layout.js, `settleResidency`), moving the column over where one side
-   lacks it. Each names the postures it may take, in order of preference; the stylesheet
-   reads the answer off `main`'s `data-lf-margin`, one token per posture standing. Screen
-   only: paper has no drawer and no margin to grant. A sidebar in the margin stands sticky
-   below the banner in the room its --sidebar takes left of the column box. A contents
-   map rests as a spine a few pixels wide and reveals its labels over the page, so with a
-   fine pointer a sidebar holding one stands as the map alone, in --map, where the
-   sidebar does not fit or the map is all it holds. Direct-child margins are trimmed because a sidebar is a
-   placement wrapper, not a second rhythm around what it holds. */
-@property --lf-resident { syntax: "*"; inherits: false; }
+   contents, a facts list, a short aside. In flow it is a block where it was written;
+   where a column's sidebar or a sidenote stands in the margin is the column Layout's
+   (layouts.css). Direct-child margins are trimmed because a sidebar is a placement
+   wrapper, not a second rhythm around what it holds. */
 aside.sidebar { display: flow-root; margin: var(--sp-4) 0 30px; }
 aside.sidebar > :first-child { margin-top: 0; }
 aside.sidebar > :last-child { margin-bottom: 0; }
-/* An empty map-only slot is already in its eventual margin posture: no margin
- * and no formatting context separating the blocks on either side of it. */
-main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar):has(> lf-toc:only-child:empty) {
-  display: block; margin-block: 0; }
 main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; }
-main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-resident: sidebar; }
-main.layout-column aside.sidenote { --lf-resident: note; }
-@media screen {
-  /* Sticky, it can stand level with any band of the page, so it takes its whole side: a
-   * breakout grows only rightward past it. */
-  main.layout-column[data-lf-margin~="sidebar"] {
-    --lf-sidebar-posture: margin; --lf-taken-l: calc(var(--lf-beside) + var(--lf-shift)); }
-  main.layout-column[data-lf-margin~="sidebar"] > aside.sidebar:nth-child(1 of aside.sidebar) {
-    float: left; clear: left; position: sticky;
-    top: calc(var(--lf-top) + var(--sp-4));
-    width: calc(var(--sidebar) - var(--sp-4));
-    max-height: calc(var(--lf-view-height) - 2 * var(--sp-4));
-    overflow-y: auto;
-    margin: 0 var(--sp-4) var(--sp-4) calc(-1 * var(--sidebar));
-  }
-}
-/* A contents map in that slot rests as a spine a few pixels wide and reveals its labels
- * over the page; the default package draws it there once this says the slot is in the
- * margin, as the map alone or in a sidebar standing there. */
-@media screen and (hover: hover) and (pointer: fine) {
-  main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar):has(lf-toc) {
-    --lf-resident: sidebar map; }
-  /* A sidebar holding only the map has nothing for a float to hold, so the map alone. */
-  main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar):has(> lf-toc:only-child) {
-    --lf-resident: map; }
-  main.layout-column[data-lf-margin~="map"] { --lf-sidebar-posture: margin; }
-  /* At rest the map is its spine, chrome fixed in the left margin, so a breakout stops
-   * short of it (layouts.css, the column's free room); its labels reveal over the page. */
-  main.layout-column:is([data-lf-margin~="map"], [data-lf-margin~="sidebar"]):has(
-    > aside.sidebar:nth-child(1 of aside.sidebar) lf-toc) { --lf-taken-l: var(--map); }
-  /* Standing alone, a map that was all its sidebar held leaves nothing in the flow, so the
-   * sidebar takes no room there: without margins or a formatting context of its own, the
-   * blocks on either side meet as they do where the sidebar floats. */
-  main.layout-column[data-lf-margin~="map"]
-    > aside.sidebar:nth-child(1 of aside.sidebar):has(> lf-toc:only-child) {
-    display: block; margin-block: 0; }
-}
-/* A sidenote hangs in the column's right margin where the margin pass admits it (above),
-   and is a small indented block where it was written otherwise, and on paper. It claims
-   nothing: a wide exhibit level with a note drops below it (`clear`) and then takes the
-   room, and a margin row level with a note stands on it as a pin (margin-layout.js). */
+
+/* A sidenote is a small indented block where it was written, and on paper; where it hangs
+   in the column's margin is the column Layout's (layouts.css). */
 aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
                  margin: 12px 0 12px var(--sp-4); }
-@media screen {
-  main.layout-column[data-lf-margin~="note"] [data-lf-space]:not([data-lf-space="column"]) {
-    clear: right; }
-  main.layout-column[data-lf-margin~="note"] aside.sidenote {
-    float: right; clear: right; width: calc(var(--note) - var(--sp-4));
-    margin: 0 calc(-1 * var(--note)) 12px 0; }
-}
 .facts { display: grid; grid-template-columns: max-content 1fr; align-items: baseline;
          gap: var(--sp-1) var(--sp-3); margin: 14px 0; }
 .facts dt { color: var(--muted); font-weight: 400; font-size: var(--t-5); }
@@ -1421,7 +1271,8 @@ ol.steps > li { counter-increment: step; position: relative; padding-left: 34px;
    apparatus rung would fill the disc; the room is what is scarce, as it is for the pick
    mark's ✓ and the binding badge's digit. */
 ol.steps > li::before { content: counter(step); position: absolute; left: 0;
-                        top: 2px; width: 21px; height: 21px; border-radius: 50%;
+                        top: 0.5lh; transform: translateY(-50%);
+                        line-height: 1lh; width: 21px; height: 21px; border-radius: 50%;
                         background: var(--accent); color: var(--card); font-size: 12px;
                         font-weight: 600; display: grid; place-items: center; }
 
@@ -1528,21 +1379,15 @@ lf-new { background: var(--add-tint); }
  * slot reads as block there. No shipped script-free page stages one, and the price of
  * keeping that case was the closed list itself.
  *
- * In :where(), because :not() and :has() both take the specificity of the most specific
- * thing inside them, and a bare attribute selector is a whole class-column above the type
- * names it stands among. The list is a question about the content, not a claim on the
- * cascade, and the answer wearing a class column outranked the marks that answer over it:
- * this rule's own block display beat [data-lf-retired]'s `display: none`, so a decided
- * suggestion kept the slot it had just retired on the page. :where() zeroes that argument
- * and leaves the list weighing what the tag names weighed.
+ * The content-shape test stays in :where() so this default is as easy to override
+ * as the slots' ordinary tag rules. Semantic retirement belongs to state.css.
  *
  * The platform half is HTML's phrasing-content set quoted whole, `link` and `meta`
  * included, which no slot will ever hold and which render nothing if one does. CSS
  * cannot derive the category, so the selector keeps the literal, and nothing checks
  * it: a name dropped from it blockizes any slot holding that element, with no test
- * reading a slot's form to say so. What the browser does answer for is the marker
- * half, through lf-compare's copy of the list, and the :where() argument, through a
- * decided block slot keeping nothing it retired.
+ * reading a slot's form to say so. The browser tests exercise the marker half
+ * through lf-compare's copy of the list.
  *
  * The block form's room is above the slot rather than around it, so a run of changes
  * reads as a stack. That was once the only room the slots could ask for: while the
@@ -1580,8 +1425,8 @@ lf-suggestion:has(> :is(lf-old, lf-new) > :not(a, abbr, area, audio, b, bdi, bdo
  * survivor gives up its padding over the same span — a block slot's 10px is the sentence
  * the user is looking at stepping sideways, which is the jerk the fold is there to
  * remove, only smaller. Declared on the slot rather than on the decided state, because a
- * transition is read from the state the element is leaving; the reduced-motion guard at
- * the foot of this file takes it with everything else.
+ * transition is read from the state the element is leaving; the shared reduced-motion
+ * guard in shadow.css takes it with everything else.
  *
  * Padding alone. The tint going is paint, which a state change may do freely, and a
  * transitioned background is the thing the choose group's own comment above warns
@@ -1591,98 +1436,13 @@ lf-suggestion:has(> :is(lf-old, lf-new) > :not(a, abbr, area, audio, b, bdi, bdo
 lf-old, lf-new { transition: padding .22s ease; }
 lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   background: none; color: inherit; text-decoration: none; padding: 0; }
-/* A slot the standing decision retired, marked by the runtime from the registry's own
- * relation (data-lf-retired, leaf.js renderRetired). One rule for every family, so a
- * holder a project declares hides what a settlement removes the day it declares it —
- * the by-name pair that stood here was the closed list wearing CSS's clothes. A
- * module's fold outranks this with its inline display for the length of the motion.
- * What no
- * relation can say stays the family's own, like the emptied wrapper below. */
-[data-lf-retired] { display: none; }
-lf-suggestion[data-lf-state="accept"]:not(:has(lf-new)),
-lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
-/* The margin projection is a retained projection with one cluster per page target. Its
- * primary margin entry, optional `…`, and the secondary margin entries that ellipsis
- * unfolds share one host. Every cluster lives in the chrome's margin layer and stands by
- * its target through anchor positioning (margin-layout.js); nothing is inserted into the
- * page's content and nothing here moves it.
- *
- * The layer and its lanes are static and zero-height, so the initial containing block is
- * every cluster's: any element of the page is an anchor it may stand by, and the browser
- * moves it with its target through every scroll between the two, a pane's or a board's.
- * A positioned wrapper would become the clusters' containing block and make every target
- * outside it an invalid anchor. The layer lays its lanes out as flex items, which take a
- * z-index without being positioned. A lane holds the clusters of one pane that scrolls on
- * its own, and the layout clips it to what the pane shows.
- *
- * Nothing clamps a pin to the window: the browser applies a clamp before it moves the pin
- * with its scrolled target, so a card in a board scrolled sideways would stand its pin
- * off its corner. A target scrolled out of its scroller withholds its row instead.
- *
- * A cluster stands level with its target's top (`--lf-inset-top` where it anchors to a
- * box holding the target), pushed down by packing (`--lf-push`). In
- * the rail it hangs `--rail-hang` off `main`'s edge and unfolds rightward. As a pin it
- * stands where the layout seats it, `--pin-inset` plus `--lf-inset-right` in from the
- * right edge of the box it anchors to: inside its target's top-right corner, or in room
- * beside its target where that corner would cover words. It unfolds leftward. Every position function falls back to a place off screen: an anchor can be
- * invalid (a target inside `content-visibility: hidden` or gone), and
- * `position-visibility` hides a cluster only when its anchor is valid and scrolled out of
- * view. */
-.lf-margin-projection { display: flex; height: 0; pointer-events: none; }
-.lf-margin-projection[hidden] { display: none; }
-.lf-margin-toolbar, .lf-margin-lane { height: 0; }
-.lf-margin-lane { z-index: 2; }
-.lf-margin-cluster { position: absolute; z-index: 2;
-    top: calc(anchor(top, -9999px) + var(--lf-inset-top, 0px) + var(--lf-push, 0px));
-    position-visibility: anchors-visible;
-    display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
-    padding-right: var(--focus-ring-room); pointer-events: auto; }
-.lf-margin-cluster[data-lf-place="rail"] {
-    left: calc(anchor(--lf-page right, -9999px) + var(--rail-hang) + var(--lf-step, 0px)); }
-.lf-margin-cluster[data-lf-place="pin"] {
-    right: calc(anchor(right, 9999px) + var(--pin-inset) + var(--lf-inset-right, 0px)); }
-/* A pin folded for want of room (`seatRows`, margin-placement.js) opens over whatever
- * stands beside it, which keeps its place. */
-.lf-margin-cluster[data-lf-place="pin"][data-lf-folded][data-lf-options-open] {
-    z-index: 3; }
-/* With the annotation layer hidden (`o`, annotation-layer.js) every pin goes, whatever it
- * holds, and the rail stays, since it covers nothing. A row the user asked for by name
- * (`data-lf-revealed`) stays while they stand in it. Hidden rather than taken out of
- * layout, so nothing moves and nothing is measured again. */
-:root[data-lf-annotations="hidden"]
-  .lf-margin-cluster[data-lf-place="pin"]:not([data-lf-revealed]) { visibility: hidden; }
-/* A pin's count stands on its left, over the block it is about: at the window's edge the
- * page's `overflow-x: hidden` would clip one on the right. */
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-count { right: auto; left: -7px; }
-/* What a hovered or focused item says about the target it acts on is said on the target:
- * `highlight` (margin-projection.js) hands every item to target paint, which traces the
- * region's own shape. The item draws no leader out to it.
- * A leader would have to be measured, because the target's right edge is its own — a
- * framed widget, a blockquote and a paragraph each end somewhere different — and a
- * constant one is a hairline ending in the gutter, pointing at nothing. What it would
- * buy once measured is a second statement of the fact the target trace already makes, which is
- * why the item's raise is the whole of its own hover paint. The raise is the runtime
- * sheet's (chrome.css), which states it above the page paint the item summons; a second
- * one here would tie it and win or lose by where each sheet stands. */
-.lf-margin-cluster.lf-withheld { display: none; }
-.lf-margin-inline { display: block; }
-.lf-margin-options { display: inline-flex; align-items: center; gap: 4px;
-    white-space: nowrap; }
-.lf-margin-options[hidden] { display: none; }
 /* The visible label becomes transient hover and focus chrome once the runtime's
  * stylesheet arrives. The accessible name comes from the entry reading. */
 .lf-margin-entry > :is(.lf-margin-entry-space, .lf-margin-entry-label) {
   display: none;
 }
-/* The ink this rule used to state alongside its pointer never reached an entry: every
- * entry carries a behavior, and each of the three states a colour one class heavier
- * than this, so all it ever settled was the pointer. */
-.lf-margin-marker { pointer-events: auto; }
-.lf-margin-reading-option { position: relative; }
-.lf-margin-more { letter-spacing: .04em; }
-.lf-margin-marker[hidden] { display: none; }
 /* The pluggable RHS margin entry. Contributors choose glyph, label, tone, and behavior
-   through marginEntry(); this declaration owns every visual and interactive
+   through contributionEntry(); this declaration owns every visual and interactive
    constant that makes unlike verbs read as one family.
 
    In the theme rather than in chrome.css, where it was, because a margin entry stands
@@ -1692,13 +1452,14 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
    `…` never took the ink its own rule asked for on hover. Here the order is the
    file's, and a package theme concatenated after this one can answer any of it.
    The states below stay in document order for the same reason: each reads the one
-   above it. */
+   above it. A surface supplying --lf-entry-ink retains that ink through the shared
+   states, without competing with their selector specificity. */
 .lf-margin-entry {
   position: relative; box-sizing: border-box;
   width: var(--margin-entry); min-width: var(--margin-entry);
   height: var(--margin-entry); min-height: var(--margin-entry); padding: 0;
   border: 1px solid var(--border-2); border-radius: 50%;
-  background: var(--lf-entry-tint, var(--paper)); color: var(--ink-2); flex: 0 0 auto;
+  background: var(--lf-entry-tint, var(--paper)); color: var(--lf-entry-ink, var(--ink-2)); flex: 0 0 auto;
   display: inline-flex; align-items: center; justify-content: center; gap: 0;
   font: 600 var(--t-6)/1 var(--sans); white-space: nowrap;
   scroll-margin-block: var(--focus-ring-room);
@@ -1711,20 +1472,18 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
    while the static status alone has no raised or responsive material. */
 .lf-margin-entry[data-lf-behavior="action"] {
   border-width: 2px;
-  color: var(--ink);
+  color: var(--lf-entry-ink, var(--ink));
   box-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
 }
 .lf-margin-entry[data-lf-behavior="disclosure"] {
   border-color: color-mix(in srgb, var(--ink) 34%, var(--paper));
-  color: var(--ink-2); box-shadow: none;
+  color: var(--lf-entry-ink, var(--ink-2)); box-shadow: none;
 }
 .lf-margin-entry[data-lf-behavior="status"] {
-  border-color: var(--rule); color: var(--ink-2);
+  border-color: var(--rule); color: var(--lf-entry-ink, var(--ink-2));
   box-shadow: none; cursor: default;
 }
-/* Tone colours the icon until pickup uses that channel; then tone moves to the
-   control's existing contour. Category keeps its weight and shadow, and working owns
-   the fill, so the meanings remain simultaneous without drawing another ring. */
+/* Tone keeps an action's meaning on its icon throughout delivery and agent work. */
 .lf-margin-entry[data-lf-tone="positive"] > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
   color: var(--ok-ink);
 }
@@ -1750,7 +1509,7 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
    than the resting rule here, and the `…` carried exactly as many, so it lost on this
    sheet being adopted. One home for the state, and both say the same thing. */
 .lf-margin-entry[data-lf-behavior="disclosure"]:is(button, [role="button"]):is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"]):not([aria-disabled="true"]) {
-  border-color: var(--accent); color: var(--ink);
+  border-color: var(--accent); color: var(--lf-entry-ink, var(--ink));
 }
 /* A selected page reading and its compact Page Map projection share one accent. Reuse
    the entry's existing contour: category still owns its weight, and keyboard focus can
@@ -1768,66 +1527,39 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
    disclosure accent (above), stated beside it so the two meet on their selectors; the
    mark does not gain a second ring or pretend the reaction itself changed. */
 .lf-react-mark[data-lf-behavior="disclosure"] {
-  border-width: 2px; border-color: var(--border-2); color: var(--ink);
+  border-width: 2px; border-color: var(--border-2); color: var(--lf-entry-ink, var(--ink));
   box-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
 }
-/* Agent work on a margin carrier. A margin entry and its row in the Page Map
-   (chrome.css) are one carrier drawn twice, so they wear one reading of it, stated here
-   for both. Pickup colors the carrier's glyph; working also washes its interior. A
-   thread whose next word is the user's wears the same two channels in blue. Agent
-   workflow outranks it, because a carrier the agent has picked up or is working on is
-   reporting something happening now, and one interior cannot carry two washes.
-
-   The wash is a token rather than a background: each carrier's resting ground and its
-   hover read --lf-entry-tint, so the Page Map row, whose face the adopted sheet states,
-   takes the wash without a copy of these rules beside it. The entry's own contour still
-   says what the press does. */
-:is(.lf-margin-entry, .lf-page-map-action):is(
-  [data-lf-agent-workflow="picked_up"],
-  [data-lf-agent-workflow="working"]
-)
+/* Margin and Page Map share the same attention reading. Blue is the ordinary
+   thread and work cue; green means the user owes a move, even when another thread
+   on the same carrier has active agent work. Progress stays in the status words and
+   the one arrival pulse rather than competing for the attention color. */
+:where(.lf-margin-entry[data-lf-kinds~="comment"],
+    .lf-page-map-action[data-lf-map-item^="comment:"],
+    .lf-margin-entry[data-lf-agent-workflow],
+    .lf-page-map-action[data-lf-agent-workflow])
   > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
-  color: var(--ok-ink);
+  color: var(--accent);
 }
-:is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-workflow="working"] {
-  --lf-entry-tint: var(--ok-wash);
-}
-:is(.lf-margin-entry, .lf-page-map-action)[data-lf-turn="user"]:not(
-  [data-lf-agent-workflow]
-)
+:is(.lf-margin-entry, .lf-page-map-action)[data-lf-turn="user"]
   > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
   color: var(--turn-ink);
 }
-:is(.lf-margin-entry, .lf-page-map-action)[data-lf-turn="user"]:not(
-  [data-lf-agent-workflow]
-) {
+:is(.lf-margin-entry, .lf-page-map-action)[data-lf-turn="user"] {
   --lf-entry-tint: var(--turn-wash);
 }
 :is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-arrival] {
   animation: lf-runtime-4f3c2a8d-agent-work-arrival 520ms ease-out var(--lf-agent-arrival-delay, 0ms) 1;
 }
 @keyframes lf-runtime-4f3c2a8d-agent-work-arrival {
-  0% { box-shadow: var(--lf-agent-stage-shadow, 0 0 0 0 transparent), 0 0 0 0 color-mix(in srgb, var(--ok-ink) 42%, transparent); }
-  58% { box-shadow: var(--lf-agent-stage-shadow, 0 0 0 0 transparent), 0 0 0 7px color-mix(in srgb, var(--ok-ink) 16%, transparent); }
+  0% { box-shadow: var(--lf-agent-stage-shadow, 0 0 0 0 transparent), 0 0 0 0 color-mix(in srgb, var(--accent) 42%, transparent); }
+  58% { box-shadow: var(--lf-agent-stage-shadow, 0 0 0 0 transparent), 0 0 0 7px color-mix(in srgb, var(--accent) 16%, transparent); }
   100% { box-shadow: var(--lf-agent-stage-shadow, 0 0 0 0 transparent), 0 0 0 10px transparent; }
 }
 @media (prefers-reduced-motion: reduce) {
   :is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-arrival] { animation: none; }
 }
-/* An entry's tone moves from its glyph to its contour once pickup takes the glyph, and
-   an action keeps its lower shadow under the arrival pulse. */
-.lf-margin-entry:is(
-  [data-lf-agent-workflow="picked_up"],
-  [data-lf-agent-workflow="working"]
-)[data-lf-tone="positive"] {
-  border-color: var(--ok-ink);
-}
-.lf-margin-entry:is(
-  [data-lf-agent-workflow="picked_up"],
-  [data-lf-agent-workflow="working"]
-)[data-lf-tone="negative"] {
-  border-color: var(--danger-ink);
-}
+/* The arrival pulse keeps the action's existing shadow beneath its transient ring. */
 .lf-margin-entry[data-lf-agent-workflow="working"][data-lf-behavior="action"] {
   --lf-agent-stage-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
 }
@@ -1865,7 +1597,9 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
   margin-block-start: 2px; color: color-mix(in srgb, var(--paper) 72%, transparent);
   font-size: 10px; line-height: 1.25; font-weight: 450;
 }
-.lf-margin-entry[data-lf-label-side] > .lf-margin-entry-label {
+/* Inline controls keep their native label. Physical margin controls take the
+   geometry owner's placement, whose readiness gates their first visible paint. */
+.lf-margin-projection .lf-margin-entry[data-lf-label-side] > .lf-margin-entry-label {
   inset: auto; left: var(--lf-label-x); top: var(--lf-label-y);
 }
 .lf-margin-entry:is(:hover, :focus-visible, .lf-focus-visible):not([aria-expanded="true"])
@@ -1874,7 +1608,7 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
   transition-delay: 90ms;
 }
 /* A reaction held under a press says its word at once, as a keyboard destination does
-   below (reactions.js, holdToRead). */
+   below (held-word.js). */
 .lf-margin-entry[data-lf-held-word] > .lf-margin-entry-label {
   opacity: 1; visibility: visible; transform: translateY(0); transition: none;
 }
@@ -1886,88 +1620,13 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
   > .lf-margin-entry-label {
   transition: none;
 }
-.lf-margin-options [data-lf-margin-entry-overflow] { display: none; }
-/* A pin's marker is filled where a rail marker is paper: it stands on the block it is
-   about, over the block's own words, so it is a solid teardrop pointing into the block
-   with a paper edge that parts it from whatever it covers. It is smaller than a rail
-   marker with a mouse, because it covers what it stands on, and keeps the full aim floor
-   under a finger, so what the user sees is what they press.
-
-   The fill is the pin, so the states a rail marker paints on its paper take the pin's
-   other channels, in the rail's order: a thread on the user carries a ring of the fill
-   outside the edge; pickup turns the edge green; working turns the fill green and
-   outranks both. A read-only status keeps the rail's paper face, since a fill would say
-   it can be pressed. Stated after the entry's states, whose hover and focus contours it
-   has to outrank. */
-.lf-margin-cluster[data-lf-place="pin"] { --margin-entry: max(26px, var(--aim-floor)); }
-/* A pin folded for want of room wears the marker's face on its toggle, the kind it folds
-   (margin-model.js, `clusterProjection`), so it reads as what it stands for. */
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker,
-.lf-margin-cluster[data-lf-place="pin"][data-lf-folded] > .lf-margin-entry.lf-margin-more {
-  border-radius: 50% 50% 50% 3px; }
-.lf-margin-cluster[data-lf-place="pin"][data-lf-folded] > .lf-margin-entry.lf-margin-more,
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:not([data-lf-behavior="status"]) {
-  --lf-pin-edge: var(--paper);
-  border: 2px solid var(--lf-pin-edge);
-  background: var(--lf-pin-face, var(--pin-fill)); color: #fff;
-  box-shadow: var(--lf-pin-halo, 0 0 0 0 transparent),
-    0 1px 2px var(--shade), 0 3px 8px var(--shade); }
-.lf-margin-cluster[data-lf-place="pin"][data-lf-folded] > .lf-margin-entry.lf-margin-more
-  > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph),
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:not([data-lf-behavior="status"])
-  > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
-  color: #fff; inline-size: 14px; block-size: 14px; }
-.lf-margin-cluster[data-lf-place="pin"][data-lf-folded] > .lf-margin-entry.lf-margin-more:is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"]),
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:not([data-lf-behavior="status"]):is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"], [data-lf-target-selected]) {
-  border-color: var(--lf-pin-edge); }
-.lf-margin-cluster[data-lf-place="pin"][data-lf-folded] > .lf-margin-entry.lf-margin-more:is(:hover, [aria-expanded="true"]),
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:not([data-lf-behavior="status"]):is(:hover, [aria-expanded="true"]) {
-  background: color-mix(in srgb, var(--lf-pin-face, var(--pin-fill)) 82%, #000); }
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker[data-lf-turn="user"]:not([data-lf-agent-workflow]) {
-  --lf-pin-halo: 0 0 0 4px color-mix(in srgb, var(--pin-fill) 45%, transparent); }
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker[data-lf-agent-workflow="picked_up"] {
-  --lf-pin-edge: var(--pin-working); }
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker[data-lf-agent-workflow="working"] {
-  --lf-pin-face: var(--pin-working); }
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker[data-lf-unread]::after {
-  box-shadow: 0 0 0 2px var(--paper); }
-.lf-margin-receipt { color: var(--ink-2); font-weight: 600; }
-.lf-margin-receipt[data-lf-margin-receipt="negative"] { color: var(--danger-ink); }
+.lf-margin-projection .lf-margin-entry:not([data-lf-label-side]) > .lf-margin-entry-label {
+  opacity: 0; visibility: hidden; transition: none;
+}
 .lf-margin-count { position: absolute; top: -7px; right: -7px; min-width: 16px;
     height: 16px; padding: 0 3px; box-sizing: border-box; border-radius: 999px;
     border: 1px solid var(--paper); background: var(--ink); color: var(--paper);
     font: 600 10px/14px var(--sans); text-align: center; }
-/* Margin rows stand where the page leaves room for them, measured beside `main` by the
- * runtime (margin-layout.js), and as pins where it leaves none. A page that wants them
- * in one column declares a rail, `data-rail="right"` on `body`: the shell gives up the
- * rail's width on its right, so the page's own layout sees a narrower window and every
- * row stands in the strip. A block may still run under it on purpose, and its rows pin.
- * The declaration stands on the shell it pads rather than on `main`: a `:has()` on the
- * body re-checks it on every write below (assets/AGENTS.md).
- *
- * The strip is given up only above a phone's width, where the page keeps a usable
- * column beside it; on a phone the rows pin as they do on any page with no room beside
- * it. The shell is the container a narrow column asks (`lf-shell`, 640), and a box
- * cannot ask its own container, so the rule that pads the shell asks the window. */
-@media screen and (width > 640px) {
-  html[data-lf-live] body[data-rail="right"] {
-    padding-inline-end: var(--rail);
-  }
-}
-/* How far a rail marker hangs off the column. A finger's larger entries spend the rail's
- * room themselves, so the hang shrinks with them. */
-:root { --rail-hang: 22px; }
-@media (pointer: coarse) {
-  :root { --rail-hang: 10px; }
-}
-@media print {
-  .lf-margin-projection, .lf-margin-marker.lf-margin-entry { display: none !important; }
-}
-/* A browser without anchor positioning cannot stand a row by its target, so it shows none
- * and the banner offers the Page Map in their place (chrome.css). */
-@supports not (anchor-name: --lf-page) {
-  .lf-margin-projection { display: none !important; }
-}
 /* Where a widget upgrade fails, it fails soft into this box. */
 .lf-error { border: 1px solid var(--danger); background: var(--danger-tint);
             color: var(--danger-ink); border-radius: var(--r); padding: 8px 12px;
@@ -1977,35 +1636,6 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
    answers paper itself. */
 .lf-error pre { margin: 8px 0 0; white-space: pre; }
 @media print { .lf-error pre { white-space: pre-wrap; } }
-
-/* Reduced motion: one global guard covers every animation and transition in the
- * theme and the injected layers (!important outranks inline styles, so
- * JS-driven transitions stop too). JS-driven motion goes through the runtime's
- * motion() and the live motion readings, which answer the same preference themselves.
- *
- * The two halves are not written alike, because a duration is a way of keeping
- * an animation and no way at all of keeping a transition. An animation is
- * declared and named, and `animationend` is how the layer knows one has run —
- * the thread list takes `grow` off a card that way — so the near-zero duration
- * keeps that event and spends no time on it. It runs once, since an endless
- * animation at that duration repeats on every frame, showing a different point
- * of its keyframes each time: a pulse becomes a flicker, and the page never
- * rests. A transition is declared by
- * nobody: `transition-property` is `all` until something says otherwise, so a
- * duration on every element makes a transition out of every property that
- * changes, on every element, and none of them is a transition this theme
- * wrote. Nothing listens for `transitionend`, so they were kept for no one and
- * were not free: a running transition's animated value is what the platform
- * reports for the property, so for the frames one of these took, every reading
- * of a box's style — the render gate's included — was told the value the
- * property was leaving rather than the one on screen. */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: .01ms !important;
-    animation-iteration-count: 1 !important;
-    transition: none !important;
-  }
-}
 
 /* A pane is one task region: an optional header, one body element, an optional footer,
  * with no generated wrappers. It is whatever element declares `x-reading-role: pane`,
@@ -2024,28 +1654,14 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
  * only its own widgets (layer.py, `widget_confinement`), and these reach every
  * package's.
  *
- * The grammar (the rows, and which child stands in which) carries the role's own weight,
- * so it holds over what a widget declares for itself, such as a board's block margin
- * when the board is a pane's body. The look (frame, paper, padding, the header's voice)
- * is a default inside :where(), so a package that draws its generated pane another way,
- * the visual review framing its evidence with the review's own border, does so with one
- * class rather than by outranking the attribute. */
-[data-lf-reading-role="pane"] {
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-  grid-template-columns: minmax(0, 1fr);
-  min-width: 0;
-  --lf-block-frame: 1;
-}
-[data-lf-reading-role="pane"] > header {
-  grid-row: 1; margin: 0;
-}
-[data-lf-reading-role="pane"] > footer {
-  grid-row: 3; margin: 0;
-}
-[data-lf-reading-role="pane"] > :not(header, footer) {
-  grid-row: 2; grid-column: 1; min-width: 0; margin: 0;
-}
+ * The grammar (the rows, and which child stands in which) holds over what a widget
+ * declares for itself, such as a board's block margin and minimum width when the board
+ * is a pane's body, so it stands in the Layouts tier above every package (layouts.css)
+ * rather than here: a widget's root rule (`:scope:is(lf-board)`) ties a selector here
+ * on specificity and wins on scope proximity. The look (frame, paper, padding, the
+ * header's voice) is a default inside :where(), so a package that draws its generated
+ * pane another way, the visual review framing its evidence with the review's own
+ * border, does so with one class rather than by outranking the attribute. */
 /* A pane's body is a keyboard stop of its own where it scrolls with nothing in it to
  * Tab to (reach.js), and the layer's ring stands outside the box it names. A held pane
  * stands flush with the scrollport of the workspace body holding it, so that ring lost
@@ -2067,7 +1683,7 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
   background: var(--paper);
 }
 :where([data-lf-reading-role="pane"]) > header {
-  padding: 10px 14px;
+  padding: var(--pane-bar-pad);
   border-bottom: 1px solid var(--rule);
   font: 600 var(--t-5)/1.4 var(--sans);
   --lf-block-frame: 1;
@@ -2083,7 +1699,7 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
   color: var(--muted);
 }
 :where([data-lf-reading-role="pane"]) > footer {
-  padding: 10px 14px;
+  padding: var(--pane-bar-pad);
   border-top: 1px solid var(--rule);
   --lf-block-frame: 1;
 }
@@ -2104,8 +1720,22 @@ lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
  * the box; the workspace hands the inset back through `--lf-top` (layouts.css). A package
  * that pads a pane body another way sets `--lf-pane-top` with it. */
 :where([data-lf-reading-role="pane"]) > :not(header, footer) {
-  --lf-pane-top: 14px;
-  padding: var(--lf-pane-top) 14px 14px;
+  --lf-pane-top: var(--pane-inset);
+  padding: var(--lf-pane-top) var(--pane-inset) var(--pane-inset);
   container-type: inline-size;
   --lf-block-frame: 1;
+}
+
+/* Board and swipe motion carry a compact card label without duplicating its live
+ * controls. The motion owner sets position and travel; this face stays bounded. */
+.lf-motion-preview {
+  box-sizing: border-box; max-width: 24rem; max-height: 3.5rem;
+  padding: 12px; border: 1px solid var(--rule); border-radius: var(--r);
+  background: var(--card); color: var(--ink); font: inherit;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  pointer-events: none;
+}
+.lf-motion-preview.lf-inhand {
+  max-width: none; /* Keep Sortable’s card width so its grip stays under the pointer. */
+  opacity: 1; box-shadow: 0 8px 24px var(--shade);
 }

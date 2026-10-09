@@ -1,34 +1,26 @@
 # Complete agent-facing outputs through real hooks, wait and response commands.
-# Only page paths, event/delivery identities and timestamps are normalized.
+# Only page paths, event/delivery/attempt and claim identities, and timestamps are normalized.
 # A null hook output means the turn can end without a reminder.
-
-no watcher:
-  hookSpecificOutput:
-    hookEventName: Stop
-    additionalContext: |-
-      Leaf needs attention:
-      - <page>: no watcher. To watch all this session's pages, start an unnamed `leaf wait` as a background task with `timeout` 7200000 (milliseconds), the longest Claude Code allows; or run `leaf status <page> idle` if this page is done.
 
 idle before pickup:
   exit: 1
   output: |
-    1 update nobody has picked up, so the page cannot idle yet. Leaf's hook puts them in your context at your next turn.
+    Error: 1 event nobody has picked up, so the page cannot idle yet. Leaf's hook puts them in your context at your next turn.
 
-wait wakes the session: |
+the watch wakes the session: >-
   <page> has new input; Leaf's prompt hook puts it in your context with this notification
 
 delivered at prompt:
   instruction: >-
-    Leaf delivered this input into your turn and confirmed it, so the user's moves
-    read Picked up.
+    Leaf has new input for your turn. Read this complete delivery before answering.
   delivery:
-    format: leaf-delivery-v3
+    format: leaf-delivery-v5
     id: <delivery>
     created_at: <time>
-    carrier: hook
     acknowledge: null
     batches:
       - page: <page>
+        claim: <claim-session>
         through_seq: 2
         threads:
           - id: event-2
@@ -49,26 +41,29 @@ delivered at prompt:
             its subject rather than its opening words. If Leaf has named it from
             its opening message by then, that name stands.
           h2: >-
-            When the event asks for work, name that work before any other, including
-            reading the source it concerns: `leaf status <page> working "<the work,
-            in a line>" --on <address>`, where `<address>` is the event's `answer.to`.
-            The move then reads Working, and the line stands beside the thread and
-            in the banner until you answer. Do the work and put its result on the
-            page, with whatever shows it (captures, a figure, the numbers), then
-            answer with `leaf thread reply <page> --for <event-id>`: what changed,
-            in a sentence or two, linking the section that shows it. When the event
-            asks for no work, as a question may not, answer it with that reply at
-            once. The page carries the work, and the thread only the conversation
-            about it. `leaf thread reply` checks any saved page edit and makes it
-            live before posting. If a revision removes what the thread is anchored
-            on, move the thread in the reply that reports it with `--section <id>`
-            (narrowed by `--quote` or `--part` if needed), or `--detach` it if its
-            subject has left the page. Add `--awaits` only if your reply's prose
-            asks the user something.
+            When the event asks for work, say in its thread what you will do before
+            any other command, including reading the source it concerns: `leaf response
+            reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
+            The user reads it in the thread at once, and it takes the move in hand:
+            the move reads Working, and the line stands in the banner until you
+            answer. Do the work and put its result on the page, with whatever shows
+            it (captures, a figure, the numbers), then answer with `leaf response
+            reply <answer.ref> < reply.md`: what changed, in a sentence or two,
+            linking the section that shows it. When the event asks for no work,
+            as a question may not, answer it with that reply at once. The page carries
+            the work, and the thread only the conversation about it. `leaf response
+            reply` checks any saved page edit and makes it live before posting.
+            If a revision removes what the thread is anchored on, move the thread
+            in the reply that reports it with `--section <id>` (narrowed by `--quote`
+            or `--part` if needed), or `--detach` it if its subject has left the
+            page. Add `--awaits` only if your reply's prose asks the user something.
           h3: >-
-            Your reply renders as Markdown, so show code or markup in a fenced block.
+            Your reply renders as Markdown in a narrow column: give each point its
+            own short paragraph or list item, link a page section as `[its name](#section-id)`,
+            and fence code or markup.
         events:
-          - kind: comment
+          - attention: true
+            kind: comment
             author: user
             revision: 1
             text: >-
@@ -85,23 +80,23 @@ delivered at prompt:
               kind: reply
               to: event-2
               for: event-2
-  attention: |-
-    Leaf needs attention:
-    - <page>: no watcher. To watch all this session's pages, start an unnamed `leaf wait` as a background task with `timeout` 7200000 (milliseconds), the longest Claude Code allows; or run `leaf status <page> idle` if this page is done.
+              ref: <delivery>:0:event-2
+              writer: agent
+  attention: ''
 
 acknowledged at stop:
   hookSpecificOutput:
     hookEventName: Stop
     additionalContext: |-
       Leaf needs attention:
-      - <page>: 1 acknowledged user move with no answer (`leaf thread reply <page> --for event-2`).
+      - <page>: 1 acknowledged user update with no answer (`leaf response reply <answer.ref>` for event-2).
 
-      Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and thread history with `leaf page state <page> <id>`.
+      Each update takes the answer named for it. Read current obligations with `leaf page state <page>` and thread history with `leaf page state <page> <id>`.
 
 idle before answer:
   exit: 1
   output: |
-    1 acknowledged user move with no answer (`leaf thread reply <page> --for event-2`); answer before idling. Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and thread history with `leaf page state <page> <id>`.
+    Error: 1 acknowledged user update with no answer (`leaf response reply <answer.ref>` for event-2); answer before idling. Each update takes the answer named for it. Read current obligations with `leaf page state <page>` and thread history with `leaf page state <page> <id>`.
 
 answer:
   kind: reply
@@ -112,7 +107,9 @@ answer:
   text: >-
     I will add the camera first.
   responds: event-2
+  attempt: <attempt>
   id: event-4
+  attention: false
   ts: <time>
   seq: 4
 

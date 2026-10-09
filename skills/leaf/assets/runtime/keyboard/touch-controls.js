@@ -13,9 +13,11 @@
    step arriving on the row changes the banner's box, which chrome layout measures next. */
 import {
   BANNER_CONTROL_RANK,
+  bannerStanding,
   bannerControlDoor,
   dismissBannerControls,
   registerBannerControl,
+  restoreBannerStanding,
   showBannerControls,
 } from "../banner-toolbar.js";
 import { coarsePointer } from "../pointer.js";
@@ -25,6 +27,7 @@ import { repaint } from "../repaint.js";
 import { live, word } from "./bindings.js";
 import { invokePress, standing } from "./dispatch.js";
 import { touchPresses } from "./register.js";
+import { focusDestination, closeLayer } from "../focus.js";
 
 coarsePointer.addEventListener("change", repaint);
 
@@ -39,14 +42,24 @@ function place(press, seat) {
   }
   const button = el("button", "lf-btn");
   button.type = "button";
+  // A step acts on what the user stands on, so its press leaves them standing there
+  // rather than moving focus onto the banner, as Done on the task they stand at reads.
+  if (seat === "gesture")
+    button.addEventListener("mousedown", (event) => event.preventDefault());
   button.addEventListener("click", () => {
+    const { press: current } = controls.get(press.id);
     if (seat === "menu") {
       // A surface the press opens hands focus back to where it was opened from, and the
       // entry is about to close with its menu.
-      dismissBannerControls();
-      bannerControlDoor(button)?.focus({ preventScroll: true });
+      const held = bannerStanding();
+      closeLayer(dismissBannerControls, () => {
+        if (current.row.retainStanding) restoreBannerStanding(held);
+        else {
+          const door = bannerControlDoor(button);
+          if (door) focusDestination(door, "return");
+        }
+      });
     }
-    const { press: current } = controls.get(press.id);
     if (live(current.row)) invokePress(current);
   });
   registerBannerControl({

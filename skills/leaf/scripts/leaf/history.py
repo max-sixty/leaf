@@ -12,7 +12,7 @@ What a row names on the page the user is reading now — the section a comment s
 in, the widget a row links to — stays with the page, which holds those places;
 this reading carries their ids and anchors.
 
-Bookkeeping stays out: `read`, `pickup`, `summary`, `thread_title`, `error`,
+Bookkeeping stays out: `read`, `pickup`, `summary`, `thread_title`, `reanchor`, `error`,
 and `undo`, which marks the gesture it took back instead of standing as its own row.
 
 `history` is a served reading only a page that renders it pays for: the state
@@ -53,14 +53,13 @@ def _gesture(event: dict, words: GestureWords) -> dict:
     record = spec.get("record") or {}
     detail = event["detail"]
     if record.get("kind") == "attribute":
-        chosen = detail.get(record["value"])
-        chosen = chosen if isinstance(chosen, list) else [chosen] if chosen else []
+        chosen = detail["value"]
         return {"form": "choice", "chosen": [words.name(event, i) for i in chosen]}
     if record.get("kind") == "position":
         return {
             "form": "move",
             "unit": words.name(event, detail[spec["unit"]]),
-            "to": words.name(event, detail[record["value"]]),
+            "to": words.name(event, detail["value"]),
         }
     if record.get("kind") == "body":
         return {"form": "edit"}
@@ -72,11 +71,11 @@ def _gesture(event: dict, words: GestureWords) -> dict:
 def _report(event: dict, words: GestureWords) -> dict:
     spec = words.declaration(event).get("x-state", {}).get(event["action"], {})
     record = spec.get("record") or {}
-    value = event["detail"].get(record["value"]) if record.get("value") else None
+    value = event["detail"].get("value") if record else None
     return {
         "widget": event["widget"],
         "value": value if value is not None else event["action"],
-        "excerpt": event["detail"][spec["update"]] if spec.get("update") else None,
+        "excerpt": event["detail"]["text"] if spec.get("update") else None,
     }
 
 

@@ -17,8 +17,7 @@ The site build makes the catalog card from them and refuses a page missing eithe
 
 Each page writes its own sentences around the gestures it shares with other pages
 (`skills/leaf/references/authoring-evidence.md`, "Interactive and visual evidence").
-The suite refuses a run of twelve words two examples share, and a shorter borrowed
-clause is still a review finding.
+Review the connective prose for copied clauses even when the examples share a gesture.
 
 ## Developer pages and regression fixtures
 
@@ -78,15 +77,16 @@ timestamps to pin what it says.
 
 ## Media
 
-The images an `lf-shot` or a seeded message names live under `examples/media/` in
-`max-sixty/leaf-assets`, named by content as `leaf page media` names them.
-`example_media()` (`dev/leaf_dev/page_fixtures.py`) returns the pinned copy, and every
-builder of a page directory lays them in. `uv run leaf-dev publish-media IMAGE...` adds
-images, moves the pin, and prints the `/media/` path each page names; commit the pin,
-not the image.
+The bytes an `lf-shot` or a seeded message names live under `examples/media/` in
+`max-sixty/leaf-assets`, not in the tree, content-addressed as `leaf page media` names
+them. `example_media()` (`dev/leaf_dev/page_fixtures.py`) returns the pinned copy, and
+every builder of a page directory lays them in: `prepare_page`, and any test that
+builds a page by hand. `uv run leaf-dev publish-media FILE...` adds media, moves the
+pin, and prints the `/media/` path each page names; commit the pin, not the image.
 
-Draw a before/after pair rather than capturing it: both images at one height, at twice
-the width the shot gets on the page, in the palette of the pairs already published. A
-mock of something outside Leaf, such as a console, never goes stale, so its generator
-stays in scratch. A generator for images of Leaf itself, such as `leaf-dev
-record-demo`, is tracked, because a change to Leaf makes those images stale.
+Draw a before/after pair rather than capturing it. Draw both images at one height,
+at twice the width the shot gets on the page as measured from the layout, and take
+the palette from the pairs already published. A mock's generator belongs in scratch, since
+nothing can make a depicted console false. A generator for images that depict Leaf
+itself, such as `leaf-dev record-demo`, is tracked tooling rather than scratch,
+because a change to Leaf can make those images stale and they need regenerating.

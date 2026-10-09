@@ -12,7 +12,7 @@
 # One exclude for the file rather than one per hook, because the rule is the file's and
 # a per-hook list misses whichever hook is added next. The right order for a change to
 # the corpus is the hooks first, `leaf-dev corpus` last.
-exclude: ^(skills/leaf/packages/default/shadow\.css$|skills/leaf/(assets/vendor|packages/.*/vendor)/|build/browser/generated/|examples/(corpus\.html|pr-walkthrough\.patch)$)
+exclude: ^(skills/leaf/packages/default/shadow\.css$|skills/leaf/(assets/vendor|packages/.*/vendor)/|examples/(corpus\.html|pr-walkthrough\.patch)$)
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -68,17 +68,20 @@ repos:
         name: dependency-cruiser
         language: node
         additional_dependencies: [dependency-cruiser@18.3.1]
-        entry: depcruise --output-type err skills/leaf/assets/runtime
+        entry: depcruise --output-type err skills/leaf/assets/runtime skills/leaf/packages/default/runtime
         pass_filenames: false
-        files: ^(skills/leaf/assets/(leaf\.js|runtime/.*\.js)|\.dependency-cruiser\.mjs)$
+        files: ^(skills/leaf/assets/(leaf\.js|runtime/.*\.js)|skills/leaf/packages/[^/]+/runtime/.*\.js|\.dependency-cruiser(?:-resolve)?\.mjs)$
   - repo: https://github.com/adhtruong/mirrors-typos
     rev: v1.48.0
     hooks:
       - id: typos
   # actionlint's schema rejects `concurrency.queue`, which tend's generated
   # workflows set; `.github/actionlint.yaml` ignores that one key for those files.
+  # Pin upstream's native parallel-step support until it is released. This also
+  # checks wait targets rather than ignoring the new syntax:
+  # https://github.com/rhysd/actionlint/pull/695
   - repo: https://github.com/rhysd/actionlint
-    rev: v1.7.12
+    rev: bf6b9188a5fd7b4e7b7d244a865a60165bdc6783
     hooks:
       - id: actionlint
   # actionlint already shellchecks the `run:` blocks in the workflows above. This

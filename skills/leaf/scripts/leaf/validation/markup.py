@@ -1,9 +1,11 @@
 """Shared structural and authored-markup validation rules."""
 
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from markdown_it import MarkdownIt
 
+from leaf.registry.schema import json_value
 from leaf.schema import MEDIA_DIR, SERVED_PATH
 from leaf.structure import (
     PAGE_ALLOCATIONS,
@@ -41,7 +43,7 @@ def id_errors(parser) -> list:
     errors = []
     if parser.duplicate_ids:
         errors.append(
-            f"duplicate ids (anchors need unique targets): {parser.duplicate_ids}"
+            f"duplicate ids (anchors need unique targets): {json_value(parser.duplicate_ids)}"
         )
     # HTML forbids whitespace in an id, and nothing downstream refuses one: the browser
     # still finds the element, so a comment anchors on the whole string and the page
@@ -49,21 +51,21 @@ def id_errors(parser) -> list:
     # the thread first; authoring is the one moment the fix costs nothing.
     if parser.spaced_ids:
         errors.append(
-            f"ids containing whitespace, which HTML forbids in an id: {parser.spaced_ids}"
+            f"ids containing whitespace, which HTML forbids in an id: {json_value(parser.spaced_ids)}"
         )
     # leaf.js coins document ids under `lf-` (`lf-composer-quote`) and points ARIA at
     # them, so an authored id there redirects the reference to the page.
     if parser.reserved_ids:
         errors.append(
             "ids in the runtime's own lf- namespace (it coins lf-composer-quote there, "
-            f"and points ARIA at them): {parser.reserved_ids}"
+            f"and points ARIA at them): {json_value(parser.reserved_ids)}"
         )
     # A command's ID names a widget or a message, whichever the page holds; the log
     # mints message ids in this shape, so an authored one could name both.
     if parser.event_shaped_ids:
         errors.append(
             "ids shaped like the event ids the log mints (eight hex digits), which "
-            f"commands would read as a message: {parser.event_shaped_ids}"
+            f"commands would read as a message: {json_value(parser.event_shaped_ids)}"
         )
     return errors + reserved_marker_errors(parser)
 
@@ -165,7 +167,7 @@ def page_boundary_errors(parser: SourceDocument) -> list:
     if parser.outside_main:
         errors.append(
             "paintable authored content must stay inside the one <main> directly "
-            "under <body>; found " + str(parser.outside_main)
+            "under <body>; found " + json_value(parser.outside_main)
         )
     return errors
 
@@ -175,7 +177,7 @@ def authored_allocation_errors(parser: SourceDocument) -> list:
     stands on its `body`."""
     return (
         [
-            f"{at(item, item['attr'] + '=' + repr(item['value']))} has an invalid value; "
+            f"{at(item, item['attr'] + '=' + json_value(item['value']))} has an invalid value; "
             f"expected {expected}"
             for item in parser.authored_allocations
             if (expected := allocation_expects(item["attr"], item["value"]))
@@ -305,12 +307,13 @@ def _unanswered_media(refs, page_dir: Path) -> list:
     one the directory has not got."""
     errors = []
     for ref in sorted(refs):
-        if not SERVED_PATH.fullmatch(ref):
+        path = urlsplit(ref).path
+        if not SERVED_PATH.fullmatch(path):
             errors.append(
                 f"{ref} isn't a name `leaf page media` gives, so the page never "
                 "serves it"
             )
-        elif not (page_dir / ref.lstrip("/")).is_file():
+        elif not (page_dir / path.lstrip("/")).is_file():
             errors.append(
                 f"{ref} isn't in the page directory; `leaf page media` puts it there"
             )

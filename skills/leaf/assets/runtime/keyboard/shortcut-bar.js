@@ -22,6 +22,9 @@
    Hint chips are `aria-hidden` because placeholders and live announcements carry the same
    facts for assistive technology.
 
+   Contextual hints and More repack together inside the bar as the command scene
+   changes. This bounded control reflow does not move the bar or the page beside it.
+
    The line is one row. Rows that do not fit leave it, the lowest-ranked first, so a
    narrow window keeps the leading hint and a sequence too long for the window keeps its
    leading destinations. More and the current way out never leave, and the reference
@@ -51,10 +54,12 @@ import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
 
 import {
   activeRows,
-  ariaShortcuts,
   bindings,
+  commandEntries,
   commandPresentations,
   commandRoutes,
+  lineOf,
+  titleOf,
   spell,
   word,
 } from "./bindings.js";
@@ -68,9 +73,9 @@ import {
 import { el } from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import { lineOwner, shadow, stack, executeCommand } from "./dispatch.js";
+import { scopeIdentity } from "./scopes.js";
 
 import {
-  commandReferenceDialog,
   commandReferenceOpen,
   declareExpandedBarBehindReference,
   openCommandReference,
@@ -87,12 +92,20 @@ import { repaint } from "../repaint.js";
 import { walkPosition } from "../walk-position.js";
 import { declareBottomBar } from "../geometry.js";
 import { pagePresented } from "../presentation.js";
+import { closeLayer, focusDestination } from "../focus.js";
+import {
+  BANNER_CONTROL_RANK,
+  bannerControlDoor,
+  dismissBannerControls,
+  registerBannerControl,
+} from "../banner-toolbar.js";
 
 // The shortcut bar — the register's short rendering. Its fact chips are aria-hidden (the spoken
 // copies are placeholders, announcements, and the reference); More is a real button because
 // a visible door to the complete list should be a door every user can work.
 export const shortcutBarEl = el("div", "lf-ui lf-shortcut-bar");
 shortcutBarEl.id = "lf-shortcut-bar";
+shortcutBarEl.setAttribute("data-lf-reflow", "controls");
 export const bottomStatusEl = el("div", "lf-ui lf-bottom-status");
 let activateShortcutMore = null;
 
@@ -106,7 +119,6 @@ const EMPTY_BAR = Object.freeze({
     title: "More keyboard shortcuts",
     expanded: false,
     ariaLabel: "More keyboard shortcuts",
-    ariaShortcuts: null,
   }),
   tail: null,
   expanded: false,
@@ -149,9 +161,7 @@ const shortcutBarTemplate = (model) =>
       title=${model.more.title}
       aria-label=${model.more.ariaLabel}
       aria-expanded=${String(model.more.expanded)}
-      aria-keyshortcuts=${model.more.ariaShortcuts ?? nothing}
       ?hidden=${model.more.hidden}
-      @click=${() => activateShortcutMore?.()}
     >
       <kbd class="lf-key-badge">${model.more.binding}</kbd
       ><span>${model.more.line}</span></button
@@ -166,12 +176,15 @@ const shortcutBarTemplate = (model) =>
     }`;
 
 let bottomStatusContext = EMPTY_STATUS_CONTEXT;
+let placeBottomStatus = null;
 const renderBottomStatus = () => {
   const model = Object.freeze({
     ...bottomStatusContext,
     notice: noticeReading(),
   });
   render(bottomStatusTemplate(model), bottomStatusEl);
+  // Feedback reaches its geometry owner before this turn can paint it.
+  placeBottomStatus?.();
 };
 renderBottomStatus();
 render(shortcutBarTemplate(EMPTY_BAR), shortcutBarEl);
@@ -234,7 +247,8 @@ const effectiveRow = (row, declared, active) => {
     // may supply the short word for its remaining direction; otherwise the row's shared
     // word still describes the reduced binding set.
     label: route?.label,
-    does: route?.does ?? row.does,
+    title: route?.title ?? row.title,
+    description: route?.description ?? row.description,
     line: route?.line ?? row.line,
   };
   sourceRows.set(projected, row);
@@ -254,18 +268,27 @@ function lineRows(scopes) {
     // outer scopes are read. Keep all unshadowed rows in the batch so activeRows still
     // rejects two live meanings inside this reachable scope.
     const reachable = scope.rows.flatMap((row) => {
-      if (!row.line || (!scope.sequence && word(row.lineWhen) === false)) return [];
+      if (row.line === false || (!scope.sequence && word(row.lineWhen) === false))
+        return [];
       const bound = bindings(row);
       const active = bound.filter((binding) =>
         binding === "Escape"
-          ? escape?.visible && escape.scope === scope && escape.row === row
+          ? escape?.visible &&
+            scopeIdentity(escape.scope) === scopeIdentity(scope) &&
+            escape.row === row
           : !named.has(binding) && !nearer.takes(binding),
       );
       return active.length ? [effectiveRow(row, bound, active)] : [];
     });
     for (const row of activeRows(reachable, scope.title ?? "the page's keys")) {
-      for (const binding of bindings(row)) named.add(binding);
-      rows.push(row);
+      if (!lineOf(row)) continue;
+      const active = bindings(row).filter(
+        (binding) => commandEntries(row, [binding]).length,
+      );
+      if (!active.length) continue;
+      const source = sourceRow(row);
+      for (const binding of active) named.add(binding);
+      rows.push(effectiveRow(source, bindings(source), active));
     }
     nearer.past(scope);
   }
@@ -309,6 +332,23 @@ const completeLine = (scopes, candidates) => {
 };
 const openCompleteReference = () =>
   openCommandReference((id) => executeCommand(id, beforeShortcutCommand));
+const keyboardSettings = el("button", "lf-btn", "Keyboard shortcuts");
+keyboardSettings.type = "button";
+keyboardSettings.addEventListener("click", () => {
+  // Closing the More menu lands the user back on its door, which the complete
+  // reference returns them to (focus.js, `closeLayer`).
+  closeLayer(dismissBannerControls, () => {
+    const door = bannerControlDoor(keyboardSettings);
+    if (door) focusDestination(door, "return");
+  });
+  openCompleteReference();
+});
+registerBannerControl({
+  key: "keyboard",
+  control: keyboardSettings,
+  rank: BANNER_CONTROL_RANK.keyboard,
+  seat: "menu",
+});
 function advanceShortcutHelp() {
   if (!shortcutHelpAvailable() || shortcutBarIsExpanded) return openCompleteReference();
   const scopes = stack();
@@ -383,8 +423,8 @@ export function renderShortcutBar(goToStatus) {
   // accessible shortcut, label, and dispatch from becoming four independent claims about
   // the binding.
   const referenceBinding = reference ? bindings(reference)[0] : null;
-  const referenceDoes = word(SHORTCUT_HELP.does);
-  const referenceLine = word(SHORTCUT_HELP.line);
+  const referenceTitle = titleOf(SHORTCUT_HELP);
+  const referenceLine = lineOf(SHORTCUT_HELP);
   // Read where it is painted, like every other cell. Every destination keeps its complete
   // sequence while the user advances through it: completed keys change face, but no key is
   // added, removed, or moved. A sequence control such as Escape is a way out of the interaction, not
@@ -400,7 +440,7 @@ export function renderShortcutBar(goToStatus) {
       key: rowPresentationKey(row),
       sequenceControl: Boolean(row.sequenceControl),
       sequence: keySequenceModel(steps, states),
-      said: word(row.line),
+      said: lineOf(row),
       commandIds: commandPresentations(row, active)
         .map(({ id }) => id)
         .join(" "),
@@ -418,18 +458,17 @@ export function renderShortcutBar(goToStatus) {
       hidden: commandReferenceOpen() || !referenceBinding,
       binding: referenceBinding ? spell(referenceBinding) : null,
       line: referenceLine,
-      title: referenceDoes,
+      title: referenceTitle,
       expanded,
       ariaLabel: referenceBinding
         ? `${spell(referenceBinding)} ${referenceLine}`
-        : referenceDoes,
-      ariaShortcuts: referenceBinding ? ariaShortcuts([reference], false) : null,
+        : referenceTitle,
     }),
     tail:
       expanded && tail
         ? Object.freeze({
             sequence: keySequenceModel(rowSteps(tail), neutralStates(rowSteps(tail))),
-            said: word(tail.line),
+            said: lineOf(tail),
           })
         : null,
     expanded,
@@ -505,6 +544,12 @@ export function renderShortcutBar(goToStatus) {
     .toReversed();
   while (rowsUsed(reserved) > ceiling && removable.length)
     trimmed.add(removable.shift());
+  // A wide row that had to go can free room a narrower one trimmed before it would fit
+  // in, so each trimmed row is offered its place back, highest-ranked first.
+  for (const span of [...trimmed].toReversed()) {
+    trimmed.delete(span);
+    if (rowsUsed(reserved) > ceiling) trimmed.add(span);
+  }
   // A status too wide to leave More and the way out their row gives the room back and
   // stands over them, since it takes no pointer events and the row is the promise.
   const room = reserved && rowsUsed(reserved) > ceiling ? 0 : reserved;
@@ -517,7 +562,13 @@ const shortcutBarExpanded = () => shortcutBarIsExpanded && shortcutHelpAvailable
 
 // Boot supplies the two transient interactions More closes. The bar renderer and its
 // reference rows never import those command owners to draw their current declarations.
-export function mountShortcutBar({ setGoToSequence, setReact }) {
+export function mountShortcutBar({
+  setGoToSequence,
+  setReact,
+  placeBottomStatus: place,
+}) {
+  placeBottomStatus = place;
+  placeBottomStatus();
   activateShortcutMore = () => {
     setGoToSequence(false);
     setReact(false);
@@ -533,29 +584,29 @@ const SHORTCUT_HELP = pageCommand({
   touch: false,
   runFromCommandReference: false,
   keys: ["?"],
-  does: () => (shortcutBarExpanded() ? "Command reference" : "More keyboard shortcuts"),
+  title: () =>
+    shortcutBarExpanded() ? "Command reference" : "More keyboard shortcuts",
   line: () => (shortcutBarExpanded() ? "command reference" : "more"),
   control: () => shortcutBarMore,
-  run: () => shortcutBarMore.click(),
+  run: () => activateShortcutMore?.(),
 });
 
 const COLLAPSE_SHORTCUT_BAR = {
   id: "shortcut.bar.collapse",
   keys: ["Escape"],
-  does: "Show fewer keyboard shortcuts",
+  title: "Fewer keyboard shortcuts",
   line: "less",
   commandReferenceWhen: () => false,
   runFromCommandReference: false,
   run: () => collapseShortcutBar(),
 };
 
-// The expanded bar stands inside the reference's own dialog box, and the reference claims
-// the keyboard whole while it is open, so this scope answers only in the state between
-// the two presses: the bar expanded, the reference not yet opened.
+// The expanded bar owns its own Escape. Its actual node states whether it is reachable:
+// the reference leaves it below the modal floor, and covering Threads makes it inert.
 pageScope("expanded shortcut bar", {
   title: "In the expanded shortcut bar",
   escape: "inner",
-  root: () => commandReferenceDialog,
+  root: () => shortcutBarEl,
   at: () => Boolean(shortcutBarExpanded()),
   rows: [COLLAPSE_SHORTCUT_BAR],
 });

@@ -4,26 +4,31 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-const { floatingPlacement } = await import("/runtime/floating.js");
+const { floatingPlacement } = await import("/runtime/annotation-overlay/floating.js");
 
 test("a superseded answer leaves the newer placement's plane and spot", async () => {
   const floating = document.createElement("div");
   const placement = floatingPlacement({ floating, update: () => {} });
-  const answers = [];
-  const computePosition = () => new Promise((resolve) => answers.push(resolve));
+  let requested;
+  const nextRequest = () => new Promise((resolve) => (requested = resolve));
+  const computePosition = () => new Promise((resolve) => requested(resolve));
   const position = () =>
     placement.position(
       computePosition,
-      {},
+      { getBoundingClientRect: () => new DOMRect(10, 20, 50, 30) },
       { middleware: [] },
       ({ plane }) => plane,
       null,
     );
 
   placement.begin();
+  const olderRequested = nextRequest();
   const older = position();
+  const answerOlder = await olderRequested;
   placement.supersede();
+  const newerRequested = nextRequest();
   const newer = position();
+  const answerNewer = await newerRequested;
 
   const held = {
     edges: { x: "left", y: "top" },
@@ -31,14 +36,19 @@ test("a superseded answer leaves the newer placement's plane and spot", async ()
     height: 30,
     block: { width: 400, height: 300 },
   };
-  const answer = { x: 10, y: 20, plane: "window", middlewareData: { held } };
-  answers[1](answer);
+  const answer = {
+    x: 10,
+    y: 20,
+    plane: "window",
+    middlewareData: { held, anchorAt: { offset: null } },
+  };
+  answerNewer(answer);
   assert.ok(await newer);
-  answers[0]({
+  answerOlder({
     x: 0,
     y: 0,
     plane: "page",
-    middlewareData: { held, anchorAt: { x: 0, y: 0 } },
+    middlewareData: { held, anchorAt: { offset: { x: 0, y: 0 } } },
   });
   assert.equal(await older, null);
 

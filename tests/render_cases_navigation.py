@@ -265,7 +265,7 @@ session.</p></details>
 )
 # Generated go-to hints, painted in their own transient layer. The code is metadata on the
 # chip because its visible text also carries the ellipsis marking a sequence in progress.
-CHIPS = ".lf-go-to-hints > .lf-go-to-hint[data-lf-hint-code]"
+CHIPS = ".lf-go-to-hints .lf-go-to-hint[data-lf-hint-code]"
 
 
 def address_codes(page):
@@ -276,9 +276,15 @@ def address_codes(page):
 
 
 def address_code(page, kind, target, margin_entry=None):
-    selector = f'{CHIPS}[data-lf-go-to-kind="{kind}"][data-lf-go-to-target="{target}"]'
+    """Read a generated hint by its exact target and optional margin-entry identity."""
+    attributes = {"data-lf-go-to-kind": kind, "data-lf-go-to-target": target}
     if margin_entry:
-        selector += f'[data-lf-go-to-margin-entry="{margin_entry}"]'
+        attributes["data-lf-go-to-margin-entry"] = margin_entry
+    selector = page.evaluate(
+        """({selector, attributes}) => selector + Object.entries(attributes)
+          .map(([name, value]) => `[${name}="${CSS.escape(value)}"]`).join('')""",
+        {"selector": CHIPS, "attributes": attributes},
+    )
     chip = page.locator(selector)
     expect(chip).to_have_count(1)
     code = chip.get_attribute("data-lf-hint-code")
@@ -351,7 +357,7 @@ def wait_standing(page, text, ids=()):
     is. The failure carries what was painted instead, since a timeout on a predicate says
     only that it never came true."""
     try:
-        page.wait_for_function(STANDING, arg=[text, list(ids)], timeout=4000)
+        page.wait_for_function(STANDING, arg=[text, list(ids)])
     except PlaywrightTimeout:
         raise AssertionError(
             f"the page should be marking {text or list(ids)!r} as the comment the user"
@@ -374,7 +380,7 @@ def wait_hovered(page, text):
     layout, and the panel's half reads the browser's own :hover, which that frame is also
     what settles. Reading straight after the move reads the move before its answer."""
     try:
-        page.wait_for_function(HOVERED, arg=text, timeout=4000)
+        page.wait_for_function(HOVERED, arg=text)
     except PlaywrightTimeout:
         raise AssertionError(
             f"the pointer should be lighting {text!r} on the page; it is lighting"
@@ -764,10 +770,8 @@ JOURNEY_SCAFFOLD = leaf_page(
   </lf-column>
   <lf-column id="col-done" label="Done"></lf-column>
 </lf-board>
-<lf-draft id="draft-ops"><pre>
-    Run the migration before deploying.
-    It is online.
-</pre></lf-draft>
+<lf-draft id="draft-ops"><pre>Run the migration before deploying.
+It is online.</pre></lf-draft>
 <h2 id="notes">Notes</h2>
 {after}
 """,
@@ -782,12 +786,10 @@ JOURNEY_V2 = JOURNEY_SCAFFOLD.format(
 
 
 def _draft_says(html, text, attrs=""):
-    """The journey page with its draft rewritten — the source's indentation and
-    all, since that is what the widget dedents back out."""
+    """Rewrite the exact Markdown source the draft and log share."""
     return html.replace(
-        '<lf-draft id="draft-ops"><pre>\n'
-        + "\n".join(f"    {line}" for line in DRAFT_TEXT.split("\n")),
-        f'<lf-draft id="draft-ops"{attrs}><pre>\n    {text}',
+        f'<lf-draft id="draft-ops"><pre>{DRAFT_TEXT}</pre>',
+        f'<lf-draft id="draft-ops"{attrs}><pre>{text}</pre>',
     )
 
 
@@ -868,9 +870,7 @@ KEYS_PAGE = leaf_page(
   <lf-option id="opt-keep"><strong>Keep the store</strong> Sessions stay where they are.</lf-option>
   <lf-option id="opt-token"><strong>Signed tokens</strong> No store at all.</lf-option>
 </lf-options></lf-ask>
-<lf-draft id="draft-ops"><pre>
-    Run the migration before deploying.
-</pre></lf-draft>
+<lf-draft id="draft-ops"><pre>Run the migration before deploying.</pre></lf-draft>
 """,
 )
 SMOOTH_LONG_PAGE = LONG_PAGE.replace(
@@ -940,7 +940,7 @@ def live_watcher(page_dir, page):
     try:
         yield
     finally:
-        lease.close()
+        leases_model.release_lease(lease)
     # Outside the finally: a block that raised has its own failure to report, and
     # nothing after it to wait for.
     told(page)
@@ -992,7 +992,7 @@ DATA_PROJECTION_PAGE = leaf_page(
 )
 
 DATA_PROJECTION_MODULE = """
-import {offer, projectData, watchData} from '/runtime/widget-api.js';
+import {offer, projectData, watchData, setChildren} from '/runtime/widget-api.js';
 customElements.define('lf-feed', class extends HTMLElement {
   connectedCallback() {
     if (!this.stopWatching)
@@ -1007,14 +1007,13 @@ customElements.define('lf-feed', class extends HTMLElement {
     this.stopWatching = null;
   }
   show(snapshot) {
-    projectData(this, snapshot?.value ?? [], row => row.key, ({value}) => {
+    const datums = (snapshot?.value ?? []).map(({key, value}, index) => {
       const row = document.createElement('p');
       row.append(value, offer('button', 'inspect', 'Inspect'));
-      return row;
-    }, {
-      snapshot,
-      originOf: (_row, index) => ({...snapshot.origin, path: [index, 'value']}),
+      return {node: row, key, origin: {...snapshot.origin, path: [index, 'value']}};
     });
+    setChildren(this, datums.map(({node}) => node));
+    projectData(this, datums, {snapshot});
   }
 });
 """

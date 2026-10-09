@@ -8,7 +8,13 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from interact_support import append_command, record_claim
+from interact_support import (
+    append_carried_log_record,
+    append_command,
+    end_work_on,
+    record_claim,
+    working,
+)
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
@@ -47,8 +53,9 @@ from render_harness import (
     SETTLED_PAGE,
     _traffic,
     _until,
-    ask_actions_hint,
+    active_digit_bindings,
     compare_with,
+    expect_asks_answered,
     expect_banner_control_offered,
     hold_selection,
     holding,
@@ -95,9 +102,9 @@ def test_the_runtime_does_not_replace_a_pages_keyframes(browser, serve):
         pageAnimation.currentTime = pageAnimation.effect.getTiming().duration / 2;
         const transform = getComputedStyle(document.getElementById("page-pulse")).transform;
 
-        const dot = document.querySelector(".lf-dot");
-        dot.classList.toggle("working", true);
-        const runtimeAnimation = dot.getAnimations()[0];
+        const control = document.querySelector(".lf-threads-toggle");
+        control.setAttribute("aria-busy", "true");
+        const runtimeAnimation = control.getAnimations()[0];
         return {
             pageDistance: transform === "none" ? null : new DOMMatrix(transform).m41,
             runtimeName: runtimeAnimation?.animationName ?? null,
@@ -107,7 +114,7 @@ def test_the_runtime_does_not_replace_a_pages_keyframes(browser, serve):
         f"the runtime replaced the page's lf-pulse keyframes: {sampled}"
     )
     assert sampled["runtimeName"] and sampled["runtimeName"] != "lf-pulse", (
-        f"the chrome lost its own private pulse animation: {sampled}"
+        f"the chrome lost its own private delivery animation: {sampled}"
     )
 
 
@@ -369,6 +376,110 @@ def test_a_live_card_pick_uses_header_state_and_remains_pressable(browser, serve
     round_trip(page)
 
 
+@pytest.mark.parametrize("cards", [False, True], ids=["rows", "cards"])
+def test_standalone_options_own_their_digit_bindings(browser, serve, cards):
+    """Standalone options own working digits, aligned down their form's badge column."""
+    one = "<strong>One</strong> First choice." if cards else "One"
+    two = "<strong>Two</strong> Second choice." if cards else "Two"
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "standalone options",
+                '<h1>Which apply?</h1><button id="outside">Outside</button>'
+                '<lf-options id="choices" choose multiple>'
+                f'<lf-option id="one">{one}</lf-option>'
+                f'<lf-option id="two">{two}</lf-option>'
+                "</lf-options>",
+            )
+        ),
+    )
+    group = page.locator("#choices")
+    page.locator("#outside").focus()
+    page.keyboard.press("2")
+    rendered(page)
+    expect(page.locator("#two")).not_to_have_attribute("chosen", "")
+    page.keyboard.press("q")
+    expect(group).to_be_focused()
+    hints = group.locator(".lf-key-badge[data-lf-binding-badge]")
+    expect(hints).to_have_text(["1", "2", "3"])
+    done = group.locator(".lf-done")
+    expect(done).to_have_attribute("aria-keyshortcuts", "4")
+    page.keyboard.press("4")
+    round_trip(page)
+    expect(done).to_have_attribute("aria-pressed", "true")
+    done.click()
+    round_trip(page)
+    expect(done).to_have_attribute("aria-pressed", "false")
+    positions = hints.evaluate_all(
+        "es => es.map(e => { const r = e.getBoundingClientRect(); return [r.x, r.y]; })"
+    )
+    assert max(x for x, _ in positions) - min(x for x, _ in positions) <= 1
+    assert [y for _, y in positions] == sorted(y for _, y in positions)
+    page.keyboard.press("2")
+    expect(page.locator("#two")).to_have_attribute("chosen", "")
+    round_trip(page)
+    field = group.get_by_role("textbox", name="Another option")
+    write(field, "1")
+    expect(field).to_have_js_property("value", "1")
+    expect(page.locator("#one")).not_to_have_attribute("chosen", "")
+
+
+def test_added_option_numbers_are_not_reused_after_undo(browser, serve):
+    """Option identities keep their digits as additions are admitted and withdrawn."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "stable option numbers",
+                '<h1>Stable numbers</h1><lf-ask id="question"><h2>Which apply?</h2>'
+                '<lf-options id="choices" choose multiple>'
+                '<lf-option id="one">One</lf-option><lf-option id="two">Two</lf-option>'
+                "</lf-options></lf-ask>",
+            )
+        ),
+    )
+    group = page.locator("#choices")
+    field = group.get_by_role("textbox", name="Another option")
+    added = group.locator(":scope > lf-option[data-lf-added]")
+    page.keyboard.press("q")
+    expect(page.locator("#question")).to_be_focused()
+    write(field, "First addition")
+    group.get_by_role("button", name="Add and select option").click()
+    round_trip(page)
+    expect(added).to_have_count(1)
+    first_id = added.get_attribute("id")
+    group.get_by_role("button", name=re.compile("^Done:")).focus()
+    page.keyboard.press("q")
+    expect(page.locator("#question")).to_be_focused()
+    expect(added.locator(".lf-pick")).to_have_attribute(
+        "aria-keyshortcuts", re.compile(r"(^| )5($| )")
+    )
+    # Add-and-select records add then choose: undo the pick before its addition.
+    page.keyboard.press("z")
+    round_trip(page)
+    expect(added).not_to_have_attribute("chosen", "")
+    page.keyboard.press("z")
+    round_trip(page)
+    expect(added).to_have_count(0)
+
+    write(field, "Second addition")
+    group.get_by_role("button", name="Add and select option").click()
+    round_trip(page)
+    expect(added).to_have_count(1)
+    assert added.get_attribute("id") != first_id
+    group.get_by_role("button", name=re.compile("^Done:")).focus()
+    page.keyboard.press("q")
+    expect(page.locator("#question")).to_be_focused()
+    expect(added.locator(".lf-pick")).to_have_attribute(
+        "aria-keyshortcuts", re.compile(r"(^| )6($| )")
+    )
+    expect(group.locator(".lf-another > .lf-key-badge")).to_have_text("3")
+    expect(group.get_by_role("button", name=re.compile("^Done:"))).to_have_attribute(
+        "aria-keyshortcuts", "4"
+    )
+
+
 def test_option_words_render_markdown_without_losing_the_user_draft(browser, serve):
     source = ASK_PAGE.replace(
         "Replace the <code>M8</code> mounts", "Ask the _widget_ to decide"
@@ -460,7 +571,7 @@ def test_markdown_option_state_change_has_no_inline_text_diff(browser, serve):
 def test_option_controls_hold_presentation_without_replacing_authored_nodes(
     browser, serve
 ):
-    """A choice presents through its child Lit control and retains authored nodes."""
+    """A choice presents its retained controls before delivery, including refusal."""
     page = open_page(browser, live_url(serve(SETTLED_PAGE)))
     page.locator("#transport .lf-settled").click()
     group = page.locator("#transport")
@@ -474,26 +585,13 @@ def test_option_controls_hold_presentation_without_replacing_authored_nodes(
           window.optionGroup = holder;
           window.authoredOption = option;
           window.authoredTitle = option.querySelector(':scope > strong');
-          window.authoredWords = [...option.childNodes].find(
-            node => node.nodeType === Node.TEXT_NODE && node.data.trim()
-          );
           window.optionControl = control;
           window.optionIdentityHeld = () =>
             document.querySelector('#transport') === optionGroup &&
             optionGroup.querySelector('#opt-strict') === authoredOption &&
             authoredOption.querySelector(':scope > strong') === authoredTitle &&
-            [...authoredOption.childNodes].includes(authoredWords) &&
             authoredOption.querySelector(':scope > lf-option-control') === optionControl;
 
-          let release;
-          const held = new Promise(resolve => { release = resolve; });
-          window.releaseOptionControl = release;
-          const schedule = control.scheduleUpdate.bind(control);
-          control.scheduleUpdate = async () => {
-            control.scheduleUpdate = schedule;
-            await held;
-            return schedule();
-          };
           const presentation = await window.__lfRuntimeImport(
             '/runtime/semantic-state.js'
           );
@@ -506,21 +604,16 @@ def test_option_controls_hold_presentation_without_replacing_authored_nodes(
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     strict.click()
-    holding(page, held, 1, "the choice whose generated control update is held")
-    page.evaluate(
-        "() => { optionsPresentationReady = false; "
-        "void whenOptionsPresented().then(() => { "
-        "optionsPresentationReady = true; }); }"
-    )
-    assert page.evaluate("optionsPresentationReady") is False
-    assert "widget:transport:render" in page.evaluate(
+    holding(page, held, 1, "the choice whose delivery is held")
+    page.evaluate("() => whenOptionsPresented()")
+    expect(mark).to_have_attribute("aria-checked", "true")
+    expect(mark).to_have_text("selected")
+    assert "widget:transport:render" not in page.evaluate(
         "readOptionsPresentation().pending"
     )
-    assert page.evaluate("optionIdentityHeld()") is True
-
-    page.evaluate("releaseOptionControl()")
-    page.wait_for_function("optionsPresentationReady")
     expect(strict).to_have_attribute("chosen", "")
+    assert page.evaluate("optionIdentityHeld()") is True
+    expect(strict).to_contain_text("Tighter, but a session")
 
     attempt = held[0].request.post_data_json["attempt"]
     held[0].fulfill(
@@ -534,7 +627,9 @@ def test_option_controls_hold_presentation_without_replacing_authored_nodes(
     )
     page.unroute("**/api/event")
     expect(page.locator("#opt-lax")).to_have_attribute("chosen", "")
+    expect(mark).to_have_attribute("aria-checked", "false")
     assert page.evaluate("optionIdentityHeld()") is True
+    expect(strict).to_contain_text("Tighter, but a session")
 
     group.evaluate(
         """holder => {
@@ -550,6 +645,7 @@ def test_option_controls_hold_presentation_without_replacing_authored_nodes(
     )
     page.wait_for_function("reconnectedOptionsReady")
     assert page.evaluate("optionIdentityHeld()") is True
+    expect(strict).to_contain_text("Tighter, but a session")
 
 
 def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_field(
@@ -563,13 +659,13 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     url = serve(ASK_WITH_CONTEXT_PAGE)
     page = open_page(browser, url)
 
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     mark = page.locator("#storage-evict .lf-pick")
     line = shortcut_bar_text(page)
     # The Ask's own numbered actions are what the line offers, under the one context the
     # question owns, with the way out of the standing ahead of them as it is anywhere
     # the user is holding something.
-    assert ask_actions_hint("1–3") in line, line
+    assert active_digit_bindings(page) == "1–3", line
     assert "let go" in line, line
     option_hints = page.locator("#storage-options > lf-option > .lf-key-badge")
     expect(option_hints).to_have_text(["1", "2"])
@@ -589,7 +685,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     page.close()
 
     page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     mark = page.locator("#storage-evict .lf-pick")
     box = page.locator("#storage-options > .lf-another leaf-text")
     page.keyboard.press("Tab")
@@ -598,7 +694,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     expect(mark).to_have_attribute("aria-checked", "false")
     expect(
         page.locator(
-            "#storage-options > lf-option > .lf-key-badge[data-lf-ask-binding-badge]"
+            "#storage-options > lf-option > .lf-key-badge[data-lf-binding-badge]"
         )
     ).to_have_text(["1", "2"])
     assert shortcut_bar_text(page) == line
@@ -632,7 +728,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     page.close()
 
     page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     page.keyboard.press("Tab")
     mark = page.locator("#storage-evict .lf-pick")
     expect(mark).to_be_focused()
@@ -670,7 +766,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     # make none — under reduced motion `scrollBehavior()` is `instant`, both scrolls land
     # inside the press, and there is no settling frame for the presses below to race.
     page.emulate_media(reduced_motion="reduce")
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     covered = page.evaluate(clearance)
     assert covered < 0, f"the arrival left the add field {covered}px clear of the line"
     for _ in range(3):
@@ -684,7 +780,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
 def test_ask_addresses_are_screen_only_apparatus(browser, serve):
     """An Ask's key hints stay out of selected page words and off paper."""
     page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     badges = page.locator("#storage-options > lf-option > .lf-key-badge")
     expect(badges).to_have_text(["1", "2"])
     expect(badges.first).to_be_visible()
@@ -1065,13 +1161,13 @@ WIDE_ASK_PAGE = leaf_page(
 <h1>Where sessions live</h1>
 <div id="layout">
 <section id="body">
-<lf-ask id="cell-decision"><h2>Where should a session live?</h2>
+<lf-ask id="cell-decision" data-width="available"><h2>Where should a session live?</h2>
 <p>{WIDE_PROSE}</p>
 <lf-options id="cell-cards" choose>
   <lf-option id="cc-redis"><strong>Redis</strong> A store we already run.</lf-option>
   <lf-option id="cc-pg"><strong>Postgres</strong> One fewer moving part.</lf-option>
 </lf-options></lf-ask>
-<lf-ask id="rows-decision"><h2>Which jobs are worth starting?</h2>
+<lf-ask id="rows-decision" data-width="available"><h2>Which jobs are worth starting?</h2>
 <p>{WIDE_PROSE}</p>
 <lf-options id="cell-rows" choose multiple>
   <lf-option id="cr-drill">A revocation drill</lf-option>
@@ -1080,7 +1176,7 @@ WIDE_ASK_PAGE = leaf_page(
 </section>
 <section id="aside"><p>Beside the argument.</p></section>
 </div>
-<lf-ask id="page-decision"><h2>Who owns the migration?</h2>
+<lf-ask id="page-decision" data-width="available"><h2>Who owns the migration?</h2>
 <p>{WIDE_PROSE}</p>
 <lf-options id="page-cards" choose>
   <lf-option id="pc-platform"><strong>Platform</strong> They run the store.</lf-option>
@@ -1590,10 +1686,10 @@ def test_only_bound_cards_yield_their_header_state_to_the_ask(browser, serve):
     )
     resized(page, 900, 1200)
 
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(page.locator("#routes > lf-option > .lf-key-badge")).to_have_count(10)
     expect(
-        page.locator("#routes > lf-option > .lf-key-badge[data-lf-ask-binding-badge]")
+        page.locator("#routes > lf-option > .lf-key-badge[data-lf-binding-badge]")
     ).to_have_count(9)
     opacity = "el => getComputedStyle(el).opacity"
     for index in range(1, 10):
@@ -1638,7 +1734,7 @@ def test_a_nested_questions_commands_belong_only_to_their_own_ask(browser, serve
     breaks the shortcut bar or lends its answers to the wrong Ask.
     """
     page = open_page(browser, serve(NESTED_ASK_PAGE))
-    page.keyboard.press("a")
+    page.keyboard.press("q")
 
     expect(page.locator("#outer-decision")).to_be_focused()
     outer_hints = page.locator("#outer > lf-option > .lf-key-badge")
@@ -1667,7 +1763,7 @@ def test_a_nested_questions_pick_is_not_part_of_its_outers_record(browser, serve
             "revision": 1,
             "widget": "outer",
             "action": "choose",
-            "detail": {"options": ["out-drill"]},
+            "detail": {"value": ["out-drill"]},
         },
     )
 
@@ -1716,7 +1812,7 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     assert not option.evaluate(picked), "opening the disclosure answered the question"
 
     page.locator("#ro-note .lf-draft-body").dblclick()
-    expect(page.locator("#ro-note textarea")).to_be_visible()
+    expect(page.locator("#ro-note leaf-text")).to_be_visible()
     assert not option.evaluate(picked), (
         "opening the draft's editor answered the question"
     )
@@ -1760,7 +1856,7 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     expect(page.locator("#ro-column > .lf-pick")).to_have_text("selected")
     round_trip(page)
     assert [
-        e["detail"]["options"]
+        e["detail"]["value"]
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "action"
     ] == [["ro-column"]]
@@ -2009,8 +2105,7 @@ def test_what_a_widget_paints_it_says_to_a_user_listening(browser, serve):
 
 def test_a_multiple_page_ask_waits_for_done(browser, serve):
     page = open_page(browser, serve(ASK_PAGE))
-    asks = page.locator(".lf-asks")
-    expect(asks).to_have_text("Asks 0/3")
+    expect_asks_answered(page, "0/3")
     assert (
         page.locator("#jobs").evaluate(
             "el => el.querySelector('.lf-another').nextElementSibling.tagName"
@@ -2024,17 +2119,17 @@ def test_a_multiple_page_ask_waits_for_done(browser, serve):
     page.locator("#job-mounts").click()
     page.locator("#job-camera").click()
     round_trip(page)
-    expect(asks).to_have_text("Asks 0/3")
+    expect_asks_answered(page, "0/3")
     expect(page.locator("#jobs .lf-done")).to_have_attribute("aria-pressed", "false")
 
     page.locator("#jobs .lf-done").click()
     round_trip(page)
-    expect(asks).to_have_text("Asks 1/3")
+    expect_asks_answered(page, "1/3")
     expect(page.locator("#jobs .lf-done")).to_have_attribute("aria-pressed", "true")
 
     page.locator("#br-steel").click()
     round_trip(page)
-    expect(asks).to_have_text("Asks 2/3")
+    expect_asks_answered(page, "2/3")
     expect(page.locator("#bracket .lf-done")).to_have_count(0)
 
 
@@ -2044,11 +2139,42 @@ def test_an_authored_multiple_pick_still_waits_for_done(browser, serve):
     )
     page = open_page(browser, serve(authored_pick))
     expect(page.locator("#job-mounts")).to_have_attribute("chosen", "")
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/3")
+    expect_asks_answered(page, "0/3")
 
     page.locator("#jobs .lf-done").click()
     round_trip(page)
-    expect(page.locator(".lf-asks")).to_have_text("Asks 1/3")
+    expect_asks_answered(page, "1/3")
+
+
+def test_multiple_done_can_be_taken_back_after_an_empty_answer(browser, serve):
+    page = open_page(browser, serve(ASK_PAGE))
+    done = page.locator("#jobs .lf-done")
+
+    done.focus()
+    page.keyboard.press("Space")
+    round_trip(page)
+    expect(done).to_have_attribute("aria-pressed", "true")
+    expect(done).to_have_attribute("aria-label", "Take back Done: reopen this question")
+    expect_asks_answered(page, "1/3")
+
+    page.keyboard.press("Enter")
+    round_trip(page)
+    expect(done).to_have_attribute("aria-pressed", "false")
+    expect(done).to_have_attribute("aria-label", "Done: my picks here are complete")
+    expect_asks_answered(page, "0/3")
+    events = events_model.read_events(serve.page_dir)
+    answers = [event for event in events if event.get("action") == "answer"]
+    assert len(answers) == 1 and answers[0]["detail"] == {}
+    assert [event["undoes"] for event in events if event["kind"] == "undo"] == [
+        answers[0]["id"]
+    ]
+
+    page.locator("#job-mounts").click()
+    round_trip(page)
+    done.click()
+    round_trip(page)
+    expect_asks_answered(page, "1/3")
+    expect(page.locator("#job-mounts")).to_have_attribute("chosen", "")
 
 
 def test_a_pick_states_the_whole_set(browser, serve):
@@ -2085,12 +2211,12 @@ def test_a_pick_states_the_whole_set(browser, serve):
         if e.get("action") == "choose"
     ]
     assert picks == [
-        ("jobs", {"options": ["job-mounts"]}),
-        ("jobs", {"options": ["job-mounts", "job-camera"]}),
-        ("jobs", {"options": ["job-camera"]}),
-        ("bracket", {"options": ["br-steel"]}),
-        ("bracket", {"options": ["br-cedar"]}),
-        ("bracket", {"options": []}),
+        ("jobs", {"value": ["job-mounts"]}),
+        ("jobs", {"value": ["job-mounts", "job-camera"]}),
+        ("jobs", {"value": ["job-camera"]}),
+        ("bracket", {"value": ["br-steel"]}),
+        ("bracket", {"value": ["br-cedar"]}),
+        ("bracket", {"value": []}),
     ]
     expect(
         page.locator('[data-lf-margin-for="bracket-decision"] .lf-margin-marker')
@@ -2145,7 +2271,7 @@ def test_a_send_waits_for_the_send_before_it(browser, serve):
     _until(page, lambda traffic: traffic.sends == 2, "sent the queued second pick")
     round_trip(page)
     assert [
-        e["detail"]["options"]
+        e["detail"]["value"]
         for e in events_model.read_events(serve.page_dir)
         if e.get("action") == "choose"
     ] == [["br-steel"], ["br-cedar"]]
@@ -2200,7 +2326,7 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
     page.locator("#job-heater").click()
     round_trip(page)
     assert [
-        e["detail"]["options"]
+        e["detail"]["value"]
         for e in events_model.read_events(d)
         if e.get("widget") == "jobs"
     ] == [
@@ -2233,20 +2359,16 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     d = serve.page_dir
 
     def claim(subject, detail):
-        result = CliRunner().invoke(
-            cli_model.cli,
-            ["status", str(d), "working", detail, "--on", subject],
-        )
-        assert result.exit_code == 0, result.output
+        working(d, detail, subject=subject)
         told(page)
 
     claim("card-migration", "checking the shard")
     unsupported = CliRunner().invoke(
         cli_model.cli,
-        ["status", str(d), "working", "pricing the alternatives", "--on", "jobs"],
+        ["task", "open", str(d), "jobs", "Price the alternatives"],
     )
     assert unsupported.exit_code != 0
-    assert "no local work seat" in unsupported.output
+    assert "has no work seat" in unsupported.output
 
     card_button = page.locator(
         '[data-lf-margin-for="card-migration"] > .lf-margin-marker'
@@ -2271,7 +2393,8 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     wait_for_revision(page, 2)
     expect(card_button).to_have_attribute("data-identity-probe", "kept")
 
-    # A new claim belongs to v2 and does not appear in a pinned v1 page.
+    # A task opened on v2 belongs to v2 and does not appear in a pinned v1 page.
+    end_work_on(d, "card-migration")
     claim("card-migration", "checking the fallback")
     expect(card_button).to_have_attribute(
         "aria-label", re.compile("checking the fallback")
@@ -2305,18 +2428,7 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
     (layer / "registry.json").write_text(json.dumps({"lf-option": option}))
 
     page = open_page(browser, serve(ASK_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf")))
-    result = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "status",
-            str(serve.page_dir),
-            "working",
-            "checking the mount",
-            "--on",
-            "job-mounts",
-        ],
-    )
-    assert result.exit_code == 0, result.output
+    working(serve.page_dir, "checking the mount", subject="job-mounts")
     told(page)
 
     work_button = page.locator('[data-lf-margin-for="job-mounts"] > .lf-margin-marker')
@@ -2335,13 +2447,13 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "action"
     ]
-    assert picks == [("jobs", {"options": ["job-heater"]})], picks
+    assert picks == [("jobs", {"value": ["job-heater"]})], picks
     expect(page.locator("#job-mounts")).not_to_have_attribute("chosen", "")
 
 
 def test_settled_widget_work_leaves_a_declared_shadow_tree(browser, serve):
-    """A typed widget claim follows an id through declared shadow roots, so its
-    settlement must reach the same tree. This stages an authored prose widget the way
+    """A task on a widget follows an id through declared shadow roots, so its
+    ending must reach the same tree. This stages an authored prose widget the way
     a future x-shadow vocabulary member may: the lookup already promises to find it
     there, and the cleanup cannot leave the provisional line behind after the server
     projects the claim away."""
@@ -2355,11 +2467,7 @@ def test_settled_widget_work_leaves_a_declared_shadow_tree(browser, serve):
     page = open_page(browser, url, pin=True)
     d = serve.page_dir
 
-    claimed = CliRunner().invoke(
-        cli_model.cli,
-        ["status", str(d), "working", "checking the shard", "--on", "shadow-card"],
-    )
-    assert claimed.exit_code == 0, claimed.output
+    working(d, "checking the shard", subject="shadow-card")
     told(page)
     work_button = page.locator('[data-lf-margin-for="shadow-card"] > .lf-margin-marker')
     expect(work_button).to_have_attribute("data-lf-kinds", "activity")
@@ -2393,18 +2501,7 @@ def test_widget_work_keeps_its_button_style_in_a_declared_shadow_tree(browser, s
     )
     url = serve(work_page)
     page = open_page(browser, url, pin=True)
-    result = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "status",
-            str(serve.page_dir),
-            "working",
-            "checking the shard",
-            "--on",
-            "shadow-card",
-        ],
-    )
-    assert result.exit_code == 0, result.output
+    working(serve.page_dir, "checking the shard", subject="shadow-card")
     told(page)
     work_button = page.locator('[data-lf-margin-for="shadow-card"] > .lf-margin-marker')
     expect(work_button).to_have_css("display", "flex")
@@ -2675,7 +2772,7 @@ def test_a_sample_in_a_reply_is_quoted_there_too(browser, serve):
     nothing else in the suite renders a sample there."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -2685,7 +2782,7 @@ def test_a_sample_in_a_reply_is_quoted_there_too(browser, serve):
             "text": "What would the alternative look like?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -2747,7 +2844,7 @@ def test_a_sample_in_a_reply_is_quoted_there_too(browser, serve):
         page.locator("#rp-stage").click()
     actions = [e for e in events_model.read_events(d) if e["kind"] == "action"]
     assert [(e["widget"], e["detail"]) for e in actions] == [
-        ("rp-live", {"options": ["rp-stage"]})
+        ("rp-live", {"value": ["rp-stage"]})
     ]
     message = page.locator(".lf-msg:has(#rp-live)")
     status = message.locator(":scope > .lf-msg-head .lf-msg-sending")
@@ -2770,7 +2867,7 @@ def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
     same in a cell and is the actual regression to fear."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -2780,7 +2877,7 @@ def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
             "text": "What are the ceilings?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -2816,16 +2913,12 @@ def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
     )
 
 
-def test_a_thread_questions_done_press_wears_its_address_and_one_workflow(
-    browser, serve
-):
-    """Done is a cell of the joined control, and the message shows one workflow.
+def test_a_thread_questions_done_press_keeps_its_keys_and_one_workflow(browser, serve):
+    """Done keeps its native button clear while the bar and ARIA expose its keys.
 
-    The Ask projection writes each option's key into the binding slot the row keeps
-    for it; Done kept none, so its chip was hung at the button's corner, half outside
-    the group's frame — a stray `4` a blind drive could not place. And a tick followed
-    by Done are two coordinates. The message carries their shared strongest workflow
-    once rather than painting two independent receipt classifiers."""
+    A tick followed by Done are two coordinates. The message carries their shared
+    strongest workflow once rather than painting two receipt classifiers.
+    """
     page = open_page(
         browser, serve(next(p for p in EXAMPLES if p.stem == "ship-review"))
     )
@@ -2841,21 +2934,17 @@ def test_a_thread_questions_done_press_wears_its_address_and_one_workflow(
     round_trip(page)
     done = question.locator(".lf-done")
     done.focus()
-    chip = done.locator(":scope > .lf-key-badge")
-    expect(chip).to_be_visible()
+    expect(done).to_have_attribute("aria-keyshortcuts", re.compile(r"\b4\b"))
+    expect(question.locator(":scope > lf-options-done .lf-key-badge")).to_have_count(0)
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("Done")
     frame = question.bounding_box()
     done_row = question.locator(":scope > lf-options-done").bounding_box()
     assert frame["y"] + frame["height"] - done_row["y"] - done_row[
         "height"
     ] == pytest.approx(1, abs=1)
-    box = chip.bounding_box()
-    assert (
-        frame["x"] <= box["x"]
-        and box["x"] + box["width"] <= frame["x"] + frame["width"]
-    ), f"Done's binding badge {box} stands outside the group {frame}"
-    expect(page.locator(".lf-ask-binding-badges .lf-ask-binding-badge")).to_have_count(
-        0
-    )
+    expect(
+        page.locator(".lf-command-binding-badges .lf-command-binding-badge")
+    ).to_have_count(0)
     done.click()
     round_trip(page)
     message = question.locator(
@@ -2878,7 +2967,7 @@ def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
         browser, serve(next(p for p in EXAMPLES if p.stem == "alert-review"))
     )
     resized(page, 1440, 900)
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(page.locator("#ar-canary-decision")).to_be_focused()
     page.keyboard.press("2")
     expect(page.locator("#ar-canary-suppress")).to_have_attribute("chosen", "")
@@ -2890,7 +2979,7 @@ def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
           const badge = o.querySelector(':scope > .lf-key-badge');
           const pick = o.querySelector(':scope > .lf-pick').getBoundingClientRect();
           const box = badge.getBoundingClientRect();
-          return {worn: badge.hasAttribute('data-lf-ask-binding-badge'),
+          return {worn: badge.hasAttribute('data-lf-binding-badge'),
                   top: box.top - o.getBoundingClientRect().top,
                   seat: Math.abs(pick.height - box.height) < 1.5};
         })"""
@@ -2898,7 +2987,7 @@ def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
     assert all(seat["worn"] and seat["seat"] for seat in seats), seats
     assert len({round(seat["top"]) for seat in seats}) == 1, seats
     expect(
-        page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")
+        page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     ).to_have_count(0)
     page.keyboard.press("1")
     chosen = page.locator("#ar-canary-consecutive")
@@ -2919,8 +3008,8 @@ def test_an_ask_digit_hangs_off_a_corner_clear_of_its_neighbours(browser, serve)
         browser, serve(next(p for p in EXAMPLES if p.stem == "notification-playground"))
     )
     resized(page, 1024, 768)
-    page.keyboard.press("a")
-    chip = page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")
+    page.keyboard.press("q")
+    chip = page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     expect(chip).to_have_count(1)
     reading = chip.evaluate(
         """chip => {

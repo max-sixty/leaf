@@ -4,12 +4,12 @@ import sys
 from pathlib import Path
 
 from leaf.activity import answer_command
-from leaf.data import read_contracts
 from leaf.data_contracts import data_binding_errors
 from leaf.files import list_revisions
+from leaf.registry.schema import json_value
 from leaf.registry.storage import require_registry
 from leaf.revision_artifact import read_revision
-from leaf.schema import MESSAGE_KINDS, THREAD_ANSWER_KINDS
+from leaf.schema import MESSAGE_KINDS
 from leaf.structure import SourceDocument
 from leaf.thread_context import thread_names, thread_structure
 
@@ -23,7 +23,7 @@ from .markup import (
 )
 
 
-def read_text_arg(page_dir: Path, text) -> str:
+def read_text_arg(page_dir: Path, text, *, allow_empty: bool = False) -> str:
     """Every body an agent writes, read at the one place they all come through.
 
     Prose needs no vocabulary gate — the runtime escapes every tag in it, so it
@@ -33,7 +33,7 @@ def read_text_arg(page_dir: Path, text) -> str:
     given; this asks it of the link and image destinations beside it, which is where
     the runtime resolves one — a path quoted in a sentence stays the author's words."""
     body = text if text is not None else sys.stdin.read()
-    if not body:
+    if not body and not allow_empty:
         sys.exit("empty text (pass --text or pipe via stdin)")
     if errs := text_media_errors(body, page_dir):
         sys.exit(
@@ -49,7 +49,7 @@ def thread_obligation(events: list, responses: dict, message: str) -> dict | Non
     A thread's response is owed by the thread rather than by the message inside it
     that happens to carry it, so a message with nothing against its own id can still
     sit in a thread waiting on one. Every writer that asks "may a new message
-    go to this one without `--for`?" asks this, because two readings of the same
+    go to this one as a proactive message?" asks this, because two readings of the same
     question drift: a refusal that sent an agent to name a thread for a message owed
     nothing sent it to a writer refusing it on the thread's obligation, which is the
     dead end a refusal is supposed to end.
@@ -60,7 +60,7 @@ def thread_obligation(events: list, responses: dict, message: str) -> dict | Non
         (
             response
             for response in responses.values()
-            if response["kind"] in THREAD_ANSWER_KINDS
+            if response["kind"] == "reply"
             and names.get(response["to"], response["to"]) == thread
         ),
         None,
@@ -79,12 +79,12 @@ def logged_id(events: list, value: str, responses: dict) -> str | None:
     it goes instead.
 
     Where it goes is what the log still owes, which is `current_responses`: a
-    user's press is answered through `--for` until it is answered and not after, and
+    user's press is answered through its delivery reference until it is answered and not after, and
     a resolve or an undo is owed nothing at all. A
     message is the one id whose writer turns on its thread rather than on
-    itself — naming the thread without `--for` is refused while the thread owes a
+    itself — naming the thread for a proactive message is refused while the thread owes a
     response, whichever of its messages is owed it — so it is read through
-    `thread_obligation`, the same reading `cmd_reply`'s guard refuses on.
+    `thread_obligation`, the same reading `post_reply`'s guard refuses on.
 
     A thread's id is its opening comment's, so an agent holding a thread id names
     it as a message. Where the log lost that comment the id names no event, yet
@@ -176,9 +176,15 @@ def check_markup(
     # with what was wrong. Here they are asked of what is arriving, at the one moment
     # anything can still be done about it.
     pinned_errors = pinned_thread_markup_errors(page_dir, frag)
-    errs = (
-        thread_markup_contract_errors(frag, registry)
-        + pinned_errors
+    revisions = list_revisions(page_dir)
+    if page is None:
+        page = (
+            read_revision(page_dir, revisions[-1]).document
+            if revisions
+            else SourceDocument("")
+        )
+    extra_errors = (
+        pinned_errors
         + (
             [
                 (
@@ -190,46 +196,69 @@ def check_markup(
             if pinned_errors
             else []
         )
-        + fragment_style_errors(frag)
-        + document_declaration_errors(frag)
-        + media_errors(frag, page_dir)
         + data_binding_errors(
             page_dir,
             registry,
-            read_contracts(page_dir),
             events,
             incoming=[(frag.lf_elements, f"incoming {kind} markup")],
         )
     )
+    if error := message_markup_error(
+        page_dir,
+        kind,
+        frag,
+        events,
+        registry,
+        page,
+        version_ids(page_dir),
+        extra_errors,
+    ):
+        sys.exit(error)
+    return frag
+
+
+def message_markup_error(
+    page_dir: Path,
+    kind: str,
+    frag: SourceDocument,
+    events: list,
+    registry: dict,
+    page: SourceDocument,
+    prior_ids: set[str],
+    extra_errors: list[str],
+) -> str | None:
+    """The shared message-fragment gate for a stored or newly constructed page.
+
+    Callers supply their lifetime's binding and pinned-vocabulary checks. The
+    fragment's structure, vocabulary, presentation, media, ids and references
+    have one gate regardless of whether its page has been allocated yet.
+    """
+    errs = (
+        thread_markup_contract_errors(frag, registry)
+        + extra_errors
+        + fragment_style_errors(frag)
+        + document_declaration_errors(frag)
+        + media_errors(frag, page_dir)
+    )
     if errs:
-        sys.exit(
-            f"{kind} markup doesn't validate:\n" + "\n".join(f"  - {e}" for e in errs)
+        return f"{kind} markup doesn't validate:\n" + "\n".join(
+            f"  - {error}" for error in errs
         )
     if not frag.lf_elements:
-        sys.exit("--markup carries no widget; put prose in --text")
+        return "--markup carries no widget; put prose in --text"
     if names := id_errors(frag):
-        sys.exit(f"{kind} widget markup: " + "; ".join(names))
+        return f"{kind} widget markup: " + "; ".join(names)
     thread = thread_structure(events)
-    revisions = list_revisions(page_dir)
-    if page is None:
-        page = (
-            read_revision(page_dir, revisions[-1]).document
-            if revisions
-            else SourceDocument("")
-        )
-    clash = sorted(frag.ids & (version_ids(page_dir) | page.ids | thread.ids))
+    clash = sorted(frag.ids & (prior_ids | page.ids | thread.ids))
     if clash:
-        sys.exit(
-            f"{kind} widget ids already taken by the page or an earlier message: {clash}"
-        )
+        return f"{kind} widget ids already taken by the page or an earlier message: {json_value(clash)}"
     if reference_errs := reference_errors(
         frag.lf_elements,
         registry,
         page.ids | thread.ids | frag.ids,
         {**page.by_id, **thread.by_id, **frag.by_id},
     ):
-        sys.exit(
-            f"{kind} markup doesn't validate:\n"
-            + "\n".join(f"  - {error}" for error in reference_errs)
+        return f"{kind} markup doesn't validate:\n" + "\n".join(
+            f"  - {error}" for error in reference_errs
         )
-    return frag
+    return None

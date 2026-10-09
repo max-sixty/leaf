@@ -1,80 +1,23 @@
-"""Shared registry input, schema, and declaration readings."""
+"""Readings and derived declarations from a supplied registry vocabulary."""
 
-import functools
 import json
-import re
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 
 import click
-from jsonschema import Draft202012Validator, FormatChecker
-from referencing import Registry
-from referencing.exceptions import Unresolvable
-from referencing.jsonschema import DRAFT202012
 
 from leaf.files import read_json
 
-FORMAT_CHECKER = FormatChecker()
-RFC3339_DATE_TIME = re.compile(
-    r"^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$"
-)
+from .schema import json_value
 
 
-@FORMAT_CHECKER.checks("date-time")
-def is_aware_datetime(value) -> bool:
-    """Leaf's self-contained date-time format: one absolute, aware instant."""
-    if not isinstance(value, str):
-        return True  # the declared JSON Schema owns the type complaint
-    return aware_instant(value) is not None
-
-
-def aware_instant(value: str):
-    """The one parse of Leaf's date-time format, or None where the spelling fails."""
-    if not RFC3339_DATE_TIME.fullmatch(value):
-        return None
-    normalized = value[:-1] + "+00:00" if value[-1] in "Zz" else value
-    try:
-        parsed = datetime.fromisoformat(normalized)
-    except ValueError:
-        return None
-    return parsed if parsed.utcoffset() is not None else None
-
-
-def schema_resource_registry(schema: dict):
-    """One self-contained resource graph for a vendored JSON Schema."""
-    resource = DRAFT202012.create_resource(schema)
-    registry = Registry().with_resource("", resource).crawl()
-    return resource, registry
-
-
-def json_validator(schema: dict) -> Draft202012Validator:
-    """One offline schema reader for every authored/event ingress, including formats.
-
-    Readers are shared by schema content: a read re-validates every stored event
-    against the handful of schemas its registry declares, and building the resource
-    graph costs far more than validating one small instance against it.
-    """
-    return _validator(json.dumps(schema, sort_keys=True))
-
-
-@functools.lru_cache(maxsize=1024)
-def _validator(canonical: str) -> Draft202012Validator:
-    # Built from its own parse of the key, so a caller that later mutates the dict
-    # it passed cannot change the reader that key names.
-    schema = json.loads(canonical)
-    _, registry = schema_resource_registry(schema)
-    return Draft202012Validator(
-        schema,
-        format_checker=FORMAT_CHECKER,
-        registry=registry,
-    )
-
-
-def schema_error(schema: dict, instance) -> str | None:
-    """The first deterministic complaint about an instance, if it is invalid."""
-    error = min(json_validator(schema).iter_errors(instance), key=str, default=None)
-    return error.message if error else None
+def prepaint_markup(registry, tag: str) -> str | None:
+    """The markup a widget's first paint shows (`x-prepaint`): its own, or that of the
+    widget it names with `as`, which validation holds to one that declares markup."""
+    declared = registry.get(tag, {}).get("x-prepaint")
+    if isinstance(declared, dict):
+        declared = registry[declared["as"]]["x-prepaint"]
+    return declared
 
 
 def event_clauses(entry: dict, registry: dict | None) -> list[dict]:
@@ -83,7 +26,7 @@ def event_clauses(entry: dict, registry: dict | None) -> list[dict]:
     clauses of the answer it owes, each kept when its `when` schema matches.
 
     `entry` is the event record, plus the `answer` a delivery captured when the
-    event owes one, routed for the carrier delivering it (`workflows` and
+    event owes one, addressed for the route delivering it (`workflows` and
     `delivery` own those derivations), and the `thread` digest of the thread
     it belongs to (`thread_context` owns that one). A `when` can therefore read any
     of them as well as the record, so a clause states the case a delivery is in
@@ -96,6 +39,8 @@ def event_clauses(entry: dict, registry: dict | None) -> list[dict]:
     different layer. What each case of each kind receives from the shipped layer,
     clause by clause, is snapshotted in `tests/_regtest_outputs/`, by
     `test_each_case_of_an_event_is_told_what_the_snapshot_shows`."""
+    from .schema import json_validator
+
     declared = (registry or {}).get("$events", {})
     clauses = list(declared.get("handling", {}).get(entry["kind"]) or [])
     if answer := entry.get("answer"):
@@ -151,7 +96,7 @@ class VisualParts:
     def __str__(self) -> str:
         if self.prefixes:
             return f"ids starting with {' or '.join(map(repr, self.prefixes))}"
-        return f"known: {list(self.tokens)}"
+        return f"known: {json_value(self.tokens)}"
 
 
 def visual_parts(record: dict, registry: dict) -> VisualParts:
@@ -193,40 +138,10 @@ def reference_relation_error(
         for target, declaration in relation.items()
     ):
         return None
-    expected = ", ".join(f"{key}={value!r}" for key, value in predicate.items())
+    expected = ", ".join(
+        f"{key}={json_value(value)}" for key, value in predicate.items()
+    )
     return f"requires {via} where {expected}, but no declared widget matches"
-
-
-def unresolved_schema_reference(schema: dict) -> str | None:
-    """Return the first operative ref not supplied by this schema resource graph.
-
-    Draft 2020-12 decides which members contain subschemas. Walking those resources
-    avoids mistaking literal instance data under `const`, `enum`, or `default` for a
-    reference while still checking refs behind properties, combinators, and $defs.
-    """
-    resource, registry = schema_resource_registry(schema)
-
-    def visit(current, resolver) -> str | None:
-        contents = current.contents
-        if isinstance(contents, dict):
-            for keyword in ("$ref", "$dynamicRef"):
-                reference = contents.get(keyword)
-                if not isinstance(reference, str):
-                    continue
-                try:
-                    resolver.lookup(reference)
-                except Unresolvable:
-                    return reference
-        for subcontents in DRAFT202012.subresources_of(contents):
-            subresource = DRAFT202012.create_resource(subcontents)
-            if reference := visit(
-                subresource,
-                resolver.in_subresource(subresource),
-            ):
-                return reference
-        return None
-
-    return visit(resource, registry.resolver_with_root(resource))
 
 
 class RegistryError(click.ClickException):
@@ -235,14 +150,8 @@ class RegistryError(click.ClickException):
     answer, and `sys.exit` inside its request handler killed the connection mid-POST
     while every other rejection beside it returned a 400 — so a page whose vendored
     stamp had fallen behind the running layer met the user's click with a dead socket
-    and no words. Click renders an escaped one bare, at whichever command reached it, so
-    a refusal from here reads like every other refusal this CLI writes."""
-
-    def show(self, file=None) -> None:
-        if file is None:
-            click.echo(self.message, err=True)
-        else:
-            click.echo(self.message, file=file)
+    and no words. Click renders the exception with its standard Error prefix, while
+    the server can catch the same rejection and answer the request."""
 
 
 def read_registry_declarations(path: Path):
@@ -268,7 +177,7 @@ def read_registry_declarations(path: Path):
     ]
     if non_objects:
         raise RegistryError(
-            f"{path}: registry declarations must be objects: {non_objects}"
+            f"{path}: registry declarations must be objects: {json_value(non_objects)}"
         )
     return registry
 
@@ -280,12 +189,43 @@ def declares_string(field_schema) -> bool:
     return allowed == {"string"}
 
 
+def detail_schema(entry: dict, spec: dict) -> dict:
+    """The event payload contract: an effect's fixed fields or custom command data.
+
+    Recorded values use `value`; positions add `unit` and `rank`, and a report
+    declaring `update` adds required nonempty `text`. Attribute values inherit
+    the destination's exact schema. Derived schemas are readings, never inserted
+    into the registry beside the effect that owns them.
+    """
+    record = spec.get("record")
+    if record is None:
+        return spec["detail"]
+    kind = record["kind"]
+    if kind == "value":
+        value = entry["properties"][record["attr"]]
+    elif kind == "attribute":
+        value = {"type": "array", "items": {"type": "string"}, "uniqueItems": True}
+    else:
+        value = {"type": "string"}
+    properties = {"value": value}
+    if kind == "position":
+        properties.update(unit={"type": "string"}, rank={"type": "string"})
+    if spec.get("update"):
+        properties["text"] = {"type": "string", "minLength": 1}
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": list(properties),
+        "additionalProperties": False,
+    }
+
+
 def decides(spec: dict) -> bool:
     """Whether one verb is a deciding verb: its detail declares the reserved
     `outcome`, which says which retirable members leave the page (x-retired-when,
     x-withdrawn-as). The browser reads the answer from `$decisions`
-    (`registry.state.stamp_decisions`)."""
-    return "outcome" in spec["detail"].get("properties", {})
+    (`registry.contract.stamp_decisions`)."""
+    return not spec.get("record") and "outcome" in spec["detail"].get("properties", {})
 
 
 def deciding_verbs(entry: dict) -> list[str]:
@@ -328,9 +268,152 @@ def state_specs(entry: dict, *, writer: str | None = None):
             yield verb, spec
 
 
+def _semantic_schema(schema):
+    """Strip JSON Schema annotations without changing literal values or names."""
+    if not isinstance(schema, dict):
+        return schema
+    annotations = {
+        "title",
+        "description",
+        "$comment",
+        "default",
+        "examples",
+        "deprecated",
+        "readOnly",
+        "writeOnly",
+    }
+    maps = {
+        "properties",
+        "patternProperties",
+        "$defs",
+        "definitions",
+        "dependentSchemas",
+    }
+    single = {
+        "additionalProperties",
+        "unevaluatedProperties",
+        "propertyNames",
+        "items",
+        "additionalItems",
+        "unevaluatedItems",
+        "contains",
+        "not",
+        "if",
+        "then",
+        "else",
+        "contentSchema",
+    }
+    sequences = {"allOf", "anyOf", "oneOf", "prefixItems"}
+    result = {}
+    for key, value in schema.items():
+        if key in annotations:
+            continue
+        if key in {"enum", "const"}:
+            result[key] = value
+        elif key in maps:
+            result[key] = {
+                name: _semantic_schema(child) for name, child in value.items()
+            }
+        elif key in sequences:
+            result[key] = [_semantic_schema(child) for child in value]
+        elif key in single:
+            result[key] = _semantic_schema(value)
+        else:
+            result[key] = value
+    return result
+
+
+def state_definition(origin: str, entry: dict, spec: dict) -> dict:
+    """The admitted semantic definition and payload domain of one widget verb.
+
+    Later declarations may reuse a verb's name with different meaning or types.
+    Recorded definitions distinguish those new operations from history, while
+    descriptive schema annotations remain free to change.
+    """
+    from copy import deepcopy
+
+    return deepcopy(
+        {
+            "origin": origin,
+            "unit": spec["unit"],
+            "record": spec.get("record"),
+            "creates": spec.get("creates"),
+            "update": spec.get("update", False),
+            "detail": _semantic_schema(detail_schema(entry, spec)),
+        }
+    )
+
+
+def same_state_definition(recorded, current) -> bool:
+    """Compare JSON definitions with the same boolean/number distinction as JS."""
+    if type(recorded) is not type(current):
+        return (
+            type(recorded) in (int, float)
+            and type(current) in (int, float)
+            and recorded == current
+        )
+    if isinstance(recorded, dict):
+        return recorded.keys() == current.keys() and all(
+            same_state_definition(value, current[key])
+            for key, value in recorded.items()
+        )
+    if isinstance(recorded, list):
+        return len(recorded) == len(current) and all(
+            same_state_definition(left, right) for left, right in zip(recorded, current)
+        )
+    return recorded == current
+
+
+def same_state_operation(recorded, current) -> bool:
+    """The same fold destination and construction, independent of payload domain."""
+    return (
+        isinstance(recorded, dict)
+        and isinstance(current, dict)
+        and same_state_definition(
+            {key: value for key, value in recorded.items() if key != "detail"},
+            {key: value for key, value in current.items() if key != "detail"},
+        )
+    )
+
+
 def event_spec(entry: dict, event: dict) -> dict | None:
     """The x-state verb an action or report names, when its writer sent it."""
     spec = entry.get("x-state", {}).get(event["action"])
     if spec is None or verb_writer(spec) != WRITERS[event["kind"]]:
         return None
     return spec
+
+
+def retirement_slots(registry: dict) -> dict:
+    """owner tag → {outcome verb → the tags that leave the page under it}: every
+    owner/member pair `x-retired-when` relates, the member naming the outcome and
+    `x-owners` the widgets whose decision reaches it. Read out of the merged
+    registry rather than known here, so which widgets a decision settles is a
+    fact about this page's vocabulary and never a list in the code."""
+    slots = {}
+    for tag, entry in registry.items():
+        if not tag.startswith("lf-") or not entry.get("x-retired-when"):
+            continue
+        outcome = entry["x-retired-when"]
+        for owner in entry["x-owners"]:
+            slots.setdefault(owner, {}).setdefault(outcome, []).append(tag)
+    return slots
+
+
+def stamp_decisions(registry: dict) -> dict:
+    """Write `$decisions` into a validated vocabulary: owner tag → {`verb`, its deciding
+    x-state verb; `retires`, `retirement_slots`' outcome → member tags}, for every tag
+    that declares a deciding verb.
+
+    Each composition stamps it (`registry.layer.stamp_composition`), so the browser
+    reads which verb decides a widget and what its outcome takes off the page rather
+    than walking the declarations a second time. Python reads `deciding_verb` and
+    `retirement_slots` themselves, the definitions this is derived from, since
+    validation asks them of declarations that no composition has stamped yet."""
+    slots = retirement_slots(registry)
+    registry["$decisions"] = {
+        tag: {"verb": verb, "retires": slots.get(tag, {})}
+        for tag, entry in registry.items()
+        if tag.startswith("lf-") and (verb := deciding_verb(entry)) is not None
+    }
+    return registry

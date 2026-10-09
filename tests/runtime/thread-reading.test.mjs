@@ -13,11 +13,55 @@ const { moved, readThreadRecords, threadSummary } =
 const { inRecentOrder } = await import("/runtime/thread/placement.js");
 const { unreadBoundaries } = await import("/runtime/thread/summary-ranges.js");
 const { threadAttention } = await import("/runtime/thread/workflow.js");
-const { DEFAULT_INTENT, createThreadNarrowing, narrowingReading, transition } =
-  await import("/runtime/thread/narrowing.js");
+const {
+  DEFAULT_INTENT,
+  createThreadNarrowing,
+  narrowingReading,
+  threadSearchReading,
+  transition,
+} = await import("/runtime/thread/narrowing.js");
 const { createThreadPanelElements } = await import("/runtime/thread/panel-elements.js");
 const { createThreadListController } = await import("/runtime/thread/thread-list.js");
+const { createThreadDestinations } = await import("/runtime/thread/destination.js");
+const { retainUserIntent } = await import("/runtime/user-intent.js");
 const { createThreadPanelController } = await import("/runtime/thread-panel.js");
+
+test("Thread destinations without a page preview retain canonical targets and shadow-held identity", async () => {
+  const owner = document.createElement("div");
+  const shadow = owner.attachShadow({ mode: "open" });
+  const thread = document.createElement("section");
+  thread.className = "lf-page-thread";
+  thread.dataset.thread = "thread-without-preview";
+  const control = document.createElement("button");
+  thread.append(control);
+  shadow.append(thread);
+  document.body.append(owner);
+  const arrivals = [];
+  const destinations = createThreadDestinations({
+    threadIdsAt: () => [],
+    placedAt: (id) => (id === thread.dataset.thread ? { place: owner } : null),
+    panelIsOpen: () => false,
+    showThread: async (id, options) => {
+      arrivals.push({ id, options });
+      return control;
+    },
+  });
+  control.focus();
+  assert.equal(destinations.threadHere(), thread);
+  assert.equal(destinations.threadAtStanding(), thread.dataset.thread);
+  assert.equal(destinations.threadTarget(thread.dataset.thread), owner);
+  assert.equal(destinations.threadTarget("detached"), null);
+  assert.equal(destinations.threadFocusTarget(thread.dataset.thread), null);
+  const intent = retainUserIntent();
+  assert.equal(await destinations.openPageThread("detached", { intent }), control);
+  assert.equal(arrivals[0].id, "detached");
+  assert.equal(arrivals[0].options.intent, intent);
+  assert.equal(arrivals[0].options.focus, "reply");
+  window.dispatchEvent(new Event("input"));
+  assert.equal(await destinations.openPageThread("detached", { intent }), null);
+  assert.equal(arrivals.length, 1);
+  owner.remove();
+});
 
 test("two Thread panels own separate controls and list state", () => {
   const first = createThreadPanelElements({ id: "test-threads-first" });
@@ -64,7 +108,7 @@ test("two mounted panel controllers keep independent visibility and keyboard run
       auxiliarySurfaces,
       elements: { ...elements, toggleBtn: document.createElement("button") },
       narrowing: { narrowed: () => false, threadSearchActive: () => false },
-      threadHere: () => null,
+      threadAtStanding: () => null,
       showThread: () => {},
       refreshThread: () => {},
       closeReactionMode: () => {},
@@ -272,9 +316,9 @@ test("narrowing transitions reset what they contradict and counts name each subs
   assert.equal(transition(DEFAULT_INTENT, "status", "open"), DEFAULT_INTENT);
 
   const onUser = { kind: "needs_user", reason: "ask" };
-  // Work the agent claimed on a thread it had already answered: the card says
-  // Working, so the agent filter lists it.
-  const claimed = { kind: "waiting", reason: "workflow", workflow: "claim:working" };
+  // A thread the agent has started a move in: the card says Working, so the agent
+  // filter lists it.
+  const claimed = { kind: "waiting", reason: "workflow", workflow: "working" };
   const threads = [
     { ...recentThread("asks", "2026-03-01T00:00:00Z"), attention: onUser },
     { ...recentThread("working", "2026-03-01T00:00:00Z"), attention: claimed },
@@ -301,6 +345,53 @@ test("narrowing transitions reset what they contradict and counts name each subs
   assert.equal(amounts["waiting:user"], 1);
   assert.equal(amounts["waiting:agent"], 1);
   assert.equal(model.presentation.userAvailable, true);
+});
+
+test("a fold without prose is searchable by its visible label", () => {
+  const thread = {
+    ...recentThread("updates", "2026-03-01T00:00:00Z"),
+    summaries: [{ id: "fold", label: "Previous updates", text: "" }],
+  };
+  const places = new Map([[thread, { gone: false, section: "" }]]);
+  const reading = narrowingReading(
+    { ...DEFAULT_INTENT, finding: "previous updates" },
+    [thread],
+    places,
+  );
+  assert.deepEqual(
+    reading.shown.map(({ id }) => id),
+    ["updates"],
+  );
+  assert.deepEqual(threadSearchReading(thread, "previous updates").messages, []);
+});
+
+test("a pending narrowing reset gives way to a newer reading gesture", async () => {
+  const view = {
+    configure(controls) {
+      this.controls = controls;
+    },
+  };
+  const listRoot = document.createElement("div");
+  document.body.append(listRoot);
+  let finish;
+  const presented = new Promise((resolve) => (finish = resolve));
+  const narrowing = createThreadNarrowing({
+    view,
+    listRoot,
+    readThreads: () => [],
+    ready: () => true,
+    repaint: () => presented,
+  });
+  narrowing.mount();
+  const pending = view.controls.chooseFacet("status", "resolved");
+
+  globalThis.dispatchEvent(new Event("wheel"));
+  listRoot.scrollTop = 230;
+  finish();
+  await pending;
+
+  assert.equal(listRoot.scrollTop, 230);
+  listRoot.remove();
 });
 
 test("panel narrowing controllers keep independent intent over shared threads", async () => {

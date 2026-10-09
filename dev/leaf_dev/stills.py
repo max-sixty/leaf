@@ -1,27 +1,34 @@
 """Screenshot a fixed catalogue of UI states on BASE_REF's runtime and HEAD's, and
 show which ones changed.
 
-    uv run leaf-dev stills [BASE_REF]
+    uv run leaf-dev stills [BASE_REF] [--state NAME]...
 
 BASE_REF defaults to the merge base of HEAD and `main`; each arm is the payload at its
-commit (`leaf_dev.harness.build_pair`), so commit what you want compared. Each page is
+commit (`leaf_dev.arms.build_pair`), so commit what you want compared. Each page is
 built from this checkout's example source and served by the arm's own launcher, so
-only the runtime, theme and server differ between the two stills of a state.
+only the runtime, theme and server differ between the two stills of a state. Each
+capture starts with a fresh authored fixture and event log, so a prior gesture cannot
+change another state's initial condition.
+Message delivery belongs to thread_journey and test_render_thread_snapshots: its
+held checkpoints replace the former panel/card sent stills, whose unrestricted
+POSTs could complete before capture.
 
 A state is an example, a viewport, a color scheme and a pointer, and the input that
 brings a fresh tab there (`DRIVERS`, which `leaf-dev probe --do drive:NAME` also runs).
 The catalogue (`STATES`) covers states a user reaches by acting, not only pages at rest;
 add one where a change touches a surface it does not reach.
+Use repeated `--state` options to compare only the states a change touches.
 
 Whether a state changed, and where, is `lf-shot`'s reading of its two stills, from the
 module that owns the rule (`runtime/image-difference.js`), loaded into the browser.
-Each state's directory under `.tmp/stills/` holds `base.png` and `head.png`, and for a
+Each invocation allocates a run directory under `.tmp/stills/`. Each state's
+directory within it holds `base.png` and `head.png`, and for a
 change `base-crop.png` and `head-crop.png` cropped to the union of its regions (or
 whole, when the reading names none), ready to hand off as an `lf-shot` pair, and
-`diff.png` outlining each region.
+`diff.png` outlining the head's own regions, a change in red and a move in blue. The
+crops cover both stills' regions.
 """
 
-import shutil
 import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -34,8 +41,8 @@ from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page
 
 from leaf_dev import ROOT
+from leaf_dev.arms import build_pair, run_directory, serving_source
 from leaf_dev.browser import BESIDE, DESKTOP, chrome, load, settle, tab
-from leaf_dev.harness import build_pair, serving_source
 
 OUT = ROOT / ".tmp" / "stills"
 CROP_MARGIN = 32
@@ -66,6 +73,15 @@ def card_by_keyboard(page: Page) -> None:
     )
 
 
+def card_more_room(page: Page) -> None:
+    """An overflowing conversation uses extra room without needing a complete fit."""
+    page.set_viewport_size({"width": 1440, "height": 480})
+    settle(page)
+    card_by_pointer(page)
+    settle(page)
+    page.set_viewport_size({"width": 1440, "height": 600})
+
+
 def card_reply(page: Page) -> None:
     """The first margin card with a reply being typed."""
     card_by_keyboard(page)
@@ -76,6 +92,20 @@ def card_reply(page: Page) -> None:
     page.keyboard.insert_text("A reply being drafted, long enough to wrap onto a line")
 
 
+def card_reply_large(page: Page) -> None:
+    """A pasted reply exhausting the room below the thread, with its caret at the end."""
+    card_reply(page)
+    page.keyboard.insert_text("\n" + "\n".join(f"Reply line {n}" for n in range(40)))
+
+
+def card_reply_resolved(page: Page) -> None:
+    """The user resolves a thread while its unsent reply has words."""
+    card_reply(page)
+    page.locator(".lf-margin-preview").get_by_role(
+        "button", name="Resolve thread", exact=True
+    ).click()
+
+
 def threads_panel(page: Page) -> None:
     """The Threads panel, opened from the banner."""
     page.locator(".lf-threads-toggle").click()
@@ -84,15 +114,59 @@ def threads_panel(page: Page) -> None:
     )
 
 
-def panel_reply_sent(page: Page) -> None:
-    """A reply sent from the Threads panel's open thread, its stage on the message
-    and the thread's attention on the other rows."""
+def progress_messages(page: Page) -> None:
+    """The completed answer and the disclosure of its interim checks."""
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Threads", exact=True
+    ).click()
+    page.locator('#bg-panel-presets [data-view="updates"]').click()
+    frame = page.frame_locator("#bg-panel-sample iframe")
+    frame.locator(
+        '.lf-thread[data-id="bg-progress-question"] .lf-summary-expand'
+    ).wait_for(state="visible")
+    # Capture the reading after the sample's initial unread-news notice has left.
+    frame.locator(".lf-notice.show").wait_for(state="hidden")
+    page.locator("#bg-panel-sample").scroll_into_view_if_needed()
+
+
+def progress_messages_expanded(page: Page) -> None:
+    """Retained progress, opened from the answer's disclosure."""
+    progress_messages(page)
+    page.frame_locator("#bg-panel-sample iframe").locator(
+        '.lf-thread[data-id="bg-progress-question"] .lf-summary-expand'
+    ).click()
+
+
+def screenshot_comparison(page: Page) -> None:
+    """Reach the comparison rail's standalone endpoint controls."""
+    page.get_by_role("tab", name="Page & layout", exact=True).click()
+    # Anchor the unchanged guide, so a taller rail does not recenter the entire capture.
+    page.locator("#bg-shot-guide").scroll_into_view_if_needed()
+
+
+def image_preview(page: Page) -> None:
+    """Inspect the gallery's pasted screenshot through the shared image viewer."""
     threads_panel(page)
-    thread = page.locator(".lf-thread[open]")
-    thread.locator("leaf-text").focus()
-    page.keyboard.insert_text("A reply sent from the panel")
-    thread.get_by_role("button", name="Send", exact=True).click()
-    thread.locator(".lf-msg.user .lf-msg-sending").last.wait_for()
+    thread = page.locator('.lf-thread[data-id="2be2443f0bb6cc49fc86b52f340e6073"]')
+    thread.locator(":scope > .lf-thread-summary").click()
+    thread.locator(".lf-media-open").click()
+    page.get_by_role("dialog", name="Image preview").wait_for(state="visible")
+    page.wait_for_function("""() => {
+      const zoom = document.querySelector('.lf-media-viewer-zoom');
+      return !zoom || zoom.getAttribute('aria-disabled') !== 'true';
+    }""")
+
+
+def panel_by_keyboard(page: Page) -> None:
+    """The Threads panel with keyboard focus on its current title."""
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    page.wait_for_function(
+        "() => document.querySelector('.lf-thread-panel')?.checkVisibility()"
+    )
+    page.wait_for_function(
+        "() => document.activeElement?.matches('.lf-thread-summary')"
+    )
 
 
 def composer(page: Page) -> None:
@@ -103,9 +177,92 @@ def composer(page: Page) -> None:
     page.mouse.down()
     page.mouse.move(box["x"] + 200, y, steps=8)
     page.mouse.up()
+    # Under a finger a selection offers Comment in the banner rather than a field. It
+    # arrives on a later frame, so the pointer decides, not whether it is there yet.
+    if page.evaluate("matchMedia('(pointer: coarse)').matches"):
+        page.get_by_role("button", name="Comment on selection").click()
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer leaf-text").focus()
     page.keyboard.insert_text("A comment being drafted on the selected words")
+
+
+# A draft of two paragraphs whose lines run past the composer's width, so every field
+# shows how its words wrap beside the action in its corner, on the lines above the last
+# as well as the last.
+LONG_DRAFT = (
+    "next phase: could we integrate the status ontology & workflow into our tasks "
+    "concept? So when the agent is working on something, they're working on a task?"
+    "\n\nwhat else do we need to move around for that to work?"
+)
+
+
+def composer_long(page: Page) -> None:
+    """A comment of two wrapped paragraphs being typed on a selected passage."""
+    composer(page)
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.insert_text(LONG_DRAFT)
+
+
+def composer_sent(page: Page) -> None:
+    """That comment just sent: its card keeps the draft's wrapping while it stands."""
+    composer_long(page)
+    if page.evaluate("matchMedia('(pointer: coarse)').matches"):
+        page.locator(".lf-fab-bar").get_by_role(
+            "button", name="Comment", exact=True
+        ).tap()
+    else:
+        page.keyboard.press("Enter")
+    page.locator(".lf-margin-preview[data-lf-comment-frame]").wait_for()
+    page.wait_for_function(
+        "() => !document.querySelector('.lf-margin-preview [aria-busy=\"true\"]')"
+    )
+    page.mouse.move(0, 0)
+
+
+def card_reply_long(page: Page) -> None:
+    """The first margin card with a reply of two wrapped paragraphs being typed."""
+    card_by_keyboard(page)
+    page.keyboard.press("Enter")
+    page.wait_for_function(
+        "() => document.activeElement?.matches('.lf-margin-preview leaf-text')"
+    )
+    page.keyboard.insert_text(LONG_DRAFT)
+
+
+def panel_reply_long(page: Page) -> None:
+    """The Threads panel's last thread with a reply of two wrapped paragraphs."""
+    threads_panel(page)
+    thread = page.locator(".lf-threads > .lf-thread").last
+    if thread.get_attribute("open") is None:
+        thread.locator(".lf-thread-summary").click()
+    thread.locator(".lf-thread-reply leaf-text").click()
+    page.keyboard.insert_text(LONG_DRAFT)
+
+
+def page_comment_long(page: Page) -> None:
+    """The Threads panel's page comment with two wrapped paragraphs."""
+    threads_panel(page)
+    page.locator(".lf-general leaf-text").click()
+    page.keyboard.insert_text(LONG_DRAFT)
+
+
+def option_long(page: Page) -> None:
+    """An Ask's added option, typed long enough to wrap beside its Add press."""
+    field = page.locator(".lf-another leaf-text").first
+    field.scroll_into_view_if_needed()
+    field.click()
+    page.keyboard.insert_text(
+        "Page the on-call owner only when the canary fails twice in a row, hold the "
+        "rollout until they acknowledge, and send every single failed probe to the "
+        "team channel instead, so the deploy trains stop paging anyone at all while "
+        "a real outage still reaches a person within a couple of minutes"
+    )
+
+
+def options_in_pane(page: Page) -> None:
+    """An Ask's option list in a workspace pane, under the paragraphs it answers."""
+    page.get_by_text("Checkout p99 latency", exact=True).click()
+    page.locator("#ar-latency-decision > lf-options").scroll_into_view_if_needed()
 
 
 def card_grabbed(page: Page) -> None:
@@ -123,6 +280,116 @@ def code_note(page: Page) -> None:
     )
 
 
+def frame_edges(page: Page) -> None:
+    """The drawn row's parallel paragraphs, with their declared margins intact."""
+    page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
+        "Page & layout", exact=True
+    ).click()
+    settle(page)
+    page.locator("#bg-frame-edges").evaluate(
+        "el => el.scrollIntoView({block: 'start'})"
+    )
+
+
+def theme_hierarchy(page: Page) -> None:
+    """A neutral callout with open and closed support; exercise the closed row by key."""
+    page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
+        "Page & layout", exact=True
+    ).click()
+    settle(page)
+    summary = page.locator("#bg-theme-support summary")
+    for _ in range(12):
+        page.keyboard.press("Tab")
+        if summary.evaluate("el => el.matches(':focus-visible')"):
+            break
+    else:
+        raise AssertionError("Tab did not reach the supporting disclosure")
+    page.keyboard.press("Enter")
+    page.wait_for_function("() => document.querySelector('#bg-theme-support').open")
+    page.keyboard.press("Enter")
+    page.wait_for_function("() => !document.querySelector('#bg-theme-support').open")
+    page.locator("#bg-theme-hierarchy").evaluate(
+        "el => el.scrollIntoView({block: 'start'})"
+    )
+
+
+def wide_schedule(page: Page) -> None:
+    """The gallery's explicitly allocated schedule, with its guide and caption."""
+    page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
+        "Page & layout", exact=True
+    ).click()
+    page.locator("#bg-margin-layer-figure").scroll_into_view_if_needed()
+    settle(page)
+
+
+def wide_passage(page: Page) -> None:
+    """A selected passage in a wide block, with its comment field beside it."""
+    page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
+        "Threads", exact=True
+    ).click()
+    page.locator("#bg-wide-passage").evaluate(
+        "el => el.scrollIntoView({block: 'center'})"
+    )
+    page.keyboard.press("/")
+    page.keyboard.insert_text('"keep the active card"')
+    page.keyboard.press("Enter")
+    page.locator(".lf-fab-input").wait_for(state="visible")
+
+
+def multiline_passage(page: Page) -> None:
+    """A passage beginning midline and ending on a line that starts further left."""
+    page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
+        "Threads", exact=True
+    ).click()
+    page.locator("#bg-wide-passage").evaluate(
+        "el => el.scrollIntoView({block: 'center'})"
+    )
+    first, last = page.evaluate("""() => {
+      const walker = document.createTreeWalker(
+        document.querySelector('#bg-wide-passage code'), NodeFilter.SHOW_TEXT);
+      const range = document.createRange();
+      for (let node; (node = walker.nextNode());) {
+        if (node.data.includes('Keep')) range.setStart(node, node.data.indexOf('Keep'));
+        if (node.data.includes('card')) range.setEnd(node, node.data.indexOf('card') + 4);
+      }
+      const fragments = [...range.getClientRects()].filter(r => r.width && r.height);
+      return [fragments[0].toJSON(), fragments.at(-1).toJSON()];
+    }""")
+    page.mouse.move(first["left"] + 1, first["top"] + first["height"] / 2)
+    page.mouse.down()
+    page.mouse.move(last["right"] - 1, last["top"] + last["height"] / 2, steps=8)
+    page.mouse.up()
+    page.locator(".lf-fab-input").wait_for(state="visible")
+
+
+def code_copy_by_pointer(page: Page) -> None:
+    """Code's corner control revealed by hovering its source."""
+    code_note(page)
+    page.locator("lf-code pre").first.hover()
+
+
+def code_copy_by_keyboard(page: Page) -> None:
+    """Code's corner control with the keyboard focus ring visible."""
+    code_note(page)
+    page.keyboard.press("Tab")
+    page.locator("lf-code .lf-code-copy").first.get_by_role("button").focus()
+
+
+def diff_path_by_keyboard(page: Page) -> None:
+    """A folded diff file's row under the keyboard, saying the whole path its row cuts
+    short."""
+    head = page.locator("#pr-exact-patch .lf-diff-head[data-path-cut]").first
+    head.scroll_into_view_if_needed()
+    page.keyboard.press("Shift")
+    head.focus()
+
+
+def code_source_by_touch(page: Page) -> None:
+    """Reading code by touch, with the corner control disclosed away."""
+    code_note(page)
+    page.locator("lf-code pre").first.tap(position={"x": 60, "y": 20})
+
+
 def pane_focused(page: Page) -> None:
     """A workspace pane's body focused by keyboard: a pane standing flush with the
     workspace's own scrollport, which clipped a ring drawn outside the body."""
@@ -130,9 +397,33 @@ def pane_focused(page: Page) -> None:
     page.locator("#sort-source").focus()
 
 
+def aim_cut_by_pane(page: Page) -> None:
+    """The aim over a paragraph whose top a workspace pane has scrolled out of view:
+    paint over a target cut where the pane cuts the target."""
+    page.locator("#sort-source").evaluate(
+        """source => {
+          const note = document.getElementById('sort-source-note');
+          source.scrollTop += note.getBoundingClientRect().top
+            - source.getBoundingClientRect().top + 24;
+        }"""
+    )
+    box = page.locator("#sort-source").bounding_box()
+    page.mouse.move(box["x"] + 120, box["y"] + 20)
+    page.keyboard.down("Alt")
+    page.wait_for_function(
+        "() => document.querySelector('.lf-aim')?.dataset.for === 'sort-source-note'"
+    )
+
+
 def element_thread(page: Page) -> None:
     """An element holding a thread, in view, with nothing indicating it."""
     page.locator("#off-t-vendor").evaluate("el => el.scrollIntoView({block: 'center'})")
+
+
+def more_menu(page: Page) -> None:
+    """The banner's More, opened: on a phone it leads with Approval."""
+    page.locator(".lf-banner-more").click()
+    page.locator(".lf-banner-menu").wait_for()
 
 
 def versions_menu(page: Page) -> None:
@@ -142,10 +433,42 @@ def versions_menu(page: Page) -> None:
     page.locator(".lf-version-menu .lf-version-row").first.wait_for()
 
 
+def ask_by_keyboard(page: Page) -> None:
+    """The next open Ask, reached with `q`: its ring and its marker in view."""
+    page.keyboard.press("q")
+    page.locator("lf-ask").first.wait_for()
+
+
 def go_to(page: Page) -> None:
     """The Go-to sequence armed from the keyboard, its destinations on the line."""
     page.keyboard.press("g")
     page.wait_for_function("() => document.body.hasAttribute('data-lf-go-to-active')")
+
+
+def contents_by_keyboard(page: Page) -> None:
+    """Reveal the contents map with focus on its first section link."""
+    page.keyboard.press("Tab")
+    page.locator("lf-toc li a").first.focus()
+
+
+def widget_inline_hints(page: Page) -> None:
+    """A standalone command scope with an active inline hint, outside an Ask."""
+    page.locator("#bg-widget-shortcut-hints").scroll_into_view_if_needed()
+    page.keyboard.press("Tab")
+    page.locator("#bg-local-shortcuts").focus()
+
+
+def hub_workers(page: Page) -> None:
+    """The plan with the parser goal's workers shown, its worktree in view."""
+    page.locator("#goal-parser > .lf-task-meta .lf-task-crew").click()
+    page.locator("#tree-w-1").scroll_into_view_if_needed()
+
+
+def draft_edit(page: Page) -> None:
+    """A passage opened in its shared editor, with Markdown source and a focused caret."""
+    page.locator("#rn-cli .lf-draft-body").click()
+    page.keyboard.press("Tab")
+    page.locator("#rn-cli .lf-draft-edit").focus()
 
 
 DRIVERS: dict[str, Callable[[Page], None]] = {
@@ -154,18 +477,107 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         at_rest,
         card_by_pointer,
         card_by_keyboard,
+        card_more_room,
         card_reply,
+        card_reply_large,
+        card_reply_resolved,
         threads_panel,
-        panel_reply_sent,
+        progress_messages,
+        progress_messages_expanded,
+        image_preview,
+        screenshot_comparison,
+        panel_by_keyboard,
         composer,
+        composer_long,
+        composer_sent,
+        card_reply_long,
+        panel_reply_long,
+        page_comment_long,
+        option_long,
+        options_in_pane,
+        ask_by_keyboard,
         card_grabbed,
         code_note,
+        frame_edges,
+        theme_hierarchy,
+        wide_passage,
+        multiline_passage,
+        code_copy_by_pointer,
+        code_copy_by_keyboard,
+        diff_path_by_keyboard,
+        code_source_by_touch,
         pane_focused,
+        aim_cut_by_pane,
         element_thread,
+        more_menu,
         versions_menu,
         go_to,
+        contents_by_keyboard,
+        widget_inline_hints,
+        draft_edit,
+        hub_workers,
     )
 }
+
+
+def playground_controls(page: Page) -> None:
+    """The playground's controls and instruction, with keyboard focus on its range."""
+    page.keyboard.press("Tab")
+    control = page.get_by_role("slider", name="Concurrent release events")
+    control.focus()
+    control.press("ArrowRight")
+    page.locator(".lf-playground-controls").scroll_into_view_if_needed()
+
+
+def targeting_menu(page: Page) -> None:
+    """The target-scope picker open on its selected option."""
+    targeting = page.locator("#code-comparison-targeting")
+    targeting.get_by_role("button", name="Select element").click()
+    page.locator(".reader-treatment-title").focus()
+    page.keyboard.press("Enter")
+    targeting.locator(".lf-targeting-candidate-choice").first.click()
+    control = targeting.locator("wa-select").first
+    control.evaluate("""node => {
+      node.reviewShown = new Promise(resolve => node.addEventListener(
+        'wa-after-show', () => resolve(), {once: true}));
+    }""")
+    control.get_by_role("combobox").click()
+    control.evaluate("node => node.reviewShown")
+    page.mouse.move(0, 0)
+
+
+def margin_gallery(page: Page) -> None:
+    """The margin gallery's real controls and labels in a finger-sized column."""
+    page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
+        "Page & layout", exact=True
+    ).click()
+    settle(page)
+    page.locator(
+        "#bg-margin-controls-samples .margin-entry-gallery-group"
+    ).first.evaluate("group => group.scrollIntoView({block: 'start'})")
+
+
+def trace_controls(page: Page) -> None:
+    """The recording's moments and playback controls, with its checkpoint ready."""
+    page.wait_for_function(
+        "() => !!document.querySelector('#release-trace .lf-trace-action')?.textContent"
+    )
+    page.locator("#release-trace .lf-trace-controls").evaluate(
+        "controls => controls.scrollIntoView({block: 'start'})"
+    )
+
+
+def trace_timeline_by_keyboard(page: Page) -> None:
+    """The timeline focused, after tabbing away from it and back."""
+    trace_controls(page)
+    page.keyboard.press("Tab")
+    trace = page.locator("#release-trace")
+    trace.get_by_role("group", name="Recording timeline", exact=True).focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
+    page.wait_for_function(
+        "() => document.activeElement?.matches('#release-trace .lf-trace-timeline')"
+    )
 
 
 @dataclass(frozen=True)
@@ -179,6 +591,117 @@ class State:
 
 
 STATES = (
+    State("progress-messages", "developer/feature-gallery", progress_messages),
+    State(
+        "progress-messages-expanded",
+        "developer/feature-gallery",
+        progress_messages_expanded,
+    ),
+    State(
+        "progress-messages-touch",
+        "developer/feature-gallery",
+        progress_messages,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State("screenshot-comparison", "developer/feature-gallery", screenshot_comparison),
+    State(
+        "screenshot-comparison-phone",
+        "developer/feature-gallery",
+        screenshot_comparison,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State("image-preview", "developer/feature-gallery", image_preview),
+    State(
+        "image-preview-dark", "developer/feature-gallery", image_preview, scheme="dark"
+    ),
+    State(
+        "image-preview-phone",
+        "developer/feature-gallery",
+        image_preview,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State("targeting-menu", "code-comparison", targeting_menu),
+    State("targeting-menu-dark", "code-comparison", targeting_menu, scheme="dark"),
+    State("trace-controls", "developer/playwright-trace-gallery", trace_controls),
+    State(
+        "trace-timeline-keyboard",
+        "developer/playwright-trace-gallery",
+        trace_timeline_by_keyboard,
+    ),
+    State(
+        "trace-controls-phone",
+        "developer/playwright-trace-gallery",
+        trace_controls,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State("contents-spine", "developer/feature-gallery", at_rest),
+    State("contents-spine-keyboard", "developer/feature-gallery", contents_by_keyboard),
+    State(
+        "contents-spine-dark",
+        "developer/feature-gallery",
+        contents_by_keyboard,
+        scheme="dark",
+    ),
+    State("playground-controls", "notification-playground", playground_controls),
+    State(
+        "playground-controls-phone",
+        "notification-playground",
+        playground_controls,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State(
+        "margin-gallery-phone",
+        "developer/feature-gallery",
+        margin_gallery,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State("release-draft", "release-notes", draft_edit),
+    State(
+        "release-draft-phone",
+        "release-notes",
+        draft_edit,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State("gallery-tabs", "developer/feature-gallery", at_rest),
+    State("frame-edges", "developer/feature-gallery", frame_edges),
+    State("gallery-theme", "developer/feature-gallery", theme_hierarchy),
+    State(
+        "gallery-theme-dark",
+        "developer/feature-gallery",
+        theme_hierarchy,
+        scheme="dark",
+    ),
+    State(
+        "gallery-theme-phone",
+        "developer/feature-gallery",
+        theme_hierarchy,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State(
+        "gallery-theme-phone-dark",
+        "developer/feature-gallery",
+        theme_hierarchy,
+        viewport=(390, 844),
+        scheme="dark",
+        touch=True,
+    ),
+    State("widget-inline-hints", "developer/feature-gallery", widget_inline_hints),
+    State("gallery-wide-passage", "developer/feature-gallery", wide_passage),
+    State(
+        "gallery-wide-schedule",
+        "developer/feature-gallery",
+        wide_schedule,
+        viewport=(1726, 900),
+    ),
+    State("gallery-multiline-passage", "developer/feature-gallery", multiline_passage),
     State("plan", "review-a-plan", at_rest),
     State("plan-dark", "review-a-plan", at_rest, scheme="dark"),
     State("plan-beside", "review-a-plan", at_rest, viewport=BESIDE),
@@ -186,11 +709,23 @@ STATES = (
     State("plan-card-keyboard", "review-a-plan", card_by_keyboard),
     State("plan-card-keyboard-dark", "review-a-plan", card_by_keyboard, scheme="dark"),
     State("plan-card-reply", "review-a-plan", card_reply),
+    State(
+        "plan-card-reply-large", "review-a-plan", card_reply_large, viewport=(1440, 600)
+    ),
     State("plan-card-beside", "review-a-plan", card_by_pointer, viewport=BESIDE),
     State("plan-panel", "review-a-plan", threads_panel),
+    State("plan-panel-dark", "review-a-plan", threads_panel, scheme="dark"),
+    State(
+        "plan-panel-keyboard-dark", "review-a-plan", panel_by_keyboard, scheme="dark"
+    ),
+    State("plan-panel-keyboard", "review-a-plan", panel_by_keyboard),
     State("plan-panel-beside", "review-a-plan", threads_panel, viewport=BESIDE),
     State("plan-go-to", "review-a-plan", go_to, viewport=(1024, 768)),
     State("plan-narrow", "review-a-plan", at_rest, viewport=(360, 740)),
+    State("plan-touch", "review-a-plan", at_rest, viewport=(390, 844), touch=True),
+    State(
+        "plan-more-touch", "review-a-plan", more_menu, viewport=(390, 844), touch=True
+    ),
     State(
         "plan-versions-touch",
         "review-a-plan",
@@ -205,30 +740,133 @@ STATES = (
         viewport=(390, 844),
         touch=True,
     ),
-    # Last on its page, since the reply it sends stays in the log.
-    State("plan-panel-sent", "review-a-plan", panel_reply_sent),
+    State("plan-card-reply-long", "review-a-plan", card_reply_long),
+    State(
+        "plan-card-reply-long-touch",
+        "review-a-plan",
+        card_reply_long,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State("plan-panel-reply-long", "review-a-plan", panel_reply_long),
+    State(
+        "plan-panel-reply-long-dark", "review-a-plan", panel_reply_long, scheme="dark"
+    ),
+    State("plan-page-comment-long", "review-a-plan", page_comment_long),
+    State("plan-card-reply-resolved", "review-a-plan", card_reply_resolved),
     State("triage", "triage-board", at_rest),
     State("triage-composer", "triage-board", composer),
+    State("triage-composer-long", "triage-board", composer_long),
+    State("triage-composer-long-dark", "triage-board", composer_long, scheme="dark"),
+    State(
+        "triage-composer-long-beside", "triage-board", composer_long, viewport=BESIDE
+    ),
+    State(
+        "triage-composer-long-touch",
+        "triage-board",
+        composer_long,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State("triage-composer-sent", "triage-board", composer_sent),
+    State("triage-composer-sent-dark", "triage-board", composer_sent, scheme="dark"),
+    State(
+        "triage-composer-sent-beside", "triage-board", composer_sent, viewport=BESIDE
+    ),
+    State(
+        "triage-composer-sent-touch",
+        "triage-board",
+        composer_sent,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State("alert-queue", "alert-review", at_rest),
+    State(
+        "alert-queue-touch", "alert-review", at_rest, viewport=(390, 844), touch=True
+    ),
+    State("alert-option-long", "alert-review", option_long),
+    State("alert-options-in-pane", "alert-review", options_in_pane),
+    State("ideas-ask", "ideas-to-implement", ask_by_keyboard),
+    State("progress-callout", "live-progress", at_rest),
+    State(
+        "alert-options-in-pane-touch",
+        "alert-review",
+        options_in_pane,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State(
+        "alert-option-long-touch",
+        "alert-review",
+        option_long,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("triage-grabbed", "triage-board", card_grabbed),
     State("walkthrough-code", "pr-walkthrough", code_note),
     State("walkthrough-code-dark", "pr-walkthrough", code_note, scheme="dark"),
+    State("walkthrough-copy-hover", "pr-walkthrough", code_copy_by_pointer),
+    State("walkthrough-copy-keyboard", "pr-walkthrough", code_copy_by_keyboard),
+    State(
+        "walkthrough-copy-touch",
+        "pr-walkthrough",
+        code_note,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State(
+        "walkthrough-path-keyboard",
+        "pr-walkthrough",
+        diff_path_by_keyboard,
+        viewport=(390, 844),
+    ),
+    State(
+        "walkthrough-source-touch",
+        "pr-walkthrough",
+        code_source_by_touch,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("ship-thread", "ship-review", element_thread),
+    State("ship-card-more-room", "ship-review", card_more_room, viewport=(1440, 600)),
+    State(
+        "ship-card-short-window", "ship-review", card_by_pointer, viewport=(1440, 480)
+    ),
+    State(
+        "ship-card-short-window-dark",
+        "ship-review",
+        card_by_pointer,
+        viewport=(1440, 480),
+        scheme="dark",
+    ),
+    State(
+        "ship-card-touch",
+        "ship-review",
+        card_by_pointer,
+        viewport=(390, 500),
+        touch=True,
+    ),
+    State("hub", "command-hub", at_rest),
+    State("hub-workers", "command-hub", hub_workers),
     State("sort", "rust-sort", at_rest),
     State("sort-pane", "rust-sort", pane_focused),
     State("sort-pane-dark", "rust-sort", pane_focused, scheme="dark"),
+    State("sort-aim-cut", "rust-sort", aim_cut_by_pane),
 )
 
 
 def capture(browser, address: str, state: State, path: Path) -> None:
-    """Bring a fresh tab to `state` and screenshot its viewport to `path`."""
-    with tab(browser, state.viewport, state.scheme, state.touch) as page:
+    """Bring a fresh tab to `state` and screenshot its viewport to `path`, at the
+    density of the displays its pairs are read on, so a crop shows text and hairlines
+    as the reader's screen draws them."""
+    with tab(browser, state.viewport, state.scheme, state.touch, scale=2) as page:
         load(page, address)
         state.drive(page)
         settle(page)
         page.screenshot(path=path)
 
 
-def differences(browser, names: list[str]) -> dict[str, dict]:
+def differences(browser, names: list[str], out: Path) -> dict[str, dict]:
     """`lf-shot`'s reading of each named state's two stills, from the module that
     owns it, served beside them to a blank page."""
 
@@ -237,7 +875,7 @@ def differences(browser, names: list[str]) -> dict[str, dict]:
         if path == "/image-difference.js":
             route.fulfill(path=DIFFERENCE, content_type="text/javascript")
         elif path.endswith(".png"):
-            route.fulfill(path=OUT / path.lstrip("/"))
+            route.fulfill(path=out / path.lstrip("/"))
         else:
             route.fulfill(body="<!doctype html>", content_type="text/html")
 
@@ -284,10 +922,10 @@ def crop(folder: Path, regions: list[dict]) -> None:
     head.crop(box).save(folder / "head-crop.png")
     faded = Image.blend(head, Image.new("RGB", head.size, "white"), 0.6)
     draw = ImageDraw.Draw(faded)
-    for r in regions:
+    for r in (r for r in regions if r["side"] == "after"):
         draw.rectangle(
             (r["x"] - 3, r["y"] - 3, r["x"] + r["width"] + 2, r["y"] + r["height"] + 2),
-            outline=(220, 0, 0),
+            outline=(220, 0, 0) if r["kind"] == "changed" else (40, 110, 230),
             width=2,
         )
     faded.crop(box).save(folder / "diff.png")
@@ -295,42 +933,54 @@ def crop(folder: Path, regions: list[dict]) -> None:
 
 @click.command()
 @click.argument("base_ref", required=False)
-def stills(base_ref: str | None) -> None:
+@click.option(
+    "--state",
+    "names",
+    type=click.Choice([state.name for state in STATES]),
+    multiple=True,
+    help="Capture a named state; repeat for more. Defaults to the whole catalogue.",
+)
+def stills(base_ref: str | None, names: tuple[str, ...]) -> None:
     """Screenshot a catalogue of UI states on BASE_REF's runtime and HEAD's, and crop
     each state that changed into a before/after pair under .tmp/stills/."""
-    if OUT.exists():
-        shutil.rmtree(OUT)
-    OUT.mkdir(parents=True)
+    states = [state for state in STATES if not names or state.name in names]
+    out = run_directory(OUT)
     failed: dict[str, str] = {}
     with tempfile.TemporaryDirectory(prefix="leaf-stills-") as built:
         scratch = Path(built)
         arms, commits = build_pair(base_ref, scratch)
         with chrome() as browser:
-            for source in dict.fromkeys(state.source for state in STATES):
+            for state in states:
                 for arm, arm_dir in arms.items():
-                    with serving_source(
-                        arm_dir,
-                        ROOT / "examples" / f"{source}.html",
-                        scratch / f"{arm}-{source}",
-                    ) as address:
-                        for state in STATES:
-                            if state.source != source:
-                                continue
-                            folder = OUT / state.name
-                            folder.mkdir(exist_ok=True)
-                            try:
-                                capture(browser, address, state, folder / f"{arm}.png")
-                            except (PlaywrightError, PageNotReady) as error:
-                                failed[state.name] = (
-                                    f"on {arm}: {str(error).splitlines()[0]}"
-                                )
+                    # Every state starts from its authored fixture. A prior Send or
+                    # Resolve must not become the next state's initial event log.
+                    # The base refuses a source written in vocabulary only the head
+                    # declares; that state has no base still, and the head's still
+                    # stands alone in its folder.
+                    folder = out / state.name
+                    folder.mkdir(exist_ok=True)
+                    try:
+                        with serving_source(
+                            arm_dir,
+                            ROOT / "examples" / f"{state.source}.html",
+                            scratch / f"{arm}-{state.name}",
+                        ) as address:
+                            capture(browser, address, state, folder / f"{arm}.png")
+                    except click.ClickException as error:
+                        failed[state.name] = (
+                            f"on {arm}: {error.message.strip().splitlines()[-1].split('; ')[0]}"
+                        )
+                    except (PlaywrightError, PageNotReady) as error:
+                        failed[state.name] = f"on {arm}: {str(error).splitlines()[0]}"
             read = differences(
-                browser, [state.name for state in STATES if state.name not in failed]
+                browser,
+                [state.name for state in states if state.name not in failed],
+                out,
             )
     click.echo(f"base {commits['base'][:10]} vs head {commits['head'][:10]}")
     unchanged = 0
-    for state in STATES:
-        folder = OUT / state.name
+    for state in states:
+        folder = out / state.name
         if state.name in failed:
             click.echo(f"  failed  {state.name} {failed[state.name]}")
         elif (difference := read[state.name])["changed"]:
@@ -340,4 +990,5 @@ def stills(base_ref: str | None) -> None:
             )
         else:
             unchanged += 1
-    click.echo(f"{unchanged} of {len(STATES)} states unchanged")
+    click.echo(f"{unchanged} of {len(states)} states unchanged")
+    click.echo(f"files in {out}")

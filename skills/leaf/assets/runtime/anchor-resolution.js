@@ -34,8 +34,9 @@ import {
   TEXT_BLOCK,
 } from "./passages.js";
 import { registry, tagsDeclaring } from "./registry.js";
-import { PRESSABLE, PRESSES } from "./widget-elements.js";
-import { excerptWords } from "./margin-entry-model.js";
+import { PRESSABLE } from "./widget-elements.js";
+import { PRESSES } from "./control-selectors.js";
+import { excerptWords } from "./contribution-model.js";
 
 // Anchors are durable coordinates, so every route that can mint one begins only after
 // replay has reconciled the authored document. The presentation root owns the writer.
@@ -63,7 +64,7 @@ function currentDatums(source, key, identity = null, dataSource = null) {
   );
 }
 
-const currentDatum = (source, key) => {
+export const projectedDatum = (source, key) => {
   const matches = currentDatums(source, key);
   return matches.length === 1 ? matches[0] : null;
 };
@@ -116,7 +117,7 @@ export function addressedElements(source, key) {
     );
   const part = visualPart(source, key)?.element;
   if (part) return [part];
-  const datum = currentDatum(source, key) ?? suppliedDatum(source, key);
+  const datum = projectedDatum(source, key) ?? suppliedDatum(source, key);
   return datum ? [datum] : [];
 }
 
@@ -237,7 +238,19 @@ export function addressableAt(node) {
   return null;
 }
 
-export const annotationAt = (node) => blockAt(node) ?? addressableAt(node);
+// Markdown block structure is reading geometry, not authored annotation identity.
+// A whole-body formatter replaces one authored data record with paragraphs/lists;
+// its declared host remains the seat that comments and reactions can name durably.
+export function annotationAt(node) {
+  const formatted = tagsDeclaring(
+    (entry) => entry["x-text-format"] === "markdown",
+  ).join(",");
+  return (
+    (formatted && closestAcross(node, formatted)) ||
+    blockAt(node) ||
+    addressableAt(node)
+  );
+}
 
 const HTML_WORDS = {
   input: "control",
@@ -295,7 +308,7 @@ export function addressableSays(addressable) {
 // What names an element, where the authoring contract gives it a name
 // (`../../references/page-authoring.md`): the attribute its registry entry declares
 // with `x-name`, else a leading disclosure summary, heading, or titled member's
-// <strong>, looked for inside a leading <header> too. Leading means no words come
+// <strong>, looked for inside a leading <header> or <hgroup> too. Leading means no words come
 // before it; elements may, as a titled member's comparison chips stand in the band
 // above its title and an eyebrow above a header's heading. The words are read the way
 // `addressableSays` reads them, and generated chrome is skipped, so it never names
@@ -308,7 +321,7 @@ function leadingTitle(container) {
     if (node.nodeType === Node.TEXT_NODE && node.data.trim()) return "";
     if (node.nodeType !== Node.ELEMENT_NODE || uiInside(node, container)) continue;
     if (node.matches(TITLES)) return elementReading(node);
-    if (node.localName === "header") return leadingTitle(node);
+    if (["header", "hgroup"].includes(node.localName)) return leadingTitle(node);
   }
   return "";
 }
@@ -319,7 +332,7 @@ export function addressableName(element) {
   return declared || leadingTitle(element);
 }
 
-// What the chrome calls an element away from it: an Asks drawer row, a Page Map heading,
+// What the chrome calls an element away from it: a Questions panel row, a Page Map heading,
 // a thread's anchor, a feed row. The element's name comes first: `addressableName`,
 // else its own caption, the `aria-label` its author gave it, or a control's <label>.
 // An element whose words are its own (a block of prose, anything holding text of its

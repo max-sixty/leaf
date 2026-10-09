@@ -5,8 +5,8 @@ import re
 from leaf.asks import asking, local_ask_entry, quoted_in
 from leaf.passages import COLLAPSE_CHARS
 from leaf.projection import enclosing_widgets
-from leaf.registry.contract import json_validator, registry_path, visual_parts
-from leaf.registry.state import retirement_slots
+from leaf.registry.contract import registry_path, retirement_slots, visual_parts
+from leaf.registry.schema import json_validator, json_value, schema_error_message
 from leaf.structure import AUTHORED_ALLOCATIONS, SourceDocument
 
 from .markup import at, structure_errors
@@ -59,7 +59,7 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
             is_flag = isinstance(prop, dict) and prop.get("type") == "boolean"
             instance[name] = True if value in (None, "") and is_flag else (value or "")
         for err in sorted(json_validator(entry).iter_errors(instance), key=str):
-            errors.append(f"{where}: {err.message}")
+            errors.append(f"{where}: {schema_error_message(err)}")
         if "data-height" in rec["attrs"] and "x-height" not in entry:
             errors.append(
                 f"{where}: data-height states the height of a widget that draws into "
@@ -93,7 +93,7 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
         elif content == "members":
             if stray:
                 errors.append(
-                    f"{where}: admits only {sorted(allowed)} members, found {stray}"
+                    f"{where}: admits only {json_value(sorted(allowed))} members, found {json_value(stray)}"
                 )
             if rec["text"]:
                 errors.append(f"{where}: loose text between its members isn't allowed")
@@ -116,7 +116,7 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
             if missing or repeated:
                 errors.append(
                     f"{where}: must contain exactly one direct <{member_tag}> for "
-                    f"each `{attribute}` value; missing {missing}, repeated {repeated}"
+                    f"each `{attribute}` value; missing {json_value(missing)}, repeated {json_value(repeated)}"
                 )
     return errors
 
@@ -150,7 +150,7 @@ def layout_errors(lf_elements: list, registry: dict) -> list:
         if len(body) != 1 or body[0] == "#text":
             errors.append(
                 f"{where}: x-reading-role {role} must contain exactly one direct body "
-                f"element between its header and footer, found {body or 'nothing'}; wrap "
+                f"element between its header and footer, found {json_value(body) if body else 'nothing'}; wrap "
                 "several blocks in one <div> or <section>"
             )
     return errors
@@ -164,7 +164,7 @@ def visual_part_errors(lf_elements: list, registry: dict) -> list:
         duplicates = sorted({part for part in parts if parts.count(part) > 1})
         if duplicates:
             errors.append(
-                f"{at(rec)}: visual part ids must be unique, repeated {duplicates}"
+                f"{at(rec)}: visual part ids must be unique, repeated {json_value(duplicates)}"
             )
     return errors
 
@@ -195,22 +195,6 @@ def ask_surface_errors(lf_elements: list, registry: dict) -> list:
             sources.setdefault(id(holder), []).append(rec)
 
     errors = []
-    for rec in lf_elements:
-        entry = registry.get(rec["tag"], {})
-        awaits = entry.get("x-awaits") or {}
-        requires_region = awaits.get("region") and asking(
-            rec["attrs"], awaits.get("when")
-        )
-        if not requires_region or quoted_in(rec, registry):
-            continue
-        holder = rec.get("holder")
-        while holder and not registry.get(holder["tag"], {}).get("x-ask-surface"):
-            holder = holder.get("holder")
-        if not holder:
-            errors.append(
-                f"{at(rec)}: this declared Ask source must be inside an Ask "
-                "with a heading"
-            )
     for region in regions:
         headings = [
             child
@@ -220,7 +204,7 @@ def ask_surface_errors(lf_elements: list, registry: dict) -> list:
         if len(headings) != 1:
             errors.append(
                 f"{at(region)}: an Ask must have exactly one direct heading, "
-                f"found {headings or 'none'}"
+                f"found {json_value(headings) if headings else 'none'}"
             )
         elif region["direct"][0] != headings[0]:
             first = (
@@ -237,7 +221,7 @@ def ask_surface_errors(lf_elements: list, registry: dict) -> list:
             ]
             errors.append(
                 f"{at(region)}: an Ask must frame exactly one declared Ask source, "
-                f"found {found or 'none'}"
+                f"found {json_value(found) if found else 'none'}"
             )
     return errors
 
@@ -260,9 +244,11 @@ def target_reference_contract_error(
         declaration.get(key) == value for key, value in predicate.items()
     ):
         return None
-    expected = ", ".join(f"{key}={value!r}" for key, value in predicate.items())
+    expected = ", ".join(
+        f"{key}={json_value(value)}" for key, value in predicate.items()
+    )
     found = (
-        ", ".join(f"{key}={declaration.get(key)!r}" for key in predicate)
+        ", ".join(f"{key}={json_value(declaration.get(key))}" for key in predicate)
         if isinstance(declaration, dict)
         else "no declaration"
     )
@@ -293,10 +279,18 @@ def reference_errors(lf_elements: list, registry: dict, ids: set, by_id: dict) -
     nowhere and the markup around it is perfectly well-formed — visible to them and to
     nobody else. Asked of the version rather than of a fragment: a reply's markup
     carries no page to check against, and one of its widgets pointing at the version
-    beside it is exactly right."""
+    beside it is exactly right.
+
+    An `owns` reference is narrower, since its referrer fills the target and the
+    browser looks for that target in the referrer's own document: each names an
+    element of `lf_elements`' own document, and each element there that the
+    contract's predicate selects is named by exactly one referrer, as each readings
+    seat is filled by one command."""
     errors = []
+    own = {rec["attrs"].get("id") for rec in lf_elements}
+    owners = {}
     for rec in lf_elements:
-        for attr in registry.get(rec["tag"], {}).get("x-refers", {}):
+        for attr, reference in registry.get(rec["tag"], {}).get("x-refers", {}).items():
             target = rec["attrs"].get(attr)
             if not target:
                 continue
@@ -308,6 +302,35 @@ def reference_errors(lf_elements: list, registry: dict, ids: set, by_id: dict) -
                 rec, attr, by_id.get(target), registry
             ):
                 errors.append(error)
+            elif reference.get("owns") and target not in own:
+                errors.append(
+                    f'{at(rec)}: {attr}="{target}" names an element outside its own '
+                    "document, which it fills"
+                )
+            elif reference.get("owns"):
+                owners.setdefault((rec["tag"], attr, target), []).append(rec)
+    owned = [
+        (tag, attr, reference)
+        for tag, entry in registry.items()
+        if not tag.startswith("$")
+        for attr, reference in entry.get("x-refers", {}).items()
+        if reference.get("owns")
+    ]
+    for rec in lf_elements:
+        for tag, attr, reference in owned:
+            if target_reference_contract_error(reference, rec, registry):
+                continue
+            target = rec["attrs"].get("id")
+            named = owners.get((tag, attr, target), [])
+            if not named:
+                errors.append(f"{at(rec)}: no <{tag}> names it in `{attr}`")
+            if len(named) > 1:
+                first = at(named[0], f"id={named[0]['attrs'].get('id')!r}")
+                errors.extend(
+                    f'{at(extra)}: {attr}="{target}" is already named by {first}; '
+                    "only one element may name it"
+                    for extra in named[1:]
+                )
     return errors
 
 
@@ -362,7 +385,9 @@ def declared_word_errors(lf_elements: list, registry: dict) -> list:
             word = rec["attrs"].get(attr) if attr else None
             if word is not None and word not in known:
                 named = f'{attr}="{word}"'
-                errors.append(f"{at(rec, named)}: not {honored} — known: {known}")
+                errors.append(
+                    f"{at(rec, named)}: not {honored} — known: {json_value(known)}"
+                )
     return errors
 
 

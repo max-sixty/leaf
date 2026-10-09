@@ -1,5 +1,8 @@
-"""Declaration-driven page and thread ask projections."""
+"""Page and thread Asks, and the shared lifecycle of prose questions."""
 
+from dataclasses import dataclass
+
+from leaf.events import conversation_turns, is_reaction
 from leaf.projection import (
     FrozenThreadReading,
     StateProjection,
@@ -8,12 +11,112 @@ from leaf.projection import (
     frozen_thread_reading,
     markup_value,
 )
+from leaf.read_state import content_version
 from leaf.schema import MESSAGE_KINDS
 
 
 def local_ask_entry(entry: dict) -> bool:
     """Whether one widget declaration originates an ask."""
     return entry.get("x-awaits") is not None
+
+
+def settles(reaction: dict, turn: str, tokens: dict) -> bool:
+    """Whether a message is the user's reaction on the agent's `turn` with a token
+    the registry declares `settles` (`$reactions`), which answers the question that
+    turn asks as a reply would. `tokens` is `$reactions.tokens`."""
+    return (
+        is_reaction(reaction)
+        and reaction["author"] == "user"
+        and reaction.get("parent") == turn
+        and bool((tokens.get(reaction["token"]) or {}).get("settles"))
+    )
+
+
+@dataclass(frozen=True)
+class ThreadQuestions:
+    """Prose questions and their settlement from one standing thread.
+
+    Each record retains its source message, content version, state and settling
+    event. Widget Asks have their own reading and never become prose questions.
+    `prompt` selects the latest unanswered prose question unless the thread is
+    closed or an open widget Ask owns attention. Earlier unanswered questions
+    remain available when a later one is settled; a user turn answers all that
+    precede it. Consumers select these facts rather than recognizing questions
+    or interpreting their answers again.
+    """
+
+    questions: list[dict]
+    prompt: dict | None
+
+
+def thread_questions(
+    thread_id: str,
+    thread: dict,
+    registry: dict,
+    structure,
+    open_ask_threads: set[str],
+    ends: dict[str, dict],
+) -> ThreadQuestions:
+    """Read implicit opening questions and explicit `awaits` replies identically.
+
+    A user's next conversational turn or a settling reaction answers the question;
+    an admitted task end supplies its declared outcome. Withdrawn messages and
+    task ends are already absent from the standing thread and `ends` readings.
+    A resolution with no answer hides the question until reopening, rather than
+    inventing an answer for it.
+    """
+    turns = conversation_turns(thread)
+    user_turns = {message["id"] for message in turns if message["author"] == "user"}
+    tokens = registry.get("$reactions", {}).get("tokens", {})
+    questions = []
+    for message in turns:
+        if message["author"] != "agent":
+            continue
+        fragment = structure.fragments.get(message["id"])
+        if any(
+            local_ask_entry(registry.get(rec["tag"]) or {})
+            for rec in (fragment.lf_elements if fragment else [])
+        ):
+            continue
+        if message["kind"] == "reply" and not message.get("awaits"):
+            continue
+        answer = next(
+            (
+                entry
+                for entry in thread["msgs"]
+                if entry["seq"] > message["seq"]
+                and (entry["id"] in user_turns or settles(entry, message["id"], tokens))
+            ),
+            None,
+        )
+        ending = ends.get(message["id"])
+        settlement, state = (
+            (ending, ending["state"])
+            if ending and (answer is None or ending["seq"] < answer["seq"])
+            else (answer, "done" if answer else "open")
+        )
+        questions.append(
+            {
+                "message": message,
+                "version": content_version(message),
+                "state": state,
+                "settlement": settlement,
+            }
+        )
+    open_ask = thread_id in open_ask_threads
+    prompt = (
+        next(
+            (
+                {"message": question["message"]["id"], "version": question["version"]}
+                for question in reversed(questions)
+                if question["state"] == "open"
+            ),
+            None,
+        )
+        if not thread["resolved"] and not open_ask
+        else None
+    )
+    return ThreadQuestions(questions, prompt)
 
 
 def asking(attrs: dict, when: dict) -> bool:
@@ -58,8 +161,8 @@ def part_of_ask(record: dict, entry: dict) -> bool:
     """Whether a user's move on one authored widget is part of that widget's own
     Ask's answer: the authored instance originates an x-awaits Ask.
 
-    The one rule for when a move is handed over. While the Ask stands unanswered
-    every move on its widget is the user still composing the answer — a swipe
+    The rule for when a move becomes an answer obligation. While the Ask stands
+    unanswered every move on its widget is the user still composing the answer — a swipe
     before the queue empties, a pick or an added option before a group's Done —
     and once its `answered` condition holds every standing move there is owed as
     part of it. Which verb happens to finish the answer does not decide it."""
@@ -174,7 +277,7 @@ def projected_action_holders(
         record = spec.get("record") or {}
         if record.get("kind") != "position" or event["id"] in projection.absorbed:
             continue
-        target = byid.get(event["detail"][record["value"]])
+        target = byid.get(event["detail"]["value"])
         unit_rec = byid.get(unit)
         if target and unit_rec:
             holder = target if target["tag"] in registry else target.get("holder")
@@ -331,6 +434,16 @@ class _AskReducer:
     def _awaits(self, record, with_agent) -> bool:
         return self.local[id(record)] and not self._answered(record, with_agent)
 
+    def _surface(self, record):
+        """The reading and arrival region the user is sent to for this source: the
+        nearest `x-ask-surface` holder enclosing it, or the source itself."""
+        holder = self._holder(record)
+        while holder:
+            if (self.registry.get(holder["tag"]) or {}).get("x-ask-surface"):
+                return holder
+            holder = self._holder(holder)
+        return record
+
     def _surfaces(self, records):
         """Each visible ask as `(surface, source)`.
 
@@ -342,27 +455,44 @@ class _AskReducer:
         pairs = []
         seen = set()
         for record in records:
-            surface = record
-            holder = self._holder(record)
-            while holder:
-                if (self.registry.get(holder["tag"]) or {}).get("x-ask-surface"):
-                    surface = holder
-                    break
-                holder = self._holder(holder)
+            surface = self._surface(record)
             if id(surface) not in seen:
                 seen.add(id(surface))
                 pairs.append((surface, record))
         return pairs
 
+    def _answered_by_user(self, record) -> bool:
+        """Whether a standing action that admission marked as this Ask's answer
+        (`meaning.answer`) still holds its answer: the user decided it while it
+        asked, whatever a later version made of the question."""
+        # TODO: a re-pick after a later version settles the group drops the Ask.
+        # Admission stamps `meaning.answer` only while `x-awaits.when` holds
+        # (`answering_action`, event_meaning.py), and `settled` turns it off, so the
+        # re-pick replaces a stamped action with an unstamped one and this reading
+        # loses the Ask, and with it the done task the Questions panel lists for it.
+        unit = record["attrs"].get("id")
+        return any(
+            "answer" in (held[0].get("meaning") or {})
+            for verb in answer_verbs(self._entry(record))
+            if (held := self.projection.actions.get((unit, unit, verb)))
+        ) and self._answered(record, set())
+
     def inventory(self, settled_away: set[str]) -> list:
         """Every active Ask, including ones the user has answered.
 
         An action Ask remains active while its authored `when` holds, even after
-        one of its answer verbs has state.
+        one of its answer verbs has state. One the user answered stays once a later
+        version retires the question around the answer, as `settled` does, so a
+        reading of what the page has decided keeps it.
         """
         active = []
         for record in self.records:
             if self.exists[id(record)] and self.local[id(record)]:
+                active.append(record)
+                continue
+            # This "decided" reading also keeps the Ask's task listed as done, under
+            # the Questions panel's Done (`tasks.ask_tasks`).
+            if self.exists[id(record)] and self._answered_by_user(record):
                 active.append(record)
                 continue
             # An ask that retires its own last visible slot still has a receipt
@@ -396,14 +526,6 @@ class _AskReducer:
                 record for record in self.records if self._awaits(record, with_agent)
             )
         )
-
-    def awaiting(self) -> dict[str, bool]:
-        """Each identified Ask source's own awaiting value, with no seats."""
-        return {
-            record["attrs"]["id"]: self._awaits(record, set())
-            for record in self.records
-            if record["attrs"].get("id")
-        }
 
 
 def page_ask_readings(
@@ -510,5 +632,4 @@ def thread_ask_readings(
         "all": seated(reducer.inventory(set())),
         "user": seated(asks),
         "unanswered": seated(asks),
-        "awaiting": reducer.awaiting(),
     }

@@ -7,15 +7,23 @@ from urllib.parse import urljoin, urlsplit
 import pytest
 import tinycss2
 from interact_support import PAGE
-from leaf.exporting import AssetInliner
+from leaf import revisioning as revisioning_model
+from leaf.exporting import AssetInliner, ReadableAssets
+from leaf.files import revision_path
 from leaf.http import scope_page_urls
-from leaf.revision_artifact import ArtifactError, Resource, capture_artifact
+from leaf.revision_artifact import (
+    ArtifactError,
+    Resource,
+    capture_artifact,
+    capture_local_resource,
+)
 from leaf.revision_delivery import (
     Delivery,
     DeliveryAddress,
     compose_document,
     deliver_resource,
     json_script,
+    mark_declared,
     media_size,
     rebase_document,
 )
@@ -24,6 +32,201 @@ from leaf.structure import SourceDocument
 PAGE_ROOT = "/p/user"
 ROOT = PAGE_ROOT + "/revisions/r1-0123456789abcdef"
 ADDRESS = DeliveryAddress(PAGE_ROOT, ROOT)
+
+
+def test_declared_markdown_body_is_delivered_formatted_with_exact_source_retained():
+    source = '<lf-editable id="note"><pre>**Keep** `--dry-run`.\n\n- One\n- Two</pre></lf-editable>'
+    marked = mark_declared(source, {"lf-editable": {"x-text-format": "markdown"}}, {})
+    document = SourceDocument(marked)
+    [host] = document.tree.find_all("lf-editable")
+    assert host.select_one("pre").text == "**Keep** `--dry-run`.\n\n- One\n- Two"
+    body = host.select_one(".lf-markdown-body")
+    assert body.select_one("strong").text == "Keep"
+    assert body.select_one("code").text == "--dry-run"
+    assert len(body.find_all("li")) == 2
+    assert body.attrs["data-lf-source-words"] == host.select_one("pre").text
+    assert "data-lf-prepaint" in body.attrs
+
+
+def test_delivered_markdown_refuses_unsafe_links_and_images_before_runtime_loads():
+    source = '<lf-editable id="note"><pre>[unsafe link](javascript:alert(1)) ![unsafe image](data:text/html,boom) [safe link](https://example.com)</pre></lf-editable>'
+    delivered = mark_declared(
+        source, {"lf-editable": {"x-text-format": "markdown"}}, {}
+    )
+    body = SourceDocument(delivered).tree.select_one(".lf-markdown-body")
+    assert [link.attrs["href"] for link in body.find_all("a")] == [
+        "https://example.com"
+    ]
+    assert not body.find_all("img")
+    assert body.text.strip() == "unsafe link unsafe image safe link"
+
+
+@pytest.mark.parametrize(
+    "inliner_type,depth", [(AssetInliner, 1200), (ReadableAssets, 3)]
+)
+def test_export_walks_css_imports_without_recursion_and_retains_their_meaning(
+    inliner_type, depth
+):
+    """Object-URL graphs can exceed Python's stack; readable data URLs are nested.
+
+    Both walks retain namespaces and import conditions, suppress only the cyclic
+    edge, and read shared resources once. The data-URL case stays shallow because
+    each parent base64-encodes its child, expanding the result with every level.
+    """
+    import base64
+    from collections import Counter
+
+    resources = {
+        f"/page/{index}.css": Resource(
+            (
+                f'@import "./{(index + 1) % depth}.css" '
+                "layer(order) supports(display: grid) screen;\n"
+                '@namespace svg "http://www.w3.org/2000/svg";\n'
+                f".sheet-{index} {{ color: red; background-image: url('./badge.svg#mark'); }}"
+            ).encode(),
+            "text/css",
+        )
+        for index in range(depth)
+    }
+    resources["/page/badge.svg"] = Resource(b"<svg/>", "image/svg+xml")
+    reads = Counter()
+
+    def read(path):
+        reads[path] += 1
+        return resources[path]
+
+    inliner = inliner_type(read)
+    css = inliner.stylesheet("/page/0.css")
+    for index in range(depth):
+        assert f".sheet-{index}" in css
+        assert "layer(order) supports(display: grid) screen;" in css
+        assert '@namespace svg "http://www.w3.org/2000/svg";' in css
+        assert "color: red;" in css
+        if inliner_type is AssetInliner:
+            assert "#mark" in css
+        else:
+            assert "background-image" not in css
+        imported = next(
+            rule
+            for rule in tinycss2.parse_stylesheet(css)
+            if rule.type == "at-rule" and rule.lower_at_keyword == "import"
+        )
+        address = next(
+            token.value for token in imported.prelude if token.type == "string"
+        )
+        css = (
+            inliner.embedded[address].data.decode()
+            if inliner_type is AssetInliner
+            else base64.b64decode(address.partition(",")[2]).decode()
+        )
+    assert css == ""
+    assert reads == Counter({path: 1 for path in resources})
+
+
+def test_initial_producers_are_captured_once_and_called_after_each_complete_host():
+    source = (
+        "<html><head><title>Initial</title></head><body><main>"
+        '<lf-early id="first"><p>First</p></lf-early>'
+        '<lf-early id="second"><p>Second</p></lf-early>'
+        "<template><lf-unused></lf-unused></template>"
+        "</main></body></html>"
+    )
+    registry = {
+        "lf-early": {"x-initial": "/vendor/early.js"},
+        "lf-unused": {"x-initial": "/vendor/unused.js"},
+    }
+    resources = {
+        "/runtime/prepaint.js": Resource(
+            b"window.prepaint = true;", "application/javascript"
+        ),
+        "/vendor/early.js": Resource(
+            b'window.initial = "</script>";', "application/javascript"
+        ),
+        "/runtime/annotation-overlay/annotation-theme.css": Resource(b"", "text/css"),
+        "/runtime/chrome.css": Resource(b"", "text/css"),
+        "/runtime/marks.css": Resource(b"", "text/css"),
+        "/runtime/annotation-overlay/annotation-chrome.css": Resource(b"", "text/css"),
+        "/runtime/annotation-overlay/annotation-marks.css": Resource(b"", "text/css"),
+    }
+    delivered = compose_document(
+        source,
+        1,
+        None,
+        executable=None,
+        widgets={},
+        resources=resources,
+        registry=registry,
+        delivery=Delivery(
+            address=ADDRESS,
+            runtime="<script data-lf-runtime>window.boot = true;</script>",
+        ),
+    )
+    parsed = SourceDocument(delivered.removeprefix("\ufeff"))
+    scripts = parsed.tree.find_all("script")
+    calls = [script for script in scripts if "lfInitial.mount" in script.text]
+    assert len(calls) == 2
+    assert [script.previous_sibling.tag for script in calls] == ["lf-early", "lf-early"]
+    assert delivered.count("data-lf-initial-source") == 2
+    assert delivered.count('window.initial = "<\\/script>";') == 1
+    assert (
+        delivered.index("window.prepaint")
+        < delivered.index("window.initial")
+        < delivered.index("window.boot")
+    )
+    assert mark_declared(source, registry, resources) == source
+
+
+def test_capture_refuses_a_declared_initial_producer_that_is_absent(tmp_path):
+    with pytest.raises(
+        ArtifactError, match=r"/page/early\.js: cannot capture dependency"
+    ):
+        capture_artifact(
+            tmp_path,
+            SourceDocument(PAGE),
+            {"lf-early": {"x-initial": "/page/early.js"}},
+        )
+
+
+def test_capture_follows_deep_and_cyclic_dependencies_once(tmp_path):
+    """A complete authored graph does not depend on Python's recursion limit."""
+    directory = tmp_path / "page"
+    directory.mkdir()
+    depth = 1200
+    for index in range(depth):
+        target = index + 1 if index + 1 < depth else 0
+        (directory / f"{index}.js").write_text(
+            f'import "./{target}.js"; import "./shared.js";', encoding="utf-8"
+        )
+    (directory / "shared.js").write_text("export const shared = true;")
+    (directory / "first.css").write_text('@import "./second.css";')
+    (directory / "second.css").write_text('@import "./first.css";')
+    source = PAGE.replace(
+        "</head>",
+        '<script type="module" src="/page/0.js"></script>'
+        '<link rel="stylesheet" href="/page/first.css"></head>',
+    )
+    reads = []
+
+    def read_resource(path):
+        reads.append(path)
+        return capture_local_resource(tmp_path, path)
+
+    artifact = capture_artifact(
+        tmp_path, SourceDocument(source), {}, read_resource=read_resource
+    )
+
+    expected = {f"/page/{index}.js" for index in range(depth)} | {
+        "/page/shared.js",
+        "/page/first.css",
+        "/page/second.css",
+    }
+    assert set(reads) == expected
+    assert len(reads) == len(expected)
+    assert artifact.resources[f"/page/{depth - 1}.js"].dependencies == (
+        "/page/0.js",
+        "/page/shared.js",
+    )
+    assert artifact.resources["/page/second.css"].dependencies == ("/page/first.css",)
 
 
 def test_document_rewrites_only_resource_references_with_exact_source_spans():
@@ -105,11 +308,12 @@ def test_stylesheets_rebase_nested_imports_urls_and_preserve_inert_values():
   filter: url(#local);
   content: "url(../not-an-asset.png)";
   --embedded: url("data:image/svg+xml;base64,PHN2Zy8+");
+  background-image: image-set(url(../images/1x.png) 1x, "../images/2x.png" 2x);
 } }
 """
     delivered = deliver_resource(
         Resource(source.encode(), "text/css"), "/page/styles/main.css", ADDRESS
-    ).decode()
+    ).data.decode()
 
     assert f'@import "{ROOT}/page/styles/theme.css" layer(palette);' in delivered
     assert f'url("{ROOT}/page/shared.css") screen;' in delivered
@@ -120,6 +324,10 @@ def test_stylesheets_rebase_nested_imports_urls_and_preserve_inert_values():
     assert "filter: url(#local)" in delivered
     assert 'content: "url(../not-an-asset.png)";' in delivered
     assert 'url("data:image/svg+xml;base64,PHN2Zy8+")' in delivered
+    assert (
+        f'image-set(url("{ROOT}/page/images/1x.png") 1x, '
+        f'"{ROOT}/page/images/2x.png" 2x)'
+    ) in delivered
     assert "/* url(../not-an-asset.png) */" in delivered
     assert not any(
         token.type == "error" for token in tinycss2.parse_stylesheet(delivered)
@@ -152,7 +360,7 @@ main { background: image-set("./a.png" 1x, url(./b.png) 2x); }
     assert set(captured.dependencies) == expected
     assert "/page/ignored.css" not in artifact.resources
 
-    delivered = deliver_resource(captured, "/page/style.css", ADDRESS).decode()
+    delivered = deliver_resource(captured, "/page/style.css", ADDRESS).data.decode()
     assert {path for path in expected if f'"{ROOT}{path}"' in delivered} == expected
     assert '@import "./ignored.css"; @import url(./ignored.css);' in delivered
 
@@ -166,6 +374,38 @@ main { background: image-set("./a.png" 1x, url(./b.png) 2x); }
     assert set(read) == expected
 
 
+def test_a_revision_shares_the_files_it_captured_unchanged(page_dir):
+    """A new revision links each resource the one before it captured with the same
+    bytes, and writes the ones that changed."""
+    sheet = page_dir / "page" / "style.css"
+    sheet.parent.mkdir(exist_ok=True)
+    source = PAGE.replace(
+        "</head>", '<link rel="stylesheet" href="page/style.css"></head>'
+    )
+
+    def activate(text, css):
+        sheet.write_text(css)
+        (page_dir / "index.html").write_text(source.replace("Ship dark.", text))
+        activated = revisioning_model.activate_source(page_dir)
+        assert activated.error is None, activated.error
+        bundle = revision_path(page_dir, activated.revision).with_suffix("")
+        manifest = json.loads((bundle / "manifest.json").read_bytes())
+        return {
+            logical: bundle / ("resources" + logical)
+            for logical in manifest["resources"]
+        }
+
+    first = activate("Ship dark.", "main { color: red; }")
+    second = activate("Ship it dark.", "main { color: blue; }")
+
+    changed = {"/page/style.css"}
+    assert changed < set(first) and set(first) == set(second)
+    shared = {p for p in first if first[p].stat().st_ino == second[p].stat().st_ino}
+    assert shared == set(first) - changed
+    assert second["/page/style.css"].read_text() == "main { color: blue; }"
+    assert first["/page/style.css"].read_text() == "main { color: red; }"
+
+
 def test_page_widget_alias_uses_its_captured_path_for_import_resolution():
     source = b"""import { local } from "../helper.js";
 import { offer } from "/runtime/widget-api.js";
@@ -176,7 +416,7 @@ const plain = "../helper.js";
         Resource(source, "application/javascript"),
         "/page/widgets/lf-local.js",
         ADDRESS,
-    )
+    ).data
     assert delivered == source.replace(
         b'from "../helper.js"', f'from "{ROOT}/page/helper.js"'.encode()
     ).replace(
@@ -195,13 +435,13 @@ const plain = "../helper.js";
             "/runtime/state.js",
         ),
     ):
-        assert deliver_resource(resource, path, ADDRESS) == resource.data
+        assert deliver_resource(resource, path, ADDRESS) is resource
     assert (
         deliver_resource(
             Resource(b'.mark { mask: url("/icon.svg") }', "text/css"),
             "/runtime/chrome.css",
             ADDRESS,
-        )
+        ).data
         == f'.mark {{ mask: url("{ROOT}/icon.svg") }}'.encode()
     )
 
@@ -345,8 +585,12 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     a package's pane before any script runs. An occurrence's own `data-width`,
     `data-bound` or `data-height` says it for that occurrence. An element naming page
     media carries the box that holds all of it, read from the images, so a frame stands
-    in their shape before they decode. Markup inside a template is inert, and
-    everything else in the source stays as written."""
+    in their shape before they decode. A widget declaring the structure its module will
+    draw (`x-prepaint`) carries it as its first child, marked as delivery's, so the
+    browser lays that structure out before the module runs, and one that first paints
+    as another widget will stand in it carries that widget's (`as`). An idiom declares
+    a mark by its selector, as a callout keeps the column. Markup inside a template is
+    inert, and everything else in the source stays as written."""
 
     def png(width, height):
         return Resource(
@@ -360,16 +604,24 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         "lf-chip": {"x-inline": True},
         "lf-feed": {"x-bound": "end"},
         "lf-plot": {"x-height": 400},
+        "lf-meter": {"x-prepaint": '<span class="lf-meter-face">0 left</span>'},
+        "lf-gauge": {"x-prepaint": {"as": "lf-meter"}},
+        "$idioms": {"description": "Shapes.", ".callout": {"x-space": "column"}},
     }
     source = (
         "<!doctype html><html><head><title>T</title></head><body><main>"
+        '<aside class="callout warn" id="note">Paused.</aside>'
+        '<aside class="callout" id="chart-note" data-width="wide">Chart.</aside>'
         '<lf-zone id="queue" label="Queue"><div><lf-chip>new</lf-chip></div></lf-zone>'
         '<lf-board id="board" data-width="column"></lf-board>'
         '<lf-feed id="feed"></lf-feed><section id="wide" data-width="wide"></section>'
         '<pre data-bound="start">log</pre>'
         '<lf-plot id="plot"></lf-plot><lf-plot id="tall" data-height="240"></lf-plot>'
         '<lf-pair id="pair" before="/media/a.png" after="/media/b.png"></lf-pair>'
-        "<template><lf-zone id=later label=Later><p>x</p></lf-zone></template>"
+        '<lf-meter id="meter" value="3"><p>3 left</p></lf-meter>'
+        '<lf-gauge id="gauge"></lf-gauge>'
+        "<template><lf-zone id=later label=Later><p>x</p></lf-zone>"
+        "<lf-meter id=inert></lf-meter></template>"
         "</main></body></html>"
     )
     delivered = compose_document(
@@ -395,6 +647,8 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     assert marks[("lf-zone", "queue")] == {"data-lf-reading-role": "pane"}
     assert marks[("lf-chip", None)] == {"data-lf-inline": ""}
     assert marks[("lf-board", "board")] == {"data-lf-space": "column"}
+    assert marks[("aside", "note")] == {"data-lf-space": "column"}
+    assert marks[("aside", "chart-note")] == {"data-lf-space": "wide"}
     assert marks[("lf-feed", "feed")] == {"data-lf-bound": "end"}
     assert marks[("section", "wide")] == {"data-lf-space": "wide"}
     assert marks[("pre", None)] == {"data-lf-bound": "start"}
@@ -405,8 +659,22 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         "data-lf-media-height": "800",
     }
     assert marks[("lf-zone", "later")] == {}
-    unmarked = delivered
+    prepaint = (
+        '<lf-meter id="meter" value="3"><span data-lf-prepaint data-lf-gen="1" '
+        'class="lf-meter-face">0 left</span><p>3 left</p></lf-meter>'
+    )
+    assert prepaint in delivered
+    assert (
+        '<lf-gauge id="gauge"><span data-lf-prepaint data-lf-gen="1" '
+        'class="lf-meter-face">0 left</span></lf-gauge>'
+    ) in delivered
+    assert "<lf-meter id=inert></lf-meter>" in delivered
+    unmarked = delivered.replace(
+        '<span data-lf-prepaint data-lf-gen="1" class="lf-meter-face">0 left</span>', ""
+    )
     for mark in (
+        ' data-lf-space="column"',
+        ' data-lf-space="wide"',
         ' data-lf-reading-role="pane"',
         ' data-lf-inline=""',
         ' data-lf-space="column"',
@@ -455,3 +723,21 @@ def test_delivery_reads_an_image_s_size_as_the_browser_decodes_it(browser):
     # An upload is checked by its signature alone, so a file cut short after it is a
     # file delivery still serves.
     assert media_size(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR") is None
+
+
+def test_markdown_prepaint_has_task_checkboxes_bare_links_and_literal_html():
+    from html import escape
+
+    source = "- [x] Done\n- [ ] Todo\n\nhttps://example.com\n\n<div>\n**bold**\n</div>"
+    delivered = mark_declared(
+        f"<lf-editable><pre>{escape(source)}</pre></lf-editable>",
+        {"lf-editable": {"x-text-format": "markdown"}},
+        {},
+    )
+    body = SourceDocument(delivered).tree.select_one(".lf-markdown-body")
+    checks = body.find_all("input")
+    assert len(checks) == 2 and all("disabled" in check.attrs for check in checks)
+    assert "checked" in checks[0].attrs and "checked" not in checks[1].attrs
+    assert body.select_one("a").attrs["href"] == "https://example.com"
+    assert body.select_one("strong").text == "bold"
+    assert not body.find_all("div")

@@ -20,14 +20,15 @@ def preview_server(
     version: int | None = None,
     transition_held: bool = False,
     artifact: RevisionArtifact | None = None,
+    through_seq: int | None = None,
 ):
-    """Serve one exact document without changing the page's durable state.
+    """Serve one exact document without changing the page's durable state, against
+    the log through `through_seq` when given (`PageRead.through`).
 
     Its own key, not the machine's: this server is loopback-only and lives for the
     length of a `with`, so it neither needs nor should mint the access every page
-    here is read with. It sets that key under the one cookie name, which would sign
-    a user out of every page on 127.0.0.1 — except that both callers drive
-    Playwright, whose browser brings its own jar.
+    here is read with. The listener owns its cookie name, so opening a preview
+    does not replace another same-host server's key in the browser's jar.
 
     Like every page server it refuses a page vendored from another Leaf's runtime
     (`layer.foreign_runtime`), which the gate needs on its own account too: its probe
@@ -43,6 +44,8 @@ def preview_server(
             ),
         }
         snapshot = capture_page_snapshot(page_dir, document, active, artifact=artifact)
+        if through_seq is not None:
+            snapshot = snapshot.through(through_seq)
         server = TemporaryPageServer(page_dir, page_options={"page_snapshot": snapshot})
         with server:
             yield server.url

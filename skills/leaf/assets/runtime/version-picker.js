@@ -20,7 +20,7 @@ const EMPTY = Object.freeze([]);
 const INITIAL = Object.freeze({
   picker: Object.freeze({
     offered: false,
-    token: "Draft",
+    token: "Showing Draft",
     compared: false,
     news: false,
     keyTitle: "Draft",
@@ -135,8 +135,7 @@ class VersionPickerView {
       .map(({ control, version }) => ({
         id: `version.open-v${version}`,
         binding: String(version),
-        does: `Open v${version}`,
-        line: `open v${version}`,
+        title: `open v${version}`,
         control,
       }));
   }

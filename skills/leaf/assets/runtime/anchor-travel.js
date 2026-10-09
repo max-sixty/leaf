@@ -7,18 +7,26 @@
  * `navigateToDatum` to the part its declared reference addresses. Whichever route names
  * it, a part is drawn through the one `revealAddressed`, what holds the place opens
  * through the one `reveal`, and the surface hiding it is cleared through the one
- * `clearFor`; where focus lands stays each route's own.
+ * `clearFor`. Each route declares its fresh destination, focus target and scroll
+ * placements. Each placement names its destination and may name a separate alignment
+ * context: inner scrollports reveal the destination before its context is aligned.
+ * `arrive` completes their reveal, presentation, focus and placement
+ * under the original user intent; routes never perform the final handoff themselves.
+ * Travel scrolls within the current view. When reveal replaces a visible view,
+ * its destination lands immediately rather than scrolling from the old view's place.
  *
  * Travel owns effects above readonly resolution and paint. It receives the current
  * semantic threads and the synchronous thread refresh from the application root;
  * subordinate geometry never imports the presenter. A trip keeps its original user
  * intent through hydration, reveal and presentation. Newer input or another trip
  * cancels its landing without cancelling the data the page is loading. Every trip, to a
- * thread, an Ask or a datum, goes through `trip`, which clears whatever surface hides
- * the destination and then decides whether the user is already there or departs. A
- * departure leaves a history entry, so browser Back returns the user to where they
+ * thread, an Ask or a datum, prepares its outgoing checkpoint before reveal, then
+ * decides whether the user is already there. Only a successful arrival commits its
+ * departure to history, so browser Back returns the user to where they
  * were reading; a journey, trips each leaving from the last one's landing, is one
- * entry. A fragment link's trip (`followFragment`) departs by the browser's own entry,
+ * entry. A press or Tab onto another authored passage ends the journey even while its
+ * landing remains visible. Controls, chrome and runtime focus handoffs are not reading
+ * choices. A fragment link's trip (`followFragment`) departs by the browser's own entry,
  * and Back or Forward to a place the page has hidden since (`returnToFragment`) is a
  * trip that departs by none.
  */
@@ -28,6 +36,7 @@ import {
   fragmentTarget,
   referencedProjection,
   requireReference,
+  resolveAnchor,
   revealAddressed,
   sectionOf,
 } from "./anchor-resolution.js";
@@ -35,19 +44,26 @@ import {
   clippedContents,
   clipsPast,
   landingBand,
+  localScrollBy,
   placeHolder,
   shownBox,
   shownRect,
 } from "./geometry.js";
 import { scrollBehavior } from "./motion.js";
-import { scrollersOf } from "./reading-regions.js";
-import { pushEntry, replaceEntry } from "./history.js";
-import { moveScrollerBy, pageScroller, reachable } from "./scrolling.js";
+import { onReadingInput, scrollersOf } from "./reading-regions.js";
+import { prepareEntry } from "./history.js";
+import { pageScroller } from "./scrolling.js";
+import { scrollIntoReadingBand } from "./landing-scroll.js";
 import { renderedParent } from "./shadow.js";
-import { closestAcross } from "./passages.js";
-import { reveal } from "./widget-elements.js";
-import { retainUserIntent } from "./user-intent.js";
+import { PRESSABLE, reveal } from "./widget-elements.js";
+import { threadNames } from "./thread/model.js";
+import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
+import { targetElement, targetPlace, targetSegments } from "./resolved-target.js";
+import { closestAcross, pageText, rangeOf, selectEnds } from "./passages.js";
 import { standingPoint } from "./pointed-place.js";
+import { PRESSES } from "./control-selectors.js";
+import { typesText } from "./focus.js";
+import { openingPassage, passageBlock } from "./reading-place.js";
 
 // The browser's rule for landing the element a fragment names: its start at its
 // scroller's landing edge, which a sticky header's stated height keeps clear. Travel
@@ -55,7 +71,7 @@ import { standingPoint } from "./pointed-place.js";
 // the page reshapes after the browser landed it (version.js, `aimArrival`), and at a
 // traversal, where the browser restores an offset instead (`returnToFragment`).
 export function scrollToFragment(element) {
-  element.scrollIntoView({ block: "start", inline: "nearest", behavior: "instant" });
+  element.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
 }
 
 export function createAnchorTravel({
@@ -63,23 +79,26 @@ export function createAnchorTravel({
   surfaces,
   currentThreads,
   refreshThread,
+  focusForNavigation,
+  threadFocusTarget,
   announce,
 }) {
   let travelIntent = 0;
-  const retainTravel = () => {
+  const retainTravel = (retained = retainUserIntent()) => {
     const intent = ++travelIntent;
-    return retainUserIntent({ available: () => intent === travelIntent });
+    return restrictUserIntent(retained, () => intent === travelIntent);
   };
 
-  // A push leaves the current scroll position on the entry it leaves, and Back
-  // restores it there (history.js), so the push comes before the trip moves anything.
+  // Preparation captures the outgoing working place before the trip moves anything;
+  // arrival commits it only once its final destination exists (history.js).
   // A destination already readable where the user stands is no departure. A trip that
   // names its `landing` while any of the last trip's landing still shows continues that
   // journey, whether it goes to threads or Asks: it replaces the journey's entry, which
-  // already holds where the journey began. Once the user has moved off that landing, the
-  // next trip pushes again. A journey is not a walk (the glossary's ordered movement
-  // among one kind of destination): steps of a thread walk and of an Ask walk, or a
-  // press on a margin marker, can all be trips of one journey. The landing is a lookup
+  // already holds where the journey began. Choosing a different authored passage by
+  // pointer or Tab ends the journey, as does moving off its landing. The next successful
+  // trip then saves the newly chosen working place. A journey is not a walk (the glossary's ordered movement
+  // among one category of destination): steps of the thread walk and of the queue
+  // walk, or a press on a margin marker, can all be trips of one journey. The landing is a lookup
   // rather than a node because the thread pass repaints marks, and the entry
   // carries a token for this document's journey because only this load holds the
   // lookup.
@@ -87,20 +106,13 @@ export function createAnchorTravel({
   let trips = 0;
   let journey = null;
 
-  function depart({ url = window.location.href, landing = null } = {}) {
-    const continuing = landing && stillLanded();
-    journey = landing && { token: journeyPrefix + ++trips, landing };
-    const state = journey && { lfJourney: journey.token };
-    if (continuing) replaceEntry(url, state);
-    else pushEntry(url, state);
-  }
-
-  // A trip whose destination is already in front of the user moves nothing and records
-  // nothing, but it is still a trip of the journey: the journey now stands on its
-  // landing, so the next trip continues from there rather than from the one before it.
-  function stay(landing) {
-    if (stillLanded()) journey.landing = landing;
-  }
+  onReadingInput((node) => {
+    if (!journey || closestAcross(node, `${PRESSES},${PRESSABLE}`) || typesText(node))
+      return;
+    const passage = passageBlock(node);
+    if (!passage) return;
+    if (passage !== journey.passage()) journey = null;
+  });
 
   function stillLanded() {
     const where =
@@ -108,41 +120,183 @@ export function createAnchorTravel({
     return Boolean(where && seenOf(where));
   }
 
-  // Whether the user already has a destination once whatever hid it is cleared. A trip
-  // that promises to show it clears the selected surface hiding it (auxiliary-surfaces.js,
-  // `clearFor`); one that `keep`s the surface is one the user takes from inside it (the
-  // thread panel's walk and its landings). Whatever surface still stands, kept or not
-  // hiding the destination, is read past (`seenOf`): what it stands over no movement of
-  // the page can show, so it says nothing about whether the page has to move.
-  function arrived(where, keep) {
-    if (!keep) surfaces.clearFor(where);
-    return readableDestination(where);
+  // Resolve fresh after exposure, presentation and focus. A replaced view lands
+  // immediately so it never paints at the old view's offset; final placement alone
+  // commits the prepared departure, after the destination still stands through focus.
+  async function arrive(
+    resolve,
+    { intent, present = null, keep = false, departure = null },
+  ) {
+    const first = resolve();
+    const holder = first && placeHolder(first.where);
+    if (!holder || !intent()) return false;
+    if (!keep) intent.handoff(() => surfaces.clearFor(holder));
+    const disclosures = [holder, ...(first.reveal ?? [])].map((target) =>
+      reveal(target, intent),
+    );
+    const replacedView = disclosures.some((disclosure) => disclosure.replacedView);
+    const place = (complete = false) => {
+      let completed = false;
+      intent.handoff(() => {
+        const destination = resolve();
+        if (!destination?.where) return;
+        if (destination.focus)
+          focusForNavigation(destination.focus, "move", { caret: destination.caret });
+        const current = resolve();
+        if (!current?.where) return;
+        if (complete) departure?.commit();
+        if (current.selection) {
+          const { range, backward } = current.selection;
+          const head = [range.startContainer, range.startOffset];
+          const tail = [range.endContainer, range.endOffset];
+          selectEnds(...(backward ? [tail, head] : [head, tail]));
+        }
+        for (const placement of current.scroll) placeScroll(placement, replacedView);
+        completed = true;
+      });
+      return completed;
+    };
+    if (replacedView) place();
+    await Promise.all(disclosures.map((disclosure) => disclosure.ready));
+    if (!intent()) return false;
+    if (present) await present();
+    if (!intent()) return false;
+    return place(true);
   }
 
-  // Travel's one entry. It stays when the user already has the destination and departs
-  // otherwise, and answers whether the caller moves the page. A destination not yet
-  // placed (a datum a widget has yet to hydrate) is somewhere else. `there` is the
+  // A remembered passage carries semantic words, never retained DOM endpoints.
+  // Resolve on each side of reveal/focus so a revision cannot leave stale nodes in
+  // the native selection. Ordinary arrival owns clearance, history and reading band.
+  async function restoreSelection(anchor, { backward, intent }) {
+    const mayArrive = retainTravel(intent);
+    const resolve = () => {
+      const target = resolveAnchor(anchor, pageText());
+      const segments = targetSegments(target);
+      if (!segments.length) return null;
+      const range = rangeOf(segments);
+      return {
+        where: range,
+        focus: targetPlace(target),
+        selection: { range, backward },
+        scroll: [{ at: range }],
+      };
+    };
+    const destination = resolve();
+    const source = anchor.datum && sectionOf(anchor);
+    if (!destination && !source) return false;
+    const departure = prepareTrip({
+      intent: mayArrive,
+      landing: () => resolve()?.where,
+    });
+    departure.plan(destination?.where ?? source, {
+      there: (readable) => Boolean(destination && readable(destination.where)),
+    });
+    if (source) {
+      const hydration = revealAddressed(source, anchor.datum);
+      if (hydration?.then) await hydration;
+      if (!mayArrive() || sectionOf(anchor) !== source) return false;
+    }
+    return arrive(resolve, { intent: mayArrive, departure });
+  }
+
+  // A remembered editor starts from its authored place, before a hidden editor is
+  // materialized. Its owner opens without focus; the ordinary arrival owns surface
+  // clearance, disclosure, presentation, caret and reading placement. A materializer
+  // may return its keyed focus-handoff release, retired after this landing.
+  async function arriveEditor(resolve, { intent, caret }) {
+    const mayArrive = retainTravel(intent);
+    const destination = resolve();
+    if (!destination?.where) return null;
+    const departure = prepareTrip({
+      intent: mayArrive,
+      landing: () => resolve()?.where,
+    });
+    departure.plan(destination.where);
+    let release = null;
+    await arrive(
+      () => {
+        const current = resolve();
+        const input = current?.input();
+        return (
+          current && {
+            where: current.where,
+            focus: input,
+            caret,
+            scroll: input
+              ? [
+                  { at: input, block: "nearest" },
+                  {
+                    at: current.where,
+                    when: () =>
+                      !readableDestination(current.where) ||
+                      !readableDestination(input),
+                  },
+                ]
+              : [{ at: current.where }],
+          }
+        );
+      },
+      {
+        intent: mayArrive,
+        departure,
+        present: async () => {
+          const current = resolve();
+          if (!current) return;
+          if (!readableDestination(current.where))
+            mayArrive.handoff(() => {
+              scrollRevealedPlace(current.where, current.where, "instant", "center");
+            });
+          if (current.open)
+            mayArrive.handoff(() => {
+              release = current.open();
+            });
+          await current.present?.();
+        },
+      },
+    );
+    if (typeof release === "function") release();
+    return mayArrive() ? (resolve()?.input() ?? null) : undefined;
+  }
+
+  // Travel's departure transaction. Capture before any reveal; plan answers whether
+  // the caller moves the page, and arrive commits only its successful handoff. Failure
+  // or newer intent leaves history and the continuing journey untouched. A destination
+  // not yet placed (a datum a widget has yet to hydrate) is somewhere else. `there` is the
   // caller's reading of already being there where it asks more than the destination's
   // own (an Ask's arrival region), built on the reading it is handed. Clearing a surface
   // can take the focus out of it, so the caller's retained `intent` hands the gesture
   // over to where that leaves the user rather than reading the move as a newer one.
-  function trip(
-    where,
-    {
-      landing = null,
-      url,
-      keep = false,
-      intent,
-      there = (readable) => readable(where),
-    } = {},
-  ) {
-    if (where && !keep) intent.handoff(() => surfaces.clearFor(where));
-    if (where && there(readableDestination)) {
-      stay(landing);
-      return false;
-    }
-    depart({ url, landing });
-    return true;
+  function prepareTrip({ landing = null, url, keep = false, intent }) {
+    const write = prepareEntry();
+    const continuing = landing && stillLanded();
+    const arrival = landing && {
+      landing,
+      passage: () => openingPassage(landing()),
+    };
+    let moving;
+    return {
+      plan(where, { there = (readable) => readable(where) } = {}) {
+        if (where && !keep) intent.handoff(() => surfaces.clearFor(where));
+        moving = !(where && there(readableDestination));
+        return moving;
+      },
+      commit() {
+        if (moving === undefined) return;
+        if (!moving) {
+          if (continuing) Object.assign(journey, arrival);
+          return;
+        }
+        journey = arrival && {
+          token: journeyPrefix + ++trips,
+          ...arrival,
+        };
+        write(
+          url ?? window.location.href,
+          journey && { lfJourney: journey.token },
+          continuing,
+        );
+      },
+    };
   }
 
   // A fragment link naming an element of the page is a trip there whose departure is
@@ -153,13 +307,14 @@ export function createAnchorTravel({
   // scrolling behind it, the link's own thread still in front), and reveal what holds
   // it, which reaches a widget's own disclosure as well as `hidden="until-found"` (a
   // worker in a shut goal is `display: none`, and the browser landed on nothing). It
-  // then lands by the browser's own fragment rule (`land`, history.js), which moves
-  // `:target` and the sequential focus starting point with it, so the arrival at a
-  // fresh load (version.js, `aimArrival`) and one in session reveal and land alike. A
+  // then lands by the browser's fragment placement rule and puts focus
+  // at the destination. Scrolling alone can leave the source link's caret as the
+  // user's standing place, so subsequent commands would still act from the source.
+  // Every activation route shares this arrival rather than supplying its own focus. A
   // fragment naming nothing here is not claimed, and the browser keeps it.
-  function followFragment(url, land) {
+  function followFragment(url) {
     const where = fragmentTarget(url.hash);
-    return where && fragmentTrip(where, land);
+    return where && fragmentTrip(url, true);
   }
 
   // Back or Forward restores the offset the entry was left at (history.js), which is
@@ -173,18 +328,25 @@ export function createAnchorTravel({
   // the fragment rule itself (`scrollToFragment`).
   function returnToFragment(url) {
     const where = fragmentTarget(url.hash);
-    return where && !where.checkVisibility()
-      ? fragmentTrip(where, () => scrollToFragment(where))
-      : null;
+    return where && !where.checkVisibility() ? fragmentTrip(url, false) : null;
   }
 
-  function fragmentTrip(where, land) {
+  function fragmentTrip(url, focus) {
     const mayArrive = retainTravel();
-    return async () => {
-      mayArrive.handoff(() => surfaces.clearFor(where));
-      await reveal(where, mayArrive);
-      if (mayArrive()) land();
-    };
+    return () =>
+      arrive(
+        () => {
+          const where = fragmentTarget(url.hash);
+          return (
+            where && {
+              where,
+              focus: focus ? where : null,
+              scroll: [{ at: where, block: "fragment" }],
+            }
+          );
+        },
+        { intent: mayArrive },
+      );
   }
 
   async function navigateToDatum(
@@ -203,6 +365,10 @@ export function createAnchorTravel({
       return false;
     }
 
+    const url = new URL(window.location.href);
+    url.hash = source.id;
+    const departure = prepareTrip({ url, intent: mayArrive });
+
     // The widget owns filters, lazy projection, and the state a visual draws. Ask it to
     // make the key reachable before interpreting DOM presence.
     const hydration = revealAddressed(source, key);
@@ -213,53 +379,33 @@ export function createAnchorTravel({
       if (missing) announce(missing);
       return false;
     }
-    let destination = addressedElements(source, key)[0] ?? null;
+    const destination = addressedElements(source, key)[0] ?? null;
 
-    const url = new URL(window.location.href);
-    url.hash = source.id;
-    const moving = trip(destination, { url, intent: mayArrive });
+    const moving = departure.plan(destination);
     if (!destination) {
-      reveal(source, mayArrive);
-      scrollRevealedElement(source, scrollBehavior(), "start");
-      if (missing) announce(missing);
+      await arrive(
+        () => {
+          const where = referencedProjection(owner, attribute);
+          return (
+            where && { where, focus: null, scroll: [{ at: where, block: "start" }] }
+          );
+        },
+        { intent: mayArrive, departure },
+      );
+      if (mayArrive() && missing) announce(missing);
       return false;
     }
-
-    await reveal(destination, mayArrive);
-    if (!mayArrive()) return false;
-    source = referencedProjection(owner, attribute);
-    destination = source && (addressedElements(source, key)[0] ?? null);
-    if (!destination) {
-      if (missing) announce(missing);
-      return false;
-    }
-    const disclosure = closestAcross(destination, "details");
-    disclosure?.querySelector(":scope > summary")?.focus({ preventScroll: true });
-    if (moving) scrollRevealedElement(destination);
-    if (success) announce(success);
-    return true;
-  }
-
-  // Where in its scroller's landing band a destination's top stands. An element keeps
-  // the room its own `scroll-margin-top` asks for, which is the browser's rule for every
-  // native landing: a destination wearing the ring outside itself asks for the ring's
-  // room, and a landing flush with the band's edge cut the ring off there.
-  function centreBy(where, block = "center", box = pageScroller) {
-    const rect =
-      where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
-    const band = landingBand(box);
-    const room = band.bottom - band.top;
-    const margin =
-      where instanceof Range
-        ? 0
-        : Number.parseFloat(getComputedStyle(where).scrollMarginTop) || 0;
-    const place =
-      where instanceof Range
-        ? (room - rect.height) / 2
-        : block === "start"
-          ? margin
-          : Math.max((room - rect.height) / 2, margin);
-    return rect.top - band.top - place;
+    const arrived = await arrive(
+      () => {
+        const source = referencedProjection(owner, attribute);
+        const where = source && addressedElements(source, key)[0];
+        return where && { where, focus: where, scroll: moving ? [{ at: where }] : [] };
+      },
+      { intent: mayArrive, departure },
+    );
+    if (mayArrive() && (arrived ? success : missing))
+      announce(arrived ? success : missing);
+    return arrived;
   }
 
   // Reading-region membership also covers fixed chrome, but its viewport position does
@@ -267,61 +413,24 @@ export function createAnchorTravel({
   // (`scrollersOf`); a scroller inside that boundary still owns its ordinary descendants.
   const scrollingBoxFor = (element) => scrollersOf(element).next().value ?? null;
 
-  // Centre a destination in the box that scrolls it, then bring it into each box around
-  // that one only as far as it must: a bounded block the page shows leaves the page
-  // still, and one scrolled out of the window comes back with the destination in it.
-  // Each move is reckoned from where the moves inside it leave the destination, so a
-  // glide in the inner box composes with the one around it.
-  function centreThrough(where, holder, block, behavior) {
-    const [box, ...around] = scrollersOf(holder);
-    if (!box) return;
-    const rect =
-      where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
-    let { top, bottom } = rect;
-    const centre = centreBy(where, block, box);
-    let moved = reachable(box, centre);
-    moveScrollerBy(box, centre, behavior);
-    for (const outer of around) {
-      top -= moved;
-      bottom -= moved;
-      const band = landingBand(outer);
-      if (!band) return;
-      const by =
-        top < band.top
-          ? top - band.top
-          : bottom > band.bottom
-            ? Math.min(bottom - band.bottom, top - band.top)
-            : 0;
-      moved = reachable(outer, by);
-      if (Math.abs(moved) >= 1) moveScrollerBy(outer, moved, behavior);
-    }
-  }
-
-  function scrollRevealedElement(
-    element,
-    behavior = scrollBehavior(),
-    block = "center",
+  function placeScroll(
+    { at, align = at, block = "center", behavior = scrollBehavior(), when },
+    replacedView,
   ) {
-    element.scrollIntoView({
-      block: "nearest",
-      inline: "nearest",
-      behavior: block === "nearest" ? behavior : "instant",
-    });
-    if (block === "nearest") return;
-    // The document and nested reading regions share this path. Only the scroller that
-    // actually owns the element receives the centring move.
-    centreThrough(element, element, block, behavior);
+    if (when && !when()) return;
+    if (block === "fragment") scrollToFragment(at);
+    else scrollRevealedPlace(at, align, replacedView ? "instant" : behavior, block);
   }
 
   // Synchronous: the move is the caller's gesture, so its intent is the one standing now.
   function scrollToElement(element, behavior = scrollBehavior(), block = "center") {
-    reveal(element, retainUserIntent());
-    scrollRevealedElement(element, behavior, block);
+    const { replacedView } = reveal(element, retainUserIntent());
+    placeScroll({ at: element, behavior, block }, replacedView);
   }
 
   // A destination's box and what of it the user can see, which is that box less the
   // window and whatever clips it, or null when none of it shows. The selected surface is
-  // read past, as `arrived` says; any other occluder is not.
+  // read past: it can be cleared for travel; any other occluder is not.
   function seenOf(where) {
     const holder = placeHolder(where);
     if (!holder) return null;
@@ -353,58 +462,91 @@ export function createAnchorTravel({
     );
   }
 
-  function scrollRevealedRange(where, behavior = scrollBehavior()) {
-    const holder = placeHolder(where);
+  // Native nearest alignment: a destination spanning both edges stays; one larger
+  // than the viewport lands its nearer edge rather than hiding its opening words.
+  function nearestBy(start, end, low, high) {
+    if (start < low && end > high) return 0;
+    const oversized = end - start > high - low;
+    if (start < low) return oversized ? end - high : start - low;
+    if (end > high) return oversized ? start - low : end - high;
+    return 0;
+  }
+
+  // Prepare only scrollports inside the owning reading region. Snapping the owning
+  // region (or the document) into view first consumes the distance the glide should
+  // travel, so a far destination appears to teleport before a tiny alignment move.
+  // Elements and passages share this placement, including horizontal inspection.
+  function scrollRevealedPlace(where, alignment, behavior, block) {
+    if (block === "nearest" && where instanceof Element) {
+      where.scrollIntoView({ block, inline: "nearest", behavior });
+      return;
+    }
+    const holder = placeHolder(alignment);
     if (!holder) return;
     const targetScroller = scrollingBoxFor(holder);
     if (!targetScroller) return;
-    // Reveal nested scrollports without writing the document position, then glide the
-    // owning reading region once. A wide pre or diagram needs both axes settled first.
-    for (let box = holder; box && box !== targetScroller; box = renderedParent(box)) {
-      if (box.scrollWidth <= box.clientWidth && box.scrollHeight <= box.clientHeight)
-        continue;
+    // Horizontal inspection can belong to any ancestor, the owning region included.
+    // Only inner scrollports prepare Y; the region and its outers glide below.
+    let inside = true;
+    for (
+      let box = placeHolder(where);
+      box instanceof Element;
+      box = renderedParent(box)
+    ) {
+      if (box === targetScroller) inside = false;
       const band = landingBand(box);
       if (!band) continue;
       const { left, right, top, bottom } = band;
       const destination = where.getBoundingClientRect();
-      let byX = 0;
-      if (destination.left < left && destination.right <= right)
-        byX = destination.left - left;
-      else if (destination.right > right && destination.left >= left)
-        byX = destination.right - right;
-      let byY = 0;
-      if (destination.top < top && destination.bottom <= bottom)
-        byY = destination.top - top;
-      else if (destination.bottom > bottom && destination.top >= top)
-        byY = destination.bottom - bottom;
-      if (byX || byY) box.scrollBy({ left: byX, top: byY, behavior: "instant" });
+      const byX = nearestBy(destination.left, destination.right, left, right);
+      const byY = inside
+        ? nearestBy(destination.top, destination.bottom, top, bottom)
+        : 0;
+      if (byX || byY)
+        box.scrollBy({
+          ...localScrollBy(box, { x: byX, y: byY }),
+          behavior: "instant",
+        });
+      if (box === pageScroller || getComputedStyle(box).position === "fixed") break;
     }
-    centreThrough(where, holder, "center", behavior);
+    scrollIntoReadingBand(alignment, holder, block, behavior);
   }
 
   function scrollToRange(where, behavior = scrollBehavior()) {
     const holder = placeHolder(where);
     if (!holder) return;
-    reveal(holder, retainUserIntent());
-    scrollRevealedRange(where, behavior);
+    const { replacedView } = reveal(holder, retainUserIntent());
+    placeScroll({ at: where, behavior }, replacedView);
   }
 
   // Hydration may outlive its gesture. After it settles, validate the retained intent
   // and synchronously repaint before reading placement. The second refresh after reveal
   // handles outlets or fallback placement whose geometry appears only when opened.
-  // Where a thread's travel lands: its first mark, or the element its anchor placed.
+  // Travel reads the first passage segment or semantic element from canonical placement,
+  // independently of whether the selected presentation paints a mark.
   // A thread pointed into its target is travelled to at the row its own margin row
   // stands by (pointed-place.js), which a target taller than the window would otherwise
   // leave off screen.
   const threadDestination = (id) => {
     const placement = anchors.placedAt(id);
-    const where = anchors.marksFor(id)[0] ?? placement?.element ?? null;
-    return standingPoint(placement?.target, placement?.point) ?? where;
+    const segment = targetSegments(placement)[0];
+    const where = segment
+      ? rangeOf([segment])
+      : (targetElement(placement) ?? targetPlace(placement));
+    return (
+      standingPoint(
+        targetElement(placement) ?? targetPlace(placement),
+        placement?.point,
+      ) ?? where
+    );
   };
 
-  async function scrollToThread(id, { land = null, keep = false } = {}) {
-    const mayArrive = retainTravel();
-    const thread = currentThreads().find((candidate) => candidate.id === id);
+  async function scrollToThread(
+    id,
+    { focus = null, keep = false, presented = null, intent } = {},
+  ) {
+    const mayArrive = retainTravel(intent);
+    const thread = threadNames(currentThreads()).get(id);
     const anchor = thread?.anchor;
     const status = anchors.placedAt(id)?.status;
     const hydrating =
@@ -414,7 +556,8 @@ export function createAnchorTravel({
     // Decided before the trip awaits anything: a destination that is not readable now,
     // or one a widget has yet to hydrate, is somewhere else.
     const landing = () => threadDestination(id);
-    if (standing || hydrating) trip(standing, { landing, keep, intent: mayArrive });
+    const departure = prepareTrip({ landing, keep, intent: mayArrive });
+    if (standing || hydrating) departure.plan(standing);
     if (hydrating) {
       const source = sectionOf(anchor);
       // A visual draws the state holding its part synchronously; a lazy datum may load.
@@ -426,38 +569,45 @@ export function createAnchorTravel({
       if (!mayArrive()) return false;
     }
 
-    let where = threadDestination(id);
-    if (!where) return false;
-    let holder = placeHolder(where);
-    if (!holder) return false;
-    await reveal(holder, mayArrive);
-    if (!mayArrive()) return false;
     // The marks, the placement and the widget outlet this arrival lands in are all
     // written by the thread pass. Wait for it: a claim is synchronous but its
     // paint is not, so reading the destination in this turn would find the page as the
     // press left it.
-    await refreshThread();
-    if (!mayArrive()) return false;
-    where = threadDestination(id);
-    if (!where) return false;
-    holder = placeHolder(where);
-    if (!holder) return false;
-    land?.();
-    if (arrived(where, keep)) return true;
-    // Reveal has already had its one chance to replace projection DOM. Scrolling the
-    // fresh placement must not emit another lf-reveal before using that identity.
-    if (where instanceof Range) scrollRevealedRange(where);
-    else scrollRevealedElement(where);
-    return true;
+    return arrive(
+      () => {
+        const where = threadDestination(id);
+        if (!where) return null;
+        const target = focus && threadFocusTarget(id, { focus });
+        return {
+          where,
+          focus: target,
+          scroll: [
+            ...(target ? [{ at: target, block: "nearest" }] : []),
+            { at: where, when: () => !readableDestination(where) },
+          ],
+        };
+      },
+      {
+        intent: mayArrive,
+        departure,
+        present: async () => {
+          if (presented) await presented;
+          if (mayArrive()) await refreshThread();
+        },
+        keep,
+      },
+    );
   }
 
   return {
-    trip,
+    prepareTrip,
+    arrive,
+    arriveEditor,
+    restoreSelection,
     followFragment,
     returnToFragment,
     navigateToDatum,
     scrollToElement,
-    scrollRevealedElement,
     readableDestination,
     scrollToRange,
     scrollToThread,

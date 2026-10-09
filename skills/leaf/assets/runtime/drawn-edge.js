@@ -8,6 +8,7 @@ import { el } from "./widget-elements.js";
 import { keys } from "./keyboard/scopes.js";
 import { setRuntimeRootStyle } from "./root-state.js";
 import { keeps, keepsHidden } from "./keeps.js";
+import { focusDestination } from "./focus.js";
 
 // The step an arrow takes, in the column's own gutter: the smallest move that shows in a
 // page of prose.
@@ -31,9 +32,9 @@ let activeResize = null;
  * kept and the standing width is derived from it. Everything reads `width`; nothing holds
  * the number.
  *
- * One width, and a handle for each region on that side: the left edge holds two drawers one
- * at a time, and each wears the edge it is drawn by, because a handle outside them both
- * would not slide in with the drawer it belongs to. They are handles onto one fact rather
+ * One width, and a handle for each region on that side: the right edge holds the Threads
+ * and Questions panels one at a time, and each wears the edge it is drawn by, because a
+ * handle outside them both would not slide in with the panel it belongs to. They are handles onto one fact rather
  * than two facts — `state` is the one writer, and it says the same thing on every one.
  */
 export function drawnEdge({ side, noun, wide, min, prop, key, when, land }) {
@@ -73,7 +74,7 @@ export function drawnEdge({ side, noun, wide, min, prop, key, when, land }) {
       // drops focus to body during a rotation that closes the range.
       const fixed = cap() <= min;
       if (fixed && handle === document.activeElement)
-        handle.lfFixedFocus().focus({ preventScroll: true });
+        focusDestination(handle.lfFixedFocus(), "return");
       keepsHidden(handle, fixed);
     }
   }
@@ -148,7 +149,7 @@ export function drawnEdge({ side, noun, wide, min, prop, key, when, land }) {
       if (activeResize?.edge !== edge || activeResize.pointerId !== event.pointerId)
         return;
       activeResize = null;
-      edge.focus({ preventScroll: true });
+      focusDestination(edge, "move");
     };
     for (const ending of ["pointerup", "pointercancel", "lostpointercapture"])
       edge.addEventListener(ending, finish);
@@ -168,17 +169,16 @@ export function drawnEdge({ side, noun, wide, min, prop, key, when, land }) {
             {
               id: "region.resize-left",
               binding: "ArrowLeft",
-              does: `Move the ${noun}'s edge left`,
+              title: `Move the ${noun}'s edge left`,
             },
             {
               id: "region.resize-right",
               binding: "ArrowRight",
-              does: `Move the ${noun}'s edge right`,
+              title: `Move the ${noun}'s edge right`,
             },
           ],
           label: "arrows",
-          does: `Resize the ${noun}`,
-          line: `resize the ${noun}`,
+          title: `resize the ${noun}`,
           repeat: true,
           run: (binding) => set(width() + (binding === wider ? EDGE_STEP : -EDGE_STEP)),
         },

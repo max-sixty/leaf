@@ -1,11 +1,14 @@
 # Added with the one-row workspace header (#1301). Base at cd1d37b0d 0 of 3 (one run
 # put a lede in the header), the change 3 of 3.
-schema_version: '1.0'
-name: workspace-header-is-one-row
-description: "Writing a workspace: its header takes the window's height before the panes do, so it holds the title and the page's status and nothing a pane could hold."
-tags:
-- layout
-execution:
+# takes-working-density added with `density-working`, which the workspace template now
+# writes beside the Layout class.
+description: workspace-header-is-one-row
+metadata:
+  purpose: 'Writing a workspace: its header takes the window''s height before the panes do, so it holds
+    the title and the page''s status and nothing a pane could hold.'
+  tags:
+  - layout
+vars:
   prompt: |
     Write a Leaf page for the user as a workspace. It reviews 14 flaky tests from last
     week's CI: a list of the tests on the left, ordered by how often each failed, and on
@@ -17,18 +20,10 @@ execution:
 
     The page directory is not reachable from here, so reply with the complete
     `index.html`, rather than writing a file.
-graders:
-- name: loads-leaf
-  type: tool_used
-  tool: Skill
-  input_match: leaf
-- name: reads-page-authoring
-  type: tool_used
-  tool: Read
-  input_match: skills/leaf/references/page-authoring\.md
-- name: judgment
-  type: llm
-  criteria: |
+assert:
+- type: llm-rubric
+  metric: judgment
+  value: |
     Read the HTML. Pass only if `main` has class `layout-workspace` and its `header`
     holds the title and, at most, the page's status as short chips or one short line of
     them (for example `.tag` spans saying how many are quarantined or fail often): no
@@ -37,3 +32,7 @@ graders:
     region of the body (for example at the top of the list pane or the detail pane).
     Fail if the header holds a lede or explanatory paragraph, or if the explanation was
     dropped from the page entirely.
+- type: regex
+  metric: takes-working-density
+  value: <main\b[^>]*\bclass=["'][^"']*\bdensity-working\b
+  transform: output.toLowerCase()

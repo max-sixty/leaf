@@ -29,6 +29,29 @@ transfer, or end their relationships. Identify where different owners cooperate.
 Derive expected behavior from the contracts and user's goal; use implementation
 to establish reachable states and mechanisms. Name unsettled design assumptions.
 
+## External review
+
+Use "External UI skills" in `../developing-leaf/SKILL.md` to choose an
+additional review perspective. When review scope is open, offer the relevant
+options with a recommendation: visual critique, technical audit, or a broader
+sweep. Select the tool for the user's question and proceed with authorized
+review work while any optional preference is pending.
+
+Apply the current
+[Web Interface Guidelines](https://raw.githubusercontent.com/vercel-labs/web-interface-guidelines/main/command.md)
+to changed controls and their dependent interactions. For composition questions,
+start with Impeccable's `critique`; follow its relevant focused workflows when
+refining the result. Read the installed skill and the selected playbook in full.
+When a skill is unavailable, state that and use its upstream guidance or Leaf's
+browser workflow; keep the review moving.
+
+Verify findings against ordinary browser use and Leaf's owning contracts.
+Authoring preferences remain the author's and user's choices. External guidance
+adds a perspective; Leaf's browser proof, baseline comparisons and retained-state
+checks still apply. Report verified findings, coverage and unresolved judgments.
+A comparison of review methods records matched inputs and cost separately from
+ordinary review; finding counts alone do not establish a tool's contribution.
+
 ## Challenge
 
 Before validating a proposed result, write competing failure hypotheses for the

@@ -12,6 +12,7 @@ import http.client
 import http.cookiejar
 import json
 import os
+import secrets
 import shlex
 import shutil
 import socket
@@ -23,11 +24,12 @@ import time
 import urllib.parse
 import urllib.request
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor, wait
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from functools import cache
 from pathlib import Path
 
+import psutil
 import pytest
 import yaml
 from click.testing import CliRunner
@@ -38,16 +40,19 @@ from leaf import data as data_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import files as files_model
-from leaf import host as host_model
+from leaf import harness as harness_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
+from leaf import leases as leases_model
 from leaf import packages as packages_model
+from leaf import page_memory as page_memory_model
 from leaf import passages as passages_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import server as server_model
+from leaf import server_rows as server_rows_model
 from leaf import service as service_model
-from leaf import session as session_model
+from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
@@ -62,8 +67,8 @@ from pytest_regtest.snapshot_handler import (
 )
 
 ROOT = Path(__file__).parent.parent
-# The checkout and the payload a host installs are one tree now; PLUGIN_ROOT still
-# names the role a path plays — "what a host runs" — for the tests built on that.
+# The checkout and the payload a harness installs are one tree now; PLUGIN_ROOT still
+# names the role a path plays — "what a harness runs" — for the tests built on that.
 PLUGIN_ROOT = ROOT
 # The payload's manifests, hooks and launcher hang off PLUGIN_ROOT; the six product parts
 # sit one skill directory below it. Both are wanted often enough to be worth naming, and
@@ -108,10 +113,42 @@ def append_command(page_dir, command):
     """Seed a widget command through the real append door.
 
     A test of raw storage or retired vocabulary passes an explicitly admitted
-    event, including meaning, to event_log.append_event instead.
+    event, including meaning and attention, to event_log.append_event instead.
     """
     with service_model.PageTransaction(page_dir) as page:
         return event_contracts_model.append_admitted(page, command)
+
+
+def response_reference(page_dir, event):
+    """Read the exact address emitted by the real delivery producer for an input."""
+    from leaf.delivery import batch_data, freeze_delivery
+
+    event_id = event["id"] if isinstance(event, dict) else event
+    with service_model.PageTransaction(page_dir) as page:
+        captured = next(item for item in page.events if item["id"] == event_id)
+        batch = batch_data(page_dir, page, [captured])
+    return freeze_delivery([batch])["batches"][0]["events"][0]["answer"]["ref"]
+
+
+def append_carried_log_record(page_dir, event):
+    """Seed already-interpreted input for a storage or transport test.
+
+    These tests declare input the transport must deliver, without a document that
+    could decide its meaning. Semantic attention cases use `append_command`.
+    A raw fixture can explicitly declare `attention=False` for quiet input.
+    """
+    from leaf.registry.kernel import bookkeeping_kinds
+
+    return events_model.append_event(
+        page_dir,
+        {
+            "attention": (
+                event["author"] == "user" and event["kind"] not in bookkeeping_kinds()
+            )
+            or event["kind"] in {"report", "error"},
+            **event,
+        },
+    )
 
 
 def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
@@ -213,6 +250,10 @@ class ModelPage:
             "which a stated page has none of: put that refusal on `page_dir`"
         )
 
+    @property
+    def claims(self) -> list:
+        return []
+
 
 def spawn_probe(spawn, page_dir, body, **environment):
     """Run a deterministic race seam in an isolated Leaf application process."""
@@ -226,16 +267,31 @@ def spawn_probe(spawn, page_dir, body, **environment):
     )
 
 
-STATED_TIMEOUT = 10
+STATED_TIMEOUT = 60
 """How long a pure-Python wait gives another thread or process to state its fact.
 
 The deadline separates a product that never states the fact from a machine that
-has not reached it yet, so it is generous rather than tight. Two workers share
-one runner's cores with a browser, and a stretch of ordinary work there runs
-many times slower than it does on an unloaded host: a wait sized as a small
-multiple of the unloaded duration reddens `main` on the runs where the other
-worker happens to be driving Chrome. `SERVED_TIMEOUT_MS` is the browser side's
-counterpart, more generous again for the work a page does."""
+has not reached it yet, so it is generous rather than tight. Several workers
+share one runner's cores with their browsers, and a stretch of ordinary work there
+runs many times slower than it does on an unloaded host: a wait sized as a small
+multiple of the unloaded duration reddens `main` on the runs where another worker
+happens to be driving Chrome. On a local host at load 230 over 18 cores,
+two concurrent `page init`s took up to 25s and three `leaf codex start`
+commands 20s. `SERVED_TIMEOUT_MS` is the browser side's counterpart.
+
+Every Python-side wait in the suite takes its deadline from here, so a slow machine
+is answered in one place (`test_a_wait_takes_the_suites_deadline`). A
+wait whose length is its subject, such as a product's own timeout passed in to be
+exercised, names that value where it is defined instead."""
+
+COMPOSITE_TIMEOUT = 2 * STATED_TIMEOUT
+"""The hang bound on a subprocess that does several stated waits' worth of work
+before it says anything: a nested pytest run, a preview that builds and serves a
+page before printing its address, a hook launched through uv."""
+
+POLL_INTERVAL = 0.05
+"""How often a pure-Python poll re-reads its fact. It sets how soon a fact is seen
+once stated, never whether it is."""
 
 
 def wait_for(
@@ -260,24 +316,65 @@ def wait_for(
         if time.monotonic() >= deadline:
             said = failure() if callable(failure) else failure
             pytest.fail(f"{said}; last reading was {reading!r}")
-        time.sleep(0.05)
+        time.sleep(POLL_INTERVAL)
+
+
+def lock_contention(
+    monkeypatch, *paths: Path, by: str | None = None
+) -> threading.Event:
+    """Return an event set once an exclusive lock on one of `paths` finds it held.
+
+    A taker blocked in the kernel states nothing, so neither a sleep nor a short
+    wait can tell one held behind the lock from one that never reached it, or from
+    one let through. This intercepts `flock`: a blocking exclusive request on the
+    file one of `paths` names is first tried without blocking, and when that is
+    refused the event is set before the request waits as its caller asked. An
+    uncontended acquisition passes through and sets nothing.
+
+    `by` names the thread whose waiting is the claim, where another thread could
+    take the same lock in passing; leave it out where only the taker under test
+    can."""
+    native_flock = fcntl.flock
+    contended = threading.Event()
+
+    def names(fd) -> bool:
+        held = os.fstat(fd if isinstance(fd, int) else fd.fileno())
+        for path in paths:
+            try:
+                if os.path.samestat(held, os.stat(path)):
+                    return True
+            except FileNotFoundError:
+                continue
+        return False
+
+    def observed_flock(fd, operation):
+        taker = threading.current_thread().name
+        if operation == fcntl.LOCK_EX and by in (None, taker) and names(fd):
+            try:
+                return native_flock(fd, operation | fcntl.LOCK_NB)
+            except BlockingIOError:
+                contended.set()
+        return native_flock(fd, operation)
+
+    monkeypatch.setattr(fcntl, "flock", observed_flock)
+    return contended
 
 
 def take_stream_activity(monkeypatch, updates: list, clears: list) -> None:
     """Collect every activity reading a turn writes, instead of a page taking it.
 
-    Every carrier and host calls the writers through `leaf.codex`, so that one binding
+    Every App Server client and harness calls the writers through `leaf.codex`, so that one binding
     takes them all. Pass empty lists for a test that wants them to touch nothing.
     """
     monkeypatch.setattr(
         codex_model,
         "set_stream_activity",
-        lambda session, turn, detail: updates.append((session, turn, detail)),
+        lambda session, turn, detail, **_scope: updates.append((session, turn, detail)),
     )
     monkeypatch.setattr(
         codex_model,
         "clear_stream_activity",
-        lambda session, turn=None: clears.append((session, turn)),
+        lambda session, turn=None, **_scope: clears.append((session, turn)),
     )
 
 
@@ -291,7 +388,7 @@ def running_http_server(httpd):
     finally:
         httpd.shutdown()
         httpd.server_close()
-        thread.join(timeout=5)
+        thread.join(timeout=STATED_TIMEOUT)
         assert not thread.is_alive(), "the fixture HTTP server did not stop"
 
 
@@ -340,7 +437,7 @@ def shipped_payload():
 
 
 def install_payload(destination):
-    """Copy the candidate payload the way a host installs the committed tree."""
+    """Copy the candidate payload the way a harness installs the committed tree."""
     for path in shipped_payload():
         target = destination / path.relative_to(PLUGIN_ROOT)
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -365,7 +462,7 @@ def vendored_by_another_leaf(page_dir: Path) -> str:
     foreign = "sha256:" + "b" * 64
     assert registry["$layer"]["runtime"] != foreign
     registry["$layer"]["runtime"] = foreign
-    files_model.write_json(stamp, registry)
+    cleanup_model.write_json(stamp, registry)
     return foreign
 
 
@@ -432,14 +529,8 @@ def page_dir(tmp_path, monkeypatch, initialized_page):
 
 
 def check(d):
-    """`page check`, in-process. A page that runs its own code has the check start
-    Playwright, whose sync API refuses a thread already driving another instance —
-    which a worker holding the session `browser` fixture is — so the command gets a
-    thread of its own."""
-    with ThreadPoolExecutor(1) as pool:
-        return pool.submit(
-            CliRunner().invoke, cli_model.cli, ["page", "check", str(d)]
-        ).result()
+    """`page check`, in-process."""
+    return CliRunner().invoke(cli_model.cli, ["page", "check", str(d)])
 
 
 def read_page_data(page_dir) -> dict:
@@ -455,15 +546,15 @@ def declare_data_input(
     contract="test-data",
     tag="lf-test-data",
     input_name="data",
-    guidance=None,
+    instructions=None,
     activate=True,
 ):
     """Add one typed widget input and bind it in the mutable source."""
     registry_path = page_dir / "registry.json"
     registry = json.loads(registry_path.read_text())
     declaration = {"description": "Test data contract.", "schema": schema}
-    if guidance:
-        declaration["guidance"] = guidance
+    if instructions:
+        declaration["instructions"] = instructions
     registry["$data"]["contracts"][contract] = declaration
     registry[tag] = {
         "description": "A test widget with one external-data input.",
@@ -497,8 +588,9 @@ def stamp_activation(d):
     log with transitions allowed, ahead of the note that records them."""
     from leaf.validation.source import check_source
 
-    checked = check_source(d, events_model.read_events(d), allow_transition=True)
-    return revisioning_model.activate_checked_source(d, checked)
+    with service_model.PageTransaction(d) as page:
+        checked = check_source(d, page.events)
+        return revisioning_model.activate_checked_source(page, checked)
 
 
 def publish(d, version=1):
@@ -507,7 +599,7 @@ def publish(d, version=1):
     can only ever be made against one the server exposed."""
     activated = stamp_activation(d)
     assert activated.error is None and activated.revision is not None
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "note",
@@ -533,7 +625,7 @@ def let_a_pick_settle_a_thread(page_dir, thread):
     """
     registry = files_model.read_json(page_dir / "registry.json")
     registry["lf-options"]["properties"]["resolves"] = {"type": "string"}
-    files_model.write_json(page_dir / "registry.json", registry)
+    cleanup_model.write_json(page_dir / "registry.json", registry)
     # An Ask, so a pick answers it; the markup already records that pick, so the
     # answer owes no version of its own and only the thread is left to settle.
     source = page_dir / "index.html"
@@ -567,34 +659,82 @@ def page_state(d):
     return served_page.full_state(d, events)
 
 
-def record_claim(page, harness="claude-code", **fields):
+def record_claim(page, /, harness="claude-code", **fields):
     """Write the canonical claim shape for lifecycle fixtures.
 
     `harness` is checked against Leaf's own table, so a fixture cannot record a
     name `take_claim` would never write."""
+    observed = cleanup_model.session_record(fields.get("id", "s1"))
+    if observed and not observed["provider"]:
+        observed = None
     record = {
         "page": str(page.resolve()),
         "id": "s1",
-        "harness": host_model.HARNESSES[harness].name,
+        "harness": harness_model.HARNESSES[harness].name,
         "pid": os.getpid(),
         "agent": "Claude",
         "cwd": str(Path.cwd()),
         "ts": "t",
         "released": None,
-        "turn": "turn-1",
-        "turn_opened": events_model.now_iso(),
-        "turn_closed": None,
+        "turn": observed["turn"] if observed else "turn-1",
+        "turn_opened": observed["turn_opened"] if observed else cleanup_model.now_iso(),
+        "turn_closed": observed["turn_closed"] if observed else None,
         **fields,
     }
-    # A lifetime is one key, the way `take_claim` spreads it: a claim naming a job
-    # record or resting on activity states no pid, and a reader that saw one there
-    # would be reading a fixture rather than a shape leaf writes.
-    if fields.keys() & {"job", "activity"}:
-        record.pop("pid", None)
-    path = service_model.claim_path(page)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    files_model.write_json(path, record)
-    return record
+    lifetime = {key: record[key] for key in ("job", "activity") if key in record}
+    if not lifetime:
+        lifetime = {"pid": record["pid"]}
+    turn = {key: record[key] for key in ("turn", "turn_opened", "turn_closed")}
+    session = cleanup_model.ensure_session(record["id"], lifetime)
+    session = cleanup_model.write_session({**session, **turn})
+    record = {
+        key: value
+        for key, value in record.items()
+        if key not in {"job", "activity", "pid", "turn", "turn_opened", "turn_closed"}
+    }
+    record["generation"] = session["generation"]
+    record["acquisition"] = fields.get("acquisition", secrets.token_hex(16))
+    service_model.publish_claim(page, record)
+    return service_model.page_claim(page)
+
+
+def bind_task_lifetime_to_worker(page):
+    """Keep a synthetic task standing after its one-command harness exits.
+
+    The worker stands for the real harness process that survives tool calls. This
+    changes only that existing task's lifetime provenance, under its session
+    lock: its generation, turn, provider observation, and page acquisition stay
+    intact. Recording another claim would create a replacement generation and
+    briefly leave the already-running adapter with no pages to own.
+    """
+    claim = service_model.page_claim(page)
+    with cleanup_model.flocked(cleanup_model.session_lock_path(claim["id"])):
+        record = cleanup_model.session_record(claim["id"])
+        assert record["generation"] == claim["generation"]
+        assert record["ended"] is None
+        cleanup_model.write_session({**record, "lifetime": {"pid": os.getpid()}})
+
+
+def release_codex_command(page, host, finished):
+    """Complete a held command before its synthetic Codex harness can exit.
+
+    The command must finish its claim transaction while its ancestor is alive.
+    The canonical lifetime handoff then keeps that same task standing for later
+    delivery, before the fixture releases the one-command harness.
+    """
+    wait_for(
+        finished.exists,
+        bool,
+        failure="the held Codex command did not finish",
+    )
+    bind_task_lifetime_to_worker(page)
+    release_held(host)
+
+
+def release_held(host):
+    """Let an `under_codex` harness held with `finished` exit, by giving its
+    shell the line it waits for. The pipe stays open for `communicate`."""
+    os.write(host.stdin.fileno(), b"\n")
 
 
 def live_versions(d):
@@ -665,7 +805,7 @@ def _decided(page_dir, words):
             "revision": files_model.latest_revision(page_dir),
             "widget": "d1",
             "action": "edit",
-            "detail": {"text": "Cut the flag; backfill first."},
+            "detail": {"value": "Cut the flag; backfill first."},
         },
     )
     return lambda words, attrs="": (page_dir / "index.html").write_text(
@@ -745,6 +885,22 @@ def state_json(d):
     return json.loads(result.output)
 
 
+def asks_on_you(state):
+    """The Asks on the user's queue in one agent-facing state: each open Ask's task,
+    as the widget it is and the widget that answers it."""
+    return [
+        {
+            "id": item["id"],
+            "tag": item["ask"]["tag"],
+            "widget": item["ask"]["widget"],
+            "widget_tag": item["ask"]["widget_tag"],
+            "thread": item["thread"],
+        }
+        for item in state["queues"]["on_you"]
+        if item.get("ask")
+    ]
+
+
 def owed(state):
     """The workflows one agent-facing state still owes an answer.
 
@@ -781,10 +937,9 @@ ACCEPT = {
 def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     """Hold one admitted writer at append and prove re-vendor cannot pass it.
 
-    A re-vendor decides twice: once in a dry run, with the page still served and
-    its log read as it stands, and again under the page transaction before it
-    writes. The dry run may pass the held writer; the decision that writes may not,
-    so the init waits for the append and refuses what it wrote."""
+    Re-vendoring waits for the admitted writer, then commits the incoming
+    vocabulary while retaining that event. Release the writer before
+    joining either worker, including when an assertion fails."""
     entering = threading.Event()
     resume = threading.Event()
     original_append_record = service_model.PageTransaction._append_record
@@ -792,7 +947,9 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     def held_append_record(page, event):
         if event.get("kind") == kind:
             entering.set()
-            assert resume.wait(timeout=10), "re-vendor never observed the writer"
+            assert resume.wait(timeout=STATED_TIMEOUT), (
+                "re-vendor never observed the writer"
+            )
         return original_append_record(page, event)
 
     def init_result():
@@ -805,19 +962,38 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     monkeypatch.setattr(
         service_model.PageTransaction, "_append_record", held_append_record
     )
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        writing = executor.submit(write)
-        assert entering.wait(timeout=10), f"{kind} never passed old-layer validation"
-        vendoring = executor.submit(init_result)
-        # A re-vendor that writes without the page transaction finishes here, with
-        # the writer still held.
-        passed_writer, _ = wait([vendoring], timeout=2)
-        resume.set()
-        written = writing.result(timeout=10)
-        refusal = vendoring.result(timeout=10)
+    # The held writer keeps whichever page locks it took until it resumes, so a
+    # re-vendor found waiting on one of them is waiting on the writer.
+    waiting = lock_contention(
+        monkeypatch, page_dir, page_dir / cleanup_model.EVENTS_FILE, by="re-vendor_0"
+    )
+    with (
+        ThreadPoolExecutor(max_workers=1) as writer,
+        ThreadPoolExecutor(max_workers=1, thread_name_prefix="re-vendor") as init,
+    ):
+        try:
+            writing = writer.submit(write)
+            wait_for(
+                entering.is_set,
+                bool,
+                failure=f"{kind} never passed old-layer validation",
+            )
+            vendoring = init.submit(init_result)
+            # Either the re-vendor waits on the writer's lock, or, written without
+            # serialization, it finishes with the writer still held.
+            wait_for(
+                lambda: waiting.is_set() or vendoring.done(),
+                bool,
+                failure="re-vendor neither waited on the writer nor finished",
+            )
+            passed_writer = not waiting.is_set()
+        finally:
+            resume.set()
+        written = writing.result(timeout=STATED_TIMEOUT)
+        refusal = vendoring.result(timeout=STATED_TIMEOUT)
 
     assert not passed_writer, f"re-vendor passed a validated {kind} writer"
-    assert refusal is not None
+    assert refusal is None
     return written, refusal
 
 
@@ -829,18 +1005,13 @@ def _mutated_registry_check(page_dir, mutate):
 
 
 def _report_body_record(registry):
-    registry["lf-task"]["x-state"]["status"]["record"] = {
-        "kind": "body",
-        "value": "status",
-    }
+    registry["lf-task"]["x-state"]["status"]["record"] = {"kind": "body"}
 
 
 def _report_position_record(registry):
     registry["lf-task"]["x-state"]["status"]["record"] = {
         "kind": "position",
         "within": "lf-column",
-        "value": "status",
-        "rank": "status",
     }
 
 
@@ -858,20 +1029,15 @@ def _report_says_attr(registry):
     task["x-says"] = {"owner": "before"}
     task["x-state"]["status"] = {
         "writer": "agent",
-        "detail": {
-            "type": "object",
-            "properties": {"owner": {"type": "string"}},
-            "required": ["owner"],
-            "additionalProperties": False,
-        },
         "unit": "widget",
-        "record": {"kind": "value", "attr": "owner", "value": "owner"},
+        "record": {"kind": "value", "attr": "owner"},
     }
 
 
-def _report_detail_drift(registry):
-    registry["lf-task"]["x-state"]["status"]["detail"]["properties"]["status"] = {
-        "type": "string"
+def _report_authored_detail(registry):
+    registry["lf-task"]["x-state"]["status"]["detail"] = {
+        "type": "object",
+        "additionalProperties": False,
     }
 
 
@@ -884,7 +1050,7 @@ def _report_without_upgrade(registry):
 
 
 def _user_verb_update(registry):
-    registry["lf-options"]["x-state"]["choose"]["update"] = "options"
+    registry["lf-options"]["x-state"]["choose"]["update"] = True
 
 
 def _agent_verb_answers(registry):
@@ -893,6 +1059,8 @@ def _agent_verb_answers(registry):
 
 
 def _body_record_with_prose(registry):
+    # Isolate the body-record contract from the Markdown/data-content contract.
+    del registry["lf-draft"]["x-text-format"]
     registry["lf-draft"]["x-content"] = "markup"
 
 
@@ -1078,7 +1246,7 @@ HELD_LEASES = []
 
 
 def serving(directory, port: int, lifetime: str = "standing") -> None:
-    """Hold the same contentless lease as a live `server run`."""
+    """Hold the serving incarnation lease of a live `server run`."""
     directory.mkdir(parents=True, exist_ok=True)
     service = {
         "host": "127.0.0.1",
@@ -1086,10 +1254,14 @@ def serving(directory, port: int, lifetime: str = "standing") -> None:
         "port": port,
         "enabled": True,
         "lifetime": lifetime,
+        "server_id": "fixture-server",
     }
-    files_model.write_json(directory / "service.json", service)
+    cleanup_model.write_json(directory / "service.json", service)
     handle = open(directory / "server.lock", "a+b")  # noqa: SIM115 - test lease
     fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    handle.truncate(0)
+    handle.write(service["server_id"].encode())
+    handle.flush()
     HELD_LEASES.append(handle)
 
 
@@ -1101,14 +1273,14 @@ def available_loopback_port() -> int:
 
 def fifo_writer(path: Path, failure: str) -> int:
     """Open a nonblocking writer once a child is waiting on this FIFO."""
-    deadline = time.monotonic() + 10
+    deadline = time.monotonic() + STATED_TIMEOUT
     while time.monotonic() < deadline:
         try:
             return os.open(path, os.O_WRONLY | os.O_NONBLOCK)
         except OSError as error:
             if error.errno != errno.ENXIO:
                 raise
-            time.sleep(0.05)
+            time.sleep(POLL_INTERVAL)
     path.unlink()
     pytest.fail(failure)
 
@@ -1143,15 +1315,51 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
     this sweep stopped every server standing there (tests/AGENTS.md, "Processes and
     servers")."""
     yield
+    retire_test_services(tmp_path, isolated_session)
+
+
+def retire_test_services(tmp_path, isolated_session):
+    """End the test's harnesses before removing their coordination files.
+
+    Detached adapters hold session leases outside any subprocess group. Their
+    lifecycle must end while its state directory still exists, so they can
+    retire normally rather than retry a deleted startup lock forever.
+    """
     while HELD_LEASES:
-        HELD_LEASES.pop().close()
+        leases_model.release_lease(HELD_LEASES.pop())
+    for path in (isolated_session / "sessions").glob(
+        f"*.{cleanup_model.SESSION_SUFFIX}"
+    ):
+        record = files_model.read_json(path)
+        if isinstance(record, dict) and isinstance(record.get("id"), str):
+            cleanup_model.end_session(record["id"])
     for root in (tmp_path, isolated_session):
         for lease in root.rglob("server.lock"):
             if server_model.running_server(lease.parent):
                 hosting_model.cmd_stop(lease.parent)
+    wait_for(
+        lambda: [
+            path.name
+            for path in (isolated_session / "sessions").glob("*.adapter")
+            if leases_model.lock_is_held(path)
+        ],
+        lambda held: not held,
+        failure="a detached adapter outlived its test's ended sessions",
+    )
 
 
-def neighbour_page(directory, title=None, dead=False, published=True):
+@contextmanager
+def fresh_process():
+    """What a newly started process holds of every page: nothing (`page_memory`)."""
+    kept = page_memory_model._memories
+    page_memory_model._memories = page_memory_model.PageMemories()
+    try:
+        yield
+    finally:
+        page_memory_model._memories = kept
+
+
+def neighbour_page(directory, title=None, dead=False, published=True, port=59999):
     """A page with desired service state and, unless dead, a live lease."""
     directory.mkdir(parents=True)
     (directory / "revisions").mkdir()
@@ -1164,13 +1372,13 @@ def neighbour_page(directory, title=None, dead=False, published=True):
     initialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(directory)])
     assert initialized.exit_code == 0, initialized.output
     write_revision(directory, 1, html.encode())
-    # What `page init` writes: a page always has a status record.
-    files_model.write_json(
+    # A neighbour the agent has finished with.
+    cleanup_model.write_json(
         directory / "status.json",
-        {"state": "idle", "detail": "", "ts": None, "after": 0},
+        {"state": "idle", "detail": "", "ts": None},
     )
     if published:
-        events_model.append_event(
+        append_carried_log_record(
             directory,
             {
                 "kind": "note",
@@ -1180,25 +1388,160 @@ def neighbour_page(directory, title=None, dead=False, published=True):
                 "text": "t",
             },
         )
-    record = {"port": 59999}
+    record = {"port": port}
     if dead:
-        files_model.write_json(
+        cleanup_model.write_json(
             directory / "service.json",
             {
                 "host": "127.0.0.1",
                 "bind": "127.0.0.1",
-                "port": 59999,
+                "port": port,
                 "enabled": True,
                 "lifetime": "standing",
+                "server_id": "fixture-server",
             },
         )
     else:
         serving(directory, record["port"])
-    return server_model.page_url("127.0.0.1", 59999, server_model.host_key())
+    server_rows_model.RowPublisher(directory, "fixture-server").refresh()
+    return server_model.page_url("127.0.0.1", port, server_model.host_key())
 
 
 def _status(page_dir, *args):
     return CliRunner().invoke(cli_model.cli, ["status", str(page_dir), *args])
+
+
+def declare_idle(page_dir):
+    """Write the page's `idle` declaration directly, past `leaf status idle`'s refusal
+    over unanswered moves, for a test whose subject is what an idle page does."""
+    with service_model.PageTransaction(page_dir) as page:
+        return page.set_status("idle", "")
+
+
+def declare_work(page_dir, line, *, item=None, ts=None, **voice):
+    """Seed the agent's work in hand as the log holds it, for a test of how a page
+    reads it: a `start` on `item`, or on the page's own task, which this opens when
+    the page has none, dated `ts` (now by default) and spoken in `voice` (`agent`,
+    `session`, `turn`). Raw, so a test can date it in the past; `working` is the
+    command an agent runs."""
+    from leaf.tasks import owed_tasks
+
+    if item is None:
+        item = (
+            next(
+                (
+                    task["id"]
+                    for task in owed_tasks(events_model.read_events(page_dir))
+                    if task["subject"] == {"kind": "page"}
+                ),
+                None,
+            )
+            or append_carried_log_record(
+                page_dir,
+                {
+                    "kind": "task",
+                    "author": "agent",
+                    "owner": "agent",
+                    "subject": {"kind": "page"},
+                    "title": "Work on the page",
+                    **({"ts": ts} if ts else {}),
+                },
+            )["id"]
+        )
+    return append_carried_log_record(
+        page_dir,
+        {
+            "kind": "start",
+            "author": "agent",
+            "item": item,
+            "text": line,
+            **({"ts": ts} if ts else {}),
+            **voice,
+        },
+    )
+
+
+def end_work(page_dir):
+    """End every open task on the page as a whole, `declare_work`'s and `working`'s,
+    so nothing the agent opened for itself is in hand any more."""
+    from leaf.tasks import owed_tasks
+
+    for task in owed_tasks(events_model.read_events(page_dir)):
+        if task["subject"] == {"kind": "page"}:
+            append_carried_log_record(
+                page_dir,
+                {
+                    "kind": "task_end",
+                    "author": "agent",
+                    "task": task["id"],
+                    "outcome": "done",
+                },
+            )
+
+
+def end_work_on(page_dir, subject):
+    """End the open tasks on the thread or widget `subject` names, done."""
+    from leaf.tasks import owed_tasks
+    from leaf.work import page_subject
+
+    named = page_subject(page_dir, events_model.read_events(page_dir), subject)
+    for task in owed_tasks(events_model.read_events(page_dir)):
+        if task["subject"] == named:
+            ended = CliRunner().invoke(
+                cli_model.cli, ["task", "end", str(page_dir), task["id"], "done"]
+            )
+            assert ended.exit_code == 0, ended.output
+
+
+def newest_move(page_dir, widget):
+    """The id of the user's newest move on `widget`, the item a start on it names."""
+    return next(
+        event["id"]
+        for event in reversed(events_model.read_events(page_dir))
+        if event["kind"] == "action"
+        and event["author"] == "user"
+        and event["widget"] == widget
+    )
+
+
+def _start(page_dir, item, line):
+    """`leaf task start`: take a move or task in hand with the banner's line."""
+    return CliRunner().invoke(
+        cli_model.cli, ["task", "start", str(page_dir), str(item), line]
+    )
+
+
+def working(page_dir, line, subject="page"):
+    """Show work no move asked for: open a task on `subject` (the page, unless a
+    thread or widget is named) and start it with `line`, as an agent does. Reuses the
+    page's open task on that subject, so a test can say what it does next. Returns the
+    start's record."""
+    from leaf import event_log as log_model
+    from leaf.tasks import owed_tasks
+    from leaf.work import page_subject
+
+    named = (
+        {"kind": "page"}
+        if subject == "page"
+        else page_subject(page_dir, log_model.read_events(page_dir), subject)
+    )
+    task = next(
+        (
+            task
+            for task in owed_tasks(log_model.read_events(page_dir))
+            if task["subject"] == named
+        ),
+        None,
+    )
+    if task is None:
+        opened = CliRunner().invoke(
+            cli_model.cli, ["task", "open", str(page_dir), subject, line[:80]]
+        )
+        assert opened.exit_code == 0, opened.output
+        task = json.loads(opened.output.splitlines()[-1])
+    started = _start(page_dir, task["id"], line)
+    assert started.exit_code == 0, started.output
+    return json.loads(started.output.splitlines()[-1])
 
 
 @pytest.fixture
@@ -1215,17 +1558,17 @@ def comment_once_served():
     posting = []
 
     def watch(page_dir):
-        deadline = time.monotonic() + 30
+        deadline = time.monotonic() + STATED_TIMEOUT
 
         def post():
-            while not stopped.wait(0.1):
+            while not stopped.wait(POLL_INTERVAL):
                 if server_model.running_server(page_dir):
-                    events_model.append_event(
+                    append_carried_log_record(
                         page_dir, {"kind": "comment", "author": "user", "text": "hi"}
                     )
                     return
                 if time.monotonic() > deadline:
-                    session_model.cmd_status(page_dir, "idle", "no server came up")
+                    declare_idle(page_dir)
                     return
 
         thread = threading.Thread(target=post, daemon=True)
@@ -1235,7 +1578,7 @@ def comment_once_served():
     yield watch
     stopped.set()
     for thread in posting:
-        thread.join(timeout=5)
+        thread.join(timeout=STATED_TIMEOUT)
 
 
 @pytest.fixture
@@ -1255,10 +1598,49 @@ def codex_program(tmp_path_factory):
     name. The name has to be the executable's own, because what a process reports
     is what the kernel loaded — a `#!` script and a symlink both wear the
     interpreter's, and a copy of /bin/sh is killed on sight on macOS, where that
-    binary's signature is the system's."""
+    binary's signature is the system's. A framework Python's sys.executable is
+    a launcher that re-execs Python.app, so copy the running binary itself."""
     program = tmp_path_factory.mktemp("codex-program") / "codex"
-    shutil.copy(sys.executable, program)
+    shutil.copy(psutil.Process().exe(), program)
     return program
+
+
+@pytest.fixture
+def codex_queue(tmp_path):
+    """Replace the external queue CLI while exercising real preview delivery.
+
+    The executable acknowledges help and records submitted arguments. Tests may
+    set PREVIEW_QUEUE_AVAILABLE=False to exercise an unsupported installation.
+    This is separate from codex_program, which models kernel process ancestry.
+    A recorded queue call appears only once its complete JSON is readable.
+    """
+    executable = tmp_path / "queue-bin" / "codex"
+    executable.parent.mkdir()
+    queued = tmp_path / "queued.json"
+    executable.write_text(
+        f"""#!{sys.executable}
+import os
+import sys
+from pathlib import Path
+from leaf.state import write_json
+
+# The queue command is all this models; the App Server a page server starts to
+# name a thread is not here.
+if sys.argv[1] == "app-server":
+    sys.exit(1)
+if os.environ.get("PREVIEW_QUEUE_AVAILABLE", "True") == "False":
+    print("queue unsupported", file=sys.stderr)
+    sys.exit(1)
+if sys.argv[1:] != ["queue", "--help"]:
+    write_json(Path(os.environ["PREVIEW_QUEUE_RECORD"]), sys.argv[1:])
+print("queued")
+"""
+    )
+    executable.chmod(0o755)
+    return {
+        "PATH": f"{executable.parent}{os.pathsep}{os.environ['PATH']}",
+        "PREVIEW_QUEUE_RECORD": str(queued),
+    }
 
 
 @pytest.fixture
@@ -1279,23 +1661,28 @@ def under_codex(spawn, codex_program):
     )
 
     def start(
-        command, env, *, app_server=False, hold_until=None, **kwargs
+        command, env, *, app_server=False, finished=None, **kwargs
     ) -> subprocess.Popen:
-        # `app-server` is the whole difference between the app's shared host and
+        # `app-server` is the whole difference between the app's shared harness and
         # one session's own process — same program, same ancestry, one word in
         # the argv — so it is the one factor this varies. The runner reads the
         # last word either way, which is what keeps that the only difference.
         hosting = ["app-server"] if app_server else []
         shell_command = f"{command}; exit"
-        if hold_until is not None:
-            # Keep the fake task alive until a test hands its claim to the
-            # worker. Otherwise the adapter can see a dead claimant between
-            # communicate() and that handoff, unlike a real Codex task.
+        if finished is not None:
+            # Create `finished` once the command has, and keep the fake harness
+            # alive until a line or the end of its stdin. A test can then hand
+            # its lifetime to the worker before release (`release_held`); unlike
+            # a real task, this harness would otherwise die with its command. The
+            # worker holds the pipe's other end, so the harness also ends when the
+            # worker does, however it ends.
             shell_command = (
                 f"{command}; result=$?; "
-                f"while [ ! -e {shlex.quote(str(hold_until))} ]; do sleep 0.01; done; "
+                f"touch {shlex.quote(str(finished))}; "
+                "read -r released; "
                 "exit $result"
             )
+            kwargs["stdin"] = subprocess.PIPE
         return spawn(
             [str(codex_program), "-c", runner, *hosting, shell_command],
             env={**env, "PYTHONHOME": sys.base_prefix},
@@ -1307,6 +1694,11 @@ def under_codex(spawn, codex_program):
 
 @pytest.fixture
 def codex_claimed_page(tmp_path, under_codex, codex_env):
+    """A Codex-owned server before delivery starts, for adapter lifecycle tests.
+
+    Public handoff connects delivery too. These tests choose their own transport
+    or exercise a direct wait, so setup takes the lower-level claim and serve.
+    """
     page = tmp_path / "codex-page"
     env = codex_env | {"CODEX_THREAD_ID": "codex-thread"}
 
@@ -1320,23 +1712,30 @@ def codex_claimed_page(tmp_path, under_codex, codex_env):
     # Captured because the URL is read back; the status is asserted here with
     # both streams in the message, rather than left to a CalledProcessError
     # that would take leaf's own account down with it.
+    program = """
+import json, sys
+from pathlib import Path
+from leaf.harness import session_harness
+from leaf.hosting import start_server
+from leaf.service import claim_page
+page = Path(sys.argv[1])
+claim_page(page)
+started = start_server(page, harness=session_harness())
+print(json.dumps({"url": started.url}))
+"""
+    finished = tmp_path / "page-host-finished"
     started = under_codex(
-        shlex.join([*LEAF_COMMAND, "server", "start", str(page)]),
+        shlex.join([sys.executable, "-c", program, str(page)]),
         env,
+        finished=finished,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
-    out, err = started.communicate(timeout=60)
+    release_codex_command(page, started, finished)
+    out, err = started.communicate(timeout=STATED_TIMEOUT)
     assert started.returncode == 0, f"{out}{err}"
     assert json.loads(out)["url"].startswith("http://127.0.0.1:")
-    # The fake codex wrapper exits with this one command; a real Codex session
-    # stays above later hook calls. Keep that session lifetime true for tests
-    # using this fixture after the launch itself has been verified.
-    claim = service_model.page_claim(page)
-    files_model.write_json(
-        service_model.claim_path(page), {**claim, "pid": os.getpid()}
-    )
     return page
 
 
@@ -1356,8 +1755,8 @@ def session_process(spawn):
 @pytest.fixture
 def managed_server(spawn):
     """A server whose lifetime is a session the test can end on purpose. Claude
-    Code's door, because that host states its session's pid outright and the
-    test wants a process of its own in that role; which host claimed the page is
+    Code's door, because that harness states its session's pid outright and the
+    test wants a process of its own in that role; which harness claimed the page is
     nothing to the watcher that reads the claim."""
 
     def start(page_dir, session_id, session_pid):
@@ -1390,7 +1789,7 @@ def managed_server(spawn):
 
 
 def start_server_command(page_dir, *flags, session_id="starter"):
-    """Run `server start` from a host session and wait for the command to return."""
+    """Run `server start` from a harness session and wait for the command to return."""
     return subprocess.run(
         [
             *LEAF_COMMAND,
@@ -1403,7 +1802,7 @@ def start_server_command(page_dir, *flags, session_id="starter"):
         | {"CLAUDE_CODE_SESSION_ID": session_id, "CLAUDE_PID": str(os.getpid())},
         capture_output=True,
         text=True,
-        timeout=30,
+        timeout=STATED_TIMEOUT,
         check=False,
     )
 
@@ -1478,7 +1877,7 @@ def edit(page_dir, text, widget="note", version=1):
             "revision": revision,
             "widget": widget,
             "action": "edit",
-            "detail": {"text": text},
+            "detail": {"value": text},
         },
     )
 
@@ -1508,7 +1907,7 @@ def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
     registry_path.write_text(json.dumps(registry, indent=2))
     with (package / "theme.css").open("a") as theme:
         theme.write(
-            f"\n{tag} {{\n"
+            f"\n:scope:is({tag}) {{\n"
             "  display: block;\n"
             "  margin: var(--sp-3) 0;\n"
             "  padding: var(--sp-3);\n"
@@ -1662,3 +2061,16 @@ class _YamlSnapshotHandler(BaseSnapshotHandler):
 SnapshotHandlerRegistry.add_handler(
     lambda obj: isinstance(obj, YamlDocument), _YamlSnapshotHandler, insert_front=True
 )
+
+
+def consume_pending_input(session_id):
+    """Hand the session its pending input as a hook does inline: one complete
+    envelope, confirmed as it is handed over."""
+    from leaf import delivery
+
+    batches = delivery.pending_batches(session_id)
+    if not batches:
+        return None
+    payload = delivery.freeze_delivery(batches)
+    delivery.receive_held(payload, session_id)
+    return payload

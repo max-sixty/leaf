@@ -9,7 +9,7 @@
 # leaves the rewrite uncommitted in the worktree. Read it, then `wt merge` again — the
 # squash sweeps it in.
 #
-# Three blocks rather than one table, because a table runs its commands together: the
+# Separate blocks rather than one table, because a table runs its commands together: the
 # lint rewrites the tree the suite reads, and the bundle rebuild needs the install the
 # first block makes and replaces bundles the suite copies into pages.
 #
@@ -23,53 +23,27 @@
 checks = "uv run pre-commit run -a"
 node = "npm ci"
 worker-node = "npm ci --prefix worker"
+eval-node = "npm ci --prefix evals"
 
 # The bundles build from the installed lock, so a rebuild reproduces the tracked bytes
 # exactly, and any difference is a lock nobody rebuilt from.
 [[pre-merge]]
 bundles = 'uv run build/vendor.py > /dev/null && git status --porcelain && test -z "$(git status --porcelain)"'
 
-# Broad discovery keeps the local gate quick, adding only the nightly-marked tests in the
-# test files the branch changes, as a pull request's gate does. CI runs the rest after
-# main moves.
+# Broad discovery keeps the local gate quick, adding only the nightly-marked tests the
+# branch edits, as a pull request's gate does. CI runs the rest after main moves.
 [[pre-merge]]
 tests = "uv run pytest tests --nightly-changed-since main"
 folds = "npm run test:runtime"
 browser = "npm run check:browser && npm run test:browser"
 worker = "npm run typecheck --prefix worker && npm test --prefix worker"
+eval-assertions = "npm test --prefix evals"
 
 # A new worktree has no `node_modules`, so an ordinary `uv run pytest tests` fails before
 # anyone reaches a merge. Install in the background rather than blocking the switch; the
 # merge gate above installs again for the worktrees that predate this hook.
 [post-start]
 node = "npm ci"
-
-# The marketplace follows the remote default branch. Manual post-merge hooks still
-# name the source branch and its pre-squash commit, so read the landed default branch
-# and wait for its concurrent push before refreshing installed plugins.
-[post-merge]
-refresh-codex-leaf = '''
-if command -v codex >/dev/null 2>&1 &&
-  codex plugin list --marketplace leaf --json |
-    jq -e 'any(.installed[]; .pluginId == "leaf@leaf")' >/dev/null
-then
-  landed_commit=$(git rev-parse refs/heads/{{ default_branch }}) || exit 1
-  attempts=0
-  while [ "$attempts" -lt 12 ]; do
-    remote_commit=$(git ls-remote {{ remote }} refs/heads/{{ default_branch }} | cut -f1)
-    if [ -n "$remote_commit" ] &&
-      git fetch --quiet --no-tags {{ remote }} refs/heads/{{ default_branch }} &&
-      git merge-base --is-ancestor "$landed_commit" "$remote_commit"
-    then
-      exec codex plugin marketplace upgrade leaf
-    fi
-    attempts=$((attempts + 1))
-    sleep 5
-  done
-  echo "Codex Leaf plugin refresh timed out waiting for the landed commit" >&2
-  exit 1
-fi
-'''
 
 # uv run synchronizes the locked Python environment. The external images, browser
 # binaries, and website node_modules live outside it, so those remain explicit.
@@ -81,6 +55,9 @@ chromium = "uv run --frozen playwright install chromium --only-shell"
 
 [[aliases.setup]]
 webkit = "uv run --frozen playwright install webkit"
+
+[[aliases.setup]]
+firefox = "uv run --frozen playwright install firefox"
 
 [[aliases.setup]]
 chrome = "uv run --frozen playwright install chrome"

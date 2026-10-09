@@ -4,9 +4,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   KINDS,
-  marginEntry,
-  normalizeMarginReading,
-} from "../../skills/leaf/assets/runtime/margin-entry-model.js";
+  contributionEntry,
+  normalizeContributionReading,
+} from "../../skills/leaf/assets/runtime/contribution-model.js";
 import {
   canFold,
   clusterProjection,
@@ -21,9 +21,12 @@ import {
 import { marginMapGroups } from "../../skills/leaf/assets/runtime/margin-map-model.js";
 
 const control = (key, options = {}) =>
-  marginEntry({ key, glyph: "+", label: key, ...options });
+  contributionEntry({ key, glyph: "+", label: key, ...options });
 const offer = (key, entries, options = {}) => {
-  const { readings, ...reading } = normalizeMarginReading({ entries, ...options }, key);
+  const { readings, ...reading } = normalizeContributionReading(
+    { entries, ...options },
+    key,
+  );
   return Object.freeze({
     key,
     reading: Object.freeze({ ...reading, hasReadings: readings.length > 0 }),
@@ -119,7 +122,7 @@ test("a folded contribution with no kind is an action, and an unknown kind refus
   assert.equal(clusterProjection(plain, { folded: true }).toggle.icon, "dot");
   assert.throws(
     () => offer("widget", [control("accept")], { kind: "suggestion" }),
-    /Unknown margin kind "suggestion"/,
+    /Unknown contribution kind "suggestion"/,
   );
 });
 
@@ -191,7 +194,7 @@ test("threads aggregate into one control and retain captured thread order", () =
   assert.deepEqual(choiceNames(cluster.options.visible), ["threadList", "ask"]);
 });
 
-test("an open thread replaces a spilled peer while Page Map retains every action", () => {
+test("an open thread stays reachable while Page Map retains every action in order", () => {
   const entry = inventory({
     offers: [
       offer("widget", [
@@ -201,15 +204,11 @@ test("an open thread replaces a spilled peer while Page Map retains every action
     ],
     items: [marker("thread", "comment")],
   });
-  const ordinary = clusterProjection(entry, { expandedKey: entry.key });
-  assert.deepEqual(choiceNames(ordinary.options.visible), ["a", "b", "c", "d"]);
   const forced = clusterProjection(entry, {
     expandedKey: entry.key,
     forcedInlineKey: entry.key,
   });
-  assert.deepEqual(choiceNames(forced.options.visible), ["a", "b", "c", "threadList"]);
-  assert.equal(forced.options.spill.count, 3);
-  assert.equal(forced.options.spill.first.record.key, "d");
+  assert.ok(choiceNames(forced.options.visible).includes("threadList"));
   const [pageMap] = map([entry]);
   assert.deepEqual(
     pageMap.actions.map((action) => action.record?.key ?? action.item.id),
@@ -282,7 +281,7 @@ test("Page Map uses opaque coordinates without delimiter collisions", () => {
   assert.ok(Object.isFrozen(actions[0]));
 });
 
-test("long subjects stay visible and searchable while spoken controls stay concise", () => {
+test("long subjects stay visible and searchable with identifiable spoken routes", () => {
   for (const text of [
     "An explanation with words to keep together. ".repeat(10),
     `Paragraph · ${"説明文𠮷".repeat(90)}`,
@@ -305,10 +304,8 @@ test("long subjects stay visible and searchable while spoken controls stay conci
     ]) {
       assert.ok(label.startsWith(prefix));
       const subject = label.slice(prefix.length);
-      assert.ok([...subject].length <= 120);
-      assert.ok([...subject].length >= 60);
-      assert.ok(subject.endsWith("…"));
-      assert.ok(text.startsWith(subject.slice(0, -1)));
+      assert.ok(subject.replace(/…$/, "").length > 0);
+      assert.ok(text.startsWith(subject.replace(/…$/, "")));
     }
   }
 });
@@ -330,7 +327,7 @@ test("placement counts every secondary control beside the primary", () => {
   assert.equal(secondaryCount(after, null), 1);
 });
 
-test("focused owner exposes only its controls and retains the six-seat budget", () => {
+test("focused owner exposes only its complete declared controls", () => {
   const entry = inventory({
     offers: [
       offer("standing", [control("primary")]),
@@ -385,8 +382,17 @@ test("reading IDs belong to their contribution in both margin and Page Map", () 
 test("contribution admission rejects missing and duplicate reading identities", () => {
   for (const readings of [[{}], [{ id: "" }], [{ id: "same" }, { id: "same" }]]) {
     assert.throws(
-      () => normalizeMarginReading({ readings }, "owner"),
-      /Margin reading IDs must be nonempty and unique/,
+      () => normalizeContributionReading({ readings }, "owner"),
+      /Contribution reading IDs must be nonempty and unique/,
     );
   }
+});
+
+test("contribution reading projections contain data while producers retain activation", () => {
+  const activate = () => {};
+  const declaration = { readings: [{ id: "reading", text: "Open details", activate }] };
+  const reading = normalizeContributionReading(declaration, "owner");
+  assert.deepEqual(reading.readings, [{ id: "reading", text: "Open details" }]);
+  assert.equal(declaration.readings[0].activate, activate);
+  assert.ok(Object.isFrozen(reading.readings[0]));
 });

@@ -9,6 +9,8 @@ import {
   PRESENTATION_HELD,
 } from "../vendor/browser-runtime.js";
 
+import { bindQueuedWork } from "./queued-work.js";
+
 const documentToken = Object.freeze({});
 let reportPresentationFailure = (reason) =>
   console.error("leaf: presentation failed", reason);
@@ -17,7 +19,7 @@ const presentation = createPresentationCoordinator({
 });
 // A publication paints on the pass after it, so every subscriber has claimed its region
 // before any renderer touches the document.
-const schedule = createPresentationSchedule();
+const schedule = createPresentationSchedule(bindQueuedWork);
 
 export const applicationState = createSemanticApplication({
   presentation: {
@@ -26,22 +28,30 @@ export const applicationState = createSemanticApplication({
   },
 });
 export const readApplication = applicationState.read;
+// What the page calls its agent: the name the server's answer gives, or "the agent"
+// before one has arrived. Every surface naming the agent's side reads it here.
+export const agentName = () => readApplication().authoritative?.agent || "the agent";
 export const projectView = applicationState.projectView;
 export const selectWidgets = applicationState.selectWidgets;
 export const attachApplicationPresentation = (region, renderer) =>
   presentation.attach(region, renderer);
+const widgetRegion = (widget, kind) => `widget:${widget}:${kind}`;
+export const widgetRegions = (widget) =>
+  ["render", "preparation"].map((kind) => widgetRegion(widget, kind));
 export const attachWidgetPresentation = (widget, kind, renderer) =>
-  presentation.attach(`widget:${widget}:${kind}`, renderer);
+  presentation.attach(widgetRegion(widget, kind), renderer);
 
 // Where a document-wide renderer stands in one presentation pass. The projection
 // materializes provenance words and coordinate chrome inside authored elements, the
-// thread resolves its passages over the nodes that leaves, and the Ask inventory
-// reads the thread those passages placed. Declaring the order here is what lets
+// thread resolves its passages over the nodes that leaves, the Ask inventory reads
+// the thread those passages placed, and the Questions panel names Asks and threads by the
+// words both have drawn and reads each Ask's answer. Declaring the order here is what lets
 // every publisher simply publish.
 export const PRESENTATION_ORDER = Object.freeze({
   projection: 0,
   thread: 1,
   asks: 2,
+  queue: 3,
 });
 
 // The document-wide presenters, in registration order. `presentDocument` is what a
@@ -113,10 +123,7 @@ export const whenWidgetsPresented = (widgets) =>
       document: documentToken,
       semanticEpoch: readApplication().semanticEpoch,
     }),
-    widgets.flatMap((widget) => [
-      `widget:${widget}:render`,
-      `widget:${widget}:preparation`,
-    ]),
+    widgets.flatMap(widgetRegions),
   );
 export const whenApplicationRegionsPresented = (regions, current) =>
   presentation.whenCurrentRegionsPresented(
@@ -129,6 +136,11 @@ export const whenApplicationRegionsPresented = (regions, current) =>
         : null,
     regions,
   );
+export const applicationRegionsPresented = (regions) =>
+  presentation.currentRegionsPresented(currentApplicationPresentation, regions);
+export const projectionRegionsPresented = (widgets) =>
+  applicationRegionsPresented(["projection:chrome", ...widgets.flatMap(widgetRegions)]);
+export const watchPresentation = presentation.subscribe;
 export const readApplicationPresentation = presentation.read;
 export function setPresentationFailureReporter(report) {
   if (typeof report !== "function")

@@ -10,8 +10,14 @@ from urllib.parse import urljoin, urlparse
 import pytest
 from click.testing import CliRunner
 from interact_support import (
+    append_carried_log_record,
     append_command,
+    declare_work,
+    end_work,
     record_claim,
+    response_reference,
+    wait_for,
+    working,
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -22,8 +28,13 @@ from leaf import hosting as hosting_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import state as cleanup_model
+from leaf import thread as thread_model
+from leaf import user_views as user_views_model
+from leaf.leases import release_lease, take_lease, waiter_lease_path
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
+from leaf.served_state.reading import page_reading, source_readings
 from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -66,6 +77,7 @@ from render_cases_widgets import (
     TYPED_PARTS_PAGE,
 )
 from render_harness import (
+    CORPUS_PAGE,
     EXAMPLES,
     FEATURE_GALLERY,
     LONG_PAGE,
@@ -77,6 +89,7 @@ from render_harness import (
     consume_browser_errors,
     displayed,
     draft_control,
+    expect_asks_answered,
     expect_banner_control_offered,
     holding,
     leaf_page,
@@ -90,6 +103,7 @@ from render_harness import (
     select,
     sending,
     stamp_page,
+    stored_draft_text,
     ticked,
     told,
     undo,
@@ -126,12 +140,14 @@ VISUAL_ACTION_TIMING = """
 """
 
 
-def test_a_live_page_cannot_be_framed_or_run_its_data(browser, serve):
-    """Another site cannot put a live Leaf under its own controls, and a data route
-    never runs as a script, whatever the page's own code tries."""
+def test_a_live_page_embeds_at_its_own_origin_and_cannot_run_its_data(browser, serve):
+    """A same-origin frame is an ordinary operable page; data never runs as code."""
     source = leaf_page(
         "Boundaries",
-        '<h1 id="h">Boundaries</h1>',
+        """<h1 id="h">Boundaries</h1>
+<lf-ask id="decision"><h2>Proceed?</h2><lf-options id="pick" choose>
+<lf-option id="yes">Proceed</lf-option><lf-option id="no">Wait</lf-option>
+</lf-options></lf-ask>""",
         head="""<script type="module">
 window.authoredModuleRan = true;
 </script>""",
@@ -151,6 +167,8 @@ window.authoredModuleRan = true;
         )
         == "blocked"
     )
+    errors = consume_browser_errors(page, 'MIME type of "application/json"')
+    assert any('MIME type of "application/json"' in error for error in errors), errors
     framed = page.locator("body").evaluate(
         """async (body, url) => {
               const frame = document.createElement('iframe');
@@ -166,12 +184,131 @@ window.authoredModuleRan = true;
             }""",
         page.url,
     )
-    assert framed is None
-    errors = consume_browser_errors(
-        page, "Content Security Policy", 'MIME type of "application/json"'
+    assert framed == "Boundaries"
+    frame = page.frame_locator("#framed-leaf")
+    expect(frame.locator("body")).to_have_attribute("data-lf-presented", "1")
+    frame.locator("#yes").click()
+    page.wait_for_function(
+        "() => document.querySelector('#yes')?.hasAttribute('chosen')"
     )
-    assert any("frame-ancestors 'none'" in error for error in errors), errors
-    assert any('MIME type of "application/json"' in error for error in errors), errors
+    assert any(
+        event.get("kind") == "action"
+        and event.get("widget") == "pick"
+        and event.get("detail") == {"value": ["yes"]}
+        for event in events_model.read_events(serve.page_dir)
+    )
+
+
+def test_the_gallery_embeds_an_ordinary_stamped_page(browser, serve):
+    """Authored iframe markup opens a durable version rather than a practice copy."""
+    url = live_url(serve(FEATURE_GALLERY))
+    page = open_page(browser, url + "#bg-durable-embedding")
+    expect(page.locator("#bg-durable-embedding")).to_be_in_viewport()
+    page.locator("#bg-durable-frame-open").click()
+    frame = page.locator("#bg-durable-frame").element_handle().content_frame()
+    wait_until_ready(frame)
+    assert urlparse(frame.url).path == "/versions/v2.html"
+    expect(frame.locator("#bg-choice-ask h3")).to_have_text(
+        "Which map should the sample team carry?"
+    )
+    frame.locator(".lf-threads-toggle").click()
+    expect(frame.locator(".lf-thread-panel")).to_be_visible()
+    frame.goto(frame.url)
+    wait_until_ready(frame)
+    assert urlparse(frame.url).path == "/versions/v2.html"
+    expect(frame.locator("#bg-choice-ask h3")).to_have_text(
+        "Which map should the sample team carry?"
+    )
+
+
+def test_a_composed_page_does_not_offer_history_it_does_not_have(browser, serve):
+    """Corpus composition preserves markup, not another page's durable versions."""
+    page = open_page(browser, live_url(serve(CORPUS_PAGE)))
+    page.locator('[role="tab"][aria-controls="corpus-feature-gallery"]').click()
+    page.locator('[role="tab"][aria-controls="bg-view-page"]').click()
+    expect(page.locator("#bg-durable-embedding")).to_have_attribute("hidden", "")
+    assert page.locator("#bg-durable-frame").get_attribute("src") == "about:blank"
+
+
+def test_a_live_page_refuses_a_same_site_parent_at_another_port(browser, serve):
+    """SameSite cookies do not isolate ports, so a different origin can authenticate
+    the frame even without knowing its key. CSP blocks disguising its controls."""
+    context = browser.new_context()
+    child = open_page(
+        browser,
+        live_url(serve(leaf_page("Child", '<h1 id="h">Child</h1>'))),
+        context=context,
+    )
+    child_url = child.url
+    parent_url = live_url(serve(leaf_page("Parent", '<h1 id="parent">Parent</h1>')))
+    assert urlparse(child_url).port != urlparse(parent_url).port
+    parent = open_page(browser, parent_url, context=context)
+    with parent.expect_response(child_url) as loaded:
+        parent.locator("body").evaluate(
+            """async (body, url) => {
+                const frame = document.createElement('iframe');
+                frame.id = 'blocked-leaf';
+                frame.src = url;
+                const loaded = new Promise(resolve => frame.addEventListener('load', resolve, {once: true}));
+                body.append(frame);
+                await loaded;
+            }""",
+            child_url,
+        )
+    response = loaded.value
+    assert response.status == 200
+    assert TOKEN in response.request.all_headers()["cookie"]
+    assert "t=" not in response.url
+    errors = consume_browser_errors(parent, "Content Security Policy")
+    assert any("frame-ancestors 'self'" in error for error in errors), errors
+    assert parent.locator("#blocked-leaf").evaluate(
+        "frame => frame.contentDocument === null"
+    )
+
+
+def test_a_gallery_import_settles_before_initial_presentation(browser, serve):
+    """The page-interface barrier includes loading its optional owner's module."""
+    source = leaf_page(
+        "Deferred gallery",
+        """<h1>Deferred gallery</h1>
+<section data-interaction-gallery data-interaction-viewport="2">
+  <lf-tabs id="gallery-tabs"><lf-tab id="demo" label="Accept a suggestion">
+    <figure data-interaction-demo="accept">
+      <template id="sample-page" data-sample>
+        <p>The importer <lf-suggestion id="bg-motion-accept"><lf-old>usually finishes</lf-old><lf-new>finishes</lf-new></lf-suggestion>.</p>
+      </template>
+      <div class="interaction-stage">
+        <iframe data-interaction-frame title="Contained suggestion"></iframe>
+        <span class="interaction-pointer" hidden></span>
+      </div>
+    </figure>
+  </lf-tab></lf-tabs>
+</section>
+<div style="height: 1000px"></div>
+<section id="destination"><h2>Requested destination</h2><p>Read this next.</p></section>""",
+    )
+    page = browser.new_page()
+    watched(page)
+    page.add_init_script(
+        "document.addEventListener('lf-page-interface', () => { window.interfaceStarted = true; });"
+    )
+    held = []
+    page.route("**/runtime/interaction-gallery.js", lambda route: held.append(route))
+    page.goto(live_url(serve(source)) + "#destination", wait_until="domcontentloaded")
+    page.wait_for_function("() => window.interfaceStarted === true")
+    assert held, "the positive control did not hold the optional owner import"
+    page.evaluate(
+        """async () => {
+          const {nextFrame} = await window.__lfRuntimeImport('/runtime/rendering.js');
+          await new Promise(resolve => nextFrame(() => nextFrame(resolve)));
+        }"""
+    )
+    expect(page.locator("body")).not_to_have_attribute("data-lf-upgraded", "1")
+    expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+    held.pop().continue_()
+    wait_until_ready(page)
+    expect(page.locator("[data-interaction-ready]")).to_have_count(1)
+    expect(page.locator("#destination")).to_be_in_viewport()
 
 
 def test_a_website_example_names_its_limited_agent(browser, serve):
@@ -197,6 +334,104 @@ def test_a_website_example_names_its_limited_agent(browser, serve):
     expect(page.locator(".lf-status-button .lf-publication-install")).to_have_count(0)
     expect(status).to_have_attribute("title", " ".join(status.text_content().split()))
     expect(page.locator(".lf-banner .lf-dot")).to_have_class(re.compile(r"^lf-dot\s*$"))
+
+
+@pytest.mark.parametrize("outcome", ["presented", "abandoned", "offline"])
+def test_public_startup_reports_upgrade_separately_from_held_state(
+    browser, serve, outcome, request
+):
+    """Public telemetry names the independent browser and state milestones.
+
+    A local delivered document gets the public release marker at the HTTP boundary.
+    The real widget runtime upgrades while its first state read is held. A full
+    Resource Timing buffer must not lose that response, an unrelated page's state
+    must not stand in for it, and later polling or departure must not send again.
+    A refused request has a Resource Timing entry but no state response to report.
+    """
+    url = serve(SHORT_SUGGESTION)
+    page = browser.new_page()
+    request.addfinalizer(page.close)
+    reports = []
+    held = []
+
+    def public_document(route):
+        response = route.fetch()
+        route.fulfill(
+            response=response,
+            body=response.text().replace(
+                "data-lf-server=", f'data-lf-release="{"a" * 64}" data-lf-server=', 1
+            ),
+        )
+
+    def report(route):
+        reports.append(route.request.post_data_json)
+        route.fulfill(status=204)
+
+    page.route("**/versions/v1.html?*", public_document)
+    page.route("**/api/performance", report)
+    page.route("**/api/state", lambda route: held.append(route))
+    page.route("**/other/api/state", lambda route: route.fulfill(json={}))
+    page.add_init_script(
+        """performance.setResourceTimingBufferSize(1);
+        window.firstStateResponses = [];
+        new PerformanceObserver(list => {
+          for (const entry of list.getEntries())
+            if (new URL(entry.name).pathname === '/api/state')
+              window.firstStateResponses.push(entry.responseEnd);
+        }).observe({type: 'resource', buffered: true});"""
+    )
+    page.goto(url, wait_until="load")
+    page.wait_for_function("document.body.dataset.lfUpgraded === '1'")
+    assert held, "the positive control did not hold the first state read"
+    expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+    assert reports == []
+    assert page.evaluate("firstStateResponses") == []
+    upgraded_before_release = page.evaluate("Math.round(performance.now())")
+    page.evaluate("async () => await (await fetch('/other/api/state')).json()")
+
+    if outcome == "abandoned":
+        with page.expect_response("**/api/performance"):
+            page.evaluate("dispatchEvent(new PageTransitionEvent('pagehide'))")
+        assert len(reports) == 1
+        assert reports[0]["firstStateResponseMs"] is None
+        assert reports[0]["presentedMs"] is None
+
+    released_at = page.evaluate("Math.round(performance.now())")
+    if outcome != "abandoned":
+        with page.expect_response("**/api/performance"):
+            first = held.pop(0)
+            if outcome == "offline":
+                refuse(first)
+                expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+            else:
+                first.continue_()
+                wait_until_ready(page)
+    else:
+        held.pop(0).continue_()
+        wait_until_ready(page)
+    page.wait_for_function("firstStateResponses.length === 1")
+    with page.expect_request("**/api/state"):
+        page.evaluate("void fetch('/api/state').then(response => response.json())")
+    holding(page, held, 1, "the follow-up state read")
+    held.pop(0).continue_()
+    page.wait_for_function("firstStateResponses.length === 2")
+    page.evaluate("dispatchEvent(new PageTransitionEvent('pagehide'))")
+    assert len(reports) == 1
+    reading = reports[0]
+    assert reading["version"] == 2
+    assert reading["outcome"] == ("presented" if outcome == "offline" else outcome)
+    assert 0 <= reading["upgradedMs"] <= upgraded_before_release
+    if outcome == "presented":
+        first_response = page.evaluate("Math.round(firstStateResponses[0])")
+        assert reading["firstStateResponseMs"] == first_response
+        assert released_at <= first_response <= reading["presentedMs"]
+        assert page.evaluate(
+            """performance.getEntriesByType('resource').every(entry =>
+                new URL(entry.name).pathname !== '/api/state')"""
+        ), "the response remained in the global timeline; eviction was not tested"
+    elif outcome == "offline":
+        assert reading["firstStateResponseMs"] is None
+        assert reading["presentedMs"] >= reading["upgradedMs"]
 
 
 def test_a_website_example_shows_its_public_session_reference(browser, serve):
@@ -369,7 +604,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
 
 @pytest.mark.parametrize(
     ("width", "has_touch", "banner_height"),
-    [(390, True, 89), (740, True, 53), (800, False, 42), (1724, False, 42)],
+    [(390, True, 53), (740, True, 89), (800, False, 42), (1724, False, 42)],
 )
 def test_authored_html_paints_while_runtime_startup_is_held(
     browser, serve, width, has_touch, banner_height
@@ -491,14 +726,17 @@ def _hold_startup(page, stage):
 
 
 @pytest.mark.parametrize("stage", ["module", "state"])
+@pytest.mark.parametrize("touch", [False, True])
 def test_a_key_pressed_before_presentation_runs_once_the_page_presents(
-    browser, serve, stage
+    browser, serve, stage, touch
 ):
     """`t` walks threads the first state answer brings, so a press before presentation
     is held, shown as held, and replayed into the presented page — whether the runtime
     had not loaded or had loaded and not yet read the log."""
     url = serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD])
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page = browser.new_page(
+        viewport={"width": 390 if touch else 1200, "height": 900}, has_touch=touch
+    )
     watched(page)
     held, release = _hold_startup(page, stage)
     page.goto(url, wait_until="commit")
@@ -511,11 +749,65 @@ def test_a_key_pressed_before_presentation_runs_once_the_page_presents(
     echo = page.locator(".lf-held-keys")
     expect(echo).to_contain_text("Page still loading")
     expect(echo.locator("kbd")).to_have_text("t")
+    bounds = echo.bounding_box()
+    assert bounds and bounds["y"] >= 0
+    assert bounds["y"] + bounds["height"] <= page.viewport_size["height"], bounds
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
 
     release()
     expect(page.locator('[data-thread="held-thread"]').first).to_be_focused()
     expect(echo).to_have_count(0)
+
+
+@pytest.mark.parametrize("stage", ["module", "state"])
+def test_disabled_quick_shortcuts_are_not_held_before_presentation(
+    browser, serve, stage
+):
+    """The saved preference applies before either bootstrap or controller can act."""
+    url = serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD])
+    page = open_page(browser, url)
+    page.locator(".lf-banner-more").click()
+    page.get_by_role("button", name="Keyboard shortcuts", exact=True).click()
+    page.get_by_role("checkbox", name="Quick keyboard shortcuts").uncheck()
+    page.keyboard.press("Escape")
+    held, release = _hold_startup(page, stage)
+    page.reload(wait_until="commit")
+    holding(page, held, 1, f"the {stage} request")
+    expect(page.locator("#said")).to_be_visible()
+    page.keyboard.press("t")
+    expect(page.locator(".lf-held-keys")).to_have_count(0)
+    release()
+    wait_until_ready(page)
+    expect(page.locator('[data-thread="held-thread"]:focus')).to_have_count(0)
+    expect(page.locator(".lf-held-keys")).to_have_count(0)
+
+
+def test_disabling_quick_shortcuts_discards_keys_already_held(browser, serve):
+    """A preference change before replay must also withdraw an already captured trip."""
+    page = browser.new_page(viewport={"width": 1400, "height": 900})
+    watched(page)
+    # The queue has transferred to the controller, but its first frame has not run.
+    page.add_init_script(
+        """document.addEventListener('lf-presentation', () => queueMicrotask(() =>
+          document.documentElement.lfKeyboard.setQuick(false)));"""
+    )
+    held, release = _hold_startup(page, "state")
+    page.goto(serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD]), wait_until="commit")
+    holding(page, held, 1, "the first state read")
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+T")
+    try:
+        expect(page.locator(".lf-held-keys kbd")).to_have_text(["g", "T"])
+    finally:
+        release()
+    wait_until_ready(page)
+    expect(page.locator(".lf-held-keys")).to_have_count(0)
+    expect(page.locator("body")).not_to_have_attribute(
+        "data-lf-auxiliary-surface", "threads"
+    )
+    page.keyboard.press("t")
+    expect(page.locator('[data-thread="held-thread"]:focus')).to_have_count(0)
 
 
 def test_a_key_pressed_while_held_keys_run_waits_its_turn(browser, serve):
@@ -660,7 +952,12 @@ RESTORED_PROSE = "".join(
 @pytest.mark.parametrize(
     ("saved", "wide", "window"),
     [
-        ({"lf-auxiliary-surface": "asks", "lf-drawer-slot-width": "280"}, False, 1600),
+        # Questions stands on the Threads panel's edge, at the width the user drew it.
+        (
+            {"lf-auxiliary-surface": "queue", "lf-thread-panel-width": "380"},
+            False,
+            1600,
+        ),
         (
             {"lf-auxiliary-surface": "threads", "lf-thread-panel-width": "500"},
             True,
@@ -668,10 +965,10 @@ RESTORED_PROSE = "".join(
         ),
         # Where it would leave less than a usable page it covers the page instead.
         ({"lf-auxiliary-surface": "threads"}, True, 700),
-        # The Asks drawer by the same rule: 300 of a 600px window leaves 300.
-        ({"lf-auxiliary-surface": "asks"}, False, 600),
+        # The Questions panel by the same rule: 420 of a 600px window leaves 180.
+        ({"lf-auxiliary-surface": "queue"}, False, 600),
     ],
-    ids=["asks", "threads-wide-page", "covering", "asks-covering"],
+    ids=["queue", "threads-wide-page", "covering", "queue-covering"],
 )
 @pytest.mark.parametrize("contained", [False, True])
 def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
@@ -739,7 +1036,7 @@ def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
             "data-lf-auxiliary-surface", surface
         )
         expect(page.locator("html[data-lf-covering-surface]")).to_have_count(
-            1 if window < {"asks": 620, "threads": 740}[surface] else 0
+            1 if window < 740 else 0
         )
         presented = geometry()
         assert presented == pytest.approx(initial, abs=1), (
@@ -759,11 +1056,11 @@ def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve)
     module.write_text(
         module.read_text()
         .replace("{offer,", "{keeps, keepsText, offer,")
-        .replace("({value}) => {", "({value}, prior) => {")
         .replace(
             "const row = document.createElement('p');\n"
             "      row.append(value, offer('button', 'inspect', 'Inspect'));",
-            """const row = prior ?? document.createElement('p');
+            """const prior = [...this.children].find(row => row.dataset.lfDatum === key);
+      const row = prior ?? document.createElement('p');
       const link = row.querySelector('a') ?? document.createElement('a');
       keeps(link, 'href', value === 'Ready' ? 'https://example.com/status' : '#title');
       keepsText(link, value);
@@ -835,6 +1132,123 @@ def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve)
           mark: link.querySelector('.lf-external-mark'),
         })"""
     ) == {"target": "_parent", "rel": "author next", "describedBy": None, "mark": None}
+
+
+@pytest.mark.parametrize("initial_motion", ["no-preference", "reduce"])
+def test_reduced_motion_reaches_declared_shadow_stages(
+    browser, serve, tmp_path, initial_motion
+):
+    """Package CSS has the same motion guard in the document and a declared tree.
+
+    The ordinary-motion control proves the package's animation and transition really
+    run. Both a preference held at navigation and one changed in the live document
+    must finish the animation once and make the next state change immediate.
+    """
+    entry = {
+        "description": "A package motion control.",
+        "type": "object",
+        "properties": {"id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-upgrade": True,
+    }
+    registry = {
+        tag: {
+            **entry,
+            **({"x-shadow": True} if tree == "shadow" else {}),
+            "x-example": f'<{tag} id="{tree}-example"></{tag}>',
+        }
+        for tree, tag in (("light", "lf-motion-light"), ("shadow", "lf-motion-shadow"))
+    }
+    package = tmp_path / ".leaf"
+    package.mkdir()
+    (package / "shadow.css").write_text("""
+.pulse { animation: package-pulse 30s linear infinite; }
+.pulse::before { content: 'Activity'; animation: package-pulse 30s linear infinite; }
+@keyframes package-pulse { from { opacity: .25; } to { opacity: 1; } }
+button { transition: background-color 30s linear; background-color: rgb(10, 20, 30); }
+button.chosen { background-color: rgb(40, 50, 60); }
+""")
+    modules = {}
+    for tag, declaration in registry.items():
+        stage = (
+            "shadowStage(this, nodes)"
+            if declaration.get("x-shadow")
+            else "this.replaceChildren(...nodes)"
+        )
+        modules[f"{tag}.js"] = f"""
+import {{ once, shadowStage }} from '/runtime/widget-api.js';
+customElements.define('{tag}', class extends HTMLElement {{
+  connectedCallback() {{
+    if (!once(this)) return;
+    const pulse = document.createElement('span'); pulse.className = 'pulse';
+    pulse.textContent = 'Working';
+    pulse.ends = [];
+    pulse.addEventListener('animationend', event => pulse.ends.push(event.pseudoElement));
+    const button = document.createElement('button'); button.textContent = 'Choose';
+    button.style.transition = 'background-color 30s linear';
+    button.onclick = () => button.classList.toggle('chosen');
+    const nodes = [pulse, button];
+    {stage};
+  }}
+}});
+"""
+    url = serve(
+        leaf_page(
+            "Package motion",
+            '<h1>Package motion</h1><lf-motion-light id="light"></lf-motion-light>'
+            '<lf-motion-shadow id="shadow"></lf-motion-shadow>',
+        ),
+        layer_registry=registry,
+        layer_widgets=modules,
+    )
+    page = open_page(
+        browser, url, context=browser.new_context(reduced_motion=initial_motion)
+    )
+    if initial_motion == "no-preference":
+        for tree in ("light", "shadow"):
+            pulse = page.locator(f"#{tree} .pulse")
+            expect(pulse).to_have_css("animation-iteration-count", "infinite")
+            assert (
+                pulse.evaluate("node => node.getAnimations({subtree: true}).length")
+                == 2
+            )
+            button = page.locator(f"#{tree} button")
+            expect(button).to_have_css("transition-duration", "30s")
+            button.click()
+            assert button.evaluate("node => node.getAnimations().length") == 1
+            button.click()
+        page.emulate_media(reduced_motion="reduce")
+    for tree in ("light", "shadow"):
+        pulse = page.locator(f"#{tree} .pulse")
+        button = page.locator(f"#{tree} button")
+        button.click()
+        reading = button.evaluate("""node => ({
+            transition: getComputedStyle(node).transitionProperty,
+            colour: getComputedStyle(node).backgroundColor,
+            animations: node.getAnimations().length,
+        })""")
+        assert reading == {
+            "transition": "none",
+            "colour": "rgb(40, 50, 60)",
+            "animations": 0,
+        }
+        expect(pulse).to_have_css("animation-iteration-count", "1")
+        page.wait_for_function(
+            "tree => { const host = document.getElementById(tree); "
+            "return (host.shadowRoot ?? host).querySelector('.pulse').ends.length === 2; }",
+            arg=tree,
+        )
+        assert pulse.evaluate("node => node.getAnimations({subtree: true}).length") == 0
+    page.emulate_media(reduced_motion="no-preference")
+    for tree in ("light", "shadow"):
+        pulse = page.locator(f"#{tree} .pulse")
+        expect(pulse).to_have_css("animation-iteration-count", "infinite")
+        assert pulse.evaluate("node => node.getAnimations({subtree: true}).length") == 2
+        expect(page.locator(f"#{tree} button")).to_have_css(
+            "transition-duration", "30s"
+        )
 
 
 def test_settled_and_shadow_links_get_the_pages_link_treatment(browser, serve):
@@ -1221,7 +1635,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
             "revision": 1,
             "widget": "startup-note",
             "action": "edit",
-            "detail": {"text": "Ship on Friday from the green room."},
+            "detail": {"value": "Ship on Friday from the green room."},
         },
     )
     held = []
@@ -1311,6 +1725,7 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     """Core page visuals paint after upgrade while agent state still waits."""
     url = serve(FEATURE_GALLERY)
     held = []
+    release_state = False
     page = browser.new_page(viewport={"width": 1440, "height": 900})
     watched(page)
     page.add_init_script(
@@ -1326,7 +1741,7 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     )
 
     def hold_parent_state(route):
-        if route.request.frame == page.main_frame:
+        if route.request.frame == page.main_frame and not release_state:
             held.append(route)
         else:
             route.continue_()
@@ -1349,7 +1764,9 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     expect(controls).to_be_visible()
     expect(page.locator(".lf-status-detail")).to_have_text(re.compile(r"^Connecting"))
 
-    held.pop(0).continue_()
+    release_state = True
+    for route in held:
+        route.continue_()
     wait_until_ready(page)
     expect(controls).to_be_visible()
     expect(page.locator(".lf-status-detail")).not_to_have_text(
@@ -1424,6 +1841,9 @@ def test_a_broken_optional_page_interface_does_not_withhold_presentation(
         error for error in errors if "interaction gallery failed to start" in error
     ]
     assert len(matching) == 1, errors
+    assert (
+        len([error for error in errors if "optional sibling failed" in error]) == 1
+    ), errors
 
 
 def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
@@ -1454,7 +1874,7 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     priming = context.new_page()
     priming.goto(url, wait_until="load")
     wait_until_ready(priming)
-    priming.evaluate("localStorage.setItem('lf-auxiliary-surface', 'asks')")
+    priming.evaluate("localStorage.setItem('lf-auxiliary-surface', 'queue')")
     priming.close()
 
     held = []
@@ -1465,35 +1885,41 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     assert held, "the positive control did not hold the first state response"
     body = page.locator("body")
-    expect(body).to_have_attribute("data-lf-auxiliary-surface", "asks")
-    expect_banner_control_offered(page.locator(".lf-asks"), offered=False)
-    expect(page.locator(".lf-asks-panel")).to_be_hidden()
+    expect(body).to_have_attribute("data-lf-auxiliary-surface", "queue")
+    # The door stands on every page, and claims no count before the log has answered.
+    expect(page.locator(".lf-queue")).to_have_text("Questions")
+    expect(page.locator(".lf-queue-panel")).to_be_hidden()
     expect_banner_control_offered(page.locator(".lf-answer-all"), offered=False)
+    # Opened by hand, the panel counts nothing yet either.
+    page.locator(".lf-queue").click()
+    expect(page.locator(".lf-queue-panel")).to_contain_text(
+        "Loading current questions…"
+    )
+    expect(page.locator(".lf-queue-panel")).not_to_contain_text("Questions · 0")
 
     comments = page.locator(".lf-threads-toggle")
     expect(comments).to_be_enabled()
     comments.click()
-    expect(body).not_to_have_attribute("data-lf-auxiliary-surface", "asks")
+    expect(body).not_to_have_attribute("data-lf-auxiliary-surface", "queue")
     expect(page.locator(".lf-general leaf-text")).to_be_editable()
 
     held.pop(0).continue_()
     wait_until_ready(page)
     expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
-    decisions = page.locator(".lf-asks")
-    expect_banner_control_offered(decisions)
-    expect(decisions).to_have_text("Asks 1/1")
-    expect(decisions).to_have_attribute("data-lf-complete", "")
+    decisions = page.locator(".lf-queue")
+    expect(decisions).to_have_text("Questions: 0")
+    expect_asks_answered(page, "1/1")
     expect(decisions).to_have_attribute("aria-expanded", "false")
-    expect(page.locator(".lf-asks-panel")).to_be_hidden()
+    expect(page.locator(".lf-queue-panel")).to_be_hidden()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
-    expect(page.locator("button.lf-asks-row")).to_have_count(0)
+    expect(page.locator("button.lf-queue-row")).to_have_count(0)
     expect_banner_control_offered(page.locator(".lf-answer-all"), offered=False)
 
 
 def test_comments_wait_for_the_first_log_to_be_renderable(browser, serve):
     """Receiving state is not readiness while its message renderer is still loading."""
     url = serve(SHORT_SUGGESTION)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1505,8 +1931,8 @@ def test_comments_wait_for_the_first_log_to_be_renderable(browser, serve):
     held = []
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
-    page.route("**/vendor/marked.esm.js", lambda route: held.append(route))
-    with page.expect_request("**/vendor/marked.esm.js"):
+    page.route("**/vendor/markdown-it.esm.js", lambda route: held.append(route))
+    with page.expect_request("**/vendor/markdown-it.esm.js"):
         page.goto(url, wait_until="load")
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     assert held, "the positive control did not hold the Markdown renderer"
@@ -1749,7 +2175,7 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
             "revision": 1,
             "widget": "draft-ops",
             "action": "edit",
-            "detail": {"text": DRAFT_EDITED},
+            "detail": {"value": DRAFT_EDITED},
         },
     )
     corrected = "Run the migration after deploying — it needs the new column."
@@ -1803,7 +2229,7 @@ def test_user_overrides_identify_state_that_differs_from_authored_inputs(
 
     draft = page.locator("#draft-ops")
     draft.locator(".lf-draft-body").dblclick()
-    draft.locator("textarea").fill(DRAFT_EDITED)
+    write(draft.locator("leaf-text"), DRAFT_EDITED)
     draft_control(page, "save", "draft-ops").click()
     expect(page.locator("#draft-ops[data-lf-user-override]")).to_have_count(1)
 
@@ -1859,7 +2285,7 @@ def test_foreign_state_waits_until_a_live_drag_releases_the_page(browser, serve)
             "revision": 1,
             "widget": "draft-ops",
             "action": "edit",
-            "detail": {"text": "Foreign words held behind the drag."},
+            "detail": {"value": "Foreign words held behind the drag."},
         },
     )
     told(page)
@@ -1987,7 +2413,9 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     # replayed onto it, so what the press restores is the accept, not a blank slate.
     undo(page)
     expect(page.locator("#sug-fix")).to_have_attribute("data-lf-state", "accept")
-    expect(reopened).to_have_count(0)
+    # The undo is no gesture on the thread, so its card stays where it stands, holding
+    # the resolution behind its notice.
+    expect(reopened.get_by_role("button", name="Resolved", exact=True)).to_be_visible()
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     # What the log holds is the three gestures and not one word about the thread:
     # it was reopened and closed again by that log being read.
@@ -2341,7 +2769,7 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
     assert page.evaluate("() => !customElements.get('lf-options')")
 
     d = serve.page_dir
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -2354,11 +2782,9 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
     replied = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(d),
-            "--for",
-            "c-store",
+            response_reference(d, "c-store"),
             "--text",
             "Depends what you want to keep:",
             "--markup",
@@ -2397,7 +2823,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
         primed(
             browser,
             lambda page: page.route(
-                "**/vendor/marked.esm.js", lambda route: marked.append(route)
+                "**/vendor/markdown-it.esm.js", lambda route: marked.append(route)
             ),
         ),
         serve(LONG_PAGE),
@@ -2416,7 +2842,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
         older.append(route)
 
     page.route("**/api/state*", hold_older_state)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2439,19 +2865,14 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
     old_route.fulfill(json=old_state)
     page.title()  # let the old response join the shared import before releasing it
     marked[0].continue_()
-    page.unroute("**/vendor/marked.esm.js")
+    page.unroute("**/vendor/markdown-it.esm.js")
 
     expect(page.locator(".lf-thread", has_text="Older snapshot")).to_have_count(1)
     expect(page.locator(".lf-thread", has_text="Newest snapshot")).to_have_count(1)
 
 
-def test_a_page_hears_news_without_asking_for_it(browser, serve):
-    """The page asks for state when its news stream says the page has moved, and
-    otherwise not at all. A quiet page therefore makes no request — the poll made
-    one every two seconds whether or not anything had happened — and an append
-    reaches it in the time the stream takes to look (fifty milliseconds, where the
-    poll left it up to two seconds), which `told` below waits through. The quiet
-    three seconds are the half of this no faster poll could pass."""
+def test_a_quiet_page_reads_only_freshness_and_hears_changes(browser, serve):
+    """Quiet freshness looks do not rebuild state; an external append does."""
     page = open_page(browser, serve(LONG_PAGE))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -2459,7 +2880,7 @@ def test_a_page_hears_news_without_asking_for_it(browser, serve):
     page.wait_for_timeout(3000)
     assert _traffic(page).asked == asked, "a quiet page asked for state on a timer"
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "News."},
     )
@@ -2468,12 +2889,56 @@ def test_a_page_hears_news_without_asking_for_it(browser, serve):
     expect(page.locator(".lf-thread", has_text="News.")).to_have_count(1)
 
 
-def test_a_hidden_page_releases_its_news_stream_until_it_is_visible(browser, serve):
-    """Visibility is the user lease on a live page. A hidden tab closes its standing
-    request and neither hears a changed reading nor polls for one; becoming visible opens
-    one new stream, whose first word catches the page up. The overridden platform reading
-    is the lifecycle input Chromium's headless shell cannot otherwise produce — all of
-    its tabs report visible even when another is brought to the front."""
+def test_a_durable_server_restart_keeps_the_current_editor(browser, serve):
+    """The process may change while this page's document and log still stand."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Durable draft",
+                '<h1>Durable draft</h1><lf-draft id="draft"><pre>Original</pre></lf-draft>',
+            )
+        ),
+    )
+    page.set_default_timeout(5000)
+    page.locator("#draft .lf-draft-body").dblclick()
+    editor = page.locator("#draft leaf-text")
+    write(editor, "An unfinished durable draft")
+    editor.press("Home")
+    editor.press("Shift+ArrowRight")
+    editor.press("Shift+ArrowRight")
+    before = editor.evaluate(
+        "el=>[el.selectionStart,el.selectionEnd,el.selectionDirection]"
+    )
+    page.evaluate("window.__originalDocument = true")
+    reading = page.locator("body").get_attribute("data-lf-reading")
+    # A poll already in flight can finish after the route is registered without
+    # passing through it. Read the response that actually identifies the new server.
+    with page.expect_response(
+        lambda response: (
+            response.url.endswith("/api/news")
+            and response.headers.get("leaf-server") == "replacement-server"
+        ),
+        timeout=5000,
+    ) as restarted:
+        serve.httpd.server_id = "replacement-server"
+    assert restarted.value.text() == reading
+    page.wait_for_timeout(500)
+    assert page.evaluate("window.__originalDocument === true")
+    expect(editor).to_be_focused()
+    assert (
+        editor.evaluate("el=>[el.selectionStart,el.selectionEnd,el.selectionDirection]")
+        == before
+    )
+    expect(editor).to_have_js_property("value", "An unfinished durable draft")
+
+
+def test_a_hidden_page_stops_its_freshness_reads_until_it_is_visible(browser, serve):
+    """Hidden documents stop attention checks; visibility immediately catches up.
+
+    The overridden platform reading is the lifecycle input Chromium's headless
+    shell cannot otherwise produce: all its tabs report visible.
+    """
     page = open_page(browser, serve(LONG_PAGE))
     asked = _traffic(page).asked
 
@@ -2487,18 +2952,16 @@ def test_a_hidden_page_releases_its_news_stream_until_it_is_visible(browser, ser
           document.dispatchEvent(new Event('visibilitychange'));
         }"""
     )
-    # Once the server has observed the closed socket, a forced opportunity to bump
+    # Once a canceled request has drained, a forced opportunity to bump
     # presence must leave the sentinel alone: a hidden, still-open tab no longer
-    # counts as user attention. Reopening the stream below must replace it.
+    # counts as user attention. Checking immediately on visibility below must replace it.
     page.wait_for_timeout(100)
-    files_model.write_json(serve.page_dir / "viewed.json", {"t": 1.0})
-    serve.httpd.viewed_at = 0
-    events_model.append_event(
+    cleanup_model.write_json(serve.page_dir / "viewed.json", {"t": 1.0})
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "While away."},
     )
-    # The server checks its stream reading every 50ms. Ten checks give the news ample
-    # opportunity to expose a stream the hidden page failed to release.
+    # Two 250ms opportunities expose a hidden page that failed to stop checking.
     page.wait_for_timeout(500)
     assert _traffic(page).asked == asked, (
         "a hidden page still heard or polled for state"
@@ -2518,10 +2981,72 @@ def test_a_hidden_page_releases_its_news_stream_until_it_is_visible(browser, ser
     expect(page.locator(".lf-thread", has_text="While away.")).to_have_count(1)
 
 
-def test_status_changes_coalesce_behind_one_state_read(browser, serve):
-    """Rapid status.json writes do not build a queue of state requests.
+def test_more_than_six_live_documents_share_an_origin_without_stalling(browser, serve):
+    """Live feeds leave HTTP slots available for startup, gestures and revisions."""
+    url = live_url(serve(LONG_PAGE))
+    with browser.new_context() as context:
+        pages = [open_page(browser, url, context=context) for _ in range(8)]
+        last = pages[-1]
+        last.locator(".lf-threads-toggle").click()
+        write(last.locator(".lf-general leaf-text"), "All eight views are live.")
+        with sending(last, "the eighth view's comment"):
+            last.locator(".lf-general button").click()
+        assert any(
+            event.get("text") == "All eight views are live."
+            for event in events_model.read_events(serve.page_dir)
+        )
+        (serve.page_dir / "index.html").write_text(
+            LONG_PAGE.replace(">Long<", ">Updated across tabs<")
+        )
+        for page in pages:
+            told(page)
+            expect(page.locator("#t")).to_have_text("Updated across tabs")
 
-    The news stream may announce several new readings while the container is still
+
+def test_a_presence_read_crossing_freshness_returns_to_the_current_lease(
+    browser, serve
+):
+    """A short-lived real wait lease inside a state read cannot strand its answer.
+
+    Presence may return to the same cached freshness token after state captured a
+    different live lock observation. The shared recovery clock must reconcile the
+    mismatch even though no page file or subsequent token changes.
+    """
+    url = live_url(serve(LONG_PAGE))
+    lease_path = waiter_lease_path(serve.page_dir, None)
+    with take_lease(lease_path) as lease:
+        page = open_page(browser, url)
+        runtime = page.evaluate_handle("""async () =>
+          (await window.__lfRuntimeImport('/runtime/context.js')).runtime""")
+        assert runtime.evaluate("root => root.state.listening") is True
+        # Let the freshness reader observe the original held lease too.
+        page.wait_for_timeout(700)
+        crossed = []
+
+        def crossing(route):
+            if urlparse(route.request.url).path != "/api/state" or crossed:
+                route.continue_()
+                return
+            with take_lease(lease_path):
+                response = route.fetch()
+                assert response.json()["listening"] is True
+            crossed.append(response.json()["reading"])
+            route.fulfill(response=response)
+
+        page.route("**/api/state*", crossing)
+        release_lease(lease)
+        page.wait_for_function(
+            "root => root.state.listening === false", arg=runtime, timeout=6000
+        )
+        assert crossed, "the state read did not cross the temporary lease"
+        told(page)
+        page.unroute_all(behavior="wait")
+
+
+def test_status_changes_coalesce_behind_one_state_read(browser, serve):
+    """Rapid starts do not build a queue of state requests.
+
+    Freshness looks may announce several new readings while the container is still
     answering one. They collapse into one trailing read, which takes the newest state.
     """
     page = open_page(browser, serve(LONG_PAGE))
@@ -2529,10 +3054,7 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     text = page.locator(".lf-status-detail")
 
     def declare(detail):
-        files_model.write_json(
-            d / "status.json",
-            {"state": "working", "detail": detail, "ts": events_model.now_iso()},
-        )
+        declare_work(d, detail)
 
     # Every ask is held; the test answers each admitted read by hand.
     held = []
@@ -2634,13 +3156,13 @@ def test_the_first_read_and_the_user_s_later_ones_are_bounded_apart(browser, ser
     page.wait_for_function("() => window.__leafReadBounds.length >= 2")
     bounds = page.evaluate("() => window.__leafReadBounds")
     assert bounds[0] == 120_000, bounds
-    assert bounds[1] == 10_000, bounds
+    assert 0 < bounds[1] < bounds[0], bounds
 
 
 def test_a_first_read_still_out_does_not_decide_when_the_page_arrives(browser, serve):
     """The user's page arrives on the runtime's wait, not on the container's answer.
 
-    Presentation is where durable controls, the heartbeat and the news stream open, so a
+    Presentation is where durable controls, the heartbeat and freshness checks open, so a
     container that accepts the connection and says nothing would otherwise decide whether
     the user gets a usable page at all — and the read's own bound is set outside what a
     live container takes, which is far past anyone's patience for a page. The wait ends
@@ -2648,34 +3170,15 @@ def test_a_first_read_still_out_does_not_decide_when_the_page_arrives(browser, s
     and the answer that lands after the page has presented offline is applied where it
     stands.
     """
-    # The wait is read off the page rather than written here, and shortened so the test
-    # spends its own time on the behaviour instead of on the bound. It is the first long
-    # timer the runtime's modules install; every other one they set is either shorter
-    # than this floor or installed after presentation. The prepaint bootstrap's own
-    # bound on held keys is set while that classic script runs, so it is passed over.
-    shorten_the_first_long_wait = """
-      window.__leafPresentationWait = null;
-      const native = window.setTimeout.bind(window);
-      window.setTimeout = (fn, ms, ...rest) => {
-        const bootstrap = document.currentScript?.hasAttribute('data-lf-runtime');
-        if (window.__leafPresentationWait === null && ms >= 5000 && !bootstrap) {
-          window.__leafPresentationWait = ms;
-          return native(fn, 200, ...rest);
-        }
-        return native(fn, ms, ...rest);
-      };
-    """
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
-    page.add_init_script(shorten_the_first_long_wait)
     held = []
     page.route("**/api/state*", lambda route: held.append(route))
     page.goto(live_url(serve(LONG_PAGE)), wait_until="load")
-    expect(page.locator("body[data-lf-presented]")).to_have_count(1)
+    expect(page.locator("body[data-lf-presented]")).to_have_count(1, timeout=60_000)
     expect(page.locator(".lf-status-detail")).to_contain_text(
         "Server offline — reconnecting"
     )
-    assert page.evaluate("() => window.__leafPresentationWait") >= 10_000
 
     # The read the page presented without is still the one it is waiting on. Ticks of
     # the shared clock pass with the slot held, and none of them opens a second read.
@@ -2727,8 +3230,8 @@ def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
 
 
 def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
-    """A wake-up the page could not act on is not lost. The stream says when the
-    page has moved and cannot say it twice, so a read that failed — refused here, a
+    """A wake-up the page could not act on is not lost. A freshness answer says when the
+    page has moved wakes state once per changed reading, so a read that failed — refused here, a
     dropped request in the world — is asked again on the page's own tick, the
     spacing a failed exchange has always had. Without that a page would sit under
     an offline banner until something else happened to it."""
@@ -2739,13 +3242,18 @@ def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
     with page.expect_event(
         "requestfailed", predicate=lambda request: "/api/state" in request.url
     ):
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {"kind": "comment", "author": "user", "revision": 1, "text": "Missed."},
         )
     expect(page.locator(".lf-status-detail")).to_have_text(
         "Server offline — reconnecting. Keep this page open so pending changes can send."
     )
+    # A failed answer does not turn every unchanged freshness look into another
+    # expensive state read. At most one recovery tick fits in this interval.
+    asked = _traffic(page).asked
+    page.wait_for_timeout(1000)
+    assert _traffic(page).asked <= asked + 1
     page.unroute("**/api/state*")
     told(page)
     expect(page.locator(".lf-thread", has_text="Missed.")).to_have_count(1)
@@ -2756,9 +3264,9 @@ def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
 
 def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
     """A server is stopped and started under an open tab whenever its layer is
-    re-vendored, and the tab finds the new one on its own: the stream it held ended
-    with the old server, and the browser reopens it. The page says the server is
-    gone while it is, and reads again when the stream comes back, because the last
+    re-vendored, and the tab finds the new one on its own: its freshness read fails
+    with the old server, and the browser keeps asking. The page says the server is
+    gone while it is, and reads again when the server comes back, because the last
     thing it knew about the server is from before the silence."""
     url = serve(LONG_PAGE)
     page = open_page(browser, url)
@@ -2776,7 +3284,7 @@ def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
         serve.page_dir, token=TOKEN, port=port
     ).start()
     serve.servers.append(server)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Back."},
     )
@@ -2840,7 +3348,7 @@ def test_a_page_asks_its_source_before_reloading_onto_the_same_document(browser,
         )
 
     def wake(text):
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {"kind": "comment", "author": "user", "revision": 1, "text": text},
         )
@@ -2897,7 +3405,7 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
           const { commands } = await window.__lfRuntimeImport('/runtime/widget-api.js');
           commands(document.body, 'On a draft',
                [{ id: 'test.project-widget', keys: ['F2'],
-                  does: 'a project widget using the same heading' }]);
+                  title: 'a project widget using the same heading' }]);
         }"""
     )
     page.keyboard.press("?")
@@ -2914,10 +3422,11 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
     expect(
         page.locator(".lf-command-reference", has_text="Edit the text in place")
     ).to_be_visible()
-    # Help is a scope: the table stands down behind it, so c must not work the
-    # panel under the sheet.
+    # Help is a scope: the table stands down behind it, so c must open nothing under
+    # the sheet, neither Threads nor the page comment card.
     page.keyboard.press("c")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    expect(page.locator(".lf-page-comment-card")).to_be_hidden()
     expect(page.locator(".lf-command-reference")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-command-reference")).to_be_hidden()
@@ -2942,7 +3451,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     text, dot = page.locator(".lf-status-detail"), page.locator(".lf-banner .lf-dot")
     summary = page.locator(".lf-status-text")
     UNHELD = (
-        "No session holds this page. 2 updates are saved."
+        "No session holds this page. Your updates are saved."
         " It picks up again when a session does."
     )
 
@@ -2957,19 +3466,17 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         claimed=True,
         stream=None,
     ):
-        """`quiet_for` ages the claim; `turn_ended` says how long ago the Stop hook
-        watched the turn behind it end. Separate seconds, because the case the second
-        exists for is a claim that is not old at all."""
+        """`quiet_for` ages the declaration; `turn_ended` says how long ago the Stop
+        hook watched the turn behind it end. Separate seconds, because the case the
+        second exists for is a start that is not old at all. `working` is a start on
+        the page's own task, in the claimant's voice, with a `waiting` status of the
+        same age beside it; anything else ends that task and writes the status."""
         ts = datetime.now().astimezone() - timedelta(seconds=quiet_for)
+        end_work(d)
         status = {
-            "state": state,
-            "detail": detail,
+            "state": "waiting" if state == "working" else state,
+            "detail": "" if state == "working" else detail,
             "ts": ts.isoformat(timespec="seconds"),
-            "after": (
-                events_model.read_events(d)[-1]["seq"]
-                if events_model.read_events(d)
-                else 0
-            ),
         }
         if stream is not None:
             # What a transport watched for itself, written the way an App Server
@@ -2979,7 +3486,11 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
                     "session": "s",
                     "turn": "turn-live",
                     "ts": ts.isoformat(timespec="seconds"),
-                    "after": status["after"],
+                    "after": (
+                        events_model.read_events(d)[-1]["seq"]
+                        if events_model.read_events(d)
+                        else 0
+                    ),
                 }
                 | stream
             }
@@ -2997,26 +3508,35 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
             )
         else:
             service_model.claim_path(d).unlink(missing_ok=True)
-        files_model.write_json(d / "status.json", status)
+        cleanup_model.write_json(d / "status.json", status)
+        if state == "working":
+            declare_work(
+                d,
+                detail,
+                ts=ts.isoformat(timespec="seconds"),
+                **({"session": "s"} if claimed else {}),
+            )
         told(page)
 
     declare("working", "revising the plan")
-    expect(summary).to_have_text("Claude working — revising the plan · 1 waiting")
+    expect(summary).to_have_text("Claude working — revising the plan")
+    # The row's account of the agent's side is the queue count, not the delivery
+    # count the disclosure keeps.
+    expect(page.locator(".lf-status-queues")).to_have_text("Tasks: 2")
     expect(text).to_have_text(
         re.compile(
-            r"^Claude is working — revising the plan \(.+\)\. 1 update waiting\.$"
+            r"^Claude is working — revising the plan \(.+\)\. 1 response owed on updates awaiting delivery\."
+            r" Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
         )
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
     # A claim still believed but minutes old is dated on the row itself, so a long step
     # and a quiet agent read differently without opening the disclosure.
     declare("working", "revising the plan", quiet_for=5 * 60)
-    expect(summary).to_have_text(
-        "Claude working · 5m ago — revising the plan · 1 waiting"
-    )
+    expect(summary).to_have_text("Claude working · 5m ago — revising the plan")
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
     declare("working", "revising the plan")
-    expect(summary).to_have_text("Claude working — revising the plan · 1 waiting")
+    expect(summary).to_have_text("Claude working — revising the plan")
 
     [first_comment] = [
         event for event in events_model.read_events(d) if event["kind"] == "comment"
@@ -3026,28 +3546,29 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     told(page)
     expect(text).to_have_text(
         re.compile(
-            r"^Claude is working — revising the plan \(.+\)\. " r"1 update queued\.$"
+            r"^Claude is working — revising the plan \(.+\)\. "
+            r"1 response owed on queued updates\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
         )
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
 
     # Picked up into the claimant's open turn before the agent has said anything: the
-    # page is working, and the row names what the turn holds rather than a bare
+    # page is working, and the row names what the turn picked up rather than a bare
     # "working", while the disclosure says the agent's own words are still to come.
     with service_model.PageTransaction(d) as transaction:
         delivery_model.record_pickup(
             transaction, [first_comment], phase="opened", session="s", turn="turn-1"
         )
     declare("waiting", "your read on the plan")
-    expect(summary).to_have_text("Claude working — on your update")
+    expect(summary).to_have_text("Claude working — picked up your comment")
     expect(text).to_have_text(
         re.compile(
-            r"^Claude is working on your update, and hasn't said what it is doing yet"
+            r"^Claude picked up your comment and hasn't said what it's doing yet"
         )
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
 
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -3059,7 +3580,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     )
     with live_watcher(d, page):
         declare("working", "revising the plan")
-        events_model.append_event(
+        append_carried_log_record(
             d, {"kind": "comment", "author": "user", "text": "A later update."}
         )
         told(page)
@@ -3068,12 +3589,12 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         expect(text).to_have_text(
             re.compile(
                 r"^Claude is working — revising the plan \(.+\)\. "
-                r"1 update waiting\.$"
+                r"1 response owed on updates awaiting delivery\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
             )
         )
         expect(dot).to_have_class(re.compile(r"\bworking\b"))
 
-        expect(summary).to_have_text("Claude working — revising the plan · 1 waiting")
+        expect(summary).to_have_text("Claude working — revising the plan")
 
         # A transport that can watch the session's own steps reports one, and the agent
         # says what the work is. The row keeps the sentence written for the user; the
@@ -3083,13 +3604,11 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
             "revising the plan",
             stream={"kind": "tool", "detail": "Running the tests"},
         )
-        expect(summary).to_have_text(
-            "Claude using a tool — revising the plan · 1 waiting"
-        )
+        expect(summary).to_have_text("Claude using a tool — revising the plan")
         expect(text).to_have_text(
             re.compile(
                 r"^Claude is using a tool — revising the plan \(.+\) · "
-                r"Running the tests\. 1 update waiting\.$"
+                r"Running the tests\. 1 response owed on updates awaiting delivery\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
             )
         )
         expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3101,9 +3620,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
             ({"kind": "replying"}, "replying"),
         ]:
             declare("working", "revising the plan", stream=stream)
-            expect(summary).to_have_text(
-                f"Claude {words} — revising the plan · 1 waiting"
-            )
+            expect(summary).to_have_text(f"Claude {words} — revising the plan")
 
         # A claim of work that has gone quiet is still a claim of work, and a live
         # watcher does not turn it into one. This read "Claude awaits — select text to
@@ -3114,16 +3631,12 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         # remedy — nobody needs to touch a terminal for a comment to reach a live wait.
         declare("working", "revising the plan", quiet_for=20 * 60)
         expect(text).to_have_text(
-            "Claude last checked in 20m ago: revising the plan. 1 update is saved."
+            "Claude last checked in 20m ago: revising the plan. Your updates are saved."
+            " Waiting on Claude: 1 reply, 1 task (Work on the page)."
         )
         expect(dot).to_have_class(re.compile(r"\baway\b"))
 
         expect(summary).to_have_text("Claude last checked in 20m ago")
-
-        # And with no detail it is the bare silence, which is the same sentence with
-        # nothing to say after the colon rather than a second wording for it.
-        declare("working", quiet_for=20 * 60)
-        expect(text).to_have_text("Claude last checked in 20m ago. 1 update is saved.")
 
         # The same silence reached by evidence rather than by the clock. A claim is
         # written by a model's turn, and a turn ends without running anything — so
@@ -3134,8 +3647,8 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         # in just now" under an amber dot is the line arguing with the dot.
         declare("working", "revising the plan", quiet_for=6 * 60, turn_ended=5 * 60)
         expect(text).to_have_text(
-            "Claude left this when its turn ended 5m ago: revising the plan."
-            " 1 update is saved."
+            "Claude’s turn ended 5m ago: revising the plan."
+            " Your updates are saved. Waiting on Claude: 1 reply, 1 task (Work on the page)."
         )
         expect(dot).to_have_class(re.compile(r"\baway\b"))
 
@@ -3147,8 +3660,8 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         # renewed by nothing after it.
         declare("working", "revising the plan", quiet_for=5 * 60, turn_ended=5 * 60)
         expect(text).to_have_text(
-            "Claude left this when its turn ended 5m ago: revising the plan."
-            " 1 update is saved."
+            "Claude’s turn ended 5m ago: revising the plan."
+            " Your updates are saved. Waiting on Claude: 1 reply, 1 task (Work on the page)."
         )
 
         # A turn that has only just ended still holds it. An agent that ends its turn
@@ -3171,34 +3684,37 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         # clipped, and a narrow window must not be why the decision goes unread.
         declare("waiting", "pick a storage engine")
         expect(text).to_have_text(
-            "Claude is listening — pick a storage engine. 1 update waiting."
+            "Claude is listening — pick a storage engine. 1 response owed on updates awaiting delivery."
+            " Waiting on Claude: 1 reply."
         )
         expect(page.locator(".lf-status-button")).to_have_attribute(
-            "title", "Claude is listening — pick a storage engine. 1 update waiting."
+            "title",
+            "Claude is listening — pick a storage engine. 1 response owed on updates awaiting delivery."
+            " Waiting on Claude: 1 reply.",
         )
 
     # No watcher, but Claude checked in moments ago, so it is between turns.
     declare("waiting")
     expect(text).to_have_text(
-        "Claude isn't watching right now. 1 update is saved."
-        " It picks them up next turn."
+        "Claude isn't watching right now. Your updates are saved."
+        " It picks them up next turn. Waiting on Claude: 1 reply."
     )
 
-    expect(summary).to_have_text("Claude away · 1 saved")
+    expect(summary).to_have_text("Claude away")
 
     # With nobody listening and the turn over, an update that has only just arrived
     # still reads away: the session's next turn takes it, and a harness Leaf can
     # message was sent it as it arrived.
     declare("working", "running the migration", quiet_for=6 * 60, turn_ended=5 * 60)
     expect(text).to_have_text(
-        "Claude isn't watching right now. 1 update is saved."
-        " It picks them up next turn."
+        "Claude isn't watching right now. Your updates are saved."
+        " It picks them up next turn. Waiting on Claude: 1 reply, 1 task (Work on the page)."
     )
     expect(dot).to_have_class(re.compile(r"\baway\b"))
 
     # Once an update has waited past the pickup grace with nothing to carry it, the
     # remedy is the user's, and the reading says since when nobody has been there.
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -3211,10 +3727,11 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     )
     declare("working", "running the migration", quiet_for=6 * 60, turn_ended=5 * 60)
     expect(text).to_have_text(
-        "Claude left this when its turn ended 5m ago. 2 updates are saved."
+        "Claude’s turn ended 5m ago. Your updates are saved."
         " Nothing is answering them, so nudge it in the terminal."
+        " Waiting on Claude: 2 replies, 1 task (Work on the page)."
     )
-    expect(summary).to_have_text("Nudge Claude in terminal · 2 saved")
+    expect(summary).to_have_text("Nudge Claude in terminal")
     expect(dot).to_have_class(re.compile(r"\baway\b"))
 
     # Claude's own status gets a far longer rope: the same silence is just a long turn.
@@ -3225,13 +3742,15 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     # A dead session needs no timeout at all — the owning pid is simply gone, so the
     # claim it left has nothing behind it however lately it was written.
     declare("working", "running the migration", session_pid=dead_pid)
-    expect(text).to_have_text(UNHELD)
-    expect(summary).to_have_text("No session · 2 saved")
+    expect(text).to_have_text(
+        UNHELD + " Waiting on Claude: 2 replies, 1 task (Work on the page)."
+    )
+    expect(summary).to_have_text("No session")
     # Grey, not the amber a session falling behind wears: nobody is on the line, which
     # is a page's reading arrangement rather than something for the user to chase.
     expect(dot).to_have_class(re.compile(r"^lf-dot\s*$"))
 
-    # Nothing ever claimed the page — a server started outside an agent host. There is
+    # Nothing ever claimed the page — a server started outside an agent harness. There is
     # no pid to ask after, so a claim made moments ago is evidence and still stands.
     declare("working", "running the migration", claimed=False)
     expect(text).to_have_text(re.compile(r"^Agent is working — running the migration"))
@@ -3239,13 +3758,15 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     # Once that claim goes quiet there is nothing left holding the page, and an hour of
     # silence on a page that stands for weeks is not a fault to report.
     declare("working", "running the migration", quiet_for=60 * 60, claimed=False)
-    expect(text).to_have_text(UNHELD)
+    expect(text).to_have_text(
+        UNHELD + " Waiting on Agent: 2 replies, 1 task (Work on the page)."
+    )
 
     declare("working", "revising the plan", agent="Codex")
     expect(text).to_have_text(re.compile(r"^Codex is working — revising the plan"))
 
     declare("idle")
-    expect(text).to_have_text("Leaf closed")
+    expect(text).to_have_text("Page closed. Waiting on Claude: 2 replies.")
 
 
 def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
@@ -3266,15 +3787,12 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
 
     def claim(detail):
         record_claim(d, id="s")
-        files_model.write_json(
-            d / "status.json",
-            {"state": "working", "detail": detail, "ts": events_model.now_iso()},
-        )
+        declare_work(d, detail)
         told(page)
 
     claim("running the migration")
     expect(text).to_have_text(
-        re.compile(r"^Claude is working — running the migration \(just now\)$")
+        re.compile(r"^Claude is working — running the migration \(just now\)\.")
     )
 
     # An hour fast. A fixed time rather than an installed clock, so the page's own
@@ -3284,7 +3802,7 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
     # clock moved: an unchanged sentence would pass on the render before it.
     claim("waiting on the shard")
     expect(text).to_have_text(
-        re.compile(r"^Claude is working — waiting on the shard \(just now\)$")
+        re.compile(r"^Claude is working — waiting on the shard \(just now\)\.")
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
 
@@ -3293,7 +3811,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     browser, serve, tmp_path, dead_pid
 ):
     """The banner says what the agent is doing; an exact message workflow says
-    which user question it is doing it about. A status claim updates both readings.
+    which user question it is doing it about. A start updates both readings.
 
     A user with three questions open and no replies under any of them cannot tell a
     question being worked from a question nobody has looked at, and the page holds the
@@ -3308,35 +3826,31 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     d = serve.page_dir
     comments = [e for e in events_model.read_events(d) if e["kind"] == "comment"]
     held, other = comments[0]["id"], comments[1]["id"]
-    page.keyboard.press("c")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+T")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     workflows = page.locator(".lf-msg-sending")
     held_thread = page.locator(f'.lf-thread[data-id="{held}"]')
     other_thread = page.locator(f'.lf-thread[data-id="{other}"]')
-    held_workflow = held_thread.locator(":scope > .lf-thread-root-meta .lf-msg-sending")
+    held_workflow = held_thread.locator(
+        f'.lf-msg[data-mid="{held}"] > .lf-msg-head .lf-msg-sending'
+    )
     other_workflow = other_thread.locator(
-        ":scope > .lf-thread-root-meta .lf-msg-sending"
+        f'.lf-msg[data-mid="{other}"] > .lf-msg-head .lf-msg-sending'
     )
     expect(workflows).to_have_count(2)
     expect(held_workflow).to_have_text("Sent")
     held_workflow.evaluate("node => { node.dataset.identityProbe = 'kept' }")
 
-    # The old page-wide declaration is deliberately stale: delivery into this exact
-    # turn, rather than a fresh status command, must be what changes the shared
-    # activity reading.
+    # The old page-wide start is deliberately stale: delivery into this exact turn,
+    # rather than a fresh start, must be what changes the shared activity reading.
     record_claim(d, id="s", pid=os.getpid(), agent="Claude")
-    old_status = files_model.read_json(d / "status.json")
-    files_model.write_json(
-        d / "status.json",
-        {
-            **old_status,
-            "state": "working",
-            "detail": "the earlier task",
-            "ts": (datetime.now().astimezone() - timedelta(minutes=20)).isoformat(
-                timespec="seconds"
-            ),
-            "after": 0,
-        },
+    declare_work(
+        d,
+        "the earlier task",
+        ts=(datetime.now().astimezone() - timedelta(minutes=20)).isoformat(
+            timespec="seconds"
+        ),
     )
     # Durable delivery into the open turn advances the exact same row in place and
     # does not disturb another user move.
@@ -3354,13 +3868,16 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_workflow).to_have_attribute("data-identity-probe", "kept")
     expect(other_workflow).to_have_text("Sent")
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude is working on your update, and hasn't said what it is doing yet"
-        " (just now). 1 update waiting."
+        "Claude picked up your comment and hasn't said what it's doing yet"
+        " (just now). 1 response owed on updates awaiting delivery. Waiting on Claude: 2 replies, 1 task"
+        " (Work on the page)."
     )
     expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
-        "Working · 1 update waiting"
+        "Working · 1 response owed on updates awaiting delivery"
     )
 
+    # The agent finishes the earlier task and waits on the user.
+    end_work(d)
     latent_waiting = CliRunner().invoke(
         cli_model.cli, ["status", str(d), "waiting", "review the answer"]
     )
@@ -3368,8 +3885,8 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     told(page)
     expect(held_workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude is working on your update, and hasn't said what it is doing yet"
-        " (just now). 1 update waiting."
+        "Claude picked up your comment and hasn't said what it's doing yet"
+        " (just now). 1 response owed on updates awaiting delivery. Waiting on Claude: 2 replies."
     )
 
     with service_model.PageTransaction(d) as transaction:
@@ -3383,19 +3900,21 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # The turn ended with both updates still the agent's to answer, so they are overdue
     # and the remedy is the user's.
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude last checked in just now. 2 updates are saved. "
+        "Claude last checked in just now. Your updates are saved. "
         "Nothing is answering them, so nudge it in the terminal."
+        " Waiting on Claude: 2 replies."
     )
     with service_model.PageTransaction(d) as transaction:
         transaction.open_turn("s")
 
-    def status(*args):
-        assert (
-            CliRunner().invoke(cli_model.cli, ["status", str(d), *args]).exit_code == 0
+    def start(item, line):
+        started = CliRunner().invoke(
+            cli_model.cli, ["task", "start", str(d), item, line]
         )
+        assert started.exit_code == 0, started.output
         told(page)
 
-    status("working", "reading the reconnect traces", "--on", held)
+    start(held, "reading the reconnect traces")
     expect(held_thread).not_to_have_attribute(
         "data-lf-agent-workflow", re.compile(".+")
     )
@@ -3439,7 +3958,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     )
 
     # New words do not detach the claim from the comment that started the work.
-    followup = events_model.append_event(
+    followup = append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -3458,9 +3977,10 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_thread.locator(":scope > .lf-msg-sending")).to_have_count(0)
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
 
-    # A later claim about the page as a whole is not an answer to the thread, so the
-    # line stands: the two seats are one claim, and only one of them has been rewritten.
-    status("working", "drafting v2")
+    # A later start on the page's own task is not an answer to the thread, so the
+    # thread's line stands while the banner takes the newer one.
+    working(d, "drafting v2")
+    told(page)
     expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(r"^Claude is working — drafting v2")
     )
@@ -3470,7 +3990,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     )
 
     # The answer is what ends it.
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -3491,9 +4011,10 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     )
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
 
-    # Once the answer has settled the input, renewed work is thread activity
-    # in the compact card. It does not invent an unasked message workflow.
-    status("working", "re-running it against the rolling deploy", "--on", held)
+    # Once the answer has settled the input, renewed work is a task on the thread,
+    # shown in the compact card. It does not invent an unasked message workflow.
+    working(d, "re-running it against the rolling deploy", subject=held)
+    told(page)
     expect(held_workflow).to_have_count(0)
     expect(header_status).to_have_text("Working")
     # No message carries this work, so the open card's summary still says it.
@@ -3501,18 +4022,20 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_thread.locator(":scope > .lf-msg-sending")).to_have_count(0)
     expect(workflows).to_have_count(1)
 
-    # A thread the user has closed asks nothing and shows nothing, for the same
-    # reason its reply box is gone.
-    events_model.append_event(d, {"kind": "resolve", "author": "user", "parent": held})
+    # A thread the user has closed asks nothing: its card, closed from another tab,
+    # stays where it stands, holding the resolution behind its notice, and its title
+    # no longer says the agent is working on it.
+    append_carried_log_record(d, {"kind": "resolve", "author": "user", "parent": held})
     told(page)
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
+    expect(held_thread.locator(".lf-thread-news")).to_have_text("Resolved")
     expect(held_thread.locator(".lf-thread-status")).to_have_count(0)
     expect(workflows).to_have_count(1)
 
-    # Reopening restores a claim that no reply answered. The local line still goes
-    # with the page claim it is part of: once nothing holds the page, it cannot keep
-    # claiming work under a banner that says the opposite.
-    events_model.append_event(
+    # Reopening restores the task, which no reply ends. Its start goes with the page
+    # claim it is part of: once nothing holds the page, the task is open but nothing
+    # runs on it under a banner that says nobody is there.
+    append_carried_log_record(
         d, {"kind": "unresolve", "author": "user", "parent": held}
     )
     told(page)
@@ -3523,7 +4046,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(r"^No session holds this page\.")
     )
-    expect(held_thread.locator(".lf-thread-status")).to_have_count(0)
+    expect(held_thread.locator(".lf-thread-status")).to_have_text("Task open")
     expect(workflows).to_have_count(1)
 
 
@@ -3533,7 +4056,7 @@ def test_feature_gallery_workflow_and_banner_share_agent_activity(browser, serve
     declared overall state, then falls back to generic work when that declaration waits."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     page_dir = serve.page_dir
-    comment = events_model.append_event(
+    comment = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -3543,25 +4066,32 @@ def test_feature_gallery_workflow_and_banner_share_agent_activity(browser, serve
         },
     )
     record_claim(page_dir, id="gallery", pid=os.getpid(), agent="Claude")
+    declare_work(page_dir, "Writing the page")
     with service_model.PageTransaction(page_dir) as transaction:
         delivery_model.record_pickup(transaction, [comment])
     told(page)
 
     page.keyboard.press("c")
     workflow = page.locator(
-        f'.lf-thread[data-id="{comment["id"]}"] > .lf-thread-root-meta .lf-msg-sending'
+        f'.lf-thread[data-id="{comment["id"]}"] .lf-msg[data-mid="{comment["id"]}"] > .lf-msg-head .lf-msg-sending'
     )
     expect(workflow).to_have_text("Picked up")
+    # The gallery's own queues end the disclosure, after the activity it shares.
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude is working — Writing the page (just now)"
+        re.compile(
+            r"^Claude is working — Writing the page \(just now\)\. Waiting on you"
+        )
     )
 
-    session_model.cmd_status(page_dir, "waiting", "review the gallery")
+    end_work(page_dir)
+    session_model.cmd_waiting(page_dir, "review the gallery")
     told(page)
     expect(workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude is working on your update, and hasn't said what it is doing yet"
-        " (just now)"
+        re.compile(
+            r"^Claude picked up your comment and hasn't said what it's doing yet"
+            r" \(just now\)\. Waiting on you"
+        )
     )
 
 
@@ -3588,11 +4118,13 @@ def test_ended_pickup_preserves_the_declared_invitation_in_banner_and_leaves(
         assert result.exit_code == 0, result.output
         told(page)
 
+        # The picked-up comment still owes its reply, which the row counts.
         expect(page.locator(".lf-status-text")).to_have_text(
             "Claude awaits — pick a storage engine"
         )
+        expect(page.locator(".lf-status-queues")).to_have_text("Tasks: 1")
         expect(page.locator(".lf-status-detail")).to_have_text(
-            "Claude awaits — pick a storage engine"
+            "Claude awaits — pick a storage engine. Waiting on Claude: 1 reply."
         )
         expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
             "Awaits — pick a storage engine"
@@ -3606,7 +4138,7 @@ def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serv
     old = (datetime.now().astimezone() - timedelta(minutes=3)).isoformat(
         timespec="seconds"
     )
-    comment = events_model.append_event(
+    comment = append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -3619,7 +4151,7 @@ def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serv
     page = open_page(browser, url)
     page.keyboard.press("c")
     workflow = page.locator(
-        f'.lf-thread[data-id="{comment["id"]}"] > .lf-thread-root-meta .lf-msg-sending'
+        f'.lf-thread[data-id="{comment["id"]}"] .lf-msg[data-mid="{comment["id"]}"] > .lf-msg-head .lf-msg-sending'
     )
     expect(workflow).to_have_text("Waiting for pickup")
     expect(workflow).to_have_attribute("title", "Waiting for pickup")
@@ -3635,7 +4167,7 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
     Re-inserting the node would lose its identity and could replay presentation."""
     url = serve(LONG_PAGE)
     d = serve.page_dir
-    comment = events_model.append_event(
+    comment = append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -3646,9 +4178,12 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
     )
     record_claim(d)
     page = open_page(browser, url)
-    page.keyboard.press("c")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+T")
     thread = page.locator(f'.lf-thread[data-id="{comment["id"]}"]')
-    workflow = thread.locator(":scope > .lf-thread-root-meta .lf-msg-sending")
+    workflow = thread.locator(
+        f'.lf-msg[data-mid="{comment["id"]}"] > .lf-msg-head .lf-msg-sending'
+    )
     thread.locator(".lf-thread-summary").click()
     expect(workflow).to_be_visible()
     expect(workflow).to_have_text("Sent")
@@ -3676,12 +4211,11 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
     active = CliRunner().invoke(
         cli_model.cli,
         [
-            "status",
+            "task",
+            "start",
             str(d),
-            "working",
-            "comparing the replacement against every narrow thread surface",
-            "--on",
             comment["id"],
+            "comparing the replacement against every narrow thread surface",
         ],
     )
     assert active.exit_code == 0, active.output
@@ -3692,13 +4226,26 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
         "title",
         "Working · comparing the replacement against every narrow thread surface",
     )
-    assert workflow.evaluate(
+    header_reading = workflow.evaluate(
         """node => {
-          const head = node.parentElement;
-          return [...head.querySelectorAll(':scope > :is(b, time)')]
-            .every(part => getComputedStyle(part).flexShrink === '0');
+          const head = node.closest('.lf-msg-head');
+          const author = head.querySelector(':scope > b');
+          const metadata = head.querySelector(':scope > .lf-msg-meta');
+          const time = metadata.querySelector(':scope > time');
+          const contains = (outer, inner) => {
+            const bounds = outer.getBoundingClientRect();
+            const part = inner.getBoundingClientRect();
+            return part.width > 0 && part.height > 0
+              && part.left >= bounds.left - 0.5 && part.right <= bounds.right + 0.5;
+          };
+          return {
+            authorVisible: contains(head, author),
+            timeVisible: contains(head, time) && contains(metadata, time),
+            timeFixed: getComputedStyle(time).flexShrink === '0',
+          };
         }"""
-    ), "long status metadata can shrink the message author or timestamp"
+    )
+    assert all(header_reading.values()), header_reading
     ticked(page)
     ticked(page)
     expect(workflow).to_have_attribute("data-identity-probe", "kept")
@@ -3712,50 +4259,37 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     browser, serve, tmp_path
 ):
     """A stale exact-input workflow says so beside its message even while a fresh
-    page-wide claim keeps the banner working. Renewing the claim restores Working;
-    a closed turn matters only when it belongs to the claiming session."""
+    start on the page's own task keeps the banner working. Starting the move again
+    restores Working; a closed turn matters only when it belongs to the session that
+    started it."""
     page = open_page(browser, serve(LONG_PAGE, anchored=[("p1", "Paragraph 1.")]))
     d = serve.page_dir
     held = next(e for e in events_model.read_events(d) if e["kind"] == "comment")["id"]
-    page.keyboard.press("c")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+T")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     work_line = page.locator(
-        f'.lf-thread[data-id="{held}"] > .lf-thread-root-meta .lf-msg-sending'
+        f'.lf-thread[data-id="{held}"] .lf-msg[data-mid="{held}"] > .lf-msg-head .lf-msg-sending'
     )
     work_button = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     held_thread = page.locator(f'.lf-thread[data-id="{held}"]')
 
     def claim(claim_ts, session="s"):
-        """A page claim made now, carrying local work last renewed whenever."""
-        files_model.write_json(
-            d / "status.json",
-            {
-                "state": "working",
-                "detail": "rerunning the failing shard",
-                "ts": events_model.now_iso(),
-                "after": events_model.read_events(d)[-1]["seq"],
-                "work": [
-                    {
-                        "id": "trace-check",
-                        "subject": {"kind": "thread", "id": held},
-                        "event": held,
-                        "detail": "reading the reconnect traces",
-                        "ts": claim_ts,
-                        "after": next(
-                            e["seq"]
-                            for e in events_model.read_events(d)
-                            if e["id"] == held
-                        ),
-                        "agent": "Claude",
-                        "session": session,
-                        "turn": "turn-1",
-                    }
-                ],
-            },
+        """A start on the comment last renewed whenever, beside a start on the page's
+        own task made now."""
+        declare_work(
+            d,
+            "reading the reconnect traces",
+            item=held,
+            ts=claim_ts,
+            agent="Claude",
+            session=session,
+            turn="turn-1",
         )
+        declare_work(d, "rerunning the failing shard")
         told(page)
 
-    claim(events_model.now_iso())
+    claim(cleanup_model.now_iso())
     # A claim somebody is keeping says nothing about silence.
     expect(work_line).to_have_count(1)
     expect(work_line).to_have_text("Working")
@@ -3843,7 +4377,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     # And it goes when the claim is kept again, so the word tracks the claim rather
     # than latching on the first time it is late.
     record_claim(d, id="s")
-    claim(events_model.now_iso())
+    claim(cleanup_model.now_iso())
     expect(work_line).to_have_text("Working")
     expect(work_line).to_have_count(1)
     expect(held_thread).not_to_have_attribute(
@@ -3894,14 +4428,16 @@ def test_the_tab_wears_what_the_banner_says(browser, serve, tmp_path, dead_pid):
             )
 
     def declare(state, **status):
-        files_model.write_json(
+        cleanup_model.write_json(
             d / "status.json",
-            {"state": state, "ts": events_model.now_iso(), **status},
+            {"state": state, "ts": cleanup_model.now_iso(), **status},
         )
         told(page)
 
-    # `page init` leaves a fresh working claim, so the tab arrives already saying so.
+    declare_work(d, "Writing the page")
+    told(page)
     working = tone("working", "working")
+    end_work(d)
     declare("waiting")
     with live_watcher(d, page):
         awaits = tone("listening", "awaits")
@@ -4077,15 +4613,17 @@ def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacement
         },
     }
     module = """
-import {projectData, watchData} from '/runtime/widget-api.js';
+import {projectData, watchData, setChildren} from '/runtime/widget-api.js';
 customElements.define('lf-feed', class extends HTMLElement {
   connectedCallback() {
     this.stopWatching ??= watchData(this, 'rows', snapshot => {
-      projectData(this, snapshot?.value?.rows ?? [], row => `${row.id}-${row.updated}`, row => {
+      const datums = (snapshot?.value?.rows ?? []).map(row => {
         const node = document.createElement('p');
         node.textContent = `${row.label} ${row.updated}`;
-        return node;
-      }, {snapshot, identify: row => row.id});
+        return {node, key: `${row.id}-${row.updated}`, identity: row.id};
+      });
+      setChildren(this, datums.map(({node}) => node));
+      projectData(this, datums, {snapshot});
     });
   }
   disconnectedCallback() { this.stopWatching?.(); this.stopWatching = null; }
@@ -4124,7 +4662,7 @@ customElements.define('lf-feed', class extends HTMLElement {
     seen = comment["anchor"]["source_revision"]
 
     page.locator('[data-lf-datum="a-1"]').click(modifiers=["Alt"])
-    page.locator(".lf-fab-bar .lf-response-more").click()
+    page.keyboard.press("Tab")
     reaction = page.locator('.lf-fab-bar .lf-react[data-token="keep"]')
     expect(reaction).to_be_visible()
     with sending(page, "the record reaction"):
@@ -4175,7 +4713,7 @@ customElements.define('lf-feed', class extends HTMLElement {
     assert drafted["anchor"]["identity"] == "a"
 
     row.click(modifiers=["Alt"])
-    page.locator(".lf-fab-bar .lf-response-more").click()
+    page.keyboard.press("Tab")
     expect(reaction).to_have_attribute("aria-pressed", "true")
     with sending(page, "the record reaction withdrawal"):
         reaction.click()
@@ -4188,9 +4726,9 @@ customElements.define('lf-feed', class extends HTMLElement {
 @pytest.mark.parametrize(
     "failure",
     [
-        "begin",
         "outletFor",
-        "end",
+        "invalid-count",
+        "invalid-outlet",
         "unregister",
         "end-unregister",
         "disconnect",
@@ -4203,11 +4741,24 @@ customElements.define('lf-feed', class extends HTMLElement {
 def test_a_failed_thread_surface_returns_its_threads_to_core_fallback(
     browser, serve, failure
 ):
+    _exercise_failed_thread_surface(browser, serve, failure, activation="pointer")
+
+
+def test_a_failed_thread_surface_continues_the_keyboard_opened_reply(browser, serve):
+    """Opening sibling reactions with the keyboard retains the active reply session."""
+    _exercise_failed_thread_surface(browser, serve, "hidden", activation="keyboard")
+
+
+def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
     """An adapter failure cannot keep stale local views or stop the next widget.
 
-    Two previously seated threads expose partial claims when outletFor fails on
-    the second one. The healthy surface stands later in registration order, so
-    its updated reply proves reconciliation continued beyond the broken adapter.
+    Each case is one way a surface stops holding its threads: its callback throws
+    (outletFor, after preparing the first datum), it unregisters outside or
+    inside its callback, it leaves the page, its outlet moves out of it or off the
+    page, it places nothing, or its datum goes while the callback awaits. Its threads
+    fall back to the core surface with the unsent draft, and its picker lets go of the
+    keyboard. The healthy surface stands later in registration order, so its updated
+    reply proves reconciliation continued beyond the broken adapter.
     """
     entry = {
         "description": "A project-supplied thread surface.",
@@ -4221,10 +4772,10 @@ def test_a_failed_thread_surface_returns_its_threads_to_core_fallback(
         "x-example": '<lf-test-surface id="surface-example"></lf-test-surface>',
     }
     module = """
-import {projectData, consumeThreads} from '/runtime/widget-api.js';
+import {projectData, placeThreads, setChildren} from '/runtime/widget-api.js';
 customElements.define('lf-test-surface', class extends HTMLElement {
   connectedCallback() {
-    projectData(this, ['first', 'second'], key => key, key => {
+    const datums = ['first', 'second'].map(key => {
       const row = document.createElement('section');
       const words = document.createElement('p');
       words.textContent = `${this.id} ${key} datum`;
@@ -4232,22 +4783,21 @@ customElements.define('lf-test-surface', class extends HTMLElement {
       outlet.className = 'test-outlet';
       row.outlet = outlet;
       row.append(words, outlet);
-      return row;
+      return {node: row, key};
     });
-    this.surface = consumeThreads(this, async (collection, surfaces) => {
-      this.check('begin');
-      for (const thread of collection.threads) {
-        const target = surfaces.target(thread.key);
-        if (!target) continue;
+    setChildren(this, datums.map(({node}) => node));
+    projectData(this, datums);
+    this.surface = placeThreads(this, async (targets) => {
+      const outlets = targets.map((target) => {
         const {anchor, placement} = target;
-        if (anchor.datum === 'second') this.check('outletFor');
-        if (this.failure !== 'hidden') surfaces.place(thread.key, placement.datumElement.outlet);
-      }
+        if (anchor.datum === 'second' && this.failure === 'outletFor')
+          throw new Error('surface fixture: outletFor');
+        return this.failure === 'hidden' ? null : placement.datumElement.outlet;
+      });
         if (this.failure === 'end-unregister') {
           this.failure = null;
           this.surface.unregister();
         }
-        this.check('end');
         for (const row of this.children) {
           if (this.failure === 'moved') document.querySelector('main').append(row.outlet);
           if (this.failure === 'detached') row.outlet.remove();
@@ -4259,13 +4809,13 @@ customElements.define('lf-test-surface', class extends HTMLElement {
             row.remove();
           }
         }
+      if (this.failure === 'invalid-count') return outlets.slice(1);
+      if (this.failure === 'invalid-outlet') return outlets.map(() => undefined);
+      return outlets;
     });
   }
-  check(phase) {
-    if (this.failure === phase) throw new Error(`surface fixture: ${phase}`);
-  }
   fail(phase) {
-    this.failure = ['unregister', 'disconnect'].includes(phase) ? 'end' : phase;
+    this.failure = phase;
     if (phase === 'unregister') this.surface.unregister();
     else if (phase === 'disconnect') {
       this.remove();
@@ -4325,15 +4875,52 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     expect(healthy).to_contain_text("Discuss healthy first")
     markers = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     expect(markers).to_have_count(0)
-    write(broken.locator(".lf-page-thread leaf-text").first, "Keep this unsent reply.")
+    input = broken.locator(".lf-page-thread leaf-text").first
+    write(input, "Keep this unsent reply.")
+    editing = """async key => {
+      const replies = await window.__lfRuntimeImport('/runtime/thread/replies.js');
+      return replies.replyIsEditing(key);
+    }"""
+    assert page.evaluate(editing, roots[0])
+    retired_words = (
+        'typed words left the screen without a key or press: "Keep this unsent reply." in '
+        + input.evaluate("field => window.lfPlace(field)")
+    )
     strip = broken.locator(".lf-react-strip")
-    strip.locator(".lf-react-trigger").click()
-    expect(strip.locator(".lf-react:visible")).to_have_count(6)
+    trigger = strip.locator(".lf-react-trigger")
+    if activation == "pointer":
+        trigger.click()
+    else:
+        trigger.focus()
+        page.keyboard.press("Enter")
+    expect(strip).to_have_class(re.compile(r"\blf-react-open\b"))
+    assert page.evaluate(editing, roots[0]) == (activation == "keyboard")
+    assert stored_draft_text(page, f"reply:{roots[0]}") == "Keep this unsent reply."
 
     broken.evaluate("(widget, phase) => widget.fail(phase)", failure)
+    rendered(page)
+    page.evaluate("lfWordsJudged()")
+    if activation == "pointer":
+        # The reaction press already ended this composition, before the passive
+        # adapter fault. Retiring its unfocused view withdraws saved work, not a
+        # typing continuation. Calibrate only this exact report at that handoff;
+        # adapter faults and every other loss remain with the strict collector.
+        assert not page.evaluate(editing, roots[0])
+        assert page.lf_errors.count(retired_words) == 1, page.lf_errors
+        page.lf_errors.remove(retired_words)
+    else:
+        assert page.evaluate(editing, roots[0])
+        assert "Keep this unsent reply." in page.locator(
+            "leaf-text:visible"
+        ).evaluate_all("fields => fields.map(field => field.value)")
+        assert retired_words not in page.lf_errors, page.lf_errors
+        # This control now deliberately leaves its continuing editor before
+        # exercising the original retired-picker and explicit fallback routes.
+        page.keyboard.press("Escape")
+    assert stored_draft_text(page, f"reply:{roots[0]}") == "Keep this unsent reply."
     if failure != "disconnect":
         expect(broken.locator(".lf-page-thread")).to_have_count(0)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -4363,36 +4950,32 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     # completion edge before checking that the digit produced no stale send.
     page.keyboard.press("1")
     page.keyboard.press("c")
-    expect(page.locator(".lf-general leaf-text")).to_be_focused()
+    expect(page.locator(".lf-page-comment-card leaf-text")).to_be_focused()
     round_trip(page)
     assert not [
         event
         for event in events_model.read_events(serve.page_dir)
         if event.get("token")
     ]
-    page.keyboard.press("Escape")  # out of the box, onto the list
-    page.keyboard.press("Escape")  # and out of the panel that holds it
+    page.keyboard.press("Escape")  # out of the page comment card
+    expect(page.locator(".lf-page-comment-card")).to_be_hidden()
     expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     # A retired thread lands on the surface the user's own gesture reaches. With the
-    # widget still on the page its passages keep a page-local destination, so the margin's
-    # thread margin entry on each datum and each passage's comment count open the fallback
-    # card and Threads stays shut; a disconnected widget leaves no such destination and
-    # the panel answers.
+    # widget still on the page its passages keep a page-local destination, so each datum
+    # gets a margin entry and its comment note opens the fallback card with Threads
+    # shut; a disconnected widget leaves no such destination and the panel answers.
     if failure in {"disconnect", "target-removed"}:
         expect(markers).to_have_count(0)
         page.locator(".lf-threads-toggle").click()
         fallback = page.locator(f'.lf-thread[data-id="{roots[0]}"]')
     else:
         expect(markers).to_have_count(2)
-        markers.first.click()
-        expect(page.locator(".lf-margin-preview")).to_be_visible()
-        expect(page.locator(".lf-thread-panel")).not_to_have_class(
-            re.compile(r"\bopen\b")
-        )
-        page.keyboard.press("Escape")
         comment_note(page, "#broken").press("Enter")
         fallback = page.locator(
             f'.lf-margin-preview .lf-page-thread[data-thread="{roots[0]}"]'
+        )
+        expect(page.locator(".lf-thread-panel")).not_to_have_class(
+            re.compile(r"\bopen\b")
         )
     expect(fallback).to_be_visible()
     expect(fallback).to_contain_text("Discuss broken")
@@ -4405,7 +4988,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
             widget.failure = null;
             for (const row of widget.children) row.append(row.outlet);
         }""")
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "reply",
@@ -4423,20 +5006,14 @@ customElements.define('lf-test-surface', class extends HTMLElement {
             "value", "Keep this unsent reply."
         )
         expect(markers).to_have_count(0)
-    if failure not in {
-        "detached",
-        "hidden",
-        "end-unregister",
-        "unregister",
-        "disconnect",
-        "target-removed",
-    }:
-        expected_phase = "end" if failure in {"unregister", "disconnect"} else failure
-        expected = (
-            "returned an outlet outside its widget"
-            if failure == "moved"
-            else f"surface fixture: {expected_phase}"
-        )
+    # Invalid output is a failed preparation, never a partial successful claim.
+    if failure in {"outletFor", "moved", "invalid-count", "invalid-outlet"}:
+        expected = {
+            "outletFor": "surface fixture: outletFor",
+            "moved": "returned an outlet outside its presentation owner",
+            "invalid-count": "return one outlet or null per target",
+            "invalid-outlet": "A Thread outlet must be an Element or null",
+        }[failure]
         consume_browser_errors(page, expected)
 
 
@@ -4448,8 +5025,7 @@ def test_a_declared_external_projection_must_receive_its_snapshot(browser, serve
           const {projectData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           try {
             projectData(
-              document.querySelector('#deployments'), [], row => row.key,
-              () => document.createElement('p')
+              document.querySelector('#deployments'), []
             );
             return null;
           } catch (error) {
@@ -4486,18 +5062,20 @@ def test_a_comment_follows_an_unversioned_derived_datum_by_its_stable_key(
         "x-example": '<lf-derived id="derived-example"></lf-derived>',
     }
     module = """
-import {offer, projectData} from '/runtime/widget-api.js';
+import {offer, projectData, setChildren} from '/runtime/widget-api.js';
 customElements.define('lf-derived', class extends HTMLElement {
   connectedCallback() {
     window.lfDerived = this;
     this.show([{key: 'api', value: 'Ready'}, {key: 'worker', value: 'Ready'}]);
   }
   show(rows) {
-    projectData(this, rows, row => row.key, ({value}) => {
+    const datums = rows.map(({key, value}) => {
       const row = document.createElement('p');
       row.append(value, offer('button', 'inspect', 'Inspect'));
-      return row;
+      return {node: row, key};
     });
+    setChildren(this, datums.map(({node}) => node));
+    projectData(this, datums);
   }
 });
 """
@@ -4731,7 +5309,7 @@ def test_a_source_that_returns_under_an_unfinished_reading_stays_current(
 
     # The reading that moves the source also brings a message, so applying it has
     # document work to finish; the reading behind it lands while that work is unfinished.
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -4780,7 +5358,7 @@ def test_new_data_in_a_stale_event_response_is_still_accepted(browser, serve):
     """
     page = open_page(browser, data_projection_page(serve))
     older = page.evaluate("async () => await (await fetch('/api/state')).json()")
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -4837,8 +5415,13 @@ def test_thread_timestamps_age_without_new_state(browser, serve):
 
 
 def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
+    """A completed crossed state read must not recalibrate the displayed clock.
+
+    Keep freshness unchanged: an origin that advertises new state but returns an
+    old reading forever asks for repair on every tick rather than aging paints.
+    """
     url = serve(LONG_PAGE)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -4856,11 +5439,12 @@ def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
     stale["taken"] = 0
     stale["now"] = (datetime.now().astimezone() - timedelta(hours=3)).isoformat()
     page.route("**/api/state*", lambda route: route.fulfill(json=stale))
-    with page.expect_response("**/api/state*"):
-        files_model.write_json(
-            serve.page_dir / "status.json",
-            {"state": "working", "detail": "newer", "ts": events_model.now_iso()},
-        )
+    page.evaluate(
+        """async () => {
+          const {readAndApply} = await window.__lfRuntimeImport('/runtime/application.js');
+          await readAndApply();
+        }"""
+    )
     ticked(page)
     expect(timestamp).to_have_text("1h ago")
 
@@ -4896,6 +5480,139 @@ def test_an_idle_page_keeps_its_dom_and_data_subscriptions_at_rest(browser, serv
           return {mutations: window.idleMutations, deliveries: window.idleDeliveries};
         }"""
     ) == {"mutations": 0, "deliveries": 1}
+
+
+def test_data_consumers_clear_and_recover_across_contract_only_rebindings(
+    browser, serve
+):
+    """Active and frozen consumers keep their declarations as a source is rebound.
+
+    A changed contract must reach the browser even with identical value bytes, clear
+    the incompatible consumer, and leave its subscription able to recover.
+    """
+
+    def entry(tag, contract):
+        return {
+            "description": "An instrumented data reader.",
+            "type": "object",
+            "properties": {
+                "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+                "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            },
+            "required": ["id", "source"],
+            "additionalProperties": False,
+            "x-content": "empty",
+            "x-upgrade": True,
+            "x-data": {"data": {"contract": contract, "source": "source"}},
+            "x-example": f'<{tag} id="example-{contract}" source="shared"></{tag}>',
+        }
+
+    def module(tag):
+        return """import {watchData} from '/runtime/widget-api.js';
+customElements.define(TAG, class extends HTMLElement {
+  connectedCallback() {
+    if (this.started) return;
+    this.started = true;
+    window.dataDeliveries ??= [];
+    this.stop = watchData(this, 'data', snapshot => {
+      window.dataDeliveries.push({id: this.id, snapshot});
+      const text = JSON.stringify(snapshot?.value ?? null);
+      if (this.textContent !== text) this.textContent = text;
+    });
+  }
+  disconnectedCallback() { this.stop?.(); }
+});""".replace("TAG", json.dumps(tag))
+
+    authored = leaf_page(
+        "Different contracts",
+        '<h1 id="title">Feeds</h1>'
+        '<lf-array-feed id="page-feed" source="shared"></lf-array-feed>',
+    )
+    url = serve(
+        authored,
+        layer_registry={
+            "lf-array-feed": entry("lf-array-feed", "rows"),
+            "lf-object-feed": entry("lf-object-feed", "other-rows"),
+            "$data": {
+                "contracts": {
+                    "rows": {"description": "Rows.", "schema": {"type": "array"}},
+                    "other-rows": {
+                        "description": "Another contract.",
+                        "schema": {"type": ["array", "object"]},
+                    },
+                }
+            },
+        },
+        layer_widgets={
+            "lf-array-feed.js": module("lf-array-feed"),
+            "lf-object-feed.js": module("lf-object-feed"),
+        },
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "question",
+            "author": "user",
+            "revision": 1,
+            "text": "Another feed.",
+        },
+    )
+    thread_model.post_reply(
+        serve.page_dir,
+        "question",
+        "Frozen feed.",
+        '<lf-object-feed id="thread-feed" source="shared"></lf-object-feed>',
+        for_event="question",
+    )
+    data_model.cmd_data_set(serve.page_dir, "shared", ["same bytes"])
+    page = open_page(browser, url)
+    page.keyboard.press("c")
+    expect(page.locator("#page-feed")).to_have_text('["same bytes"]')
+    expect(page.locator("#thread-feed")).to_have_text("null")
+    consume_browser_errors(page, "watchData(lf-object-feed, data) requires other-rows")
+    read = """async () => {
+      const {readAndApply} = await window.__lfRuntimeImport('/runtime/application.js');
+      await readAndApply();
+    }"""
+    wire = "async () => (await (await fetch('/api/state')).json()).data"
+
+    def rebind(contract, value):
+        (serve.page_dir / "index.html").write_text(
+            authored
+            if contract == "rows"
+            else authored.replace("lf-array-feed", "lf-object-feed")
+        )
+        data_model.cmd_data_set(serve.page_dir, "shared", value)
+        page.evaluate(read)
+        return page.evaluate(wire)
+
+    original = page.evaluate(wire)
+    rebound = rebind("other-rows", ["same bytes"])
+    expect(page.locator("#page-feed")).to_have_text("null")
+    expect(page.locator("#thread-feed")).to_have_text('["same bytes"]')
+    assert (
+        original["sources"]["shared"]["revision"]
+        == rebound["sources"]["shared"]["revision"]
+    )
+    assert original["version"] != rebound["version"]
+    consume_browser_errors(page, "watchData(lf-array-feed, data) requires rows")
+
+    calls = page.evaluate("window.dataDeliveries.length")
+    page.evaluate(read)
+    page.evaluate(read)
+    assert page.evaluate("window.dataDeliveries.length") == calls
+    assert page.lf_errors == []
+
+    rebind("rows", ["same bytes"])
+    expect(page.locator("#page-feed")).to_have_text('["same bytes"]')
+    expect(page.locator("#thread-feed")).to_have_text("null")
+    consume_browser_errors(page, "watchData(lf-object-feed, data) requires other-rows")
+
+    rebind("other-rows", {"new": "object meaning"})
+    expect(page.locator("#page-feed")).to_have_text("null")
+    expect(page.locator("#thread-feed")).to_have_text('{"new":"object meaning"}')
+    consume_browser_errors(page, "watchData(lf-array-feed, data) requires rows")
 
 
 def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
@@ -4956,6 +5673,150 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
         "captured": [None],
         "failedCalls": 1,
         "message": "mount failed",
+    }
+
+
+def test_projection_subscriptions_follow_their_owner_and_cancel_queued_reads(
+    browser, serve
+):
+    """Retiring a queued read cannot revive it or its clock subscription."""
+    page = open_page(browser, serve(SUGGESTION_PAGE))
+    result = page.evaluate(
+        """async () => {
+          const {watchProjection} = await window.__lfRuntimeImport('/runtime/projection-watch.js');
+          const {clockValue, tickClock} = await window.__lfRuntimeImport('/runtime/presence.js');
+          const owner = document.createElement('div');
+          document.body.append(owner);
+          const changed = action => new Promise(resolve => {
+            const observer = new MutationObserver(() => {
+              observer.disconnect();
+              resolve();
+            });
+            observer.observe(document.body, {childList: true, subtree: true});
+            action();
+          });
+          let clock = 0;
+          let cancelled = 0;
+          const cancel = watchProjection(owner, () => {
+            cancelled += 1;
+            clockValue(() => clock);
+          });
+          cancel();
+          await Promise.resolve();
+          clock += 1;
+          await tickClock(message => { throw new Error(message); });
+          let calls = 0;
+          const stop = watchProjection(owner, () => {
+            calls += 1;
+            clockValue(() => clock);
+          });
+          await Promise.resolve();
+          const initial = calls;
+          await changed(() => { owner.remove(); document.body.append(owner); });
+          const moved = calls;
+          await changed(() => owner.remove());
+          clock += 1;
+          await tickClock(message => { throw new Error(message); });
+          const detached = calls;
+          await changed(() => document.body.append(owner));
+          await Promise.resolve();
+          const resumed = calls;
+          stop();
+          await changed(() => owner.remove());
+          await changed(() => document.body.append(owner));
+          clock += 1;
+          await tickClock(message => { throw new Error(message); });
+          owner.remove();
+          return {cancelled, initial, moved, detached, resumed, stopped: calls};
+        }"""
+    )
+    assert result == {
+        "cancelled": 0,
+        "initial": 1,
+        "moved": 1,
+        "detached": 1,
+        "resumed": 2,
+        "stopped": 2,
+    }
+
+
+def test_data_subscriptions_follow_their_owner_and_stop_permanently(browser, serve):
+    """Detachment releases data/clock work; reattachment restores the newest reading.
+
+    A move in one mutation batch retains the original subscription. Removing an owner
+    with an in-flight render also releases its presentation, so readiness can settle
+    without waiting for a renderer whose owner is absent.
+    """
+    page = open_page(browser, data_projection_page(serve))
+    result = page.evaluate(
+        """async () => {
+          const {watchData, clockValue} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {acceptData, notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
+          const {tickClock} = await window.__lfRuntimeImport('/runtime/presence.js');
+          const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
+          const widget = document.querySelector('lf-feed');
+          const home = widget.parentElement;
+          const changed = action => new Promise(resolve => {
+            const observer = new MutationObserver(() => {
+              observer.disconnect();
+              resolve();
+            });
+            observer.observe(document.body, {childList: true, subtree: true});
+            action();
+          });
+          const deliveries = [];
+          let clock = 0;
+          let release;
+          const stop = watchData(widget, 'rows', snapshot => {
+            clockValue(() => clock);
+            deliveries.push(snapshot?.revision ?? null);
+            if (snapshot?.revision === 'held-owner')
+              return new Promise(resolve => { release = resolve; });
+          });
+          const initial = deliveries.length;
+          await changed(() => document.body.append(widget));
+          const moved = deliveries.length;
+          await changed(() => widget.remove());
+          clock += 1;
+          await tickClock(message => { throw new Error(message); });
+          const detached = deliveries.length;
+          await changed(() => home.append(widget));
+          const resumed = deliveries.length;
+          const next = structuredClone(runtime.data);
+          next.version = 'held-owner-version';
+          next.sources.deployments.revision = 'held-owner';
+          acceptData(next, runtime.state.taken);
+          const pending = notifyDataSubscribers();
+          const held = deliveries.at(-1);
+          await changed(() => widget.remove());
+          await pending;
+          release();
+          const newest = structuredClone(runtime.data);
+          newest.version = 'newest-owner-version';
+          newest.sources.deployments.revision = 'newest-owner';
+          acceptData(newest, runtime.state.taken);
+          await notifyDataSubscribers();
+          const absent = deliveries.length;
+          await changed(() => home.append(widget));
+          const restored = deliveries.at(-1);
+          stop();
+          await changed(() => widget.remove());
+          await changed(() => home.append(widget));
+          clock += 1;
+          await tickClock(message => { throw new Error(message); });
+          return {initial, moved, detached, resumed, held, absent, restored,
+            stopped: deliveries.length};
+        }"""
+    )
+    assert result == {
+        "initial": 1,
+        "moved": 1,
+        "detached": 1,
+        "resumed": 2,
+        "held": "held-owner",
+        "absent": 3,
+        "restored": "newest-owner",
+        "stopped": 4,
     }
 
 
@@ -5410,3 +6271,684 @@ def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser,
     page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
     round_trip(page)
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
+
+
+def test_page_thread_surface_owns_exact_source_elsewhere_in_main(browser, serve):
+    url = serve(
+        leaf_page(
+            "Page review rail",
+            """
+      <h1 id="title">Review</h1><p id="subject">The nightly export keeps one file per tenant.</p>
+      <aside id="review" aria-label="Review" style="height: 500px; overflow:auto"></aside>
+    """,
+        ),
+        anchored=[("subject", "one file per tenant")],
+    )
+    page = open_page(browser, url)
+    page.evaluate("""async () => {
+      const {placePageThreads} = await __lfRuntimeImport('/runtime/application.js');
+      const rail = document.querySelector('#review');
+      const outlets = new Map();
+      window.pageSurface = placePageThreads(rail, (targets) => {
+        return targets.map(({thread}) => {
+          let outlet = outlets.get(thread.key);
+          if (!outlet) {
+            outlet = document.createElement('div');
+            outlet.dataset.lfGen='1'; rail.append(outlet); outlets.set(thread.key,outlet);
+          }
+          return outlet;
+        });
+      });
+    }""")
+    thread = page.locator("#review .lf-page-thread")
+    expect(thread).to_have_count(1)
+    expect(thread).to_contain_text("About this bit.")
+    assert page.evaluate("""async () => {
+      const {claimed} = await __lfRuntimeImport('/runtime/thread/surfaces.js');
+      return claimed(document.querySelector('#review .lf-page-thread').dataset.thread);
+    }""")
+    reply = thread.get_by_role("textbox", name="Reply", exact=True)
+    write(reply, "Can the archive keep that naming?")
+    reply.press("Enter")
+    expect(thread).to_contain_text("Can the archive keep that naming?")
+    page.evaluate("pageSurface.unregister()")
+    expect(thread).to_have_count(0)
+
+
+def _hold_required_thread_panel(page):
+    """Hold actual required panel preparation without changing the semantic epoch."""
+    page.evaluate("""async()=>{
+      const [{createThreadPanelElements},{createThreadListController},
+        {createThreadNarrowing},{threadList},app]=await Promise.all([
+        __lfRuntimeImport('/runtime/thread/panel-elements.js'),
+        __lfRuntimeImport('/runtime/thread/thread-list.js'),
+        __lfRuntimeImport('/runtime/thread/narrowing.js'),
+        __lfRuntimeImport('/runtime/thread/state.js'),
+        __lfRuntimeImport('/runtime/application.js')]);
+      const elements=createThreadPanelElements();
+      elements.panel.style.cssText='position:relative;inset:auto;width:400px;height:400px;margin:0';
+      document.body.append(elements.panel);elements.panel.classList.add('open');
+      const controller=createThreadListController(elements);
+      const original=controller.renderThreads.bind(controller);
+      controller.renderThreads=async(...args)=>{
+        const candidate=await original(...args);
+        if(window.holdPanel){window.holdPanel=false;await new Promise(resolve=>window.releasePanel=resolve);}
+        return candidate;
+      };
+      let handle;
+      const narrowing=createThreadNarrowing({view:elements.narrowingView,listRoot:elements.threadsBox,
+        readThreads:threadList,ready:()=>true,repaint:()=>handle.update()});narrowing.mount();
+      handle=app.registerThreadPanel({controller,threadsBox:elements.threadsBox,required:true,view:{
+        narrowing,panelIsOpen:()=>true,scrollToElement:()=>{},setThreadCounts:()=>{},onListChanged:()=>{},
+        refreshAnchorHover:()=>{},travel:{showThread:()=>{},retainPanelLanding:()=>{},retainNarrowing:()=>{}}}});
+      await app.refreshThread();
+    }""")
+
+
+def test_widgets_claim_before_page_and_only_required_page_failures_fail_proof(
+    browser, serve
+):
+    entry = {
+        "description": "An exact source seat.",
+        "type": "object",
+        "properties": {"id": {"type": "string"}, "style": {"type": "string"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-upgrade": True,
+        "x-thread-surface": True,
+        "x-example": '<lf-test-seat id="sample"></lf-test-seat>',
+    }
+    module = """
+import {projectData, placeThreads, setChildren} from '/runtime/widget-api.js';
+customElements.define('lf-test-seat', class extends HTMLElement {
+  connectedCallback() {
+    const datums = ['row'].map(key => {
+      const row = document.createElement('section');
+      row.textContent = 'Source row';
+      row.outlet = document.createElement('div'); row.append(row.outlet); return {node: row, key};
+    });
+    setChildren(this, datums.map(({node}) => node));
+    projectData(this, datums);
+  }
+  start() {
+    this.surface = placeThreads(this, (targets) => {
+      if (this.fail) throw new Error('exact widget failed');
+      return targets.map(target => target.placement.datumElement.outlet);
+    });
+  }
+});
+"""
+    events = [
+        {
+            "id": f"{i:032x}",
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": text,
+            "anchor": anchor,
+        }
+        for i, text, anchor in [
+            (1, "Widget conversation", {"section": "seat", "datum": "row"}),
+            (
+                2,
+                "Passage conversation",
+                {"section": "subject", "quote": "one file per tenant"},
+            ),
+        ]
+    ]
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Widget first page review",
+                """
+      <h1>Review</h1><button id="fail-widget">Break widget</button><button id="retire-outlet">Retire outlet</button><lf-test-seat id="seat" style="display:block;height:250px;overflow:auto"></lf-test-seat>
+      <p id="subject">The nightly export keeps one file per tenant.</p>
+      <aside id="review" aria-label="Review" style="height:500px; overflow:auto"></aside>
+    """,
+            ),
+            layer_registry={"lf-test-seat": entry},
+            layer_widgets={"lf-test-seat.js": module},
+            events=events,
+        ),
+    )
+    page.evaluate("""async () => {
+      const app = await __lfRuntimeImport('/runtime/application.js');
+      window.refreshProof = app.refreshThread;
+      document.querySelector("#fail-widget").addEventListener("click", () => {
+        document.querySelector("#seat").fail = true; void refreshProof();
+      });
+      document.querySelector('#retire-outlet').onclick=()=>{
+        document.querySelector('#seat [data-lf-datum]').outlet.remove();
+      };
+      const rail = document.querySelector('#review');
+      const outlets = new Map();
+      window.pageSurface = app.placePageThreads(rail, (targets) => {
+        if (window.failPage) throw new Error('required page failed');
+        return targets.map(({thread}) => {
+          let outlet = outlets.get(thread.key);
+          if (!outlet) { outlet = document.createElement('div');
+            outlet.dataset.lfGen='1'; outlet.style.cssText='display:flow-root;height:250px;overflow:auto'; rail.append(outlet); outlets.set(thread.key,outlet); }
+          return outlet;
+        });
+      });
+    }""")
+    expect(page.locator("#review .lf-page-thread")).to_have_count(2)
+    page.locator("#seat").evaluate("(seat) => seat.start()")
+    expect(page.locator("#seat .lf-page-thread")).to_have_count(1)
+    expect(page.locator("#review .lf-page-thread")).to_have_count(1)
+    expect(page.locator("#review")).to_contain_text("Passage conversation")
+    # An actual page-presented reply stands at its source, not its authored rail.
+    reply = page.locator("#review .lf-page-thread").get_by_role(
+        "textbox", name="Reply", exact=True
+    )
+    reply.click()
+    assert (
+        page.evaluate("""async () => {
+      const {placeOf} = await __lfRuntimeImport('/runtime/standing-target.js');
+      return placeOf(document.activeElement)?.id;
+    }""")
+        == "subject"
+    )
+    # A widget outlet can disappear while a required sibling prepares. The page's
+    # existing fallback nomination receives its Thread on this same cohort commit.
+    _hold_required_thread_panel(page)
+    page.evaluate("()=>{window.holdPanel=true;void refreshProof();}")
+    page.wait_for_function('typeof releasePanel === "function"')
+    page.locator("#retire-outlet").click()
+    page.evaluate("()=>releasePanel()")
+    expect(page.locator("#seat .lf-page-thread")).to_have_count(0)
+    expect(page.locator("#review .lf-page-thread")).to_have_count(2)
+    page.evaluate("""async()=>{
+      const row=document.querySelector('#seat [data-lf-datum]');row.append(row.outlet);
+      await refreshProof();
+    }""")
+    expect(page.locator("#seat .lf-page-thread")).to_have_count(1)
+    expect(page.locator("#review .lf-page-thread")).to_have_count(1)
+    page.locator("#fail-widget").click()
+    assert page.evaluate("async () => { await refreshProof(); return true; }")
+    expect(page.locator("#seat .lf-page-thread")).to_have_count(0)
+    expect(page.locator("#review .lf-page-thread")).to_have_count(2)
+    consume_browser_errors(page, "exact widget failed")
+    page.locator("#seat").evaluate("(seat) => { seat.fail = false; }")
+    page.evaluate("window.failPage = true")
+    proof = page.evaluate("""async () => {
+      await refreshProof();
+      const {readApplicationPresentation, applicationPresented} =
+        await __lfRuntimeImport('/runtime/semantic-state.js');
+      return {pending: readApplicationPresentation().pending, presented: applicationPresented()};
+    }""")
+    assert "thread" in proof["pending"]
+    assert proof["presented"] is False
+    consume_browser_errors(page, "required page failed")
+    # Core indexes remain readable and the same selected renderer can recover.
+    assert page.evaluate("async () => pageSurface.read().threads.length") == 2
+    page.evaluate("window.failPage = false")
+    page.evaluate("async () => { await refreshProof(); }")
+    expect(page.locator("#seat .lf-page-thread")).to_have_count(1)
+    expect(page.locator("#review .lf-page-thread")).to_have_count(1)
+
+
+def test_required_page_failure_retains_composer_seat_focus_and_caret(browser, serve):
+    entry = {
+        "description": "An exact datum seat.",
+        "type": "object",
+        "properties": {"id": {"type": "string"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-upgrade": True,
+        "x-thread-surface": True,
+        "x-example": '<lf-test-seat id="seat"></lf-test-seat>',
+    }
+    module = """
+import {projectData,placeThreads,setChildren} from '/runtime/widget-api.js';
+customElements.define('lf-test-seat',class extends HTMLElement{
+  connectedCallback(){
+    this.style.cssText='display:block;height:360px;overflow:auto';
+    const datums=['row'].map(key=>{
+      const row=document.createElement('section');row.textContent='Source row';
+      for(const name of ['a','b']){row[name]=document.createElement('div');row[name].dataset.seat=name;row.append(row[name]);}
+      return {node:row,key};
+    });
+    setChildren(this,datums.map(({node})=>node));
+    projectData(this,datums);
+    this.side='a';
+    this.surface=placeThreads(this,targets=>
+      targets.map(target=>target.placement.datumElement[this.side]));
+  }
+});
+"""
+    events = [
+        {
+            "id": f"{i:032x}",
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": text,
+            "anchor": anchor,
+        }
+        for i, text, anchor in [
+            (1, "Widget thread", {"section": "seat", "datum": "row"}),
+            (2, "Source thread", {"section": "subject"}),
+        ]
+    ]
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Cohort ownership",
+                """
+      <h1>Cohort ownership</h1><lf-test-seat id="seat"></lf-test-seat>
+      <p id="subject">An ordinary source.</p><aside id="rail" style="height:300px;overflow:auto"></aside>
+      <div id="foreign"></div>
+    """,
+            ),
+            layer_registry={"lf-test-seat": entry},
+            layer_widgets={"lf-test-seat.js": module},
+            events=events,
+        ),
+    )
+    page.evaluate("""async()=>{
+      const app=await __lfRuntimeImport('/runtime/application.js');window.refresh=app.refreshThread;
+      const rail=document.querySelector('#rail'); const outlet=document.createElement('div');outlet.dataset.lfGen='1';rail.append(outlet);
+      window.pageSurface=app.placePageThreads(rail,async(targets)=>{
+        if(window.holdNext){window.holdNext=false;await new Promise(resolve=>window.releasePage=resolve);}
+        return targets.map(()=>window.invalid?document.querySelector('#foreign'):outlet);
+      });
+    }""")
+    expect(page.locator("#rail .lf-page-thread")).to_have_count(1)
+    expect(page.locator("[data-seat=a] .lf-page-thread")).to_have_count(1)
+    page.evaluate("""() => {
+      const seat=document.querySelector('#seat');
+      seat.surface.open(seat.querySelector('[data-lf-datum]'));
+    }""")
+    editor = page.locator(".lf-fab-input")
+    expect(editor).to_be_focused()
+    write(editor, "Keep this typing place.")
+    editor.press("ArrowLeft")
+    editor.press("Shift+ArrowLeft")
+    before = editor.evaluate(
+        "(field)=>[field.selectionStart,field.selectionEnd,field.selectionDirection]"
+    )
+    assert (
+        page.evaluate(
+            "document.querySelector('.lf-fab-bar').parentElement.dataset.seat"
+        )
+        == "a"
+    )
+    assert (
+        page.evaluate("""async()=>{
+      document.querySelector('#seat').side='b';window.invalid=true;await refresh();
+      const {applicationPresented}=await __lfRuntimeImport('/runtime/semantic-state.js');return applicationPresented();
+    }""")
+        is False
+    )
+    consume_browser_errors(page, "outside its presentation owner")
+    expect(page.locator("[data-seat=a] .lf-page-thread")).to_have_count(1)
+    expect(page.locator("[data-seat=b] .lf-page-thread")).to_have_count(0)
+    expect(editor).to_be_focused()
+    assert (
+        editor.evaluate(
+            "(field)=>[field.selectionStart,field.selectionEnd,field.selectionDirection]"
+        )
+        == before
+    )
+    assert (
+        page.evaluate(
+            "document.querySelector('.lf-fab-bar').parentElement.dataset.seat"
+        )
+        == "a"
+    )
+    assert page.evaluate(
+        "document.querySelector('[data-seat=a]').hasAttribute('data-lf-thread-surface')"
+    )
+    assert not page.evaluate(
+        "document.querySelector('[data-seat=b]').hasAttribute('data-lf-thread-surface')"
+    )
+
+    page.evaluate("async()=>{window.invalid=false;await refresh();}")
+    expect(page.locator("[data-seat=b] .lf-page-thread")).to_have_count(1)
+    expect(page.locator("[data-seat=a] .lf-page-thread")).to_have_count(0)
+    expect(page.locator("#seat .lf-page-thread")).to_have_count(1)
+
+    expect(editor).to_be_focused()
+    assert (
+        editor.evaluate(
+            "(field)=>[field.selectionStart,field.selectionEnd,field.selectionDirection]"
+        )
+        == before
+    )
+    assert (
+        page.evaluate(
+            "document.querySelector('.lf-fab-bar').parentElement.dataset.seat"
+        )
+        == "b"
+    )
+    assert page.evaluate(
+        "document.querySelector('[data-seat=b]').hasAttribute('data-lf-thread-surface')"
+    )
+    assert not page.evaluate(
+        "document.querySelector('[data-seat=a]').hasAttribute('data-lf-thread-surface')"
+    )
+
+    # A cancelled preparation never moves the editor; newer native typing belongs to
+    # the next current cohort, and releasing the stale callback cannot reclaim it.
+    page.evaluate(
+        "() => { document.querySelector('#seat').side='a'; window.holdNext=true; void refresh(); }"
+    )
+    page.wait_for_function('typeof window.releasePage === "function"')
+    assert (
+        page.evaluate(
+            "document.querySelector('.lf-fab-bar').parentElement.dataset.seat"
+        )
+        == "b"
+    )
+    editor.press("End")
+    editor.press_sequentially(" More")
+    page.evaluate("() => { void refresh(); }")
+    page.wait_for_function(
+        "document.querySelector('.lf-fab-bar').parentElement.dataset.seat === 'a'"
+    )
+    current = editor.evaluate(
+        "(field)=>({value:field.value,caret:[field.selectionStart,field.selectionEnd,field.selectionDirection]})"
+    )
+    page.evaluate("async()=>{releasePage();await refresh();}")
+    expect(editor).to_be_focused()
+    assert (
+        editor.evaluate(
+            "(field)=>({value:field.value,caret:[field.selectionStart,field.selectionEnd,field.selectionDirection]})"
+        )
+        == current
+    )
+    assert (
+        page.evaluate(
+            "document.querySelector('.lf-fab-bar').parentElement.dataset.seat"
+        )
+        == "a"
+    )
+
+    # The widget can lose its contained outlet during the page callback itself.
+    # Its already prepared fallback keeps the same native editor and typing place.
+    page.evaluate(
+        "()=>{delete window.releasePage;window.holdNext=true;void refresh();}"
+    )
+    page.wait_for_function('typeof window.releasePage === "function"')
+    page.evaluate("""()=>{
+      document.querySelector('#foreign').moveBefore(document.querySelector('[data-seat=a]'),null);
+      releasePage();
+    }""")
+    news = page.locator("#rail").get_by_role("button", name="1 new thread", exact=True)
+    expect(news).to_be_visible()
+    page.wait_for_function(
+        "document.querySelector('#rail').contains(document.querySelector('.lf-fab-bar'))"
+    )
+    consume_browser_errors(page, "outside its presentation owner")
+    expect(editor).to_be_focused()
+    assert (
+        editor.evaluate(
+            "(field)=>({value:field.value,caret:[field.selectionStart,field.selectionEnd,field.selectionDirection]})"
+        )
+        == current
+    )
+    page.evaluate("()=>document.querySelector('#seat').surface.unregister()")
+    news.click()
+    expect(page.locator("#rail .lf-page-thread")).to_have_count(2)
+
+
+def test_source_retired_during_required_panel_prepare_is_not_claimed(browser, serve):
+    """A source nomination expires before placement if required preparation retires it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Source admission at commit",
+                """
+      <h1>Source review</h1><p id="subject">An ordinary durable target.</p>
+      <button id="retire">Retire the target</button>
+      <aside id="rail" style="height:220px;overflow:auto"></aside>
+    """,
+            ),
+            anchored=[("subject", None)],
+        ),
+    )
+    page.evaluate("""async()=>{
+      const app=await __lfRuntimeImport('/runtime/application.js');
+      const rail=document.querySelector('#rail');const outlet=document.createElement('div');outlet.dataset.lfGen='1';rail.append(outlet);
+      window.surface=app.placePageThreads(rail,targets=>{
+        window.offered=targets.map(({thread})=>thread.id);
+        return targets.map(()=>outlet);
+      });
+      document.querySelector('#retire').onclick=()=>{document.querySelector('#subject').id='retired';};
+      await app.refreshThread();
+      window.refresh=app.refreshThread;
+    }""")
+    _hold_required_thread_panel(page)
+    expect(page.locator("#rail .lf-page-thread")).to_have_count(1)
+    page.evaluate("()=>{window.holdPanel=true;void refresh();}")
+    page.wait_for_function('typeof releasePanel === "function"')
+    page.locator("#retire").click()
+    assert page.locator("#subject").count() == 0
+    page.evaluate("()=>releasePanel()")
+    page.wait_for_function("""async()=>{
+      const {applicationPresented}=await __lfRuntimeImport('/runtime/semantic-state.js');return applicationPresented();
+    }""")
+    expect(page.locator("#rail .lf-page-thread")).to_have_count(0)
+
+
+def test_an_unavailable_user_view_observer_creates_no_agent_work(browser, serve):
+    """Optional view context cannot turn a failed module request into page debt."""
+    page = browser.new_page()
+    page.route("**/runtime/user-view.js", refuse)
+    with page.expect_event(
+        "requestfailed",
+        predicate=lambda request: request.url.endswith("/runtime/user-view.js"),
+    ):
+        page.goto(serve(SUGGESTION_PAGE), wait_until="load")
+    wait_until_ready(page)
+    with sending(page, "the suggestion decision"):
+        page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
+    assert not [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "error"
+    ]
+    assert not page.lf_errors
+
+
+def test_user_view_context_reads_the_documents_forced_scheme(browser, serve):
+    """The effective document scheme can override the user's OS preference."""
+    source = leaf_page(
+        "Forced scheme",
+        '<h1 id="heading">A dark document</h1>',
+        head="<style>:root { color-scheme: only dark; }</style>",
+    )
+    context = browser.new_context(color_scheme="light")
+    open_page(browser, serve(source), context=context)
+    observed = wait_for(
+        lambda: user_views_model.read_user_views(serve.page_dir, 1)["sessions"],
+        lambda records: bool(records) and records[0]["checks"] is not None,
+        failure="the forced document scheme never reached the agent view",
+    )[0]
+    assert observed["color_scheme"] == "dark"
+    assert observed["checks"]["color_scheme"] == "dark"
+
+
+def test_user_view_context_waits_for_a_samples_viewport_allocation(browser, serve):
+    """A connected sample reports real allocated views, never a zero-sized one."""
+    source = leaf_page(
+        "Sample view",
+        """<h1>Sample view</h1>
+<lf-sample id="practice" label="Practice">
+  <template id="practice-source" data-sample>
+    <h2>Contained page</h2><p>Read this in its allocated viewport.</p>
+  </template>
+</lf-sample>""",
+    )
+    page = open_page(browser, serve(source))
+    element = page.locator("#practice iframe")
+    frame = element.element_handle().content_frame()
+    wait_until_ready(frame)
+    rendered(frame)
+    view_url = urljoin(frame.url, "api/user-view")
+    reports = []
+    page.on(
+        "request",
+        lambda request: (
+            reports.append(request.post_data_json) if request.url == view_url else None
+        ),
+    )
+
+    def accepted(response):
+        return response.url == view_url and response.status == 204
+
+    with page.expect_response(accepted) as first:
+        element.evaluate(
+            """frame => {
+              frame.style.setProperty('width', '650px', 'important');
+              frame.style.setProperty('height', '400px', 'important');
+            }"""
+        )
+    initial = first.value.request.post_data_json
+    assert initial["viewport"]["width"] > 0
+    assert initial["viewport"]["height"] > 0
+    assert initial["visual_viewport"]["width"] > 0
+    assert initial["visual_viewport"]["height"] > 0
+    saved_style = element.evaluate("frame => frame.style.cssText")
+    before = len(reports)
+    element.evaluate(
+        """frame => {
+          for (const property of ['width', 'height', 'min-width', 'min-height', 'border-width'])
+            frame.style.setProperty(property, '0px', 'important');
+        }"""
+    )
+    # Zero width is the state that stays: the sample sizes its frame to its content, so
+    # one frame later a zero-wide document stands as tall as its words wrapped one per
+    # line. Either axis at zero is unallocated (user-view.js).
+    frame.wait_for_function(
+        """() => window.frameElement.isConnected &&
+          document.documentElement.clientWidth === 0 && visualViewport.width === 0"""
+    )
+    # Cover the observer's 10-second heartbeat and 300ms resize quiet interval.
+    page.wait_for_timeout(11_000)
+    assert reports[before:] == [], "the unallocated sample sent a user view"
+
+    with page.expect_response(accepted) as restored:
+        element.evaluate(
+            "(frame, style) => { frame.style.cssText = style; }", saved_style
+        )
+    recovered = restored.value.request.post_data_json
+    assert recovered["session"] == initial["session"]
+    assert recovered["sequence"] > initial["sequence"]
+    assert recovered["viewport"]["width"] > 0
+    assert recovered["viewport"]["height"] > 0
+    assert recovered["visual_viewport"]["width"] > 0
+    assert recovered["visual_viewport"]["height"] > 0
+    assert frame.evaluate("() => window.frameElement.isConnected")
+
+
+def test_user_view_context_follows_real_tabs_without_changing_the_page(browser, serve):
+    """Agent context names each actual document and its checks, even when a tab
+    keeps an earlier revision. Observations never become decisions or freshness
+    changes, and hidden reports release their own view without hiding another."""
+    source = leaf_page(
+        "View observation",
+        '<h1 id="view-heading">Service capacity</h1>'
+        '<svg id="capacity-drawing" class="drawing" viewBox="0 0 1200 80">'
+        '<text x="20" y="40" font-size="12">Ten thousand requests</text></svg>',
+    )
+    url = serve(source)
+    directory = serve.page_dir
+    first = open_page(browser, url)
+
+    def views():
+        return user_views_model.read_user_views(
+            directory, files_model.latest_revision(directory)
+        )["sessions"]
+
+    seen = wait_for(
+        views,
+        lambda records: len(records) == 1 and records[0]["checks"] is not None,
+        failure="the live document never reported its view and checks",
+    )
+    identity = seen[0]["session"]
+    assert seen[0]["visible"] and seen[0]["freshness"] == "fresh"
+    assert seen[0]["checks"]["matches_view"]
+    assert seen[0]["checks"]["reading"]["checks"]["shrunk_labels"]["drawings"]
+    file_reading = page_reading(directory)
+    source_reading = source_readings(directory)
+    asked = _traffic(first).asked
+
+    first.set_viewport_size({"width": 600, "height": 720})
+    first.emulate_media(color_scheme="dark", reduced_motion="reduce")
+    changed = wait_for(
+        views,
+        lambda records: (
+            records[0]["viewport"]["width"] == 600
+            and records[0]["color_scheme"] == "dark"
+            and records[0]["checks"]["matches_view"]
+        ),
+        failure="resizing and changing scheme did not reach the agent view",
+    )[0]
+    assert changed["session"] == identity
+    assert changed["reduced_motion"]
+    assert changed["checks"]["viewport"] == {"width": 600, "height": 720}
+    assert page_reading(directory) == file_reading
+    assert source_readings(directory) == source_reading
+    assert _traffic(first).asked == asked
+
+    second = open_page(browser, live_url(url))
+    seen = wait_for(
+        views,
+        lambda records: len(records) == 2 and all(r["checks"] for r in records),
+        failure="the second document replaced the first view",
+    )
+    assert len({r["session"] for r in seen}) == 2
+    assert {r["viewport"]["width"] for r in seen} == {
+        600,
+        second.viewport_size["width"],
+    }
+    state = CliRunner().invoke(cli_model.cli, ["page", "state", str(directory)])
+    assert state.exit_code == 0, state.output
+    assert len(json.loads(state.output)["user_views"]["sessions"]) == 2
+    assert "user_views" not in second.evaluate(
+        "async () => await (await fetch(new URL('api/state', document.querySelector('link[rel=canonical]').href))).json()"
+    )
+
+    # Headless Chrome cannot naturally hide one tab, so deliver the platform
+    # lifecycle input used by the existing news visibility regression above.
+    first.evaluate(
+        """() => {
+          Object.defineProperty(document, 'visibilityState', {
+            configurable: true, value: 'hidden',
+          });
+          document.dispatchEvent(new Event('visibilitychange'));
+        }"""
+    )
+    hidden = wait_for(
+        views,
+        lambda records: any(
+            r["session"] == identity and not r["visible"] for r in records
+        ),
+        failure="hiding one document did not release its view",
+    )
+    assert sum(r["visible"] for r in hidden) == 1
+
+    (directory / "index.html").write_text(
+        source.replace("Service capacity", "Updated capacity")
+    )
+    told(second)
+    seen = wait_for(
+        views,
+        lambda records: any(
+            r["revision"] == 2 and r["checks"] and r["checks"]["matches_view"]
+            for r in records
+        ),
+        failure="the new revision never reached its visible document's reading",
+    )
+    old = next(r for r in seen if r["session"] == identity)
+    current = next(r for r in seen if r["session"] != identity)
+    assert old["revision"] == 1 and not old["matches_active_revision"]
+    assert current["revision"] == 2 and current["matches_active_revision"]

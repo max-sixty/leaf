@@ -1,73 +1,126 @@
 # Testing leaf
 
-A test here is evidence about behavior a user depends on. The suite does not constrain
-new code (root `AGENTS.md`, **Stage**): rewrite or delete an overfit test as part of
-the change, and say in the commit which behavior moved.
+A test here is evidence about behavior a user depends on. The suite's quality varies:
+agents wrote most of it, and many tests assert the shape the code had when they were
+written rather than that behavior. Under root `AGENTS.md`'s **Stage**, the suite does
+not constrain new code: rewriting or deleting an overfit test is an ordinary part of a
+change, and the commit says which behavior moved.
 
 Prove each contract at the lowest boundary that preserves it, and keep a browser test
-only where it proves boundaries working together. When a browser test is slow, or fails
-on timing or geometry outside its contract, repair its arrangement or move its contract
-down. Each helper's docstring owns its contract. Code cites the sections below by
-heading, so a renamed heading needs its citers updated.
+only where it proves boundaries working together. Every run of the suite pays for each
+test's compute, so weigh that cost against how much the protected behavior matters
+before adding or keeping an expensive test: a long browser journey, a sweep across
+pages or widths, or a wide parametrization needs a contract important enough to pay
+for it. When a high-level browser test is slow, or fails on timing or geometry outside
+its contract, repair its arrangement or move its contract to the lower boundary.
 
-## Running tests
+Each helper's docstring owns its contract, and code cites sections here by heading.
 
-The host supplies `wt`, `uv`, `jq` 1.6 or newer, Node 22 or newer, and Docker for the
-complete website boundary only. `wt setup` installs Playwright's Chromium headless
-shell, WebKit, and Chrome, the example assets, and the npm trees; `uv run` syncs
+Message delivery has one shared journey in `leaf_dev.thread_journey`, whose held
+checkpoints supply the appearance gate in `test_render_thread_snapshots.py`.
+`leaf_dev.thread_snapshots` owns capture, review and acceptance; reviewed PNG images and
+geometry live in `max-sixty/leaf-assets`, governed by `leaf-assets.json`'s independent
+`thread_snapshots_revision`, advanced only by acceptance. Run evidence
+stays in `.tmp/`.
+
+Linux browser tests use `tests/fonts.conf` and `fonts-dejavu` for their native
+UI, serif and mono faces, including bold and italic styles. Install that package before `wt setup`; CI installs it
+explicitly, and an actual Chromium font reading verifies those faces. Mac uses its
+native fonts, and the thread appearance gate compares its images on macOS only.
+
+## A failure is evidence about the test too
+
+Before fixing a failing test, name the user-facing behavior its failure caught. Where
+it caught none, because the change left what the user sees and does intact and the
+test broke only on the shape it read, consider simplifying the test to the behavior it
+protects, moving its contract to a lower boundary, or deleting it, rather than
+updating it to the new shape. A test that unrelated changes keep breaking (`git log
+-L` on it shows the history) is the strongest candidate.
+
+A failure that comes and goes on the same code is a defect. Find whether the product
+races, so a user could hit the same failure, or the test's arrangement does (**State
+races are arrangements, not probabilities**), and fix that cause.
+
+## Run what the change needs
+
+The host supplies `wt`, `uv`, `jq` 1.6 or newer, and Node 22 or newer.
+`wt setup` installs Playwright's Chromium headless
+shell, WebKit, Firefox, and Chrome, the example assets, and the npm trees; `uv run` syncs
 Python.
 
 ```sh
 wt setup
-uv run pytest tests                  # everyday gate; no network after setup
-npm run test:runtime                 # the gate's other half: tests/runtime/, under Node
-uv run pytest tests --run-nightly    # everything
-uv run pytest tests/test_render_widgets.py -q -n0 -k board   # one case, kept local
+uv run pytest tests/test_render_widgets.py -q -n0 -k board   # the tests a change needs
+npm run test:runtime                 # tests/runtime/, under Node
+uv run pytest tests                  # broad selection; the landing gate runs it
 uv run pytest --lf --lfnf=none -x -n0
 uv run pytest --regtest-reset -n0 <node-id>
 ```
 
 Mark a test `nightly` when a pull request can land without it, including any test that
 needs the network; expense alone does not make a test nightly. Broad discovery skips
-nightly tests; an explicit file, node id, `-k`, `-m`, or `--lf` runs what it names, and
-both landing gates add the nightly tests in the files a change touches
-(`--nightly-changed-since`).
+nightly tests, and an explicit file, node id, `-k`, `-m`, or `--lf` runs what it
+names. Both landing gates pass `--nightly-changed-since`, which adds the nightly tests
+whose own lines the change edits.
 
-Before handing over a browser-facing change, run its whole browser file, the everyday
-gate, and the smallest nightly selection covering it. Run a new or changed browser test
-through `uv run leaf-dev flake NODEID`, which runs concurrent copies; a serial rerun
-samples only an idle machine. A failure naming a fixed path in the checkout, such as an
-export under `.tmp/`, is the copies racing there.
+Before handing over, run the tests that hold the behavior you changed, in any file
+and nightly ones included, named by node id or `-k`; find them by reading which tests
+exercise the code the change touches. Run `npm run test:runtime` too when the change
+reaches the runtime. A change lands only on a green landing gate, which runs the broad
+selection: a pull request's `test` job, or `wt merge`'s pre-merge. A failure there that
+your selection missed is the gate doing its job; fix it and push. Every other nightly
+test is CI's to report: the `test` job in `ci.yaml` runs the complete suite once main
+moves, and `tend-ci-fix` answers what it fails. That trade is the user's choice
+(2026-10-04): a pull request can land green and break a nightly test it never ran, and
+main can stay red while `tend-ci-fix` repairs it, so a red main is no reason to widen a
+change, its gate, or its test selection. Don't run the broad selection, `--run-nightly`, `-m nightly`, or
+a whole browser file locally outside a landing: each takes minutes to over an hour
+and slows every other session on the machine. To learn what main fails, read that
+job's run, and reproduce a failure it names by node id.
 
-CLI output and agent-facing text are regtest recordings in `tests/_regtest_outputs/`,
-normalized for temporary paths and generated identities but never for instruction
-text. After an intentional change, reset only the affected test and read the diff.
+CLI output and agent-facing text are regtest recordings in
+`tests/_regtest_outputs/`, normalized for temporary paths and generated identities but
+never for instruction text. Review the affected recordings when changing interaction
+instructions, and after an intentional change reset only the affected test and read the
+diff.
 
-GitHub Actions on Ubuntu 24.04 is the Linux authority: compare the candidate's and the
-base's workflow runs, not a local container. Subprocess tests invoke leaf through
-`LEAF_COMMAND`, and `bin/leaf` only where the launcher itself is the subject.
+GitHub Actions on Ubuntu 24.04 is the Linux authority. Use the candidate's and base
+SHA's workflow runs for Linux-specific evidence; a local container is not that runner.
+The pull request's `test` job also owns the site build, Worker dry-run deploy, and
+`verify-site wrangler` delivery checks. Reserve local Docker runs for reproducing
+concrete Worker/container failures. Wrangler's dry-run deploy builds the
+container image too, so it belongs to that same boundary.
 
-## Test placement
+Subprocess tests invoke leaf through `LEAF_COMMAND`, and `bin/leaf` only where the
+launcher itself is the subject.
 
-- `interact_support.py` holds file-side fixtures, `render_harness.py` browser fixtures,
-  and `render_cases_*.py` reusable browser cases.
-- `tests/runtime/*.test.mjs` holds what one runtime module decides on its own, in the
-  document `tests/runtime/dom.mjs` puts up; `build/browser/application.test.mjs` holds
-  the publisher's composition of those folds. Both build served threads and workflows
-  with `served.mjs` from what `served_records.py` folds through the server.
-- `fixtures/pages/` holds full-page regressions under `examples/AGENTS.md`'s rules.
+## Put each assertion at the boundary that owns it
 
-A fold that rests on a primitive Node and Chrome implement differently, such as
-`Intl.Segmenter`, stays in the browser suite.
+File-side fixtures live in `interact_support.py`, browser fixtures in
+`render_harness.py`, reusable browser cases in `render_cases_*.py`.
+`tests/runtime/*.test.mjs` holds what one runtime module decides on its own, in the
+document `tests/runtime/dom.mjs` puts up; `build/browser/application.test.mjs` owns
+the publisher's composition of those folds. Both build served threads and workflows
+with `served.mjs` from what `served_records.py` folds through the server: a record
+that carries every field the server sends, with only the fields a case is about
+changed, or a whole reading where the case rests on how the server relates them.
+`fixtures/pages/` holds full-page regressions under `examples/AGENTS.md`'s rules.
 
-A property caused by a particular page belongs in `render_version`, because `page check
---render` reports it to that page's author. A property identical for every valid page,
-such as how the layer restores browser state (`arrival_findings`), belongs in the
-suite. A render-gate test calls `render_version`, not one of its probes.
+A fold whose result rests on a platform primitive that differs between Node and
+Chrome, such as `Intl.Segmenter`, is a browser fact: its test stays in the browser
+suite however little DOM it touches. Ask both engines rather than reading the module.
 
-Where the product already answers a question, consume its answer: `shownBand` for the
-band a box shows, `root_overflow` for sideways scroll, `draft_key` for where a draft is
-stored, `event_log.read_events` for what the log holds. Page-side code reaches a runtime
+A property caused by a particular page belongs in `render_version`, because `version
+check --render` must report it to that page's author. A property identical for every
+valid page, such as how the layer restores browser state (`arrival_findings`), belongs
+in the suite. The render gate never opens the thread panel, so the suite opens it and
+puts the gate's geometry readings to it, asserting each population and planting a
+fault there first.
+
+A render-gate test calls `render_version`, not one of its probes. Where the product already answers a reading's question, such as `shownBand` for the
+band a box shows, consume that answer instead of copying it: `root_overflow` for
+whether the page scrolls sideways, `draft_key` for where a draft is stored, and
+`event_log.read_events` for what the log holds. Page-side code reaches a runtime
 module through `window.__lfRuntimeImport`; a bare `/runtime/…` import loads a second
 instance that shares none of the page's state.
 
@@ -78,14 +131,24 @@ them, passed to `serve` as `layer_registry` and `layer_widgets`.
 
 A test over prose compares it with something the machine states: a shown command
 against the click tree, an `x-` key against the guide, a table against its registry.
-Wording with no machine side is left to review.
+Leave wording with no machine side to review.
+
+Focus evidence starts in keyboard modality: press `Tab` to the exact stop and require
+`:focus-visible`, or `:focus` on the runtime's text field (`leaf-text`), a host that
+delegates focus and so never matches `:focus-visible` in Chrome; `element.focus()` alone
+is not that evidence.
+`RELEASE_FOCUS` (`render_harness.py`) resets the sequential starting point; `blur()` keeps
+it; `document.body.focus()` does nothing, since body holds no stop. Read
+a ring's actual paint through `RINGS_DRAWN` and `ring_faults`, because an ancestor or
+linked carrier may draw it.
 
 ## Fixtures
 
-Every test runs under `isolated_session`, which moves only the XDG state home and claims
-pages under the worker's pid; do not move `HOME`. Declare other process conditions
-through fixtures (`sessionless`, `codex_env`) rather than editing the environment in a
-test body.
+Every test runs under `isolated_session`, which moves the XDG state and Codex homes,
+clears an inherited App Server endpoint, and claims pages under the worker's pid;
+do not move `HOME`. Declare other process
+conditions through fixtures (`sessionless`, `codex_env`) rather than editing the
+environment in a test body.
 
 Choose the page fixture by boundary: `serve` for a complete page over real HTTP,
 `page_dir` for command-level files, `ModelPage` and `model_folds.py` for markup and a
@@ -96,6 +159,14 @@ a test of initialization runs `page init` itself.
 
 ### Processes and servers
 
+Many runs of the suite share one machine, from different worktrees and sessions, each
+with several workers. A process a test leaves running, or one that spends CPU while it
+waits, slows all of them. So a process a test starts ends on every way out of the
+test. `spawn`'s teardown ends a child and everything in its group when the test
+passes, fails or is interrupted. A worker that dies runs no teardown, so a process
+that would otherwise run on carries its own link to the worker: a page server watches
+the session claim the worker holds, and a held process reads the worker's pipe.
+
 Take each resource from its owner: a child process from `spawn`, a page server from
 `_no_page_outlives_its_test`, a preview from `preview_slot` and `start_preview`, an
 in-process HTTP server from `running_http_server`, a Unix socket directory from
@@ -104,11 +175,21 @@ of a standing server stops it explicitly, since a `Popen` handle does not own a
 detached server's tree. The cleanup sweep reads only `isolated_session`'s state home
 and `tmp_path`, never the developer's.
 
-### Browser storage
+A process that waits for the test blocks reading a pipe the worker holds, as
+`session_process` does. The test releases it by closing the pipe, and the pipe also
+closes when the worker ends, however it ends. Waiting for a file or a state the test
+body has yet to write leaves the process running when the test fails first, and a
+polling loop spends CPU for as long as it waits. End a process by closing its pipe or
+with SIGTERM, not SIGKILL, which gives it no chance to end what it started
+(`test_no_test_ends_a_process_with_sigkill` enforces this). To check a new held
+process, make the test fail right after starting it, then confirm with
+`pgrep -fl <tmp_path>` that nothing it started is still running.
 
-Panel state and drafts live in `localStorage` and reading position in
-`sessionStorage`, so a reload keeps them; clear both for a first visit. Each
-`Browser.new_page` is its own context; two tabs of one user share `one_user`.
+### Reloading is not resetting
+
+Panel state and drafts live in `localStorage`, reading position in `sessionStorage`;
+clear both for a first visit. Each `Browser.new_page` is its own context, so two tabs
+of one user share `one_user`.
 
 ## Driving the browser
 
@@ -116,43 +197,72 @@ Drag selections with `select`; a synthetic `dispatchEvent` skips the event seque
 the runtime listens to. `locator.click()` scrolls its target into view, so where a
 press's effect on scroll is the subject, scroll first and read the baseline after.
 
-Focus evidence starts in keyboard modality: press `Tab` to the stop and require
-`:focus-visible`, or `:focus` on `leaf-text`, which never matches `:focus-visible` in
-Chrome. `element.focus()` is not that evidence. `RELEASE_FOCUS` resets the sequential
-starting point; `blur()` keeps it, and `document.body.focus()` does nothing. Read a
-ring's paint through `RINGS_DRAWN` and `ring_faults`, since an ancestor may draw it.
-
 Inject nothing to make observation easier: traffic comes from the runtime's own
 ledger, network conditions from `page.route`, errors from the browser fixture. An init
-script may record a sequence or an instant ("Frames, sequences, and instants"), and
-completion still comes from a fact visible outside the page. A gate test whose page is
-meant to be faulty hands over `browser.unwatched`, since `render_version` reports that
-page's errors itself.
+script is justified only to record a sequence or an instant (see "Frames, sequences, and instants"), and completion still comes from a fact visible outside
+the page. A page the product opens for itself is the product's: `render_version`
+reports its errors as findings, so a gate test whose page is meant to be faulty hands
+over `browser.unwatched`.
 
 ### Browser errors
 
-The `browser` fixture instruments every page and fails the test on any problem left at
-the end; do not install a second collector or filter it. Consume an expected fault
-where it is caused with `consume_browser_errors`, or `reported_browser_errors` when its
-report arrives in parts. For a recurring fault, close the page first and then consume.
+The `browser` fixture instruments every page it makes and fails the test on any
+problem left at the end; do not install a second collector. Consume an expected fault
+at its causal point with `consume_browser_errors`, or `reported_browser_errors` when
+its report arrives in parts. For a recurring fault, close the page first and then
+consume. Otherwise close a page only when closing is part of the journey. Filtering
+the collector is not an assertion.
 
-The collector also fails:
+A DOM write that changes nothing is one of those problems (`write_watch.js`): a value
+restated where it already stands, or a place one script takes away and puts back. Fix
+the writer (`runtime/keeps.js`). A write that restates for a reason of its own, as a
+vendored component or a focus borrow does, joins `EXPECTED` in `write_watch.js` with
+that reason. A test that reads the page by changing it and putting it back does so
+inside `lfUnwatched`.
 
-- a DOM write that changes nothing (`write_watch.js`). Fix the writer
-  (`runtime/keeps.js`). A write that restates for a reason of its own joins `EXPECTED`
-  in `write_watch.js` with that reason, and a test that reads the page by changing and
-  restoring it does so inside `lfUnwatched`.
-- a layout shift the "Stability" rule in `skills/leaf/assets/AGENTS.md` forbids
-  (`shift_watch.js`). Playwright's clicks, keys, and viewport resizes are input; a
-  script's `click()`, a `value` set by script, and the server's news are not.
-  `known_shifts.py` lists the tests whose pages still shift, each a defect waiting on
-  its fix, and nightly tests are not watched yet (`known_shifts.watches_shifts`).
+A layout shift the "Stability" rule in `skills/leaf/assets/AGENTS.md` forbids is one
+of those problems (`shift_watch.js`): a box that moves on screen without input, and
+typing that carries the field it types in, so every test in the broad selection checks
+both. Surveyed nightly tests opt in with `watch_shifts`; the rest await a fresh survey
+after the widget prepaint fixes (`render_harness.watches_shifts`). The watcher still
+exempts first presentation, whose remaining defects the widget quality check records
+in `known_widget_findings.py`. Playwright's clicks and keys are input, as is a
+viewport resize; a script's `click()`, a `value` written by script, and the server's
+news are not. Chrome's recent-input window can nevertheless mask a shift for half a
+second after a click, so a test proving a news update's stability delivers it after
+that window. Fix what moved rather than consuming the report; shift reports have no
+per-test allowances.
 
-`test_widget_quality.py` runs `package check --render`'s widget quality report over
-the base layer and every bundled package. `known_widget_findings.py` lists today's
-findings: an unlisted finding fails, and so does a listed one that no longer occurs.
+Typed words leaving the screen without a key or press, which the "Words stay where
+they were typed" rule forbids, is one too (`words_watch.js`), in every test, nightly
+included. A key that typed is editing rather than putting away, and a scroll, a
+resize, a script, and the server's news are none of them, so a test that closes a box
+must do it the way a user does.
 
-## Page readiness
+Health sensors use `watch_platform.js` for native paint scheduling and its matching
+performance clock. A controlled page clock advances product callbacks; Chrome's
+layout-shift records still carry native timestamps. Do not mix those clocks when
+associating input, sampled geometry, and painted movement. `input_work_watch.js`
+retains the trusted input behind timers, animation frames, microtasks, explicit
+Promise callbacks, and reactive element updates (Lit's `requestUpdate` and
+`scheduleUpdate`) the page schedules, so delayed Send work and a Web Awesome field
+redrawn for a key keep their cause and an unrelated timer does not acquire one by
+running nearby. Native `await` continuations
+do not expose their input context to JavaScript instrumentation. A native sensor
+fixture captures its DOM commit callback with `lfInputWork.capture` during the
+trusted handler and invokes that callback after `await`; the capture states the
+cause instead of guessing among concurrent operations. Leaf's draft sends put words
+away synchronously before awaiting delivery.
+
+Leaf's own widgets are held to the widget quality report `package check --render`
+gives a package's author (`leaf/render_gate/widget_quality.py`):
+`test_widget_quality.py` runs it over the base layer and every bundled package.
+`known_widget_findings.py` lists today's findings by package, tag and check, each a
+defect waiting on its fix. A finding it does not list fails the test, and so does an
+entry that no longer occurs, so fixing a widget deletes its entry and the list only
+shrinks.
+
+## A page is ready when it says what has finished
 
 Open pages through `open_page`, and call `wait_until_ready` (`leaf.render_checks`)
 after any manual navigation. It waits on the runtime's one readiness reading
@@ -163,17 +273,55 @@ measurement.
 
 ## Waits
 
-Elapsed time, matching samples, a fixed count of animation frames, and network quiet
-all describe a page that has not started an effect as well as one that has finished it.
-Wait on a fact the system states, and count frames (`one_frame`) only where one
-rendering update is itself the claim. A computed style under a transition reports the
-animated value, so ask `getAnimations()` where the subject may be in transit.
-`page.evaluate` takes no timeout: state readiness synchronously in the page and poll it
-with `wait_for_probe`; pure-Python polls use `interact_support.wait_for`. A new wait
-fixes its deadline when it begins and names the missing evidence on timeout.
+### Functional results do not depend on execution speed
 
-To assert that a mechanism with a grace period did not act, wait out that product
-constant plus scheduling room; nothing else states the absence.
+A correctly functioning system running ten times slower must preserve a functional
+test's result and still exercise the causal situation the test claims to cover.
+This applies to fixtures and health watchers as well as the test body. Measure a
+performance contract separately under controlled conditions.
+
+Separate product time from execution time. Control or explicitly advance the clock
+that decides an age, lease, grace period, or timer behavior. A fixed `Date.now()`
+does not stop timers, animation frames, browser paint, or observer delivery; control
+the mechanism the assertion depends on. Use real monotonic deadlines to bound hangs,
+with scheduling room for slower execution, and report the completion fact still
+missing when they expire.
+
+Synchronize on the operation's declared completion or an acknowledgement of the
+causal edge. A sleep does not prove another process acquired a lock, completed a
+scan, or attempted a blocked operation; `interact_support.lock_contention` states
+that a taker found a lock held and is waiting on it. Instrumentation must keep input ownership
+and unjudged evidence until their declared completion; a time cap must not turn
+unfinished work into a successful reading or an unrelated effect.
+
+When testing a scheduling race, hold and release the relevant request, callback,
+frame, or acquisition explicitly. Check the same outcome with completion delayed
+tenfold, and retain a fault control that still fails. Increasing sleeps or retries
+does not repair a missing synchronization fact.
+
+### Completion comes from the operation
+
+Elapsed time, matching samples, a fixed count of animation frames, and network quiet
+all describe a page that has not started an effect as well as one that has finished
+it. Wait on a fact the system states instead; count frames (`one_frame` in
+`leaf.render_checks`) only where one rendering update is itself the claim. A computed style under a transition
+reports the animated value, so ask `getAnimations()` where the subject may be in
+transit. `page.evaluate` takes no timeout; state readiness synchronously in the page
+and poll it with `wait_for_probe`.
+
+For an absence after a product grace period, advance that mechanism's clock past the
+boundary and observe its completed decision. A real-time integration test waits for
+the decision with a hang deadline that allows the grace period and scheduling room.
+
+A new wait fixes its deadline when it begins and names the missing evidence on
+timeout. Pure-Python state polls use `interact_support.wait_for`, and every
+Python-side wait takes its deadline from `STATED_TIMEOUT`. A browser wait takes
+`SERVED_TIMEOUT_MS`, which `render_harness` makes the default of every Playwright
+wait and `expect`, so it names no deadline unless it spans a page handover
+(`HANDOVER_DEADLINE_MS`). The suite checks both
+(`test_a_wait_takes_the_suites_deadline`). A call with no deadline of its own, such
+as `page.evaluate`, is bounded only by the per-test limit in `pyproject.toml`, which
+ends the worker with every thread's stack after half an hour.
 
 ### Transient states
 
@@ -188,33 +336,39 @@ frame even if the gesture goes on to another result. The edge helpers in
   changing a file behind a live page;
 - `nudge` gives the page a reason to read; `ticked` waits for its next tick;
 - `undo` presses `z` once it is offered and waits for the withdrawal's trip;
-- `rendered` (`leaf.render_checks`) waits for every repaint the input so far queued;
-- `panel_settled`, `edge_settled`, `resized`, and `scroll_settled` each end one kind of
-  motion; before `scroll_settled`, observe that the gesture started its scroll.
+- `rendered` (`leaf.render_checks`) waits for every repaint the input so far queued,
+  and `shortcut_bar_text` reads the bar once after it;
+- `panel_settled`, `edge_settled`, and `resized` end their declared motion.
+  `scroll_settled` (`leaf_dev.browser`) waits for scroll completion.
 
-An empty highlight registration or an optimistic `pending:` card satisfies an
-assertion early, so wait for painted ranges (`wait_for_pending_mark`) or an admitted
-comment's durable identity. Read the event log after `round_trip`. Where applying the
-response is the subject, wait for `data-lf-applied`, which counts actions, reports, and
-undos; observe a comment, reply, or reaction by its paint. Wait for `rendered` between
-repeated presses a repaint could answer, and where waiting changes the outcome, run the
-gesture both ways and assert they agree.
+Choose a completion fact the gesture changes. An empty highlight registration or an
+optimistic `pending:` card satisfies an assertion early; wait for painted ranges
+(`wait_for_pending_mark`) or an admitted comment's durable identity. Read the event
+log after `round_trip`, and a gesture's own event through `sending`. Where applying
+the response is the subject, wait for `data-lf-applied`, which counts actions,
+reports, and undos; observe a comment, reply, or reaction by its paint. After changing
+a file behind a live page, call `told` before reading it.
 
-## Races
+Wait for `rendered` between repeated presses a repaint could answer; where waiting
+changes the outcome, run the gesture both ways and assert they agree. Before
+`scroll_settled`, observe that the gesture started its scroll.
 
-A race that appears only under load is ordered with `page.route`, not repeated.
-`leaf-dev flake` reproduces it and prints every failing copy's message. Register the
-route before the gesture it catches, or through `primed` or `held_events` for the
-first navigation; raw and `browser.unwatched` pages are not armed for later routes.
-Where the driver loses a fact, such as the Page for a tab Chromium opened, read the
-browser's record (`opened_tab`).
+## State races are arrangements, not probabilities
 
-- A handler that returns without resolving holds the request. Wait with `holding` for
-  the list the handler fills, since the ledger counts a send before the handler runs.
-  Release a hold only when later behavior is asserted; a release at teardown could
-  reach a stopped server.
-- `route.fetch()` lets the server answer and withholds the response. The news stream
-  still names the append, so arm listeners before the fetch, and call
+If a race appears only under load, order it with `page.route` rather than repeating
+the test. `leaf-dev flake` (`dev/AGENTS.md`) reproduces it and prints every failing
+copy's message, which differs run to run and names the mechanism; the same run then
+confirms the route holds. Register the route before the gesture it catches, or through `primed` or
+`held_events` for the first navigation; raw and `browser.unwatched` pages are not
+armed for later routes. Where the driver loses a fact, such as the Page for a tab
+Chromium opened, observe the browser's record (`opened_tab`).
+
+- A handler that returns without resolving holds the request before the server. Call
+  `holding` before reading its list, since the ledger counts a send before the handler
+  runs. Release it mid-journey only when later behavior is asserted; context closure
+  cancels the rest, and a teardown release could reach a stopped server.
+- `route.fetch()` lets the server answer and withholds the response. Freshness reads
+  still name the append, so arm listeners before the fetch, and call
   `page.unroute_all(behavior="wait")` before teardown even when the test fails.
 - `refuse` cancels without a console error; use a plain abort only when the error is
   the subject. A route that keeps refusing `**/api/state*` keeps producing retries, so
@@ -244,33 +398,36 @@ state say nothing about the motion between them.
 - An instant exists within one rendering turn, such as layout when a stamp changes; a
   page-side observer captures it and the stamp marks completion.
 
-Measure a node the layer rebuilds in one page-side call that resolves and reads it,
-since a detached node reads as zeros. A movement test covers both a press and arriving
-news, with a pixel diff for borders, outlines, and shadows.
+Measure a node the layer
+rebuilds in one page-side call that resolves and reads it; a detached node reads as
+zeros. A movement test covers a press and arriving news, with a pixel diff for
+borders, outlines, and shadows.
 
-## Non-vacuous tests
+## Make a green test non-vacuous
 
-Name the one product change that would make each assertion fail, and arrange the
-fixture so that change reaches the measured surface. Reintroduce the defect and run the
-test before accepting it: `uv run leaf-dev bugback NODEID...` runs the named tests on a
-committed branch with its non-test change reverted. To prove each of several guards,
-flip one at a time by hand. Check what a lower layer already guarantees: a send queue
-that drops a second POST hides whether the widget refused it.
+Name the single product change that would make each assertion fail, and arrange the
+fixture so that change reaches the measured surface. An assertion that nothing moved
+straddles a transition that would move without the rule. Check what a lower layer
+already guarantees: a send queue that drops a second POST hides whether the widget
+refused it.
 
-These matrices run on every corpus page, so a new widget or page joins them without a
-case of its own:
-
-- a returning visit (`arrival_findings`): reloaded with each state a user turns on once
-  and gets back on every load, such as an open thread panel, the page comes up;
-- semantic replay over a static authored state, applied twice: the visible state is
-  right and idempotent;
-- a scroll (`scroll_writes`, `scroll_followers`): no place is written on every step;
-- a page left alone (`at_rest`): it does nothing;
-- a surface's round trips, which a new surface joins by its keys: each leaves the
-  `page_state` the first did, and `live_counts` do not climb;
-- a resize: each width reads as it did on the way out.
-
-Generated-markup probes (`undeclaredAttrs`, `relativeReplays`) run through
+The corpus has these matrices. Return state is anchored on a first visit
+(`arrival_findings`); semantic replay is anchored on a static authored state, applying
+standing actions or reports twice and checking the visible state and idempotence; a
+scroll's writes (`scroll_writes`, read by `scroll_followers`) fail where a place is
+written on every step; a page left alone (`at_rest`) fails anything it does; a
+surface's round trips fail where one leaves a different `reader_state` than the first
+(accessible content and element geometry, control values, focus, caret, and native
+keyboard affordances),
+or `live_counts` climb on every trip; a resize fails where a width says something
+other than it said on the way out; and a box the user types in fails where sending
+every scroller to either end and back loses its words. The last four read a
+`still_page`, whose reduced motion and fixed wall-clock date keep age labels stable;
+its timers and browser rendering still run.
+All of them run on every corpus page, so a new widget or page joins without a case of
+its own; a new surface joins the round trips by its keys, and a new box the typed
+boxes by its route. Run generated-markup probes (`undeclaredAttrs`,
+`relativeReplays`) through
 `leaf.render_checks.evaluate_probe` on fixtures that can trigger them.
 
 ### Absences

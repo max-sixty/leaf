@@ -18,25 +18,32 @@ import json
 import os
 import subprocess
 import tempfile
+from contextlib import redirect_stdout
 from pathlib import Path
 
 import click
-from leaf.delivery import take_input
-from leaf.event_log import read_events
-from leaf.host import session_harness
+from leaf.delivery import freeze_delivery, pending_batches, receive_held
+from leaf.harness import session_harness
+from leaf.hosting import claim_and_start, cmd_stop
 from leaf.projection import folded_positions
-from leaf.registry.storage import require_registry
+from leaf.publishing import cmd_stamp
 from leaf.render_checks import wait_until_ready
-from leaf.render_gate.scheme import served
+from leaf.render_gate.scheme import rendered_revision
+from leaf.served_state.context import read_page
 from leaf.served_state.page import read_served_page
+from leaf.service import PageTransaction
+from leaf.session import cmd_waiting
+from leaf.tasks import cmd_start
+from leaf.thread import post_reply
+from leaf.vendoring import cmd_init
 from PIL import Image
 from playwright.sync_api import Page
 
-from leaf_dev import ROOT
-from leaf_dev.browser import chrome, tab
+from leaf_dev import LEAF_COMMAND
+from leaf_dev.browser import chrome, settle, tab
 from leaf_dev.leaf_assets import publish, stage
+from leaf_dev.recording import write_gif
 
-LEAF = ROOT / "bin" / "leaf"
 GIF_SIZE = (1120, 700)
 # The viewport used for the README's representative stills.
 STILL_SIZE = (1280, 953)
@@ -84,20 +91,21 @@ def board_markup(board: dict[str, list[str]]) -> str:
 def folded_board(page_dir: Path) -> dict[str, list[str]]:
     """The board with the user's move folded in, as the page draws it: the order an
     agent writes into its next version."""
-    state = json.loads(run_leaf("page", "state", str(page_dir)))
-    _, reading, _ = read_served_page(page_dir, read_events(page_dir))
-    document = reading.documents[state["active"]["revision"]]
-    registry = require_registry(page_dir)
-    order = folded_positions(
-        "punch-list",
-        "move",
-        registry["lf-board"]["x-state"]["move"]["record"],
-        document.document.by_id,
-        document.spoken,
-        registry,
-        document.projection,
-    )
-    return {column: order[column] for column, _label in COLUMNS}
+    with PageTransaction(page_dir) as page:
+        context = read_page(page_dir, page.events)
+        state, reading, _ = read_served_page(context)
+        document = reading.documents[state["active"]["revision"]]
+        registry = context.registry
+        order = folded_positions(
+            "punch-list",
+            "move",
+            registry["lf-board"]["x-state"]["move"]["record"],
+            document.document.by_id,
+            document.spoken,
+            registry,
+            document.projection,
+        )
+        return {column: order[column] for column, _label in COLUMNS}
 
 
 def demo_page(version: int, board: dict[str, list[str]] | None = None) -> str:
@@ -171,7 +179,7 @@ new version as the checks finish.</p>
 
 <section id="work">
 <h2>Cutover punch list</h2>
-<p id="work-note">Drag a card to change the plan; the move reaches the agent directly.</p>
+<p id="work-note">Drag a card to change the plan; your arrangement is saved on this page.</p>
 <lf-board id="punch-list">
 {board_markup(board or BOARD)}
 </lf-board>
@@ -180,19 +188,6 @@ new version as the checks finish.</p>
 </body>
 </html>
 """
-
-
-def run_leaf(*args: str) -> str:
-    """A leaf command's own stdout, or a failure carrying what it said."""
-    done = subprocess.run(
-        [str(LEAF), *args], text=True, capture_output=True, check=False
-    )
-    if done.returncode:
-        raise RuntimeError(
-            f"leaf {' '.join(args)} exited {done.returncode}\n"
-            f"{done.stdout}{done.stderr}".rstrip()
-        )
-    return done.stdout.strip()
 
 
 def select_text(page: Page, selector: str, text: str) -> None:
@@ -220,13 +215,13 @@ def select_text(page: Page, selector: str, text: str) -> None:
 
 
 class DemoWaiter:
-    """One background `leaf wait`, taking each delivery the way this host's agent
-    does: where the session's hooks carry input, `take_input` hands it over;
-    elsewhere the wait prints it and re-arming with `--ack` confirms it."""
+    """One background `leaf wait`, taking each delivery the way this harness's agent
+    does: it reads a complete delivery, explicitly acknowledges it, and
+    rearms the wait. The demo itself stands in for the reader."""
 
     def __init__(self, page_dir: Path) -> None:
         self.process = subprocess.Popen(
-            [str(LEAF), "wait", str(page_dir)],
+            [*LEAF_COMMAND, "wait", str(page_dir)],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -241,7 +236,8 @@ class DemoWaiter:
         if not stdout.strip():
             payload = {}
         elif hooked:
-            payload = take_input(harness.session)
+            payload = freeze_delivery(pending_batches(harness.session))
+            receive_held(payload, harness.session)
         else:
             payload = json.loads(stdout)
         batches = payload.get("batches", [])
@@ -251,7 +247,7 @@ class DemoWaiter:
                 f"of user events\n{stderr}".rstrip()
             )
         self.process = subprocess.Popen(
-            [str(LEAF), "wait", *([] if hooked else ["--ack", payload["id"]])],
+            [*LEAF_COMMAND, "wait", *([] if hooked else ["--ack", payload["id"]])],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -262,6 +258,21 @@ class DemoWaiter:
         if self.process.poll() is None:
             self.process.terminate()
             self.process.wait(timeout=5)
+
+
+def wait_for_listening(page: Page) -> dict:
+    """Hold the canonical listening reading and wait for the page to present it."""
+    state = page.wait_for_function(
+        """async () => {
+            const response = await fetch('/api/state');
+            if (!response.ok) throw new Error(`Leaf state: HTTP ${response.status}`);
+            const state = await response.json();
+            return state.activity.kind === 'listening' && state;
+        }""",
+        polling=100,
+    ).json_value()
+    wait_until_ready(page, state)
+    return state
 
 
 def record(
@@ -277,16 +288,14 @@ def record(
 
     # The page's own readiness, not the document's stamp: a gesture taken before the
     # log's replay finishes reads a half-written page.
-    wait_until_ready(page)
-    page.wait_for_function(
-        "() => document.querySelector('.lf-status-text').textContent.includes('awaits')"
-    )
+    wait_for_listening(page)
     live_url = page.url
     shot(1600)
 
     select_text(page, "#p2", "Backfill history")
-    # The selection raises the response bar with its field open and focused, so the
-    # demo types into it and sends with Mod+Enter.
+    # The selected words offer the response action. Open it before typing, then
+    # send from the focused field with Mod+Enter.
+    page.get_by_role("button", name="Comment on selection").click()
     field = page.locator(".lf-fab-input")
     field.focus()
     page.keyboard.insert_text("Can the backfill stay online?")
@@ -306,35 +315,23 @@ def record(
     comment_id = next(
         event["id"] for event in waiter.receive() if event["kind"] == "comment"
     )
-    run_leaf(
-        "status",
-        str(page_dir),
-        "working",
-        "answering the backfill question",
-    )
+    cmd_start(page_dir, comment_id, "answering the backfill question")
     page.wait_for_function(
         "() => document.querySelector('.lf-status-detail').textContent.includes('answering')"
     )
     shot(900)
 
-    run_leaf(
-        "thread",
-        "reply",
-        str(page_dir),
-        "--for",
-        comment_id,
-        "--text",
+    post_reply(
+        page_dir,
+        None,
         "Yes. The fixed rate limit keeps the backfill online.",
+        None,
+        for_event=comment_id,
+        validate_source=True,
     )
     (page_dir / "index.html").write_text(demo_page(2), encoding="utf-8")
-    run_leaf(
-        "page",
-        "stamp",
-        str(page_dir),
-        "--text",
-        "Backfill stays online; rehearsal progress is now 3 of 4",
-    )
-    run_leaf("status", str(page_dir), "waiting")
+    cmd_stamp(page_dir, "Backfill stays online; rehearsal progress is now 3 of 4")
+    cmd_waiting(page_dir, "")
     page.wait_for_function(
         "() => document.querySelector('meta[name=lf-revision][data-lf-runtime]')"
         "?.content === '2'"
@@ -342,6 +339,9 @@ def record(
     if page.url != live_url:
         raise RuntimeError(f"the live page navigated from {live_url} to {page.url}")
     wait_until_ready(page)
+    page.locator(".lf-thread").get_by_role(
+        "button", name="1 new reply", exact=True
+    ).click()
     page.wait_for_selector(".lf-thread .lf-msg.agent")
     shot(2300)
 
@@ -351,6 +351,7 @@ def record(
 
     page.locator("#work").scroll_into_view_if_needed()
     shot(1000)
+    applied_before_move = page.locator("body").get_attribute("data-lf-applied")
     grip = page.locator("#card-oncall .lf-grip").bounding_box()
     destination = page.locator("#col-during").bounding_box()
     page.mouse.move(grip["x"] + grip["width"] / 2, grip["y"] + grip["height"] / 2)
@@ -366,7 +367,12 @@ def record(
         "() => document.querySelector('.lf-notice').classList.contains('show')"
     )
     shot(2400)
-    waiter.receive()
+    page.wait_for_function(
+        "before => document.body.getAttribute('data-lf-applied') !== before",
+        arg=applied_before_move,
+    )
+    if "card-oncall" not in folded_board(page_dir)["col-during"]:
+        raise RuntimeError("the board move did not reach the page's standing log")
     return frames, durations
 
 
@@ -374,57 +380,36 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
     """The README's session stills and the site's card, off the scene `record`
     has just left, written into `into` beside the GIF.
 
-    The board move `record` delivered stands until the document says what it said,
-    so the document is rewritten with the card where the user dropped it and stamped
-    before `waiting`, which with the wait `record` re-armed makes the banner say
-    "Claude awaits". Each shot is a fresh context: viewport and color scheme are
-    context settings, and the diagram palette is read once at load."""
+    Write the saved board arrangement into the document and stamp it before
+    `waiting`, so the stills show the revised plan. The comment watcher remains
+    armed and the banner invites input. Each shot is a fresh context: viewport and
+    color scheme are context settings, and the diagram palette is read once at load."""
     (page_dir / "index.html").write_text(
         demo_page(2, folded_board(page_dir)), encoding="utf-8"
     )
-    run_leaf(
-        "page",
-        "stamp",
-        str(page_dir),
-        "--text",
-        "On-call staffing moved into During, as the board now reads",
-    )
-    run_leaf("status", str(page_dir), "waiting")
+    cmd_stamp(page_dir, "On-call staffing moved into During, as the board now reads")
+    cmd_waiting(page_dir, "")
 
     for name, size, scheme in STILLS:
         with tab(browser, size, scheme) as page:
             page.goto(url)
-            # Ready against the server's own answer, so the board move has landed.
-            wait_until_ready(page, served(page, url, "/api/state").json())
+            # Hold the server's state and authored revision before taking the still.
+            state = wait_for_listening(page)
+            revision = rendered_revision(url, state)
             page.wait_for_function(
-                "() => document.querySelector('.lf-status-text')"
-                ".textContent.includes('awaits')"
+                "revision => document.querySelector("
+                "'meta[name=\"lf-revision\"][data-lf-runtime]'"
+                ")?.content === String(revision)",
+                arg=revision,
             )
             page.locator(".lf-banner .lf-threads-toggle").click()
             page.locator(".lf-thread-summary").click()
             page.wait_for_selector(".lf-thread .lf-msg.agent")
             page.locator("#top").scroll_into_view_if_needed()
-            page.wait_for_function(
-                "() => document.querySelector('body > main').getAnimations().length === 0"
-            )
+            settle(page)
             page.screenshot(
                 path=into / f"{name}.png", animations="disabled", caret="hide"
             )
-
-
-def write_gif(frames: list[Image.Image], durations: list[int], output: Path) -> None:
-    palette_frames = [
-        frame.quantize(colors=192, method=Image.Quantize.MEDIANCUT) for frame in frames
-    ]
-    palette_frames[0].save(
-        output,
-        save_all=True,
-        append_images=palette_frames[1:],
-        duration=durations,
-        loop=0,
-        optimize=True,
-        disposal=1,
-    )
 
 
 @click.command("record-demo")
@@ -441,20 +426,17 @@ def record_demo(output: Path | None) -> None:
         page_dir = Path(scratch) / "page"
         # A state home of its own, so the host's open pages stay out of the banner's
         # `All leaves`. Set before any leaf command so each inherits it. The agent's
-        # name shows only under a host session, which the recording keeps.
+        # name shows only under a harness session, which the recording keeps.
         os.environ["XDG_STATE_HOME"] = f"{scratch}/state"
         os.environ["LEAF_AGENT"] = "Claude"
-        run_leaf("page", "init", str(page_dir))
+        with redirect_stdout(io.StringIO()):
+            cmd_init(page_dir)
         (page_dir / "index.html").write_text(demo_page(1), encoding="utf-8")
-        run_leaf(
-            "page",
-            "stamp",
-            str(page_dir),
-            "--text",
-            "Migration rehearsal started; 2 of 4 checks complete",
-        )
-        run_leaf("status", str(page_dir), "waiting")
-        url = json.loads(run_leaf("server", "start", str(page_dir)))["url"]
+        cmd_stamp(page_dir, "Migration rehearsal started; 2 of 4 checks complete")
+        cmd_waiting(page_dir, "")
+        with claim_and_start(page_dir) as started:
+            pass
+        url = started.url
         waiter = DemoWaiter(page_dir)
         try:
             with chrome() as browser, tab(browser, GIF_SIZE) as page:
@@ -464,11 +446,7 @@ def record_demo(output: Path | None) -> None:
                 shoot_stills(browser, url, page_dir, recording)
         finally:
             waiter.stop()
-            subprocess.run(
-                [str(LEAF), "server", "stop", str(page_dir)],
-                capture_output=True,
-                check=False,
-            )
+            cmd_stop(page_dir)
         files = {path.name: path.read_bytes() for path in recording.iterdir()}
     if output is not None:
         output.mkdir(parents=True, exist_ok=True)

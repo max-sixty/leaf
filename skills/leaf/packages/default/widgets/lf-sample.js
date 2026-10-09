@@ -4,16 +4,21 @@
  * other block and focus moves into it the way it moves into any iframe. A `window`
  * sample is instead a whole Leaf window at the frame's own height, chrome included,
  * and scrolls inside itself. The child's
- * final Escape brings focus back to this element. Ordinary children remain static
+ * final Escape brings focus back to this element. Each presented child announces
+ * lf-sample-ready with its Document, on first mount and Reset. Reset stays focusable
+ * while loading but accepts no new press, preserving the parent's keyboard position.
+ * Ordinary children remain static
  * quotation. A disconnect releases the child; moving the retained element within a
  * document does not reset its work. */
 import {
   cancelRender,
+  keeps,
   mountSample,
   nextRender,
   once,
   offer,
   widgetController,
+  focusDestination,
 } from "/runtime/widget-api.js";
 
 customElements.define(
@@ -28,6 +33,7 @@ customElements.define(
     #fitting = 0;
     #ready;
     #mounting = false;
+    #viewOperation;
 
     get ready() {
       return this.#ready;
@@ -62,7 +68,9 @@ customElements.define(
 
     disconnectedCallback() {
       queueMicrotask(() => {
-        if (this.isConnected || !this.#host) return;
+        if (this.isConnected) return;
+        this.#viewOperation?.abort();
+        if (!this.#host) return;
         const host = this.#host;
         this.#host = null;
         cancelRender(this.#fitting);
@@ -78,8 +86,7 @@ customElements.define(
       this.#frame.className = "lf-sample-frame";
       this.#frame.title = this.getAttribute("label") || "Leaf sample";
       this.#frame.addEventListener("lf-sample-return", () => {
-        this.tabIndex = -1;
-        this.focus({ preventScroll: true });
+        focusDestination(this, "return");
       });
 
       const controls = document.createElement("div");
@@ -88,6 +95,7 @@ customElements.define(
       const actions = document.createElement("div");
       this.#reset = offer("button", "lf-btn", "Reset");
       this.#reset.addEventListener("click", () => {
+        if (this.#reset.ariaDisabled === "true") return;
         this.reset().catch(() => {}); // #track paints the failed operation.
       });
       this.#status = offer("span", "lf-sample-status");
@@ -126,17 +134,23 @@ customElements.define(
     #failure(error) {
       if (error.name === "AbortError") return;
       this.#status.textContent = error.message;
-      this.#reset.disabled = false;
+      keeps(this.#reset, "aria-disabled", null);
     }
 
     #track(promise) {
-      this.#reset.disabled = true;
+      keeps(this.#reset, "aria-disabled", "true");
       this.#status.textContent = "Loading sample…";
       const ready = promise.then((doc) => {
         if (this.#ready !== ready) return doc;
-        this.#reset.disabled = false;
+        keeps(this.#reset, "aria-disabled", null);
         this.#status.textContent = "";
         if (doc.documentElement.hasAttribute("data-lf-sample-block")) this.#follow(doc);
+        this.dispatchEvent(
+          new CustomEvent("lf-sample-ready", {
+            bubbles: true,
+            detail: { document: doc },
+          }),
+        );
         return doc;
       });
       this.#ready = ready;
@@ -146,7 +160,47 @@ customElements.define(
       return this.#ready;
     }
 
+    // Latest selection wins, including a selection waiting on a replacement child.
+    // The outer control remains the keyboard stop while the child draws its view.
+    async showThread(id, { surface = "page", status, waiting } = {}) {
+      this.#viewOperation?.abort();
+      const operation = new AbortController();
+      this.#viewOperation = operation;
+      const { signal } = operation;
+      const ready = this.#ready;
+      let cancelled;
+      const cancellation = new Promise((resolve) => {
+        cancelled = () => resolve(false);
+        signal.addEventListener("abort", cancelled, { once: true });
+      });
+      const select = async () => {
+        if (signal.aborted || ready !== this.#ready || !this.isConnected) return false;
+        const invoker = this.ownerDocument.activeElement;
+        const shown = await this.#host.showThread(id, {
+          surface,
+          status,
+          waiting,
+          signal,
+        });
+        if (signal.aborted || ready !== this.#ready || !this.isConnected) return false;
+        if (
+          shown &&
+          invoker &&
+          this.ownerDocument.activeElement === this.#frame &&
+          invoker !== this.#frame
+        )
+          focusDestination(invoker, "return");
+        return shown;
+      };
+      try {
+        return await Promise.race([ready.then(select), cancellation]);
+      } finally {
+        signal.removeEventListener("abort", cancelled);
+      }
+    }
+
     async reset() {
+      this.#viewOperation?.abort();
       if (this.#mounting) await this.#ready;
       if (!this.#host) {
         this.connectedCallback();

@@ -1,10 +1,9 @@
 /* A visual run is one active-case review: a heading, then one evidence pane whose
  * header is the case navigation. Disposition stays above the evidence and supporting
- * capture facts follow it. The pane is the layer's own grammar (data-lf-reading-role,
- * in the kernel's theme), so in a workspace Layout its body fills the review's row and
- * the stage takes what the case leaves; everywhere else the same order flows with the
- * document and the stage takes a height from the review's width. */
-lf-visual-review {
+ * capture facts follow it. The stage is as tall as its captures. In a document the page
+ * scrolls through them; in a workspace that fills the window the evidence pane does,
+ * and Fit sizes the captures to the pane (lf-visual-review.js), so it rarely has to. */
+:scope:is(lf-visual-review) {
   --lf-block-frame: 1;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -18,14 +17,16 @@ lf-visual-review {
   container-type: inline-size;
 }
 
-/* Full-height (a workspace Layout gives it a definite height to fill, `--lf-full-height`),
- * the review takes that height rather than its content's, so its evidence row takes what
- * the heading leaves and the pane's body scrolls. */
+/* Told it has a definite height to fill (`--lf-full-height`, layouts.css), as a
+ * full-height workspace's body is, the review takes that height rather than its
+ * content's and tells its evidence pane so: the evidence row takes what the heading
+ * leaves, and the pane's body scrolls what Fit cannot fit (lf-visual-review.js). */
 @media screen {
   @container style(--lf-full-height: 1) {
-    lf-visual-review {
+    :scope:is(lf-visual-review) {
       min-block-size: 0;
       margin-block: 0;
+      --lf-full-height: inherit;
     }
   }
 }
@@ -178,14 +179,9 @@ lf-visual-review {
   padding: 0;
 }
 
-/* The case takes the pane body's height where the body has one, which gives the stage
-   row what the case's furniture leaves; in flow the percentage has nothing to resolve
-   against and the case takes its content's height. */
 .lf-vr-case {
   box-sizing: border-box;
-  height: 100%;
   display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
   gap: var(--sp-1);
   min-width: 0;
   padding: var(--sp-2) var(--sp-3);
@@ -346,180 +342,199 @@ lf-visual-review {
   font: inherit;
 }
 
-/* The stage never sizes to its captures. Its intrinsic height comes from the review's
-   width (half of it, within a laptop-readable range), which is the stage's height in
-   flow; a bounded case's minmax(0, 1fr) row overrides it with the height left. */
+/* The stage scrolls only sideways, for captures shown wider than the review; `hidden`
+   rather than `visible` down, which would compute to `auto` beside it. */
+/* Typed lengths make the layout reading consume resolved pixels, including when
+   an author's spacing uses rem or calc(). CSS owns both tracks and fitting. */
+@property --lf-vr-frame-border { syntax: "<length>"; inherits: true; initial-value: 0px; }
+@property --lf-vr-label-height { syntax: "<length>"; inherits: true; initial-value: 0px; }
+@property --lf-vr-gap { syntax: "<length>"; inherits: true; initial-value: 0px; }
 .lf-vr-shot-host {
+  --lf-vr-frame-border: 1px;
+  --lf-vr-label-height: 24px;
+  --lf-vr-gap: var(--sp-2);
   box-sizing: border-box;
   display: grid;
   align-items: start;
   justify-items: center;
   min-width: 0;
   width: 100%;
-  min-height: 0;
-  contain: size;
-  contain-intrinsic-block-size: clamp(14rem, 50cqi, 35rem);
-  overflow: auto;
+  overflow: auto hidden;
   border: 1px solid var(--rule);
   border-radius: var(--r);
   background: color-mix(in srgb, var(--field) 42%, var(--paper));
 }
 
-.lf-vr-shot-host lf-shot {
+/* The capture is a widget of its own (lf-shot, the default package), whose root rule
+   gives it a block margin. Equal weight would go to that rule, since its scope root is
+   the nearer one, so the stage names its own root to set the capture's box. */
+:scope:is(lf-visual-review) .lf-vr-shot-host lf-shot {
   margin: 0;
-  width: calc(var(--lf-vr-frame-width, 100%) + 2px);
+  width: calc(var(--lf-vr-frame-width, 100%) + 2 * var(--lf-vr-frame-border));
   max-width: none;
 }
 
+:scope:is(lf-visual-review) .lf-vr-shot-host .lf-shotcomparison {
+  border-width: var(--lf-vr-frame-border);
+}
+
 @media screen {
-  html:root {
-    lf-visual-review[data-inspection-mode="compare"] .lf-vr-shot-host lf-shot,
-    lf-visual-review[data-inspection-mode="overlay"] .lf-vr-shot-host lf-shot {
-      display: grid;
-    }
 
-    lf-visual-review[data-inspection-mode="compare"][data-compare-layout="side"]
-      .lf-vr-shot-host lf-shot {
-      grid-template-columns: repeat(2, calc(var(--lf-vr-frame-width) + 2px));
-      gap: var(--sp-2);
-      width: max-content;
-    }
+    :scope:is(lf-visual-review)[data-inspection-mode="compare"] .lf-vr-shot-host lf-shot,
+  :scope:is(lf-visual-review)[data-inspection-mode="overlay"] .lf-vr-shot-host lf-shot {
+    display: grid;
+  }
 
-    lf-visual-review[data-inspection-mode="compare"][data-compare-layout="stack"]
+    :scope:is(lf-visual-review)[data-inspection-mode="compare"][data-compare-layout="side"]
+  .lf-vr-shot-host lf-shot {
+    grid-template-columns: repeat(2, calc(var(--lf-vr-frame-width) + 2 * var(--lf-vr-frame-border)));
+    gap: var(--lf-vr-gap);
+    width: max-content;
+  }
+
+    :scope:is(lf-visual-review)[data-inspection-mode="compare"][data-compare-layout="stack"]
       .lf-vr-shot-host lf-shot,
-    lf-visual-review[data-inspection-mode="overlay"] .lf-vr-shot-host lf-shot {
-      grid-template-columns: calc(var(--lf-vr-frame-width) + 2px);
-    }
+  :scope:is(lf-visual-review)[data-inspection-mode="overlay"] .lf-vr-shot-host lf-shot {
+    grid-template-columns: calc(var(--lf-vr-frame-width) + 2 * var(--lf-vr-frame-border));
+  }
 
-    lf-visual-review[data-inspection-mode]:not([data-inspection-mode="flip"])
+    :scope:is(lf-visual-review)[data-inspection-mode]:not([data-inspection-mode="flip"])
       .lf-vr-shot-host .lf-shotrail,
-    lf-visual-review[data-inspection-mode]:not([data-inspection-mode="flip"])
-      .lf-vr-shot-host .lf-shotflip {
-      display: none;
-    }
+    :scope:is(lf-visual-review)[data-inspection-mode]:not([data-inspection-mode="flip"])
+  .lf-vr-shot-host .lf-shotflip {
+    display: none;
+  }
 
-    lf-visual-review[data-inspection-mode]:not([data-inspection-mode="flip"])
-      .lf-vr-shot-host .lf-shotframe {
-      display: grid;
-      visibility: visible;
-      border-radius: var(--r);
-    }
+    :scope:is(lf-visual-review)[data-inspection-mode]:not([data-inspection-mode="flip"])
+  .lf-vr-shot-host .lf-shotframe {
+    border-width: var(--lf-vr-frame-border);
+    display: grid;
+    visibility: visible;
+    border-radius: var(--r);
+  }
 
-    lf-visual-review[data-inspection-mode="compare"][data-compare-layout="side"]
-      .lf-vr-shot-host .lf-shotframe {
-      grid-row: 1;
-    }
+    :scope:is(lf-visual-review)[data-inspection-mode="compare"][data-compare-layout="side"]
+  .lf-vr-shot-host .lf-shotframe {
+    grid-row: 1;
+  }
 
-    lf-visual-review[data-inspection-mode="compare"][data-compare-layout="side"]
-      .lf-vr-shot-host .lf-shotframe[data-lf-state="before"] {
-      grid-column: 1;
-    }
+    :scope:is(lf-visual-review)[data-inspection-mode="compare"][data-compare-layout="side"]
+  .lf-vr-shot-host .lf-shotframe[data-lf-state="before"] {
+    grid-column: 1;
+  }
 
-    lf-visual-review[data-inspection-mode="compare"][data-compare-layout="side"]
-      .lf-vr-shot-host .lf-shotframe[data-lf-state="after"] {
-      grid-column: 2;
-    }
+    :scope:is(lf-visual-review)[data-inspection-mode="compare"][data-compare-layout="side"]
+  .lf-vr-shot-host .lf-shotframe[data-lf-state="after"] {
+    grid-column: 2;
+  }
 
-    lf-visual-review[data-inspection-mode="compare"][data-compare-layout="stack"]
-      .lf-vr-shot-host .lf-shotframe {
-      grid-column: 1;
-    }
+    :scope:is(lf-visual-review)[data-inspection-mode="compare"][data-compare-layout="stack"]
+  .lf-vr-shot-host .lf-shotframe {
+    grid-column: 1;
+  }
 
-    lf-visual-review[data-inspection-mode="compare"][data-compare-layout="stack"]
-      .lf-vr-shot-host .lf-shotframe[data-lf-state="before"] {
-      grid-row: 1;
-    }
+    :scope:is(lf-visual-review)[data-inspection-mode="compare"][data-compare-layout="stack"]
+  .lf-vr-shot-host .lf-shotframe[data-lf-state="before"] {
+    grid-row: 1;
+  }
 
-    lf-visual-review[data-inspection-mode="compare"][data-compare-layout="stack"]
-      .lf-vr-shot-host .lf-shotframe[data-lf-state="after"] {
-      grid-row: 2;
-    }
+    :scope:is(lf-visual-review)[data-inspection-mode="compare"][data-compare-layout="stack"]
+  .lf-vr-shot-host .lf-shotframe[data-lf-state="after"] {
+    grid-row: 2;
+  }
 
-    lf-visual-review[data-inspection-mode="compare"]
-      .lf-vr-shot-host .lf-vr-frame-label {
-      box-sizing: border-box;
-      display: block;
-      height: 24px;
-      padding: 5px 8px;
-      border-bottom: 1px solid var(--rule);
-      background: var(--card);
-      color: var(--ink-2);
-      font: 650 var(--t-6) / 1 var(--sans);
-      letter-spacing: .04em;
-      text-transform: uppercase;
-    }
+    :scope:is(lf-visual-review)[data-inspection-mode="compare"]
+  .lf-vr-shot-host .lf-vr-frame-label {
+    box-sizing: border-box;
+    display: block;
+    height: var(--lf-vr-label-height);
+    padding: 5px 8px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--card);
+    color: var(--ink-2);
+    font: 650 var(--t-6) / 1 var(--sans);
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
 
-    lf-visual-review[data-inspection-mode="compare"]
-      .lf-vr-shot-host .lf-vr-frame-label::before {
-      content: attr(data-label);
-    }
+    :scope:is(lf-visual-review)[data-inspection-mode="compare"]
+  .lf-vr-shot-host .lf-vr-frame-label::before {
+    content: attr(data-label);
+  }
 
-    lf-visual-review[data-inspection-mode="overlay"]
-      .lf-vr-shot-host .lf-shotframe {
-      grid-row: 1;
-      grid-column: 1;
-    }
+    :scope:is(lf-visual-review)[data-inspection-mode="overlay"]
+  .lf-vr-shot-host .lf-shotframe {
+    grid-row: 1;
+    grid-column: 1;
+  }
 
-    lf-visual-review[data-inspection-mode="overlay"]
-      .lf-vr-shot-host .lf-shotframe[data-lf-state="after"] {
-      z-index: 1;
-      opacity: var(--lf-vr-opacity);
-    }
+    :scope:is(lf-visual-review)[data-inspection-mode="overlay"]
+  .lf-vr-shot-host .lf-shotframe[data-lf-state="after"] {
+    z-index: 1;
+    opacity: var(--lf-vr-opacity);
+  }
 
-    lf-visual-review .lf-vr-shot-host .lf-shotframe img {
-      width: 100%;
-      max-width: none;
-    }
+  :scope:is(lf-visual-review) .lf-vr-shot-host .lf-shotframe img {
+    width: 100%;
+    max-width: none;
+  }
 
-    .lf-vr-shot-host[data-focus-active="true"] .lf-shotframe {
-      height: var(--lf-vr-focus-height);
-    }
+  .lf-vr-shot-host[data-focus-active="true"] .lf-shotframe {
+    height: var(--lf-vr-focus-height);
+  }
 
-    lf-visual-review[data-inspection-mode="compare"]
+  /* Flip's comparison takes the whole capture's shape (lf-shot), which on a focus crop
+     left empty room under the crop as tall as the rest of the capture. */
+  .lf-vr-shot-host[data-focus-active="true"] .lf-shotcomparison {
+    aspect-ratio: auto;
+    height: var(--lf-vr-focus-height);
+  }
+
+    :scope:is(lf-visual-review)[data-inspection-mode="compare"]
       .lf-vr-shot-host[data-focus-active="true"]
-      .lf-shotframe {
-      height: calc(var(--lf-vr-focus-height) + 24px);
-      grid-template-rows: 24px var(--lf-vr-focus-height);
-    }
+  .lf-shotframe {
+    height: calc(var(--lf-vr-focus-height) + var(--lf-vr-label-height));
+    grid-template-rows: var(--lf-vr-label-height) var(--lf-vr-focus-height);
+  }
 
-    .lf-vr-shot-host[data-focus-active="true"] .lf-shotframe img {
-      width: var(--lf-vr-focus-width);
-      height: var(--lf-vr-focus-height);
-      object-view-box: var(--lf-vr-focus-view);
-    }
+  .lf-vr-shot-host[data-focus-active="true"] .lf-shotframe img {
+    width: var(--lf-vr-focus-width);
+    height: var(--lf-vr-focus-height);
+    object-view-box: var(--lf-vr-focus-view);
+  }
 
     /* lf-shot's changed-region marks take the full frame's coordinates: below the
        compare label, and nowhere on a focus crop, which shows another part of the
        frame. The case's position line states the reading in every view. */
-    lf-visual-review[data-inspection-mode="compare"] .lf-vr-shot-host .lf-shotdiff {
-      top: 24px;
-    }
+  :scope:is(lf-visual-review)[data-inspection-mode="compare"] .lf-vr-shot-host .lf-shotdiff {
+    top: var(--lf-vr-label-height);
+  }
 
-    .lf-vr-shot-host[data-focus-active="true"] .lf-shotdiff {
-      display: none;
-    }
+  .lf-vr-shot-host[data-focus-active="true"] .lf-shotdiff {
+    display: none;
+  }
 
     .lf-vr-shot-host[data-focus-authored="true"][data-focus-active="false"]
-      .lf-shotframe::after {
-      content: "";
-      position: absolute;
-      z-index: 2;
-      top: var(--lf-vr-focus-y);
-      left: var(--lf-vr-focus-x);
-      box-sizing: border-box;
-      width: var(--lf-vr-focus-width);
-      height: var(--lf-vr-focus-height);
-      border: 2px solid var(--accent);
-      background: color-mix(in srgb, var(--accent) 8%, transparent);
-      pointer-events: none;
-    }
-
-    lf-visual-review[data-inspection-mode="compare"]
-      .lf-vr-shot-host[data-focus-authored="true"][data-focus-active="false"]
-      .lf-shotframe::after {
-      top: calc(var(--lf-vr-focus-y) + 24px);
-    }
+  .lf-shotframe::after {
+    content: "";
+    position: absolute;
+    z-index: 2;
+    top: var(--lf-vr-focus-y);
+    left: var(--lf-vr-focus-x);
+    box-sizing: border-box;
+    width: var(--lf-vr-focus-width);
+    height: var(--lf-vr-focus-height);
+    border: 2px solid var(--accent);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    pointer-events: none;
   }
+
+    :scope:is(lf-visual-review)[data-inspection-mode="compare"]
+      .lf-vr-shot-host[data-focus-authored="true"][data-focus-active="false"]
+  .lf-shotframe::after {
+    top: calc(var(--lf-vr-focus-y) + var(--lf-vr-label-height));
+  }
+
 }
 
 .lf-vr-review {
@@ -614,10 +629,6 @@ lf-visual-review {
     display: none !important;
   }
 
-  .lf-vr-case {
-    height: auto;
-  }
-
   .lf-vr-case[hidden] {
     display: grid !important;
   }
@@ -628,11 +639,11 @@ lf-visual-review {
   }
 
   .lf-vr-shot-host {
-    contain: none;
     overflow: visible;
   }
 
-  .lf-vr-shot-host lf-shot {
+  /* At the screen rule's weight, so it wins by standing later. */
+  :scope:is(lf-visual-review) .lf-vr-shot-host lf-shot {
     width: min(100%, var(--lf-vr-capture-width, 100%));
     max-width: 100%;
   }
@@ -645,7 +656,7 @@ lf-visual-review {
     display: grid;
   }
 
-  lf-visual-review,
+  :scope:is(lf-visual-review),
   .lf-vr-head {
     background: transparent;
   }

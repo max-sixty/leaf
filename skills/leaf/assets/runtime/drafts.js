@@ -2,9 +2,9 @@
 
    Every unsent composition persists:
 
-   - the general comment box, including an attached page drawing;
+   - the general comment box;
    - each thread reply;
-   - the selection composer, including its anchor and mode;
+   - the selection composer, including its anchor, mode and drawing;
    - a thread's first message and replies;
    - an `lf-draft` edit.
 
@@ -18,6 +18,13 @@
    every live view. Ordinary disconnected inputs retire their subscription. Retained
    reply editors keep mirroring through candidate detachment; their presentation owner
    disposes the subscription when removal commits.
+
+   An editor belongs to its existing draft subscription. A root editor has the context's
+   one current connected, visible destination; reply mirrors use the current Thread
+   route instead. Revision continuity carries words, generation, caret and local scroll
+   under that identity. It restores only the same active generation and only after the
+   original input intent has landed the actual editor. Hidden editors are never opened
+   by this mechanical handoff, and a newer edit is never overwritten by it.
 
    A draft generation stores `{text, attempt, base, payload?}` while active and
    `{attempt, base, settled: true}` after settlement. Its attempt is minted when an edit
@@ -69,6 +76,9 @@
 import { runtime } from "./context.js";
 import { PENDING } from "./thread/identity.js";
 import { draftStore } from "./storage.js";
+import { focusDestination, readCaret, focused } from "./focus.js";
+import { notice } from "./notifications.js";
+import { retainUserIntent } from "./user-intent.js";
 
 // ---------- draft persistence ----------
 // Text the user typed but hasn't sent must survive navigation, reload, version switches,
@@ -207,11 +217,17 @@ const refreshDraftRecord = (ctx) => {
 // brings the words back here on a refusal with nothing to restore them from.
 const standingGestures = new Map(); // ctx -> attempt
 
-const activeDraftRecord = (ctx) => {
+const unsettledDraftRecord = (ctx) => {
   const record = rawDraftRecord(ctx);
-  if (!record || record.settled || attemptAccepted(record.attempt)) return null;
-  return standingGestures.get(ctx) === record.attempt ? null : record;
+  return record && !record.settled && !attemptAccepted(record.attempt) ? record : null;
 };
+const activeDraftRecord = (ctx) => {
+  const record = unsettledDraftRecord(ctx);
+  return standingGestures.get(ctx) === record?.attempt ? null : record;
+};
+// Sending hides a generation's words while its result stands on screen, but does
+// not end its editor's lifetime: refusal still owes those words that same editor.
+export const draftHasContent = (ctx) => Boolean(unsettledDraftRecord(ctx)?.text);
 // Every tombstone is an ownership claim, whether it follows Send, Cancel, a widget
 // action, or a poll that observed the attempt in the log. Re-read shared storage before
 // making that claim so a stale view cannot settle a newer durable generation. A refused
@@ -267,8 +283,33 @@ export const clearDraft = (ctx) => {
   }
   return settleDraft(ctx, current.attempt);
 };
+// The destination owner has chosen its complete value and found room for it. Store
+// that value durably before settling the exact source generation, so a later source
+// edit is never discarded. A failed destination write keeps its local branch and the
+// persisted source. Every live destination view reads the same transferred draft.
+// This explicit content move also moves Resume writing, with the source's caret.
+export function transferDraft(from, to, text) {
+  const source = activeDraftRecord(from);
+  if (!source || from === to) return false;
+  const editor =
+    [...draftEditors].find((view) => view.ctx === from) ??
+    [...draftEditors].find((view) => view.ctx === to);
+  const selection =
+    writingPlace?.context === from
+      ? writingPlace.selection
+      : readCaret(editor && editorInput(editor));
+  const durable = saveDraft(to, text);
+  keepWritingPlace({
+    context: to,
+    selection: selection ?? [0, 0],
+    generation: newAttempt(),
+  });
+  if (durable && settleDraft(from, source.attempt))
+    projectDraftRecord(from, draftCache.get(from).record);
+  tellDraft(to, text);
+  return true;
+}
 export const loadDraft = (ctx) => activeDraftRecord(ctx)?.text ?? null;
-export const loadDraftPayload = (ctx) => activeDraftRecord(ctx)?.payload;
 export const draftContexts = () =>
   new Set([
     ...draftCache.keys(),
@@ -379,25 +420,233 @@ export function sendMessage(ctx, owns, send) {
     answer(null);
     return null;
   }
-  void Promise.resolve(flight).then(answer);
+  // A sent first message now has a durable conversation identity: its attempt is
+  // the thread key before and after admission. Continue there, with an empty reply.
+  // Refusal returns to the same original editor unless a later edit chose another.
+  const previousPlace = writingPlace;
+  const sentPlace =
+    previousPlace?.context === ctx
+      ? {
+          context: ctx.startsWith("reply:") ? ctx : `reply:${current.attempt}`,
+          selection: [0, 0],
+          generation: previousPlace.generation,
+        }
+      : null;
+  if (sentPlace) keepWritingPlace(sentPlace);
+  void Promise.resolve(flight).then((sent) => {
+    answer(sent);
+    if (
+      !sent &&
+      sentPlace &&
+      writingPlace?.generation === sentPlace.generation &&
+      writingPlace.context === sentPlace.context
+    )
+      keepWritingPlace(previousPlace);
+  });
   return { attempt: current.attempt, id: `${PENDING}${current.attempt}` };
 }
 
-// A draft written in another view, routed to whatever is showing it here. The document is
-// semantic publication, as it is for replayed actions, and that is what supplies the
-// index this needs — from a draft's context to the box on screen — without a map of our
-// own to hold in step with the panel: a box that has left the document takes its view off
-// with it (mirrorDraft). The callback takes the store's vocabulary: active words and
-// their optional submission payload, or null and no payload for settlement.
+// Existing draft subscriptions own current editor identity and lifetime. The store
+// supplies active words and an optional submission payload, or null and no payload
+// for settlement. Editor membership is mechanical: connected root editors recover
+// by context, and retained reply mirrors land through their current thread owner.
+// Unsubscribing retires that membership alongside the listener.
 //
 // It does not run on subscribe, which is where this parts company with controller state. The
 // draft a box opens with and the news that another tab changed one are different facts,
 // and the boxes answer them differently: a draft editor opens on recovery at load and
 // stays shut for a keystroke made elsewhere, because news arriving has no gesture behind
 // it and so may move nothing.
-export function watchDraft(ctx, callback) {
+const draftEditors = new Set();
+
+// Resume writing is mechanical page state, owned alongside editor identity. Only a
+// content edit changes its destination; focus, draft mirroring and automatic recovery do
+// not. The one context and caret survive reload with the words. Reveal capabilities
+// belong to the editor's existing owner, and reply mirrors use the canonical thread
+// destination supplied by the composition root. No editor node is stored as identity.
+const WRITING_PLACE = "lf-writing-place";
+let writingPlace = (() => {
+  try {
+    const place = JSON.parse(draftStore.get(WRITING_PLACE));
+    return typeof place?.context === "string" &&
+      typeof place.generation === "string" &&
+      Array.isArray(place.selection) &&
+      place.selection.slice(0, 2).every(Number.isInteger)
+      ? place
+      : null;
+  } catch {
+    return null;
+  }
+})();
+const writingRoutes = new Map();
+const editorInput = (editor) =>
+  typeof editor.input === "function" ? editor.input() : editor.input;
+const keepWritingPlace = (place) => {
+  writingPlace = place;
+  draftStore.set(WRITING_PLACE, JSON.stringify(place));
+};
+const writingEditor = () =>
+  [...draftEditors].find((editor) => editorInput(editor) === focused());
+const keepWritingCaret = () => {
+  const editor = writingEditor();
+  if (editor && editor.ctx === writingPlace?.context)
+    keepWritingPlace({ ...writingPlace, selection: readCaret(editorInput(editor)) });
+};
+export function rememberWriting(input) {
+  const editor = [...draftEditors].find((view) => editorInput(view) === input);
+  if (editor)
+    keepWritingPlace({
+      context: editor.ctx,
+      selection: readCaret(input),
+      generation: newAttempt(),
+    });
+}
+document.addEventListener("input", (event) => {
+  const editor = [...draftEditors].find((view) =>
+    event.composedPath().includes(editorInput(view)),
+  );
+  if (editor) rememberWriting(editorInput(editor));
+});
+document.addEventListener("keyup", (event) => {
+  if (
+    [
+      "ArrowLeft",
+      "ArrowRight",
+      "ArrowUp",
+      "ArrowDown",
+      "Home",
+      "End",
+      "PageUp",
+      "PageDown",
+    ].includes(event.key) ||
+    (event.key === "a" && (event.ctrlKey || event.metaKey))
+  )
+    keepWritingCaret();
+});
+document.addEventListener("pointerup", keepWritingCaret);
+
+export function registerWritingDestination(prefix, reveal) {
+  writingRoutes.set(prefix, reveal);
+  return () => writingRoutes.delete(prefix);
+}
+
+export function createWritingResume({ revealReply, arriveEditor }) {
+  const resume = async () => {
+    const place = writingPlace;
+    if (!place) return;
+    const intent = retainUserIntent();
+    let input;
+    if (place.context.startsWith("reply:"))
+      input = await revealReply(place.context.slice("reply:".length), intent);
+    else {
+      const resolve = () => {
+        const route = [...writingRoutes].find(([prefix]) =>
+          place.context.startsWith(prefix),
+        );
+        const editor = [...draftEditors].find(
+          (view) => view.ctx === place.context && view.resume,
+        );
+        return route ? route[1](place.context) : editor?.resume();
+      };
+      input = await arriveEditor(resolve, { intent, caret: place.selection });
+    }
+    if (input === undefined || !intent()) return;
+    const matchesEditor = [...draftEditors].some(
+      (view) => view.ctx === place.context && editorInput(view) === input,
+    );
+    if (
+      !matchesEditor ||
+      !input?.isConnected ||
+      !input.checkVisibility() ||
+      input.readOnly ||
+      input.disabled
+    ) {
+      notice("That writing place is unavailable on this version");
+      return;
+    }
+    intent.handoff(() => focusDestination(input, "move", { caret: place.selection }));
+  };
+  return {
+    id: "writing.resume",
+    keys: ["i"],
+    description: "Resume writing",
+    title: "Resume writing",
+    touch: "Resume writing",
+    covering: true,
+    when: () => writingPlace !== null,
+    run: resume,
+  };
+}
+
+// A subscription owns its editor's context and lifetime. A context's root editors are
+// the boxes it is written in directly, of which the one shown takes the caret back
+// after a revision: one for most, two for the page's own draft (thread/page-comment.js).
+// Replies explicitly declare mirrors and land through their thread owner.
+// A revision carries mechanical editing, never another copy of the draft's words.
+export function captureDraftEditing(input = focused()) {
+  const editor = [...draftEditors].find((view) => editorInput(view) === input);
+  if (!editor) return null;
+  return {
+    context: editor.ctx,
+    mirrored: editor.mirrored,
+    attempt: activeDraftRecord(editor.ctx)?.attempt,
+    words: input.value,
+    selection: readCaret(input),
+    scroll: [input.scrollLeft, input.scrollTop],
+  };
+}
+
+export const draftEditingStands = (editing) =>
+  Boolean(editing) && activeDraftRecord(editing.context)?.attempt === editing.attempt;
+
+export function draftEditingDestination(editing) {
+  const input = [...draftEditors].find(
+    (view) =>
+      view.ctx === editing.context &&
+      !view.mirrored &&
+      editorInput(view)?.isConnected &&
+      editorInput(view).checkVisibility({ visibilityProperty: true }),
+  );
+  const destination = editorInput(input ?? {});
+  return destination ?? null;
+}
+
+export function restoreDraftEditing(editing, input) {
+  if (!draftEditingStands(editing)) return false;
+  const editor = [...draftEditors].find((view) => editorInput(view) === input);
+  if (
+    !editor ||
+    editor.ctx !== editing.context ||
+    !input.isConnected ||
+    !input.checkVisibility() ||
+    input.value !== editing.words ||
+    focused() !== input
+  )
+    return false;
+  focusDestination(input, "return", { caret: editing.selection });
+  [input.scrollLeft, input.scrollTop] = editing.scroll;
+  return true;
+}
+
+export function watchDraft(
+  ctx,
+  callback,
+  { input = null, mirrored = false, resume = null } = {},
+) {
+  const editor = input && { ctx, input, mirrored, resume };
+  if (editor) draftEditors.add(editor);
   const update = (ev) =>
     ev.detail.ctx === ctx && callback(ev.detail.value, ev.detail.payload);
+  document.addEventListener(DRAFT_NEWS, update);
+  return () => {
+    document.removeEventListener(DRAFT_NEWS, update);
+    if (editor) draftEditors.delete(editor);
+  };
+}
+// News of every draft whose context starts with `prefix`, for a reader of a whole kind
+// of draft rather than one box's.
+export function watchDrafts(prefix, callback) {
+  const update = (ev) => ev.detail.ctx.startsWith(prefix) && callback(ev.detail.ctx);
   document.addEventListener(DRAFT_NEWS, update);
   return () => document.removeEventListener(DRAFT_NEWS, update);
 }
@@ -434,12 +683,24 @@ addEventListener("storage", (ev) => {
 //
 // A retained editor remains a draft view during candidate detachment and receives
 // concurrent draft changes before rollback reconnects it. Its owner explicitly disposes
-// that lifetime on committed removal. Ordinary inputs retire on disconnection.
-export function mirrorDraft(ta, sync, ctx, { retained = false } = {}) {
-  const off = watchDraft(ctx, (value) => {
-    if (!retained && !ta.isConnected) return off();
-    sync.load(value ?? "");
-  });
+// that lifetime on committed removal. Ordinary inputs retire on disconnection. The
+// owner receives the original notification after hydration: null can mask a provisional
+// send or report settlement, so its lifecycle reads canonical draft availability.
+export function mirrorDraft(
+  ta,
+  sync,
+  ctx,
+  { retained = false, mirrored = false, resume = null, onChange = () => {} } = {},
+) {
+  const off = watchDraft(
+    ctx,
+    (value) => {
+      if (!retained && !ta.isConnected) return off();
+      sync.load(value ?? "");
+      onChange(value);
+    },
+    { input: ta, mirrored, resume },
+  );
   return off;
 }
 // Reply drafts are never pruned. A thread resolving is not a discard: another

@@ -5,13 +5,9 @@ Nothing builds them at install time, so they are tracked. The files under
 `skills/leaf/assets/vendor/` and each package's own `vendor/` are page payload:
 `page init` copies them into a page directory and a user's browser runs them.
 
-They arrive two ways, which is the shape of this file. Where upstream already
-publishes a file a browser can load, vendoring is three values — the package,
-the file inside it, and where it lands — so those are rows in COPIES. Where
-nothing published is loadable as it stands, or what Leaf ships is cut down to
-what its registry declares, vendoring is a program, so those are functions.
-Either way, what comes out passes through `build/browser/shipped.mjs`, the
-owner `build/browser/build.mjs` shares: it refuses a module an export cannot
+Each builder bundles only what its consumer needs, using the installed packages
+and the registry's declarations. What comes out passes through
+`build/browser/shipped.mjs`, the owner `build/browser/build.mjs` shares: it refuses a module an export cannot
 load and writes the bundle's license notices (`vendor`).
 
 Every version they carry is the one `package-lock.json` resolved: `package.json`
@@ -29,6 +25,7 @@ import argparse
 import json
 import shutil
 import subprocess
+import sys
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
@@ -37,7 +34,6 @@ from typing import NamedTuple
 ROOT = Path(__file__).resolve().parent.parent
 ASSETS = ROOT / "skills/leaf/assets"
 PACKAGES = ROOT / "skills/leaf/packages"
-PIERRE_SOURCE = ROOT / "build/pierre"
 NODE_MODULES = ROOT / "node_modules"
 
 
@@ -64,27 +60,6 @@ class Copy(NamedTuple):
     out: Path
 
 
-COPIES = {
-    # marked is zero-dependency and its package export is already one
-    # browser-native ESM file. The runtime renders every message's text with it;
-    # what it may not do — pass raw HTML through, since a message injects widgets
-    # only through the event's `markup` field — is configured in leaf.js.
-    "marked": Copy("marked", "lib/marked.esm.js", ASSETS / "vendor/marked.esm.js"),
-    # SortableJS drags lf-board's cards. The package ships its ESM entry three
-    # times over, carrying the same plugin code each time and differing only in
-    # which plugins it mounts, so the choice costs no bytes. This is the `module`
-    # entry, which mounts the autoscroll that lf-board's `scroll` option drives.
-    # `sortable.core.esm.js` mounts nothing and would drop that autoscroll;
-    # `sortable.complete.esm.js` mounts swap and multi-drag on top, and lf-board
-    # sets neither.
-    "sortable": Copy(
-        "sortablejs",
-        "modular/sortable.esm.js",
-        package_vendor("default") / "sortable.esm.js",
-    ),
-}
-
-
 def run(*args: str, cwd: Path) -> None:
     subprocess.run(args, cwd=cwd, check=True)
 
@@ -108,45 +83,49 @@ def languages() -> list[str]:
     ]["names"]
 
 
-# Where leaf's name for a language differs from highlight.js's module. Every
-# other name maps to itself.
-HLJS_ALIASES = {"html": "xml", "toml": "ini"}
-
-
-def build_highlight(work: Path) -> list[Path]:
-    """highlight.js colors a page's code blocks. Upstream ships no
-    browser-native ESM build — the `es/` directory re-exports CommonJS and only
-    resolves through a bundler — so the vendored file is one we produce: core
-    plus exactly the languages the registry enumerates, bundled to ESM and
-    minified.
-
-    Each language registers under leaf's own name (`html`, not hljs's `xml`), so
-    the page's vocabulary and the tokenizer's cannot drift: `language="html"`
-    either resolves or the bundle was built from a different list than the
-    registry states.
+def build_syntax(work: Path) -> list[Path]:
+    """Share one Shiki engine between code blocks and Pierre, loading grammars
+    only for languages the page draws. Static imports share embedded grammars;
+    the generated runtime loader map names the registry's language entry points.
     """
-    out = ASSETS / "vendor/highlight.esm.js"
-    # Core is the CommonJS build, which the package's exports map offers only to
-    # `require`, so it is imported by path.
-    package = (NODE_MODULES / "highlight.js").as_posix()
-    names = languages()
-    entry = [
-        (
-            f"/*! highlight.js {version('highlight.js')} — BSD-3-Clause"
-            " — https://highlightjs.org */"
-        ),
-        f'import hljs from "{package}/lib/core.js";',
-        *(
-            f"import {name} from"
-            f' "highlight.js/lib/languages/{HLJS_ALIASES.get(name, name)}";'
-            for name in names
-        ),
-        # Registered under leaf's name, not highlight.js's, so `language="html"`
-        # resolves without a translation table living anywhere at runtime.
-        *(f'hljs.registerLanguage("{name}", {name});' for name in names),
-        "export default hljs;",
-    ]
-    (work / "entry.mjs").write_text("\n".join(entry) + "\n", encoding="utf-8")
+    source = ROOT / "build/syntax"
+    for name in ("entry.mjs", "build.mjs"):
+        shutil.copyfile(source / name, work / name)
+    run(
+        "node",
+        "build.mjs",
+        str(work / "bundle"),
+        str(ASSETS / "registry.json"),
+        cwd=work,
+    )
+    directory = ASSETS / "vendor/syntax"
+    if directory.exists():
+        shutil.rmtree(directory)
+    shutil.copytree(work / "bundle/syntax", directory)
+    out = ASSETS / "vendor/syntax.esm.js"
+    shutil.copyfile(work / "bundle/syntax.esm.js", out)
+    (ASSETS / "runtime/syntax-languages.js").write_text(
+        "// Generated by build/vendor.py from registry.json's $languages.names.\n"
+        "// prettier-ignore\n"
+        "export const syntaxLanguages = {\n"
+        + "".join(
+            f'  "{name}": () => import("/vendor/syntax/{name}.js"),\n'
+            for name in languages()
+        )
+        + "};\n",
+        encoding="utf-8",
+    )
+    return [out, *sorted(directory.glob("*.js"))]
+
+
+def build_markdown(work: Path) -> list[Path]:
+    """One lazy Markdown parser bundle, including its task-list extension."""
+    out = ASSETS / "vendor/markdown-it.esm.js"
+    (work / "entry.mjs").write_text(
+        'export { default as MarkdownIt } from "markdown-it";\n'
+        'export { default as taskLists } from "markdown-it-task-lists";\n',
+        encoding="utf-8",
+    )
     esbuild(
         "entry.mjs",
         "--bundle",
@@ -182,6 +161,28 @@ def build_jsdiff(work: Path) -> list[Path]:
     return [out]
 
 
+def build_photoswipe(work: Path) -> list[Path]:
+    """Load the viewer with its own styles in one optional, exportable module."""
+    out = ASSETS / "vendor/photoswipe.esm.js"
+    (work / "entry.mjs").write_text(
+        'export { default } from "photoswipe";\n'
+        'export { default as styles } from "photoswipe/style.css";\n',
+        encoding="utf-8",
+    )
+    esbuild(
+        "entry.mjs",
+        "--bundle",
+        "--format=esm",
+        "--loader:.css=text",
+        "--minify",
+        "--legal-comments=inline",
+        f"--banner:js=/*! PhotoSwipe {version('photoswipe')} — MIT — photoswipe.com */",
+        f"--outfile={out}",
+        cwd=work,
+    )
+    return [out]
+
+
 def build_codemirror(work: Path) -> list[Path]:
     """CodeMirror 6 is the editor inside every runtime composer (`leaf-text`).
 
@@ -197,8 +198,8 @@ def build_codemirror(work: Path) -> list[Path]:
             f"/*! CodeMirror {version('@codemirror/view')} — MIT"
             " — https://codemirror.net */\n"
             'export { EditorView, keymap, Decoration, ViewPlugin } from "@codemirror/view";\n'
-            'export { EditorState, Compartment } from "@codemirror/state";\n'
-            "export { history, standardKeymap, historyKeymap }"
+            'export { EditorState, StateEffect, Compartment } from "@codemirror/state";\n'
+            "export { history, standardKeymap, historyKeymap, isolateHistory, invertedEffects }"
             ' from "@codemirror/commands";\n'
             'export { LanguageSupport } from "@codemirror/language";\n'
             "export { markdownLanguage, insertNewlineContinueMarkup }"
@@ -262,7 +263,7 @@ def build_floating_ui(work: Path) -> list[Path]:
     """
     out = ASSETS / "vendor/floating-ui.esm.js"
     (work / "entry.mjs").write_text(
-        "export { autoUpdate, computePosition, flip, limitShift, offset, shift, size } "
+        "export { autoUpdate, getOverflowAncestors, computePosition, flip, limitShift, offset, shift, size } "
         'from "@floating-ui/dom";\n',
         encoding="utf-8",
     )
@@ -302,13 +303,22 @@ def build_webawesome(work: Path) -> list[Path]:
             f"Web Awesome's declared Lit range excludes lit {version('lit')}"
         )
     source = ROOT / "build/webawesome"
-    for name in ("entry.mjs", "chrome.mjs", "build.mjs", "leaf-theme.css"):
+    for name in (
+        "entry.mjs",
+        "chrome.mjs",
+        "build.mjs",
+        "leaf-theme.css",
+        "theme.py",
+        "transitions.mjs",
+        "transition-patch.mjs",
+    ):
         shutil.copyfile(source / name, work / name)
     run(
         "node",
         "build.mjs",
         str(work / "bundle"),
         version("@awesome.me/webawesome"),
+        sys.executable,
         cwd=work,
     )
     shared = ASSETS / "vendor/webawesome"
@@ -329,7 +339,7 @@ def build_plot(work: Path) -> list[Path]:
     and a CDN's prebuilt ESM (jsdelivr's `+esm`) is smaller than this bundle only
     because it imports d3 from a second URL, while the layer loads nothing from
     the network so a chart draws offline and in an export. So the vendored file
-    is one we produce, the same way highlight.js's is: Plot and the parts of d3 it reaches for, bundled to one browser-native
+    is one we produce: Plot and the parts of d3 it reaches for, bundled to one browser-native
     ESM file with no specifier left in it. The alternative is vendoring d3 whole
     beside it, which is 100KB more and two files whose versions can drift apart.
 
@@ -356,44 +366,130 @@ def build_plot(work: Path) -> list[Path]:
     return [out]
 
 
-PIERRE_LANGUAGE_SENTINEL = "/* LEAF_PIERRE_LANGUAGES */"
-
-
 def build_pierre(work: Path) -> list[Path]:
-    """Pierre and Shiki expose far more languages and themes than Leaf declares,
-    so this bundle carries only the grammars the registry names plus the two
-    fixed token themes lf-diff maps onto Leaf's syntax roles.
-
-    `build/pierre/shiki-leaf.mjs` holds exactly one `LEAF_PIERRE_LANGUAGES`
-    sentinel, which this replaces with a dynamic import for each registry language.
-    """
+    """Bundle Pierre's static renderer against the shared Leaf syntax engine."""
     out = package_vendor("diff") / "pierre-diffs.esm.js"
-    shiki_source = (PIERRE_SOURCE / "shiki-leaf.mjs").read_text(encoding="utf-8")
-    if shiki_source.count(PIERRE_LANGUAGE_SENTINEL) != 1:
-        raise RuntimeError("Pierre's Shiki source must contain one language sentinel")
-    (work / "shiki-leaf.mjs").write_text(
-        shiki_source.replace(
-            PIERRE_LANGUAGE_SENTINEL,
-            "\n"
-            + "\n".join(
-                f'  "{name}": () => import("@shikijs/langs/{name}"),'
-                for name in languages()
-            )
-            + "\n",
-        ),
-        encoding="utf-8",
-    )
-    for name in ("themes-leaf.mjs", "entry.mjs", "build.mjs"):
-        shutil.copyfile(PIERRE_SOURCE / name, work / name)
+    source = ROOT / "build/pierre"
+    for name in ("themes-leaf.mjs", "wasm-leaf.mjs", "entry.mjs", "build.mjs"):
+        shutil.copyfile(source / name, work / name)
     run("node", "build.mjs", str(out), version("@pierre/diffs"), cwd=work)
     return [out]
 
 
+def build_sortable(work: Path) -> list[Path]:
+    """Prepare clones before insertion and preserve the existing card's native state.
+
+    Sortable's clone/start hooks run after creation/insertion, too late to stop a
+    checked radio joining the source's group or a nested widget activating. The
+    optional cloneElement factory prepares compact native motion previews at both
+    creation sites. Existing dragEl relocations use moveBefore, so an iframe's
+    browsing context survives the move. Keep the upstream ESM/autoscroll implementation
+    otherwise intact (the module entry mounts autoscroll, unlike core; complete
+    adds unused swap and multi-drag). A changed upstream seam fails the build.
+    """
+    outputs = copy_published(
+        Copy(
+            "sortablejs",
+            "modular/sortable.esm.js",
+            package_vendor("default") / "sortable.esm.js",
+        ),
+        work,
+    )
+    out = outputs[0]
+    source = out.read_bytes()
+    for original, replacement in (
+        (
+            b"ghostEl = dragEl.cloneNode(true);",
+            b"ghostEl = options.cloneElement ? options.cloneElement(dragEl) : dragEl.cloneNode(true);",
+        ),
+        (
+            b"cloneEl = clone(dragEl);",
+            b"cloneEl = this.options.cloneElement ? this.options.cloneElement(dragEl) : clone(dragEl);",
+        ),
+        (
+            b"rootEl.insertBefore(dragEl, nextEl);",
+            b"rootEl.moveBefore(dragEl, nextEl);",
+        ),
+        (b"rootEl.appendChild(dragEl);", b"rootEl.moveBefore(dragEl, null);"),
+        (
+            b"el.insertBefore(dragEl, elLastChild.nextSibling);",
+            b"el.moveBefore(dragEl, elLastChild.nextSibling);",
+        ),
+        (
+            b"el.insertBefore(dragEl, firstChild);",
+            b"el.moveBefore(dragEl, firstChild);",
+        ),
+        (
+            b"target.parentNode.insertBefore(dragEl, after ? nextSibling : target);",
+            b"target.parentNode.moveBefore(dragEl, after ? nextSibling : target);",
+        ),
+        (
+            b"this.sortable.el.insertBefore(dragEl, nextSibling);",
+            b"this.sortable.el.moveBefore(dragEl, nextSibling);",
+        ),
+        (
+            b"this.sortable.el.appendChild(dragEl);",
+            b"this.sortable.el.moveBefore(dragEl, null);",
+        ),
+        (b"el.appendChild(dragEl);", b"el.moveBefore(dragEl, null);"),
+    ):
+        expected = 2 if original == b"el.appendChild(dragEl);" else 1
+        if source.count(original) != expected:
+            raise ValueError(f"Sortable clone seam changed: {original}")
+        source = source.replace(original, replacement)
+    out.write_bytes(source)
+    return outputs
+
+
+def build_trace_library(work: Path, library: str) -> list[Path]:
+    """Framework-free recording inspection, loaded only by the Playwright widget.
+
+    Named Timeline exports remove Graph2d. Separate image and timeline bundles
+    stay below the repository's payload limit. Scoped CSS travels with each module
+    so offline exports use the same library rendering as served pages.
+    """
+    out = package_vendor("playwright") / f"{library}.esm.js"
+    out.parent.mkdir(exist_ok=True)
+    entry = (
+        'export { Timeline } from "vis-timeline/esnext/esm/vis-timeline-graph2d.js";\n'
+        'export { DataSet } from "vis-data/esnext/esm/vis-data.js";\n'
+        'export { default as css } from "vis-timeline/styles/vis-timeline-graph2d.css";\n'
+        if library == "timeline"
+        else 'export { default as Viewer } from "viewerjs/dist/viewer.esm.js";\n'
+        'export { default as css } from "viewerjs/dist/viewer.css";\n'
+    )
+    (work / "entry.mjs").write_text(entry, encoding="utf-8")
+    esbuild(
+        "entry.mjs",
+        "--bundle",
+        "--format=esm",
+        "--minify",
+        "--legal-comments=inline",
+        "--loader:.css=text",
+        f"--outfile={out}",
+        cwd=work,
+    )
+    return [out]
+
+
+def build_trace_timeline(work: Path) -> list[Path]:
+    return build_trace_library(work, "timeline")
+
+
+def build_trace_images(work: Path) -> list[Path]:
+    return build_trace_library(work, "images")
+
+
 BUILDS: dict[str, Callable[[Path], list[Path]]] = {
+    "trace-timeline": build_trace_timeline,
+    "trace-images": build_trace_images,
+    "markdown": build_markdown,
+    "photoswipe": build_photoswipe,
+    "sortable": build_sortable,
     "agentic-mermaid": build_agentic_mermaid,
     "codemirror": build_codemirror,
     "floating-ui": build_floating_ui,
-    "highlight": build_highlight,
+    "syntax": build_syntax,
     "jsdiff": build_jsdiff,
     "plot": build_plot,
     "pierre": build_pierre,
@@ -427,9 +523,7 @@ def vendor(name: str) -> list[Path]:
     scratch.mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(dir=scratch, prefix="vendor-") as tmp:
         work = Path(tmp)
-        outputs = (
-            copy_published(COPIES[name], work) if name in COPIES else BUILDS[name](work)
-        )
+        outputs = BUILDS[name](work)
         first = outputs[0]
         notices = first.with_name(f"{first.name.split('.')[0]}.LICENSES.txt")
         run(
@@ -444,7 +538,7 @@ def vendor(name: str) -> list[Path]:
 
 
 def main() -> None:
-    known = sorted(COPIES | BUILDS)
+    known = sorted(BUILDS)
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("bundle", nargs="*", help=f"one or more of: {', '.join(known)}")
     args = parser.parse_args()

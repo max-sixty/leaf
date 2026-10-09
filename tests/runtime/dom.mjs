@@ -17,7 +17,7 @@
    composition here is every bundled one.
 
    This is not Chrome, and which readings may be asked of it is `tests/AGENTS.md`'s,
-   under "Test placement". */
+   under "Put each assertion at the boundary that owns it". */
 
 import { existsSync, readdirSync } from "node:fs";
 import { registerHooks } from "node:module";
@@ -25,6 +25,10 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 
 GlobalRegistrator.register({ url: "https://leaf.test/" });
+// What a delivered document's prepaint declares before any module runs
+// (`runtime/prepaint.js`): the page's storage scope, "" for a page at the origin's root.
+document.documentElement.dataset.lfPageScope = "";
+await import("../../skills/leaf/assets/runtime/prepaint.js");
 
 const at = (path) => fileURLToPath(new URL(path, import.meta.url));
 const PACKAGES = at("../../skills/leaf/packages");

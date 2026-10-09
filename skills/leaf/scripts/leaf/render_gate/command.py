@@ -1,6 +1,7 @@
 """Command boundary for browser-backed page validation."""
 
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from leaf.revision_artifact import RevisionArtifact
@@ -10,6 +11,7 @@ from .browser import (
     DriverNotStarted,
     browser_hint,
     driver_hint,
+    ending,
     launch_browser,
     playwright_driver,
 )
@@ -22,8 +24,24 @@ from .version import RENDER_VIEWPORTS, render_version
 
 def in_browser(gate: str, read):
     """Launch the host's browser and return what `read` finds with it, with the
-    browser's name. A browser is part of the gate: where none launches, it reports
-    that and returns None."""
+    browser's name. Where none launches, say that `gate` was not run and why, and
+    return None: Leaf runs without a browser, and a page reports its errors to its
+    author whenever one draws it, so a host without one loses the early reading and
+    not the command.
+
+    Playwright runs on a thread of its own. Its sync API refuses a thread that already
+    drives another instance or runs an event loop, and a command runs this from
+    whatever process called it, such as a test harness driving its own browser."""
+    with ThreadPoolExecutor(1) as pool:
+        found = pool.submit(_launch, read).result()
+    if isinstance(found, str):
+        print(f"· {gate}: not run, {found}", file=sys.stderr)
+        return None
+    return found
+
+
+def _launch(read):
+    """What `read` finds, with the browser's name, or why no browser ran it."""
     from playwright.sync_api import Error as PlaywrightError
 
     try:
@@ -31,23 +49,14 @@ def in_browser(gate: str, read):
             try:
                 browser, browser_name = launch_browser(p)
             except PlaywrightError as error:
-                print(
-                    f"✗ {gate} failed — no browser launched: "
-                    f"{str(error).strip().splitlines()[0]}. {browser_hint()}",
-                    file=sys.stderr,
+                return (
+                    f"no browser launched: {str(error).strip().splitlines()[0]}. "
+                    f"{browser_hint()}"
                 )
-                return None
-            try:
+            with ending(browser):
                 return read(browser), browser_name
-            finally:
-                browser.close()
     except DriverNotStarted as error:
-        print(
-            f"✗ {gate} failed — Playwright's driver did not start: {error}. "
-            f"{driver_hint()}",
-            file=sys.stderr,
-        )
-        return None
+        return f"Playwright's driver did not start: {error}. {driver_hint()}"
 
 
 def _in_browser(
@@ -74,23 +83,20 @@ def page_code_check(
     """Run the page's own code once and fail on every error it reports
     (`page_code` says which run and which errors)."""
     ran = _in_browser(
-        "page code check", run_page_code, page_dir, document, revision, artifact
+        "page code", run_page_code, page_dir, document, revision, artifact
     )
     if ran is None:
-        return 1
+        return 0
     errors, browser_name = ran
     if errors:
         print(
-            f"✗ page code: {len(errors)} error(s) the page would report to you",
+            f"Error: page code reported {len(errors)} error{'s' if len(errors) != 1 else ''}",
             file=sys.stderr,
         )
         for error in errors:
             print(f"  - {error}", file=sys.stderr)
         return 1
-    print(
-        f"✓ page code: runs through upgrade and first paint in {browser_name} "
-        "with no error reported"
-    )
+    print(f"✓ page code: no errors in {browser_name}")
     return 0
 
 
@@ -115,10 +121,20 @@ def _screen_lines(screens) -> list[str]:
             runs[-1][0].append(shot.name)
         else:
             runs.append(([shot.name], label))
-    return [f"  screens to read before handing the page over, in {into}:"] + [
-        f"    {names[0]}{' … ' + names[-1] if len(names) > 1 else ''}: {label}"
-        for names, label in runs
-    ]
+    return (
+        [f"  screens to read before handing the page over, in {into}:"]
+        + [
+            f"    {names[0]}{' … ' + names[-1] if len(names) > 1 else ''}: {label}"
+            for names, label in runs
+        ]
+        + [
+            (
+                "  before handover, have a subagent with only the user's request and "
+                "these screens read the page as the user would "
+                '(page-authoring.md, "Pre-handover review")'
+            )
+        ]
+    )
 
 
 def render_check(
@@ -138,11 +154,11 @@ def render_check(
         artifact,
     )
     if ran is None:
-        return 1
+        return 0
     (reading, screens), browser_name = ran
     if reading.failures:
         print(
-            f"✗ index.html: renders broken — {len(reading.failures)} issue(s)",
+            f"Error: index.html has {len(reading.failures)} render issue{'s' if len(reading.failures) != 1 else ''}",
             file=sys.stderr,
         )
         for f in reading.failures:
@@ -161,11 +177,8 @@ def render_check(
         else ""
     )
     print(
-        f"✓ index.html: renders clean in {browser_name}, light and dark at "
-        f"{viewport_names}{margins} — no "
-        "console errors or DevTools issues, every widget takes space, no words on top of other words, code that reads "
-        "against the block it is on, nothing past the "
-        f"column, no sideways scroll from {SWEEP_WIDTHS[0]}px to {SWEEP_WIDTHS[-1]}px wide"
+        f"✓ index.html: render checks passed in {browser_name}, light and dark at "
+        f"{viewport_names}{margins}; widths {SWEEP_WIDTHS[0]}–{SWEEP_WIDTHS[-1]}px"
     )
     for line in reading.advice:
         print(f"  · {line}")
@@ -186,13 +199,12 @@ def widget_quality_report(package: Path) -> int:
         )
     except UnreadablePage as error:
         print(
-            f"✗ widget quality failed — a page of worked examples could not be drawn: "
-            f"{error}",
+            f"Error: widget examples could not be drawn: {error}",
             file=sys.stderr,
         )
         return 1
     if ran is None:
-        return 1
+        return 0
     findings, browser_name = ran
     widgets = f"{len(own_tags(package))} widget(s)"
     if not findings:

@@ -16,29 +16,28 @@ from .schema import (
     BROWSER_DIRS,
     BUNDLED_PACKAGES,
     DEFAULT_PACKAGE,
-    GUIDANCE_DIR,
-    GUIDANCE_FILE,
     HTML_NAME,
+    INSTRUCTIONS_DIR,
+    INSTRUCTIONS_FILE,
     LAYER_PLACEHOLDER,
     PACKAGE_DIRS,
     PLUGIN_ROOT,
     VENDORED_FILES,
 )
-from .styles import confined, css_syntax_errors
-from .validation.compatibility import incoming_registry
 
 
 def named_package(name: str) -> Path | None:
-    """The one directory a bare package name selects, installed or bundled.
+    """Select one installed snapshot or the bundled package with this name.
 
-    `package install` refuses a name a bundled package already answers to, so the
-    roots collide only where a later Leaf release ships a name someone installed
-    before it existed. The installed copy wins there, because the pages selecting
-    that name were written against it. Nothing downstream asks which root
-    answered: an installed package is the same directory contract elsewhere.
+    Installed names are atomically replaced symlinks into immutable snapshots. Resolve
+    the link once, so a reader keeps one complete package even when another install
+    publishes that name. An installed package deliberately overrides a bundled one.
     """
-    roots = (package_store(), BUNDLED_PACKAGES)
-    return next((root / name for root in roots if (root / name).is_dir()), None)
+    installed = package_store() / "names" / name
+    if installed.is_symlink():
+        return installed.resolve(strict=True)
+    bundled = BUNDLED_PACKAGES / name
+    return bundled if bundled.is_dir() else None
 
 
 def resolve_packages(selected: tuple[str, ...]) -> list[Path]:
@@ -52,15 +51,14 @@ def resolve_packages(selected: tuple[str, ...]) -> list[Path]:
     packages = []
     for value in selected:
         if re.fullmatch(HTML_NAME, value):
-            if value == DEFAULT_PACKAGE.name:
-                sys.exit("package 'default' is already included in every page")
             named = named_package(value)
             if named is None:
                 sys.exit(
                     f"unknown package {value!r}; run `leaf package install` to add "
                     f"it, or use './{value}' for a project-relative package path"
                 )
-            packages.append(named)
+            if named != DEFAULT_PACKAGE:
+                packages.append(named)
             continue
         package_path = Path(value)
         if package_path.is_absolute():
@@ -105,11 +103,11 @@ def checked_inputs(inputs: list[Path]) -> list[Path]:
                 continue
             if not directory.is_dir():
                 sys.exit(f"{directory} must be a directory")
-            if sub == GUIDANCE_DIR:
+            if sub == INSTRUCTIONS_DIR:
                 for path in directory.iterdir():
                     if not path.is_file():
                         sys.exit(f"{path} must be a file")
-                    if not GUIDANCE_FILE.fullmatch(path.name):
+                    if not INSTRUCTIONS_FILE.fullmatch(path.name):
                         sys.exit(f"{path} must be named <audience>.md")
                 continue
             for path in directory.rglob("*"):
@@ -138,7 +136,9 @@ def input_paths(inputs: list[Path]) -> list[Path]:
             paths.append(directory.resolve())
             if directory.is_dir():
                 entries = (
-                    directory.iterdir() if sub == GUIDANCE_DIR else directory.rglob("*")
+                    directory.iterdir()
+                    if sub == INSTRUCTIONS_DIR
+                    else directory.rglob("*")
                 )
                 paths.extend(path.resolve() for path in entries)
     return paths
@@ -176,16 +176,19 @@ def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:
 # The document's cascade tiers, lowest first. The chrome's form-control clearing
 # (`lf-reset`, runtime/chrome.css) stays below everything that chooses a face. The
 # kernel, every package, and each widget module's adopted sheet (runtime/stylesheets.js)
-# share one layer, so they rank against each other by specificity and order as they
-# always have. The kernel's Layouts sit above it, and the page's own stylesheet,
-# unlayered, above both: a Layout resets what a widget sets on the boxes it arranges,
-# and a page overrides either. The page's rules reach Leaf's own controls only where
-# they name them (runtime/page-sheets.js). The chrome and marks sheets stay unlayered,
+# share one layer, so specificity, scope proximity, then order rank their rules.
+# The kernel's Layouts sit above it, followed by semantic state: retirement must
+# outrank a package's default box and a Layout's arrangement. The page's own sheet
+# stays unlayered above these tiers, and inline widget motion outranks them too.
+# The page's rules reach Leaf's own controls only where they name them
+# (runtime/page-sheets.js). The chrome and marks sheets stay unlayered,
 # since their paint must beat page and widget alike (chrome.css).
-CASCADE_LAYERS = ("lf-reset", "lf-base", "lf-layouts")
+CASCADE_LAYERS = ("lf-reset", "lf-base", "lf-layouts", "lf-shadow", "lf-state")
 
 
 def _sheet(source: Path) -> str:
+    from .styles import css_syntax_errors
+
     try:
         css = source.read_text(encoding="utf-8")
     except UnicodeDecodeError:
@@ -196,10 +199,11 @@ def _sheet(source: Path) -> str:
 
 
 def widget_confinement(root: Path) -> tuple[str, str] | None:
-    """The conditions a package's rules meet: in the document, the element is one of
-    the package's widgets or stands inside one; in a declared shadow tree, the tree's
-    host is one of them, which is the one element outside the tree a selector in it can
-    name. None for a package that declares no widget."""
+    """Native document and shadow scope roots for a package's declared widgets.
+
+    The browser confines matching to each root and its descendants; authors name
+    a root with :scope. A widget-free package is an unscoped page theme.
+    """
     registry = root / "registry.json"
     tags = (
         sorted(
@@ -212,7 +216,7 @@ def widget_confinement(root: Path) -> tuple[str, str] | None:
         return None
     listed = ", ".join(tags)
     host = f":host(:is({listed}))"
-    return f":where({listed}, :is({listed}) *)", f":where({host}, {host} *)"
+    return f":is({listed})", host
 
 
 # A root's own stylesheets, in the order the document's theme.css reads them.
@@ -227,21 +231,25 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     document's theme.css reads each root's shadow.css just ahead of its theme.css.
 
     In the document, every root's sheets are the `lf-base` cascade layer, and the
-    kernel's layouts.css, which names `lf-layouts` itself, comes last. A shadow tree's
-    sheet stays unlayered: a renderer that brings its own layered CSS into the tree
-    (the diff's) keeps ranking below it.
+    kernel's layouts.css and state.css name their higher tiers and come last.
+    Shared shadow rules use `lf-shadow` above adopted widget sheets (`lf-base`),
+    preserving their precedence over vendor defaults. state.css ranks above both,
+    so declared retirement has the same precedence in both trees. Authored
+    unlayered styles and inline widget motion remain above it.
 
-    A package that declares widgets styles those widgets and nothing else
-    (`widget_confinement`): in the document each of its rules matches only an element
-    that is one of them or stands inside one, and in the shadow sheet every declared
-    tree receives, only an element of a tree one of them hosts. A package that
-    declares none is a theme, and reaches the page and every tree the way the kernel's
-    own sheets do.
+    Each widget package's sheet has one native @scope around its declared tags
+    in the document, or around their :host in shadow trees. :scope names the root,
+    ordinary selectors its descendants. CSS owns nested conditions and proximity;
+    composition neither rewrites selectors nor adds specificity. Widget-free
+    packages are unscoped themes that reach the page and every tree.
     """
+    from .styles import scoped
+
     if not any((root / "theme.css").is_file() for root in inputs):
         sys.exit("the incoming layer has no theme.css")
-    theme = [f"@layer {', '.join(CASCADE_LAYERS)};\n"]
-    shadow = []
+    order = f"@layer {', '.join(CASCADE_LAYERS)};\n"
+    theme = [order]
+    shadow = [order]
     for position, root in enumerate(inputs):
         where = widget_confinement(root) if position else None
         for name in ROOT_SHEETS:
@@ -249,23 +257,25 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
             if not source.is_file():
                 continue
             css = _sheet(source)
-            try:
-                placed = confined(css, where[0]) if where else css
-                if name == "shadow.css":
-                    shadow.append(confined(css, where[1]) if where else css)
-            except ValueError as error:
-                sys.exit(f"{source}: {error}; state a widget's rules on the widget")
+            placed = scoped(css, where[0]) if where else css
+            if name == "shadow.css":
+                shadow_css = scoped(css, where[1]) if where else css
+                shadow.append(f"@layer lf-shadow {{\n{shadow_css}}}\n")
             theme.append(f"@layer lf-base {{\n{placed}}}\n")
-    if (layouts := inputs[0] / "layouts.css").is_file():
-        theme.append(_sheet(layouts))
+    for name in ("layouts.css", "state.css"):
+        if (source := inputs[0] / name).is_file():
+            sheet = _sheet(source)
+            theme.append(sheet)
+            if name == "state.css":
+                shadow.append(sheet)
     return {
         "theme.css": "".join(theme).encode(),
         "shadow.css": "".join(shadow).encode(),
     }
 
 
-def composed_guidance(inputs: list[Path]) -> dict[str, bytes]:
-    """Package guidance joined by audience in layer precedence order.
+def composed_instructions(inputs: list[Path]) -> dict[str, bytes]:
+    """Package instructions joined by audience in layer precedence order.
 
     Each package's passage opens under a heading naming its package, so a guide
     file starts with its first rule rather than a title of its own, and one
@@ -273,19 +283,19 @@ def composed_guidance(inputs: list[Path]) -> dict[str, bytes]:
     """
     parts: dict[str, list[str]] = {}
     for root in inputs:
-        directory = root / GUIDANCE_DIR
+        directory = root / INSTRUCTIONS_DIR
         if not directory.is_dir():
             continue
         for path in sorted(directory.iterdir()):
             if not path.is_file():
                 continue
             try:
-                guidance = path.read_text(encoding="utf-8")
+                instructions = path.read_text(encoding="utf-8")
             except UnicodeDecodeError:
                 sys.exit(f"{path} must be UTF-8")
-            if guidance.strip():
+            if instructions.strip():
                 parts.setdefault(path.name, []).append(
-                    f"# Package `{root.name}`\n\n{guidance.strip()}\n"
+                    f"# Package `{root.name}`\n\n{instructions.strip()}\n"
                 )
     return {name: "\n".join(passages).encode() for name, passages in parts.items()}
 
@@ -300,6 +310,23 @@ def checked_layer_inputs(inputs: list[Path]) -> list[Path]:
             f"{right}; package scopes must be separate"
         )
     return roots
+
+
+def kernel_runtime_paths() -> set[str]:
+    """Private kernel paths packages cannot replace, before or after compilation.
+
+    CI records the source paths in its prepared payload because compiled chunks no
+    longer have those names. Both representations enforce the same package boundary.
+    """
+    manifest = PLUGIN_ROOT / "leaf-distribution.json"
+    paths = {
+        path.relative_to(root / "runtime").as_posix()
+        for root in (ASSETS, DEFAULT_PACKAGE)
+        for path in (root / "runtime").rglob("*.js")
+    }
+    if manifest.is_file():
+        paths.update(json.loads(manifest.read_text())["runtime_paths"])
+    return paths
 
 
 class LayerComposition(NamedTuple):
@@ -362,6 +389,28 @@ def payload_runtime_fingerprint() -> str:
     )
 
 
+def payload_server_inputs(root: Path) -> list[Path]:
+    """The serving code and dependency manifests an init must restart to adopt."""
+    return [
+        *sorted((root / "skills/leaf/scripts").rglob("*.py")),
+        root / "pyproject.toml",
+        root / "uv.lock",
+    ]
+
+
+def payload_server_fingerprint() -> str:
+    """Identify the serving inputs and interpreter independently of a Git commit."""
+    return files_identity(
+        {
+            "$python": sys.version.encode(),
+            **{
+                path.relative_to(PLUGIN_ROOT).as_posix(): path.read_bytes()
+                for path in payload_server_inputs(PLUGIN_ROOT)
+            },
+        }
+    )
+
+
 def foreign_runtime(page_dir: Path, layer: dict) -> str | None:
     """Why this Leaf cannot serve a page, given its recorded `$layer`: the page's
     runtime came from another Leaf. None when the page carries this Leaf's own.
@@ -393,11 +442,16 @@ def payload_provenance(*, include_path: bool = False) -> dict:
     """Describe the Leaf payload that is running this command, when its source can.
 
     Beside the commit, one of two dates says how old the payload is: `committed`,
-    the commit's committer date, where Git can read it; or `installed`, when a host
+    the commit's committer date, where Git can read it; or `installed`, when a harness
     copied the payload into its plugin cache without `.git`. Both are ISO 8601 with
     an offset.
     """
     provenance = {"path": str(PLUGIN_ROOT)} if include_path else {}
+    distribution = PLUGIN_ROOT / "leaf-distribution.json"
+    if distribution.is_file():
+        published = json.loads(distribution.read_text())
+        provenance.update(published["producer"])
+        return provenance
     # Claude Code copies a marketplace plugin without its .git directory into a cache
     # whose final component is the resolved plugin version. Leaf leaves its manifest
     # version unset, so that component is the source commit SHA. PLUGIN_ROOT comes from
@@ -412,7 +466,7 @@ def payload_provenance(*, include_path: bool = False) -> dict:
         and re.fullmatch(r"[0-9a-f]{7,40}", PLUGIN_ROOT.name)
     ):
         # The copy stamps every file with the time it was made, and Leaf never
-        # rewrites its own modules. A host copies only the marketplace's newest
+        # rewrites its own modules. A harness copies only the marketplace's newest
         # commit, one update sweep after it lands, so this dates the commit to
         # within that sweep; the commit date itself left with `.git`.
         installed = datetime.fromtimestamp(Path(__file__).stat().st_mtime, UTC)
@@ -484,6 +538,51 @@ def provenance_label(provenance: dict) -> str:
 
 def compose_layer(roots: list[Path]) -> LayerComposition:
     """Read and validate the complete layer produced by checked inputs."""
+    from .revision_artifact import (
+        JAVASCRIPT_SUFFIXES,
+        ArtifactError,
+        dependency_path,
+        javascript_imports,
+    )
+    from .validation.compatibility import incoming_registry
+
+    protected = kernel_runtime_paths()
+    private_modules = {"/leaf.js", *(f"/runtime/{name}" for name in protected)} - {
+        "/runtime/widget-api.js"
+    }
+    for root in roots:
+        if root.resolve() in {ASSETS.resolve(), DEFAULT_PACKAGE.resolve()}:
+            continue
+        replacements = [
+            f"runtime/{path.relative_to(root / 'runtime').as_posix()}"
+            for path in (root / "runtime").rglob("*.js")
+            if path.relative_to(root / "runtime").as_posix() in protected
+        ]
+        if (root / "leaf.js").exists():
+            replacements.append("leaf.js")
+        if replacements:
+            sys.exit(
+                f"package {root} replaces private kernel modules: "
+                + ", ".join(sorted(replacements))
+                + "; use /runtime/widget-api.js and package-owned modules"
+            )
+        for sub in BROWSER_DIRS:
+            for module in (root / sub).rglob("*"):
+                if not module.is_file() or module.suffix not in JAVASCRIPT_SUFFIXES:
+                    continue
+                path = "/" + module.relative_to(root).as_posix()
+                try:
+                    for _, _, specifier in javascript_imports(
+                        module.read_bytes(), path
+                    ):
+                        dependency = dependency_path(specifier, path, module=True)
+                        if dependency in private_modules:
+                            sys.exit(
+                                f"{module} imports private kernel module {specifier!r}; "
+                                "use /runtime/widget-api.js"
+                            )
+                except ArtifactError as error:
+                    sys.exit(str(error))
     incoming = incoming_registry(roots)
     directory_sources = {sub: composed_dir_files(roots, sub) for sub in BROWSER_DIRS}
     missing_modules = sorted(
@@ -517,11 +616,11 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
         }
         for sub in BROWSER_DIRS
     }
-    client = directory_files["runtime"].get("layer-client.js", b"")
+    client = directory_files["runtime"].get("layer-generation.js", b"")
     if client.count(LAYER_PLACEHOLDER) != 1:
         sys.exit(
-            "the incoming runtime/layer-client.js must contain exactly one "
+            "the incoming runtime/layer-generation.js must contain exactly one "
             "layer-generation placeholder"
         )
-    directory_files[GUIDANCE_DIR] = composed_guidance(roots)
+    directory_files[INSTRUCTIONS_DIR] = composed_instructions(roots)
     return LayerComposition(incoming, top_files, directory_files)

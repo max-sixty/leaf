@@ -12,20 +12,23 @@
  * `var(--accent)` into its inline `--accent` declaration would be a self-reference and
  * invalidate the value, so these inherited aliases carry Leaf's live palette across
  * that namespace boundary. */
-lf-diagram { --lf-diagram-paper: var(--paper); --lf-diagram-ink: var(--ink);
+:scope:is(lf-diagram) { --lf-diagram-paper: var(--paper); --lf-diagram-ink: var(--ink);
              --lf-diagram-muted: var(--muted); --lf-diagram-accent: var(--accent);
              display: block; margin: 14px 0;
              font-family: var(--mono); font-size: var(--code-size);
              line-height: var(--code-line); font-variant-ligatures: none;
              color: var(--code-muted); overflow-x: auto; }
-/* Without the runtime nothing will draw, and the box holds authored source for good.
- * That source reads from the column's left edge instead of taking the available
- * allocation. On a live page the box takes the drawing's allocation from first paint,
- * at the height its occurrence reserves (x-height), so the drawing lands in the box it
- * already has. A failed render becomes `.lf-error`; core's fail-soft room rule then
- * gives the message the column. */
-html:not([data-lf-live]) lf-diagram[data-lf-space="available"] {
-  --lf-room: 0px;
+/* Without the runtime, or once it could not start (runtime/prepaint.js), nothing will
+ * draw, and the box holds authored source for good. That source reads from the
+ * column's left edge instead of taking the available allocation. Where the runtime
+ * runs, the box takes the drawing's allocation from first paint, at the height its
+ * occurrence reserves (x-height), so the drawing lands in the box it already has. A
+ * failed render becomes `.lf-error`; core's fail-soft room rule then gives the message
+ * the column. */
+@scope (html:not([data-lf-interactive]) :scope) {
+  :scope:is(lf-diagram)[data-lf-space="available"]{
+    --lf-room: 0px;
+  }
 }
 /* The drawing keeps its natural size, between two spacers. Where the runtime allocated
  * room, the spacers spend it on each side so a drawing that fits remains on the prose
@@ -33,15 +36,15 @@ html:not([data-lf-live]) lf-diagram[data-lf-space="available"] {
  * Where nothing allocated room — a thread's message — they are empty and the drawing
  * centres. This arrangement belongs to the diagram, independently of the `available`
  * capacity it requests from core. */
-lf-diagram.lf-rendered { font: inherit; color: inherit; display: flex;
+:scope:is(lf-diagram).lf-rendered { font: inherit; color: inherit; display: flex;
                          justify-content: safe center; overflow-x: auto; }
-lf-diagram.lf-rendered::before,
-lf-diagram.lf-rendered::after { content: ""; flex: 0 1 auto; width: 0; }
-lf-diagram.lf-rendered[data-lf-space="available"]::before {
+:scope:is(lf-diagram).lf-rendered::before,
+:scope:is(lf-diagram).lf-rendered::after { content: ""; flex: 0 1 auto; width: 0; }
+:scope:is(lf-diagram).lf-rendered[data-lf-space="available"]::before {
   width: calc(2 * var(--lf-grow-l)); }
-lf-diagram.lf-rendered[data-lf-space="available"]::after {
+:scope:is(lf-diagram).lf-rendered[data-lf-space="available"]::after {
   width: calc(2 * var(--lf-grow-r)); }
-lf-diagram.lf-rendered > * { flex: none; }
+:scope:is(lf-diagram).lf-rendered > * { flex: none; }
 /* The layer marks each edge a scrolled box has more beyond (shadow.css, at
  * [data-lf-more-before/after]) by fading the content there toward the page's ground, and
  * a drawing takes that fade with two settings of its own. A fade all the way to the
@@ -53,14 +56,14 @@ lf-diagram.lf-rendered > * { flex: none; }
  * a few letters of a label, so the cut node's words stay readable up to where they are
  * cut. A grey shadow over the edge said the same and read as a stray shadow instead.
  * The drawing itself is never scaled or re-laid out. */
-lf-diagram.lf-rendered { --lf-more-fade: 32px; --lf-more-fade-to: rgb(0 0 0 / .3); }
+:scope:is(lf-diagram).lf-rendered { --lf-more-fade: 32px; --lf-more-fade-to: rgb(0 0 0 / .3); }
 /* The authored body, before the module replaces it. Nothing here says white-space: the
    body is a <pre>, which is the whole reason it is one. Everything here undoes the rule
    that dresses a <pre> as evidence the page is showing — a box, a rule, a mono face, an
    inset. This <pre> is not that: it is the widget's own content, about to be rendered,
    inside an element that has already said how it looks and how far it stands off. The
    rendered SVG a module builds is evidence again, and keeps the dressing. */
-lf-diagram:not(.lf-rendered) > pre {
+:scope:is(lf-diagram):not(.lf-rendered) > pre {
              background: none; border: 0; border-radius: 0; padding: 0; margin: 0;
              font: inherit; line-height: inherit; overflow: visible; }
 /* A rendered diagram keeps its natural size rather than scaling a wide flowchart's
@@ -69,7 +72,7 @@ lf-diagram:not(.lf-rendered) > pre {
  * the margin. max-width: none escapes the page-wide svg rule in the kernel theme, which
  * would scale it right back down. Paper cannot scroll, so print restores the fit: width
  * and viewBox stay in the markup, and max-width alone scales the drawing whole. */
-lf-diagram svg { display: block; margin: 0 auto; max-width: none; }
+:scope:is(lf-diagram) svg { display: block; margin: 0 auto; max-width: none; }
 @media print {
-  lf-diagram svg { max-width: 100%; }
+  :scope:is(lf-diagram) svg { max-width: 100%; }
 }

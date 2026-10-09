@@ -17,6 +17,9 @@
   }
   const script = document.currentScript;
   const root = document.documentElement;
+  // A served page draws the live chrome, the banner and the bottom bar, so the theme
+  // reserves their room from the first paint (`html[data-lf-live]`). An export runs the
+  // runtime without them (prepaint.js).
   root.toggleAttribute("data-lf-live", true);
   // A sample's child takes its form and its dress from its frame before it paints
   // (sample.js).
@@ -24,8 +27,6 @@
   const incarnation = script.dataset.lfServer;
   const layer = script.dataset.lfLayer;
   const release = script.dataset.lfRelease;
-  const entry = new URL(script.dataset.lfEntry, location.href).href;
-  const theme = new URL(script.dataset.lfTheme, location.href).href;
   let recovering = false;
   // What the profile says about a startup fault. A page that would not start is the one
   // reading nobody here can reproduce, so the record has to name the thing that did not
@@ -88,6 +89,7 @@
       else beat ||= setTimeout(show, 150);
     };
     const hold = (event) => {
+      if (!root.lfKeyboard.quick) return letGo();
       if (event.isComposing || HALF_PRESSES.has(event.key)) return;
       // Shift chooses which character prints; Ctrl, Alt and Meta make a chord instead.
       const printed =
@@ -149,30 +151,61 @@
     document.addEventListener("lf-held-keys", take);
   }
 
-  // A small public-site profile distinguishes server delay, browser paint, and Leaf
-  // presentation. It starts here so failed module graphs report too.
+  // A small public-site profile separates browser upgrade from the first state
+  // response and authoritative presentation. Failed module graphs report too.
   function observePublicStartup() {
     if (!release) return;
     let sent = false;
+    let upgradedMs = null;
+    let firstStateResponseMs = null;
     let presentedMs = null;
     let fault = null;
     const rounded = (value) =>
       Number.isFinite(value) && value >= 0 ? Math.round(value) : null;
+    const pageRoot = new URL(`${script.dataset.lfPageRoot}/`, location.origin);
+    const stateUrl = new URL("api/state", pageRoot);
+    const readStateResponses = (entries) => {
+      for (const entry of entries) {
+        const url = new URL(entry.name);
+        if (
+          url.origin !== stateUrl.origin ||
+          url.pathname !== stateUrl.pathname ||
+          entry.responseStart <= 0 ||
+          entry.responseEnd <= 0
+        )
+          continue;
+        const ended = rounded(entry.responseEnd);
+        firstStateResponseMs =
+          firstStateResponseMs === null ? ended : Math.min(firstStateResponseMs, ended);
+      }
+    };
+    // Observe completions as they arrive: the global resource timeline can fill
+    // before state answers, and reading it only at presentation would lose this fact.
+    const resources = new PerformanceObserver((list) => {
+      readStateResponses(list.getEntries());
+    });
+    resources.observe({ type: "resource", buffered: true });
+    const readMilestones = () => {
+      if (upgradedMs === null && document.body?.hasAttribute("data-lf-upgraded"))
+        upgradedMs = rounded(performance.now());
+      if (presentedMs === null && document.body?.hasAttribute("data-lf-presented"))
+        presentedMs = rounded(performance.now());
+    };
     const report = (outcome) => {
       if (sent) return;
       sent = true;
+      readMilestones();
       observer.disconnect();
+      readStateResponses(resources.takeRecords());
+      resources.disconnect();
       const navigation = performance.getEntriesByType("navigation")[0];
       const paint = performance
         .getEntriesByName("first-contentful-paint", "paint")
         .at(0);
       navigator.sendBeacon(
-        new URL(
-          "api/performance",
-          new URL(`${script.dataset.lfPageRoot}/`, location.origin),
-        ),
+        new URL("api/performance", pageRoot),
         JSON.stringify({
-          version: 1,
+          version: 2,
           loadId: crypto.randomUUID(),
           release,
           layer,
@@ -184,27 +217,29 @@
           ),
           firstByteMs: rounded(navigation?.responseStart),
           firstContentfulPaintMs: rounded(paint?.startTime),
+          upgradedMs,
+          firstStateResponseMs,
           presentedMs,
         }),
       );
     };
     const observer = new MutationObserver(() => {
-      if (!document.body?.hasAttribute("data-lf-presented")) return;
+      readMilestones();
+      if (presentedMs === null) return;
       observer.disconnect();
-      presentedMs = Math.round(performance.now());
       const afterLoad = () => setTimeout(() => report("presented"));
       if (document.readyState === "complete") afterLoad();
       else window.addEventListener("load", afterLoad, { once: true });
     });
     observer.observe(document, {
       attributes: true,
-      attributeFilter: ["data-lf-presented"],
+      attributeFilter: ["data-lf-upgraded", "data-lf-presented"],
       childList: true,
       subtree: true,
     });
-    // The supervisor's own `lf-startup-failed` listener is registered before this
-    // function runs, so a declared failure has already named its fault by the time
-    // `failed` is reported here.
+    // The prepaint's `lf-startup-failed` listener runs before this one, since the
+    // prepaint runs first, so a declared failure has already named its fault by the
+    // time `failed` is reported here.
     window.addEventListener("lf-startup-failed", () => report("failed"), {
       once: true,
     });
@@ -215,15 +250,13 @@
     };
   }
 
-  // `awaits` is whether a replacement server would answer this fault. A resource the
-  // page needs and does not have — its entry module, its theme — leaves it incomplete
-  // however far it gets, and a page that declares it cannot start says so itself; both
-  // wait, and the notice stands until a server that can start the page replaces this
-  // one. An uncaught error in code that did load leaves nothing to wait for: the same
-  // server would serve the same bytes, so if the page presents it has started with
-  // everything it is going to get.
-  function recover(reason, awaits = true) {
-    root.dataset.lfStartupError = reason;
+  // `awaits` is whether a replacement server would answer this fault, which is so
+  // where the page is incomplete (prepaint.js): it lacks something it needs however
+  // far it gets, so the notice stands until a server that can start the page replaces
+  // this one. An uncaught error in code that did load leaves nothing to wait for: the
+  // same server would serve the same bytes, so if the page presents it has started
+  // with everything it is going to get.
+  function recover(reason, awaits) {
     recordStartupFault(reason);
     stopHoldingKeys();
     if (recovering) return;
@@ -308,27 +341,9 @@
     void check();
   }
 
-  window.addEventListener(
-    "error",
-    (event) => {
-      const target = event.target;
-      if (target instanceof HTMLScriptElement && target.src === entry)
-        recover("entry module did not load");
-      else if (target instanceof HTMLLinkElement && target.href === theme)
-        recover("theme stylesheet did not load");
-      else if (target === window && !document.body?.hasAttribute("data-lf-presented"))
-        // A browser that treats the script as another origin gives "Script error." and
-        // nothing else, so the file and line ride along: between them they are enough
-        // to find the fault in a build nobody here can run.
-        recover(
-          `${event.message || "uncaught error"} (${event.filename || "?"}:${event.lineno ?? "?"})`,
-          false,
-        );
-    },
-    true,
-  );
-  window.addEventListener("lf-startup-failed", (event) =>
-    recover(event.detail?.reason || "the page reported it could not start"),
+  // The prepaint names each startup fault and marks the page for it (prepaint.js).
+  window.addEventListener("lf-startup-fault", (event) =>
+    recover(event.detail.reason, event.detail.incomplete),
   );
   holdEarlyKeys();
   try {

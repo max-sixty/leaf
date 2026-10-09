@@ -34,8 +34,9 @@ const WAIT = "Wait for the current change to finish before undoing";
 const words = {
   resolve: "Reopened the thread",
   unresolve: "Resolved the thread again",
-  action: "Took back your last change",
-  done: "Took back your approval",
+  action: "Undid your latest update",
+  done: "Undid your approval",
+  task_end: "Put the task back on you",
 };
 
 export function createProjectionCommands({ post, stateApplying, unaccountedGesture }) {
@@ -66,8 +67,8 @@ export function createProjectionCommands({ post, stateApplying, unaccountedGestu
   // unanswered send included, and the server remains final admission. Two things it
   // cannot order: another action the log holds but the page has not yet presented may
   // change which gestures the page can honestly offer, whether or not its own POST
-  // has answered, and only an action has a withdrawal the page draws before the log
-  // answers, so a message the log has not taken waits for its answer.
+  // has answered, and only an action's withdrawal can name its target before the log
+  // does, so a message the log has not taken waits for its answer.
   function withdrawable(event) {
     if (event.kind !== "action" && String(event.id).startsWith(PENDING)) return false;
     return !applicationState
@@ -90,7 +91,7 @@ export function createProjectionCommands({ post, stateApplying, unaccountedGestu
       .then((accepted) => {
         if (accepted)
           notice(
-            `${event.token ? `Took back your ${event.token}` : words[event.kind]} — sent`,
+            `${event.token ? `Undid your ${event.token} reaction` : words[event.kind]} — sent`,
           );
         return accepted;
       })
@@ -132,8 +133,8 @@ export function createProjectionCommands({ post, stateApplying, unaccountedGestu
   pageCommand({
     id: "history.undo",
     keys: ["z"],
-    does: () => undoSentence(undoable),
-    line: "undo",
+    description: () => undoSentence(undoable),
+    title: "undo",
     touch: "Undo",
     // Dead while the page holds a gesture no log read accounts for, this one's own send
     // included. The line drops the chip for as long as that is true rather than

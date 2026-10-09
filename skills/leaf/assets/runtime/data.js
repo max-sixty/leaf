@@ -4,7 +4,8 @@
    the log sequence, because overlapping poll and POST responses can order the authorities
    differently. `watchData(widget, input, callback)` delivers a clone of `{source,
    contract, revision, updated, value, origin}`, or `null` while the bound source has no
-   readable value. It redelivers only when that source revision changes; overlapping
+   readable value. Subscriptions pause while their owner is absent and resume with
+   its newest snapshot. Contract, byte revision, or validity changes redeliver; overlapping
    reads await the same in-flight rendering before stamping the version presented. Its
    synchronous time readings refresh independently of data delivery. Modules project the
    result into the authored seat; they do not fetch it, mutate the accepted copy, or keep a
@@ -16,11 +17,12 @@ import {
   attachApplicationPresentation,
   whenApplicationRegionsPresented,
 } from "./semantic-state.js";
-import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
+import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
 import { registry } from "./registry.js";
 import { clocked } from "./presence.js";
-import { layerHeaders, reportPageError, sameDelivery } from "./layer-client.js";
+import { layerHeaders, reportPageError, admitResponse } from "./layer-client.js";
+import { watchOwner } from "./arrivals.js";
 
 export function acceptData(candidate, taken) {
   if (
@@ -38,6 +40,20 @@ export function acceptData(candidate, taken) {
 
 const subscriptions = new Set();
 let subscriptionSequence = 0;
+
+// Equality of the accepted source reading, independent of its modification time.
+// Byte revision remains the coordinate for origins and deferred requests; a changed
+// contract or validation result also changes what this subscriber can receive.
+function readingIdentity(reading) {
+  return reading
+    ? JSON.stringify([
+        reading.contract,
+        reading.revision ?? null,
+        reading.error ?? null,
+        Object.hasOwn(reading, "value"),
+      ])
+    : null;
+}
 
 export async function notifyDataSubscribers() {
   const version = runtime.data.version;
@@ -60,7 +76,7 @@ export async function notifyDataSubscribers() {
 // A source value remains the server snapshot's to own. Subscribers name one input on
 // their own widget; the declaration supplies its contract and the attribute where this
 // page bound a concrete source. They receive a fresh JSON clone immediately, then
-// when that source revision changes. Synchronous time readings also refresh the paint
+// when that source reading changes. Synchronous time readings also refresh the paint
 // when their displayed value changes. A module cannot mutate the accepted snapshot,
 // and a newly activated seat need not wait for a later state read.
 // `projectData` remains the rendering boundary: this helper delivers records but writes no
@@ -90,28 +106,36 @@ export function watchData(element, input, callback) {
       : null,
   );
   let delivered = false;
-  let deliveredRevision;
+  let deliveredIdentity;
   let completion = Promise.resolve();
   const region = `data:${element.id}:${input}:${++subscriptionSequence}`;
-  const presentation = attachApplicationPresentation(region, element);
+  let presentation = null;
   const subscription = { region, notify: () => notifySelected() };
   let stopSelection;
   let pendingDelivery = null;
   let stopped = false;
-  function stop() {
-    if (stopped) return;
-    stopped = true;
+  let stopLifetime = null;
+  function disconnect() {
     subscriptions.delete(subscription);
     stopSelection?.();
+    stopSelection = null;
     pendingDelivery?.settle();
     pendingDelivery = null;
     paint.stop();
-    presentation.disconnect();
+    presentation?.disconnect();
+    presentation = null;
+    delivered = false;
   }
-  // `revision` is the source's, which a source whose value fails its contract also
-  // has: its `null` delivery stands until the file changes again.
-  const deliver = (snapshot, revision, mounting = false) => {
-    if (!delivered || deliveredRevision !== revision) {
+  function stop() {
+    if (stopped) return;
+    stopped = true;
+    stopLifetime?.();
+    disconnect();
+  }
+  // A null delivery stands until the accepted source reading changes, including
+  // recovery from an incompatible contract without a new byte revision.
+  const deliver = (snapshot, identity, mounting = false) => {
+    if (!delivered || deliveredIdentity !== identity) {
       if (snapshot)
         snapshot.origin = {
           input,
@@ -119,38 +143,40 @@ export function watchData(element, input, callback) {
           contract: declaration.contract,
           revision: snapshot.revision,
         };
-      // Claim this source revision before invoking package code so a synchronous
+      // Claim this source reading before invoking package code so a synchronous
       // failure or re-entrant notification cannot redeliver the same failed value.
       delivered = true;
-      deliveredRevision = revision;
+      deliveredIdentity = identity;
+      const mount = presentation;
       const rendering = paint(structuredClone(snapshot));
       completion = Promise.resolve(rendering).catch((error) => {
         reportPageError(`data subscriber failed: ${error?.message ?? error}`);
-        if (mounting) stop();
+        if (mounting && presentation === mount) stop();
       });
     }
     return completion;
   };
   const update = (sourceStore, mounting = false) => {
-    if (sourceStore && sourceStore.contract !== declaration.contract)
-      throw new Error(
-        `watchData(${element.localName}, ${input}) expected contract ${declaration.contract}, ` +
-          `but source ${source} carries ${sourceStore.contract}`,
+    const identity = readingIdentity(sourceStore);
+    const incompatible = sourceStore && sourceStore.contract !== declaration.contract;
+    if (incompatible && (!delivered || deliveredIdentity !== identity))
+      reportPageError(
+        `data source ${source} carries contract ${sourceStore.contract}; ` +
+          `watchData(${element.localName}, ${input}) requires ${declaration.contract}`,
       );
-    const revision = source ? (sourceStore?.revision ?? null) : null;
-    // A value that fails its contract is the server's reading to report, in `page
-    // state` and `page check`; the page shows the source as holding nothing.
-    if (!source || !sourceStore || !Object.hasOwn(sourceStore, "value"))
-      return deliver(null, revision, mounting);
+    // The server validates values once. An incompatible named contract or an
+    // invalid/missing value clears this seat, keeping its subscription for recovery.
+    if (incompatible || !source || !sourceStore || !Object.hasOwn(sourceStore, "value"))
+      return deliver(null, identity, mounting);
     return deliver(
       {
         source,
         contract: sourceStore.contract,
-        revision,
+        revision: sourceStore.revision,
         updated: sourceStore.updated,
         value: sourceStore.value,
       },
-      revision,
+      identity,
       mounting,
     );
   };
@@ -162,12 +188,10 @@ export function watchData(element, input, callback) {
     }
   };
   const stage = (sourceStore) => {
-    const revision = sourceStore?.revision ?? null;
-    // What this subscriber will next paint is the staged delivery while one stands, and
-    // the delivered revision otherwise. A revision is a digest of the source's bytes, so
-    // a source can return to the revision already on screen while a later one is still
-    // staged, and that staging is what has to go.
-    if (!pendingDelivery && delivered && deliveredRevision === revision) return;
+    const identity = readingIdentity(sourceStore);
+    // A source can return to the reading already on screen while a later one is
+    // staged; that staged reading must be replaced rather than left to paint.
+    if (!pendingDelivery && delivered && deliveredIdentity === identity) return;
     pendingDelivery?.settle();
     let settle;
     const pending = {
@@ -178,7 +202,7 @@ export function watchData(element, input, callback) {
       settle: (rendering) => settle(rendering),
     };
     pendingDelivery = pending;
-    void presentation.present(revision, pending.completion);
+    void presentation.present(identity, pending.completion);
   };
   function notifySelected() {
     const pending = pendingDelivery;
@@ -193,22 +217,33 @@ export function watchData(element, input, callback) {
   // starts the staged paint only after activation has retained this document. A package
   // that throws while mounting must not leave a subscription behind to fail every later
   // publication.
-  try {
-    let mounting = true;
-    stopSelection = selectedSource.subscribe((sourceStore) => {
-      if (mounting) {
-        const rendering = update(sourceStore, true);
-        void presentation.present(deliveredRevision, rendering);
-        return rendering;
-      }
-      stage(sourceStore);
-    });
-    mounting = false;
-  } catch (error) {
-    stop();
-    throw error;
+  function connect() {
+    if (stopped || stopSelection || !element.isConnected) return;
+    presentation = attachApplicationPresentation(region, element);
+    const mount = presentation;
+    try {
+      let mounting = true;
+      stopSelection = selectedSource.subscribe((sourceStore) => {
+        if (mounting) {
+          const rendering = update(sourceStore, true);
+          if (!stopped) void mount.present(deliveredIdentity, rendering);
+          return rendering;
+        }
+        stage(sourceStore);
+      });
+      mounting = false;
+    } catch (error) {
+      stop();
+      throw error;
+    }
+    if (stopped) {
+      stopSelection();
+      stopSelection = null;
+      return;
+    }
+    subscriptions.add(subscription);
   }
-  subscriptions.add(subscription);
+  stopLifetime = watchOwner(element, { connect, disconnect });
   return stop;
 }
 
@@ -232,7 +267,14 @@ export async function loadDeferred(manifest, key) {
       `loadDeferred contract ${manifest.contract} defers no record field`,
     );
   const { source, revision } = manifest;
-  const current = () => runtime.data.sources[source]?.revision === revision;
+  const current = () => {
+    const reading = runtime.data.sources[source];
+    return (
+      reading?.revision === revision &&
+      reading.contract === manifest.contract &&
+      Object.hasOwn(reading, "value")
+    );
+  };
   if (!current())
     throw new Error(
       `source ${source} revision ${revision} changed before loading deferred ${key}`,
@@ -257,7 +299,7 @@ export async function loadDeferred(manifest, key) {
   const response = await fetch(pageUrl(`api/deferred?${params}`), {
     headers: layerHeaders(),
   });
-  if (response.ok && !sameDelivery(response)) {
+  if (!admitResponse(response)) {
     throw new Error("Leaf's data vocabulary changed while loading a deferred value");
   }
   const answer = await response.json().catch(() => ({}));

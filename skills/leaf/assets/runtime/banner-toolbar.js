@@ -7,10 +7,15 @@
  * native controls are retained islands: their own owners keep commands, words, and
  * local state while this owner retains the same nodes in its two Lit lists.
  *
- * Three seats partition the run, and geometry never changes the partition:
+ * Three seats partition the run, and measured geometry never changes the partition:
  *
- * - `row`: Approval and Threads, the page's standing reading loop.
- * - `menu`: every secondary action, in one stable seat behind More.
+ * - `row`: Threads, and on a desk Approval, Comment on the page and Questions, the
+ *   page's standing reading loop: reading it, starting a conversation about it,
+ *   deciding it.
+ * - `menu`: every secondary action, in one stable seat behind More. On a phone
+ *   Approval, Comment on the page and Questions join them, so the banner keeps one row:
+ *   the status in words, Threads and More. More wears its news dot while the approval
+ *   or a question behind it is still open.
  * - `gesture`: the next step of something the user is doing right now, such as
  *   commenting on the words a touch just selected, or a finger's way out of the mode it
  *   stands in. It exists only while that gesture or mode holds it, and it is the one
@@ -21,10 +26,23 @@
  *   steps stand at a time, and the higher rank is the nearer gesture: words selected
  *   inside a mode or a search are what the user is doing now, and the mode's steps
  *   return once the selection goes.
+ *
+ * A contribution whose seat differs by face names one per face (`{ desk, phone }`). The
+ * face is the window's, the same query that gives the banner its phone face in theme.css
+ * and chrome.css, so the partition changes only when the window crosses that width.
  */
 import { html, render, repeat } from "../vendor/browser-runtime.js";
 import { el } from "./widget-elements.js";
 import { repaint } from "./repaint.js";
+import { afterScript } from "./rendering.js";
+import {
+  deepFocus,
+  focusDestination,
+  onStanding,
+  readCaret,
+  releaseFocus,
+} from "./focus.js";
+import { selectEnds } from "./passages.js";
 
 const EMPTY = Object.freeze([]);
 
@@ -34,14 +52,17 @@ export const BANNER_CONTROL_RANK = Object.freeze({
   layer: 30,
   leaves: 40,
   latest: 50,
-  asks: 60,
   map: 70,
   // The page's commands a finger reaches here rather than by key (touch-controls.js),
   // among themselves in the shortcut line's order.
   commands: 75,
   blanket: 80,
   versions: 90,
+  keyboard: 95,
   approval: 100,
+  pageComment: 105,
+  // Questions and Threads are the two doors to the one side panel, side by side.
+  queue: 107,
   threads: 110,
   // The way out of the mode or picker the user stands in, under a finger.
   steps: 120,
@@ -54,11 +75,18 @@ overflowMenu.setAttribute("popover", "auto");
 overflowMenu.setAttribute("role", "group");
 overflowMenu.setAttribute("aria-label", "More page controls");
 
+const SEATS = ["row", "menu", "gesture"];
+// The banner's phone face; theme.css and chrome.css state the same query.
+const phone = matchMedia("screen and (width <= 480px)");
+
 const controls = new Map();
 let sequence = 0;
 let row = EMPTY;
 let menu = EMPTY;
 
+const perFace = (entry) => typeof entry.seat !== "string";
+const seatOf = (entry) =>
+  perFace(entry) ? entry.seat[phone.matches ? "phone" : "desk"] : entry.seat;
 const ordered = () =>
   [...controls.values()].sort(
     (left, right) => left.rank - right.rank || left.sequence - right.sequence,
@@ -69,40 +97,45 @@ const onOffer = (entry) => entry.present && (!entry.conditional || entry.offered
 const nearestGesture = () =>
   Math.max(
     ...row
-      .filter((entry) => entry.seat === "gesture" && onOffer(entry))
+      .filter((entry) => seatOf(entry) === "gesture" && onOffer(entry))
       .map((e) => e.rank),
   );
 const visible = (entry) => {
   if (!onOffer(entry)) return false;
-  if (entry.seat === "row") return nearestGesture() === -Infinity;
-  return entry.seat !== "gesture" || entry.rank === nearestGesture();
+  if (seatOf(entry) === "row") return nearestGesture() === -Infinity;
+  return seatOf(entry) !== "gesture" || entry.rank === nearestGesture();
 };
 
 // The door is part of the row's template, so Lit writes its state only where it moved.
+// Its name says what its dot stands for: each urgent control behind it names its news.
 function rowTemplate() {
   const open = overflowMenu.matches(":popover-open");
-  const news = menu.some((entry) => entry.urgent && visible(entry));
-  const name = news ? "More page controls, new" : "More page controls";
+  const news = [
+    ...new Set(
+      menu.filter((entry) => entry.urgent && visible(entry)).map((e) => e.urgent),
+    ),
+  ];
+  const name = ["More page controls", ...news].join(", ");
   // Keep the native invoker standing until its open popover has closed. A semantic
   // update can retire the last visible item while the user is inside it; closing then
   // lets paint remove the empty door.
   return html`
+    ${repeat(
+      row,
+      (entry) => entry.key,
+      (entry) => entry.control,
+    )}
     <button
       class="lf-btn lf-banner-more"
       type="button"
       aria-expanded=${String(open)}
       aria-label=${name}
       title=${name}
-      ?data-lf-news=${news}
+      ?data-lf-news=${news.length > 0}
       ?hidden=${!open && !menu.some(visible)}
     >
       ⋯
     </button>
-    ${repeat(
-      row,
-      (entry) => entry.key,
-      (entry) => entry.control,
-    )}
   `;
 }
 
@@ -121,6 +154,46 @@ const overflowBtn = bannerActions.querySelector(".lf-banner-more");
 overflowBtn.popoverTargetElement = overflowMenu;
 overflowMenu.lfInvoker = overflowBtn;
 
+// More temporarily borrows the reader's focus. Context-preserving commands return
+// that browser checkpoint before acting; it never becomes a remembered page target.
+let opener = null;
+function holdOpener(node = deepFocus()) {
+  if (node === overflowBtn || overflowMenu.contains(node)) return;
+  const selection = getSelection();
+  opener = {
+    node,
+    caret: readCaret(node),
+    ends:
+      selection?.rangeCount && !selection.isCollapsed
+        ? [
+            [selection.anchorNode, selection.anchorOffset],
+            [selection.focusNode, selection.focusOffset],
+          ]
+        : null,
+  };
+}
+overflowBtn.addEventListener("pointerdown", () => holdOpener());
+// A key's way onto More holds the place it left. Arriving from nowhere leaves the
+// press's own reading, which saw the selection the press would go on to keep.
+onStanding((node, cause, left) => {
+  if (cause === "drop") return;
+  if (node === overflowBtn) {
+    if (left) holdOpener(left);
+  } else if (!overflowMenu.contains(node)) opener = null;
+});
+export function bannerStanding() {
+  const at = deepFocus();
+  return at === overflowBtn || overflowMenu.contains(at) ? opener : null;
+}
+export function restoreBannerStanding(held) {
+  opener = null;
+  // Handing the borrowed focus back is the menu's own return, not the user going there.
+  if (held?.node?.isConnected && held.node !== document.body)
+    focusDestination(held.node, "return", { caret: held.caret });
+  else releaseFocus();
+  if (held?.ends?.every(([node]) => node.isConnected)) selectEnds(...held.ends);
+}
+
 function paintControl(entry) {
   entry.control.classList.toggle("lf-news-shown", entry.conditional && entry.offered);
   // These are paint only. The owner's entry is the value read by layout and door
@@ -130,10 +203,21 @@ function paintControl(entry) {
   entry.control.style.visibility = visible(entry) ? "" : "hidden";
 }
 
+// Lit reseats a control by moving its node, and a moved node drops focus. Focus goes
+// on standing on the control where it went, or on the door that reaches it.
 function paint() {
+  const held = [...controls.values()].find(
+    (entry) => document.activeElement === entry.focusTarget,
+  );
   render(rowTemplate(), bannerActions);
   render(menuTemplate(), overflowMenu);
   for (const entry of controls.values()) paintControl(entry);
+  if (!held || document.activeElement === held.focusTarget) return;
+  // Where the control stands, not whether it would take a press: a refused Approval
+  // is still a Tab stop.
+  const door = bannerControlDoor(held.control);
+  const place = door === held.control ? held.focusTarget : door;
+  if (place) focusDestination(place, "return");
 }
 
 const focusable = (entry) =>
@@ -145,16 +229,27 @@ const focusable = (entry) =>
 overflowMenu.addEventListener("toggle", (event) => {
   const open = event.newState === "open";
   render(rowTemplate(), bannerActions);
-  if (open && document.activeElement === overflowBtn)
-    menu.find(focusable)?.focusTarget.focus();
+  const first = open && document.activeElement === overflowBtn && menu.find(focusable);
+  if (first) focusDestination(first.focusTarget, "move", { scroll: true });
+  if (!open) opener = null;
   repaint();
 });
 
+// A reading-loop control a phone moves behind More leads it, so the row More's dot
+// stands for is the first one the door opens to.
+const offTheRow = (entry) => perFace(entry) && entry.seat.desk === "row";
 function seatControls() {
   const run = ordered();
-  row = run.filter((entry) => entry.seat !== "menu");
-  menu = run.filter((entry) => entry.seat === "menu");
+  row = run.filter((entry) => seatOf(entry) !== "menu");
+  const behind = run.filter((entry) => seatOf(entry) === "menu");
+  menu = [...behind.filter(offTheRow), ...behind.filter((entry) => !offTheRow(entry))];
 }
+
+// Crossing the phone width moves a per-face control between the row and More.
+phone.addEventListener("change", () => {
+  seatControls();
+  paint();
+});
 
 function replaceEntry(prior, next) {
   controls.set(next.control, next);
@@ -172,16 +267,17 @@ export function registerBannerControl({
   conditional = false,
   present = true,
   offered = !conditional,
-  urgent = false,
+  urgent = null,
 }) {
+  const seats = typeof seat === "string" ? [seat] : [seat?.desk, seat?.phone];
   if (
     !key ||
     !(control instanceof Element) ||
     !Number.isFinite(rank) ||
-    !["row", "menu", "gesture"].includes(seat)
+    !seats.every((each) => SEATS.includes(each))
   )
     throw new TypeError(
-      "A banner control needs a key, native control, numeric rank, and row, menu, or gesture seat",
+      "A banner control needs a key, native control, numeric rank, and row, menu, or gesture seat, or one for each of desk and phone",
     );
   const byKey = [...controls.values()].find((entry) => entry.key === key);
   if (byKey && byKey.control !== control)
@@ -200,12 +296,27 @@ export function registerBannerControl({
       conditional: Boolean(conditional),
       present: Boolean(present),
       offered: Boolean(offered),
-      urgent: Boolean(urgent),
+      urgent,
     }),
   );
   seatControls();
   paint();
   return control;
+}
+
+/**
+ * Say whether a control's news is urgent, which puts More's dot up while the control
+ * stands behind it. `urgent` is the words More's name adds for it, or null. Only the
+ * door's name and dot read it, so several owners marking in one script paint the door
+ * once, when the script ends: an answer that settles the last question and opens the
+ * approval would otherwise take the dot down and put it straight back.
+ */
+export function markBannerControl(control, urgent) {
+  const prior = controls.get(control);
+  if (!prior) throw new TypeError("Banner control is not registered");
+  if (prior.urgent === urgent) return;
+  replaceEntry(prior, Object.freeze({ ...prior, urgent }));
+  afterScript(paint);
 }
 
 /** Show or hide one retained contribution without changing its registered identity. */
@@ -235,17 +346,17 @@ export function showBannerControls(changes) {
   if (!moved.length) return;
   const loopFocus = row.find(
     (candidate) =>
-      candidate.seat !== "menu" && document.activeElement === candidate.focusTarget,
+      seatOf(candidate) !== "menu" && document.activeElement === candidate.focusTarget,
   );
   for (const { prior, entry } of moved) replaceEntry(prior, entry);
   paint();
   const removed = moved.find(({ entry, heldFocus }) => heldFocus && !entry.present);
   if (removed) focusAfterRemoval(removed.entry, removed.wasInMenu);
   // The step takes the place of the control focus stood on, so focus takes it too.
-  else if (loopFocus && !visible(loopFocus))
-    moved
-      .find(({ entry }) => entry.present)
-      ?.entry.focusTarget.focus({ preventScroll: true });
+  else if (loopFocus && !visible(loopFocus)) {
+    const step = moved.find(({ entry }) => entry.present);
+    if (step) focusDestination(step.entry.focusTarget, "return");
+  }
 }
 
 export function showNews(control, on) {
@@ -275,7 +386,7 @@ function focusAfterRemoval(entry, wasInMenu) {
     run.findIndex((candidate) => candidate === entry),
   );
   const next = [...run.slice(at), ...run.slice(0, at).reverse()].find(focusable);
-  (next?.focusTarget ?? overflowBtn).focus({ preventScroll: true });
+  focusDestination(next?.focusTarget ?? overflowBtn, "return");
 }
 
 // A secondary control stands behind a door this owner holds shut, so it
@@ -302,10 +413,10 @@ export function bannerControlDoor(control) {
 // hands the user back to the door, and the user stands on the control.
 export function returnToBannerControl(control) {
   if (overflowMenu.contains(control) && !overflowMenu.matches(":popover-open")) {
-    overflowBtn.focus({ preventScroll: true });
+    focusDestination(overflowBtn, "return");
     overflowMenu.showPopover();
   }
-  control.focus({ preventScroll: true });
+  focusDestination(control, "return");
 }
 
 export function dismissBannerControls() {

@@ -36,6 +36,39 @@ def occurrences(text: str, quote: str, lo: int, hi: int, fences=frozenset()) -> 
     return found
 
 
+def resolve_quote(passages, anchor: dict) -> int | None:
+    """Resolve a stored quote by exact context, or a sole surviving occurrence.
+
+    This is the file side of `passages.js.findQuote`: document order never
+    disambiguates repeated words, and an opaque passage fence cannot be crossed.
+    """
+    quote = collapse(anchor["quote"])
+    lo, hi = 0, len(passages.text)
+    if section := anchor.get("section"):
+        span = section_span(passages.owner, section)
+        if span is None:
+            return None
+        lo, hi = span
+    hits = occurrences(passages.text, quote, lo, hi, passages.fences)
+    exact = []
+    for at in hits:
+        before = passages.text[
+            max([0, *[f for f in passages.fences if f <= at]]) : at
+        ].strip()
+        end = at + len(quote)
+        after = passages.text[
+            end : min([len(passages.text), *[f for f in passages.fences if f >= end]])
+        ].strip()
+        prefix, suffix = anchor.get("prefix", ""), anchor.get("suffix", "")
+        if (before.endswith(prefix) if prefix else not before) and (
+            after.startswith(suffix) if suffix else not after
+        ):
+            exact.append(at)
+    if len(exact) == 1:
+        return exact[0]
+    return hits[0] if not exact and len(hits) == 1 else None
+
+
 def capture_anchor(
     document: SourceDocument,
     registry,

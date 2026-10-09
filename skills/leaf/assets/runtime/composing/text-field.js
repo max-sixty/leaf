@@ -24,10 +24,15 @@
  * focus, the scope climb and every `focused() === box` comparison land on the host,
  * never on CodeMirror's content node. Outside, the host answers the textarea members the
  * runtime uses — `value`, the selection triple, `setSelectionRange`, `placeholder`,
- * `readOnly`, `name` — and fires `input` for a user edit only, as a textarea does. A
+ * `readOnly`, `name` — and brackets user edits with `lf-before-edit` and `input`.
+ * The first announces the old layout before browser text input or an editor command
+ * changes the words; the second announces the updated value and layout. A
  * write to `value` fires nothing, puts the caret at the end, and starts a new undo
- * history, so undo never walks back into a draft the runtime swapped out. A pasted
- * picture is the box owner's: the field leaves that paste to the host's listeners.
+ * history, so undo never walks back into a draft the runtime swapped out.
+ * A box owner that takes pasted pictures intercepts paste in capture; otherwise the field pastes
+ * the clipboard's text, including text carried beside a picture.
+ * `naturalBlockSize` reads the field's intrinsic border-box block size in CSS pixels,
+ * before the host's block size or its minimum and maximum constrain the writing room.
  *
  * The placeholder is a layer under the words, shown while the field is empty. It reads
  * the `placeholder` attribute, and a child in slot `placeholder` stands in its place when
@@ -36,6 +41,9 @@
  * The editor lives while the element is in a document. A field removed and not put
  * back in the same task keeps its state and destroys its view, which releases the
  * listeners CodeMirror holds on the window and document; reconnecting builds another.
+ * `:state(ready)` means that view exists. A reading surface being replaced can keep
+ * its words in flow until then, so measuring the connecting editor never collapses
+ * the scrollport before the editor has content.
  *
  * The host is also the control accessibility tooling addresses, since nothing outside a
  * closed root sees into it: it takes `role="textbox"`, `aria-multiline` and a tab stop
@@ -45,13 +53,32 @@
  * `aria-placeholder`, and the host's description through `ariaDescribedByElements`,
  * the one reference that reaches from inside a shadow root to the page around it.
  *
+ * A box whose Send action stands in the field's trailing corner sets
+ * `--lf-field-end-room` to the room the action takes beyond the field's end padding.
+ * The field keeps that room after its last words only, on the line the action stands
+ * beside, so the lines above wrap at the box's full measure. Under a finger, whose hit
+ * box is taller than a line, and while the field scrolls, other lines pass beside the
+ * action too, so there the room is held on every line. A sent message that keeps the
+ * draft's wrapping keeps the same room.
+ *
  * Enter, Mod+Enter and Escape are not bound here. Leaf's key dispatcher owns them on the
  * document, and cancels the press it acts on; Shift+Enter inserts a line and continues
- * a list or quote.
+ * a list or quote. Mod+Z and Mod+Shift+Z walk one history: the words' edits, and the
+ * steps an owner records for what its draft holds beside them (`record`), such as a
+ * composer's drawing, each taken back or redone in the order it was made.
+ *
+ * The host is the textarea's scrollport. CodeMirror's content-sized inner scroller
+ * never clips the words; the page sizes the host. When that room changes, the field
+ * reveals its focused selection again under the new constraint. CodeMirror's edit
+ * reveal may have preceded the owner's sizing pass, and its own resize observer
+ * watches the inner scroller, whose natural height need not change with the host.
+ * This reveal belongs to the host alone: resizing a focused field does not move a
+ * reading pane the user scrolled away from it.
  */
 import {
   EditorView,
   EditorState,
+  StateEffect,
   Compartment,
   Decoration,
   LanguageSupport,
@@ -60,11 +87,14 @@ import {
   history,
   standardKeymap,
   historyKeymap,
+  isolateHistory,
+  invertedEffects,
   markdownLanguage,
   insertNewlineContinueMarkup,
 } from "../../vendor/codemirror.esm.js";
-import { TEXT_FIELD } from "../focus.js";
-import { loadMarkdown, markdownReady, markdownTokens } from "../markdown.js";
+import { TEXT_FIELD } from "../control-selectors.js";
+import { loadMarkdown, markdownReady, placedMarkdownTokens } from "../markdown.js";
+import { sizeObserver } from "../rendering.js";
 
 const sheet = new CSSStyleSheet();
 sheet.replaceSync(`
@@ -81,6 +111,22 @@ sheet.replaceSync(`
     contain: inline-size; overflow-x: clip; text-overflow: ellipsis;
     color: var(--muted); }
   :host(:not(:state(placeholder-shown))) .lf-field-placeholder { visibility: hidden; }
+  /* The trailing action's room, after the last word. A box too narrow for it on the
+     word's line takes it on a line of its own, so the field grows rather than run a
+     word under the action. */
+  .cm-line.lf-field-last::after { content: ""; display: inline-block;
+    inline-size: var(--lf-field-end-room); }
+  /* The placeholder is a single line, so it stands where a last line would. */
+  .lf-field-placeholder { padding-inline-end: var(--lf-field-end-room); }
+  /* The action stands beside more than the last line under a finger, whose hit box is
+     taller than a line, and in a scrolled field, which carries other lines past it. */
+  @media (pointer: coarse) {
+    .lf-field { padding-inline-end: var(--lf-field-end-room); }
+    .lf-field-placeholder { padding-inline-end: 0; }
+    .cm-line.lf-field-last::after { content: none; }
+  }
+  :host(:state(scrolls)) .lf-field { padding-inline-end: var(--lf-field-end-room); }
+  :host(:state(scrolls)) .cm-line.lf-field-last::after { content: none; }
   /* A draft wears the sent message's faces. Strong, emphasis and strikethrough are the
      elements themselves, which the platform dresses here as it does in the message;
      the rest read the theme's tokens, since its element rules stop at this root. A
@@ -117,6 +163,10 @@ const fieldTheme = EditorView.theme({
   ".cm-line": { padding: "0" },
 });
 
+// A step an owner recorded in the words' history (`record`): `run` makes it happen when
+// the history reaches it, and `back` is the step the other way.
+const ownerStep = StateEffect.define();
+
 const hide = Decoration.replace({});
 const dim = Decoration.mark({ class: "lf-md-mark" });
 const link = Decoration.mark({ class: "lf-md-link" });
@@ -125,10 +175,10 @@ const line = (cls) => Decoration.line({ class: cls });
 // The inline constructs the preview draws, by the renderer's token type: each as the
 // element the renderer sends it as.
 const INLINE = {
-  codespan: Decoration.mark({ tagName: "code" }),
-  em: Decoration.mark({ tagName: "em" }),
-  strong: Decoration.mark({ tagName: "strong" }),
-  del: Decoration.mark({ tagName: "del" }),
+  code_inline: Decoration.mark({ tagName: "code" }),
+  em_open: Decoration.mark({ tagName: "em" }),
+  strong_open: Decoration.mark({ tagName: "strong" }),
+  s_open: Decoration.mark({ tagName: "s" }),
 };
 
 // Whether the selection touches [from, to], ends included: the caret standing just
@@ -136,85 +186,9 @@ const INLINE = {
 const touches = (state, from, to) =>
   state.selection.ranges.some((range) => range.from <= to && range.to >= from);
 
-// A token's children in source order: its inline or block content, a list's items, and
-// a table's cells, header first.
-const children = (token) => [
-  ...(token.tokens ?? []),
-  ...(token.items ?? []),
-  ...(token.header ?? []).flatMap((cell) => cell.tokens),
-  ...(token.rows ?? []).flat().flatMap((cell) => cell.tokens),
-];
-
-// Where a token's `raw` stands in the draft, as [from, to]: the earliest run at or
-// after `at` that ends by `limit`. A token read at the top level is its exact source.
-// One a container handed on was rewritten first, in exactly two ways the match walks
-// through: a quote or a list drops each continuation line's markers and indent, and a
-// table cell drops the backslash of an escaped pipe. Null where no such run stands.
-function locate(source, raw, at, limit) {
-  for (let start = source.indexOf(raw[0], at); start >= 0 && start < limit;) {
-    let s = start;
-    let r = 0;
-    while (r < raw.length && s < limit) {
-      if (source[s] === raw[r]) {
-        s++;
-        r++;
-      } else if (raw[r] === "|" && source[s] === "\\" && source[s + 1] === "|") s++;
-      else if (raw[r - 1] === "\n" && /[ \t>]/.test(source[s])) s++;
-      else break;
-    }
-    if (r === raw.length) return [start, s];
-    start = source.indexOf(raw[0], start + 1);
-  }
-  return null;
-}
-
-// Where each token the renderer read stands in the draft, each found at or after the
-// one before it and inside the span of the token that holds it.
-function place(source, tokens, from, limit, found) {
-  let at = from;
-  for (const token of tokens) {
-    const span = token.raw ? locate(source, token.raw, at, limit) : null;
-    if (span) found.push({ token, from: span[0], to: span[1] });
-    place(source, children(token), span ? span[0] : at, span ? span[1] : limit, found);
-    if (span) at = span[1];
-  }
-  return found;
-}
-
-// Where a link's label closes: the `]` matching its opening `[`, backslash escapes
-// skipped, as CommonMark reads a label.
-function labelEnd(raw) {
-  for (let at = 1, depth = 0; at < raw.length; at++) {
-    if (raw[at] === "\\") at++;
-    else if (raw[at] === "[") depth++;
-    else if (raw[at] === "]" && depth-- === 0) return at;
-  }
-  return -1;
-}
-
-// How much of an inline construct's source `text` opens and closes it, read from the
-// source itself: the renderer's child tokens hold unescaped text, which the source need
-// not contain. Null for a construct the preview does not style.
-function syntaxLengths(token, raw) {
-  if (token.type === "codespan") {
-    const run = raw.match(/^`+/)[0].length;
-    return [run, run];
-  }
-  if (token.type === "em") return [1, 1];
-  if (token.type === "strong") return [2, 2];
-  if (token.type === "del") return raw.startsWith("~~") ? [2, 2] : [1, 1];
-  if (token.type !== "link") return null;
-  if (raw.startsWith("<")) return [1, 1];
-  if (!raw.startsWith("[")) return [0, 0];
-  const end = labelEnd(raw);
-  return end < 0 ? null : [1, raw.length - end];
-}
-
 // The draft as the renderer reads it, placed. Empty until the renderer has loaded.
 const read = (state) => {
-  const source = state.doc.toString();
-  const tokens = markdownTokens(source);
-  return tokens ? place(source, tokens, 0, source.length, []) : [];
+  return placedMarkdownTokens(state.doc.toString());
 };
 
 function decorate(state, placed) {
@@ -232,27 +206,26 @@ function decorate(state, placed) {
       at = current.to + 1;
     }
   };
-  for (const { token, from, to } of placed) {
+  for (const { token, from, to, contentFrom, contentTo, escapes } of placed) {
     const syntax = touches(state, from, to) ? dim : hide;
     // The construct as it stands in the draft, which a container may have rewritten
     // before the renderer read it.
     const text = state.doc.sliceString(from, to);
-    const lengths = syntaxLengths(token, text);
-    if (lengths) {
-      // The construct's words, between its opening and closing syntax.
-      const words = [from + lengths[0], to - lengths[1]];
+    if (token.type === "code_inline" || contentFrom !== undefined) {
+      const words =
+        token.type === "code_inline"
+          ? [from + token.markup.length, to - token.markup.length]
+          : [contentFrom, contentTo];
       if (words[0] > words[1]) continue;
-      // `[words](url)`, `[words][id]`, `<url>` and a bare address are drawn as links
-      // where the renderer kept them (`linked`); one it refused sends its words alone,
-      // so its syntax steps aside all the same.
-      if (token.type !== "link") add(from, to, INLINE[token.type]);
-      else if (token.linked) add(words[0], words[1], link);
+      if (INLINE[token.type]) add(from, to, INLINE[token.type]);
+      else if (token.type === "link_open" && token.meta.linked)
+        add(words[0], words[1], link);
       add(from, words[0], syntax);
       add(words[1], to, syntax);
-    } else if (token.type === "escape") {
-      // A backslash escape (`\*`) sends the character alone.
-      add(from, from + 1, syntax);
-    } else if (token.type === "heading") {
+    } else if (token.type === "text") {
+      for (const at of escapes ?? [])
+        add(at, at + 1, touches(state, at, at + 2) ? dim : hide);
+    } else if (token.type === "heading_open") {
       const end = from + text.trimEnd().length;
       const atx = text.match(/^ {0,3}#{1,6}(?:[ \t]+|$)/);
       lines(from, end, (each) => {
@@ -261,7 +234,7 @@ function decorate(state, placed) {
         else out.push(line("lf-md-heading").range(each.from));
       });
       if (atx) add(from, from + atx[0].length, syntax);
-    } else if (token.type === "code") {
+    } else if (token.type === "fence" || token.type === "code_block") {
       const end = from + text.trimEnd().length;
       const fenced = /^ {0,3}(`{3,}|~{3,})/.test(text);
       lines(from, end, (each) => {
@@ -276,29 +249,19 @@ function decorate(state, placed) {
         )
           add(each.from, each.to, dim);
       });
-    } else if (token.type === "blockquote") {
+    } else if (token.type === "blockquote_open") {
       lines(from, from + text.trimEnd().length, (each) => {
         out.push(line("lf-md-quote").range(each.from));
         const mark = each.text.match(/^ {0,3}> ?/);
         if (mark) add(each.from, each.from + mark[0].length, dim);
       });
-    } else if (token.type === "list_item") {
+    } else if (token.type === "list_item_open") {
       const mark = text.match(/^ {0,3}(?:[*+-]|\d{1,9}[.)])/);
       if (mark) add(from, from + mark[0].length, dim);
     }
   }
   return Decoration.set(out, true);
 }
-
-// A paste carrying a picture is left to the box's owner, which uploads it and keeps the
-// words as they were (`wireInput`); the editor would otherwise insert the clipboard's
-// text, or delete the selection for a clipboard with none, before the owner hears it.
-const pastesPicture = EditorView.domEventHandlers({
-  paste: (event) =>
-    [...(event.clipboardData?.items ?? [])].some(
-      (item) => item.kind === "file" && item.type.startsWith("image/"),
-    ),
-});
 
 // The draft is read by the renderer that will send it, so the preview styles exactly what
 // the message will: the same constructs, the same links. The reading is taken again when
@@ -332,6 +295,21 @@ const livePreview = ViewPlugin.fromClass(
   { decorations: (plugin) => plugin.decorations },
 );
 
+// The last line, while it holds words. A blank last line has none to run under the
+// action, and an inline box after its break would stand on a line of its own. The room
+// stays on the last line rather than on the last with words, so the line above gives it
+// up as Shift+Enter opens a line, not when the first character lands on the new one: the
+// keystroke that changes the lines is the one that rewraps them.
+const lastLine = Decoration.line({ class: "lf-field-last" });
+const lastWithWords = (state) => {
+  const last = state.doc.line(state.doc.lines);
+  return last.text.trim() ? last : null;
+};
+const lastLineRoom = EditorView.decorations.compute(["doc"], (state) => {
+  const last = lastWithWords(state);
+  return last ? Decoration.set([lastLine.range(last.from)]) : Decoration.none;
+});
+
 class LeafText extends HTMLElement {
   // The field's one model. Until the element first connects it is a bare EditorState,
   // which holds the value, selection and configuration without a DOM; connecting hands
@@ -339,14 +317,78 @@ class LeafText extends HTMLElement {
   // for no editor.
   #model;
   #view = null;
+  #nativeInput = false;
   #root;
   #internals = null;
   #editable = new Compartment();
+  #history = new Compartment();
   #attributes = new Compartment();
   #placeholderLayer = document.createElement("div");
   #placeholderText = document.createTextNode("");
   #frame = document.createElement("div");
   #readOnly = false;
+  #sizes = sizeObserver(() => {
+    const view = this.#view;
+    if (view?.hasFocus)
+      view.requestMeasure({
+        key: this,
+        read: () => {
+          const caret = view.coordsAtPos(view.state.selection.main.head);
+          const box = this.getBoundingClientRect();
+          const { scaleX, scaleY } = view;
+          return {
+            caret,
+            scaleX,
+            scaleY,
+            top: box.top + this.clientTop * scaleY,
+            left: box.left + this.clientLeft * scaleX,
+            // client dimensions round fractional CSS sizes. Keep the trailing
+            // edges on the actual box, inset by its native border and scrollbar.
+            bottom:
+              box.bottom -
+              (this.offsetHeight - this.clientTop - this.clientHeight) * scaleY,
+            right:
+              box.right -
+              (this.offsetWidth - this.clientLeft - this.clientWidth) * scaleX,
+          };
+        },
+        write: ({ caret, top, left, bottom, right, scaleX, scaleY }) => {
+          if (!caret) return;
+          // Native scroll offsets quantize a fractional correction. Round away from
+          // zero so a caret just beyond an edge actually enters the host's scrollport.
+          const wholePixel = (distance) =>
+            distance < 0 ? Math.floor(distance) : Math.ceil(distance);
+          this.scrollBy({
+            top: wholePixel(
+              (Math.min(0, caret.top - top) + Math.max(0, caret.bottom - bottom)) /
+                scaleY,
+            ),
+            left: wholePixel(
+              (Math.min(0, caret.left - left) + Math.max(0, caret.right - right)) /
+                scaleX,
+            ),
+            behavior: "instant",
+          });
+        },
+      });
+  });
+
+  // Host overflow holds the action's room on every line. The host stops at the page's
+  // height limit while words grow inside it, so the reading watches the editor's
+  // scroller too. Editor updates and size changes share its read/write phase: the room
+  // changes layout there, rather than feeding back into resize observer delivery.
+  #overflow = sizeObserver(() => this.#measureOverflow());
+
+  #measureOverflow() {
+    this.#view?.requestMeasure({
+      key: this.#overflow,
+      read: () => this.scrollHeight > this.clientHeight,
+      write: (scrolls) => {
+        if (scrolls) this.#internals.states.add("scrolls");
+        else this.#internals.states.delete("scrolls");
+      },
+    });
+  }
 
   static observedAttributes = ["aria-label", "aria-describedby", "placeholder"];
 
@@ -364,6 +406,9 @@ class LeafText extends HTMLElement {
     this.#root.append(this.#frame);
     this.#model = this.#create("");
     this.addEventListener("mousedown", (event) => this.#pressPadding(event));
+    this.#root.addEventListener("beforeinput", () => this.#beforeEdit(), {
+      capture: true,
+    });
     // The content node's own input events would reach the host too, retargeted, and
     // announce every edit twice. The host's is the one the page hears.
     for (const type of ["input", "beforeinput"])
@@ -377,7 +422,24 @@ class LeafText extends HTMLElement {
       doc: text,
       selection: { anchor: text.length },
       extensions: [
-        history(),
+        // DOM input has already changed the words when CodeMirror reads it, so its
+        // bracket started at beforeinput. EditContext leaves rendering to the editor;
+        // its transactions, like commands, still start before the DOM changes.
+        EditorView.inputHandler.of((view, _from, _to, _text, insert) => {
+          this.#nativeInput = !view.contentDOM.editContext;
+          try {
+            view.dispatch(insert());
+          } finally {
+            this.#nativeInput = false;
+          }
+          return true;
+        }),
+        this.#history.of(history()),
+        invertedEffects.of((tr) =>
+          tr.effects
+            .filter((effect) => effect.is(ownerStep))
+            .map(({ value }) => ownerStep.of({ run: value.back, back: value.run })),
+        ),
         keymap.of([
           { key: "Shift-Enter", run: insertNewlineContinueMarkup },
           {
@@ -391,7 +453,7 @@ class LeafText extends HTMLElement {
         ]),
         new LanguageSupport(markdownLanguage),
         livePreview,
-        pastesPicture,
+        lastLineRoom,
         fieldTheme,
         EditorView.lineWrapping,
         this.#editable.of(EditorState.readOnly.of(this.#readOnly)),
@@ -424,21 +486,37 @@ class LeafText extends HTMLElement {
       root: this.#root,
       parent: this.#frame,
       state: this.#model,
-      // Every transaction is the user's: the value setter replaces the state instead.
+      // Dispatched word changes are the user's. The value setter updates the view
+      // directly and silently; an owner's `record` changes no words.
       dispatchTransactions: (transactions, view) => {
+        const edited = transactions.some((tr) => tr.docChanged);
+        if (edited && !this.#nativeInput) this.#beforeEdit();
         view.update(transactions);
+        for (const tr of transactions)
+          if (tr.isUserEvent("undo") || tr.isUserEvent("redo"))
+            for (const effect of tr.effects)
+              if (effect.is(ownerStep)) effect.value.run();
         this.#paintEmpty();
-        if (transactions.some((tr) => tr.docChanged))
-          this.dispatchEvent(new Event("input", { bubbles: true }));
+        this.#measureOverflow();
+        if (edited) this.dispatchEvent(new Event("input", { bubbles: true }));
       },
     });
     this.#model = null;
+    this.#sizes.observe(this);
+    this.#overflow.observe(this);
+    this.#overflow.observe(this.#view.scrollDOM);
     // The scroller is focusable only so a press on it keeps focus in the editor, and
     // the field's scroller never scrolls; left focusable it is the node the root
     // delegates focus to, which holds no caret.
     this.#view.scrollDOM.removeAttribute("tabindex");
     this.#describe();
     this.#paintEmpty();
+    this.#internals.states.add("ready");
+    this.#measureOverflow();
+  }
+
+  #beforeEdit() {
+    this.dispatchEvent(new Event("lf-before-edit", { bubbles: true }));
   }
 
   // A move between parents reconnects within the task and keeps its editor.
@@ -446,8 +524,11 @@ class LeafText extends HTMLElement {
     queueMicrotask(() => {
       if (this.isConnected || !this.#view) return;
       this.#model = this.#view.state;
+      this.#sizes.disconnect();
+      this.#overflow.disconnect();
       this.#view.destroy();
       this.#view = null;
+      this.#internals.states.delete("ready");
     });
   }
 
@@ -529,19 +610,74 @@ class LeafText extends HTMLElement {
     else this.#internals.states.add("placeholder-shown");
   }
 
+  // Where the field holds its action's room now: `every-line`, `last-line` after its
+  // last words, or `none` while its last line is blank. A sent message keeping the
+  // draft's wrapping holds the same.
+  get endRoom() {
+    if (parseFloat(getComputedStyle(this.#frame).paddingInlineEnd) > 0)
+      return "every-line";
+    return lastWithWords(this.#state) ? "last-line" : "none";
+  }
+
   get value() {
     return this.#state.doc.toString();
   }
+
+  // Records a change the owner has just made outside the words as a step of the words'
+  // history, standing alone: taking the step back calls `undo`, redoing it calls `redo`.
+  record(undo, redo) {
+    this.#apply({
+      effects: ownerStep.of({ run: redo, back: undo }),
+      annotations: isolateHistory.of("full"),
+    });
+  }
+
+  // Forgets the history and keeps the words, the caret and the editor's DOM, for a box
+  // that takes up a draft as it stands. Dropping the history's field and adding it back
+  // starts it empty.
+  restartHistory() {
+    this.#apply({ effects: this.#history.reconfigure([]) });
+    this.#apply({ effects: this.#history.reconfigure(history()) });
+  }
+
+  get naturalBlockSize() {
+    const host = getComputedStyle(this);
+    return (
+      parseFloat(getComputedStyle(this.#frame).blockSize) +
+      parseFloat(host.paddingBlockStart) +
+      parseFloat(host.paddingBlockEnd) +
+      parseFloat(host.borderBlockStartWidth) +
+      parseFloat(host.borderBlockEndWidth)
+    );
+  }
+
   set value(text) {
     text = String(text ?? "").replace(/\r\n?/g, "\n");
     if (text === this.value) return;
-    const state = this.#create(text);
     if (!this.#view) {
-      this.#model = state;
+      this.#model = this.#create(text);
       return;
     }
-    this.#view.setState(state);
+    // Loading another draft ends the old native composition. Deactivating its
+    // attachment resets the platform's replacement range without moving focus.
+    const content = this.#view.contentDOM;
+    const composing = this.#view.composing && content.editContext;
+    if (composing) content.editContext = null;
+    // Updating the live view keeps its native input context in sync with the words.
+    // Remove and restore history in successive states so the loaded draft starts it
+    // empty, while both transactions paint together and announce no user edit.
+    const reset = this.#view.state.update({
+      changes: { from: 0, to: this.#view.state.doc.length, insert: text },
+      selection: { anchor: text.length },
+      effects: this.#history.reconfigure([]),
+    });
+    const fresh = reset.state.update({
+      effects: this.#history.reconfigure(history()),
+    });
+    this.#view.update([reset, fresh]);
+    if (composing) content.editContext = composing;
     this.#paintEmpty();
+    this.#measureOverflow();
   }
 
   get selectionStart() {

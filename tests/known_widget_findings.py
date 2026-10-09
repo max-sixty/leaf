@@ -7,14 +7,6 @@ deletes its entry, so the list only shrinks. A widget joins only as a defect to 
 never as behavior to keep."""
 
 KNOWN = {
-    # A command's readings hold a row for each stopped goal and each live worker, and a
-    # tile for quiet ones. The command model reads which goals are stopped and which
-    # workers live from the log (reports, open Asks, held threads) and which are quiet
-    # from the clock. First paint has neither, so it cannot hold the readings' room.
-    "command-hub": {
-        ("lf-command", "keeps-first-box"),
-        ("lf-command-readings", "keeps-first-box"),
-    },
     "default": {
         # What these draw is the page's state, which arrives with the first state
         # answer after the first paint and which the served document does not carry:
@@ -32,17 +24,5 @@ KNOWN = {
     # macOS. No height a page states holds on every platform, so their examples state
     # none. Where one declares x-height, a page's data-height is an estimate taken on
     # the author's machine, which `page check --render` advises.
-    "gallery": {("lf-margin-entry-gallery", "keeps-first-box")},
-    # The module builds each control's inputs and the instruction's current values,
-    # which it restores per viewer from the tab's storage, so neither the rail's
-    # members nor the words the instruction wraps exist before it runs. With a stated
-    # height the stage stands in its region from first paint.
-    "playground": {
-        ("lf-playground", "keeps-first-box"),
-        ("lf-playground-control", "keeps-first-box"),
-        ("lf-playground-output", "keeps-first-box"),
-        ("lf-playground-preview", "keeps-first-box"),
-        ("lf-playground-value", "keeps-first-box"),
-    },
     "targeting": {("lf-targeting", "keeps-first-box")},
 }

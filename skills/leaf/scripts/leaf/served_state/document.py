@@ -1,30 +1,32 @@
 """Document-scoped browser projection and undo readings."""
 
-from ..document_reading import DocumentReading, read_document
+from ..document_reading import DocumentReading
 from ..events import UndoReading, action_retracted
-from ..projection import PageReading, StateProjection
+from ..projection import StateProjection
 from ..registry.kernel import bookkeeping_kinds
+from ..tasks import ask_tasks
 from .wire import browser_projection
 
 
-def browser_document(page: PageReading, threads: dict) -> tuple[dict, DocumentReading]:
-    document = read_document(page, threads)
-    return (
-        {
-            "revision": page.revision,
-            "projection": browser_projection(
-                document.projection,
-                scope="document",
-                within=document.within,
-                floors=document.floors,
-            ),
-            # The complete Ask reading of this revision under the same transaction.
-            # The browser draws its drawer, walk, and banner count
-            # from these lists rather than folding the declarations a second time.
-            "asks": document.asks,
-        },
-        document,
-    )
+def browser_document(document: DocumentReading, revision: int) -> dict:
+    tasks, ended_tasks = ask_tasks(document.asks)
+    return {
+        "revision": revision,
+        "projection": browser_projection(
+            document.projection,
+            scope="document",
+            within=document.within,
+            floors=document.floors,
+        ),
+        # The complete Ask reading of this revision under the same transaction.
+        # The browser draws its Asks from these lists rather than folding the
+        # declarations a second time.
+        "asks": document.asks,
+        # The task each of those Asks is on the user (`tasks.ask_tasks`), open
+        # and ended, which the queues read beside the page's other tasks.
+        "tasks": tasks,
+        "ended_tasks": ended_tasks,
+    }
 
 
 def browser_undo_candidates(

@@ -4,6 +4,13 @@
 // scrollports; scrollerFor is the shared answer when a caller may stand in either.
 export const pageScroller = document.scrollingElement;
 
+// The end is a reading destination, rather than the pixel offset it occupies before
+// a box is resized. Fractional layout can leave the browser a pixel short.
+export const atScrollEnd = (box) =>
+  box.scrollHeight - box.clientHeight - box.scrollTop <= 2;
+export const scrollToEnd = (box, behavior = "instant") =>
+  box.scrollTo({ top: box.scrollHeight, behavior });
+
 // Apply a relative movement to the scroller the caller resolved. Keeping the box explicit
 // lets document reading continuity and anchor travel share the operation without either
 // owning the other's default destination.

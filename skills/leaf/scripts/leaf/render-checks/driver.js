@@ -95,7 +95,7 @@
     [...document.styleSheets].some((sheet) => sheet.href?.endsWith("/theme.css"));
 
   // Each authored widget's border box as the page first paints it: the whole authored
-  // document laid out under the theme, with the inline bootstrap's `data-lf-live` on
+  // document laid out under the theme, with the prepaint's `data-lf-interactive` on
   // the root and nothing upgraded. The element is kept, so a reading taken once the
   // page presents measures the same node (`changedBoxes` in widgets.js).
   let firstBoxes = Object.freeze([]);

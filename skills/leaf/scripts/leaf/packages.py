@@ -1,24 +1,20 @@
 """Package authoring commands and filesystem safety gates."""
 
 import contextlib
-import fcntl
 import json
 import os
 import re
+import secrets
 import shutil
 import sys
 import tempfile
+import tomllib
 from pathlib import Path
 
 from packaging.requirements import InvalidRequirement, Requirement
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import tomli as tomllib
-
-from .files import fsync_parents, json_bytes, read_json, replace_files
+from .files import read_json, replace_files
 from .layer import (
     LayerComposition,
     checked_inputs,
@@ -33,15 +29,13 @@ from .locations import (
     location_is_within,
     locations_overlap,
     path_location,
+    path_lock_key,
     paths_same,
 )
 from .machine import package_store
 from .schema import (
-    ASSETS,
     BROWSER_DIRS,
-    DEFAULT_PACKAGE,
     ELEMENT_ID,
-    EVENTS_FILE,
     HTML_NAME,
     PACKAGE_DIRS,
     PAGE_OWNED_DIRS,
@@ -51,26 +45,34 @@ from .schema import (
     WIDGET_NAME,
     WIDGET_NAME_RULE,
 )
+from .state import EVENTS_FILE, flocked, fsync_parents, json_bytes
 
 
 @contextlib.contextmanager
-def package_write_lock(package: Path):
-    """Serialize package mutations without creating a lock artifact beside the code.
+def package_write_lock(*packages: Path):
+    """Serialize mutations only where their package contracts share destinations.
 
-    A directory inode is a stable process-shared lock on both supported host families.
-    The filesystem root exists before any candidate package path, so two initializers
-    choose the same inode even when the package's parent directories do not exist yet.
-    Package writes are rare and short; one lock per filesystem also closes concurrent
-    registry updates to different packages without inventing persistent state.
+    Registry read/modify/write and shared member directories stay together. An
+    install holds its source and destination in the same ordered lock set, so source
+    init finishes before copying and destination init cannot race publication.
+    Symlinked contract members use their resolved destinations. Independent packages
+    never hold an exclusive lock in common.
+
+    The lock home is machine-local, independent of XDG_STATE_HOME and TMPDIR: two
+    environments writing the same authored package still share its locks. Nothing
+    is written beside authored code or inside a not-yet-validated package.
     """
-    root = Path(package.absolute().anchor)
-    descriptor = os.open(root, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
-    try:
-        fcntl.flock(descriptor, fcntl.LOCK_EX)
+    root = Path("/tmp") / f"leaf-package-locks-{os.getuid()}"
+    root.mkdir(mode=0o700, exist_ok=True)
+    keys = {
+        path_lock_key(package / name)
+        for package in packages
+        for name in (*VENDORED_FILES, *PACKAGE_DIRS, SCRIPTS_DIR)
+    }
+    with contextlib.ExitStack() as held:
+        for key in sorted(keys):
+            held.enter_context(flocked(root / f"{key}.lock"))
         yield
-    finally:
-        fcntl.flock(descriptor, fcntl.LOCK_UN)
-        os.close(descriptor)
 
 
 def create_package_files(package: Path, files: list[tuple[Path, bytes]]) -> list:
@@ -332,12 +334,12 @@ def validate_package_dir(package: Path) -> list:
 
 
 def package_layer_inputs(package: Path) -> list[Path]:
-    """The composition context in which this package normally appears."""
+    """The complete mandatory layer, with this package when it is not already in it."""
     inputs = layer_inputs()
-    for index, root in enumerate(inputs):
+    for root in inputs:
         if paths_same(package, root):
-            return inputs[: index + 1]
-    return [ASSETS, DEFAULT_PACKAGE, package]
+            return inputs
+    return [*inputs, package]
 
 
 def check_package(
@@ -486,14 +488,17 @@ def cmd_package_check(package: Path, render: bool = False) -> int:
 
 
 def cmd_package_install(source: Path) -> Path:
-    """Copy a checked package into the store a bare `--package` name reaches.
+    """Publish a checked immutable snapshot under its source directory's name.
 
-    The source directory's own name is the name pages select, so the install
-    refuses one already answered by a bundled or installed package instead of
-    changing which directory that name means.
+    The lexical name changes atomically after all copied bytes validate. Existing
+    readers retain their resolved snapshot; subsequent readers use the replacement.
+    Installed packages may replace installed or bundled names on the same terms.
     """
     store = package_store()
-    with package_write_lock(store):
+    source = source.expanduser().resolve()
+    # This destination is a stable synthetic lock coordinate, never the symlink
+    # whose target installation replaces. Resolve aliases of the source separately.
+    with package_write_lock(source, store / "locks" / source.name):
         package, _, _ = check_package(source, require_exists=True)
         name = package.name
         if re.fullmatch(HTML_NAME, name) is None:
@@ -501,34 +506,37 @@ def cmd_package_install(source: Path) -> Path:
                 f"package directory {name!r} cannot be selected by name; rename "
                 f"it to match {HTML_NAME} before installing it"
             )
-        destination = store / name
-        if standing := named_package(name):
-            remedy = (
-                "remove that directory to replace it"
-                if standing == destination
-                else "rename the source directory to install this one beside it"
-            )
-            sys.exit(f"package name {name!r} already resolves to {standing}; {remedy}")
-        store.mkdir(exist_ok=True)
-        # Stage beside the store rather than in it, so a half-copied package is
-        # never a name `--package` can reach and never a directory the next
-        # install has to recognize as debris.
+        # A failed copy or check creates no selectable name and preserves an earlier
+        # installation. Staging is outside the published store.
         with tempfile.TemporaryDirectory(
             dir=store.parent, prefix="leaf-install-"
         ) as temporary:
             staged = Path(temporary) / name
             staged.mkdir()
             copy_package_contract(package, staged)
-            os.rename(staged, destination)
-        print(json.dumps({"package": str(destination)}))
-        return destination
+            check_package(staged, require_exists=True)
+            names = store / "names"
+            snapshot = store / "snapshots" / secrets.token_hex(16)
+            names.mkdir(parents=True, exist_ok=True)
+            snapshot.mkdir(parents=True)
+            published = snapshot / name
+            os.rename(staged, published)
+            pointer = Path(temporary) / "selection"
+            pointer.symlink_to(
+                os.path.relpath(published, names), target_is_directory=True
+            )
+            destination = names / name
+            os.replace(pointer, destination)
+            fsync_parents([published, destination])
+        print(json.dumps({"package": str(published)}))
+        return published
 
 
 def cmd_package_run(name: str, script: str, arguments: tuple[str, ...]) -> None:
     """Run one of a package's `scripts/` in the environment its header declares.
 
     The package is found by the lookup `page init --package NAME` resolves
-    through, so a producer command in guidance names a package and a script
+    through, so a producer command in instructions names a package and a script
     rather than a path on this machine, and an installed package's tools run on
     the same terms as a bundled one's. Each script is a Python file whose inline
     metadata (PEP 723) declares its dependencies; `uv run --script` builds that

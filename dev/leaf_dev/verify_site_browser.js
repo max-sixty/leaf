@@ -1,66 +1,18 @@
 /*
  * Browser-side observations for `leaf-dev verify-site`, installed before each navigation.
- * Startup readings belong to one document. Visible-reply timestamps use sessionStorage
+ * Shared startup evidence is installed separately. Visible-reply timestamps use sessionStorage
  * because the agent journey may navigate before Python reads them. __leafVerifier is
- * the one Playwright boundary exposed to the Python orchestrator.
+ * the website-specific Playwright boundary exposed to the Python orchestrator.
  */
 (() => {
   const visibleReplyStartedKey = "leaf-visible-reply-started";
   const visibleReplyAtKey = "leaf-visible-reply-at";
-  const startup = {};
   let activationCount = 0;
   let visibleReplyObservers = null;
-
   function serverScript() {
     const script = document.querySelector("script[data-lf-server]");
     if (!script) throw new Error("Leaf server script is missing");
     return script;
-  }
-
-  function resourceSnapshot() {
-    const resources = performance.getEntriesByType("resource");
-    const code = resources.filter((entry) => {
-      const url = new URL(entry.name);
-      return (
-        url.origin === location.origin &&
-        (url.pathname.endsWith(".js") ||
-          url.pathname.endsWith(".css") ||
-          url.pathname.endsWith("/registry.json"))
-      );
-    });
-    const javascript = code.filter((entry) =>
-      new URL(entry.name).pathname.endsWith(".js"),
-    );
-    const state = resources.filter((entry) =>
-      new URL(entry.name).pathname.endsWith("/api/state"),
-    );
-    const bytes = (entries) =>
-      entries.reduce((total, entry) => total + entry.encodedBodySize, 0);
-    const lastResponse = (entries) =>
-      entries.length ? Math.max(...entries.map((entry) => entry.responseEnd)) : null;
-    return {
-      at: performance.now(),
-      js_loaded: lastResponse(javascript),
-      state_loaded: lastResponse(state),
-      requests: resources.length,
-      bytes: bytes(resources),
-      code_requests: code.length,
-      code_bytes: bytes(code),
-      js_requests: javascript.length,
-      js_bytes: bytes(javascript),
-    };
-  }
-
-  function recordStartup() {
-    const body = document.body;
-    if (!body) return;
-    for (const [name, attribute] of [
-      ["upgraded", "data-lf-upgraded"],
-      ["presented", "data-lf-presented"],
-    ]) {
-      if (body.hasAttribute(attribute) && !startup[name])
-        startup[name] = resourceSnapshot();
-    }
   }
 
   function stopVisibleReplyWatch() {
@@ -69,34 +21,44 @@
     visibleReplyObservers = null;
   }
 
+  function visibleReplies() {
+    return JSON.parse(sessionStorage.getItem(visibleReplyAtKey) ?? "{}");
+  }
+
   function watchVisibleAgentReply() {
     const started = sessionStorage.getItem(visibleReplyStartedKey);
-    if (
-      started === null ||
-      sessionStorage.getItem(visibleReplyAtKey) !== null ||
-      visibleReplyObservers
-    )
-      return;
+    if (started === null || visibleReplyObservers) return;
 
-    const seen = new WeakSet();
+    // A streamed draft and its durable answer reuse the same message node. Observing
+    // that node once would keep the stream's id even after its data-mid changes.
+    const seen = new WeakMap();
     const intersections = new IntersectionObserver((entries) => {
-      const visible = entries.find(
-        ({ isIntersecting, target }) =>
-          isIntersecting &&
-          target.querySelector(".lf-msg-text")?.textContent.trim() &&
-          target.checkVisibility(),
-      );
-      if (!visible || sessionStorage.getItem(visibleReplyAtKey) !== null) return;
-      sessionStorage.setItem(visibleReplyAtKey, String(Date.now()));
-      stopVisibleReplyWatch();
+      const replies = visibleReplies();
+      for (const { isIntersecting, target } of entries) {
+        const id = target.dataset.mid;
+        if (
+          !isIntersecting ||
+          !id ||
+          replies[id] ||
+          !target.querySelector(".lf-msg-text")?.textContent.trim() ||
+          !target.checkVisibility()
+        )
+          continue;
+        replies[id] = Date.now();
+        intersections.unobserve(target);
+      }
+      sessionStorage.setItem(visibleReplyAtKey, JSON.stringify(replies));
     });
     const observe = () => {
-      for (const message of document.querySelectorAll(".lf-msg.agent")) {
+      for (const message of document.querySelectorAll(
+        ".lf-threads .lf-msg.agent[data-mid]",
+      )) {
         if (
-          !seen.has(message) &&
+          seen.get(message) !== message.dataset.mid &&
           message.querySelector(".lf-msg-text")?.textContent.trim()
         ) {
-          seen.add(message);
+          if (seen.has(message)) intersections.unobserve(message);
+          seen.set(message, message.dataset.mid);
           intersections.observe(message);
         }
       }
@@ -121,31 +83,12 @@
   }
 
   const api = {
-    startupMilestones() {
-      return Object.keys(startup);
-    },
-    startupReading() {
-      const navigation = performance.getEntriesByType("navigation")[0];
-      return {
-        first_byte: navigation.responseStart,
-        document: navigation.responseEnd,
-        paint: Object.fromEntries(
-          performance
-            .getEntriesByType("paint")
-            .map((entry) => [entry.name, entry.startTime]),
-        ),
-        ...startup,
-      };
-    },
     identity() {
       const script = serverScript();
       return {
         layer: script.dataset.lfLayer,
         release: script.dataset.lfRelease,
       };
-    },
-    resourceNames() {
-      return performance.getEntriesByType("resource").map((entry) => entry.name);
     },
     async scopedMedia() {
       const script = serverScript();
@@ -161,7 +104,7 @@
     },
     async activateSession() {
       const client = await runtimeModule("layer-client");
-      client.observeSession(
+      client.admitResponse(
         new Response(null, { headers: { "Leaf-Session": "active" } }),
       );
     },
@@ -172,15 +115,15 @@
       const started = Date.now();
       sessionStorage.setItem(visibleReplyStartedKey, String(started));
       sessionStorage.removeItem(visibleReplyAtKey);
+      stopVisibleReplyWatch();
       watchVisibleAgentReply();
       return started;
     },
-    visibleReplyRecorded() {
-      return sessionStorage.getItem(visibleReplyAtKey) !== null;
+    visibleReplyRecorded(id) {
+      return visibleReplies()[id] !== undefined;
     },
-    visibleReplyAt() {
-      const visible = sessionStorage.getItem(visibleReplyAtKey);
-      return visible === null ? null : Number(visible);
+    visibleReplyAt(id) {
+      return visibleReplies()[id] ?? null;
     },
     // What the page shows about a reply the container holds and the panel never drew:
     // the reading it last applied, its traffic, and each message's identity.
@@ -219,12 +162,5 @@
   Object.defineProperty(window, "__leafVerifier", {
     value: Object.freeze(api),
   });
-  new MutationObserver(recordStartup).observe(document, {
-    attributes: true,
-    attributeFilter: ["data-lf-upgraded", "data-lf-presented"],
-    childList: true,
-    subtree: true,
-  });
-  recordStartup();
   watchVisibleAgentReply();
 })();

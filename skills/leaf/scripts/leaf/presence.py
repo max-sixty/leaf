@@ -7,22 +7,23 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from .activity import Turn, current_turn, transition_due
-from .event_log import now_iso, read_cursor, read_events
+from .activity import Turn, current_turn, declared_at
+from .event_log import read_cursor
+from .file_changes import FileChanges, existing_root
 from .files import (
-    active_descriptor,
     entry_stamps,
     file_stamp,
-    latest_revision,
     read_json,
 )
-from .host import claim_harness
+from .harness import claim_harness
 from .leases import wait_is_live, waiter_lease_path
 from .machine import state_home
-from .revision_artifact import read_revision
+from .page_memory import memo
 from .schema import (
     INTERACTIONS_FILE,
     UNNAMED_AGENT,
+    USER_VIEWS_FILE,
+    USER_VIEWS_LOCK,
     VIEWED_FILE,
     WAITER_LOCK,
 )
@@ -30,22 +31,59 @@ from .server import running_server
 from .service import (
     claim_is_active,
     claim_path,
-    claim_records,
-    claim_update_sources,
     page_claim,
     read_status,
     unacknowledged,
 )
+from .state import now_iso
 
 # Presence is deliberately a short-lived reading: process and lock leases can change
-# without touching a page file. The news stream already allowed this much staleness,
-# so sharing one observation across streams does not change what a user can learn.
+# without touching a page file. Readers share one observation for two seconds, while
+# a changed page file invalidates it immediately.
 PRESENCE_CACHE_S = 2.0
-_CACHE_LIMIT = 256
-_presence_cache = {}  # page -> (page-file stamp, expiry, reading)
-_neighbor_cache = {}  # page -> (input key, presence entry or None)
-_candidates = ((), ())  # (state-home stamp, resolved candidate pages)
-_presence_cache_lock = threading.RLock()
+# (row-directory stamp, producer publications): the machine's, so one slot.
+_candidates = ((), ())
+_candidates_lock = threading.Lock()
+_row_files = {}
+_row_subscription = None
+_row_home = None
+
+
+class _Neighbors:
+    """One page's other-row observation; its own publication cannot invalidate it."""
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.token = None
+
+
+def _neighbor_reading(page_dir: Path) -> list:
+    """Local page writes do not invalidate a machine's neighbor observation.
+
+    Producer writes invalidate it immediately; kernel lease changes have the same
+    bounded two-second observation interval as the page's other live facts.
+    """
+    candidates = neighbor_candidates()
+    own = page_dir.resolve()
+    stamp = tuple((path, record) for path, record in candidates if path != own)
+    now = time.monotonic()
+    kept = memo(page_dir, _Neighbors)
+    with kept.lock:
+        if kept.token is None or kept.token[0] != stamp or now >= kept.token[1]:
+            kept.token = (stamp, now + PRESENCE_CACHE_S, other_leaves(page_dir))
+        return kept.token[2]
+
+
+class _Presence:
+    """What a page keeps of its presence between readings.
+
+    The lock is held through a whole observation, so concurrent freshness readers on the
+    page share one reading rather than racing into one parse each."""
+
+    def __init__(self) -> None:
+        self.lock = threading.RLock()
+        # (page-file stamp, expiry, the token `presence_reading` gave)
+        self.token: tuple | None = None
 
 
 def _page_stamp(page_dir: Path, claim: dict | None = None) -> tuple:
@@ -53,10 +91,12 @@ def _page_stamp(page_dir: Path, claim: dict | None = None) -> tuple:
 
     `viewed.json` counts here, where the page's own reading leaves it out: whether a
     tab is looking is part of what presence reports."""
-    entries = tuple(entry_stamps(page_dir, {INTERACTIONS_FILE}))
+    entries = tuple(
+        entry_stamps(page_dir, {INTERACTIONS_FILE, USER_VIEWS_FILE, USER_VIEWS_LOCK})
+    )
     claim_stamp = file_stamp(claim_path(page_dir))
     if claim and claim.get("id"):
-        # A host wait lease is outside the page, and its lock state has no file
+        # A harness wait lease is outside the page, and its lock state has no file
         # stamp of its own. Its boolean is checked below on every cache refresh;
         # including the file here still invalidates a page when the lease is first
         # created or removed.
@@ -67,166 +107,119 @@ def _page_stamp(page_dir: Path, claim: dict | None = None) -> tuple:
 
 
 def neighbor_candidates() -> tuple:
-    """Every page on this machine that could be serving: the conventional pages/
-    home and every claim record, which is what finds a page served from a
-    session's scratch directory. Released and dead claims stay useful here as
-    provenance.
+    """Serving publishers discover themselves through their disposable rows.
 
-    The set moves when an entry in one of those two directories does, or when a
-    page it holds is deleted, which for a claimed scratch page moves neither. So
-    it is read again only then: keyed on the two stamps, the way `leaf wait` keys
-    its ownership set on the claims directory's, and on each held page still
-    being there, so the read that retires a deleted page's claim follows its
-    deletion. Whether each page is serving is the caller's question, asked fresh
-    every time."""
-    global _candidates
+    Claims and directories holding idle pages are not a directory of servers.
+    Every server already publishes a row, including pages outside pages/, so its
+    publication is the one discovery surface. Atomic replacements move rows/'s
+    stamp; readers hold the parsed envelopes until a producer changes them.
+    Server leases are still checked on every observation, independent of files.
+    """
+    global _candidates, _row_home, _row_subscription, _row_files
     home = state_home()
-    claims, pages = home / "claims", home / "pages"
-    stamp = (home, file_stamp(claims), file_stamp(pages))
-    with _presence_cache_lock:
-        if _candidates[0] == stamp and all(page.is_dir() for page in _candidates[1]):
+    rows = home / "rows"
+    stamp = (home, file_stamp(rows))
+    with _candidates_lock:
+        roots = {existing_root(rows.parent): False, existing_root(rows): False}
+        if (
+            _row_home != rows
+            or _row_subscription is None
+            or not _row_subscription.matches(roots)
+        ):
+            if _row_subscription is not None:
+                _row_subscription.close()
+            _row_subscription = FileChanges(
+                roots,
+                lambda changed: (
+                    changed == rows
+                    or (changed.parent == rows and changed.suffix == ".json")
+                ),
+                collect=True,
+            )
+            if _row_home != rows:
+                _row_files = {}
+            _row_home = rows
+        changes = {Path(path) for path in _row_subscription.batch(0)}
+        if _candidates[0] == stamp and not changes:
             return _candidates[1]
-        found = [d for d in pages.iterdir() if d.is_dir()] if pages.is_dir() else []
-        found += (Path(claim["page"]) for claim in claim_records())
-        resolved = dict.fromkeys(
-            page for page in (path.resolve() for path in found) if page.is_dir()
-        )
-        # Keyed on the stamp taken before the read, so an entry written during it
-        # moves the stamp and the next call reads again. A read that retired
-        # records has moved it too, and the call after it settles.
-        _candidates = (stamp, tuple(resolved))
+        # Atomic producer publications move the directory stamp. Native batches
+        # normally identify the changed files; a read ahead of notification
+        # delivery still observes the directory's authoritative changed listing.
+        if _candidates[0] != stamp or rows in changes:
+            current = set(rows.glob("*.json")) if rows.is_dir() else set()
+            for path in _row_files.keys() - current:
+                del _row_files[path]
+            changes |= current
+        for path in changes:
+            if path.parent != rows or path.suffix != ".json":
+                continue
+            key = file_stamp(path)
+            if key is None:
+                _row_files.pop(path, None)
+            elif path not in _row_files or _row_files[path][0] != key:
+                try:
+                    _row_files[path] = (key, read_json(path))
+                except (OSError, ValueError):
+                    _row_files[path] = (key, None)
+        found = []
+        for _key, record in _row_files.values():
+            if isinstance(record, dict) and isinstance(record.get("page"), str):
+                found.append((Path(record["page"]), record))
+        _candidates = (stamp, tuple(found))
         return _candidates[1]
 
 
 def other_leaves(page_dir: Path) -> list:
-    """The machine's other live leaves, for the banner's panel: each page
-    whose server is up, as a title, its handover URL, and the same presence
-    facts the page ships about itself — so a row there and the banner above it
-    are the one judgment reading the one shape.
+    """Live neighboring pages, from their own compact canonical publications.
 
-    Candidates are `neighbor_candidates`. Liveness is the held server.lock
-    lease, the same answer `running_server` gives everything else, asked of
-    every candidate on every read, since a server starts and stops without
-    moving either directory the candidates are keyed on; a candidate that is not
-    serving costs that one probe. The URL is the one in durable service state, key included.
-    The title is the active revision's — the document that page's own root URL
-    answers with — read the way `transcript` reads it.
+    Each candidate costs its server lease/service and one disposable row read.
+    Never open another page's log, document, or projection. A row belongs to
+    the server incarnation that computed it; absent or older rows stay absent.
 
-    This runs on every /api/state; what it reads of each serving neighbour is
-    kept per file, so a state read costs the lease probes and the presence reads
-    rather than a parse of every live neighbour's active revision
-    (`read_revision`)."""
+    Each entry names its page by `page_key`, the identity the page's own state-home
+    records already use, and links it by `url`. The two are separate because a page
+    outlives its server: a restart may serve the same page at a new port, which
+    changes where the row leads and not which page it is.
+    """
+    from .server_rows import read_row
+
     others = []
     own = page_dir.resolve()
-    seen = set()
-    for candidate in neighbor_candidates():
+    for candidate, record in neighbor_candidates():
         if candidate == own:
             continue
-        seen.add(candidate)
         # A neighbour's fault stays its own. This is the one read of state some
         # other page owns: a directory deleted mid-scan (stale pages are deleted
-        # and made again) or a log a disk fault corrupted would otherwise 500
+        # and made again) or a file a disk fault corrupted would otherwise 500
         # every open page's state read on the machine, blaming the page that asked.
         try:
             info = running_server(candidate)
             if info is None:
                 continue
-            claim = page_claim(candidate)
-            active = claim if claim_is_active(claim) else None
-            key = (
-                _page_stamp(candidate, claim),
-                info["url"],
-                live_facts(candidate, claim),
-            )
-            with _presence_cache_lock:
-                held = _neighbor_cache.get(candidate)
-                observed_at = now_iso()
-                if (
-                    held
-                    and held[0] == key
-                    and (
-                        held[1] is None
-                        or not transition_due(held[1]["activity"], observed_at)
-                    )
-                ):
-                    present = held[1]
-                else:
-                    present = None
-                    try:
-                        events = read_events(candidate)
-                        revision = latest_revision(candidate)
-                        if revision is not None:
-                            parser = read_revision(candidate, revision).document
-                            # A neighboring row consumes the same canonical
-                            # activity as that page's own banner. Import here
-                            # to keep the base presence gatherer independent
-                            # of served-state assembly.
-                            from .served_state.browser import project_browser_state
-                            from .served_state.page import project_activity
-
-                            raw, live_stream = presence_with_activity(candidate, events)
-                            active = active_descriptor(candidate, events)
-                            projected = project_browser_state(
-                                candidate,
-                                events,
-                                None,
-                                active,
-                                raw,
-                                observed_at,
-                                live_stream=live_stream,
-                            )
-                            browser = projected[0] if projected is not None else None
-                            activity = project_activity(
-                                candidate,
-                                events,
-                                raw,
-                                observed_at,
-                                browser,
-                                live_stream,
-                            )
-                            workflows = (
-                                browser.pop("workflows")
-                                if browser is not None
-                                else activity.pop("workflows")
-                            )
-                            present = {
-                                "title": parser.title.strip() or candidate.name,
-                                "url": info["url"],
-                                **raw,
-                                "activity": activity,
-                                "workflows": workflows,
-                            }
-                    except Exception:  # noqa: BLE001 - cache this page's fault
-                        present = None
-                    # Cache failures as well. Their input key changes when a repair
-                    # gives them something to say, while repeated quiet scans do no
-                    # log parse at all.
-                    _neighbor_cache[candidate] = (key, present)
-            if present is None:
-                continue
+            row = read_row(candidate, info, record=record)
+            if row is not None:
+                others.append(
+                    {
+                        **row,
+                        "page_key": record["page_key"],
+                        "url": info["url"],
+                    }
+                )
         except Exception:  # noqa: BLE001, S112 - whatever shape its fault takes
             continue
-        others.append(dict(present))
-    with _presence_cache_lock:
-        # A long-lived process may see pages that are later deleted. Keep the
-        # reading cache bounded and discard entries no current scan can reach.
-        for candidate in set(_neighbor_cache) - seen:
-            _neighbor_cache.pop(candidate, None)
-        while len(_neighbor_cache) > _CACHE_LIMIT:
-            _neighbor_cache.pop(next(iter(_neighbor_cache)))
     return sorted(others, key=lambda entry: entry["title"].lower())
 
 
 def live_facts(page_dir: Path, claim: dict | None) -> dict:
-    """The presence facts no page file records, read from processes and the host
+    """The presence facts no page file records, read from processes and the harness
     at this moment: whether the claimant's wait lease is held, whether its
-    lifetime stands, and what its host says of its turn (`Harness.live_turn`).
+    lifetime stands, and what its harness says of its turn (`Harness.live_turn`).
     File stamps cannot say when these move, so every cache of a presence reading
-    keys on them, and the news stream's token carries them."""
+    keys on them, and the freshness token carries them."""
     active = claim if claim_is_active(claim) else None
     return {
         "listening": wait_is_live(page_dir, active["id"] if active else None),
-        # None when nothing claimed the page — leaf run outside an agent host.
+        # None when nothing claimed the page — leaf run outside an agent harness.
         "session_alive": active is not None if claim else None,
         "live_turn": claim_harness(active).live_turn() if active else None,
     }
@@ -243,18 +236,16 @@ def presence_with_activity(
     agent is working. Keeping private activity records out of that dictionary makes
     them unavailable to every browser-facing consumer by construction.
 
-    One gatherer for every such seat — `full_state` spreads it into the page's own
-    state answer, and `other_leaves` attaches it to each entry — so the runtime's one
-    claim-against-proof judgment reads the same fields whichever page it judges,
-    and the drawer's account of a neighbour is the account this page gives of
-    itself."""
+    `full_state` spreads it into the page's own state answer, so the runtime's one
+    claim-against-proof judgment reads these fields. The server's row publication
+    carries only the compact presentation fields derived from these facts."""
     stored_status = read_status(page_dir)
+    # The declaration's own fields; the harness's stream stays server-side.
     status = {
         key: value
         for key, value in stored_status.items()
-        if key not in {"work", "stream"}
+        if key in {"state", "detail", "ts"}
     }
-    status.setdefault("after", 0)
     claim = page_claim(page_dir)
     active = claim if claim_is_active(claim) else None
     # What the wait owner has acknowledged after the complete batch reached its
@@ -263,7 +254,6 @@ def presence_with_activity(
     cursor = read_cursor(page_dir)
     reading = {
         "status": status,
-        "claims": claim_update_sources(stored_status),
         **live_facts(page_dir, claim),
         "cursor": cursor,
         # The user's number, not the watcher's: their own messages the agent
@@ -293,15 +283,13 @@ def presence_with_activity(
         # since a record written before this existed is still a valid claim.
         "turn_closed": claim.get("turn_closed") if claim else None,
         # When that turn opened, and whether an open turn of this session's takes
-        # new input before it ends: its hooks carry input, so the Stop hook hands
-        # over what arrives. The banner reads such a turn as listening between two
-        # waits; a session whose carrier is a process it runs has no such turn.
+        # new input before it ends (`Harness.turn_takes_input`).
         "turn_opened": claim.get("turn_opened") if claim else None,
-        "turn_takes_input": bool(active and claim_harness(active).hooks_carry()),
+        "turn_takes_input": bool(active and claim_harness(active).turn_takes_input()),
         # When a browser last had the page visible (the server bumps viewed.json,
-        # throttled, while a visible tab's news stream stands), or None for a page
+        # throttled, while a visible tab asks for news), or None for a page
         # nobody has ever viewed — which used to be indistinguishable from one the
-        # user studied and left. Hidden tabs release their stream, so this records
+        # user studied and left. Hidden tabs stop their freshness reads, so this records
         # user attention rather than tab lifetime.
         "viewed": (read_json(page_dir / VIEWED_FILE) or {"t": None})["t"],
         # Where the claimant is working (claim_page), for the drawer's hover: what
@@ -321,7 +309,10 @@ def claimant_reading(page_dir: Path, events: list) -> tuple[dict, Turn]:
     read."""
     present, stream = presence_with_activity(page_dir, events)
     turn, _ = current_turn(
-        present, (stream or {}).get("activity"), datetime.fromisoformat(now_iso())
+        present,
+        declared_at(present, events),
+        (stream or {}).get("activity"),
+        datetime.fromisoformat(now_iso()),
     )
     return present, turn
 
@@ -334,12 +325,10 @@ def presence(page_dir: Path, events: list) -> dict:
 
 def presence_fingerprint(present: dict, others: list) -> str:
     """The half of a reading that file stamps cannot supply, from the facts a state
-    already carries: its `live_facts`, and the neighbours as the drawer shows them. A
-    neighbour's `viewed` is left out, since it moves every half minute that tab
-    stays open and changes nothing this page shows."""
+    already carries: its `live_facts`, and the neighbours as the drawer shows them."""
     facts = (
         [present[key] for key in ("listening", "session_alive", "live_turn")],
-        [{k: v for k, v in other.items() if k != "viewed"} for other in others],
+        others,
     )
     return hashlib.sha256(
         json.dumps(facts, sort_keys=True, default=str).encode()
@@ -347,28 +336,26 @@ def presence_fingerprint(present: dict, others: list) -> str:
 
 
 def presence_reading(page_dir: Path) -> str:
-    """The presence token shared by streams for one bounded freshness interval.
+    """The presence token shared by readers for one bounded freshness interval.
 
     Page-file stamps invalidate it immediately; process and lock leases are refreshed
     when the interval expires. The three facts are read the way `presence` and
-    `full_state` read them, so the stream and the state it prompts name the same
-    reading once the stream's existing interval has elapsed.
+    `full_state` read them, so a freshness answer and the state it prompts name the same
+    reading once the bounded cache interval has elapsed.
     """
     claim = page_claim(page_dir)
-    stamp = _page_stamp(page_dir, claim)
+    neighbors = _neighbor_reading(page_dir)
+    stamp = (_page_stamp(page_dir, claim), neighbors)
     now = time.monotonic()
-    with _presence_cache_lock:
-        held = _presence_cache.get(page_dir)
+    kept = memo(page_dir, _Presence)
+    with kept.lock:
+        held = kept.token
         if held and held[0] == stamp and now < held[1]:
             return held[2]
 
-        # Keep the lock while observing the neighbours. Concurrent news streams
-        # then share one complete reading instead of racing into one parse per
-        # stream; the lock and pid checks remain part of this fresh observation.
-        reading = presence_fingerprint(
-            live_facts(page_dir, claim), other_leaves(page_dir)
-        )
-        _presence_cache[page_dir] = (stamp, now + PRESENCE_CACHE_S, reading)
-        while len(_presence_cache) > _CACHE_LIMIT:
-            _presence_cache.pop(next(iter(_presence_cache)))
+        # Keep the lock while observing the neighbours. Concurrent freshness reads
+        # then share one complete reading instead of racing into one each; the
+        # lock and pid checks remain part of this fresh observation.
+        reading = presence_fingerprint(live_facts(page_dir, claim), neighbors)
+        kept.token = (stamp, now + PRESENCE_CACHE_S, reading)
         return reading

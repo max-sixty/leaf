@@ -1,4 +1,5 @@
 /* Native text-entry ownership, shared by core and element scopes. */
+import { controlNavigationKeys, takesLetters } from "../focus.js";
 import { parsed } from "./bindings.js";
 
 export function EVERYTHING() {
@@ -30,4 +31,14 @@ const EDITING = new Set([
 
 export function TEXT_ENTRY(binding) {
   return CHARACTER(binding) || EDITING.has(parsed(binding).key);
+}
+
+// The platform's claim at one exact control. Dispatch and accessible shortcut
+// projection use this same reading; context aliases always stand behind it.
+export function nativeClaimAt(control) {
+  if (takesLetters(control)) return TEXT_ENTRY;
+  const navigation = controlNavigationKeys(control);
+  return navigation.length
+    ? (binding) => navigation.includes(parsed(binding).key)
+    : null;
 }

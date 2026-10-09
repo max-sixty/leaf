@@ -12,8 +12,10 @@ from leaf.data_contracts import (
 )
 from leaf.passages import SourceReading
 from leaf.registry.contract import RegistryError
+from leaf.registry.schema import json_value
 from leaf.registry.storage import read_page_registry
 from leaf.revision_artifact import ArtifactError, RevisionArtifact, capture_artifact
+from leaf.sample_content import initial_sample_events
 from leaf.schema import VENDORED_FILES
 from leaf.structure import LF_META, SourceDocument, links_with_rel, script_kind
 from leaf.styles import (
@@ -22,8 +24,7 @@ from leaf.styles import (
     inline_style_at,
     scroller_css_advice,
 )
-from leaf.thread_context import sample_events, thread_ids, thread_structure
-from leaf.validation.compatibility import candidate_vocabulary_gaps
+from leaf.thread_context import thread_ids, thread_structure
 from leaf.validation.instances import (
     addressable_instance_errors,
     ask_surface_errors,
@@ -49,10 +50,8 @@ from leaf.validation.source_history import (
     EMPTY_READING,
     NO_PREDECESSOR,
     PredecessorReading,
-    continuity_errors,
     predecessor_reading,
-    transition_errors,
-    transition_reading,
+    revision_reanchors,
 )
 
 
@@ -68,6 +67,8 @@ class SourceCheck(NamedTuple):
     errors: list[str]
     advice: list[str]
     artifact: RevisionArtifact | None = None
+    reanchors: dict | None = None
+    revision: PredecessorReading = NO_PREDECESSOR
 
     @property
     def document(self) -> SourceDocument:
@@ -144,12 +145,14 @@ def _document_errors(page_dir: Path, parser) -> list[str]:
             continue  # ordinary document metadata: a title, a description, a card
         where = f'<meta name="{meta["name"]}"> (line {meta["line"]})'
         if meta["name"] not in LF_META:
-            errors.append(f"{where}: unknown lf- meta; known: {sorted(LF_META)}")
+            errors.append(
+                f"{where}: unknown lf- meta; known: {json_value(sorted(LF_META))}"
+            )
             continue
         allowed = LF_META[meta["name"]]
         if allowed is not None and meta["content"] not in allowed:
             errors.append(
-                f"{where}: content must be one of {sorted(allowed)}, "
+                f"{where}: content must be one of {json_value(sorted(allowed))}, "
                 f"found {meta['content']!r}"
             )
 
@@ -180,18 +183,20 @@ def _instance_errors(
     errors.extend(suggestion_errors(parser.lf_elements, registry, thread_ids))
     taken = sorted(parser.ids & thread_structure(events).ids)
     if taken:
-        errors.append(f"ids already taken by widget markup in a reply: {taken}")
+        errors.append(
+            f"ids already taken by widget markup in a reply: {json_value(taken)}"
+        )
     return errors
 
 
 def _authored_document_checks(
-    page_dir, document, events, registry, contracts, readings, thread_ids
+    page_dir, document, events, registry, readings, thread_ids
 ):
     """The same authored-page gate for the root and each isolated child document."""
     errors = _document_errors(page_dir, document)
     errors.extend(_instance_errors(events, document, registry, thread_ids))
     if registry is not None:
-        errors.extend(data_document_errors(readings, contracts))
+        errors.extend(data_document_errors(readings))
     errors.extend(media_errors(document, page_dir))
     errors.extend(_presentation_errors(document))
     return errors
@@ -218,7 +223,9 @@ def _source_advice(
     """Report non-blocking drift after every error-producing phase has run."""
     return [
         *(
-            [f"ids dropped from revision r{revision.predecessor}: {dropped_ids}"]
+            [
+                f"ids dropped from revision r{revision.predecessor}: {json_value(dropped_ids)}"
+            ]
             if dropped_ids
             else []
         ),
@@ -239,13 +246,8 @@ def _source_advice(
     ]
 
 
-def check_source(
-    page_dir: Path,
-    events: list,
-    *,
-    allow_transition: bool = True,
-) -> SourceCheck:
-    """Check ``index.html`` against the last activated revision."""
+def check_source(page_dir: Path, events: list) -> SourceCheck:
+    """Validate current source declarations and derive automatic anchor moves."""
     data, source_error = _source_bytes(page_dir)
     if source_error:
         return SourceCheck(EMPTY_READING, None, [source_error], [])
@@ -274,7 +276,6 @@ def check_source(
         document,
         events,
         registry,
-        contracts,
         readings,
         thread_ids(events),
     )
@@ -288,12 +289,17 @@ def check_source(
             # A template may precede its seed log, and the selection reads against
             # whatever the log holds — so the child checked here is the child
             # allocation would build from this document and this history.
-            child_events = [
-                {**event, "seq": index}
-                for index, event in enumerate(
-                    sample_events(parent, parent_events, selected), 1
+            try:
+                child_events = (
+                    initial_sample_events(
+                        page_dir, parent, parent_events, sample, registry, contracts
+                    )
+                    if registry is not None
+                    else []
                 )
-            ]
+            except ValueError as error:
+                errors.append(name + str(error))
+                child_events = []
             documents.append((child, child_events, name))
             child_readings = initial_data_document_readings(
                 child.lf_elements, child_events, registry
@@ -303,15 +309,8 @@ def check_source(
                 child,
                 child_events,
                 registry,
-                contracts,
                 child_readings,
-                selected,
-            )
-            transition = transition_reading(
-                SourceReading(child, registry), child_events, NO_PREDECESSOR
-            )
-            child_errors.extend(
-                transition_errors(child, registry, NO_PREDECESSOR, transition, False)
+                selected | thread_ids(child_events),
             )
             errors.extend(name + error for error in child_errors)
     artifact = None
@@ -328,32 +327,7 @@ def check_source(
             errors.append(str(error))
     revision = predecessor_reading(page_dir, data, events, artifact)
 
-    source_history_errors, dropped_advice = continuity_errors(
-        events, document, registry, revision
-    )
-    # A source whose artifact is the active revision's has no transition left to
-    # judge. Its activation judged these bytes against the log as it stood, and the
-    # door has admitted every event since against the revision it names, so only a
-    # candidate that differs from the active revision can drop what history needs.
-    # The dropped ids stay advice: they are what stamping this revision will change.
-    if not revision.unchanged:
-        errors.extend(source_history_errors)
-        if registry is not None and revision.predecessor:
-            errors.extend(
-                candidate_vocabulary_gaps(
-                    page_dir,
-                    events,
-                    document,
-                    registry,
-                    revision.predecessor,
-                )
-            )
-        transition = transition_reading(reading, events, revision)
-        errors.extend(
-            transition_errors(
-                document, registry, revision, transition, allow_transition
-            )
-        )
+    dropped_advice = sorted(revision.previous.document.ids - document.ids)
 
     advice = _source_advice(
         document,
@@ -363,4 +337,8 @@ def check_source(
         dropped_advice,
         artifact,
     )
-    return SourceCheck(reading, registry, errors, advice, artifact)
+    reanchors, anchor_advice = revision_reanchors(
+        events, reading, revision, candidate_revision=revision.candidate
+    )
+    advice.extend(anchor_advice)
+    return SourceCheck(reading, registry, errors, advice, artifact, reanchors, revision)

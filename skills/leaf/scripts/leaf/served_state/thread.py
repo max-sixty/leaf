@@ -1,70 +1,16 @@
 """Thread-scoped browser projection."""
 
-from ..asks import local_ask_entry, thread_ask_readings
 from ..events import (
     active_summaries,
     awaits_agent,
     bare_reaction,
-    is_reaction,
     seat_root,
-    spoken_turns,
-    standing_approvals,
     unanswered_agent_turn,
 )
-from ..projection import FrozenThreadReading, frozen_thread_reading
-from ..read_state import content_version, unread_content
+from ..projection import FrozenThreadReading
+from ..read_state import unread_content
 from ..schema import agent_name
 from .wire import browser_projection
-
-
-def _thread_awaits_user(
-    thread_id: str,
-    thread: dict,
-    registry: dict,
-    awaiting: dict[str, bool],
-    structure,
-    open_ask_threads: set[str],
-) -> tuple[bool, dict | None]:
-    if thread["resolved"]:
-        return False, None
-    if thread_id in open_ask_threads:
-        return True, None
-    turns = spoken_turns(thread)
-    tokens = registry.get("$reactions", {}).get("tokens", {})
-    for index in range(len(turns) - 1, -1, -1):
-        message = turns[index]
-        if message["author"] != "agent":
-            continue
-        later = turns[index + 1 :]
-        if any(entry["author"] != "agent" for entry in later):
-            continue
-        fragment = structure.fragments.get(message["id"])
-        asks = [
-            rec["attrs"].get("id")
-            for rec in (fragment.lf_elements if fragment else [])
-            if local_ask_entry(registry.get(rec["tag"]) or {})
-        ]
-        structural = (
-            any(awaiting.get(identity, False) for identity in asks) if asks else None
-        )
-        settled = any(
-            is_reaction(reaction)
-            and reaction["author"] == "user"
-            and reaction.get("parent") == message["id"]
-            and (tokens.get(reaction["token"]) or {}).get("settles")
-            for reaction in thread["msgs"]
-        )
-        if message["kind"] != "reply":
-            if structural is False:
-                continue
-        elif structural is False or (structural is None and not message.get("awaits")):
-            continue
-        if not settled:
-            return True, {
-                "message": message["id"],
-                "version": content_version(message),
-            }
-    return False, None
 
 
 def _answers_live_reply(event: dict, live_reply: dict) -> bool:
@@ -89,41 +35,25 @@ def _named(event: dict) -> dict:
 
 
 def browser_thread(
-    events: list,
-    registry: dict,
-    threads: dict,
-    live_reply: dict | None = None,
+    work, live_reply: dict | None = None
 ) -> tuple[dict, FrozenThreadReading]:
-    """The threads' browser reading. Whose turn each thread is reaches the browser
-    only as its `attention`, which `served_state.browser` attaches from this
-    reading's Asks and `user_prompt` and the page's workflows. Each message, and the
-    event that closed a thread, carries as `agent` the name it is shown under
-    (`agent_name`), so the browser keeps no fallback name of its own."""
-    settled = {identity for identity, thread in threads.items() if thread["resolved"]}
-    reading = frozen_thread_reading(events, registry)
-    asks = thread_ask_readings(events, registry, settled, reading=reading)
-    awaiting = asks["awaiting"]
+    """Serialize the shared frozen-thread work reading, adding presentation only.
+    Messages and closing events carry their canonical display name; provisional
+    replies and unread/summary protection never become durable work authority."""
+    events, threads = work.events, work.threads
+    reading, asks = work.thread, work.asks
     unread = unread_content(
         events, threads, reading.thread_by_name, reading.thread_by_widget
     )
-    open_ask_threads = {ask["thread"] for ask in asks["user"]}
     summaries_for = active_summaries(events, threads)
     rendered_threads = []
     for thread_id, thread in threads.items():
-        awaits_user, user_prompt = _thread_awaits_user(
-            thread_id,
-            thread,
-            registry,
-            awaiting,
-            reading.structure,
-            open_ask_threads,
-        )
+        questions = work.questions[thread_id]
         protected = set()
-        turns = spoken_turns(thread)
         if awaits_agent(thread):
             protected.add(unanswered_agent_turn(thread)["id"])
-        if awaits_user and turns:
-            protected.add(turns[-1]["id"])
+        if questions.prompt is not None:
+            protected.add(questions.prompt["message"])
         ask_sources = {
             ask["source"] for ask in asks["unanswered"] if ask["thread"] == thread_id
         }
@@ -146,7 +76,7 @@ def browser_thread(
                     if message["id"] == thread["root"]["id"]
                 ),
                 "resolved": thread["resolved"] and _named(thread["resolved"]),
-                "user_prompt": user_prompt,
+                "user_prompt": questions.prompt,
                 "bare_reaction": bare_reaction(thread),
                 "seat": seat_root(thread),
                 "summaries": summaries,
@@ -192,7 +122,7 @@ def browser_thread(
             "threads": rendered_threads,
             # What the banner's own button reads to say whether the version has
             # been signed off.
-            "done": standing_approvals(events),
+            "done": work.approvals,
         },
         reading,
     )

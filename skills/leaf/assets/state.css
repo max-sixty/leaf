@@ -1,0 +1,16 @@
+/* Semantic presentation above widget defaults and Layouts (layer.py, CASCADE_LAYERS).
+ * A standing decision retires the slots its registry relation names, regardless of
+ * their package's default display. Inline widget motion may keep a slot visible
+ * until it settles; authored unlayered styles retain the page's final say. */
+@layer lf-state {
+  [data-lf-retired] { display: none; }
+
+  /* A box that scrolls starts the sticky-header slot again at its own top (theme.css, at
+     `--lf-top`), whoever made it scroll: reachScrollers marks it. Above a package's
+     value and a Layout's, since one stacked onto a box that scrolls reaches nothing
+     the box holds; a box that starts its slot elsewhere says so in `--lf-top-start`. */
+  [data-lf-scrolls] { --lf-top: var(--lf-top-start); }
+
+  /* Retiring the only slot leaves its wrapper empty. Keep that wrapper in the
+     layout tree so Undo can restore the text in the same place. */
+}

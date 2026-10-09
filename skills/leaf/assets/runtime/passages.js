@@ -78,7 +78,7 @@
 
    Identity crosses the same boundary. `elementById` searches the document and declared
    open roots. `pageQueryAll` clears or queries marks everywhere the runtime may write.
-   `focused` (keyboard/scopes.js) descends through retargeted `document.activeElement`
+   `focused` (focus.js) descends through retargeted `document.activeElement`
    until it finds the actual control.
 
    Hit testing asks two different questions. `elementFromPointAcross` and `markAt`
@@ -117,7 +117,7 @@ import {
   upFrom,
 } from "./shadow.js";
 import { decisionFor, registry } from "./registry.js";
-import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
+import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { COLLAPSE } from "./collapse.js";
 
 // Opaque widgets and their original direct children: each is a passage cell of its own.
@@ -153,7 +153,7 @@ export const verbatimBoundaryIdentity = new WeakMap();
 // Which slots retire is the registry's to say, so this and passages.py's reading of the
 // same page follow one declaration: x-retired-when names the decision that removes the
 // element, x-owners the wrapper the decision is recorded on. Composition stamps that
-// relation, owner by owner, into `$decisions` (Python's `registry.state.stamp_decisions`),
+// relation, owner by owner, into `$decisions` (Python's `registry.contract.stamp_decisions`),
 // and this reads it: one selector per owner and member.
 // Computed once — but only once the registry has loaded: the aim listeners are
 // live from module evaluation, and a pointer move in the upgrade window would
@@ -178,18 +178,17 @@ function retiredSlots() {
 // The rendering of a settlement, in one place for the two occasions that paint it —
 // replay and a module saying its own gesture (lf-suggestion's #settle). The semantic
 // outcome is passed in from the application reading; the owner's data-lf-state is only
-// corresponding paint and is never read back. One static theme rule hides the marked
-// slots, so a family a project declares hides what a settlement removes the day it
-// declares it — by-name rules in theme.css were the closed list wearing CSS's
-// clothes.
+// corresponding paint and is never read back. The shared state.css tier hides marked
+// slots in the document and declared shadow stages, above package display defaults.
 export function renderRetired(el, outcome) {
   const outcomes = decisionFor(el.localName)?.retires;
   if (!outcomes) return;
   for (const [candidate, tags] of Object.entries(outcomes))
     for (const tag of tags)
       for (const root of [el, ...(el.shadowRoot ? [el.shadowRoot] : [])])
-        for (const slot of root.querySelectorAll(`:scope > ${tag}`))
-          slot.toggleAttribute(PAGE_PAINT_ATTRIBUTE.retired, candidate === outcome);
+        for (const slot of root.children)
+          if (slot.localName === tag)
+            slot.toggleAttribute(PAGE_PAINT_ATTRIBUTE.retired, candidate === outcome);
 }
 
 // An element the user's decision took off the page, asked of an element rather
@@ -232,6 +231,13 @@ export const DATUM = "[data-lf-projection][data-lf-datum]";
 // the document, so a node inside a widget's shadow tree can only reach it by leaving the
 // tree, and a widget staged inside a reply would otherwise read as page content.
 export const inChrome = (node) => Boolean(node && closestAcross(node, ".lf-chrome"));
+// Whether the user can see a block's words, for a reading or a landing chosen among the
+// page's blocks. A box is no answer: what content-visibility hides keeps its boxes where
+// it would stand shown, both an inactive tab's panel (hidden="until-found") and a closed
+// <details>' contents, and a `visibility: hidden` block keeps its box too. Focus can land
+// on none of them.
+export const showsWords = (block) =>
+  block.checkVisibility({ visibilityProperty: true });
 // The Leaf surface a node stands in, wherever it is seated: the chrome root, or a
 // surface of the runtime's own that its owner seats inside page content — the response
 // bar in a widget's outlet, a thread a widget places beside its lines. Each such surface
@@ -295,7 +301,7 @@ export const elementOver = (n) => {
 // A widget riding a message stands inside the thread panel, so the panel is `.lf-ui`
 // over every word it says — and read straight, a question an agent asked in a reply says
 // nothing whatever. That silence did not read as one: it read as an empty slot, so the
-// group named its options by their ids in the accessibility tree, the Asks drawer named the
+// group named its options by their ids in the accessibility tree, the Asks list named the
 // question by its id, and every widget reading its own words in a message got "" and fell
 // back to something else.
 //
@@ -462,7 +468,8 @@ export const authored = (root) => {
 // A slotted node reads in its light context, which is its host's: the hosts and slots the
 // walk passed keep the context they carried, and a node assigned from anywhere else (a
 // flattened fallback, a host above the root) is asked where it stands.
-function walk(root, onText, skip = null) {
+// A visible <br> contributes a separator even though it has no text node of its own.
+function walk(root, onText, skip = null, onBreak = null) {
   const frame = frameOf(root);
   const retired = retiredSlots();
   const passed = new Map();
@@ -471,6 +478,10 @@ function walk(root, onText, skip = null) {
     return passed.get(over) ?? contextAt(over, frame, retired);
   };
   const visit = (node, ctx) => {
+    if (node.nodeType === Node.ELEMENT_NODE && node.localName === "br") {
+      onBreak?.(ctx);
+      return;
+    }
     for (let child = node.firstChild; child; child = child.nextSibling) {
       if (child.nodeType === Node.TEXT_NODE) {
         // A shadow root's own text has no element over it, which elementOver refuses.
@@ -522,12 +533,19 @@ function walk(root, onText, skip = null) {
 export function textNodesUnder(root, reading = "says", boundary = null) {
   const keeps = READINGS[reading];
   const segments = [];
+  let breakBefore = false;
   walk(
     root,
     (node, ctx) => {
-      if (keeps(ctx)) segments.push(segmentIn(node, ctx));
+      if (keeps(ctx)) {
+        segments.push({ ...segmentIn(node, ctx), breakBefore });
+        breakBefore = false;
+      }
     },
     boundary && ((child) => boundary(child, segments.length)),
+    (ctx) => {
+      if (keeps(ctx)) breakBefore = true;
+    },
   );
   return segments;
 }
@@ -632,6 +650,57 @@ export function pageRange(sel) {
   return range;
 }
 
+// Native page selections share one endpoint writer, including their provenance.
+// Native selectionchange arrives asynchronously, so its endpoints say whether it is
+// still the programmatic write or a later user adjustment (including touch handles).
+let writtenSelection = null;
+let writtenBackward = false;
+export function selectEnds(anchor, focus) {
+  const selection = getSelection();
+  const from = document.createRange(),
+    to = document.createRange();
+  from.setStart(...anchor);
+  to.setStart(...focus);
+  writtenBackward = from.compareBoundaryPoints(Range.START_TO_START, to) > 0;
+  selection.setBaseAndExtent(...anchor, ...focus);
+  writtenSelection = selectionEnds(selection);
+}
+const selectionEnds = (selection) => {
+  const range = selection.rangeCount ? pageRange(selection) : null;
+  return [
+    selection.anchorNode,
+    selection.anchorOffset,
+    selection.focusNode,
+    selection.focusOffset,
+    range?.startContainer,
+    range?.startOffset,
+    range?.endContainer,
+    range?.endOffset,
+  ];
+};
+export function programmaticSelection(selection) {
+  if (!writtenSelection) return false;
+  if (selectionEnds(selection).every((end, i) => end === writtenSelection[i]))
+    return true;
+  writtenSelection = null;
+  return false;
+}
+
+// Boundary points retain the working end even where the platform reports "none"
+// after setBaseAndExtent. A composed selection clamped in light DOM instead uses
+// the platform's direction for the range inside its declared shadow tree.
+export function selectionBackward(selection, range = pageRange(selection)) {
+  if (
+    selection.anchorNode.getRootNode() !== range.commonAncestorContainer.getRootNode()
+  )
+    return programmaticSelection(selection)
+      ? writtenBackward
+      : selection.direction === "backward";
+  const probe = document.createRange();
+  probe.setStart(selection.anchorNode, selection.anchorOffset);
+  return probe.compareBoundaryPoints(Range.START_TO_START, range) > 0;
+}
+
 // Whether a range covers a node, asked so a shadow tree answers the same as the light
 // DOM it renders in place of. `intersectsNode` compares within one tree, so every node
 // inside an x-shadow widget says no to a range drawn out in the document — and a drag
@@ -689,8 +758,9 @@ export const segmentBlock = (segment) => segment.block ?? segment.node.parentEle
 const COLLAPSIBLE = new RegExp(`^(?:${COLLAPSE.source})$`, "u");
 
 // The normalized reading and, when requested, one DOM span for each character in it.
-// A block boundary contributes the same collapsed space as authored whitespace, mapped
-// to the start of the segment after it. Text and its DOM route come from this one walk,
+// A block boundary or explicit line break contributes the same collapsed space as
+// authored whitespace, mapped to the start of the segment after it. Text and its DOM
+// route come from this one walk,
 // so a consumer that paints a reading cannot disagree with `quoteFrom` about its words.
 function readSegments(segments, mapCharacters) {
   let text = "";
@@ -713,7 +783,7 @@ function readSegments(segments, mapCharacters) {
     if (mapCharacters) units.push({ text: character, start, end });
   };
   segments.forEach((seg, i) => {
-    if (i && segmentBlock(seg) !== segmentBlock(segments[i - 1])) {
+    if (i && (seg.breakBefore || segmentBlock(seg) !== segmentBlock(segments[i - 1]))) {
       const point = { node: seg.node, offset: seg.start };
       push(" ", point, point);
     }
@@ -826,6 +896,7 @@ function spanOf(reading, lo, hi) {
         end: seg.start + b - from,
         block: seg.block,
         gen: seg.gen,
+        breakBefore: seg.breakBefore && a === from,
       });
   }
   return out;
@@ -988,9 +1059,9 @@ export function watchPassageRoot(root) {
 // taken before a widget was fenced reads its words as ordinary page prose, and a quote
 // from the paragraph above could run straight into them. The marking and the forgetting
 // are one door for that reason.
-export function fencePassageParts(root) {
+export function fencePassageParts(root, children = root.children) {
   passageFences.add(root);
-  for (const child of root.children) passageFences.add(child);
+  for (const child of children) passageFences.add(child);
   forgetReading();
 }
 // What the page says, once, as one string with a way back to the nodes it came from. Built
@@ -1049,11 +1120,20 @@ function readPage() {
   const segments = [];
   const cellChains = []; // the cell candidates over each segment, nearest first
   const keeps = READINGS.says;
-  walk(document.body, (node, ctx) => {
-    if (!keeps(ctx)) return;
-    segments.push(segmentIn(node, ctx));
-    cellChains.push(ctx.cells);
-  });
+  let breakBefore = false;
+  walk(
+    document.body,
+    (node, ctx) => {
+      if (!keeps(ctx)) return;
+      segments.push({ ...segmentIn(node, ctx), breakBefore });
+      breakBefore = false;
+      cellChains.push(ctx.cells);
+    },
+    null,
+    (ctx) => {
+      if (keeps(ctx)) breakBefore = true;
+    },
+  );
 
   // Generated page-words that the registry does not model are their own passage cells:
   // the generated element a word of the reading stands in, where it is unmodelled.
@@ -1084,7 +1164,7 @@ function readPage() {
       if (cell) fences.add(0);
     } else {
       if (cell !== previousCell && (cell || previousCell)) fences.add(length);
-      parts.push(EDGE);
+      parts.push(seg.breakBefore ? " " : EDGE);
       length += 1;
     }
     starts.push(length);

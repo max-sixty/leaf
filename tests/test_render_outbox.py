@@ -5,10 +5,11 @@ import math
 import re
 
 import pytest
-from interact_support import add_test_widget, append_command
+from interact_support import add_test_widget, append_carried_log_record, append_command
 from leaf import event_log as events_model
 from leaf import projection as projection_model
 from leaf import schema as schema_model
+from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     HOLD_MOTION,
@@ -44,17 +45,20 @@ from render_harness import (
     banner_control,
     consume_browser_errors,
     draft_control,
+    expect_asks_answered,
     expect_banner_control_offered,
     holding,
     leaf_page,
     navigate,
     nudge,
     open_page,
+    pane_posture,
     panel_settled,
     refuse,
     resized,
     root_overflow,
     round_trip,
+    scroll_settled,
     sending,
     stamp_page,
     suggestion_control,
@@ -131,7 +135,7 @@ def test_z_takes_back_the_thread_the_user_just_resolved(browser, serve):
     comment = comments[0]
     # The user has done nothing, so there is nothing to take back — a thread the
     # agent closed with `leaf thread resolve` is not theirs to reopen by pressing undo.
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "resolve", "author": "agent", "agent": "A", "parent": comments[1]},
     )
@@ -217,7 +221,7 @@ def test_z_stops_at_a_newer_gesture_it_cannot_take_back(browser, serve):
     round_trip(page)
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "reply", "author": "user", "parent": second, "text": "And this?"},
     )
@@ -265,7 +269,7 @@ def test_z_puts_a_card_back_where_the_version_had_it(browser, serve):
     log = events_model.read_events(serve.page_dir)
     (moved,) = actions(serve.page_dir)
     rank = moved["detail"].pop("rank")
-    assert moved["detail"] == {"card": "card-baffle", "to": "col-done"}
+    assert moved["detail"] == {"unit": "card-baffle", "value": "col-done"}
     assert projection_model.RANK.fullmatch(rank)
     assert [(e["kind"], e.get("undoes")) for e in log if e["kind"] == "undo"] == [
         ("undo", moved["id"])
@@ -405,20 +409,20 @@ def test_one_supplied_attempt_cannot_name_two_queued_actions(browser, serve):
           const attempt = 'one-attempt-two-actions';
           const first = controller.dispatch({
             kind: 'action', verb: 'move', attempt,
-            detail: {card: 'card-heater', to: 'col-done', rank: '0i'},
+            detail: {unit: 'card-heater', value: 'col-done', rank: '0i'},
           });
           const second = controller.dispatch({
             kind: 'action', verb: 'move', attempt,
-            detail: {card: 'card-baffle', to: 'col-done', rank: '0i'},
+            detail: {unit: 'card-baffle', value: 'col-done', rank: '0i'},
           });
           return Promise.all([first?.delivery ?? null, second?.delivery ?? null]);
         }"""
     )
     round_trip(page)
 
-    assert outcome[0]["detail"]["card"] == "card-heater"
+    assert outcome[0]["detail"]["unit"] == "card-heater"
     assert outcome[1] is None
-    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+    assert [event["detail"]["unit"] for event in actions(serve.page_dir)] == [
         "card-heater"
     ]
     assert _traffic(page).sends == 1
@@ -626,7 +630,7 @@ def test_a_failed_background_presentation_keeps_the_new_undo_authority(browser, 
                 "revision": 1,
                 "widget": "sprint",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-done", "rank": "0i"},
+                "detail": {"unit": "card-baffle", "value": "col-done", "rank": "0i"},
             },
         )
 
@@ -744,7 +748,7 @@ def test_a_newer_queued_action_survives_an_older_refusal(browser, serve):
     round_trip(page)
 
     heater, below, above = (event["detail"] for event in actions(serve.page_dir))
-    assert [(d["card"], d["to"]) for d in (heater, below, above)] == [
+    assert [(d["unit"], d["value"]) for d in (heater, below, above)] == [
         ("card-heater", "col-done"),
         ("card-baffle", "col-done"),
         ("card-baffle", "col-done"),
@@ -831,7 +835,7 @@ def test_refused_recorded_actions_restore_from_the_log_and_surviving_outbox(
     round_trip(page)
     expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
     expect(page.locator("#col-done #card-heater")).to_have_count(1)
-    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+    assert [event["detail"]["unit"] for event in actions(serve.page_dir)] == [
         "card-heater"
     ]
     consume_browser_errors(page, "400")
@@ -880,7 +884,7 @@ def test_a_refused_position_reconciles_the_logged_order_of_sibling_units(
     assert page.eval_on_selector_all(
         "#col-todo > lf-card", "cards => cards.map(card => card.id)"
     ) == ["card-baffle", "card-heater"]
-    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+    assert [event["detail"]["unit"] for event in actions(serve.page_dir)] == [
         "card-baffle"
     ]
     motions = page.evaluate(
@@ -919,7 +923,7 @@ def test_a_refused_position_restores_the_complete_sibling_order(browser, serve):
             "revision": 1,
             "widget": "sprint",
             "action": "move",
-            "detail": {"card": "card-heater", "to": "col-todo", "rank": "k"},
+            "detail": {"unit": "card-heater", "value": "col-todo", "rank": "k"},
         },
     )
     page = open_page(browser, url)
@@ -937,8 +941,8 @@ def test_a_refused_position_restores_the_complete_sibling_order(browser, serve):
         page.evaluate(
             """() => { void window.__lfRuntimeImport('/runtime/widget-api.js').then(({widgetController}) => {
               const widget = document.querySelector('#sprint');
-              const detail = {card: 'card-baffle', to: 'col-todo', rank: 's'};
-              document.getElementById(detail.to).append(document.getElementById(detail.card));
+              const detail = {unit: 'card-baffle', value: 'col-todo', rank: 's'};
+              document.getElementById(detail.value).append(document.getElementById(detail.unit));
               widgetController(widget).dispatch({kind: 'action', verb: 'move', detail});
             }); }"""
         )
@@ -966,7 +970,7 @@ def test_a_refused_position_restores_the_complete_sibling_order(browser, serve):
         "card-third",
         "card-heater",
     ]
-    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+    assert [event["detail"]["unit"] for event in actions(serve.page_dir)] == [
         "card-heater"
     ]
     consume_browser_errors(page, "400")
@@ -992,22 +996,10 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
     )
     outer["x-state"] = {
         "move": {
-            "detail": {
-                "type": "object",
-                "properties": {
-                    "card": {"type": "string"},
-                    "to": {"type": "string"},
-                    "rank": {"type": "string"},
-                },
-                "required": ["card", "to", "rank"],
-                "additionalProperties": False,
-            },
-            "unit": "card",
+            "unit": "unit",
             "record": {
                 "kind": "position",
                 "within": "lf-column",
-                "value": "to",
-                "rank": "rank",
             },
         }
     }
@@ -1052,8 +1044,8 @@ customElements.define("lf-outer-board", class extends HTMLElement {
         page.evaluate(
             """() => { void window.__lfRuntimeImport('/runtime/widget-api.js').then(({widgetController}) => {
               const widget = document.querySelector('#outer');
-              const detail = {card: 'outer-card', to: 'outer-done', rank: '0i'};
-              document.getElementById(detail.to).append(document.getElementById(detail.card));
+              const detail = {unit: 'outer-card', value: 'outer-done', rank: '0i'};
+              document.getElementById(detail.value).append(document.getElementById(detail.unit));
               widgetController(widget).dispatch({kind: 'action', verb: 'move', detail});
             }); }"""
         )
@@ -1061,8 +1053,8 @@ customElements.define("lf-outer-board", class extends HTMLElement {
     page.evaluate(
         """() => { void window.__lfRuntimeImport('/runtime/widget-api.js').then(({widgetController}) => {
           const widget = document.querySelector('#inner');
-          const detail = {card: 'inner-card', to: 'inner-done', rank: '0i'};
-          document.getElementById(detail.to).append(document.getElementById(detail.card));
+          const detail = {unit: 'inner-card', value: 'inner-done', rank: '0i'};
+          document.getElementById(detail.value).append(document.getElementById(detail.unit));
           widgetController(widget).dispatch({kind: 'action', verb: 'move', detail});
         }); }"""
     )
@@ -1093,7 +1085,7 @@ customElements.define("lf-outer-board", class extends HTMLElement {
 
     expect(page.locator("#inner-done #inner-card")).to_have_count(1)
     assert [
-        (event["widget"], event["detail"]["card"]) for event in actions(serve.page_dir)
+        (event["widget"], event["detail"]["unit"]) for event in actions(serve.page_dir)
     ] == [("inner", "inner-card")]
     consume_browser_errors(page, "400")
 
@@ -1153,7 +1145,7 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
                 "revision": 1,
                 "widget": "sprint",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-done", "rank": "0i"},
+                "detail": {"unit": "card-baffle", "value": "col-done", "rank": "0i"},
             },
         )
 
@@ -1201,7 +1193,7 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
     assert page.eval_on_selector_all(
         "#col-done > lf-card", "cards => cards.map(card => card.id)"
     ) == ["card-baffle", "card-heater"]
-    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+    assert [event["detail"]["unit"] for event in actions(serve.page_dir)] == [
         "card-heater",
         "card-baffle",
     ]
@@ -1242,7 +1234,7 @@ def test_accounting_an_action_projects_newer_same_widget_news_before_release(
             "revision": 1,
             "widget": "sprint",
             "action": "move",
-            "detail": {"card": "card-baffle", "to": "col-done", "rank": "0i"},
+            "detail": {"unit": "card-baffle", "value": "col-done", "rank": "0i"},
         },
     )
     cut.restore()
@@ -1261,7 +1253,7 @@ def test_accounting_an_action_projects_newer_same_widget_news_before_release(
         "#col-done > lf-card", "cards => cards.map(card => card.id)"
     ) == ["card-baffle", "card-heater"]
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
-    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+    assert [event["detail"]["unit"] for event in actions(serve.page_dir)] == [
         "card-heater",
         "card-baffle",
     ]
@@ -1293,7 +1285,7 @@ def test_accounting_an_action_also_applies_the_undo_that_arrived_with_it(
         for event in accepted_answer.json()["state"]["events"]
         if event.get("attempt") == attempt
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "undo", "author": "user", "undoes": accepted["id"]},
     )
@@ -1338,7 +1330,7 @@ def test_a_first_complete_read_restores_its_own_already_undone_action(browser, s
         for event in accepted_answer.json()["state"]["events"]
         if event.get("attempt") == attempt
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "undo", "author": "user", "undoes": accepted["id"]},
     )
@@ -1381,7 +1373,7 @@ def test_a_first_complete_read_does_not_repaint_an_already_undone_settlement(
         for event in accepted_answer.json()["state"]["events"]
         if event.get("attempt") == attempt
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "undo", "author": "user", "undoes": accepted["id"]},
     )
@@ -1480,11 +1472,68 @@ def test_a_server_that_cannot_take_a_gesture_yet_says_so_and_keeps_it(browser, s
     starting["rollout"] = False
     round_trip(page)
     page.unroute("**/api/event")
-    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+    assert [event["detail"]["unit"] for event in actions(serve.page_dir)] == [
         "card-baffle"
     ]
     expect(page.locator("#col-done #card-baffle")).to_have_count(1)
     consume_browser_errors(page, "503")
+
+
+def test_a_tab_whose_key_is_refused_keeps_its_moves_and_names_the_link(browser, serve):
+    """A refused key judges nothing the user did, so it cannot cost them anything.
+
+    A server restarted onto a different key cookie refused every request from a tab
+    left open, and the tab folded each refused send as the server's verdict on it: the
+    comment came out of its thread and the pick unticked, under a banner that said the
+    server was offline and reconnecting when it was up and never would. The tab here
+    loses its key the way that one did, from its cookie jar, and opening the printed
+    link in another tab is the recourse the banner names, so the moves it held go out
+    without the user doing them again."""
+    url = serve(INLINE_PAGE)
+    context = browser.new_context(viewport={"width": 1200, "height": 900})
+    page = open_page(browser, url, context=context)
+    context.clear_cookies()
+
+    def refused(response):
+        return "/api/event" in response.url and response.status == 401
+
+    pick = page.locator("#opt-a .lf-pick")
+    with page.expect_response(refused):
+        pick.click()
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    field = page.locator(".lf-general leaf-text")
+    write(field, "Words the server never read")
+    field.press("ControlOrMeta+Enter")
+    # Retried rather than dropped: the same send goes out again on the outbox's clock.
+    with page.expect_response(refused):
+        pass
+    expect(page.locator(".lf-status-text")).to_have_text(
+        "Key refused — open Leaf's link in a new tab"
+    )
+    expect(page.locator(".lf-notice")).to_contain_text("open Leaf's link in a new tab")
+    expect(page.locator(".lf-status-detail")).to_contain_text(
+        "Open the link Leaf printed in a new tab"
+    )
+    expect(page.locator(".lf-thread")).to_contain_text("Words the server never read")
+    expect(pick).to_have_attribute("aria-checked", "true")
+    assert len(_traffic(page).pending) == 2
+    assert [
+        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "comment"
+    ] == []
+
+    open_page(browser, url, context=context)
+    round_trip(page)
+    logged = events_model.read_events(serve.page_dir)
+    assert [e["text"] for e in logged if e["kind"] == "comment"] == [
+        "Words the server never read"
+    ]
+    assert [e["detail"] for e in logged if e["kind"] == "action"] == [
+        {"value": ["opt-a"]}
+    ]
+    expect(pick).to_have_attribute("aria-checked", "true")
+    expect(page.locator(".lf-status-text")).not_to_contain_text("Key refused")
+    consume_browser_errors(page, "401")
 
 
 def test_poll_proven_acceptance_advances_past_a_hung_post_response(browser, serve):
@@ -1530,7 +1579,7 @@ def test_poll_proven_acceptance_advances_past_a_hung_post_response(browser, serv
         held[1].continue_()
     page.unroute("**/api/event")
 
-    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+    assert [event["detail"]["unit"] for event in actions(serve.page_dir)] == [
         "card-baffle",
         "card-heater",
     ]
@@ -1615,14 +1664,14 @@ def test_a_lost_accepted_response_keeps_later_gestures_in_order(browser, serve):
     round_trip(page)
 
     assert accepted == [200]
-    assert [request["detail"]["card"] for request in requests] == [
+    assert [request["detail"]["unit"] for request in requests] == [
         "card-baffle",
         "card-baffle",
         "card-heater",
     ]
     assert requests[0]["attempt"] == requests[1]["attempt"]
     assert requests[2]["attempt"] != first_attempt
-    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+    assert [event["detail"]["unit"] for event in actions(serve.page_dir)] == [
         "card-baffle",
         "card-heater",
     ]
@@ -1646,7 +1695,7 @@ def test_a_refused_draft_keeps_newer_authoritative_words_under_its_editor(
     draft = page.locator("#note-cli")
     with page.expect_request("**/api/event"):
         draft_control(page, "edit", "note-cli").click()
-        draft.locator("textarea").fill("Local C")
+        write(draft.locator("leaf-text"), "Local C")
         page.keyboard.press("Meta+Enter")
     holding(page, held, 1, "the refused draft")
     expect(draft.locator(".lf-draft-body")).to_have_text("Local C")
@@ -1659,7 +1708,7 @@ def test_a_refused_draft_keeps_newer_authoritative_words_under_its_editor(
             "revision": 1,
             "widget": "note-cli",
             "action": "edit",
-            "detail": {"text": "Remote B"},
+            "detail": {"value": "Remote B"},
         },
     )
     told(page)
@@ -1679,12 +1728,12 @@ def test_a_refused_draft_keeps_newer_authoritative_words_under_its_editor(
         )
     round_trip(page)
 
-    expect(draft.locator("textarea")).to_have_value("Local C")
+    expect(draft.locator("leaf-text")).to_have_js_property("value", "Local C")
     expect(draft.locator(".lf-draft-body")).to_have_text("Remote B")
     page.keyboard.press("Escape")
-    expect(draft.locator("textarea")).to_have_count(0)
+    expect(draft.locator("leaf-text")).to_have_count(0)
     expect(draft.locator(".lf-draft-body")).to_have_text("Remote B")
-    assert [event["detail"]["text"] for event in actions(serve.page_dir)] == [
+    assert [event["detail"]["value"] for event in actions(serve.page_dir)] == [
         "Remote B"
     ]
     consume_browser_errors(page, "400")
@@ -1703,7 +1752,7 @@ def test_a_draft_commit_stages_before_deferred_projection_retries(browser, serve
     page.route("**/api/event", lambda route: held.append(route))
     draft = page.locator("#note-cli")
     draft_control(page, "edit", "note-cli").click()
-    draft.locator("textarea").fill("Local C")
+    write(draft.locator("leaf-text"), "Local C")
 
     append_command(
         serve.page_dir,
@@ -1713,11 +1762,11 @@ def test_a_draft_commit_stages_before_deferred_projection_retries(browser, serve
             "revision": 1,
             "widget": "note-cli",
             "action": "edit",
-            "detail": {"text": "Remote B"},
+            "detail": {"value": "Remote B"},
         },
     )
     told(page)
-    expect(draft.locator("textarea")).to_have_value("Local C")
+    expect(draft.locator("leaf-text")).to_have_js_property("value", "Local C")
 
     page.keyboard.press("Meta+Enter")
     holding(page, held, 1, "the draft commit")
@@ -1727,7 +1776,7 @@ def test_a_draft_commit_stages_before_deferred_projection_retries(browser, serve
     held[0].continue_()
     round_trip(page)
     expect(draft.locator(".lf-draft-body")).to_have_text("Local C")
-    assert [event["detail"]["text"] for event in actions(serve.page_dir)] == [
+    assert [event["detail"]["value"] for event in actions(serve.page_dir)] == [
         "Remote B",
         "Local C",
     ]
@@ -1745,7 +1794,7 @@ def test_z_walks_back_through_gestures_rather_than_toggling_one(browser, serve):
     assert "\n\n" in authored
 
     draft_control(page, "edit", "note-cli").click()
-    page.locator("lf-draft textarea").fill("Rewritten.")
+    write(page.locator("lf-draft leaf-text"), "Rewritten.")
     page.keyboard.press("Meta+Enter")
     round_trip(page)
     expect(body).to_have_text("Rewritten.")
@@ -1767,8 +1816,8 @@ def test_z_walks_back_through_gestures_rather_than_toggling_one(browser, serve):
     log = events_model.read_events(serve.page_dir)
     edit, choose = actions(serve.page_dir)
     assert [(e["action"], e["detail"]) for e in (edit, choose)] == [
-        ("edit", {"text": "Rewritten."}),
-        ("choose", {"options": ["opt-a"]}),
+        ("edit", {"value": "Rewritten."}),
+        ("choose", {"value": ["opt-a"]}),
     ]
     assert [e["undoes"] for e in log if e["kind"] == "undo"] == [
         choose["id"],
@@ -1808,12 +1857,12 @@ def test_z_returns_a_recordless_decision_to_undecided(browser, serve):
     old = page.locator("#sug-refill lf-old")
     accept = suggestion_control(page, "sug-refill", "accept")
     expect(old).to_be_visible()
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/3")
+    expect_asks_answered(page, "0/3")
 
     accept.click()
     round_trip(page)
     expect(old).to_be_hidden()
-    expect(page.locator(".lf-asks")).to_have_text("Asks 1/3")
+    expect_asks_answered(page, "1/3")
 
     undo(page)
     # Pending again, in every reading of it: the retired half is back on the page,
@@ -1823,7 +1872,7 @@ def test_z_returns_a_recordless_decision_to_undecided(browser, serve):
     expect(suggestion_control(page, "sug-refill", "accept")).to_have_attribute(
         "aria-label", re.compile(r"^Accept the suggested change")
     )
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/3")
+    expect_asks_answered(page, "0/3")
     assert suggestion_control(page, "sug-refill", "accept").count() == 1, (
         "undo left more than one Accept record for the same suggestion"
     )
@@ -1840,7 +1889,7 @@ def test_undo_preserves_the_place_and_restores_passage_marks(browser, serve):
     """Undo restores a suggestion's passages and their anchored comment marks, and returns focus to the available decision control."""
     url = serve(SUGGESTION_PAGE)
     page = open_page(browser, url)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1917,14 +1966,14 @@ def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve)
     authored = one.locator(body).inner_text()
 
     draft_control(one, "edit", "note-cli").click()
-    one.locator("lf-draft textarea").fill("Rewritten.")
+    write(one.locator("lf-draft leaf-text"), "Rewritten.")
     one.keyboard.press("Meta+Enter")
     round_trip(one)
     expect(two.locator(body)).to_have_text("Rewritten.")
 
     # The second tab is now holding words of its own, so the log may not write over it.
     draft_control(two, "edit", "note-cli").click()
-    expect(two.locator("lf-draft textarea")).to_be_focused()
+    expect(two.locator("lf-draft leaf-text")).to_be_focused()
     undo(one)
     expect(one.locator(body)).to_have_text(authored)
     expect(one.locator("lf-draft .lf-draft-history > summary")).to_have_text(
@@ -1939,7 +1988,7 @@ def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve)
 
     # Let go, and the withdrawal it could not take yet lands from the editor's close.
     two.keyboard.press("Escape")
-    expect(two.locator("lf-draft textarea")).to_have_count(0)
+    expect(two.locator("lf-draft leaf-text")).to_have_count(0)
     assert two.locator(body).inner_text() == authored
     expect(two.locator("lf-draft .lf-draft-history > summary")).to_have_text(
         "Changes · 1 edit"
@@ -2098,7 +2147,7 @@ def test_a_second_tab_takes_the_decision_back_too(browser, serve):
 
     undo(one)
     expect(two.locator("#sug-refill lf-old")).to_be_visible()
-    expect(two.locator(".lf-asks")).to_have_text("Asks 0/3")
+    expect_asks_answered(two, "0/3")
     # Everything the change had when it was pending, including what the theme paints
     # from ranges the module registers — a rebuild that dropped those would leave a
     # proposal on the page with nothing marking what it changes.
@@ -2155,7 +2204,7 @@ def test_a_withdrawn_decision_is_still_withdrawn_after_a_reload(browser, serve):
 
     again = open_page(browser, url)
     expect(again.locator("#sug-refill lf-old")).to_be_visible()
-    expect(again.locator(".lf-asks")).to_have_text("Asks 0/3")
+    expect_asks_answered(again, "0/3")
 
 
 def test_the_composer_never_stands_on_its_own_mark(browser, serve):
@@ -2190,7 +2239,7 @@ def test_the_composer_never_stands_on_its_own_mark(browser, serve):
 
     page.reload()
     page.wait_for_function(
-        "() => document.querySelector('.lf-composer').style.display === 'contents'"
+        "() => document.querySelector('.lf-composer')?.style.display === 'contents'"
     )
     page.wait_for_function("() => (CSS.highlights.get('lf-pending')?.size ?? 0) > 0")
     assert mark_shows_beside_composer(page), (
@@ -2202,11 +2251,8 @@ def test_the_composer_never_stands_on_its_own_mark(browser, serve):
     )
 
 
-def test_the_comment_field_scrolls_with_the_passage_it_is_about(browser, serve):
-    """Floating UI's scroll observer keeps the field attached to its passage, and the
-    viewport holds the field in only while the passage is there: once the passage has
-    scrolled away the field goes with it, rather than staying pinned under the banner over
-    whatever the user scrolled to."""
+def test_the_comment_field_follows_its_passage_out_of_view(browser, serve):
+    """The same native field follows its passage, including beyond the window."""
     page = open_page(browser, serve(LONG_PAGE))
     page.locator("#p30").scroll_into_view_if_needed()
     page.locator("#p30").click(click_count=3)
@@ -2218,7 +2264,7 @@ def test_the_comment_field_scrolls_with_the_passage_it_is_about(browser, serve):
         const composer = document.querySelector('.lf-fab-bar');
         const passage = document.getElementById('p30');
         const before = { composer: top(composer), passage: top(passage) };
-        document.scrollingElement.scrollTop += 240;
+        document.scrollingElement.scrollTop += 80;
         return before;
     }""")
     page.wait_for_function(
@@ -2231,11 +2277,115 @@ def test_the_comment_field_scrolls_with_the_passage_it_is_about(browser, serve):
         arg=before,
     )
     page.evaluate("document.scrollingElement.scrollTop += 2 * innerHeight")
-    page.wait_for_function("""() => {
-      const passage = document.getElementById('p30').getBoundingClientRect();
-      const composer = document.querySelector('.lf-fab-bar').getBoundingClientRect();
-      return passage.bottom < 0 && composer.bottom < 0;
-    }""")
+    page.wait_for_function(
+        "() => document.getElementById('p30').getBoundingClientRect().bottom < 0"
+    )
+    rendered(page)
+    expect(page.locator(".lf-fab-bar")).to_have_attribute("data-lf-plane", "page")
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+
+
+PANED_LONG_PAGE = leaf_page(
+    "paned long",
+    """<header><h1 id="t">Paned</h1></header>
+<lf-pane id="reading" label="Reading"><div id="reading-body">{paras}</div></lf-pane>
+""".format(
+        paras="\n".join(
+            f"<p id='p{i}'>Paragraph {i}. " + "Filler. " * 20 + "</p>"
+            for i in range(60)
+        )
+    ),
+    layout="workspace",
+)
+
+
+@pytest.mark.parametrize("scroller", ["page", "pane"])
+@pytest.mark.parametrize("target", ["passage", "item"])
+def test_a_comment_field_scrolled_away_and_back_is_still_there(
+    browser, serve, target, scroller
+):
+    """Scrolling away from a comment and back returns to the field as the user left
+    it: standing beside its target, with their words and their caret in it. Geometry
+    says where the field stands, never whether: an item's field used to read "the
+    target is off screen" as "the target is gone" and put the field away, words and
+    all, the moment its item left the window. The field now follows out of view
+    without retiring its draft; on return it stands beside the target."""
+    page = open_page(
+        browser, serve(LONG_PAGE if scroller == "page" else PANED_LONG_PAGE)
+    )
+    resized(page, 1440, 900)
+    if scroller == "pane":
+        pane_posture(page, page.locator("#reading"), "bounded")
+    paragraph = page.locator("#p30")
+    paragraph.scroll_into_view_if_needed()
+    if target == "passage":
+        paragraph.click(click_count=3)
+        page.locator(".lf-fab-input").click()
+    else:
+        paragraph.click(modifiers=["Alt"])
+    field = page.locator(".lf-fab-input")
+    write(field, "Half a thought")
+    expect(field).to_be_focused()
+    box = page.locator(".lf-fab-bar")
+    at = box.bounding_box()["y"]
+    away = (
+        "document.scrollingElement"
+        if scroller == "page"
+        else "document.getElementById('reading-body')"
+    )
+    start = page.evaluate(f"{away}.scrollTop")
+    page.evaluate(f"{away}.scrollBy({{top: 2000, behavior: 'instant'}})")
+    page.wait_for_function(
+        "() => document.getElementById('p30').getBoundingClientRect().bottom < 0"
+    )
+    scroll_settled(page)
+    rendered(page)
+    expect(box).to_be_visible()
+    expect(box).to_have_attribute("data-lf-plane", "page")
+    away_box = box.bounding_box()
+    assert away_box["y"] + away_box["height"] < 0, away_box
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", "Half a thought")
+    page.evaluate(f"{away}.scrollTo({{top: {start}, behavior: 'instant'}})")
+    scroll_settled(page)
+    rendered(page)
+    expect(box).to_be_visible()
+    expect(field).to_have_js_property("value", "Half a thought")
+    expect(field).to_be_focused()
+    assert box.bounding_box()["y"] == pytest.approx(at, abs=1), (
+        "the field came back somewhere other than where it stood"
+    )
+    page.keyboard.type(" more")
+    expect(field).to_have_js_property("value", "Half a thought more")
+
+
+def test_a_comment_field_follows_when_its_pane_scrolls_past_the_target(browser, serve):
+    """A bounded pane carries the field away while retaining its draft and caret."""
+    page = open_page(browser, serve(PANED_LONG_PAGE))
+    resized(page, 1440, 900)
+    pane_posture(page, page.locator("#reading"), "bounded")
+    paragraph = page.locator("#p30")
+    paragraph.scroll_into_view_if_needed()
+    paragraph.click(modifiers=["Alt"])
+    field = page.locator(".lf-fab-input")
+    write(field, "Half a thought")
+    box = page.locator(".lf-fab-bar")
+    width = box.bounding_box()["width"]
+    page.evaluate(
+        "document.getElementById('reading-body')"
+        ".scrollBy({top: 2000, behavior: 'instant'})"
+    )
+    scroll_settled(page, "#reading-body")
+    rendered(page)
+    expect(box).to_be_visible()
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", "Half a thought")
+    expect(box).to_have_attribute("data-lf-plane", "page")
+    away_box = box.bounding_box()
+    assert away_box["y"] + away_box["height"] < 0, away_box
+    assert box.bounding_box()["width"] == pytest.approx(width, abs=1)
+    page.keyboard.type(" more")
+    expect(field).to_have_js_property("value", "Half a thought more")
 
 
 def test_the_comment_field_stands_in_the_margin_beside_the_passage(browser, serve):
@@ -2380,7 +2530,7 @@ def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, se
             "revision": 1,
             "widget": "sprint",
             "action": "move",
-            "detail": {"card": "card-heater", "to": "col-done", "rank": "0i"},
+            "detail": {"unit": "card-heater", "value": "col-done", "rank": "0i"},
         },
     )
     page = open_page(browser, url)
@@ -2436,7 +2586,7 @@ def test_pending_gestures_survive_an_accepted_view_waiting_for_a_thread_widget(
     page.route("**/api/state*", refuse)
     preparations = []
     page.route("**/preparation-content", lambda route: preparations.append(route))
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2446,7 +2596,7 @@ def test_pending_gestures_survive_an_accepted_view_waiting_for_a_thread_widget(
             "text": "Please add the supporting detail.",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -2551,7 +2701,7 @@ def test_a_failed_candidate_presentation_keeps_version_approval(browser, serve):
     preparations = []
     page.route("**/preparation-content", lambda route: preparations.append(route))
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2561,7 +2711,7 @@ def test_a_failed_candidate_presentation_keeps_version_approval(browser, serve):
             "text": "Please add the supporting detail.",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -2572,7 +2722,7 @@ def test_a_failed_candidate_presentation_keeps_version_approval(browser, serve):
             "markup": '<lf-preparation id="approval-detail"><p>Detail</p></lf-preparation>',
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "done",
@@ -2643,7 +2793,7 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
         route.continue_()
 
     page.route("**/api/event", record_post)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2653,7 +2803,7 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
             "text": "Please add the supporting detail.",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -2759,7 +2909,6 @@ def test_an_optimistic_presentation_fault_does_not_change_delivery_result(
             and request.post_data_json.get("kind") == "action"
             and request.post_data_json.get("widget") == "sug-refill"
         ),
-        timeout=2_000,
     ):
         suggestion_control(page, "sug-refill", "accept").click()
     round_trip(page)
@@ -2822,7 +2971,7 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
     page.route("**/api/state*", lambda route: held_states.append(route))
     preparations = []
     page.route("**/preparation-content", lambda route: preparations.append(route))
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2832,7 +2981,7 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
             "text": "Please show the deferred projection race.",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -2884,7 +3033,6 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
     expect(page.locator("body")).to_have_attribute("data-lf-reading", accepted_reading)
     page.wait_for_function(
         "async () => !(await window.__lfRuntimeImport('/runtime/application.js')).hasPending()",
-        timeout=1_000,
     )
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
     # The user's comment after the accept is their newest gesture, and a comment is not

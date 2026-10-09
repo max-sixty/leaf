@@ -2,20 +2,68 @@
 
 import re
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import click
+import jmespath
+from jmespath.exceptions import JMESPathError
 from referencing.exceptions import Unresolvable
 
 from .files import list_revisions
-from .registry.contract import aware_instant, json_validator
+from .registry.schema import (
+    aware_instant,
+    json_validator,
+    json_value,
+    schema_error_message,
+)
 from .revision_artifact import read_revision
-from .schema import DATA_SOURCE_NAME
+from .schema import DATA_SOURCE_NAME, DIR_FILES, MEDIA_DIR
 from .structure import SourceDocument
 from .thread_context import logged_fragment
 
 
 class DataError(click.ClickException):
     """A malformed data store or payload at the page data boundary."""
+
+
+def resource_urls(value, declaration: dict) -> set[str]:
+    """Declared media references in a validated value, selected by JMESPath.
+
+    Expressions return a URL string, an array of URL strings, or null for an
+    absent optional field. Ordinary strings elsewhere in the value remain data.
+    Local references use the canonical page media namespace; remote references
+    stay remote and are never fetched by snapshot or export.
+    """
+    urls = set()
+    for expression in declaration.get("resources", []):
+        try:
+            selected = jmespath.search(expression, value)
+        except JMESPathError as error:
+            raise DataError(f"resource expression {expression!r}: {error}") from error
+        if selected is None:
+            continue
+        selected = [selected] if isinstance(selected, str) else selected
+        if not isinstance(selected, list) or any(
+            not isinstance(url, str) for url in selected
+        ):
+            raise DataError(
+                f"resource expression {expression!r} must select URL strings"
+            )
+        for url in selected:
+            try:
+                remote = urlsplit(url)
+                is_remote = remote.scheme in {"http", "https"} and bool(remote.netloc)
+            except ValueError:
+                is_remote = False
+            if not re.fullmatch(rf"/{MEDIA_DIR}/{DIR_FILES[MEDIA_DIR]}", url) and not (
+                is_remote and not any(char.isspace() for char in url)
+            ):
+                raise DataError(
+                    f"resource expression {expression!r}: {url!r} must be a "
+                    "canonical /media/ URL or an HTTP(S) URL"
+                )
+            urls.add(url)
+    return urls
 
 
 def data_bindings(lf_elements: list, registry: dict):
@@ -57,160 +105,59 @@ def declared_data_bindings(
     return bindings, seats, errors
 
 
-def merge_data_bindings(
-    documents: list[tuple[list, str]], registry: dict
-) -> tuple[dict, list[str]]:
-    """Fold document bindings into one page-lifetime identity map."""
-    bindings = {}
-    seats = {}
-    errors = []
-    for lf_elements, document in documents:
-        found, found_seats, found_errors = declared_data_bindings(
-            lf_elements, registry, document
-        )
-        errors.extend(found_errors)
-        for source, contract in found.items():
-            if source in bindings and bindings[source] != contract:
-                errors.append(
-                    f"source {source!r} is bound to both contract "
-                    f"{bindings[source]!r} at {seats[source]} and contract "
-                    f"{contract!r} at {found_seats[source]}; use a new source id for "
-                    "the new meaning"
-                )
-                continue
-            bindings[source] = contract
-            seats[source] = found_seats[source]
-    return bindings, errors
-
-
-def _contract_semantics(registry: dict, contract: str) -> tuple[dict, dict | None]:
-    """The validation and record meaning of one contract.
-
-    Descriptions and agent guidance may improve without changing what a source value
-    means to a pinned document. JSON Schema and the record declaration may not: an
-    old document keeps consuming the page's replaceable current value through the
-    registry captured with that document.
-    """
-    declaration = registry["$data"]["contracts"][contract]
-    return declaration["schema"], declaration.get("records")
-
-
 def merge_data_document_readings(
     documents: list[tuple[list, str, dict]],
 ) -> tuple[dict, list[str]]:
-    """Fold exact document registries into one page-lifetime source contract."""
+    """Read each document independently; later documents own current bindings.
+
+    Conflicting contracts inside one document are ambiguous input. A later version,
+    thread, or candidate may freely replace an earlier source binding. Captured
+    registries remain attached to their historical documents, never reinterpreted
+    through an incoming layer.
+    """
     bindings = {}
-    semantics = {}
-    seats = {}
     errors = []
     for lf_elements, document, registry in documents:
-        found, found_seats, found_errors = declared_data_bindings(
+        found, _seats, found_errors = declared_data_bindings(
             lf_elements, registry, document
         )
         errors.extend(found_errors)
-        for source, contract in found.items():
-            seat = found_seats[source]
-            meaning = _contract_semantics(registry, contract)
-            if source in bindings and bindings[source] != contract:
-                errors.append(
-                    f"source {source!r} is bound to both contract "
-                    f"{bindings[source]!r} at {seats[source]} and contract "
-                    f"{contract!r} at {seat}; use a new source id for the new meaning"
-                )
-                continue
-            if source in semantics and semantics[source] != meaning:
-                errors.append(
-                    f"source {source!r} keeps contract {contract!r}, but its schema "
-                    f"or record declaration changes between {seats[source]} and "
-                    f"{seat}; use a new source id for the new meaning"
-                )
-                continue
-            bindings[source] = contract
-            semantics[source] = meaning
-            seats[source] = seat
+        bindings.update(found)
     return bindings, errors
 
 
-def page_data_documents(
-    page_dir: Path,
-    events: list,
-) -> list[tuple[list, str]]:
-    """The immutable page and thread documents that can consume external data."""
-    documents = []
-    for revision in list_revisions(page_dir):
-        documents.append(
-            (
-                read_revision(page_dir, revision).document.lf_elements,
-                f"revision r{revision}",
-            )
-        )
-    for event in events:
-        if event.get("markup"):
-            documents.append(
-                (
-                    logged_fragment(event).lf_elements,
-                    f"event {event['id']!r} markup",
-                )
-            )
-    return documents
-
-
 def page_data_document_readings(
-    page_dir: Path,
-    events: list,
+    page_dir: Path, events: list, registry: dict
 ) -> list[tuple[list, str, dict]]:
-    """Immutable data-consuming documents with their captured registries."""
-    revisions = list_revisions(page_dir)
-    registries = {
-        revision: read_revision(page_dir, revision).registry for revision in revisions
-    }
-    documents = [
-        (
-            read_revision(page_dir, revision).document.lf_elements,
-            f"revision r{revision}",
-            registries[revision],
+    """Read each historical data consumer with its captured registry.
+
+    Thread markup uses its admitted revision's registry; seeded markup on a page
+    without revisions uses the initial registry. These readings permit historical
+    producers and inventories without restricting later documents' bindings.
+    """
+    documents = []
+    registries = {}
+    for revision in list_revisions(page_dir):
+        reading = read_revision(page_dir, revision)
+        registries[revision] = reading.registry
+        documents.append(
+            (reading.document.lf_elements, f"revision r{revision}", reading.registry)
         )
-        for revision in revisions
-    ]
+    active_document = documents.pop() if documents else None
     for event in events:
         if event.get("markup"):
-            revision = event.get("revision") or max(registries)
+            revision = event.get("revision") or max(registries, default=None)
             documents.append(
                 (
                     logged_fragment(event).lf_elements,
                     f"event {event['id']!r} markup",
-                    registries[revision],
+                    registries[revision] if registries else registry,
                 )
             )
+    # The active document owns current bindings ahead of older thread markup.
+    if active_document is not None:
+        documents.append(active_document)
     return documents
-
-
-def data_contract_transition_errors(
-    page_dir: Path, events: list, incoming: dict
-) -> list[str]:
-    """Historical source meanings an incoming registry would silently redefine."""
-    errors = []
-    seen = set()
-    for lf_elements, document, registry in page_data_document_readings(
-        page_dir, events
-    ):
-        bindings, seats, _ = declared_data_bindings(lf_elements, registry, document)
-        for source, contract in bindings.items():
-            key = source, contract
-            if key in seen:
-                continue
-            seen.add(key)
-            declaration = incoming.get("$data", {}).get("contracts", {}).get(contract)
-            if declaration is None:
-                continue  # the binding-loss reading names this more directly
-            if _contract_semantics(incoming, contract) != _contract_semantics(
-                registry, contract
-            ):
-                errors.append(
-                    f"source {source!r} contract {contract!r} changes its schema or "
-                    f"record declaration from {seats[source]}"
-                )
-    return errors
 
 
 def working_data_document_readings(
@@ -222,11 +169,7 @@ def working_data_document_readings(
     incoming: list[tuple[list, str]] | None = None,
 ) -> list[tuple[list, str, dict]]:
     """Immutable readings plus candidate documents under the candidate registry."""
-    documents = (
-        page_data_document_readings(page_dir, events)
-        if list_revisions(page_dir)
-        else initial_data_document_readings([], events, registry)
-    )
+    documents = page_data_document_readings(page_dir, events, registry)
     if authored is None:
         source = page_dir / "index.html"
         if source.exists():
@@ -259,7 +202,7 @@ def working_data_bindings(
     registry: dict,
     events: list,
 ) -> tuple[dict, list[str]]:
-    """Source contracts across immutable documents and the current source."""
+    """Latest source bindings, with the current authored document taking precedence."""
     return merge_data_document_readings(
         working_data_document_readings(page_dir, registry, events),
     )
@@ -270,23 +213,27 @@ def page_data_binding_inventory(
     registry: dict,
     events: list,
 ) -> dict:
-    """Page-lifetime bindings in the form a producer needs from `page state`."""
-    documents = page_data_document_readings(page_dir, events)
+    """Current producer bindings and their matching document consumers.
+
+    A later binding replaces an earlier contract for the same source. Consumers of
+    that former contract keep their captured registry and may receive a missing or
+    invalid current value; they do not constrain the producer's next write.
+    """
+    documents = page_data_document_readings(page_dir, events, registry)
     bindings, errors = merge_data_document_readings(documents)
     if errors:
-        raise DataError(
-            "the page history has conflicting data bindings: " + "; ".join(errors)
-        )
-    inventory = {}
+        raise DataError("conflicting data bindings: " + "; ".join(errors))
+    inventory = {
+        source: {"contract": contract, "consumers": []}
+        for source, contract in bindings.items()
+    }
     for lf_elements, document, document_registry in documents:
         for source, binding in data_binding_inventory(
             lf_elements, document_registry
         ).items():
-            standing = inventory.setdefault(
-                source,
-                {"contract": bindings[source], "consumers": []},
-            )
-            standing["consumers"].extend(
+            if binding["contract"] != bindings[source]:
+                continue
+            inventory[source]["consumers"].extend(
                 {**consumer, "document": document} for consumer in binding["consumers"]
             )
     return {source: inventory[source] for source in sorted(inventory)}
@@ -362,13 +309,12 @@ def measurement_lag(lf_elements: list, registry: dict, stored: dict) -> list[str
 def data_binding_errors(
     page_dir: Path,
     registry: dict,
-    contracts: dict[str, str],
     events: list,
     *,
     authored: list | None = None,
     incoming: list[tuple[list, str]] | None = None,
 ) -> list[str]:
-    """Working-document conflicts and recorded contracts that contradict them."""
+    """Conflicting simultaneous bindings inside the working documents."""
     documents = working_data_document_readings(
         page_dir,
         registry,
@@ -376,22 +322,12 @@ def data_binding_errors(
         authored=authored,
         incoming=incoming,
     )
-    return data_document_errors(documents, contracts)
+    return data_document_errors(documents)
 
 
-def data_document_errors(
-    documents: list[tuple[list, str, dict]], contracts: dict[str, str]
-) -> list[str]:
-    """Bindings that conflict with each other or with the contract a source id
-    was recorded with."""
-    bindings, errors = merge_data_document_readings(documents)
-    for source, contract in bindings.items():
-        recorded = contracts.get(source)
-        if recorded is not None and recorded != contract:
-            errors.append(
-                f"source {source!r} is bound to contract {contract!r}, but it was "
-                f"recorded with {recorded!r}; use a new source id for the new meaning"
-            )
+def data_document_errors(documents: list[tuple[list, str, dict]]) -> list[str]:
+    """Ambiguous simultaneous bindings within each authored document."""
+    _bindings, errors = merge_data_document_readings(documents)
     return list(dict.fromkeys(errors))
 
 
@@ -401,7 +337,7 @@ def payload_error(source: str, contract: str, value, registry: dict) -> str | No
         declared = sorted(registry.get("$data", {}).get("contracts", {}))
         return (
             f"source {source!r} uses undeclared contract {contract!r}; "
-            f"available contracts are {declared}"
+            f"available contracts are {json_value(declared)}"
         )
     try:
         error = min(
@@ -420,6 +356,10 @@ def payload_error(source: str, contract: str, value, registry: dict) -> str | No
             f"unresolved reference {error.ref!r}"
         )
     if error is None:
+        try:
+            resource_urls(value, declaration)
+        except DataError as error:
+            return f"source {source!r} contract {contract!r}: {error.message}"
         records = declaration.get("records")
         items = (
             value.get(records["items"]) if records and isinstance(value, dict) else None
@@ -450,10 +390,10 @@ def payload_error(source: str, contract: str, value, registry: dict) -> str | No
             if duplicates:
                 return (
                     f"source {source!r} contract {contract!r} record keys must be "
-                    f"unique; repeated {sorted(duplicates)}"
+                    f"unique; repeated {json_value(sorted(duplicates))}"
                 )
         return None
     return (
         f"source {source!r} value is invalid for contract {contract!r} at "
-        f"{error.json_path}: {error.message}"
+        f"{error.json_path}: {schema_error_message(error)}"
     )

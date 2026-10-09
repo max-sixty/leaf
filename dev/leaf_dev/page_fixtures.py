@@ -1,4 +1,11 @@
-"""Read and prepare one complete authored page fixture."""
+"""Read and prepare one complete authored page fixture.
+
+The source owns its package selection, versions, history, data and media addresses.
+Preparation supplies local companion media and resolves any remaining addresses
+from the checkout's pinned asset tree, or a build's explicit draft tree. Preview,
+publication and render probes share this boundary rather than adding content inputs
+in their callers.
+"""
 
 import functools
 import json
@@ -10,11 +17,13 @@ from pathlib import Path
 
 import click
 from leaf.media import media_name
+from leaf.revision_artifact import Resource, capture_artifact, capture_local_resource
 from leaf.schema import MEDIA_DIR, MEDIA_TYPES
+from leaf.structure import SourceDocument
 
 from leaf_dev import ROOT
 from leaf_dev.example_data import data_operations, example_versions
-from leaf_dev.leaf_assets import clone, pinned_copy, publish
+from leaf_dev.leaf_assets import assets_lock, clone, pinned_assets, pinned_copy, publish
 
 DEFAULT_PACKAGES = ROOT / "examples" / "layer.json"
 
@@ -56,7 +65,7 @@ def source_packages(source: Path) -> list[str]:
 
 
 def layer_media(manifest: Path) -> Path | None:
-    """The images a layer's pages share: `media/` beside its manifest in the tree, or
+    """The media a layer's pages share: `media/` beside its manifest in the tree, or
     else at that path in the checkout's pinned assets, where the example catalog's
     live (`leaf_dev.leaf_assets`)."""
     media = manifest.parent / "media"
@@ -65,7 +74,7 @@ def layer_media(manifest: Path) -> Path | None:
 
 @functools.cache
 def example_media() -> Path:
-    """The images the example catalog's pages share, content-addressed as
+    """The media the example catalog's pages share, content-addressed as
     `leaf page media` names them (examples/AGENTS.md, "Media")."""
     return layer_media(DEFAULT_PACKAGES)
 
@@ -80,29 +89,29 @@ def media_source(source: Path) -> Path:
 
 @click.command("publish-media")
 @click.argument(
-    "images", nargs=-1, required=True, type=click.Path(exists=True, dir_okay=False)
+    "files", nargs=-1, required=True, type=click.Path(exists=True, dir_okay=False)
 )
-def publish_media(images: tuple[str, ...]) -> None:
-    """Publish images for the example pages to max-sixty/leaf-assets.
+def publish_media(files: tuple[str, ...]) -> None:
+    """Publish media for the example pages to max-sixty/leaf-assets.
 
     Each is named by its bytes, as `leaf page media` names it, and added beside the
-    catalog's other images; the pin moves to the new revision. Prints the path each
-    page names the image by."""
+    catalog's other media; the pin moves to the new revision. Prints the path each
+    page names the media by."""
     directory = DEFAULT_PACKAGES.parent.relative_to(ROOT) / "media"
-    paths = [Path(image) for image in images]
+    paths = [Path(file) for file in files]
     for path in paths:
         if path.suffix.lower() not in MEDIA_TYPES:
             raise click.BadParameter(
-                f"{path}: not an image leaf serves — {', '.join(sorted(MEDIA_TYPES))}"
+                f"{path}: not a media type leaf serves — {', '.join(sorted(MEDIA_TYPES))}"
             )
     named = {media_name(path.read_bytes(), path.suffix): path for path in paths}
     with tempfile.TemporaryDirectory(prefix="leaf-assets-") as raw:
         checkout = clone(Path(raw))
-        target = checkout / directory
+        target = checkout.path / directory
         target.mkdir(parents=True, exist_ok=True)
         for name, path in named.items():
             shutil.copyfile(path, target / name)
-        revision = publish(checkout, f"Add {len(named)} example image(s)")
+        revision = publish(checkout, f"Add {len(named)} example media file(s)")
     for name, path in named.items():
         click.echo(f"/{MEDIA_DIR}/{name}  {path}")
     click.echo(f"  max-sixty/leaf-assets@{revision}")
@@ -127,6 +136,52 @@ def package_selection_args(packages) -> list[str]:
     return [arg for package in packages for arg in ("--package", package)] or [
         "--no-packages"
     ]
+
+
+def import_referenced_media(
+    page: Path,
+    documents: list[str],
+    run_leaf: Callable,
+    *,
+    source: Path,
+    assets: Path | None = None,
+) -> None:
+    """Materialize authored media addresses from the source checkout's asset tree.
+
+    Revision capture discovers the inputs, including CSS and live samples; asset
+    filenames do not select page content. Local
+    media already copied into the page wins. A build may supply unpublished assets
+    explicitly, so draft markup is validated against its own bytes rather than the
+    ordinary pin. Unresolved references keep capture's ordinary refusal.
+    """
+    lock = assets_lock(source)
+    if assets is None and lock is None:
+        return
+
+    @functools.cache
+    def selected_media() -> dict[str, Path]:
+        """Index the selected asset tree only when a missing reference needs it."""
+        directory = assets if assets is not None else pinned_assets(lock.parent)
+        return {
+            media_name(candidate.read_bytes(), candidate.suffix): candidate
+            for candidate in sorted(directory.rglob("*"))
+            if candidate.is_file() and candidate.suffix.lower() in MEDIA_TYPES
+        }
+
+    def read_resource(path: str) -> Resource:
+        if (
+            path.startswith(f"/{MEDIA_DIR}/")
+            and not (page / path.removeprefix("/")).is_file()
+            and (candidate := selected_media().get(path.removeprefix(f"/{MEDIA_DIR}/")))
+        ):
+            run_leaf("page", "media", str(page), str(candidate))
+        return capture_local_resource(page, path)
+
+    registry = json.loads((page / "registry.json").read_text(encoding="utf-8"))
+    for document in documents:
+        capture_artifact(
+            page, SourceDocument(document), registry, read_resource=read_resource
+        )
 
 
 def _seed_data(fixture: PageFixture, page: Path, run_leaf: Callable) -> None:
@@ -171,6 +226,7 @@ def prepare_page(
     current_note: str = "Draft as authored",
     earlier_note: str = "Earlier draft",
     each_version: Callable[[Path], None] | None = None,
+    assets: Path | None = None,
 ) -> PreparedPage:
     """Build one page directory from an authored fixture.
 
@@ -198,6 +254,13 @@ def prepare_page(
     )
     if fixture.media.is_dir():
         shutil.copytree(fixture.media, page / "media", dirs_exist_ok=True)
+    import_referenced_media(
+        page,
+        [version.read_text(encoding="utf-8") for version in fixture.versions],
+        run_leaf,
+        source=fixture.source,
+        assets=assets,
+    )
     _seed_data(fixture, page, run_leaf)
     for order, version in enumerate(fixture.versions):
         (page / "index.html").write_text(

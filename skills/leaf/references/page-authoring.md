@@ -428,7 +428,8 @@ items. Put a table below it in `<details>` when readers also need exact values.
 Use a table for value lookup, mixed units that cannot share an axis, or comparisons
 with text-heavy cells; use native sections for a few alternatives read as wholes,
 and `lf-options` when the user must choose among them. A headline measurement is
-a metric. Movable things form a board. Use images only when they carry information.
+a metric. Grouped cards form a board; its registry entry guides when to use it.
+Use images only when they carry information.
 `authoring-evidence.md` says which element draws each kind, and how to draw a figure
 of your own.
 

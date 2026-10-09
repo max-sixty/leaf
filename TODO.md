@@ -165,8 +165,8 @@ has tried; settle that before building it.
   available, such as a banner control under a coarse pointer, a reaction row on the
   sent card, or a control that keeps the field's measure
   (`skills/leaf/assets/runtime/composing/selection.js`).
-- **Give the thread panel's touch grip its own space.** Reserve room for the grip
-  and collapse inactive reply controls if more thread cards should fit.
+- **Reconsider thread navigation.** Decide how the Threads panel should change
+  before refining it (`skills/leaf/assets/AGENTS.md`, "Space and scrolling").
 
 ### Layout
 

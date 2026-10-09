@@ -315,6 +315,12 @@ Before finishing a feature:
   than one way, score it with `evals/` before and after (`/developing-leaf`,
   "Score an instruction change").
 
+Local compute is often the bottleneck because several sessions share one machine.
+Before widening a local test selection or increasing parallelism, check current
+CPU use, memory pressure, and other running test suites. Weigh the extra evidence
+against the cost to all sessions; on a busy host, favor focused checks and avoid
+redundant overlapping runs. The required landing gates still have to pass.
+
 Before handing over, run the tests that hold what the change touches; the broad
 selection, `uv run pytest tests`, and `npm run test:runtime` run at landing
 (`tests/AGENTS.md`, "Run what the change needs"). Two TypeScript trees,

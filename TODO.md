@@ -58,13 +58,12 @@ has tried; settle that before building it.
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
 - **Keep Tab off page content a panel beside the page covers.** Threads and the
-  Queue panel leave the page live beside them while standing over part of it. Max's rule
+  Questions panel leave the page live beside them while standing over part of it. Max's rule
   (2026-10-06): the panels dominate focus, so moving focus never closes or changes a
   standing panel, focus never lands on page content a panel covers, and Threads still
   stands beside a full-width workspace. A comment box already refuses a covered seat
   (`underOccluder`, geometry.js). Tab still walks onto `annotation-workspace`'s rail
-  under Threads at 1440×900, and onto an Ask's option marks under the Queue panel at
-  1200px. Making what a panel covers inert was built and withdrawn: it left the visible
+  under Threads, or the Questions panel that shares its right edge, at 1440×900. Making what a panel covers inert was built and withdrawn: it left the visible
   part of a partly covered element dead to clicks and selection, and focus still reached
   chrome markers, sample frames, overflowing children and content an attribute revealed.
   Decide between laying the page out in the width a panel leaves beside it, which
@@ -184,12 +183,10 @@ and its chrome coordinate.
   newcomer out of view rather than pushing down the card being read. The user sees
   it only in the count; give that arrival a visible route while preserving the
   current reading.
-- **Hold the shipped workspaces to the overflow advice.** `alert-review` shows one
-  alert's decision at a time, but `page check --render` still advises that its queue
-  (`ar-queue`) runs 106px past its region at every width from 720 to 1920px, and
-  `rust-sort`'s stage pane 100px at 720px. Fit both, then make
-  `test_page_fixture_renders` fail on that advice for workspace examples, with
-  `rust-sort`'s source pane the one reader allowed to scroll; today it asserts only
+- **Hold the shipped workspaces to the overflow advice.** `page check --render` still
+  advises that `rust-sort`'s stage pane runs 100px past its region at 720px. Fit it,
+  then make `test_page_fixture_renders` fail on that advice for workspace examples,
+  with `rust-sort`'s source pane the one reader allowed to scroll; today it asserts only
   the gate's failures ([plan](notes/chrome-and-covers.md)).
 - **Decide whether the desktop bottom bar goes.** Its key hints would move behind `?`
   and its status into the banner; the bar is how a desktop user learns the keys
@@ -203,9 +200,9 @@ and its chrome coordinate.
 - **Let a block be a workspace.** `feature-gallery` shows a workspace inside a column
   page, and since `layout-workspace` works only on `main`, it restates the Layout's
   full-height switch (720px by 480px) and its pane scrolling in about 20 lines. The pane
-  rules can't simply key on `--lf-full-height`: they say which panes the workspace sizes
-  by where they stand under `main`, and the property is inherited by every descendant.
-  Taking the Layout onto a block also means the runtime's layout region
+  rules now key on `--lf-full-height`, which a box sets for the children it sizes and
+  which does not inherit, so a block workspace needs only to set it on its body and its
+  grid of panes. Taking the Layout onto a block also means the runtime's layout region
   (`syncLayoutRegion`) and the render check's held-panes reading (`heldPanes`), which
   both look only at `main`, have to look at that block too. It waits for a page that
   needs it; a workspace page's own pane grid stays plain CSS.
@@ -306,12 +303,10 @@ height and where a switch lands wait on the workspace decision under Layout.
 
 ### Recorded interaction review
 
-Max's assessment (2026-10-05): "I'm not sure this is great." Ship the optional
-Leaf timeline as a trial alongside Playwright's viewer. Keeping it is undecided;
-we may use Playwright directly. Try the comment workflow before investing further
-in the integration.
+Keep the optional Leaf timeline alongside Playwright's viewer, as Max chose
+on 2026-10-07.
 
-- **Explore DOM selection if we keep the imported timeline.** The optional `playwright`
+- **Explore DOM selection in the imported timeline.** The optional `playwright`
   package imports native actions, checkpoint images, captured frames and saved
   accessibility elements; following their comments restores the moment. Reuse
   Playwright's DOM renderer to add arbitrary element and passage selection, with
@@ -424,6 +419,12 @@ Revisit these when their stated trigger becomes real; they are not an active que
 
 ### Product and harness ideas
 
+- **Assess whether automatic measurement freshness is useful (#7 in the simplification audit).**
+  Keep the current `lf-num` source/write-time reminder for now. Look for cases where
+  its warnings lead an author to update a stale claim, and weigh that benefit against
+  the source binding, timestamp and special markup authors maintain. Consider
+  removing the subsystem if it does not prove useful.
+
 - **Revisit where an abandoned comment's words come back.** A page comment closed
   with Escape keeps its words, and the next box `c` opens, such as a thread card's
   reply, offers them, since Leaf can't know exactly where the user last typed. That
@@ -453,10 +454,17 @@ Revisit these when their stated trigger becomes real; they are not an active que
   ([What needs you](notes/what-needs-you/page.html#task-done)). The shipped
   instructions don't yet say when that is. Trigger: an agent ends a task as done that
   the user wanted to see first.
-- **Let the user edit items in the Queue panel.** The user's only edit today is Done
+- **Let the user edit items in the Questions panel.** The user's only edit today is Done
   on a task the agent put on them, so dropping a task, renaming it or ending one of the
   agent's means asking in a thread. Editing the row directly in the panel would record the user's change as
   their own move. Trigger: a user writes a comment only to close or adjust an item.
+- **Name the record both queues share.** The page calls what's on the user Questions
+  and what's on the agent Tasks, while the code, the event log, `leaf page state` and
+  `leaf task open --on user` still call the shared record a task. "Task" also means
+  the harness's unit of work, as in a task claim. Obligation, commitment and item are
+  the candidates weighed
+  ([What needs you](notes/what-needs-you/page.html#internal-name)). Trigger: the
+  two meanings of task confuse an agent or a reader of the code.
 - **Multiplayer:** let several users share a page, each recorded as themselves.
   Every browser event is `author: "user"` today, so the log cannot say who moved,
   commented or voted, and nothing records who has the page open. Claude Code

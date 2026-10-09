@@ -393,7 +393,9 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
         serve(
             leaf_page(
                 "Reaction selection",
-                '<lf-draft id="draft"><pre>A passage to react to.</pre></lf-draft>',
+                '<p><lf-suggestion id="reaction-target"><lf-old>A passage to react to.'
+                "</lf-old><lf-new>A revised passage to react to.</lf-new>"
+                "</lf-suggestion></p>",
             )
         ),
     )
@@ -454,10 +456,10 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
         assert reaction.evaluate(read) == resting
         assert reaction.evaluate(PAINTS_STATE_MARK) is False
 
-    item = page.locator('.lf-margin-cluster[data-lf-margin-for="draft"]')
+    item = page.locator('.lf-margin-cluster[data-lf-margin-for="reaction-target"]')
 
     def open_margin_reactions():
-        item.get_by_role("button", name="Edit draft", exact=True).focus()
+        item.locator(".lf-sug-accept").focus()
         page.keyboard.press("e")
         expect(item.locator(f"{MARGIN_RESPONSES}:visible")).to_have_count(6)
 

@@ -1,5 +1,6 @@
-/* The queue walk: `a` and Shift+`a` page through everything waiting on the user, in
-   page order.
+/* The queue walk: `q` and Shift+`q` page through everything waiting on the user, in
+   page order: the Questions the panel lists first (queue-panel.js). The panel opens with
+   `g Q`, as the Threads panel opens with `g T` and `t` walks the threads.
 
    What waits on the user is the application's one reading, `queues.onYou`
    (`runtime/queues.js`, the browser's selection of `agent_state.queues`): each open
@@ -14,7 +15,7 @@
    t/T walk's own (navigation.js, `arriveAtThread`), so it lands wherever that walk
    lands; a page widget move, or a task on an element or the page, by travel's `arrive`,
    onto the widget the move was made on, the element, or the page's head.
-   A Queue panel row arrives through the same function (`arriveAtItem`), for an item on
+   A Questions panel row arrives through the same function (`arriveAtItem`), for an item on
    either queue or one that is done.
 
    A walk starts from the user's place, in this order:
@@ -58,12 +59,12 @@ const NOUNS = Object.freeze({
   ask: "Ask",
   thread: "Thread",
   widget: "Move",
-  page: "Task",
+  page: "To do",
 });
-// What a stop is called: by where it is arrived at, but a task on an element is a Task
+// What a stop is called: by where it is arrived at, but a task on an element is a To do
 // rather than the Move a widget's stop otherwise is.
 const nounOf = (item, stop) =>
-  stop.kind === "widget" && taskNoun(item) === "task" ? "Task" : NOUNS[stop.kind];
+  stop.kind === "widget" && taskNoun(item) === "task" ? "To do" : NOUNS[stop.kind];
 
 // Where an item of either queue, or one that is done, is arrived at: an Ask's task by
 // the Ask's own id, anything else by the thread it stands in, a task on the page as a
@@ -213,7 +214,7 @@ export function createQueueWalk({
     );
   }
 
-  // An answered Ask is arrived at the same way, which is how the Queue panel's Done
+  // An answered Ask is arrived at the same way, which is how the Questions panel's Done
   // rows return the user to one to review or revise it.
   function arriveAt(stop) {
     if (stop.kind === "ask") {
@@ -305,7 +306,7 @@ export function createQueueWalk({
   let wasOffered = false;
   let wasDoneable = "";
   let stopWatching = null;
-  // The a/A row stands on the queue, and Done on the tasks it holds, so the surfaces
+  // The q/Q row stands on the queue, and Done on the tasks it holds, so the surfaces
   // reading them are repainted where the queue empties or fills or those tasks change.
   function mount() {
     stopWatching ??= watchSemantic(() => {
@@ -319,35 +320,35 @@ export function createQueueWalk({
   pageCommand({
     id: "queue.walk",
     touch: false,
-    keys: ["a", "Shift+a"],
+    keys: ["q", "Shift+q"],
     routes: [
       {
         id: "queue.next",
-        binding: "a",
-        title: "Next waiting on you",
-        description: "Next Ask, thread, task or update to send again waiting on you",
+        binding: "q",
+        title: "Next question",
+        description: "Next Ask, thread, to-do or update to send again waiting on you",
       },
       {
         id: "queue.previous",
-        binding: "Shift+a",
-        title: "Previous waiting on you",
+        binding: "Shift+q",
+        title: "Previous question",
         description:
-          "Previous Ask, thread, task or update to send again waiting on you",
+          "Previous Ask, thread, to-do or update to send again waiting on you",
       },
     ],
-    title: "Waiting on you",
-    line: "on you",
+    title: "Questions",
+    line: "questions",
     when: offered,
     repeat: true,
     // The same shape as the thread walk: it moves the user from item to item rather than
     // down a level, so the standing scope lets go of whichever one they end on. An item
     // reached through the panel leaves the panel a level of its own on the way out,
     // whether this walk opened it or the user already had it.
-    run: (binding) => walk(binding === "a" ? 1 : -1),
+    run: (binding) => walk(binding === "q" ? 1 : -1),
   });
 
-  // Where `a` lands on a task the user ends with Done, Done is a key, and a step on the
-  // banner's row under a finger. Its row in the Queue panel carries the same Done.
+  // Where `q` lands on a task the user ends with Done, Done is a key, and a step on the
+  // banner's row under a finger. Its row in the Questions panel carries the same Done.
   pageScope("task", {
     title: "On a task waiting on you",
     at: () => Boolean(doneTask()),
@@ -367,9 +368,13 @@ export function createQueueWalk({
     ],
   });
 
-  // A Queue panel row arrives where the walk would (queue-panel.js), whichever list
+  // A Questions panel row arrives where the walk would (queue-panel.js), whichever list
   // its item is on.
   const arriveAtItem = (item) => arriveAt(stopOf(item));
 
-  return { mount, arriveAtItem, endTask };
+  // The Questions panel's Next question, which is `q` pressed from wherever the user
+  // stands (queue-panel.js).
+  const next = () => walk(1);
+
+  return { mount, arriveAtItem, endTask, next };
 }

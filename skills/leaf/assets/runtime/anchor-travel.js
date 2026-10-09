@@ -140,7 +140,8 @@ export function createAnchorTravel({
       intent.handoff(() => {
         const destination = resolve();
         if (!destination?.where) return;
-        if (destination.focus) focusForNavigation(destination.focus, destination.caret);
+        if (destination.focus)
+          focusForNavigation(destination.focus, "move", { caret: destination.caret });
         const current = resolve();
         if (!current?.where) return;
         if (complete) departure?.commit();

@@ -28,7 +28,7 @@ from leaf.hosting import claim_and_start, cmd_stop
 from leaf.projection import folded_positions
 from leaf.publishing import cmd_stamp
 from leaf.render_checks import wait_until_ready
-from leaf.render_gate.scheme import rendered_revision, served
+from leaf.render_gate.scheme import rendered_revision
 from leaf.served_state.context import read_page
 from leaf.served_state.page import read_served_page
 from leaf.service import PageTransaction
@@ -260,6 +260,21 @@ class DemoWaiter:
             self.process.wait(timeout=5)
 
 
+def wait_for_listening(page: Page) -> dict:
+    """Hold the canonical listening reading and wait for the page to present it."""
+    state = page.wait_for_function(
+        """async () => {
+            const response = await fetch('/api/state');
+            if (!response.ok) throw new Error(`Leaf state: HTTP ${response.status}`);
+            const state = await response.json();
+            return state.activity.kind === 'listening' && state;
+        }""",
+        polling=100,
+    ).json_value()
+    wait_until_ready(page, state)
+    return state
+
+
 def record(
     page: Page, waiter: DemoWaiter, page_dir: Path
 ) -> tuple[list[Image.Image], list[int]]:
@@ -273,10 +288,7 @@ def record(
 
     # The page's own readiness, not the document's stamp: a gesture taken before the
     # log's replay finishes reads a half-written page.
-    wait_until_ready(page)
-    page.wait_for_function(
-        "() => document.querySelector('.lf-status-text').textContent.includes('awaits')"
-    )
+    wait_for_listening(page)
     live_url = page.url
     shot(1600)
 
@@ -382,18 +394,13 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
         with tab(browser, size, scheme) as page:
             page.goto(url)
             # Hold the server's state and authored revision before taking the still.
-            state = served(page, url, "/api/state").json()
-            wait_until_ready(page, state)
+            state = wait_for_listening(page)
             revision = rendered_revision(url, state)
             page.wait_for_function(
                 "revision => document.querySelector("
                 "'meta[name=\"lf-revision\"][data-lf-runtime]'"
                 ")?.content === String(revision)",
                 arg=revision,
-            )
-            page.wait_for_function(
-                "() => document.querySelector('.lf-status-text')"
-                ".textContent.includes('awaits')"
             )
             page.locator(".lf-banner .lf-threads-toggle").click()
             page.locator(".lf-thread-summary").click()

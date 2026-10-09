@@ -87,16 +87,6 @@ def turn_message(turn: dict) -> str:
     return turn["message"] if turn["kind"] == "edit" else turn["id"]
 
 
-def thread_replied_after(thread: dict, after: int) -> bool:
-    """Whether an ordinary agent reply ended thread work after its starting sequence."""
-    return any(
-        message["kind"] == "reply"
-        and message["author"] == "agent"
-        and message["seq"] > after
-        for message in conversation_turns(thread)
-    )
-
-
 def bare_reaction(thread: dict) -> bool:
     """A reaction nobody has replied to: paint on the page, and no thread yet."""
     return is_reaction(thread["root"]) and not spoken_turns(thread)

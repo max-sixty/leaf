@@ -117,6 +117,7 @@ import {
   widgetController,
   worksInside,
   wrote,
+  focusDestination,
 } from "/runtime/widget-api.js";
 
 // What an option is called, in either form: its title where it leads with one, and its
@@ -313,11 +314,7 @@ customElements.define(
     #doneRow() {
       this.#done = offer(DONE_TAG, "lf-options-done");
       const button = offer("button", "lf-btn lf-done", "Done");
-      const badge = offer("span", "lf-key-badge");
-      badge.setAttribute("aria-hidden", "true");
-      button.prepend(badge);
       this.#done.control = button;
-      this.#done.bindingBadge = badge;
       this.#done.append(button);
       this.append(this.#done);
     }
@@ -476,7 +473,7 @@ customElements.define(
           title: "Another option",
           description: "Write another option",
           when: () => this.#available("choose"),
-          run: () => this.#addition.input.focus(),
+          run: () => focusDestination(this.#addition.input, "move", { scroll: true }),
         });
       if (this.#done)
         answerRows.push({
@@ -484,7 +481,6 @@ customElements.define(
           contextKeys: this.#contextKeys("done"),
           control: () => this.#done.control,
           decision: true,
-          bindingBadge: () => this.#done.bindingBadge,
           title: "Done",
           description: () =>
             this.reading?.state.answer?.action

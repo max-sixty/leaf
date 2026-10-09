@@ -24,8 +24,9 @@ task-wide watch, and a completed turn does not stop the adapter. Re-serving a pa
 restores an adapter that stopped. `leaf codex start <page>` connects delivery
 explicitly when you are claiming a page without serving it.
 
-While your turn is running, Leaf's tool hook offers new input between
-steps, after the current model request and tool calls finish. Read its pointer
+While your turn is running, Leaf's hooks offer new input between steps or when
+the turn tries to end, after the current model request and tool calls finish.
+Read the pointer
 with `leaf delivery read <id>`; reading it confirms pickup in this turn. This
 envelope has `acknowledge: null`, because the hook offers
 the same delivery the adapter would queue. The hook cannot interrupt a running
@@ -41,10 +42,9 @@ uncertain queue response, which is the retry `references/event-batches.md` descr
 
 Answer every obligation with the operation its delivered `handling` clause names,
 `leaf response reply <answer.ref>` for a reply. Your final message stays in the Codex
-chat and never reaches the page. Leaf does not observe the task's turns either, so
-the banner shows only the items you start and the status you declare.
+chat and never reaches the page.
 
-The tool hook and adapter share one delivery record, so input read during work is
+The hooks and adapter share one delivery record, so input read during work is
 not queued again. Without a running trusted tool hook, delivery uses the queue.
 
 If serving refuses to connect delivery, follow its diagnostic before handing the

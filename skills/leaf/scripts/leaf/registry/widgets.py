@@ -68,6 +68,13 @@ def validate_widget_schemas(declarations: dict, data: dict, path) -> None:
             raise RegistryError(
                 f"{path}: <{tag}> registry extensions are invalid: {schema_error_message(errors[0])}"
             )
+        if (
+            entry.get("x-text-format") == "markdown"
+            and entry.get("x-content") != "data"
+        ):
+            raise RegistryError(
+                f"{path}: <{tag}> block Markdown requires x-content: data"
+            )
         for verb, spec in state_specs(entry):
             if spec.get("record"):
                 continue

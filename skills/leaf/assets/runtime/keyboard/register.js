@@ -25,7 +25,8 @@ import {
   lineOf,
   word,
 } from "./bindings.js";
-import { focused, paintKeys, watchCommandScopes } from "./scopes.js";
+import { focused } from "../focus.js";
+import { paintKeys, watchCommandScopes } from "./scopes.js";
 // Native activation reads declarations without assembling or validating the keyboard
 // during feature construction. Both element and page commands share one control owner.
 watchCommandScopes(() => [

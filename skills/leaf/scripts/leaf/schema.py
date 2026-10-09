@@ -26,8 +26,6 @@ WIDGET_KINDS = {"action", "report"}
 # `activity` address them and `$events.answering` explains them. Reply writer custody
 # is separate: a provider turn may own its opening and final messages.
 ANSWER_KINDS = ("reply", "markup")
-# The answer kinds that post a message in a thread.
-THREAD_ANSWER_KINDS = frozenset({"reply"})
 ANSWER_ASK_INSTRUCTION = (
     "Each update takes the answer named for it. Read current obligations with "
     "`leaf page state <page>` and thread history with `leaf page state <page> <id>`."
@@ -304,7 +302,7 @@ EXTENSION_SCHEMA = {
         },
         "x-required-members": CHILDREN_SCHEMA,
         "x-content": {"enum": ["markup", "members", "data", "empty"]},
-        "x-text-format": {"const": "inline-markdown"},
+        "x-text-format": {"enum": ["inline-markdown", "markdown"]},
         "x-data": DATA_INPUTS_SCHEMA,
         "x-example": {"type": "string"},
         "x-exhibit": {"type": "boolean"},

@@ -78,7 +78,7 @@ leaf response reply <answer.ref> --ephemeral --text "<what you will do, in a lin
 
 The user reads it at once, and it takes the move in hand: the move reads
 **Working** with that line beside its thread and in the banner, and the
-update folds under "Previous updates" when your answer arrives
+update folds into the progress disclosure when your answer arrives
 ([progress updates](threads.md#progress-updates)). Take any other item in hand,
 such as a task or a move on a page widget, which has no thread, with a start:
 

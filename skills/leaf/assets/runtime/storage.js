@@ -62,11 +62,7 @@ export const unmarkedCopy = (node) =>
 export const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
 // The delivery declares a child page's private user scope. Bootstrap reads the
 // same fact before this module loads; neither derives it from the viewed revision.
-export const userStore = stored(
-  () => localStorage,
-  "local",
-  document.documentElement.dataset.lfUserScope ?? "",
-);
+export const userStore = document.documentElement.lfStorage.userStore;
 
 // Disposable child pages have an exclusive URL scope. Call only after their
 // browsing context has stopped: pagehide itself saves tab state.

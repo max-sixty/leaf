@@ -38,7 +38,7 @@ declareBanner(banner);
 const bannerStatus = createBannerStatusView(repaint);
 registerNoticePresentation(() => bannerStatus.presentNotice(noticeReading()));
 export const dot = bannerStatus.dot;
-// The queue counts, which open the Queue panel they count (drawers.js).
+// The agent's Tasks count, which opens the Questions panel listing them (drawers.js).
 export const queueCounts = bannerStatus.queues;
 
 // Threads reads "Threads: 3" on a desk and, on a phone's one row, a thread icon with its
@@ -101,7 +101,7 @@ registerBannerControl({
   key: "queue",
   control: queueBtn,
   rank: BANNER_CONTROL_RANK.queue,
-  conditional: true,
+  seat: { desk: "row", phone: "menu" },
 });
 registerBannerControl({
   key: "versions",
@@ -251,20 +251,22 @@ function paintTab() {
 let saidKind;
 let saidActionableWork;
 
-// The page's two queues (`runtime/queues.js`) stand beside the status, apart from the
-// sentence: how much waits on the user, which `a` walks, and how much waits on the
-// agent, which is the banner's whole account of the agent's side, with the disclosure
-// naming their kinds and each open task's title. They are page facts, like the Threads
-// count, and stand apart from the sentence so the agent's words changing never carries
-// them. On one row they end the status's room, which gives up its words to the ellipsis
-// first; where the banner takes two rows, the sentence has the first to itself and the
-// counts lead the second, ahead of the controls, and a phone's one row leaves them to the
-// disclosure (chrome.css). Their box is reserved for
-// the counts they usually reach, as the Threads control is for "Threads: 999", and only
-// grows, so a count changing moves none of their words. They are read from the
-// application's publication rather than the state answer: a reply the user sends leaves
-// their count and joins the agent's in the turn it is sent. A press on them opens the
-// Queue panel, which lists what they count.
+// The page's two queues (`runtime/queues.js`) are told apart in the banner by where
+// they stand. What waits on the user, which `q` walks, is the Questions door beside
+// Threads (queue-panel.js paints its count), and on a phone's one row it waits in More.
+// What waits on the agent, its Tasks, stands beside the status, apart from the sentence,
+// as the banner's whole account of the agent's side, with the disclosure naming both
+// sides' kinds and each open task's title. The Tasks count is a page fact, like the
+// Threads count, and stands apart from the sentence so the agent's words changing never
+// carries it. On one row it ends the status's room, which gives up its words to the
+// ellipsis first; where the banner takes two rows, the sentence has the first to itself
+// and the count leads the second, ahead of the controls, and a phone's one row leaves it
+// to the disclosure (chrome.css). Its box is reserved for the count it usually reaches,
+// as the Threads control is for "Threads: 999", and only grows, so a count changing
+// moves none of its words. Both are read from the application's publication rather
+// than the state answer: a reply the user sends leaves their count and joins the
+// agent's in the turn it is sent. A press on either opens the Questions panel, which
+// lists both.
 const QUEUE_WORDS = Object.freeze({
   ask: ["Ask", "Asks"],
   question: ["question", "questions"],
@@ -290,15 +292,14 @@ function queueKinds(items) {
 function queueWords() {
   const { onYou, onAgent } = readApplication().effective.queues;
   const agent = agentName();
-  const said = (items, whom) => (items.length ? `${items.length} on ${whom}` : "");
   const named = (items, whom) =>
     items.length ? `Waiting on ${whom}: ${queueKinds(items).join(", ")}.` : "";
   return {
-    summary: [said(onYou, "you"), said(onAgent, agent)].filter(Boolean).join(" · "),
+    summary: onAgent.length ? `Tasks: ${onAgent.length}` : "",
     explanation: [named(onYou, "you"), named(onAgent, agent)].filter(Boolean).join(" "),
-    // The widest the counts usually reach, under ten a side, which their box keeps;
-    // more widens it once (banner-status-view.js).
-    widest: `9 on you · 9 on ${agent}`,
+    // The widest the count usually reaches, under ten, which its box keeps; more
+    // widens it once (banner-status-view.js).
+    widest: "Tasks: 9",
   };
 }
 const WITHOUT_QUEUES = new Set(["broken", "unreachable", "publication"]);
@@ -743,13 +744,12 @@ export function mountBanner({ approveVersion, paintApproval }) {
   watchProjection(document.body, paintApproval);
   // The queues move with the application's publication, not only with a state answer.
   watchSemantic(() => lastStatus && presentStatus(lastStatus));
-  for (const control of [queueBtn, othersBtn]) showNews(control, false);
+  showNews(othersBtn, false);
   banner.append(bannerStatus, bannerStatus.queues, bannerActions);
-  // On two rows the counts stand on the second line only where the run leaves them
+  // On two rows the Tasks count stands on the second line only where the run leaves it
   // room whole, else on a third the banner does not draw, and a phone's one row leaves
-  // them out (chrome.css). A press there is a stop nobody can see, so undrawn counts are
-  // inert; the Queue control in More and the status's disclosure still reach what they
-  // say.
+  // it out (chrome.css). A press there is a stop nobody can see, so an undrawn count is
+  // inert; the Questions door and the status's disclosure still reach what it says.
   const counts = bannerStatus.queues;
   const seatCounts = sizeObserver(() => {
     const drawn =
@@ -796,12 +796,13 @@ export function stateSignoff(next, syncLayout, paintApproval) {
   syncLayout();
 }
 
-// The two primary controls reserve the widest words they can show, so an asynchronous
-// count or approval result cannot move its sibling. CSS bounds Approval's room when
+// The primary controls reserve the widest words they can show, so an asynchronous
+// count or approval result cannot move a sibling. CSS bounds Approval's room when
 // the complete words cannot fit. Secondary controls can grow inside
 // More without changing the page's reading loop.
 function reserveBannerControls() {
   if (signoff) reserve(approveBtn, ["Approve version", "✓ Version approved"]);
+  reserve(queueBtn, ["Questions: 99"]);
   reserve(toggleBtn, ["Threads", "Threads: 999"]);
 }
 

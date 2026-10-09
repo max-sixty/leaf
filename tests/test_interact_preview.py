@@ -384,6 +384,145 @@ class _ScriptedChanges:
         return self.roots == roots
 
 
+def test_preview_publishes_companion_edits_at_its_existing_url(
+    tmp_path, monkeypatch, capsys
+):
+    """A custom widget edit publishes exact inputs without erasing feedback.
+
+    Scripted input batches carry real companion edits through the running preview,
+    its ordinary stamp door and HTTP delivery. Earlier executable resources retain
+    their bytes, and a competing preview edit is refused until reconciled.
+    """
+    from leaf.files import latest_revision, revision_path
+
+    source = tmp_path / "reading.html"
+    source.write_text(
+        "<!doctype html><html><head><title>Reading</title></head>"
+        '<body><main><h1>Reading</h1><lf-reading id="reading"></lf-reading>'
+        "</main></body></html>"
+    )
+    (tmp_path / "layer.json").write_text("[]")
+    companions = source.with_suffix(".page")
+    widgets = companions / "widgets"
+    widgets.mkdir(parents=True)
+    (companions / "registry.json").write_text(
+        json.dumps(
+            {
+                "lf-reading": {
+                    "description": "A reading",
+                    "type": "object",
+                    "properties": {"id": {"type": "string"}},
+                    "required": ["id"],
+                    "additionalProperties": False,
+                    "x-content": "empty",
+                    "x-upgrade": True,
+                }
+            }
+        )
+    )
+    widget = widgets / "lf-reading.js"
+    original = b"export const reading = 'Original';"
+    revised = b"export const reading = 'Revised';"
+    widget.write_bytes(original)
+    page = tmp_path / "preview"
+
+    def changes(watched):
+        assert str(widget) in watched.paths
+        url = next(
+            line
+            for line in capsys.readouterr().out.splitlines()
+            if line.startswith("http://")
+        )
+
+        def at(path):
+            return fetch(urlsplit(url)._replace(path=path).geturl(), token=None)
+
+        def resource(revision):
+            return (
+                "/revisions/"
+                + revision_path(page, revision).stem
+                + "/page/widgets/lf-reading.js"
+            )
+
+        first = latest_revision(page)
+        old_resource = resource(first)
+        assert at(old_resource) == (200, original)
+        status, body = fetch(
+            urlsplit(url)._replace(path="/api/event").geturl(),
+            token=None,
+            data=json.dumps(
+                {
+                    "kind": "comment",
+                    "revision": first,
+                    "text": "Keep this feedback",
+                    "attempt": "preview-companion",
+                }
+            ).encode(),
+        )
+        assert status == 200, body
+        before = (page / "events.jsonl").read_bytes()
+        widget.write_bytes(revised)
+        yield {str(widget)}
+        second = latest_revision(page)
+        assert second > first
+        assert at("/")[0] == 200
+        assert at(resource(second)) == (200, revised)
+        assert at(old_resource) == (200, original)
+        assert (page / "events.jsonl").read_bytes().startswith(before)
+
+        delivered = page / "page/widgets/lf-reading.js"
+        delivered.write_text("export const reading = 'Preview edit';")
+        widget.write_text("export const reading = 'Another source edit';")
+        yield {str(widget)}
+        assert latest_revision(page) == second
+        assert "Preview edit" in delivered.read_text()
+        assert "reconcile" in capsys.readouterr().err
+
+        delivered.write_bytes(revised)
+        yield {str(widget)}
+        assert latest_revision(page) > second
+        assert "Another source edit" in delivered.read_text()
+
+        # Removing a dependency is not published while the widget still imports it.
+        helper = companions / "value.js"
+        helper.write_text("export const value = 'Dependency';")
+        widget.write_text("export { value } from '../value.js';")
+        yield {str(widget), str(helper)}
+        last = latest_revision(page)
+        helper.unlink()
+        yield {str(helper)}
+        assert latest_revision(page) == last
+        assert (page / "page/value.js").is_file()
+        widget.write_bytes(revised)
+        yield {str(widget)}
+        assert latest_revision(page) > last
+        assert not (page / "page/value.js").exists()
+        assert at(old_resource) == (200, original)
+
+        # A module can replace a directory of modules without stale empty folders.
+        group = companions / "components.js"
+        group.mkdir()
+        (group / "value.js").write_text("export const value = 'Grouped';")
+        widget.write_text("export { value } from '../components.js/value.js';")
+        yield {str(widget), str(group / "value.js")}
+        grouped = latest_revision(page)
+        (group / "value.js").unlink()
+        group.rmdir()
+        group.write_text("export const value = 'Single';")
+        widget.write_text("export { value } from '../components.js';")
+        yield {str(widget), str(group)}
+        assert latest_revision(page) > grouped
+        assert (page / "page/components.js").is_file()
+
+    monkeypatch.setattr(
+        preview,
+        "watch_changes",
+        lambda watched: _ScriptedChanges(changes(watched), watched),
+    )
+    with pytest.raises(StopIteration):
+        preview.serve_preview(source, page, ROOT / "bin/leaf", ROOT, False)
+
+
 def test_preview_filters_feedback_before_discovering_inputs(tmp_path, monkeypatch):
     """Page-side writes must not rediscover the whole installed layer."""
     source = tmp_path / "reading.html"
@@ -469,6 +608,15 @@ def test_a_preview_reads_its_watched_inputs_from_the_files_that_exist_now(tmp_pa
     assert initial.relevant(str(widget))
     widget.write_text("export {};", encoding="utf-8")
     assert str(widget.resolve()) in watched().paths
+
+    companions = source.with_suffix(".page")
+    custom = companions / "widgets" / "lf-custom.js"
+    assert initial.relevant(str(custom))
+    custom.parent.mkdir(parents=True)
+    custom.write_text("export {};")
+    assert str(custom) in watched().paths
+    custom.unlink()
+    assert str(custom) not in watched().paths
 
     # None of those arrivals moved the subscription: each landed inside a directory
     # already watched recursively, so the open watcher kept collecting through them.

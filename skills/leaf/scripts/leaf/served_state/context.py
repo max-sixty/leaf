@@ -6,6 +6,8 @@ readings instead, so every fold, including historical gesture words, stays insid
 the capture. Neither mode chooses its inputs again downstream.
 """
 
+from __future__ import annotations
+
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, replace

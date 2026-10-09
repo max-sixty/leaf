@@ -34,8 +34,8 @@ export const dataBody = (el) => el.querySelector(":scope > pre").textContent;
 // whitespace are the <pre>'s layout, not lines. `page check` holds an x-numbering to
 // the lines of this same trim (`_body_text`, validation/instances.py). trimEnd removes
 // the class collapse.js's COLLAPSE spells, which Python names outright because its own
-// \s differs at the edges. A notation whose trailing whitespace is content, a diff's,
-// reads `dataBody` instead.
+// \s differs at the edges. Notations whose whitespace is content, such as a diff or
+// exact Markdown source, read `dataBody` instead.
 export const bodyText = (el) => dataBody(el).replace(/^\n+/, "").trimEnd();
 
 // A failed upgrade becomes a visible error box rather than a blank page. A widget failure

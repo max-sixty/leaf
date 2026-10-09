@@ -32,12 +32,13 @@
  * drawing stands over into the record, for whoever reads the comment without the page.
  */
 
-import { targetElement, targetPlace } from "../resolved-target.js";
+import { exactTarget } from "../resolved-target.js";
 import { clippedContents, documentPoint, shownBox } from "../geometry.js";
 import { clamp, overlaps } from "../rect.js";
 import { COLLAPSE } from "../collapse.js";
 import {
   cut,
+  closestAcross,
   elementFromPointAcross,
   elementOver,
   leafSurface,
@@ -252,10 +253,7 @@ export function createDrawingController({
   // Where a draft's element stands now: the element, or null once it has gone or its
   // data moved on, which leaves its drawing no frame to be drawn in or added to.
   function targetOf(anchor) {
-    const found = resolveAnchor(anchor, "");
-    return found && found.status !== "outdated"
-      ? (targetElement(found) ?? targetPlace(found))
-      : null;
+    return exactTarget(resolveAnchor(anchor, ""));
   }
 
   // A later stroke of the session goes to the first stroke's draft wherever it starts, in
@@ -367,8 +365,8 @@ export function createDrawingController({
   function begin(event) {
     if (!drawModeOn || !event.isPrimary || event.button !== 0) return;
     const origin = event.composedPath()[0];
-    // Runtime surfaces remain operable wherever their owner seats them.
-    if (leafSurface(origin)) return;
+    // Runtime surfaces and widget offers remain operable wherever their owner seats them.
+    if (leafSurface(origin) || closestAcross(origin, "[data-lf-offer]")) return;
     claimThroughClick = true;
     claimedPointer = event.pointerId;
     claim(event);
@@ -556,8 +554,12 @@ export function createDrawingController({
   // element stood once a revision took the element away; null where the section has gone
   // too, which leaves the ink nowhere to be drawn and Draw mode's undo nothing to aim at.
   function inkFrame(anchor, held) {
-    const target = targetOf(anchor);
+    const found = resolveAnchor(anchor, "");
+    const target = exactTarget(found);
     if (target) return { target, drawing: held, detached: false };
+    // A temporarily hidden visual part can return with its original frame.
+    // Its containing widget is a travel fallback, not a place to park its ink.
+    if (found?.status === "fallback") return null;
     const section = held.at && sectionOf(anchor);
     return section
       ? { target: section, drawing: inSection(held), detached: true }

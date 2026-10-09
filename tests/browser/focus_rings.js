@@ -388,19 +388,23 @@
       // hit-testable. A pixel of ring outside the control's box therefore returns whatever
       // is beneath, and beneath is where the answer would have to come from.
       //
-      // That is sound while the control's own surface takes hits, because then the ring's
-      // sample either lands on the control's line or lands somewhere the line does not
-      // reach. It stops being sound inside a surface declaring `pointer-events: none`: the
-      // shortcut bar stands over the page at z-index 8940 and takes no hits, so its More button
-      // is topmost where it lives and every line of code under the ring's top run read as
-      // standing over it. `cuts` is geometry and still answers for these; this half says
-      // nothing rather than saying the opposite of what the page shows.
-      let ordered = true;
-      for (let a = el; a; a = above(a))
-        if (getComputedStyle(a).pointerEvents === "none") {
-          ordered = false;
-          break;
+      // That is sound where an ancestor's hit surface covers the sample. The shortcut
+      // bar takes no hits outside its More button, so a ring pixel there returns the
+      // page underneath. The auxiliary envelope also takes no hits, but its panel
+      // restores them inside its box. Read each ring side under the nearest such box;
+      // `cuts` remains a geometry reading even where hit order says nothing.
+      const orderedAt = (x, y) => {
+        let hitSurface = null;
+        for (let a = el; a; a = above(a)) {
+          if (getComputedStyle(a).pointerEvents === "none") {
+            if (!hitSurface) return false;
+            const b = hitSurface.getBoundingClientRect();
+            return x >= b.left && x <= b.right && y >= b.top && y <= b.bottom;
+          }
+          hitSurface = a;
         }
+        return true;
+      };
       // Whether a fixed surface standing over this ring is worth reporting. Tab scrolls
       // the control it lands on clear of the banner — that is what the document's
       // scroll-padding is for — so a fixed bar over the focused control's ring is a
@@ -459,7 +463,7 @@
       // seam's rounding, not anything drawn there. Floored at half a pixel so a hairline
       // ring still samples inside itself.
       const into = Math.max(w / 2, 0.5);
-      for (const [side, x, y] of ordered && shownRun
+      for (const [side, x, y] of shownRun
         ? [
             ["top", mid(...runX), ring.top + into],
             ["bottom", mid(...runX), ring.bottom - into],
@@ -468,6 +472,7 @@
           ]
         : []) {
         if (x < 0 || y < 0 || x > innerWidth || y > innerHeight) continue;
+        if (!orderedAt(x, y)) continue;
         for (const over of document.elementsFromPoint(x, y)) {
           if (over === el || holds(over, el)) break;
           if (holds(el, over)) {

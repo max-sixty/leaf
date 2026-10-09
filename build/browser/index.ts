@@ -1,4 +1,4 @@
-/** Internal framework bundle. Content modules import runtime/widget-api.js. */
+/** Internal framework facade. Content modules import runtime/widget-api.js. */
 export { LitElement, html, noChange, nothing, render } from "lit";
 export { repeat } from "lit/directives/repeat.js";
 export { createSemanticApplication } from "./application.js";

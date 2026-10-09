@@ -75,6 +75,8 @@
 import {
   answers,
   bindings,
+  bindingEnabled,
+  declaredBindings,
   allBindings,
   lineOf,
   titleOf,
@@ -93,14 +95,8 @@ import {
   universalCommandReference,
 } from "./register.js";
 import { EVERYTHING, nativeClaimAt } from "./text-entry.js";
-import { takesLetters } from "../focus.js";
-import {
-  focused,
-  recoveredLabelFocus,
-  scopesAt,
-  scopesFor,
-  scopeIdentity,
-} from "./scopes.js";
+import { takesLetters, focused, recoveredLabelFocus } from "../focus.js";
+import { scopesAt, scopesFor, scopeIdentity } from "./scopes.js";
 import { nativeLayers } from "./layer-stack.js";
 import { shadowHost, under, excludedByInert } from "../shadow.js";
 
@@ -452,16 +448,28 @@ export function dispatchKey(ev, { beforeCommand }) {
 // An action chosen from the reference has no keydown to match, but it still belongs to
 // exactly one live scope. Resolve it through the same innermost-first stack and the same
 // shadowing as a key press.
-function commandMatching(matches) {
+// A deliberately disabled shortcut leaves its command unbound and executable;
+// nearer key claims still constrain every shortcut that remains enabled.
+const reachableBindings = (row, scope, nearer, unclaimedEscape, commands) =>
+  (commands ? declaredBindings(row) : bindings(row)).filter((binding) =>
+    commands && !bindingEnabled(binding)
+      ? true
+      : binding === "Escape"
+        ? unclaimedEscape.has(scopeIdentity(scope))
+        : !nearer.takes(binding),
+  );
+function commandMatching(matches, commands = false) {
   const unclaimedEscape = unclaimedScopes("Escape");
   const nearer = shadow();
   for (const scope of stack()) {
     for (const row of scope.rows) {
       if (!live(row)) continue;
-      const reachable = bindings(row).filter((binding) =>
-        binding === "Escape"
-          ? unclaimedEscape.has(scopeIdentity(scope))
-          : !nearer.takes(binding),
+      const reachable = reachableBindings(
+        row,
+        scope,
+        nearer,
+        unclaimedEscape,
+        commands,
       );
       const entry = commandEntries(row, reachable).find(
         (command) =>
@@ -474,7 +482,7 @@ function commandMatching(matches) {
   }
   return null;
 }
-const commandFor = (id) => commandMatching((command) => command.id === id);
+const commandFor = (id) => commandMatching((command) => command.id === id, true);
 // A contextual surface asks the dispatcher which of its routes to one capability is
 // reachable from the user's current scope, and the box's placeholder names whichever one
 // dispatch would answer. Asked by command id rather than by row, so the surface holds no
@@ -485,27 +493,27 @@ export function activeCommandLabel(ids) {
   const command = commandMatching((entry) => wanted.has(entry.id));
   return command?.binding != null ? spell(command.binding) : "";
 }
-// Snapshot every executable route while focus is still on the page. Keep both readings:
-// command ids answer whether a semantic result can be invoked, while row bindings answer
-// whether this exact advertised route works. The distinction matters when a widget's
-// intrinsic key and an Ask alias share one command id but only one binding is shadowed.
-function availableRouteSnapshot() {
-  const commands = new Set();
+// Snapshot executable bindings by row while focus is still on the page. A widget's
+// intrinsic key and an Ask alias can share a command id while only one is shadowed.
+// The reference is a modal scope and shadows the page once it opens, so callers take
+// this snapshot before opening it.
+export function availableCommandRoutes({ commands = false } = {}) {
   const routes = new Map();
   const unclaimedEscape = unclaimedScopes("Escape");
   const nearer = shadow();
   for (const scope of stack()) {
     for (const row of scope.rows) {
       if (!live(row)) continue;
-      const reachable = bindings(row).filter((binding) =>
-        binding === "Escape"
-          ? unclaimedEscape.has(scopeIdentity(scope))
-          : !nearer.takes(binding),
+      const reachable = reachableBindings(
+        row,
+        scope,
+        nearer,
+        unclaimedEscape,
+        commands,
       );
       for (const binding of allBindings(row).length ? reachable : [undefined]) {
         for (const command of commandEntries(row, [binding])) {
           if (!invocationFor(row, binding, command)) continue;
-          commands.add(command.id);
           if (!routes.has(row)) routes.set(row, new Set());
           routes.get(row).add(binding);
         }
@@ -513,12 +521,8 @@ function availableRouteSnapshot() {
     }
     nearer.past(scope);
   }
-  return { commands, routes };
+  return routes;
 }
-// The reference is a modal scope and correctly shadows the page once it opens; callers
-// take this snapshot before that point.
-export const availableCommands = () => availableRouteSnapshot().commands;
-export const availableCommandRoutes = () => availableRouteSnapshot().routes;
 // A control standing in for a press (touch-controls.js) makes that press itself: the
 // binding names which of a routed row's results it is, and a nearer claim on the key is
 // about the key, not the command.

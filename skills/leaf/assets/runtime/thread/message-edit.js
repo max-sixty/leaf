@@ -64,6 +64,7 @@ import {
   watchDraft,
 } from "../drafts.js";
 import { TEXT_FIELD } from "../control-selectors.js";
+import { focusDestination } from "../focus.js";
 import { PENDING } from "./identity.js";
 import { keys } from "../keyboard/scopes.js";
 import { announce, notice } from "../notifications.js";
@@ -304,14 +305,14 @@ export class MessageEditor {
     this.#stop = mirrorDraft(this.input, sync, ctx, { retained: true, blank: said });
   }
 
-  // Focus the words with the caret after them, where a rewrite usually starts, and bring
-  // the editor into view, its last line, where the caret stands, at least. A long one's
-  // lines take their height only as the field draws them, after this, so the reveal
-  // follows the box's size until the user does anything.
-  focus() {
+  // Put the user on the words with the caret after them, where a rewrite usually starts,
+  // and bring the editor into view, its last line, where the caret stands, at least. A
+  // long one's lines take their height only as the field draws them, after this, so the
+  // reveal follows the box's size until the user does anything. Every opening is the
+  // user's own gesture, so the arrival is a move.
+  enter() {
     const end = this.input.value.length;
-    this.input.focus({ preventScroll: true });
-    this.input.setSelectionRange(end, end);
+    focusDestination(this.input, "move", { caret: [end, end] });
     this.#reveal(this.foot);
     this.#settling?.disconnect();
     const mayReveal = retainUserIntent();

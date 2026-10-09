@@ -1,5 +1,7 @@
 """One frozen input for browser validation and export previews."""
 
+from __future__ import annotations
+
 import copy
 import hashlib
 import time

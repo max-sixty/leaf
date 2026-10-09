@@ -69,7 +69,7 @@ const startupTime = z.nullable(
   z.number().check(z.int(), z.nonnegative(), z.maximum(300_000)),
 );
 const startupReportSchema = z.strictObject({
-  version: z.literal(1),
+  version: z.literal(2),
   loadId: z.uuidv4(),
   release: z.string().check(z.regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/)),
   layer: z.string().check(z.regex(/^[A-Za-z0-9_-]{1,128}$/)),
@@ -93,6 +93,8 @@ const startupReportSchema = z.strictObject({
   serverMs: startupTime,
   firstByteMs: startupTime,
   firstContentfulPaintMs: startupTime,
+  upgradedMs: startupTime,
+  firstStateResponseMs: startupTime,
   presentedMs: startupTime,
 });
 const interactionEntrySchema = z.record(z.string(), z.unknown()).check(

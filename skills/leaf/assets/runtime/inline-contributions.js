@@ -14,10 +14,9 @@ import {
 import { compareContributions, spokenSubject } from "./contribution-model.js";
 import { addressableWord } from "./anchor-resolution.js";
 import { inChrome } from "./passages.js";
-import { holdFocus, placeChrome } from "./focus.js";
+import { holdFocus } from "./focus.js";
 import { el } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
-import { repaint } from "./repaint.js";
 
 export function createInlineContributions({ targetPath }) {
   const hosts = new Map();
@@ -95,11 +94,8 @@ export function createInlineContributions({ targetPath }) {
       restoreFocus?.();
       if (target.nextSibling !== host) {
         const keepFocus = holdFocus(host);
-        const kept = placeChrome(() => {
-          target.after(host);
-          return keepFocus?.() ?? true;
-        });
-        if (!kept) repaint();
+        target.after(host);
+        keepFocus?.();
       }
     }
   }

@@ -121,6 +121,10 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
       items: ".lf-thread",
       identity: (card) => card.dataset.id,
       active: panelIsOpen,
+      // The open transcript remains the reading when its title scrolls out of view.
+      // A later card explicitly named by pointer or focus still takes precedence.
+      preferred: () =>
+        threadsBox.querySelector(":scope > .lf-thread[open]:not([hidden])"),
     }));
   const takeScrollHold = (panelIsOpen) => listPlace(panelIsOpen).take();
   const finishScrollHold = (hold, panelIsOpen) =>
@@ -135,7 +139,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     if (namedCard && namedCard !== card) return null;
     const tail = threadsBox.incomingTail(reading, card);
     const band = landingBand(threadsBox);
-    if (!tail || !band) return null;
+    if (!tail?.pinned || !band) return null;
     const tailStart = tail.tailStart;
     const tailEnd = tail.end;
     const scrolls = threadsBox.scrollHeight > threadsBox.clientHeight;
@@ -163,8 +167,9 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
   // it stood, so nothing after it moves, and the newest words end above the reply box,
   // however tall the turn has grown. The box stands at the list's foot (chrome.css), pinned
   // there while the card's end lies below it, so the words may reach past where it stood
-  // by more than the card grew. The scroll lands in the render's own frame. A short card has no
-  // scroll room to absorb news; HeldNews keeps it behind the existing notice instead.
+  // by more than the card grew. The scroll lands in the render's own frame. A short
+  // card's idle reply instead moves down as messages append, preserving its previous
+  // messages and the list's reading position.
   function followThreadEnd(newest, incoming) {
     const by = Math.max(
       newest.end - incoming.end,
@@ -225,7 +230,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     //
     // An open thread the narrowing hides keeps its node, hidden, rather than leaving the
     // list: a widget an agent sent in a reply is instantiated once, here, and every other
-    // reading of it — the banner's Asks count, the drawer's rows, the a/A walk — finds it by
+    // reading of it — the banner's Asks count, the drawer's rows, the q/Q walk — finds it by
     // id in the document. Pressing "Waiting on you" after answering a thread's question
     // took that thread's node out and, with it, the question from the page's count: 2/2
     // became 1/1 while the log said nothing had changed. Hidden is a fact about this list;

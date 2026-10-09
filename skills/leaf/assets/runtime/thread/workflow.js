@@ -54,8 +54,6 @@ export const workflowTitle = (workflow) => {
 // reads the same way, whatever the move's condition.
 export const atWork = (workflow) => ["working", "replying"].includes(workflow.stage);
 
-export const isLiveWorkflow = (workflow) => !workflow.condition && atWork(workflow);
-
 export const isWorkflowProgress = (workflow) =>
   !workflow.condition && ["picked_up", "working", "replying"].includes(workflow.stage);
 

@@ -28,8 +28,8 @@
  * The first announces the old layout before browser text input or an editor command
  * changes the words; the second announces the updated value and layout. A
  * write to `value` fires nothing, puts the caret at the end, and starts a new undo
- * history, so undo never walks back into a draft the runtime swapped out. A box owner
- * that takes pasted pictures intercepts paste in capture; otherwise the field pastes
+ * history, so undo never walks back into a draft the runtime swapped out.
+ * A box owner that takes pasted pictures intercepts paste in capture; otherwise the field pastes
  * the clipboard's text, including text carried beside a picture.
  * `naturalBlockSize` reads the field's intrinsic border-box block size in CSS pixels,
  * before the host's block size or its minimum and maximum constrain the writing room.
@@ -93,7 +93,7 @@ import {
   insertNewlineContinueMarkup,
 } from "../../vendor/codemirror.esm.js";
 import { TEXT_FIELD } from "../control-selectors.js";
-import { loadMarkdown, markdownReady, markdownTokens } from "../markdown.js";
+import { loadMarkdown, markdownReady, placedMarkdownTokens } from "../markdown.js";
 import { sizeObserver } from "../rendering.js";
 
 const sheet = new CSSStyleSheet();
@@ -175,10 +175,10 @@ const line = (cls) => Decoration.line({ class: cls });
 // The inline constructs the preview draws, by the renderer's token type: each as the
 // element the renderer sends it as.
 const INLINE = {
-  codespan: Decoration.mark({ tagName: "code" }),
-  em: Decoration.mark({ tagName: "em" }),
-  strong: Decoration.mark({ tagName: "strong" }),
-  del: Decoration.mark({ tagName: "del" }),
+  code_inline: Decoration.mark({ tagName: "code" }),
+  em_open: Decoration.mark({ tagName: "em" }),
+  strong_open: Decoration.mark({ tagName: "strong" }),
+  s_open: Decoration.mark({ tagName: "s" }),
 };
 
 // Whether the selection touches [from, to], ends included: the caret standing just
@@ -186,85 +186,9 @@ const INLINE = {
 const touches = (state, from, to) =>
   state.selection.ranges.some((range) => range.from <= to && range.to >= from);
 
-// A token's children in source order: its inline or block content, a list's items, and
-// a table's cells, header first.
-const children = (token) => [
-  ...(token.tokens ?? []),
-  ...(token.items ?? []),
-  ...(token.header ?? []).flatMap((cell) => cell.tokens),
-  ...(token.rows ?? []).flat().flatMap((cell) => cell.tokens),
-];
-
-// Where a token's `raw` stands in the draft, as [from, to]: the earliest run at or
-// after `at` that ends by `limit`. A token read at the top level is its exact source.
-// One a container handed on was rewritten first, in exactly two ways the match walks
-// through: a quote or a list drops each continuation line's markers and indent, and a
-// table cell drops the backslash of an escaped pipe. Null where no such run stands.
-function locate(source, raw, at, limit) {
-  for (let start = source.indexOf(raw[0], at); start >= 0 && start < limit;) {
-    let s = start;
-    let r = 0;
-    while (r < raw.length && s < limit) {
-      if (source[s] === raw[r]) {
-        s++;
-        r++;
-      } else if (raw[r] === "|" && source[s] === "\\" && source[s + 1] === "|") s++;
-      else if (raw[r - 1] === "\n" && /[ \t>]/.test(source[s])) s++;
-      else break;
-    }
-    if (r === raw.length) return [start, s];
-    start = source.indexOf(raw[0], start + 1);
-  }
-  return null;
-}
-
-// Where each token the renderer read stands in the draft, each found at or after the
-// one before it and inside the span of the token that holds it.
-function place(source, tokens, from, limit, found) {
-  let at = from;
-  for (const token of tokens) {
-    const span = token.raw ? locate(source, token.raw, at, limit) : null;
-    if (span) found.push({ token, from: span[0], to: span[1] });
-    place(source, children(token), span ? span[0] : at, span ? span[1] : limit, found);
-    if (span) at = span[1];
-  }
-  return found;
-}
-
-// Where a link's label closes: the `]` matching its opening `[`, backslash escapes
-// skipped, as CommonMark reads a label.
-function labelEnd(raw) {
-  for (let at = 1, depth = 0; at < raw.length; at++) {
-    if (raw[at] === "\\") at++;
-    else if (raw[at] === "[") depth++;
-    else if (raw[at] === "]" && depth-- === 0) return at;
-  }
-  return -1;
-}
-
-// How much of an inline construct's source `text` opens and closes it, read from the
-// source itself: the renderer's child tokens hold unescaped text, which the source need
-// not contain. Null for a construct the preview does not style.
-function syntaxLengths(token, raw) {
-  if (token.type === "codespan") {
-    const run = raw.match(/^`+/)[0].length;
-    return [run, run];
-  }
-  if (token.type === "em") return [1, 1];
-  if (token.type === "strong") return [2, 2];
-  if (token.type === "del") return raw.startsWith("~~") ? [2, 2] : [1, 1];
-  if (token.type !== "link") return null;
-  if (raw.startsWith("<")) return [1, 1];
-  if (!raw.startsWith("[")) return [0, 0];
-  const end = labelEnd(raw);
-  return end < 0 ? null : [1, raw.length - end];
-}
-
 // The draft as the renderer reads it, placed. Empty until the renderer has loaded.
 const read = (state) => {
-  const source = state.doc.toString();
-  const tokens = markdownTokens(source);
-  return tokens ? place(source, tokens, 0, source.length, []) : [];
+  return placedMarkdownTokens(state.doc.toString());
 };
 
 function decorate(state, placed) {
@@ -282,27 +206,26 @@ function decorate(state, placed) {
       at = current.to + 1;
     }
   };
-  for (const { token, from, to } of placed) {
+  for (const { token, from, to, contentFrom, contentTo, escapes } of placed) {
     const syntax = touches(state, from, to) ? dim : hide;
     // The construct as it stands in the draft, which a container may have rewritten
     // before the renderer read it.
     const text = state.doc.sliceString(from, to);
-    const lengths = syntaxLengths(token, text);
-    if (lengths) {
-      // The construct's words, between its opening and closing syntax.
-      const words = [from + lengths[0], to - lengths[1]];
+    if (token.type === "code_inline" || contentFrom !== undefined) {
+      const words =
+        token.type === "code_inline"
+          ? [from + token.markup.length, to - token.markup.length]
+          : [contentFrom, contentTo];
       if (words[0] > words[1]) continue;
-      // `[words](url)`, `[words][id]`, `<url>` and a bare address are drawn as links
-      // where the renderer kept them (`linked`); one it refused sends its words alone,
-      // so its syntax steps aside all the same.
-      if (token.type !== "link") add(from, to, INLINE[token.type]);
-      else if (token.linked) add(words[0], words[1], link);
+      if (INLINE[token.type]) add(from, to, INLINE[token.type]);
+      else if (token.type === "link_open" && token.meta.linked)
+        add(words[0], words[1], link);
       add(from, words[0], syntax);
       add(words[1], to, syntax);
-    } else if (token.type === "escape") {
-      // A backslash escape (`\*`) sends the character alone.
-      add(from, from + 1, syntax);
-    } else if (token.type === "heading") {
+    } else if (token.type === "text") {
+      for (const at of escapes ?? [])
+        add(at, at + 1, touches(state, at, at + 2) ? dim : hide);
+    } else if (token.type === "heading_open") {
       const end = from + text.trimEnd().length;
       const atx = text.match(/^ {0,3}#{1,6}(?:[ \t]+|$)/);
       lines(from, end, (each) => {
@@ -311,7 +234,7 @@ function decorate(state, placed) {
         else out.push(line("lf-md-heading").range(each.from));
       });
       if (atx) add(from, from + atx[0].length, syntax);
-    } else if (token.type === "code") {
+    } else if (token.type === "fence" || token.type === "code_block") {
       const end = from + text.trimEnd().length;
       const fenced = /^ {0,3}(`{3,}|~{3,})/.test(text);
       lines(from, end, (each) => {
@@ -326,13 +249,13 @@ function decorate(state, placed) {
         )
           add(each.from, each.to, dim);
       });
-    } else if (token.type === "blockquote") {
+    } else if (token.type === "blockquote_open") {
       lines(from, from + text.trimEnd().length, (each) => {
         out.push(line("lf-md-quote").range(each.from));
         const mark = each.text.match(/^ {0,3}> ?/);
         if (mark) add(each.from, each.from + mark[0].length, dim);
       });
-    } else if (token.type === "list_item") {
+    } else if (token.type === "list_item_open") {
       const mark = text.match(/^ {0,3}(?:[*+-]|\d{1,9}[.)])/);
       if (mark) add(from, from + mark[0].length, dim);
     }

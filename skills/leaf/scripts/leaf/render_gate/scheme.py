@@ -222,7 +222,7 @@ def _render_scheme(
     """Read and report the browser gate for one color scheme and viewport.
 
     `then`, when given, is handed the settled page and its registry after every reading
-    here, for the readings a version takes once rather than per scheme and viewport."""
+    here, for additional version-level readings before the page closes."""
     from playwright.sync_api import Error as PlaywrightError
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 

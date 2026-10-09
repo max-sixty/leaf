@@ -159,7 +159,7 @@ def neighbor_candidates() -> tuple:
             elif path not in _row_files or _row_files[path][0] != key:
                 try:
                     _row_files[path] = (key, read_json(path))
-                except OSError, ValueError:
+                except (OSError, ValueError):
                     _row_files[path] = (key, None)
         found = []
         for _key, record in _row_files.values():

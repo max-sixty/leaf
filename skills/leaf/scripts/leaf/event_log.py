@@ -185,7 +185,7 @@ def _parse_events(data: bytes, before: int = 0) -> list[dict]:
             continue
         try:
             event = json.loads(line.decode("utf-8"))
-        except json.JSONDecodeError, UnicodeDecodeError:
+        except (json.JSONDecodeError, UnicodeDecodeError):
             # The final line is a concurrent append mid-flush, complete on the
             # next read. An earlier one is the tear a crash left, standing alone
             # because append_event repairs the discipline before writing: that

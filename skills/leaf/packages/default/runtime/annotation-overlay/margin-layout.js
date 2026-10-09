@@ -725,6 +725,11 @@ function standFolded(row, fold, on) {
 // square the row's height, beside the gaps and the focus ring's room the row keeps.
 function seatPins(standing, { bands, shell, pinInset, retainSeats }) {
   const main = marginColumn();
+  // A scrollable document can reveal seats beyond the viewport. A root whose
+  // overflow prevents user scrolling cannot, so its window bounds the search.
+  const rootBounds = /^(hidden|clip)$/.test(getComputedStyle(pageScroller).overflowY)
+    ? shownWindow({ viewport: "layout" })
+    : null;
   const pins = [];
   for (const entry of standing) {
     const { read } = entry;
@@ -797,7 +802,7 @@ function seatPins(standing, { bands, shell, pinInset, retainSeats }) {
             bottom: (end.top + end.bottom + height) / 2,
           }
         : homeAt(size);
-    const within = stop === pageScroller ? null : contentBox(stop);
+    const within = stop === pageScroller ? rootBounds : contentBox(stop);
     // A board or table can clip the target across without owning its reading region.
     // Search only the room it shows; otherwise the nearest clear spot can leave the
     // scroller and targetShown withholds an otherwise reachable action.

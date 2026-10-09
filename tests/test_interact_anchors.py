@@ -2,6 +2,7 @@
 
 import json
 
+import pytest
 from click.testing import CliRunner
 from interact_support import (
     DRAFTED,
@@ -1538,7 +1539,7 @@ def test_a_quote_may_not_run_across_a_widgets_parts(page_dir):
 
 
 def test_a_verbatim_body_is_quotable_where_a_source_body_is_not(page_dir):
-    """The registry draws the line: lf-draft renders the authored text into a plain div
+    """The registry draws the line: lf-draft renders the authored Markdown into a body
     the anchor pass can see (x-verbatim), and lf-diagram renders a picture instead."""
     result = comment(
         drafted(page_dir), "--quote", "every mutating command", "--text", "which ones?"
@@ -1547,14 +1548,20 @@ def test_a_verbatim_body_is_quotable_where_a_source_body_is_not(page_dir):
     assert json.loads(result.output)["anchor"]["section"] == "note"
 
 
-def test_an_edited_draft_reads_as_the_users_words(page_dir):
+@pytest.mark.parametrize("formatted", [False, True], ids=["plain", "markdown"])
+def test_an_edited_draft_reads_as_the_users_words(page_dir, formatted):
     """An `edit` is absolute — the log carries the whole new body, and replay writes
     exactly that into the DOM the anchor pass searches — so the reading
     `leaf thread open` captures against holds the user's words in the authored
     body's place: quotable, collapsed like any passage, genuinely adjacent to the
     prose around them (no fence — the screen shows that adjacency too)."""
     drafted(page_dir)
-    edit(page_dir, "Adds --dry-run to purge\nand rebuild only.")
+    text = (
+        "*Adds* `--dry-run` to **purge**\nand rebuild only."
+        if formatted
+        else "Adds --dry-run to purge\nand rebuild only."
+    )
+    edit(page_dir, text)
     result = comment(page_dir, "--quote", "purge and rebuild only", "--text", "x")
     assert result.exit_code == 0, result.output
     assert json.loads(result.output)["anchor"]["section"] == "note"

@@ -44,6 +44,7 @@ from render_cases_layout import (
     LEGEND_TRUE,
     NAMED,
     PAGE_MARKUP,
+    QUESTIONS,
     aim_targets,
     banner_control,
     draw_edge,
@@ -306,10 +307,10 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
 
 
 @pytest.mark.parametrize("width", [900, 1200])
-def test_an_aimed_comment_keeps_its_place_with_the_queue_panel_open(
+def test_an_aimed_comment_keeps_its_place_with_the_questions_panel_open(
     browser, serve, width
 ):
-    """The Queue panel stands over the page without moving its coordinate plane.
+    """The Questions panel stands over the page without moving its coordinate plane.
 
     A broad authored rule may position ordinary divs, and the drawer may arrive over a
     target without another pointer event. Neither may move the chrome's document origin or
@@ -333,7 +334,7 @@ def test_an_aimed_comment_keeps_its_place_with_the_queue_panel_open(
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lq-keep")
     # Open by script so the pointer remains parked on the target while the drawer arrives.
     page.locator(".lf-queue").evaluate("node => node.click()")
-    edge_settled(page, EDGES[1])
+    edge_settled(page, QUESTIONS)
     aligned = page.evaluate(
         """() => {
           const target = document.getElementById('lq-keep').getBoundingClientRect();
@@ -358,7 +359,8 @@ def test_an_aimed_comment_keeps_its_place_with_the_queue_panel_open(
         f"the aim moved {aligned['dx']:.1f}px across and {aligned['dy']:.1f}px down "
     )
 
-    target.click()
+    # The panel stands over the right of the item, so the press lands on its start.
+    target.click(position={"x": 12, "y": 12})
     page.keyboard.up("Alt")
     open_compact_comment(page)
     placed = page.evaluate(
@@ -1736,9 +1738,10 @@ def test_a_covering_auxiliary_surface_holds_design_paint_beneath_it(browser, ser
     the mode, which is how a phone the sheet covers gets back to its page.
     """
     page = open_page(browser, serve(ASKS_PAGE))
-    resized(page, 700, 900)
+    # Wide enough that the panel first stands beside the page, where Design mode starts.
+    resized(page, 900, 900)
     banner_control(page, ".lf-queue").click()
-    edge_settled(page, EDGES[1])
+    edge_settled(page, QUESTIONS)
     page.keyboard.press("l")
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     resized(page, 560, 900)
@@ -1922,9 +1925,10 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
     switched the panel under it. Neither shows in the composer, which opens either way.
 
     So both halves are asserted together — the composer opens on the item that was
-    outlined, and the page is exactly as it was, in its markup and in where its focus
-    sits. The capture mechanism is layer-wide; these pages are retained for the distinct
-    downstream paths they put under it rather than for every repetition of those paths.
+    outlined, the press does not focus the control beneath it, and the page's markup
+    is as it was after the composer closes. The capture mechanism is layer-wide;
+    these pages stand for their distinct downstream paths rather than every repetition
+    of those paths.
     `required_paths` keeps that causal selection honest when an example changes.
     """
     url = serve(example)
@@ -1998,6 +2002,9 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
         )
         page.mouse.click(*point)
         page.keyboard.up("Alt")
+        assert not page.evaluate(FOCUS_IN_PAGE), (
+            f"⌥-clicking {label} in {case_name} focused the control under the aim"
+        )
         composer = page.locator(".lf-composer")
         bar = page.locator(".lf-fab-bar")
         if "suggestion control" in target_paths and promised:
@@ -2042,14 +2049,14 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
             # the outline, which is the one mark an aim is supposed to leave.
             page.keyboard.press("Escape")
             expect(composer).to_be_hidden()
+            # Closing the composer may hand focus back to its page subject. Release
+            # that focus before comparing markup, which can carry focus-only badges.
+            page.evaluate("() => document.activeElement.blur()")
+            rendered(page)
             aimed += 1
         assert page.evaluate(PAGE_MARKUP) == before, (
             f"⌥-clicking {label} in {case_name} changed the page, so a press the aim "
             "had taken reached a widget as well"
-        )
-        assert not page.evaluate(FOCUS_IN_PAGE), (
-            f"⌥-clicking {label} in {case_name} left the focus on the page, so the "
-            "press reached the control under it"
         )
         pressed += 1
     assert pressed, f"{case_name} pressed nothing, so it asserts nothing"
@@ -4258,7 +4265,7 @@ def _drawn_on(section):
 def _paint_mode(page, mode, words):
     page.evaluate(RELEASE_FOCUS)
     if mode == "ask":
-        page.keyboard.press("a")
+        page.keyboard.press("q")
         expect(page.locator("#pane-ask")).to_be_focused()
         expect(page.locator(".lf-command-binding-badge")).to_have_count(2)
     elif mode == "search":

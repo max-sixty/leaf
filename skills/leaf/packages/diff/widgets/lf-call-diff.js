@@ -4,7 +4,10 @@
  * grammar and projects each row as commentable evidence. Each root keeps its native
  * disclosure separate from its source link, which remains available when closed.
  * Ordinary activation travels to the exact line; modified activation keeps the
- * native link's separate-tab, separate-window and context-menu routes. */
+ * native link's separate-tab, separate-window and context-menu routes. CallDiff
+ * locations name the after tree for added and unchanged rows, and the before tree
+ * for removed rows (calldiff's diffNode/pickLoc contract). Source navigation keeps
+ * that side even when the same number names a different line on the other side. */
 import {
   announce,
   html,
@@ -20,7 +23,9 @@ import {
   once,
 } from "/runtime/widget-api.js";
 
-const LOCATION = /^(.*?)(?: {2,})(\S+:\d+(?:-\d+)?)$/;
+import { diffLocationKey } from "./diff-coordinates.js";
+
+const LOCATION = /^(.*?)(?: {2,})((\S+):(\d+)(?:-\d+)?)$/;
 
 function parse(text) {
   const lines = text.split(/\r?\n/).filter((line) => line.trim());
@@ -66,6 +71,8 @@ function parse(text) {
       groupKey,
       key,
       location,
+      path: matched?.[3],
+      line: matched ? Number(matched[4]) : null,
       meta,
       root,
       status,
@@ -142,11 +149,9 @@ function groupLabel(records) {
 }
 
 function lineKey(record) {
-  const matched = record.location.match(/^(.*):(\d+)(?:-\d+)?$/);
-  if (!matched) return null;
-  const [, path, rawLine] = matched;
+  if (!record.location) return null;
   const side = record.status === "removed" ? "old" : "new";
-  return JSON.stringify([path, side, Number(rawLine)]);
+  return diffLocationKey(record.path, side, record.line);
 }
 
 async function travelToLine(owner, record) {

@@ -29,6 +29,18 @@ DRIVER = Path(__file__).with_name("claude_code_driver.mjs")
 PLUGIN_ROOT = DRIVER.parents[1]
 
 
+def test_the_shared_watch_owner_serializes_host_endings(spawn):
+    """Both host adapters share the lifecycle exercised with held termination."""
+    run = spawn(
+        ["node", "--test", str(DRIVER.with_name("watch_owner.test.mjs"))],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    output, _ = run.communicate(timeout=STATED_TIMEOUT)
+    assert run.returncode == 0, output
+
+
 class ClaudeCode:
     """One driven Claude Code process and the session its module serves."""
 
@@ -111,14 +123,16 @@ class ClaudeCode:
 
 
 @pytest.fixture
-def claude_code(page_dir, monkeypatch, spawn, sessionless):
+def claude_code(page_dir, monkeypatch, spawn, sessionless, request):
     """A Claude Code session with the module turned on, holding a page claimed and
     served from a Bash tool command as Claude Code runs one: its session id and its
     process. Claude Code's own environment names no session, so neither does the
     module's. The session then starts, as one does when the module loads while it
     holds a page, and the module's watch holds the session's lease, so input posted afterwards
     arrived after the watch's first look rather than pending as it started."""
-    driven = ClaudeCode(spawn, "cc-s1", {"hooks_module": True})
+    driven = ClaudeCode(
+        spawn, "cc-s1", {"hooks_module": True, **getattr(request, "param", {})}
+    )
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", driven.session)
     monkeypatch.setenv("CLAUDE_PID", str(driven.pid))
     service_model.claim_page(page_dir)
@@ -203,7 +217,7 @@ def test_the_module_hands_input_to_a_running_turn_and_closes_an_interrupted_one(
     prompt hook and appends its delivery, which the turn reads at its next step.
     An Escape then ends the turn with no Stop hook; the module starts the watch
     with the Interrupt payload, which closes the turn the delivery opened and
-    wakes the session only for input arriving after it
+    wakes for input the stopped turn never received
     (`session.watch_between_turns`)."""
     assert claude_code.watches.get(timeout=STATED_TIMEOUT)["hook_event_name"] == "Stop"
     claude_code.start_turn()
@@ -226,8 +240,8 @@ def test_the_module_hands_input_to_a_running_turn_and_closes_an_interrupted_one(
         bool,
         failure="the Escape left the turn open",
     )
-    # Input admitted before the new watch's first look waits for the next prompt
-    # (`session.watch_between_turns`).
+    # The opened receipt removed handed input from the pending batch; the stopped
+    # turn's debt waits for the next prompt (`session.watch_between_turns`).
     wait_for(
         lambda: leases_model.wait_is_live(None, claude_code.session),
         bool,
@@ -235,6 +249,97 @@ def test_the_module_hands_input_to_a_running_turn_and_closes_an_interrupted_one(
     )
     append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "after"}
+    )
+    assert claude_code.message()["submitted"].startswith(
+        f"Leaf: {page_dir} has new input"
+    )
+
+
+@pytest.mark.parametrize("claude_code", [{"abortLagMs": 250}], indirect=True)
+def test_concurrent_interrupt_endings_keep_one_watch(claude_code):
+    """Two endings during cancellation cannot start before the old lease exits."""
+    assert (
+        claude_code.watches.get(timeout=STATED_TIMEOUT)["previous_active_watches"] == 0
+    )
+    claude_code.start_turn()
+    claude_code.end_turn(interrupted=True)
+    claude_code.end_turn(interrupted=True)
+    replacement = claude_code.watches.get(timeout=STATED_TIMEOUT)
+    assert replacement["hook_event_name"] == "Interrupt"
+    assert replacement["previous_active_watches"] == 0
+
+
+@pytest.mark.parametrize("claude_code", [{"abortLagMs": 250}], indirect=True)
+def test_shutdown_during_watch_replacement_waits_for_exit(claude_code):
+    """SessionEnd waits for cancellation already in flight and starts no successor."""
+    claude_code.watches.get(timeout=STATED_TIMEOUT)
+    claude_code.start_turn()
+    claude_code.end_turn(interrupted=True)
+    claude_code.quit()
+    assert not leases_model.wait_is_live(None, claude_code.session)
+    assert claude_code.watches.empty()
+
+
+def test_clear_keeps_the_module_able_to_watch_the_next_session(claude_code):
+    """Claude emits session.start once per process; /clear emits only session.end."""
+    claude_code.watches.get(timeout=STATED_TIMEOUT)
+    claude_code.emit(
+        "session.end", {"reason": "clear", "sessionId": claude_code.session}
+    )
+    claude_code.start_turn()
+    claude_code.end_turn()
+    assert (
+        claude_code.watches.get(timeout=STATED_TIMEOUT)["previous_active_watches"] == 0
+    )
+
+
+@pytest.mark.parametrize("claude_code", [{"holdPromptHook": True}], indirect=True)
+@pytest.mark.parametrize("cleared", [False, True])
+def test_confirmed_input_wakes_only_its_own_session(page_dir, claude_code, cleared):
+    """A confirmed handover survives a watch replacement, but not /clear."""
+    claude_code.start_turn()
+    append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "during turn"}
+    )
+    assert claude_code.read() == {"holding_hook": "UserPromptSubmit"}
+    if cleared:
+        claude_code.emit(
+            "session.end", {"reason": "clear", "sessionId": claude_code.session}
+        )
+    else:
+        claude_code.end_turn()
+    claude_code.send({"release_hook": True})
+    claude_code.send({"flush": True})
+    assert claude_code.read() == {
+        "submissions": int(not cleared),
+        "appends": int(not cleared),
+    }
+    if not cleared:
+        assert "appended" in claude_code.message()
+        assert "submitted" in claude_code.message()
+
+
+@pytest.mark.parametrize("claude_code", [{"abortLagMs": 250}], indirect=True)
+def test_interrupt_watch_replacement_waits_for_aborted_process_exit(
+    page_dir, claude_code
+):
+    """Aborting the output reader is not proof that the child's lease ended.
+    Replacement waits for process completion even when output iteration throws."""
+    assert claude_code.watches.get(timeout=STATED_TIMEOUT)["hook_event_name"] == "Stop"
+    claude_code.start_turn()
+    claude_code.end_turn(interrupted=True)
+    assert claude_code.exits.get(timeout=STATED_TIMEOUT)["hook_event_name"] == "Stop"
+    assert (
+        claude_code.watches.get(timeout=STATED_TIMEOUT)["hook_event_name"]
+        == "Interrupt"
+    )
+    wait_for(
+        lambda: leases_model.wait_is_live(None, claude_code.session),
+        bool,
+        failure="the replacement lost its lease to the canceled watch",
+    )
+    append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "after Escape"}
     )
     assert claude_code.message()["submitted"].startswith(
         f"Leaf: {page_dir} has new input"

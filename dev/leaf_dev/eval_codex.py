@@ -297,6 +297,9 @@ class CodexChild:
     def close(self):
         self.closing = True
 
+    def abort(self):
+        self._give_up()
+
     def _give_up(self):
         self.timed_out.touch()
         self.closing = True
@@ -304,6 +307,7 @@ class CodexChild:
 
     def __exit__(self, *exc):
         self.deadline.cancel()
+        self.deadline.join()
         self.task.socket.close()
         self.server.__exit__(*exc)
         self.raw.close()

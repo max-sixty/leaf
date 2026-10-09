@@ -48,6 +48,7 @@ import {
   keeps,
   keepsHidden,
   keepsText,
+  focusDestination,
 } from "/runtime/widget-api.js";
 
 customElements.define(
@@ -465,7 +466,7 @@ customElements.define(
       const rest = this.#cards(col).filter((c) => c !== card);
       col.moveBefore(card, rest[index] ?? null);
       if (grip) {
-        grip.focus({ preventScroll: true });
+        focusDestination(grip, "return");
         card.scrollIntoView({
           behavior: scrollBehavior(),
           block: "nearest",

@@ -8,9 +8,9 @@ far as its first eight screens, where a reader decides whether to go on, with th
 label saying how many of the page's screens they are; one screen at each width
 where the page's own arrangement is at its tightest before it changes, or where its
 margin content changes, with that box in view; and, on a page with Asks, the desktop
-window at each of its first eight open ones as `a` arrives there from the top, which is
+window at each of its first eight open ones as `q` arrives there from the top, which is
 how a user working the page reads each question, with the view that holds it opened;
-`a` walks everything waiting on the user, so a thread or a handed-back widget move it
+`q` walks everything waiting on the user, so a thread or a handed-back widget move it
 stops at on the way gets no screen. The screens go to one directory per page
 under the state home's screens/, which the check names; a check writes a fresh
 directory beside it and then puts it in its place, so a reader never meets half of one
@@ -66,8 +66,8 @@ def _down_the_page(page, into: Path, stem: str) -> tuple[list[Path], int]:
     return shots, total
 
 
-# Where a press of `a` left the user: the Ask they stand in, as the runtime marks it
-# (the outermost element wearing its ring, outside the Queue panel, which mirrors the
+# Where a press of `q` left the user: the Ask they stand in, as the runtime marks it
+# (the outermost element wearing its ring, outside the Questions panel, which mirrors the
 # same reading); else the thread holding focus; else the page widget holding it, where
 # the walk puts the user on a move handed back to them. Those are the walk's other
 # kinds of stop (queue-walk.js), which the screens pass, so each is read only to step
@@ -88,14 +88,14 @@ STANDING_ITEM = """() => {
 
 
 def _asks_in_turn(page, into: Path) -> tuple[list[Path], bool]:
-    """The window at each open Ask `a` reaches from the top, as far as MOST_SCREENS,
+    """The window at each open Ask `q` reaches from the top, as far as MOST_SCREENS,
     and whether the walk goes on past them. Which Ask a press reached is the runtime's
-    own mark, so the walk covers whatever `a` does, a suggestion as much as an
+    own mark, so the walk covers whatever `q` does, a suggestion as much as an
     `lf-ask`. The walk stops at its last item rather than wrapping, so a press that
     reaches an item it has already stood on has reached the end."""
     shots, seen = [], set()
     while True:
-        page.keyboard.press("a")
+        page.keyboard.press("q")
         rendered(page)
         here = page.evaluate(STANDING_ITEM)
         if here is None or (here["ask"], here["id"]) in seen:
@@ -161,7 +161,7 @@ def save_screens(
     context, page = _open(browser, url, RENDER_VIEWPORT, False)
     try:
         shots, more = _asks_in_turn(page, into)
-        label = "desktop, each press of `a` from the top, at the next open Ask"
+        label = "desktop, each press of `q` from the top, at the next open Ask"
         if more:
             label = f"{label}, the first {len(shots)} of the page's open Asks"
         saved.extend((shot, label) for shot in shots)

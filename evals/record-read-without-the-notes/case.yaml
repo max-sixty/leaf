@@ -23,7 +23,7 @@ vars:
     \ --render` just passed:\n\n  \u2713 index.html: renders clean in Chrome, light and dark at 1200x900\
     \ and 540x720\n    screens to read before handing the page over, in ~/.local/state/leaf/screens/tend-open-items-f18529c2b8a7:\n\
     \      1200px-1.png \u2026 1200px-2.png: desktop\n      1200px-ask-1.png \u2026 1200px-ask-8.png:\
-    \ desktop, each press of `a` from the top, at the next open Ask, the first 8 of the page's open Asks\n\
+    \ desktop, each press of `q` from the top, at the next open Ask, the first 8 of the page's open Asks\n\
     \      1920px-1.png \u2026 1920px-2.png: the widest window\n      390px-1.png \u2026 390px-4.png:\
     \ phone\n\nThe page includes a contents outline and a full review-history section.\n\nThe research reports are still in your context. Say what you do between this check\nand\
     \ handing the URL to the user, step by step, and who does each step.\n"

@@ -574,7 +574,11 @@ def test_a_multiline_passage_attaches_to_its_first_words_through_focus_reflow_an
     expect(card).to_have_css("opacity", "1")
     after = attached(".lf-margin-preview")
     assert after["left"] == pytest.approx(before["left"], abs=1)
+    expect(card.locator(".lf-page-thread")).to_be_focused()
+    # Leave the card for its passage, then dismiss it before reopening.
     page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(card).to_be_hidden()
     page.locator(".lf-margin-marker").click()
     expect(card).to_have_css("opacity", "1")
     attached(".lf-margin-preview")
@@ -611,7 +615,10 @@ def test_a_right_edge_passage_reopens_a_usable_card_without_moving_typing(
     assert after["left"] == pytest.approx(before["left"], abs=1)
     page.keyboard.press("Enter")
     expect(page.locator(".lf-margin-preview")).to_have_css("opacity", "1")
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
     page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
     page.locator(".lf-margin-marker").click()
     rendered(page)
     card = page.evaluate(RECT, ".lf-margin-preview")
@@ -1059,7 +1066,10 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
         rendered(page)
         surface = page.locator(".lf-margin-preview:visible")
         if consumer == "reopened":
+            expect(surface.locator(".lf-page-thread")).to_be_focused()
             page.keyboard.press("Escape")
+            page.keyboard.press("Escape")
+            expect(page.locator(".lf-margin-preview")).to_be_hidden()
             page.locator(".lf-margin-marker").click()
             rendered(page)
     else:

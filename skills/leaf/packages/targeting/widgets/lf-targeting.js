@@ -31,6 +31,8 @@ import {
   says,
   targetCandidates,
   widgetController,
+  focusDestination,
+  holdFocus,
 } from "/runtime/widget-api.js";
 import "../vendor/webawesome.esm.js";
 
@@ -355,7 +357,7 @@ customElements.define(
           when: () => this.#armed,
           run: () => {
             this.disarm();
-            this.#arm.focus({ preventScroll: true });
+            focusDestination(this.#arm, "return");
           },
         },
       ]);
@@ -376,7 +378,7 @@ customElements.define(
           this.#tabIndexes.set(element, element.getAttribute("tabindex"));
           element.tabIndex = 0;
         }
-        this.#preview.focus({ preventScroll: true });
+        focusDestination(this.#preview, "move");
       } else {
         for (const [element, prior] of this.#tabIndexes) {
           if (prior === null) element.removeAttribute("tabindex");
@@ -445,7 +447,8 @@ customElements.define(
         this.#candidateList,
       );
       keepsHidden(this.#candidateList, false);
-      this.#candidateList.querySelector("button")?.focus({ preventScroll: true });
+      const first = this.#candidateList.querySelector("button");
+      if (first) focusDestination(first, "move");
       layoutChanged(this);
       return true;
     }
@@ -528,7 +531,7 @@ customElements.define(
         `[data-target-key="${key}"] .lf-targeting-name`,
       );
       await field.updateComplete;
-      if (field.isConnected && mayFocus()) field.focus({ preventScroll: true });
+      if (field.isConnected && mayFocus()) focusDestination(field, "move");
     }
 
     #nextTarget() {
@@ -570,7 +573,11 @@ customElements.define(
       layoutChanged(this);
     }
 
+    // A rebuild keeps the user in the row they stood in, or the nearest that survived it,
+    // or on the control that adds one, rather than dropping them to the body when the
+    // row they removed goes.
     #renderTargets() {
+      const restoreFocus = holdFocus(this.#targetList, { key: "data-target-key" });
       render(
         this.#configuration.targets.length
           ? repeat(
@@ -670,6 +677,7 @@ customElements.define(
           : html`<p ${offered("lf-targeting-empty")}>No targets selected.</p>`,
         this.#targetList,
       );
+      restoreFocus?.(this.#arm);
     }
 
     #classesFor(target) {
@@ -708,6 +716,7 @@ customElements.define(
     }
 
     #renderChanges() {
+      const restoreFocus = holdFocus(this.#changeList, { key: "data-change-id" });
       render(
         this.#configuration.changes.length
           ? repeat(
@@ -717,7 +726,10 @@ customElements.define(
                 const target = this.#configuration.targets.find(
                   (candidate) => candidate.key === change.target,
                 );
-                return html`<div ${offered("lf-targeting-change")}>
+                return html`<div
+                  ${offered("lf-targeting-change")}
+                  data-change-id=${change.id}
+                >
                   <span ${offered("lf-targeting-change-summary")}
                     >${
                       change.kind === "style"
@@ -743,6 +755,7 @@ customElements.define(
           : html`<p ${offered("lf-targeting-empty")}>No changes added.</p>`,
         this.#changeList,
       );
+      restoreFocus?.(this.#arm);
     }
 
     #elementsFor(target) {

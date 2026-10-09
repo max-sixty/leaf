@@ -18,6 +18,7 @@ import {
   once,
   offer,
   widgetController,
+  focusDestination,
 } from "/runtime/widget-api.js";
 
 customElements.define(
@@ -85,8 +86,7 @@ customElements.define(
       this.#frame.className = "lf-sample-frame";
       this.#frame.title = this.getAttribute("label") || "Leaf sample";
       this.#frame.addEventListener("lf-sample-return", () => {
-        this.tabIndex = -1;
-        this.focus({ preventScroll: true });
+        focusDestination(this, "return");
       });
 
       const controls = document.createElement("div");
@@ -185,10 +185,11 @@ customElements.define(
         if (signal.aborted || ready !== this.#ready || !this.isConnected) return false;
         if (
           shown &&
+          invoker &&
           this.ownerDocument.activeElement === this.#frame &&
           invoker !== this.#frame
         )
-          invoker?.focus({ preventScroll: true });
+          focusDestination(invoker, "return");
         return shown;
       };
       try {

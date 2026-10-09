@@ -70,12 +70,12 @@ The optional bundled packages are:
 | --- | --- |
 | `code-review` | Review-authoring instructions; select alongside the evidence packages the page needs. |
 | `diagram` | `lf-diagram` and its Agentic Mermaid renderer. |
-| `diff` | `lf-diff`, the `unified-diff` data contract, and the Pierre renderer. |
+| `diff` | `lf-diff`, its `unified-diff` data contract and Pierre renderer, and `lf-call-diff` with links to exact patch evidence. |
 | `swipe` | A pass-or-keep technical backlog deck. |
 | `playground` | Controls and structured state with shared reset, restore, preview, output, and typed configuration submission. |
 | `targeting` | Preview-element selection and structured, reversible change proposals. |
 | `command-hub` | Multi-agent orchestration widgets. |
-| `pr-review` | A typed pull-request brief with a safe Markdown description and compact checks table, plus a data-backed unified call diff. |
+| `pr-review` | A typed pull-request brief with a safe Markdown description and compact checks table. |
 | `monitoring` | Release-workspace instructions for current state, checks, a run log, and a rollback Ask. |
 | `visual-review` | Ordered website cases with aligned before-and-after evidence, automatic comparison orientation, authored focus and full-frame context, flip and overlay, fit and captured-size inspection, exact preview links, and dispositions. |
 | `playwright` | Native trace import and `lf-trace` review of actions, checkpoint images, captured frames and saved accessibility elements, with comments that restore their recorded moment and a link to Playwright's full viewer. |
@@ -193,8 +193,8 @@ A package's rules read the box a widget is given and the theme's tokens, never t
 or style class around it, so a widget behaves the same in a shipped Layout as on a page
 whose own CSS gives it the same box. A size query on the widget's own container answers
 its width. What a width cannot say arrives as a token its owner sets: `--lf-full-height`
-while a workspace gives its body a definite height (`module-authoring.md`, "Reading
-regions"), and `--lf-density: working` under the `density-working` style.
+on the box that gives the widget a definite height to fill (`module-authoring.md`,
+"Reading regions"), and `--lf-density: working` under the `density-working` style.
 
 A rule that draws a box's inset — padding, border, or tinted field — declares
 `--lf-block-frame: 1` in the same rule. The shared layout uses that declaration to trim child

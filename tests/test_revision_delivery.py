@@ -34,6 +34,33 @@ ROOT = PAGE_ROOT + "/revisions/r1-0123456789abcdef"
 ADDRESS = DeliveryAddress(PAGE_ROOT, ROOT)
 
 
+def test_declared_markdown_body_is_delivered_formatted_with_exact_source_retained():
+    source = '<lf-editable id="note"><pre>**Keep** `--dry-run`.\n\n- One\n- Two</pre></lf-editable>'
+    marked = mark_declared(source, {"lf-editable": {"x-text-format": "markdown"}}, {})
+    document = SourceDocument(marked)
+    [host] = document.tree.find_all("lf-editable")
+    assert host.select_one("pre").text == "**Keep** `--dry-run`.\n\n- One\n- Two"
+    body = host.select_one(".lf-markdown-body")
+    assert body.select_one("strong").text == "Keep"
+    assert body.select_one("code").text == "--dry-run"
+    assert len(body.find_all("li")) == 2
+    assert body.attrs["data-lf-source-words"] == host.select_one("pre").text
+    assert "data-lf-prepaint" in body.attrs
+
+
+def test_delivered_markdown_refuses_unsafe_links_and_images_before_runtime_loads():
+    source = '<lf-editable id="note"><pre>[unsafe link](javascript:alert(1)) ![unsafe image](data:text/html,boom) [safe link](https://example.com)</pre></lf-editable>'
+    delivered = mark_declared(
+        source, {"lf-editable": {"x-text-format": "markdown"}}, {}
+    )
+    body = SourceDocument(delivered).tree.select_one(".lf-markdown-body")
+    assert [link.attrs["href"] for link in body.find_all("a")] == [
+        "https://example.com"
+    ]
+    assert not body.find_all("img")
+    assert body.text.strip() == "unsafe link unsafe image safe link"
+
+
 @pytest.mark.parametrize(
     "inliner_type,depth", [(AssetInliner, 1200), (ReadableAssets, 3)]
 )
@@ -696,3 +723,21 @@ def test_delivery_reads_an_image_s_size_as_the_browser_decodes_it(browser):
     # An upload is checked by its signature alone, so a file cut short after it is a
     # file delivery still serves.
     assert media_size(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR") is None
+
+
+def test_markdown_prepaint_has_task_checkboxes_bare_links_and_literal_html():
+    from html import escape
+
+    source = "- [x] Done\n- [ ] Todo\n\nhttps://example.com\n\n<div>\n**bold**\n</div>"
+    delivered = mark_declared(
+        f"<lf-editable><pre>{escape(source)}</pre></lf-editable>",
+        {"lf-editable": {"x-text-format": "markdown"}},
+        {},
+    )
+    body = SourceDocument(delivered).tree.select_one(".lf-markdown-body")
+    checks = body.find_all("input")
+    assert len(checks) == 2 and all("disabled" in check.attrs for check in checks)
+    assert "checked" in checks[0].attrs and "checked" not in checks[1].attrs
+    assert body.select_one("a").attrs["href"] == "https://example.com"
+    assert body.select_one("strong").text == "bold"
+    assert not body.find_all("div")

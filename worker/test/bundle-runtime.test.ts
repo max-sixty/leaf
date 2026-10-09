@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -28,16 +28,16 @@ describe("published runtime bundle", () => {
     for (const revision of revisions) {
       const layer = join(directory, "examples", "study", "revisions", revision);
       const root = `${assetRoot}/revisions/${revision}`;
-      for (const sub of ["runtime", "widgets", "page", "vendor"]) {
+      for (const sub of ["runtime", "widgets", "page", "vendor/browser-runtime"]) {
         await mkdir(join(layer, sub), { recursive: true });
       }
       await writeFile(
         join(layer, "leaf.js"),
-        `import { state } from "${root}/page/state.js"; import { moduleUrl } from "${root}/runtime/url.js"; console.log(state, moduleUrl, import.meta.url);`,
+        `import { state } from "${root}/page/state.js"; import { moduleUrl, prose } from "${root}/runtime/url.js"; import { framework } from "${root}/vendor/browser-runtime.js"; console.log(state, moduleUrl, prose, framework, import.meta.url);`,
       );
       await writeFile(
         join(layer, "runtime", "url.js"),
-        "export const moduleUrl = import.meta.url;",
+        'export const moduleUrl = import.meta . url; export const prose = "import.meta.url";',
       );
       for (const entry of [
         "interaction-gallery-frame",
@@ -62,7 +62,11 @@ describe("published runtime bundle", () => {
       await writeFile(join(layer, "vendor", "lit.js"), "export const html = 1;\n");
       await writeFile(
         join(layer, "vendor", "browser-runtime.js"),
-        'export { html } from "./lit.js";\n',
+        `export { framework } from "${root}/vendor/browser-runtime/model.js";\n`,
+      );
+      await writeFile(
+        join(layer, "vendor", "browser-runtime", "model.js"),
+        `import { html } from "${root}/vendor/lit.js";\nexport const framework = html;\n`,
       );
     }
 
@@ -79,8 +83,17 @@ describe("published runtime bundle", () => {
       expect(await readFile(join(layer, "leaf.js"), "utf8")).toContain(
         `new URL("${root}/leaf.js",location.origin).href`,
       );
+      // The kernel absorbs the framework and keeps the page's one Lit.
+      expect(await readFile(join(layer, "leaf.js"), "utf8")).toContain(
+        `from"${root}/vendor/lit.js"`,
+      );
+      expect(await readdir(join(layer, "vendor"))).toEqual(["lit.js"]);
       expect(await readFile(join(layer, "leaf.js"), "utf8")).toContain(
         `new URL("${root}/runtime/url.js",location.origin).href`,
+      );
+      // Only a read of the module's URL is rewritten, not text that spells one.
+      expect(await readFile(join(layer, "leaf.js"), "utf8")).toContain(
+        '"import.meta.url"',
       );
       expect(await readFile(join(layer, "page", "state.js"), "utf8")).toBe(
         `export const state = { revision: "${revision}" };`,
@@ -110,11 +123,22 @@ describe("published runtime bundle", () => {
         await readFile(join(output, "runtime", "layer-client.js"), "utf8"),
       ).toBeTruthy();
       expect(bundled).not.toMatch(/from"\.\/runtime\/(?!bundle-)/);
-      // The framework is committed readable and delivered minified.
-      const framework = await readFile(join(output, "vendor", "browser-runtime.js"), "utf8");
-      expect(framework.length).toBeLessThan(
-        (await readFile(join(runtime, "vendor", "browser-runtime.js"), "utf8")).length / 1.5,
-      );
+      // The kernel absorbs the framework; the page still shares one Lit.
+      const kernel = (
+        await Promise.all(
+          (await readdir(join(output, "runtime")))
+            .filter((file) => file.endsWith(".js"))
+            .map((file) => readFile(join(output, "runtime", file), "utf8")),
+        )
+      ).join("\n");
+      expect(kernel).toContain('"accepted:presented"');
+      expect(kernel).toContain('from"/published/layer/vendor/lit.js"');
+      expect(kernel).not.toContain("litHtmlVersions");
+      expect(kernel).not.toContain("browser-runtime");
+      // A vendor module's runtime import survives as its own module.
+      expect(
+        await readFile(join(output, "runtime", "shadow-stage.js"), "utf8"),
+      ).toBeTruthy();
       expect(
         await readFile(join(output, "widgets", "lf-suggestion.js"), "utf8"),
       ).not.toContain("/runtime/widget-api.js");

@@ -1,5 +1,7 @@
 """Page initialization and atomic layer vendoring."""
 
+from __future__ import annotations
+
 import contextlib
 import json
 import secrets

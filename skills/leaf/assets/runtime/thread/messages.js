@@ -3,7 +3,8 @@
    Every surface uses the same message, header and body vocabulary. Generated
    metadata, prose, workflow and reaction placement have one owner. Each message
    retains its header and body together, sharing delivery, unread and fold state.
-   Its header declares its stationary text-reflow boundary. An
+   Its header declares its stationary text-reflow boundary and hosts the thread's
+   disclosure for progress completed by that reply. An
    immutable descriptor changes prose without reconnecting the validated authored
    fragment. A new message cues its own words once on first presentation, in every
    surface: one the user just sent, and any turn, whoever wrote it, joining a thread
@@ -57,7 +58,7 @@ import { iconTemplate } from "../icons.js";
 import { keeps } from "../keeps.js";
 import { motion } from "../motion.js";
 
-export const loadMarked = () =>
+export const loadMessageMarkdown = () =>
   loadMarkdown((error) =>
     reportPageError(`markdown renderer failed to load: ${error?.message ?? error}`),
   );
@@ -180,7 +181,6 @@ export function messageReading(
     editable: editable(message),
     failure: message.failure ?? null,
     pending: workflow?.stage === "sending",
-    rewriting: Boolean(message.edited?.pending),
     // What a rewrite of the message is written over (`base` on an edit): its latest
     // edit, or the message itself.
     base: message.edited?.id ?? message.id,
@@ -221,7 +221,7 @@ export class MessageView {
     this.node = document.createElement("div");
   }
 
-  present(model, { arrived = false } = {}) {
+  present(model, { arrived = false, headerControls = nothing } = {}) {
     const prior = this.#model;
     this.#model = model;
     const panel = model.panel;
@@ -283,9 +283,6 @@ export class MessageView {
     this.node.classList.toggle("lf-unread", Boolean(model.unread));
     keeps(this.node, "data-attempt", model.attempt || null);
     keeps(this.node, "aria-busy", model.pending ? "true" : null);
-    // A rewrite waits on words already standing, so it dims on the shared delay like any
-    // control awaiting the log, rather than at once as a new message does (marks.css).
-    keeps(this.node, "data-lf-rewriting", model.rewriting ? "" : null);
     keeps(this.node, "data-failure", model.failure || null);
     if (model.nativeAuthored && model.body.authored && !this.#authored)
       this.#authored = authoredMessage({
@@ -333,6 +330,7 @@ export class MessageView {
               : nothing
           }
         </span>
+        ${headerControls}
       `,
       this.#header,
     );
@@ -401,8 +399,8 @@ export class MessageView {
       // One phase drives the message's ground and its sticky header. CSS resolves
       // the tint and resting colour at this message after insertion; Firefox's
       // Web Animations interpolates a var() colour keyframe discretely.
-      // The shared motion gate answers for restoration and reduced motion; opacity
-      // continues to describe delivery independently (marks.css).
+      // The shared motion gate answers for restoration and reduced motion; the
+      // delivery receipt and busy cursor remain independent of the arrival tint.
       this.#arrivalMotion = motion(
         this.node,
         [{ "--lf-msg-arrival": 1, offset: 0 }],
@@ -422,7 +420,7 @@ export class MessageView {
       openMessageEdit(model.id, this, model.panel);
       this.#commands.edit.paint(this.node);
     }
-    this.#editor?.focus();
+    this.#editor?.enter();
     return true;
   }
 

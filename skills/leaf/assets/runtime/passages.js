@@ -78,7 +78,7 @@
 
    Identity crosses the same boundary. `elementById` searches the document and declared
    open roots. `pageQueryAll` clears or queries marks everywhere the runtime may write.
-   `focused` (keyboard/scopes.js) descends through retargeted `document.activeElement`
+   `focused` (focus.js) descends through retargeted `document.activeElement`
    until it finds the actual control.
 
    Hit testing asks two different questions. `elementFromPointAcross` and `markAt`

@@ -848,15 +848,20 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     expect(search).to_be_focused()
     status = page.locator(".lf-page-search-status")
     expect(status).to_be_empty()
+    search_box = search.bounding_box()
     search.fill("words absent from this page")
     expect(status).to_have_text("No matches")
+    assert search.bounding_box() == pytest.approx(search_box, abs=0.5)
     search.fill("")
     expect(status).to_be_empty()
+    assert search.bounding_box() == pytest.approx(search_box, abs=0.5)
     page.keyboard.type("b")
     expect(status).to_have_text(re.compile(r"\d+ of \d+"))
+    assert search.bounding_box() == pytest.approx(search_box, abs=0.5)
     expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
     search.fill("button the key")
     expect(status).to_have_text("1 of 1")
+    assert search.bounding_box() == pytest.approx(search_box, abs=0.5)
     expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("select match")
     page.keyboard.press("Tab")
@@ -1023,10 +1028,10 @@ def test_a_search_selection_keeps_the_response_bar_off_its_passage(browser, serv
     assert response_bar_is_clear_of("#plain")
 
     page.keyboard.press("n")
-    assert page.evaluate("() => getSelection().anchorNode.parentElement.className") == (
-        "lf-draft-body"
+    assert page.evaluate(
+        "() => Boolean(getSelection().anchorNode.parentElement.closest('.lf-draft-body'))"
     )
-    assert response_bar_is_clear_of("#draft"), (
+    assert response_bar_is_clear_of("#draft .lf-draft-body"), (
         "the response bar covered the readable body of a widget-rendered passage"
     )
 

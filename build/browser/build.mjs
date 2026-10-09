@@ -3,53 +3,116 @@
  * Build Leaf's committed browser framework from locked contributor dependencies.
  *
  * Run with --check to compare a fresh, typechecked build with committed bytes
- * without writing them. This module owns its source roots, outputs, and manifest;
- * Leaf installation, vendoring, activation, and export never invoke this tool.
+ * without writing them. This module owns its source root, outputs, and their layer
+ * paths; Leaf installation, vendoring, activation, and export never invoke this tool.
  *
- * Outputs are readable, unminified ESM with no source map, so two branches that
- * change different parts of the framework merge the committed output as cleanly as
- * they merge its source, and the check confirms the merged bytes equal a rebuild.
- * The manifest records lineage, not output hashes, for the same reason. Delivery
- * minifies these modules (`build/runtime-bundle.mjs`), so readable output costs
- * installations and the website nothing.
+ * Each TypeScript module compiles to one JavaScript module, its types blanked to
+ * whitespace, so every line keeps its source line number and two branches conflict
+ * in the output exactly where they conflict in the source. `index.ts` becomes the
+ * facade `vendor/browser-runtime.js`; the modules it reaches sit in
+ * `vendor/browser-runtime/`. Their imports are rewritten to the layer paths a page
+ * serves: runtime modules stay native, so a page holds one instance of each, and
+ * packages bind to the vendored builds below. Delivery compiles the whole framework
+ * into the kernel (`build/runtime-bundle.mjs`), so its file count costs a
+ * development checkout requests and nothing else.
  *
- * The page's one copy of Lit is built here, as `vendor/lit.js`: every public Lit
+ * The framework's third-party packages are minified builds, which change only when
+ * the lock does. `vendor/lit.js` is the page's one copy of Lit: every public Lit
  * module in one namespace, shaped like Lit's own `lit-all` bundle, where the
- * static-html tags are renamed `staticHtml`, `staticSvg`, and `staticMathml` so
- * they do not shadow the ordinary ones. The framework imports Lit from it, and so
- * does the Web Awesome bundle (`build/webawesome/build.mjs`), so a page
- * registers one LitElement, one template cache, and one version. Outputs import
- * only one another, statically; nothing else crosses the bundle. `shipped.mjs`
- * decides whether each output's imports resolve on every page and writes the notices for
- * the packages that reached them, as it does for every bundle `build/vendor.py`
- * makes.
+ * static-html tags are renamed `staticHtml`, `staticSvg`, and `staticMathml` so they
+ * do not shadow the ordinary ones. The framework imports Lit from it, and so does
+ * the Web Awesome bundle (`build/webawesome/build.mjs`), so a page registers one
+ * LitElement, one template cache, and one version. Signals are the framework's own
+ * and sit inside its directory. `shipped.mjs` decides whether each output's imports
+ * resolve on every page and writes the notices for the packages that reached them,
+ * as it does for every bundle `build/vendor.py` makes.
  */
-import { createHash } from "node:crypto";
-import { readFile, mkdir, writeFile } from "node:fs/promises";
+import { readFile, readdir, mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { parse } from "acorn";
+import { transformSync } from "amaro";
 import { build } from "esbuild";
 import { initialOutputs } from "../initial.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./shipped.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
-const outputRoot = "skills/leaf/assets/vendor";
-const diagnosticsRoot = "build/browser/generated";
-const entry = "build/browser/index.ts";
-const modulePath = `${outputRoot}/browser-runtime.js`;
-const litPath = `${outputRoot}/lit.js`;
-const manifestPath = `${diagnosticsRoot}/browser-runtime.manifest.json`;
-const entryPoints = { "browser-runtime": entry, lit: "leaf:lit" };
-/** Layer paths of the modules this build writes, which delivery minifies. */
-export const frameworkModules = Object.keys(entryPoints).map(
-  (name) => `vendor/${name}.js`,
-);
-const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
-const relative = (file) => path.relative(root, file).split(path.sep).join("/");
+const assets = "skills/leaf/assets";
+const sourceRoot = "build/browser";
+const facade = "vendor/browser-runtime.js";
+const frameworkDirectory = "vendor/browser-runtime";
+/** The framework's layer paths: its facade and the directory of its modules. */
+export const frameworkPaths = [facade, frameworkDirectory];
+/** Whether a layer path belongs to the framework, which delivery compiles away. */
+export const inFramework = (layerPath) =>
+  layerPath === facade || layerPath.startsWith(`${frameworkDirectory}/`);
+/** The layer path each package the framework imports is vendored at. */
+const packages = {
+  lit: "vendor/lit.js",
+  "@preact/signals-core": `${frameworkDirectory}/signals-core.js`,
+};
+
+/** Each source module's layer path. */
+const layerPathOf = (source) => {
+  const name = path.posix.basename(source, ".ts");
+  return name === "index" ? facade : `${frameworkDirectory}/${name}.js`;
+};
+
+/** The layer path an import in a framework source module names, and its source. */
+function importTarget(specifier, source) {
+  if (!/^\.{1,2}\//.test(specifier)) {
+    // Its tags go by their lit-all names, which a bare rebinding would not reach.
+    if (specifier === "lit/static-html.js")
+      throw new Error(`${source}: import staticHtml and its kin from lit`);
+    const name = specifier.startsWith("lit/") ? "lit" : specifier;
+    if (!Object.hasOwn(packages, name))
+      throw new Error(`${source}: ${specifier} is not a package the framework vendors`);
+    return { target: packages[name] };
+  }
+  const resolved = path.posix.join(path.posix.dirname(source), specifier);
+  if (path.posix.dirname(resolved) === sourceRoot) {
+    const imported = resolved.replace(/\.js$/, ".ts");
+    return { target: layerPathOf(imported), imported };
+  }
+  if (resolved.startsWith(`${assets}/`))
+    return { target: resolved.slice(assets.length + 1) };
+  throw new Error(`${source}: ${specifier} is outside the layer`);
+}
 
 /**
- * Build `lit.js` from Lit's published exports, and bind every other Lit import to it.
+ * One source module as browser JavaScript, and the framework sources it imports.
+ *
+ * Types become whitespace; a line whose code ended in a type drops the spaces left
+ * behind, and every other byte stays where the source has it.
+ */
+function compileModule(text, source) {
+  const lines = text.split("\n");
+  let code = transformSync(text, { mode: "strip-only" })
+    .code.split("\n")
+    .map((line, index) => (/\s$/.test(lines[index]) ? line : line.trimEnd()))
+    .join("\n");
+  const from = path.posix.dirname(layerPathOf(source));
+  const imports = [];
+  const sources = parse(code, { ecmaVersion: "latest", sourceType: "module" })
+    .body.filter((node) => node.source)
+    .map((node) => node.source);
+  for (const node of sources.reverse()) {
+    const { target, imported } = importTarget(node.value, source);
+    if (imported) imports.push(imported);
+    let edge = path.posix.relative(from, target);
+    if (!edge.startsWith(".")) edge = `./${edge}`;
+    code = code.slice(0, node.start) + JSON.stringify(edge) + code.slice(node.end);
+  }
+  const trailer = `// Generated from ${source} by npm run build:browser.\n`;
+  return {
+    code: code.endsWith("\n") ? code + trailer : `${code}\n${trailer}`,
+    imports,
+  };
+}
+
+/**
+ * Build `lit.js` from Lit's published exports.
  *
  * Star exports would make static-html's tags ambiguous with the ordinary ones and
  * drop both, so that module is exported by name instead; the polyfill module patches
@@ -76,13 +139,6 @@ function litModule(lit) {
         contents,
         resolveDir: root,
       }));
-      build.onResolve({ filter: /^lit(\/|$)/ }, ({ path: specifier, namespace }) => {
-        if (namespace === "leaf-lit") return undefined;
-        // Its tags go by their lit-all names, which a bare rebinding would not reach.
-        if (specifier === "lit/static-html.js")
-          return { errors: [{ text: "import staticHtml and its kin from lit" }] };
-        return { path: "./lit.js", external: true };
-      });
     },
   };
 }
@@ -91,8 +147,7 @@ export async function buildOutputs() {
   const packageJson = JSON.parse(
     await readFile(path.join(root, "package.json"), "utf8"),
   );
-  const lockfile = await readFile(path.join(root, "package-lock.json"));
-  const lock = JSON.parse(lockfile);
+  const lock = JSON.parse(await readFile(path.join(root, "package-lock.json")));
   for (const [name, version] of Object.entries(packageJson.devDependencies)) {
     const installed = JSON.parse(
       await readFile(path.join(root, "node_modules", name, "package.json"), "utf8"),
@@ -109,103 +164,87 @@ export async function buildOutputs() {
     [
       path.join(root, "node_modules/typescript/bin/tsc"),
       "--project",
-      "build/browser/tsconfig.json",
+      `${sourceRoot}/tsconfig.json`,
     ],
     { cwd: root, encoding: "utf8" },
   );
   if (typecheck.error) throw typecheck.error;
   if (typecheck.status !== 0) throw new Error(typecheck.stdout + typecheck.stderr);
 
+  const outputs = new Map();
+  const pending = [`${sourceRoot}/index.ts`];
+  while (pending.length) {
+    const source = pending.pop();
+    const name = `${assets}/${layerPathOf(source)}`;
+    if (outputs.has(name)) continue;
+    const { code, imports } = compileModule(
+      await readFile(path.join(root, source), "utf8"),
+      source,
+    );
+    checkModule(code, name);
+    outputs.set(name, Buffer.from(code));
+    pending.push(...imports);
+  }
+
   const lit = JSON.parse(
     await readFile(path.join(root, "node_modules/lit/package.json"), "utf8"),
   );
   const result = await build({
     absWorkingDir: root,
-    entryPoints,
-    outdir: outputRoot,
+    entryPoints: Object.fromEntries(
+      Object.entries(packages).map(([name, layerPath]) => [
+        layerPath.slice("vendor/".length, -".js".length),
+        name === "lit" ? "leaf:lit" : name,
+      ]),
+    ),
+    outdir: `${assets}/vendor`,
     plugins: [litModule(lit)],
-    tsconfig: "build/browser/tsconfig.json",
     platform: "browser",
     format: "esm",
     target: "es2022",
     bundle: true,
+    minify: true,
     legalComments: "eof",
     metafile: true,
     write: false,
     logLevel: "silent",
   });
-  const module = result.metafile.outputs[modulePath];
-  const built = new Map(
-    result.outputFiles.map((file) => [relative(file.path), Buffer.from(file.contents)]),
-  );
-  const modules = new Set(built.keys());
-  const outputs = new Map();
-  for (const name of [...modules].sort()) {
-    const edges = result.metafile.outputs[name].imports.map((edge) =>
-      edge.external ? path.posix.join(path.posix.dirname(name), edge.path) : edge.path,
-    );
-    if (edges.some((edge) => !modules.has(edge)))
-      throw new Error(`${name} has unbundled imports`);
-    checkModule(built.get(name).toString(), name);
-    outputs.set(name, built.get(name));
+  for (const file of result.outputFiles) {
+    const name = path.relative(root, file.path).split(path.sep).join("/");
+    if (result.metafile.outputs[name].imports.length)
+      throw new Error(`${name} imports another module`);
+    checkModule(file.text, name);
+    outputs.set(name, Buffer.from(file.contents));
   }
-
   const packageRoots = bundledPackages(result.metafile, root);
-  const dependencies = {};
   for (const packageRoot of packageRoots) {
     const pkg = JSON.parse(
       await readFile(path.join(packageRoot, "package.json"), "utf8"),
     );
-    if (lock.packages[relative(packageRoot)].version !== pkg.version) {
+    if (lock.packages[path.relative(root, packageRoot)].version !== pkg.version) {
       throw new Error(`${pkg.name} does not match package-lock.json; run npm ci`);
     }
-    dependencies[pkg.name] = pkg.version;
   }
   outputs.set(
-    `${outputRoot}/browser-runtime.LICENSES.txt`,
+    `${assets}/vendor/browser-runtime.LICENSES.txt`,
     Buffer.from(licenseNotices("browser-runtime", packageRoots)),
   );
-  const manifest = {
-    format: "leaf-browser-build-v2",
-    sourceRoots: ["build/browser"],
-    sourceInputs: Object.keys(result.metafile.inputs)
-      .filter(
-        (name) => !name.startsWith("node_modules/") && !name.startsWith("leaf-lit:"),
-      )
-      .sort(),
-    entryPoints: Object.fromEntries(
-      Object.entries(entryPoints).map(([name, input]) => [
-        `${outputRoot}/${name}.js`,
-        input,
-      ]),
-    ),
-    outputRoot,
-    lockfile: "package-lock.json",
-    lockfileSha256: digest(lockfile),
-    commands: {
-      install: "npm ci",
-      build: "npm run build:browser",
-      check: "npm run check:browser",
-      test: "npm run test:browser",
-    },
-    contributorDependencies: packageJson.devDependencies,
-    bundledDependencies: dependencies,
-    internalModule: "/vendor/browser-runtime.js",
-    publicImport: "/runtime/widget-api.js",
-    exports: module.exports,
-    litModule: "/vendor/lit.js",
-    litExports: result.metafile.outputs[litPath].exports,
-    pageModules:
-      "Browser-ready authored page modules are captured with their revision; they are not contributor-build inputs.",
-    outputs: [...outputs.keys()].sort(),
-  };
-  outputs.set(manifestPath, Buffer.from(JSON.stringify(manifest, null, 2) + "\n"));
   for (const [name, bytes] of await initialOutputs()) outputs.set(name, bytes);
   return outputs;
 }
 
 export async function checkOutputs(outputs, directory = root) {
-  const stale = [];
+  // The framework's directory holds only what this build writes.
+  const stale = (
+    await readdir(path.join(directory, assets, frameworkDirectory), {
+      recursive: true,
+    }).catch((error) => {
+      if (error.code !== "ENOENT") throw error;
+      return [];
+    })
+  )
+    .map((file) => `${assets}/${frameworkDirectory}/${file.split(path.sep).join("/")}`)
+    .filter((name) => !outputs.has(name));
   for (const [name, expected] of outputs) {
     let actual;
     try {
@@ -234,6 +273,10 @@ async function main(args) {
   const outputs = await buildOutputs();
   if (args[0] === "--check") await checkOutputs(outputs);
   else {
+    await rm(path.join(root, assets, frameworkDirectory), {
+      force: true,
+      recursive: true,
+    });
     for (const [name, bytes] of outputs) {
       const destination = path.join(root, name);
       await mkdir(path.dirname(destination), { recursive: true });

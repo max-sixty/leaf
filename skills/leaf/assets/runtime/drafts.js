@@ -76,8 +76,7 @@
 import { runtime } from "./context.js";
 import { PENDING } from "./thread/identity.js";
 import { draftStore } from "./storage.js";
-import { focused } from "./keyboard/scopes.js";
-import { focusDestination, readCaret } from "./focus.js";
+import { focusDestination, readCaret, focused } from "./focus.js";
 import { notice } from "./notifications.js";
 import { retainUserIntent } from "./user-intent.js";
 
@@ -600,7 +599,7 @@ export function createWritingResume({ revealInThread, arriveEditor }) {
       notice("That writing place is unavailable on this version");
       return;
     }
-    intent.handoff(() => focusDestination(input, place.selection));
+    intent.handoff(() => focusDestination(input, "move", { caret: place.selection }));
   };
   return {
     id: "writing.resume",
@@ -659,7 +658,7 @@ export function restoreDraftEditing(editing, input) {
     focused() !== input
   )
     return false;
-  focusDestination(input, editing.selection);
+  focusDestination(input, "return", { caret: editing.selection });
   [input.scrollLeft, input.scrollTop] = editing.scroll;
   return true;
 }

@@ -41,6 +41,7 @@ from urllib.parse import quote, unquote, urlsplit
 import turbohtml
 
 from .layer import CASCADE_LAYERS
+from .passages import markdown_markup
 from .registry.contract import prepaint_markup
 from .revision_artifact import (
     Resource,
@@ -383,6 +384,25 @@ def mark_declared(
         if marks:
             start = index(location.start_tag.start_line, location.start_tag.start_col)
             edits.append((start + 1 + len(element.tag), _attributes(marks)))
+        if registry.get(element.tag, {}).get("x-text-format") == "markdown":
+            pre = element.select_one(":scope > pre")
+            if pre is not None:
+                body = "".join(
+                    child.data
+                    for child in pre.children
+                    if isinstance(child, turbohtml.Text)
+                )
+                text = body
+                edits.append(
+                    (
+                        index(location.start_tag.end_line, location.start_tag.end_col),
+                        (
+                            '<div class="lf-markdown-body" data-lf-prepaint data-lf-gen="1" '
+                            f'data-lf-source-words="{html.escape(text, quote=True)}">'
+                            f"{markdown_markup(text)}</div>"
+                        ),
+                    )
+                )
         if prepaint := prepaint_markup(registry, element.tag):
             root = len(re.match(r"<[a-z][a-z0-9]*", prepaint)[0])
             edits.append(
@@ -785,6 +805,17 @@ def compose_document(
     )
     head_start, head_end = document.wrapper_tags["head"]
     insertions = [(head_end, head)]
+    if delivery.runtime is not None:
+        # A classic parser checkpoint waits for every preceding stylesheet, including
+        # the author's head overrides. The initial observer then receives styled body
+        # nodes before their first paint, rather than seating residents on CSS load's
+        # later task. It shares the same residency computation used after upgrade.
+        insertions.append(
+            (
+                document.wrapper_tags["body"][1],
+                "<script data-lf-runtime>document.documentElement.lfInitial.residency()</script>",
+            )
+        )
     root = dict(delivery.html_attributes)
     if (review := review_mode(document)) is not None:
         root["data-lf-review"] = review

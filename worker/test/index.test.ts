@@ -121,7 +121,7 @@ const MANIFEST = {
 };
 
 const startupReport = (overrides: Record<string, unknown> = {}) => ({
-  version: 1,
+  version: 2,
   loadId: "123e4567-e89b-42d3-a456-426614174000",
   release: RELEASE,
   layer: LAYER,
@@ -130,6 +130,8 @@ const startupReport = (overrides: Record<string, unknown> = {}) => ({
   serverMs: 12,
   firstByteMs: 90,
   firstContentfulPaintMs: 115,
+  upgradedMs: 180,
+  firstStateResponseMs: 280,
   presentedMs: 310,
   ...overrides,
 });
@@ -292,6 +294,8 @@ describe("product-site delivery", () => {
         platform: "windows",
         presentedMs: 310,
         firstContentfulPaintMs: 115,
+        upgradedMs: 180,
+        firstStateResponseMs: 280,
       });
     } finally {
       logged.mockRestore();
@@ -473,6 +477,8 @@ describe("product-site delivery", () => {
           body: JSON.stringify(
             startupReport({
               outcome: "failed",
+              upgradedMs: null,
+              firstStateResponseMs: null,
               presentedMs: null,
               reason: "entry module did not load",
             }),
@@ -497,6 +503,8 @@ describe("product-site delivery", () => {
       expect(logged.mock.calls[0][0]).toMatchObject({
         component: "leaf-startup",
         outcome: "failed",
+        upgradedMs: null,
+        firstStateResponseMs: null,
         reason: "entry module did not load",
       });
     } finally {
@@ -525,6 +533,29 @@ describe("product-site delivery", () => {
 
       expect(unbound.status).toBe(400);
       expect(privateField.status).toBe(400);
+      expect(logged).not.toHaveBeenCalled();
+      expect(getContainer).not.toHaveBeenCalled();
+    } finally {
+      logged.mockRestore();
+    }
+  });
+
+  it("requires bounded nullable upgrade and first-state response timings", async () => {
+    const logged = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    try {
+      for (const field of ["upgradedMs", "firstStateResponseMs"]) {
+        for (const value of [undefined, -1, 1.5, 300_001, "310"]) {
+          const response = await worker.fetch(
+            new Request("https://leaf.page/api/performance", {
+              method: "POST",
+              headers: { Cookie: `__Host-leaf-page=${"14".repeat(16)}` },
+              body: JSON.stringify(startupReport({ [field]: value })),
+            }),
+            environment(),
+          );
+          expect(response.status).toBe(400);
+        }
+      }
       expect(logged).not.toHaveBeenCalled();
       expect(getContainer).not.toHaveBeenCalled();
     } finally {

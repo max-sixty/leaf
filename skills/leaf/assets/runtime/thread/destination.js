@@ -13,8 +13,8 @@
    A native continuation (`focus: false`) returns its presented route under session
    availability even after Tab supersedes positioning; it never takes focus, and the
    original intent alone permits scrolling or another reveal gesture.
-   A native continuation needs the reader that owns its live widgets, so it
-   bypasses compact previews just as an explicit message arrival does.
+   Materializing a thread Ask needs the complete reader that owns its live
+   widget; a native editing continuation keeps the ordinary destination policy.
 
    Held identity is the focused Thread across shadow roots. An unheld preview or
    panel conversation may accompany its page target; when focus returns to the body,
@@ -94,6 +94,7 @@ export function createThreadDestinations({
       flash = true,
       intent = retainUserIntent(),
       transition = null,
+      reader = "nearest",
     } = {},
   ) {
     if (!intent()) return null;
@@ -156,7 +157,7 @@ export function createThreadDestinations({
       }
     }
     const mayPresent = () => (focus === false ? intent.available() : intent());
-    if (!panelIsOpen() && focus !== "message" && focus !== false) {
+    if (!panelIsOpen() && focus !== "message" && reader !== "complete") {
       const localFocus = focus ?? "reply";
       const openSurface = async () => {
         if (preview) intent.handoff(preview.close);

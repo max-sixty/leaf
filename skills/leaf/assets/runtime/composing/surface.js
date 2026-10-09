@@ -1257,14 +1257,9 @@ export function createResponseSurface({
         box: fabInput,
         go: () => commentOnTarget(here),
       };
-    // The banner's Comment on the page goes to the same box: the card it hangs from
-    // itself, or Threads' general box while Threads is open
+    // The banner's Comment on the page goes to the same box: the card it hangs
     // (thread/page-comment.js).
-    return {
-      ...commenting("page"),
-      box: pageComment.box(),
-      go: pageComment.open,
-    };
+    return { ...commenting("page"), box: pageComment.box, go: pageComment.open };
   }
 
   // The destination's box is the identity chrome uses to place a contextual binding badge,
@@ -1278,11 +1273,11 @@ export function createResponseSurface({
   // c goes where commenting happens: a live selection gets the composer (what the floating
   // button does), an element click's pending 💬 gets that, an open thread the user is
   // standing in gets its own reply box, the item they are standing in gets the box
-  // belonging to it, and otherwise the page's general box: the card under the banner's
-  // Comment on the page, or Threads' own box while Threads is open. c names and focuses
-  // the box directly; g T independently names the list. Never the panel's
-  // collapse: c doubled as the toggle once, so with the panel standing open the key that
-  // promised “comment” answered “close”. Backing out is whatever the box is standing in.
+  // belonging to it, and otherwise the page's general box, in the card under the banner's
+  // Comment on the page. c names and focuses the box directly; g T independently names
+  // the list. Never the panel's collapse: c doubled as the toggle once, so with the panel
+  // standing open the key that promised “comment” answered “close”. Backing out is
+  // whatever the box is standing in.
   //
   // Standing outranks the page; a live selection or a newly captured target outranks
   // standing. The draft stored on an earlier target supplies words, not that priority.

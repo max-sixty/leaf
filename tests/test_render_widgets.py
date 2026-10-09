@@ -95,6 +95,7 @@ from render_harness import (
     margins_laid_out,
     open_page,
     opened_tab,
+    page_comment,
     pane_posture,
     panel_settled,
     plant_quiet_word,
@@ -8401,8 +8402,7 @@ def test_a_reduced_motion_swipe_moves_without_an_exit_animation(browser, serve):
 def test_composer_grows_caps_and_shrinks_with_its_text(browser, serve):
     """The comment box fits its content, scrolls at its cap, and shrinks back."""
     page = open_page(browser, serve(LONG_PAGE))
-    page.locator(".lf-threads-toggle").click()
-    box = page.locator(".lf-general leaf-text")
+    box = page_comment(page)
 
     def state():
         return box.evaluate("""ta => ({ h: Math.round(ta.getBoundingClientRect().height),
@@ -8411,18 +8411,20 @@ def test_composer_grows_caps_and_shrinks_with_its_text(browser, serve):
     empty = state()
     box.type("A comment long enough to wrap onto a second line and then a third.")
     grown = state()
-    write(box, "x " * 900)  # far past the ceiling
+    write(box, "x " * 4000)  # far past the ceiling
     capped = state()
-    expect(page.locator(".lf-threads")).to_be_visible()
+    card_bottom = page.locator(".lf-page-comment-card").evaluate(
+        "card => card.getBoundingClientRect().bottom"
+    )
     write(box, "short again")
     shrunk = state()
 
     assert grown["h"] > empty["h"], "the box must grow with its content"
     assert not grown["scrollable"], "a box that fits its text must not be scrollable"
-    # The panel foot yields room to the thread list, so its available share can
-    # cap the editor before the viewport's 50vh ceiling does.
-    assert grown["h"] < capped["h"] <= page.viewport_size["height"] / 2, (
-        f"the box must grow within the panel's available share, got {capped['h']}px"
+    # The card takes the room beneath the banner, and the editor caps inside it.
+    assert capped["h"] > grown["h"], "the box must grow toward the card's room"
+    assert card_bottom <= page.viewport_size["height"] + 0.5, (
+        f"the capped box carried the card out of the window, to {card_bottom}px"
     )
     assert capped["scrollable"], (
         "past the ceiling the scrollbar is real and belongs there"

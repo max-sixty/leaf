@@ -43,8 +43,8 @@ Where the user is, every step alike, is the journey's one axis (`User.end`):
   (`HttpEnd`). This is the journey for the agent and its harness: what each step
   checks, and every milestone a step is timed by, is on the page server's clock in
   the log;
-- in Chrome (`--browser`, a website's only end): every comment is typed in Threads,
-  an anchored one by selecting its passage, each reply's showing is timed by the
+- in Chrome (`--browser`, a website's only end): every comment is typed as a user types it,
+  a page comment in the banner's card and an anchored one on its selected passage, each reply's showing is timed by the
   page, and the release ask's reload is checked and profiled (`BrowserEnd`). This is
   the whole journey, what the page shows the user included.
 
@@ -483,12 +483,19 @@ def uncovered_word(page: Page, passage: str) -> list[float] | None:
 
 
 def write_comment(session: Session, text: str, passage: str | None = None) -> Locator:
-    """Write `text`, unsent, and return the box holding it: on the page, in the open
-    Threads composer, or on the element with id `passage`, by selecting its words and
+    """Write `text`, unsent, and return the box holding it: on the page, in the page
+    comment card under the banner, or on the element with id `passage`, by selecting its words and
     commenting on the selection."""
     page = session.page
     if passage is None:
-        box = page.locator(".lf-general leaf-text")
+        # The page comment card under the banner is where a page thread starts; a
+        # send leaves it open, so an open card's box is pressed instead.
+        card = page.locator(".lf-page-comment-card")
+        box = card.locator("leaf-text")
+        if card.evaluate("card => card.matches(':popover-open')"):
+            box.click()
+        else:
+            page.locator(".lf-banner-actions > .lf-page-comment").click()
     else:
         select_passage(page, f"#{passage}")
         page.locator(".lf-fab-input").click()
@@ -975,8 +982,8 @@ class HttpEnd:
 
 
 class BrowserEnd:
-    """The user's end in Chrome: every comment typed in Threads, on the passage it is
-    anchored to by selecting it, its send and its reply showing timed by the page
+    """The user's end in Chrome: every comment typed as a user types it, a page comment
+    in the banner's card and an anchored one on its selected passage, its send and its reply showing timed by the page
     (`shown_reply`), and the release ask's reload checked and profiled. This is the
     whole journey, what the page shows included."""
 
@@ -1064,7 +1071,7 @@ class BrowserEnd:
         section, text = COMMENTS[name]
         page = self.session.page
         # Every reply is read in Threads, which the release step's reload may shut.
-        if not page.locator(".lf-general leaf-text").is_visible():
+        if page.locator('.lf-threads-toggle[aria-expanded="false"]').count():
             page.locator(".lf-threads-toggle").click()
         box = write_comment(self.session, text, section)
 
@@ -1340,7 +1347,7 @@ def target_session(
 @click.option(
     "--browser/--http",
     default=None,
-    help="Where the user is: in Chrome, every comment typed in Threads and what the "
+    help="Where the user is: in Chrome, every comment typed as a user types it and what the "
     "page shows timed (a website's only end), or posting as the page's tab does, with "
     "no browser (a harness's default).",
 )

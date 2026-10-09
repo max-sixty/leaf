@@ -9417,11 +9417,16 @@ def to_window_foot(page, locator, gap):
 
 
 def clear_of_the_bar(page, locator):
-    """Whether the node is wholly in the window above the fixed shortcut bar."""
+    """Whether the node is wholly in the window and clear of the fixed shortcut bar.
+
+    The bar yields a panel standing beside the page its width, so it covers only the
+    columns it spans."""
     return page.evaluate(
         """([node, bar]) => {
           const box = node.getBoundingClientRect();
-          const foot = bar ? bar.getBoundingClientRect().top : innerHeight;
+          const b = bar?.getBoundingClientRect();
+          const covers = b && b.left < box.right && box.left < b.right;
+          const foot = covers ? b.top : innerHeight;
           return box.height > 0 && box.top >= 0 && box.bottom <= foot + 0.5;
         }""",
         [locator.element_handle(), page.locator(".lf-shortcut-bar").element_handle()],
@@ -9435,8 +9440,9 @@ def focus_clear_of_the_bar(page):
           let node = document.activeElement;
           while (node?.shadowRoot?.activeElement) node = node.shadowRoot.activeElement;
           const box = node.getBoundingClientRect();
-          const bar = document.querySelector('.lf-shortcut-bar');
-          const foot = bar ? bar.getBoundingClientRect().top : innerHeight;
+          const b = document.querySelector('.lf-shortcut-bar')?.getBoundingClientRect();
+          const covers = b && b.left < box.right && box.left < b.right;
+          const foot = covers ? b.top : innerHeight;
           return box.height > 0 && box.bottom > 0 && box.top < foot;
         }"""
     )

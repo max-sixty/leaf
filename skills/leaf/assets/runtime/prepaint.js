@@ -108,7 +108,23 @@
     },
   });
   const tabStore = stored(() => sessionStorage, "session", scope);
-  root.lfStorage = { stored, tabStore };
+  const userStore = stored(() => localStorage, "local", root.dataset.lfUserScope ?? "");
+  root.lfStorage = { stored, tabStore, userStore };
+  // Read before bootstrap can hold a character for later dispatch. This same
+  // preference supplies every active binding and its visible/accessible hints.
+  const quickKey = "lf-quick-keyboard-shortcuts";
+  let quick = userStore.get(quickKey) !== "false";
+  root.lfKeyboard = {
+    get quick() {
+      return quick;
+    },
+    setQuick(on) {
+      if (quick === on) return;
+      quick = on;
+      userStore.set(quickKey, String(on));
+      document.dispatchEvent(new CustomEvent("lf-keyboard-preference"));
+    },
+  };
 
   // A package's synchronous producer draws real instance markup before modules can
   // run. Delivery calls paint just after the parser closes each declared host; the

@@ -999,7 +999,8 @@ workflow or `null`, plus `offers: {open, done}` for current command availability
 arrival, including completed Asks and tasks. It resolves to `false` for an unavailable
 row. `queueActions.done(key)` returns an admission promise only for a current
 `onYou` task with `ends === "done"`; otherwise it returns `null`. An Ask ends through
-its widget and a question through a reply. Done removes its task optimistically,
+its widget, a conversational question through a reply, and required sign-off through
+its version's banner approval. Done removes its task optimistically,
 a duplicate cannot send again, and refusal restores the authoritative reading.
 The server remains final for all actions. Collections retain their shape while
 `phase` is `waiting`, `ready`, or `offline`; activate only a ready collection.

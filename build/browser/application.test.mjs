@@ -1446,6 +1446,35 @@ test("a Done this tab sends ends its task at once, and its undo puts the task ba
   assert.deepEqual(done(later), []);
 });
 
+test("approval leaves Questions in its sending turn and undo restores the exact version", () => {
+  const wire = servedReading("approval");
+  const task = wire.views["1"].document.tasks.find(
+    (candidate) => candidate.ends === "approval",
+  );
+  const app = setup();
+  const reading = state(2);
+  reading.browser.views[1].document.tasks = [task];
+  app.adopt(reading);
+  const questions = () => app.read().effective.queues.onYou;
+  assert.equal(questions()[0].id, task.id);
+  assert.equal(questions()[0].offers.done, false);
+  app.enqueue({ kind: "done", version: 2, attempt: "other-version" }, "now");
+  assert.equal(questions().length, 1);
+  app.enqueue({ kind: "done", version: 1, attempt: "approve" }, "now");
+  assert.equal(questions().length, 0);
+  app.refuse("approve");
+  assert.equal(questions().length, 1);
+  const accepted = state(3);
+  accepted.browser.views[1].document.tasks = [];
+  accepted.browser.views[1].document.ended_tasks = [
+    { ...task, state: "done", outcome: { id: "approval-event", ts: "now" } },
+  ];
+  app.adopt(accepted);
+  assert.equal(questions().length, 0);
+  app.enqueue({ kind: "undo", undoes: "approval-event", attempt: "undo" }, "now");
+  assert.equal(questions()[0].id, task.id);
+});
+
 test("a revision preserves pending delivery while replacing incompatible speculative state", () => {
   const app = setup();
   const pending = app.enqueue(action("old"), "now");

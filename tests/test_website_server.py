@@ -4072,6 +4072,7 @@ def test_a_product_route_uses_the_same_real_page_server(
     with running_http_server(httpd):
         document, _ = get(f"{root}{page_root}/")
         assert b"data-lf-site" not in document
+        assert b"data-lf-share-url" not in document
         artifact = revision_path(published, 1).stem
         assert (
             f'data-lf-entry="{page_root}/revisions/{artifact}/leaf.js"'.encode()

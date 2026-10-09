@@ -5540,17 +5540,24 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
           const {contributionEntry, registerContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
           let primaryVisible = true;
+          let peers = [];
           const registration = registerContribution({
             key: 'fixture', target: document.querySelector('#how-cap'),
             read: () => ({entries: [contributionEntry({
               key: 'act', glyph: 'A', label: 'Act', behavior: 'action',
               visible: primaryVisible
-            })]}), activate: () => {}
+            }), ...peers]}), activate: () => {}
           });
           window.lfThreadOwner = {
             registration,
             showPrimary(visible) {
               primaryVisible = visible;
+              registration.update({immediate: true});
+            },
+            addPeers() {
+              peers = [1, 2, 3].map(i => contributionEntry({
+                key: `peer-${i}`, glyph: 'P', label: `Peer ${i}`, behavior: 'action'
+              }));
               registration.update({immediate: true});
             }
           };
@@ -5588,7 +5595,7 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     expect(thread).to_have_attribute("data-stable-proof", "same-thread-button")
     expect(thread).to_have_attribute("aria-expanded", "true")
 
-    append_carried_log_record(
+    second = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -5634,6 +5641,22 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(thread).to_have_attribute("aria-expanded", "false")
     assert page.evaluate("() => document.activeElement === document.body")
+
+    page.evaluate("window.lfThreadOwner.addPeers()")
+    expect(options).to_be_hidden()
+    comment_note(page, "#how-cap").press("Enter")
+    expect(options).to_be_visible()
+    assert page.evaluate(
+        """async id => {
+          const {openThread} = await window.__lfRuntimeImport('/runtime/application.js');
+          return Boolean(await openThread(id, {focus: 'thread'}));
+        }""",
+        second["id"],
+    )
+    expect(options).to_be_visible()
+    expect(thread).to_have_attribute("aria-expanded", "true")
+    page.locator(".lf-margin-preview-close").click()
+    expect(options).to_be_hidden()
 
 
 def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(
@@ -6807,26 +6830,49 @@ def test_anchored_thread_reading_keys_and_page_return(browser, serve):
 
 
 def test_a_thread_card_is_unseen_until_its_first_placement_lands(browser, serve):
-    """A card opened before it has anywhere to stand is neither seen nor pressed at the
-    corner it opens in, and appears once its placement lands."""
+    """An unplaced card is unseen; switching and closing retire its pending work."""
     context = browser.new_context(viewport={"width": 1440, "height": 900})
     held = []
     context.route("**/vendor/floating-ui.esm.js", lambda route: held.append(route))
     page = open_page(
         browser,
-        serve(ASK_PAGE, events=[COMMENT_ON_ASK]),
+        serve(
+            ASK_PAGE,
+            events=[
+                COMMENT_ON_ASK,
+                {
+                    **COMMENT_ON_ASK,
+                    "text": "Check the tools separately.",
+                    "anchor": {"section": "tools"},
+                },
+            ],
+        ),
         context=context,
         upgraded=False,
     )
     preview = page.locator(".lf-margin-preview")
     try:
         holding(page, held, 1, "the positioning module")
-        page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
+        first = page.locator('[data-lf-margin-for="bracket"] .lf-margin-marker')
+        second = page.locator('[data-lf-margin-for="tools"] .lf-margin-marker')
+        first.click()
         expect(preview).not_to_have_attribute("hidden", "")
         expect(preview).to_have_css("opacity", "0")
         expect(preview).to_have_css("pointer-events", "none")
 
+        second.click()
+        expect(preview).to_contain_text("Check the tools separately.")
+        page.keyboard.press("Escape")
+        expect(preview).to_be_hidden()
+        page.locator(".lf-threads-toggle").focus()
+
         held.pop(0).continue_()
+        rendered(page)
+        expect(preview).to_be_hidden()
+        expect(page.locator(".lf-threads-toggle")).to_be_focused()
+        expect(preview).not_to_have_attribute("data-lf-thread-placement")
+
+        first.click()
         expect(preview).to_have_attribute("data-lf-thread-placement", re.compile(r".+"))
         expect(preview).to_have_css("opacity", "1")
         expect(preview).to_have_css("pointer-events", "auto")

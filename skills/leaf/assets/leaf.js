@@ -416,7 +416,7 @@ const version = createVersionController({
   openThread: (id, options) =>
     app.threadDestinations.openPageThread(id, { ...options, travel: false }),
   refreshThread: () => app.refreshThread(),
-  midComposition: () => app.midComposition(),
+  midComposition: (...args) => app.midComposition(...args),
   hasPending: () => app.hasPending(),
   readAndApply: (...args) => app.readAndApply(...args),
   retireProjectionCoverage: () => app.retireProjectionCoverage(),

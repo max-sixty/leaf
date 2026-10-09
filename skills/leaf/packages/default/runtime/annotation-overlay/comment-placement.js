@@ -1,6 +1,6 @@
 /* Where a comment's surfaces stand: the comment box the user types in
    (composing/surface.js) and the thread card the sent comment becomes
-   (margin-projection.js). They are one comment at two moments, so one rule places
+   (thread-preview.js). They are one comment at two moments, so one rule places
    both, and Send changes the surface without moving the place. Floating UI does the
    placing (floating.js): this module chooses the side and names the boxes, and
    Floating UI's offset, size and shift do the rest.

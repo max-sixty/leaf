@@ -158,11 +158,10 @@ other page files and the external state listed below.
 
 ## Revision delivery
 
-The live root follows the active revision. Immutable revision and version
-addresses use the same delivery boundary, and all three advertise the page
-root as their canonical URL. The executable and widget digests in the revision
-manifest control document replacement and widget retention;
-`revision_artifact.py` owns their inputs and construction.
+The live root serves the active revision, and revision and version addresses go
+through the same delivery; all three name the page root as canonical. The revision
+manifest's executable and widget digests decide whether an open tab replaces its
+document or keeps its widgets (`revision_artifact.py`).
 
 ## Page state
 

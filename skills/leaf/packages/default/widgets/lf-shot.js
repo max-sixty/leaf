@@ -305,8 +305,8 @@ customElements.define(
     // Each region is placed in shares of the pair's frame, the natural width by the
     // taller image's height that `--lf-shot-ratio` sizes, so the marks scale with the
     // images at every width.
-    #markDifference(shots) {
-      const reading = compareImages(...shots);
+    async #markDifference(shots) {
+      const reading = await compareImages(...shots);
       const { width, height, regions } = reading;
       const share = (length, whole) => `${(100 * length) / whole}%`;
       for (const frame of this.#frames) {

@@ -25,8 +25,10 @@
  * (`input.js`). Taking back the last stroke removes the drawing, as the composer's
  * removal does at once.
  *
- * The controller owns pointer capture, stroke sampling, mode state and stroke undo. SVG
- * replay, anchor placement, composers, reactions, and page geometry enter through
+ * The controller owns pointer capture, stroke sampling, mode state and stroke undo.
+ * A claimed stroke emits `lf-inspect` on its target before reading coordinates, so a
+ * moving visual can freeze the evidence the drawing names.
+ * SVG replay, anchor placement, composers, reactions, and page geometry enter through
  * explicit capabilities, and the drafts are the one record of the strokes already drawn.
  * As each stroke lifts or is taken back, the controller also reads the page's words the
  * drawing stands over into the record, for whoever reads the comment without the page.
@@ -371,6 +373,11 @@ export function createDrawingController({
     claimedPointer = event.pointerId;
     claim(event);
     const target = sessionTarget() ?? targetAtPointer();
+    // The drawing owner has claimed inspection. Let a moving visual freeze
+    // its current evidence before reading the stroke's coordinate frame.
+    target?.element.dispatchEvent(
+      new Event("lf-inspect", { bubbles: true, composed: true }),
+    );
     const box = target && shownBox(target.element);
     if (!box?.width || !box?.height) {
       announce("Draw on or beside something on the page.");

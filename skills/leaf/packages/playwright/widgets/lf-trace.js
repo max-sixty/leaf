@@ -21,7 +21,8 @@
  * without inventing captured stops. That overview bounds pan and zoom; playback
  * retains the chosen time window, while explicit point navigation reveals its destination. One cursor
  * scrubs native captures; playback includes frames at their recorded timing and pauses
- * on manual navigation, hiding or retirement. Captured frames can join that
+ * on manual navigation, inspection, hiding or retirement. Page scrolling keeps
+ * playback running, including wheel input and vertical touch swipes over captures. Captured frames can join that
  * same timeline. Initial selection prefers its first nonempty saved tree, then
  * its first image; empty earlier stops stay navigable. Following a visual part restores its exact
  * stop and its recording or page scope. Visible choices use the shared Web Awesome radio group;
@@ -186,22 +187,32 @@ customElements.define(
     #scrubbing = false;
     #reviewGesture = (event) => {
       const path = event.composedPath();
-      if (event.type === "keydown") {
-        if (!path.includes(this)) return;
-        if (["Shift", "Alt", "Control", "Meta"].includes(event.key)) return;
-        this.#playIntent = null;
-        if (path.includes(this.play) && ["Enter", " "].includes(event.key)) return;
+      // Native scroller input belongs to the inspector; widget commands own
+      // their own inspection. Page navigation never changes the recording.
+      if (
+        path.includes(this.metadata) &&
+        (event.type === "wheel" ||
+          event.type === "pointerdown" ||
+          (event.type === "keydown" &&
+            ["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(
+              event.key,
+            )))
+      )
         this.#pause();
-        return;
+      // Freeze a mouse press before drawing or image dragging claims it. A
+      // touch press may start page scrolling; its tap or drawing claim decides.
+      else if (event.type === "pointerdown" && event.pointerType !== "touch") {
+        if (path.includes(this.imageViewport)) this.#inspectEvidence();
+        else if (path.includes(this.timeline)) this.#pause();
       }
-      if (!["pointerdown", "wheel"].includes(event.type)) return;
-      if (!path.includes(this.body) || path.includes(this.play)) return;
+    };
+    #inspectEvidence() {
       this.#pause();
       // A review gesture freezes the pixels actually on screen, including when
       // another capture is still preparing.
-      if (path.includes(this.evidence) && this.#pendingPicture && this.#pictureId)
+      if (this.#pendingPicture && this.#pictureId)
         this.#reveal(this.#id("image", this.#pictureId));
-    };
+    }
     #visibility = () => {
       if (document.hidden) this.#pause();
     };
@@ -452,6 +463,7 @@ customElements.define(
       transport.append(this.play, this.previous, this.next);
       toolbar.append(transport, position, this.zoomControls);
       const zoom = (direction) => {
+        this.#pause();
         if (!this.#rail) return;
         this.#rail[direction](0.5, { animation: false });
         const point = this.#items().find((point) => point.id === this.#selected);
@@ -462,7 +474,10 @@ customElements.define(
       };
       this.zoomIn.onclick = () => zoom("zoomIn");
       this.zoomOut.onclick = () => zoom("zoomOut");
-      this.zoomReset.onclick = () => this.#resetRail();
+      this.zoomReset.onclick = () => {
+        this.#pause();
+        this.#resetRail();
+      };
       const help = el("div", "lf-trace-help");
       help.append(framesLabel, this.momentHint);
       this.controls.append(choices, this.bookmarks, help);
@@ -519,6 +534,12 @@ customElements.define(
       // the recording. Its retained disclosure precedes variable rows, so replay
       // cannot move that control as frames and checkpoints replace each other.
       this.evidence = el("div", "lf-trace-evidence");
+      const inspect = (event) => {
+        if (event.composedPath().includes(this.metadata)) this.#pause();
+        else this.#inspectEvidence();
+      };
+      this.evidence.addEventListener("click", inspect, { capture: true });
+      this.addEventListener("lf-inspect", inspect);
       const metadata = el("div", "lf-trace-metadata");
       this.metadata = metadata;
       metadata.tabIndex = 0;
@@ -740,6 +761,7 @@ customElements.define(
       if (this.#playFrame) cancelAnimation(this.#playFrame);
       this.#playFrame = 0;
       this.#playing = false;
+      this.#rail?.setOptions({ moveable: true });
       this.#cursorTime = null;
       if (this.#scrubbing) {
         this.#scrubbing = false;
@@ -761,6 +783,7 @@ customElements.define(
       const origin = this.#bounds().start;
       const end = points.at(-1).timestamp;
       this.#playing = true;
+      this.#rail?.setOptions({ moveable: false });
       this.#chosenBookmark = null;
       this.#selected = from.id;
       this.#cursorTime = from.timestamp - origin;
@@ -1056,6 +1079,11 @@ customElements.define(
       );
     }
 
+    #panPicture(x, y) {
+      this.#inspectEvidence();
+      this.#picture?.move(x, y);
+    }
+
     #fitPicture() {
       if (!this.#picture?.viewed) return;
       const image = this.#trace.images.find((image) => image.id === this.#pictureId);
@@ -1167,6 +1195,7 @@ customElements.define(
         const commit = (viewer) => {
           if (!current()) return;
           const retired = this.#picture;
+          const hadFocus = this.imageViewport.contains(document.activeElement);
           this.#picture = viewer;
           // Leaf owns container resize so unchanged window signals leave the
           // inspected image alone. Viewer otherwise refits it on every signal.
@@ -1180,6 +1209,7 @@ customElements.define(
           keeps(figure, "aria-hidden", null);
           keeps(source, "hidden", "");
           setChildren(this.imageViewport, [this.missingImage, figure]);
+          if (hadFocus) focusDestination(canvas, "return");
           retired?.destroy();
           this.#imageZoom();
           this.#draw();
@@ -1218,6 +1248,22 @@ customElements.define(
             zoomOnWheel: false,
             slideOnWheel: false,
             toggleOnDblclick: false,
+            move: (event) => {
+              // Before the browser claims pan-y, even a page swipe can produce
+              // horizontal movement. Playback leaves touch movement to the page;
+              // a tap pauses for inspection and enables image dragging.
+              if (
+                event.detail.originalEvent?.pointerType === "touch" &&
+                this.#playing
+              ) {
+                event.preventDefault();
+                return;
+              }
+              if (event.detail.originalEvent) this.#inspectEvidence();
+            },
+            zoom: (event) => {
+              if (event.detail.originalEvent) this.#inspectEvidence();
+            },
             view: (event) =>
               event.detail.image.addEventListener("error", failed, { once: true }),
             viewed: (event) => {
@@ -1402,6 +1448,10 @@ customElements.define(
         this.#cursorTime = finished ? null : elapsed;
         this.#draw();
       };
+      rail.on("rangechange", (event) => {
+        if (event.byUser) this.#pause();
+      });
+      rail.on("click", () => this.#pause());
       rail.on("timechange", (event) => scrub(event, false));
       rail.on("timechanged", (event) => scrub(event, true));
       rail.on("changed", () => this.#placeCursorHandle());
@@ -1725,28 +1775,28 @@ customElements.define(
                 keys: ["ArrowLeft"],
                 title: "pan image left",
                 control: canvas,
-                run: () => this.#picture?.move(-40, 0),
+                run: () => this.#panPicture(-40, 0),
               },
               {
                 id: "trace.image.right",
                 keys: ["ArrowRight"],
                 title: "pan image right",
                 control: canvas,
-                run: () => this.#picture?.move(40, 0),
+                run: () => this.#panPicture(40, 0),
               },
               {
                 id: "trace.image.up",
                 keys: ["ArrowUp"],
                 title: "pan image up",
                 control: canvas,
-                run: () => this.#picture?.move(0, -40),
+                run: () => this.#panPicture(0, -40),
               },
               {
                 id: "trace.image.down",
                 keys: ["ArrowDown"],
                 title: "pan image down",
                 control: canvas,
-                run: () => this.#picture?.move(0, 40),
+                run: () => this.#panPicture(0, 40),
               },
             ]);
           canvas.addEventListener("pointerdown", () =>

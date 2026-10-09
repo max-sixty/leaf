@@ -706,7 +706,12 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     assert after_caption.evaluate("node => getComputedStyle(node).backgroundColor") != (
         before_caption.evaluate("node => getComputedStyle(node).backgroundColor")
     )
-    assert "show after" not in shortcut_bar_text(page)
+    assert "show after" in shortcut_bar_text(page)
+    after_caption.focus()
+    selected_scroll = page.evaluate("() => document.scrollingElement.scrollTop")
+    page.keyboard.press("Space")
+    expect(comparison).to_have_attribute("position", "0")
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == selected_scroll
     after_caption.click()
     expect(comparison).to_have_attribute("position", "0")
     before_caption.click()

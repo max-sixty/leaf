@@ -859,7 +859,7 @@ def test_a_reply_sent_while_the_agent_streams_moves_nothing_when_accepted(
     messages = thread.locator(".lf-msg")
     expect(messages).to_have_count(3)
     expect(messages.nth(1)).to_contain_text("And note the date")
-    expect(messages.nth(2)).to_have_attribute("data-lf-streaming", "")
+    expect(messages.nth(2)).to_contain_text("First words")
 
     page.locator("body").click(position={"x": 5, "y": 5})
     stream_reply(serve.page_dir, root, "First words and more of them")
@@ -874,8 +874,9 @@ def test_an_answer_completing_its_stream_with_the_same_words_folds_progress_as_i
     browser, serve, request
 ):
     """An App Server final repeats the words it streamed, and it folds the progress
-    before it into Previous updates. That fold is the answer's news, so a card that
-    holds it says a reply arrived rather than that a summary changed.
+    before it into Previous updates. That fold is the answer's news, so a card the user
+    is writing in, which holds it, says a reply arrived rather than that a summary
+    changed.
     """
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Record the release", {"section": "h-how"})
@@ -896,6 +897,7 @@ def test_an_answer_completing_its_stream_with_the_same_words_folds_progress_as_i
     panel_settled(page)
     thread = page.locator(f'.lf-thread[data-id="{root}"]')
     expect(thread.locator(".lf-msg.agent")).to_have_count(2)
+    write(thread.locator(":scope > .lf-thread-reply leaf-text"), "Also note the date")
 
     thread_model.post_reply(
         serve.page_dir,
@@ -916,6 +918,62 @@ def test_an_answer_completing_its_stream_with_the_same_words_folds_progress_as_i
     expect(thread.locator(".lf-msg.agent").last.locator(".lf-msg-text")).to_have_text(
         "Recorded the release."
     )
+
+
+@pytest.mark.watch_shifts
+@pytest.mark.parametrize("streamed", [False, True])
+def test_an_idle_card_shows_an_answer_folding_the_progress_at_its_end(
+    browser, serve, request, streamed
+):
+    """The agent acknowledges a move with progress before it answers, and the answer
+    folds that progress into Previous updates. In an open card the user is reading but
+    not writing in, that fold changes only the thread's end, so the answer shows as it
+    lands, streamed or not, and nothing above the progress moves.
+    """
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Record the release", {"section": "h-how"})
+    claim_for_codex(serve.page_dir, request)
+    thread_model.post_reply(
+        serve.page_dir,
+        root,
+        "Checking the board",
+        "",
+        for_event=root,
+        ephemeral=True,
+        identity={"agent": "Codex", "session": "codex-thread"},
+    )
+
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-thread[data-id="{root}"]')
+    expect(thread.locator(".lf-msg.agent")).to_have_count(1)
+    if streamed:
+        stream_reply(serve.page_dir, root, "Recording the release now.")
+        told(page)
+        expect(thread.locator(".lf-msg.agent")).to_have_count(2)
+    opening = thread.locator(".lf-msg").first
+    standing = opening.bounding_box()
+
+    thread_model.post_reply(
+        serve.page_dir,
+        root,
+        "Recorded the release on the board.",
+        "",
+        for_event=root,
+        attempt=STREAM_ATTEMPT,
+        identity={"agent": "Codex", "session": "codex-thread"},
+    )
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        transaction.clear_stream_reply("codex-thread", "leaf-turn")
+    told(page)
+    answer = thread.locator(".lf-msg.agent:not(.lf-summary-originals *)")
+    expect(answer.locator(".lf-msg-text")).to_have_text(
+        "Recorded the release on the board."
+    )
+    expect(thread.locator(".lf-thread-checkpoint")).to_have_count(1)
+    expect(thread.locator(".lf-thread-news")).to_have_count(0)
+    assert opening.bounding_box() == standing, "the fold moved what stood above it"
 
 
 def assert_arrival_returns_to_own_fill(page, destination):

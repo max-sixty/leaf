@@ -232,8 +232,6 @@ export class MessageView {
       this.node.classList.toggle(prior.author, false);
     this.node.classList.toggle(model.author, true);
     keeps(this.node, panel ? "data-mid" : "data-event", model.id);
-    // A reply still streaming may grow in place at its transcript's end (`append`).
-    keeps(this.node, "data-lf-streaming", model.provisional ? "" : null);
     this.node.classList.toggle("lf-unread", Boolean(model.unread));
     keeps(this.node, "data-attempt", model.attempt || null);
     keeps(this.node, "aria-busy", model.pending ? "true" : null);

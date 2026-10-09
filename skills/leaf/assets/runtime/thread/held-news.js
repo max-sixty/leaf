@@ -39,8 +39,10 @@
    their place. A reply the agent is still streaming at the thread's end is such an
    appended message, its words joining it as they come and its answer completing it
    in place, so it streams into an idle open card and a held one counts it once as a
-   new reply. Changes to other existing messages, reactions, folds and settlement use
-   the same hold as a seat in page flow, and a notice calls a changed message an edit.
+   new reply. So is an answer folding the progress before it into Previous updates
+   where that progress is the run at the thread's end, as the agent's acknowledgement
+   is, unless the user stands on a message the fold puts away. Changes to other existing messages, reactions, folds and settlement use the
+   same hold as a seat in page flow, and a notice calls a changed message an edit.
    A closed card holds nothing, since its title row draws at one size whatever it says.
    A reply pinned to its scrollport lets a turn joining the thread's end grow up into
    the room scrolled past (thread-list.js, `followThreadEnd`), though nothing that
@@ -79,7 +81,9 @@
    Decisions. An idle open panel card shows appended messages (the user's decision,
    2026-10-08, relaxing #1694's blanket hold), and a streaming reply's words as they
    come (2026-10-09: holding them as an edit left the agent's opening an empty bubble
-   behind "1 new reply" until the user pressed it). Its existing reading and active
+   behind "1 new reply" until the user pressed it), and an answer folding the progress
+   run at the thread's end (2026-10-09: since #1926 the agent's first move is a progress
+   acknowledgement, so holding the fold held nearly every answer). Its existing reading and active
    editor remain protected. Rejected: filling the list (#1480), which makes the
    open card as tall as the panel and leaves later cards below the fold; and letting a
    list that cannot scroll push its contents down, which needs the shift watch to stop
@@ -180,8 +184,9 @@ const fold = (summary, drawn) =>
 // comes or goes covers, and the ids of those that go, whose checkpoints a summary's
 // change redraws from their tops. A summary a new reply completes, as progress is
 // folded when the agent's answer arrives, moves what it covers but is that reply's news,
-// so the notice does not count it. A message the log took back is no news: it goes.
-// Null where nothing differs.
+// so the notice does not count it, and where it folds the run standing at the thread's
+// foot (`footFold`) it changes only that foot, as the answer's arrival does. A message
+// the log took back is no news: it goes. Null where nothing differs.
 function difference(was, now) {
   const drawn = new Map(was.messages.map((message) => [message.key, message]));
   const settled =
@@ -235,10 +240,30 @@ function difference(was, now) {
   const told = (list) => list.filter(({ trigger }) => !arrived.has(trigger)).length;
   news.summaries = told(added) || told(gone);
   const folding = new Set([...added, ...gone].map(({ trigger }) => trigger));
-  for (const id of completed) if (folding.has(id)) news.replies += 1;
+  for (const id of completed)
+    if (folding.has(id)) {
+      news.replies += 1;
+      news.appended = true;
+    }
   const keys = new Map(
     [...was.messages, ...now.messages].map(({ id, key }) => [id, key]),
   );
+  // The arriving answer's own fold of the progress run at the thread's foot: every
+  // summary that comes is one a message arriving here triggers, none goes, and what
+  // they cover is the run of drawn messages just before that arrival, so nothing
+  // above the run changes.
+  const arrivals = new Set(
+    now.messages.filter(({ id }) => arrived.has(id)).map(({ key }) => key),
+  );
+  const tail = was.messages.map(({ key }) => key).filter((key) => !arrivals.has(key));
+  const covered = new Set(
+    added.flatMap(({ covers }) => covers.map((id) => keys.get(id))).filter(Boolean),
+  );
+  const footFold =
+    covered.size > 0 &&
+    !gone.length &&
+    added.every(({ trigger }) => arrived.has(trigger)) &&
+    tail.slice(-covered.size).every((key) => covered.has(key));
   const folds = {
     messages: [...added, ...gone].flatMap(({ covers }) =>
       covers.map((id) => keys.get(id)).filter(Boolean),
@@ -250,7 +275,7 @@ function difference(was, now) {
   const appendedAtEnd =
     news.appended &&
     was.messages.every((message, index) => now.messages[index]?.key === message.key);
-  return { news, changed, folds, appendedAtEnd };
+  return { news, changed, folds, appendedAtEnd, footFold };
 }
 
 // The thread `now` with what `was`, the thread as the seat drew it, did not show held

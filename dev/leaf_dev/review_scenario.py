@@ -1,11 +1,11 @@
-"""The release-review task shared by the live Claude Code, Codex and Pi journeys.
+"""The release-review task shared by the live Claude Code, Codex and Pi sessions.
 
 Every harness starts with the same request and one stamped, undecided document. This
 scenario uses only the current triage source on the default layer: the catalog's
 packages, companion history and prior versions are outside the delivery experiment.
-The runners own transport, timing and assertions. The verifiers of a real task
-(`verify_claude_code_task`, `verify_codex_task`, `verify_pi_task`) also share the comments a step posts, as the
-page's tab posts them, and the reading of the replies that answer each.
+The runners own transport, timing and assertions. The journey's harness steps
+(`journey_claude_code`, `journey_codex`, `journey_pi`) also share the comments a
+step sends and the reading of what holds between steps.
 """
 
 import shutil
@@ -14,7 +14,6 @@ from pathlib import Path
 import click
 from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
-from leaf.server import running_server
 from leaf.service import page_claim
 from leaf.thread import successful_replies
 
@@ -26,12 +25,13 @@ REQUEST = (
     "and handle the comments I leave on it."
 )
 
+# Each step's comment, on the section it is posted on.
 COMMENTS = {
-    "idle": ("triage-lede", "Which of these items actually blocks the release?"),
     "mid-turn": ("triage-why", "Is the migration the only blocker, or the first?"),
     "restart": ("triage-lede", "Anything else I should check before we ship?"),
     "reconnect": ("triage-lede", "Is the same review still connected?"),
     "escape": ("triage-why", "Did the interrupted check change anything?"),
+    "resume": ("triage-why", "Did resuming the check change anything?"),
     "held-escape": (
         "triage-lede",
         "If the migration slips, which work can still ship?",
@@ -40,7 +40,35 @@ COMMENTS = {
     "after-wake": ("triage-why", "And which one would you keep at any cost?"),
     "first": ("triage-lede", "Who owns the migration fix?"),
     "ending": ("triage-why", "When could that fix land?"),
+    # Real author intent exercises the rich interface without naming its commands.
+    "rich-choice": (
+        "triage-lede",
+        (
+            "I need to decide whether to ship or wait. Give me two clickable choices "
+            "inside this thread, not on the page. Explain the decision in a short "
+            "question, and move this thread to the release rationale section."
+        ),
+    ),
+    "rich-question": (
+        "triage-lede",
+        (
+            "Ask me whether I can own the release check, as a prose question in this "
+            "thread. Keep it waiting for my answer and move the thread to the release "
+            "rationale section."
+        ),
+    ),
 }
+
+# A turn of the user's own that runs a shell command long enough to comment, or press
+# Escape, during it. Each harness finds the command among its own session's: Claude
+# Code's journey among its pane's processes, Codex's and Pi's in what the session
+# reports running.
+SLEEP = "time.sleep(25.17)"
+USER_TURN = (
+    f"Run `python3 -c 'import time; {SLEEP}'` in the shell, in the foreground. Then, "
+    "in a separate tool call, run `printf 'verified\\n'`. Then reply with the single "
+    "word done."
+)
 
 
 def prepare(arm: Path, state: Path, page: Path) -> None:
@@ -53,43 +81,56 @@ def prepare(arm: Path, state: Path, page: Path) -> None:
     )  # fmt: skip
 
 
+def attempt(step: str) -> str:
+    """The retry key a step's comment is posted under, as long as the log requires."""
+    return f"journey-step-{step}"
+
+
+def post(url: str, step: str, text: str | None = None) -> str:
+    """Post step `step`'s comment to the page served at its keyed `url`, as the page's
+    tab posts one, and return its admitted id: the scenario's (`COMMENTS`) on its
+    section, or `text` on the page as a whole."""
+    section, text = COMMENTS[step] if text is None else (None, text)
+    client = PageClient(url)
+    client.post(
+        {
+            "kind": "comment",
+            "revision": client.state()["active"]["revision"],
+            "attempt": attempt(step),
+            "text": text,
+            **({"anchor": {"section": section}} if section else {}),
+        }
+    )
+    return next(
+        event["id"]
+        for event in client.state()["events"]
+        if event.get("attempt") == attempt(step)
+    )
+
+
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise click.ClickException(message)
 
 
-def attempt(step: str) -> str:
-    """The retry key a step's comment is posted under, as long as the log requires."""
-    return f"verify-task-{step}"
+def answers(page: Path, comment: str) -> list[dict]:
+    """Successful agent replies to one sent comment."""
+    return successful_replies(read_events(page), comment)
 
 
-def comment_id(page: Path, step: str) -> str:
-    return next(
-        event["id"]
-        for event in read_events(page)
-        if event["kind"] == "comment" and event.get("attempt") == attempt(step)
-    )
-
-
-def answers(page: Path, step: str) -> list[dict]:
-    """Successful agent replies to one posted comment."""
-    return successful_replies(read_events(page), comment_id(page, step))
-
-
-def settled(page: Path, session: str, posted: list[str]) -> dict:
-    """What holds while a task is idle between steps: each comment posted so far
-    answered once and picked up, and the page claimed by the task's session with its
-    turn closed. Returns the claim."""
+def settled(page: Path, session: str, sent: dict[str, str]) -> dict:
+    """What holds while a task is idle between steps: each comment sent so far
+    (`sent`, each step's name and its comment's id) answered once and picked up, and
+    the page claimed by the task's session with its turn closed. Returns the claim."""
     events = read_events(page)
-    for step in posted:
-        replies = answers(page, step)
+    for step, comment in sent.items():
+        replies = answers(page, comment)
         require(
             len(replies) == 1,
             f"comment `{step}` has {len(replies)} replies, not one",
         )
-        posted_id = comment_id(page, step)
         require(
-            bool(pickup_receipts(events, phase="opened", input_id=posted_id)),
+            bool(pickup_receipts(events, phase="opened", input_id=comment)),
             f"comment `{step}` has a reply but never entered the harness context",
         )
     claim = page_claim(page)
@@ -103,18 +144,3 @@ def settled(page: Path, session: str, posted: list[str]) -> dict:
         f"turn {claim['turn']} has ended, but the claim holds it open",
     )
     return claim
-
-
-def post(page: Path, step: str) -> None:
-    """Post a step's comment as the page's tab does."""
-    section, text = COMMENTS[step]
-    client = PageClient(running_server(page)["url"])
-    client.post(
-        {
-            "kind": "comment",
-            "revision": client.state()["active"]["revision"],
-            "attempt": attempt(step),
-            "text": text,
-            "anchor": {"section": section},
-        }
-    )

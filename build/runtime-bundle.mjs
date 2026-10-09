@@ -55,6 +55,27 @@ function native(local, assetRoot) {
   return !assetRoot && (local === GENERATION || local.startsWith("widgets/"));
 }
 
+/** Where a module reads its own URL, as source ranges in order. */
+function moduleUrlReads(source) {
+  const ranges = [];
+  const visit = (node) => {
+    if (
+      node.type === "MemberExpression" &&
+      node.object.type === "MetaProperty" &&
+      !node.computed &&
+      node.property.name === "url"
+    ) {
+      ranges.push([node.start, node.end]);
+      return;
+    }
+    for (const value of Object.values(node))
+      for (const child of [value].flat())
+        if (typeof child?.type === "string") visit(child);
+  };
+  visit(parse(source, { ecmaVersion: "latest", sourceType: "module" }));
+  return ranges.sort(([a], [b]) => a - b);
+}
+
 /** Native modules' kernel imports are graph boundaries, not extra implementations. */
 async function nativeRuntimeEntries(layerRoot, assetRoot) {
   const entries = new Set();
@@ -117,15 +138,12 @@ export async function bundleRuntime(layerRoot, entries, outputRoot, assetRoot = 
       });
       if (assetRoot) {
         builder.onLoad({ filter: /\.js$/ }, async ({ path }) => {
-          const source = await readFile(path, "utf8");
+          let contents = await readFile(path, "utf8");
           const publicPath = `${assetRoot}/${browserPath(relative(layerRoot, path))}`;
-          return {
-            contents: source.replaceAll(
-              "import.meta.url",
-              `new URL(${JSON.stringify(publicPath)}, location.origin).href`,
-            ),
-            loader: "js",
-          };
+          const url = `new URL(${JSON.stringify(publicPath)}, location.origin).href`;
+          for (const [start, end] of moduleUrlReads(contents).reverse())
+            contents = contents.slice(0, start) + url + contents.slice(end);
+          return { contents, loader: "js" };
         });
       }
     },

@@ -33,11 +33,11 @@ describe("published runtime bundle", () => {
       }
       await writeFile(
         join(layer, "leaf.js"),
-        `import { state } from "${root}/page/state.js"; import { moduleUrl } from "${root}/runtime/url.js"; import { framework } from "${root}/vendor/browser-runtime.js"; console.log(state, moduleUrl, framework, import.meta.url);`,
+        `import { state } from "${root}/page/state.js"; import { moduleUrl, prose } from "${root}/runtime/url.js"; import { framework } from "${root}/vendor/browser-runtime.js"; console.log(state, moduleUrl, prose, framework, import.meta.url);`,
       );
       await writeFile(
         join(layer, "runtime", "url.js"),
-        "export const moduleUrl = import.meta.url;",
+        'export const moduleUrl = import.meta . url; export const prose = "import.meta.url";',
       );
       for (const entry of [
         "interaction-gallery-frame",
@@ -90,6 +90,10 @@ describe("published runtime bundle", () => {
       expect(await readdir(join(layer, "vendor"))).toEqual(["lit.js"]);
       expect(await readFile(join(layer, "leaf.js"), "utf8")).toContain(
         `new URL("${root}/runtime/url.js",location.origin).href`,
+      );
+      // Only a read of the module's URL is rewritten, not text that spells one.
+      expect(await readFile(join(layer, "leaf.js"), "utf8")).toContain(
+        '"import.meta.url"',
       );
       expect(await readFile(join(layer, "page", "state.js"), "utf8")).toBe(
         `export const state = { revision: "${revision}" };`,

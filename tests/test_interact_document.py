@@ -1182,6 +1182,33 @@ def test_page_state_names_each_bound_source_and_its_failures(page_dir):
     assert "builds" in error
 
 
+def test_sample_templates_bind_the_parents_producer_sources(page_dir):
+    """A disposable child's data consumers remain visible to its parent producer."""
+    declare_data_input(page_dir, "builds", {"type": "array"}, activate=False)
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text().replace(
+            '<lf-test-data id="test-data" source="builds"></lf-test-data>',
+            '<lf-sample id="live-builds" window><template id="builds-page" data-sample>'
+            '<lf-test-data id="child-builds" source="builds"></lf-test-data>'
+            "</template></lf-sample>",
+        )
+    )
+    publish(page_dir)
+    data_model.cmd_data_set(page_dir, "builds", ["passing"])
+    state = state_json(page_dir)
+    assert read_page_data(page_dir)["sources"]["builds"]["value"] == ["passing"]
+    binding = state["data_bindings"]["builds"]
+    assert binding["contract"] == "test-data"
+    assert binding["consumers"] == [
+        {
+            "widget": "child-builds",
+            "input": "data",
+            "document": "revision r1 sample 'builds-page'",
+        }
+    ]
+
+
 def test_thread_read_reads_frozen_construction(page_dir):
     (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
@@ -4308,27 +4335,27 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
 
 
 def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
-    tasks = """<lf-tasks id="work">
-      <lf-task id="vendor" status="blocked"><strong>Vendor fix</strong></lf-task>
-      <lf-task id="copy" status="review"><strong>Copy review</strong></lf-task>
-      <lf-task id="future" status="active"><strong>Future review</strong>
+    tasks = """<lf-test-tasks id="work">
+      <lf-test-task id="vendor" status="blocked"><strong>Vendor fix</strong></lf-test-task>
+      <lf-test-task id="copy" status="review"><strong>Copy review</strong></lf-test-task>
+      <lf-test-task id="future" status="active"><strong>Future review</strong>
         <lf-ask id="future-decision"><h3>Review it now?</h3>
           <lf-options id="future-review" choose>
             <lf-option id="future-yes">Yes</lf-option><lf-option id="future-no">No</lf-option>
           </lf-options>
         </lf-ask>
-      </lf-task>
-      <lf-task id="decision" status="blocked"><strong>User decision</strong>
+      </lf-test-task>
+      <lf-test-task id="decision" status="blocked"><strong>User decision</strong>
         <lf-ask id="decision-decision"><h3>Which way out?</h3>
           <lf-options id="decision-options" choose>
             <lf-option id="decision-a">A</lf-option><lf-option id="decision-b">B</lf-option>
           </lf-options>
         </lf-ask>
-      </lf-task>
-      <lf-task id="release" status="review"><strong>Release review</strong>
-        <lf-task id="release-build" status="done"><strong>Build release</strong></lf-task>
-      </lf-task>
-    </lf-tasks>"""
+      </lf-test-task>
+      <lf-test-task id="release" status="review"><strong>Release review</strong>
+        <lf-test-task id="release-build" status="done"><strong>Build release</strong></lf-test-task>
+      </lf-test-task>
+    </lf-test-tasks>"""
     (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + tasks)
     )
@@ -4357,8 +4384,8 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
     the canonical update feed, and remains there as settled history when a note
     absorbs it."""
     tasks = (
-        '<lf-tasks id="work"><lf-task id="t-parser" status="review">'
-        "<strong>Parser</strong> Ready for eyes.</lf-task></lf-tasks>"
+        '<lf-test-tasks id="work"><lf-test-task id="t-parser" status="review">'
+        "<strong>Parser</strong> Ready for eyes.</lf-test-task></lf-test-tasks>"
     )
     (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + tasks)
@@ -4441,8 +4468,8 @@ def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
     """Reports are ordered by the log, so equal second-precision timestamps cannot
     reverse their known causal order."""
     task = (
-        '<lf-tasks id="work"><lf-task id="t-parser" status="review">'
-        "<strong>Parser</strong></lf-task></lf-tasks>"
+        '<lf-test-tasks id="work"><lf-test-task id="t-parser" status="review">'
+        "<strong>Parser</strong></lf-test-task></lf-test-tasks>"
     )
     (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + task)
@@ -4533,15 +4560,15 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
 
 def test_a_quoted_ask_does_not_hide_a_real_request_in_the_same_goal(page_dir):
     markup = (
-        '<lf-command id="hub">'
-        '<lf-task id="goal" status="blocked"><strong>Blocked goal</strong>'
+        '<lf-test-plan id="hub">'
+        '<lf-test-task id="goal" status="blocked"><strong>Blocked goal</strong>'
         '<lf-sample id="sample"><lf-options id="example" choose>'
         '<lf-option id="example-a"><strong>Example only</strong></lf-option>'
         "</lf-options></lf-sample>"
         '<lf-ask id="real-decision"><h3>What next?</h3>'
         '<lf-options id="real" choose><lf-option id="real-a">A</lf-option>'
         '<lf-option id="real-b">B</lf-option></lf-options></lf-ask>'
-        "</lf-task></lf-command>"
+        "</lf-test-task></lf-test-plan>"
     )
     (page_dir / "index.html").write_text(
         PAGE.replace("</section>", markup + "</section>")
@@ -4565,10 +4592,10 @@ def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
     def command(status, needed, body):
         flag = " needed" if needed else ""
         return (
-            '<lf-command id="hub">'
-            f'<lf-task id="goal" status="{status}"><strong>Import</strong>'
+            '<lf-test-plan id="hub">'
+            f'<lf-test-task id="goal" status="{status}"><strong>Import</strong>'
             f'<lf-draft id="cargo"{flag}><pre>\n{body}\n</pre></lf-draft>'
-            "</lf-task></lf-command>"
+            "</lf-test-task></lf-test-plan>"
         )
 
     version = page_dir / "index.html"

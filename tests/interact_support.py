@@ -75,7 +75,7 @@ PLUGIN_ROOT = ROOT
 # spelled by hand the two are one plausible typo apart — a glob a level short matches
 # nothing and reports nothing.
 SKILL_ROOT = PLUGIN_ROOT / "skills" / "leaf"
-COMMAND_HUB_PACKAGE = SKILL_ROOT / "packages" / "command-hub"
+COMMAND_HUB_PACKAGE = ROOT / "tests" / "fixtures" / "packages" / "work"
 # The complete shipped vocabulary, in the order `page init` composes it for an example.
 # Read from examples/layer.json rather than listed here, because a floor that names its
 # own packages stops covering the next one: lf-diagram and lf-diff left the default
@@ -92,9 +92,9 @@ SHIPPED_PACKAGES = [
     ),
 ]
 COMMAND_SUBJECTS = (
-    '<lf-agent id="worker" state="waiting" on="goal"><strong>Worker</strong>'
-    '<lf-worktree id="tree" source="project-worktrees"></lf-worktree>'
-    "</lf-agent>"
+    '<lf-test-worker id="worker" state="waiting" on="goal"><strong>Worker</strong>'
+    '<lf-test-tree id="tree" source="project-worktrees"></lf-test-tree>'
+    "</lf-test-worker>"
 )
 
 # No path work: `leaf` is installed into the environment this interpreter runs
@@ -502,7 +502,12 @@ graph LR
 # lf-diagram and lf-diff declarations out of the vendored registry, so the selection
 # names the packages those three now travel in. The template cache is keyed by this
 # same list, so a page built for one selection is never handed to another.
-PAGE_PACKAGES = ("command-hub", "diagram", "diff", "swipe")
+PAGE_PACKAGES = (
+    "~/" + COMMAND_HUB_PACKAGE.relative_to(Path.home()).as_posix(),
+    "diagram",
+    "diff",
+    "swipe",
+)
 
 
 @pytest.fixture
@@ -524,7 +529,7 @@ def page_dir(tmp_path, monkeypatch, initialized_page):
         assert result.exit_code == 0, result.output
         (template / "index.html").write_text(PAGE)
 
-    initialized_page("-".join(PAGE_PACKAGES), d, initialize)
+    initialized_page("work-" + "-".join(PAGE_PACKAGES[1:]), d, initialize)
     return d
 
 
@@ -819,9 +824,9 @@ def _decided(page_dir, words):
 def _tasks(status, extra=""):
     """A one-task tree whose task carries the given status and extra attributes."""
     return (
-        '<lf-tasks id="tree">'
-        f'<lf-task id="t-parser" status="{status}"{extra}><strong>Parser</strong></lf-task>'
-        "</lf-tasks>"
+        '<lf-test-tasks id="tree">'
+        f'<lf-test-task id="t-parser" status="{status}"{extra}><strong>Parser</strong></lf-test-task>'
+        "</lf-test-tasks>"
     )
 
 
@@ -1005,26 +1010,26 @@ def _mutated_registry_check(page_dir, mutate):
 
 
 def _report_body_record(registry):
-    registry["lf-task"]["x-state"]["status"]["record"] = {"kind": "body"}
+    registry["lf-test-task"]["x-state"]["status"]["record"] = {"kind": "body"}
 
 
 def _report_position_record(registry):
-    registry["lf-task"]["x-state"]["status"]["record"] = {
+    registry["lf-test-task"]["x-state"]["status"]["record"] = {
         "kind": "position",
         "within": "lf-column",
     }
 
 
 def _report_no_record(registry):
-    del registry["lf-task"]["x-state"]["status"]["record"]
+    del registry["lf-test-task"]["x-state"]["status"]["record"]
 
 
 def _report_undeclared_attr(registry):
-    registry["lf-task"]["x-state"]["status"]["record"]["attr"] = "phase"
+    registry["lf-test-task"]["x-state"]["status"]["record"]["attr"] = "phase"
 
 
 def _report_says_attr(registry):
-    task = registry["lf-task"]
+    task = registry["lf-test-task"]
     task["required"].append("owner")
     task["x-says"] = {"owner": "before"}
     task["x-state"]["status"] = {
@@ -1035,18 +1040,18 @@ def _report_says_attr(registry):
 
 
 def _report_authored_detail(registry):
-    registry["lf-task"]["x-state"]["status"]["detail"] = {
+    registry["lf-test-task"]["x-state"]["status"]["detail"] = {
         "type": "object",
         "additionalProperties": False,
     }
 
 
 def _report_without_overruled(registry):
-    del registry["lf-task"]["properties"]["overruled"]
+    del registry["lf-test-task"]["properties"]["overruled"]
 
 
 def _report_without_upgrade(registry):
-    registry["lf-task"]["x-upgrade"] = False
+    registry["lf-test-task"]["x-upgrade"] = False
 
 
 def _user_verb_update(registry):

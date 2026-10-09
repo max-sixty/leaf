@@ -2967,7 +2967,7 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
     reach the div at all.
 
     The task and the note are the two a list of tags could not have named even in
-    principle. A task's rail is drawn by `lf-task > lf-task`, so a task frames what it
+    principle. A task's rail is drawn by `lf-test-task > lf-test-task`, so a task frames what it
     holds only where it is nested, and a note's box is drawn by `lf-code > pre > lf-note`,
     a rule on where the code block's module docks it rather than on the tag. Each let a diagram out ~245px over the
     column until the rule that draws it declared the frame.

@@ -9643,16 +9643,16 @@ def bounded_seat_page(steps, bound):
     """A talk seat at the foot of a command that bounds its own height with
     `data-bound`, after `steps` plain tasks, between screens of filler."""
     tasks = "".join(
-        f'<lf-task id="step-{n}" status="planned"><strong>Step {n}</strong> '
-        f"{SEAT_WORDS}</lf-task>"
+        f'<lf-test-task id="step-{n}" status="planned"><strong>Step {n}</strong> '
+        f"{SEAT_WORDS}</lf-test-task>"
         for n in range(steps)
     )
     return leaf_page(
         "bounded seat",
-        f'<h1 id="h">Three jobs</h1>{SEAT_FILLER}<lf-command id="hub" '
-        f'label="Before the frost" data-bound="{bound}">{tasks}<lf-task id="jobs" '
+        f'<h1 id="h">Three jobs</h1>{SEAT_FILLER}<lf-test-plan id="hub" '
+        f'label="Before the frost" data-bound="{bound}">{tasks}<lf-test-task id="jobs" '
         'status="active" talk><strong>Which jobs are worth starting?</strong> The '
-        f"mounts came down in January.</lf-task></lf-command>{SEAT_FILLER}",
+        f"mounts came down in January.</lf-test-task></lf-test-plan>{SEAT_FILLER}",
     )
 
 
@@ -9668,20 +9668,20 @@ def seated_page(serve, kind):
         return serve(
             leaf_page(
                 "bounded seat",
-                f'<h1 id="h">Three jobs</h1>{SEAT_FILLER}<lf-command id="hub" '
-                'label="Before the frost"><lf-task id="jobs" status="active" talk '
+                f'<h1 id="h">Three jobs</h1>{SEAT_FILLER}<lf-test-plan id="hub" '
+                'label="Before the frost"><lf-test-task id="jobs" status="active" talk '
                 'data-bound="start"><strong>Which jobs are worth starting?</strong>'
-                f"</lf-task></lf-command>{SEAT_FILLER}",
+                f"</lf-test-task></lf-test-plan>{SEAT_FILLER}",
             )
         ), "#jobs"
     if kind == "task":
         return serve(
             leaf_page(
                 "seat",
-                f'<h1 id="h">Three jobs</h1>{SEAT_FILLER}<lf-command id="hub" '
-                'label="Before the frost"><lf-task id="jobs" status="active" talk>'
+                f'<h1 id="h">Three jobs</h1>{SEAT_FILLER}<lf-test-plan id="hub" '
+                'label="Before the frost"><lf-test-task id="jobs" status="active" talk>'
                 "<strong>Which jobs are worth starting?</strong> The mounts came "
-                f"down in January.</lf-task></lf-command>{SEAT_FILLER}",
+                f"down in January.</lf-test-task></lf-test-plan>{SEAT_FILLER}",
             )
         ), "#jobs"
     return serve(

@@ -6408,7 +6408,7 @@ def test_signoff_withdrawals_reports_and_errors_remain_deliverable(page_dir):
     )
     source = source.replace(
         "</section>",
-        '<lf-tasks id="tasks"><lf-task id="task" status="active"><strong>Check</strong></lf-task></lf-tasks></section>',
+        '<lf-test-tasks id="tasks"><lf-test-task id="task" status="active"><strong>Check</strong></lf-test-task></lf-test-tasks></section>',
     )
     (page_dir / "index.html").write_text(source)
     publish(page_dir)
@@ -7327,8 +7327,8 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
     resolves the widget to its thread and brings the markup along. An undo
     belongs to the thread holding the gesture it takes back."""
     subjects = (
-        '<lf-command id="hub"><lf-task id="goal" status="active">'
-        "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
+        '<lf-test-plan id="hub"><lf-test-task id="goal" status="active">'
+        "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-test-task></lf-test-plan>"
     )
     (page_dir / "index.html").write_text(
         PAGE.replace("</section>", subjects + "</section>")

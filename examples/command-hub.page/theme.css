@@ -1,0 +1,16 @@
+/* Native hierarchy and disclosures belong to this Atlas page. */
+lf-atlas-plan, lf-atlas-task, lf-atlas-worker, lf-atlas-tree { display: block; }
+lf-atlas-task { margin-block: 1.25rem; padding-inline-start: 1rem; border-inline-start: 1px solid var(--rule); }
+lf-atlas-task > strong { font-size: 1.06em; }
+.atlas-task-state { margin: 0 0 .3rem; min-block-size: 1.4em; color: var(--muted); font: 500 .8rem/1.4 var(--sans); }
+lf-atlas-task:not(:defined)::before { content: attr(status); display: block; min-block-size: 1.4em; margin-bottom: .3rem; font: 500 .8rem/1.4 var(--sans); }
+lf-atlas-worker { margin-block: .75rem; }
+lf-atlas-worker > details > summary { min-block-size: 44px; display: list-item; align-content: center; }
+.atlas-worker-state { display: inline-block; margin-inline-start: .75rem; min-inline-size: 8rem; font: 500 .8rem/1.4 var(--sans); color: var(--muted); }
+.atlas-worker-body { padding: .6rem 1rem 1rem; }
+.atlas-worker-report { font-size: .85rem; color: var(--muted); }
+.atlas-tree { margin-block-start: 1rem; }
+.atlas-tree > summary { min-block-size: 44px; align-content: center; }
+.atlas-tree pre { max-inline-size: 100%; overflow: auto; }
+.atlas-overview output { font-variant-numeric: tabular-nums; }
+.atlas-stopped { margin-block-start: 1rem; }

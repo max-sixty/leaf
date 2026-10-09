@@ -520,7 +520,13 @@ def serve(tmp_path, monkeypatch, initialized_page):
         selected_packages = (
             fixture.packages
             if fixture is not None and packages is None
-            else EXAMPLE_PACKAGES
+            else (
+                *EXAMPLE_PACKAGES,
+                "~/"
+                + (ROOT / "tests/fixtures/packages/work")
+                .relative_to(Path.home())
+                .as_posix(),
+            )
             if packages is None
             else packages
         )

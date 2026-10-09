@@ -74,8 +74,6 @@ The optional bundled packages are:
 | `swipe` | A pass-or-keep technical backlog deck. |
 | `playground` | Controls and structured state with shared reset, restore, preview, output, and typed configuration submission. |
 | `targeting` | Preview-element selection and structured, reversible change proposals. |
-| `command-hub` | Multi-agent orchestration widgets. |
-| `pr-review` | A typed pull-request brief with a safe Markdown description and compact checks table. |
 | `monitoring` | Release-workspace instructions for current state, checks, a run log, and a rollback Ask. |
 | `visual-review` | Ordered website cases with aligned before-and-after evidence, automatic comparison orientation, authored focus and full-frame context, flip and overlay, fit and captured-size inspection, exact preview links, and dispositions. |
 | `playwright` | Native trace import and `lf-trace` review of actions, checkpoint images, captured frames and saved accessibility elements, with comments that restore their recorded moment and a link to Playwright's full viewer. |
@@ -392,9 +390,9 @@ answers it; the user has no control for it. It uses `unit: "widget"` and a requi
 `attribute` or `value` record. It declares `update: true` when each report also supplies short human-readable
 news in `detail.text`. Every verb has exactly one
 writer, so a coordinate never holds a user's action and an agent's report at once.
-Command Hub's `lf-task` `status` is the shipped example, and a widget declaring such a
-verb also declares the boolean `overruled` attribute a version keeps its own state
-with. A worker that reacts to the user's actions follows them as they land with
+The Atlas example's page-owned task `status` is one example. A widget declaring
+such a verb also declares the boolean `overruled` attribute a version keeps its own
+state with. A worker that reacts to the user's actions follows them as they land with
 `leaf page events PAGE --follow`.
 
 ## References between widgets
@@ -407,8 +405,8 @@ match a declaration there:
 ```json
 {
   "x-refers": {
-    "target": { "via": "$command.widgets", "where": { "role": "goal" } },
-    "worker": { "via": "$command.widgets", "where": { "role": "worker" } }
+    "target": { "via": "$work.widgets", "where": { "role": "goal" } },
+    "worker": { "via": "$work.widgets", "where": { "role": "worker" } }
   }
 }
 ```
@@ -420,7 +418,7 @@ exactly one referrer, so no seat stands empty or holds two commands' readings.
 
 Leaf validates the generic relation; the package owns the map, roles, and participating
 widget tags. A later package can therefore add another goal or worker widget by merging
-its entry into `$command.widgets`, without changing core.
+its entry into `$work.widgets`, without changing core.
 
 ## External or derived data
 

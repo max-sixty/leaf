@@ -458,7 +458,7 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
     page_dir = tmp_path / "state" / "page"
 
     init = subprocess.run(
-        [launcher, "page", "init", "--package", "command-hub", page_dir],
+        [launcher, "page", "init", "--package", "diagram", page_dir],
         cwd=elsewhere,
         capture_output=True,
         text=True,
@@ -466,8 +466,8 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
     )
     assert init.returncode == 0, init.stderr
     installed_registry = json.loads((page_dir / "registry.json").read_text())
-    assert "lf-command" in installed_registry
-    assert installed_registry["$layer"]["packages"] == ["command-hub"]
+    assert "lf-diagram" in installed_registry
+    assert installed_registry["$layer"]["packages"] == ["diagram"]
     (page_dir / "index.html").write_text(
         (root / "examples" / "release-notes.html").read_text()
     )

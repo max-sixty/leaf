@@ -22,7 +22,7 @@
         color: var(--ink-2);
         font: 500 var(--t-5) / 1.5 var(--sans);
       }
-    </style>
+</style>
 <!-- notification-playground.html authored styles -->
 <style>
       notification-simulator {
@@ -187,7 +187,7 @@
           height: auto;
         }
       }
-    </style>
+</style>
 <!-- notification-playground.html authored script -->
 <script type="module">
       import { keeps, keepsText, layoutChanged, once } from "/runtime/widget-api.js";
@@ -457,7 +457,7 @@
           margin-inline-start: 0;
         }
       }
-    </style>
+</style>
 <!-- data-explorer.html authored script -->
 <script type="module">
       import { keepsText, layoutChanged, offer, once } from "/runtime/widget-api.js";
@@ -838,7 +838,7 @@
           grid-template-columns: minmax(0, 1fr);
         }
       }
-    </style>
+</style>
 <!-- code-comparison.html authored script -->
 <script type="module">
       import {
@@ -1053,9 +1053,11 @@
           grid-template-columns: repeat(4, minmax(0, 1fr));
         }
       }
-    </style>
+</style>
 <!-- pr-walkthrough.html authored styles -->
 <style>
+      @import url("/page/theme.css");
+
       /* Navigation starts the stacked reading order; the stretched side track keeps
          it beside the review on a wide window. Supporting history stays in the body. */
       #pr-rail {
@@ -1124,7 +1126,7 @@
         color: var(--ink);
         font: var(--t-3) / 1.3 var(--mono);
       }
-    </style>
+</style>
 <!-- wt-merge.html authored styles -->
 <style>
       /* The film beside the steps it plays, stacked where the workspace flows. */
@@ -1514,7 +1516,7 @@
       lf-merge-steps .this-run[data-tone="bad"] {
         color: var(--danger-ink);
       }
-    </style>
+</style>
 <!-- rust-sort.html authored styles -->
 <style>
       /* The sort beside the source it follows, stacked where the workspace flows. */
@@ -1641,7 +1643,7 @@
         color: var(--muted);
         font-size: var(--t-5);
       }
-    </style>
+</style>
 <!-- rust-sort.html authored script -->
 <script type="module">
       // A step may precede the code's rendered lines. Follow the indicated line when
@@ -1676,6 +1678,10 @@
       });
       followLine();
     </script>
+<!-- command-hub.html authored styles -->
+<style>
+      @import url("/page/theme.css");
+</style>
 <!-- annotation-workspace.html authored styles -->
 <style>
       #aw-regions {
@@ -1717,7 +1723,7 @@
           flex: none;
         }
       }
-    </style>
+</style>
 <!-- current-proposed-comparison.html authored styles -->
 <style>
       /* The regions side by side, stacked where the workspace flows. */
@@ -1730,7 +1736,7 @@
           grid-template-columns: 1fr;
         }
       }
-    </style>
+</style>
 <!-- review-queue.html authored styles -->
 <style>
       /* The regions side by side, stacked where the workspace flows. */
@@ -1743,7 +1749,7 @@
           grid-template-columns: 1fr;
         }
       }
-    </style>
+</style>
 <!-- root-tabs.html authored styles -->
 <style>
       /* The cohort queue beside its detail, stacked in a narrow window. */
@@ -1757,7 +1763,7 @@
           grid-template-columns: 1fr;
         }
       }
-    </style>
+</style>
 <!-- feature-gallery.html authored styles -->
 <style>
       .bg-feature-detail {
@@ -2064,7 +2070,7 @@
           box-shadow: none;
         }
       }
-    </style>
+</style>
 <!-- feature-gallery.html authored script -->
 <script id="bg-margin-layer-status-history" type="application/json">
       [
@@ -2233,7 +2239,7 @@
           grid-template-columns: 1fr;
         }
       }
-    </style>
+</style>
 </head>
 <body>
 <main class="layout-column">
@@ -2730,15 +2736,18 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
           Open the comment beside the stalled task. Two follow-ups are selected; adjust
           them if needed, then press Done.
         </p>
-        <lf-tasks id="off-readiness">
-          <lf-task id="off-t-patch" status="review" owner="mobile">
+        <section id="off-readiness">
+          <section id="off-t-patch">
+            <p class="eyebrow">review · mobile</p>
             <strong>Ship offline editing in the first patch</strong>
-            <lf-task id="off-t-resync" status="stalled" owner="mobile">
+            <section id="off-t-resync">
+              <p class="eyebrow">stalled · mobile</p>
               <strong>iOS reconnect stall</strong> One reconnect in about 40. Nothing is
               lost — the edits stay queued — but the user sees a spinner until they
               background the app.
-            </lf-task>
-            <lf-task id="off-t-workaround" status="review" owner="mobile">
+            </section>
+            <section id="off-t-workaround">
+              <p class="eyebrow">review · mobile</p>
               <strong>Keep the resend workaround in the patch</strong> After 20 seconds
               the client resends the queued batch; 500 forced stalls all recovered.
               <lf-ask id="off-workaround-decision">
@@ -2752,21 +2761,24 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
                   </lf-option>
                 </lf-options>
               </lf-ask>
-            </lf-task>
-            <lf-task id="off-t-vendor" status="blocked" owner="mobile">
+            </section>
+            <section id="off-t-vendor">
+              <p class="eyebrow">blocked · mobile</p>
               <strong>Land the upstream fix</strong> The vendor reproduced the stall but
               has not named a release.
-            </lf-task>
-            <lf-task id="off-t-telemetry" status="done" owner="data">
+            </section>
+            <section id="off-t-telemetry">
+              <p class="eyebrow">done · data</p>
               <strong>Keep reconnect telemetry</strong> The beta alert and per-platform
               count remain on for the release cohort.
-            </lf-task>
-            <lf-task id="off-t-support" status="done" owner="support">
+            </section>
+            <section id="off-t-support">
+              <p class="eyebrow">done · support</p>
               <strong>Write the support playbook</strong> It covers the spinner, queued
               edits, and background-app recovery.
-            </lf-task>
-          </lf-task>
-        </lf-tasks>
+            </section>
+          </section>
+        </section>
       </section>
 
       <dl class="facts" id="off-facts">
@@ -3362,27 +3374,32 @@ export const summarize = checks =>
           </details>
           <details id="lp-release-owners">
             <summary>Release owners · 5</summary>
-            <lf-roster id="lp-owners">
-              <lf-agent id="lp-agent-deployer" state="waiting">
+            <section id="lp-owners">
+              <section id="lp-agent-deployer">
+                <p class="eyebrow">waiting</p>
                 <strong>deployer</strong> Holding promotion at 25% while finance parity
                 is red.
-              </lf-agent>
-              <lf-agent id="lp-agent-ledger" state="working">
+              </section>
+              <section id="lp-agent-ledger">
+                <p class="eyebrow">working</p>
                 <strong>ledger</strong> Reconciling <code>co_18427</code> against the
                 candidate export.
-              </lf-agent>
-              <lf-agent id="lp-agent-finance" state="blocked">
+              </section>
+              <section id="lp-agent-finance">
+                <p class="eyebrow">blocked</p>
                 <strong>finance</strong> Waiting for the missing export row before
                 signing off.
-              </lf-agent>
-              <lf-agent id="lp-agent-observer" state="idle">
+              </section>
+              <section id="lp-agent-observer">
+                <p class="eyebrow">idle</p>
                 <strong>observer</strong> Ready to watch the release after promotion.
-              </lf-agent>
-              <lf-agent id="lp-agent-builder" state="done">
+              </section>
+              <section id="lp-agent-builder">
+                <p class="eyebrow">done</p>
                 <strong>builder</strong> Signed the candidate and recorded its
                 provenance.
-              </lf-agent>
-            </lf-roster>
+              </section>
+            </section>
           </details>
 
           <details id="lp-rollback-procedure">
@@ -4366,11 +4383,11 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
 
         <section class="panel" id="pr-source-facts">
           <h2>Captured pull request</h2>
-          <lf-pull-request
+          <lf-pr-brief
             id="pr-reviewed-request"
             data-height="959"
             source="pr-review-facts"
-          ></lf-pull-request>
+          ></lf-pr-brief>
         </section>
 
         <section class="panel" id="pr-history">
@@ -5751,8 +5768,8 @@ stateDiagram-v2
           Get the new importer through one shadow week with no unexplained variance. The
           tree lists goals of the importer rewrite. The lead is assigned to the whole
           rewrite, an area owner to one branch, and a specialist to a single task. Open
-          a goal to inspect its disposable workers and their worktrees, answer beside
-          the goal that stopped, and use
+          a worker to inspect its latest report and worktree, answer beside the goal
+          that stopped, and use
           <em>Send &amp; pause</em>
           when the thread itself should keep new workers away until you resolve it.
         </p>
@@ -5760,58 +5777,82 @@ stateDiagram-v2
 
       <section class="panel" id="hub-tree">
         <h2>Plan</h2>
-        <lf-command
+        <lf-atlas-plan
           id="hub-plan"
           label="One clean shadow week"
           phase="week 3 of 6"
-          readings="hub-readings"
+          overview="hub-readings"
         >
-          <lf-agent id="atlas-lead" state="working">
-            <strong>atlas-lead</strong> Coordinates the whole rewrite: routes decisions,
-            watches progress, and changes focus wherever the tree needs it. Its
-            placement is the project-wide remit; it does not pretend to have one leaf
-            assignment.
-          </lf-agent>
-          <lf-task id="goal-ground" status="done" when="weeks 1–2">
+          <lf-atlas-worker id="atlas-lead" state="working"
+            ><details>
+              <summary>
+                <strong>atlas-lead</strong><output class="atlas-worker-state"></output>
+              </summary>
+              <div class="atlas-worker-body">
+                <p class="atlas-worker-report"></p>
+                Coordinates the whole rewrite: routes decisions, watches progress, and
+                changes focus wherever the tree needs it. Its placement is the
+                project-wide remit; it does not pretend to have one leaf assignment.
+              </div>
+            </details></lf-atlas-worker
+          >
+          <lf-atlas-task id="goal-ground" status="done" when="weeks 1–2">
             <strong>Groundwork</strong>
-            <lf-task id="ground-corpus" status="done">
+            <lf-atlas-task id="ground-corpus" status="done">
               <strong>Snapshot the import corpus</strong> Nine months pinned by content
               hash.
-            </lf-task>
-            <lf-task id="ground-harness" status="done">
+            </lf-atlas-task>
+            <lf-atlas-task id="ground-harness" status="done">
               <strong>Build the replay harness</strong> Old and new importer over the
               same corpus.
-            </lf-task>
-            <lf-task id="ground-schema" status="done">
+            </lf-atlas-task>
+            <lf-atlas-task id="ground-schema" status="done">
               <strong>Map the legacy schema</strong> Every downstream field has an
               owner.
-            </lf-task>
-          </lf-task>
+            </lf-atlas-task>
+          </lf-atlas-task>
 
-          <lf-task id="goal-parser" status="active" when="week 3" talk>
+          <lf-atlas-task id="goal-parser" status="active" when="week 3" talk>
             <strong>Replace the XML parser</strong>
-            Two workers own separate worktrees; the whole row opens both. The stalled
-            dedupe leaf filed itself around this goal rather than turning a worker into
-            a pet.
-            <lf-agent id="w-1" state="working" on="parser-declarations">
-              <strong>w-1</strong> Parser area owner; focused now on declarations and
-              entity boundaries, but responsible for this whole branch of the plan.
-              <lf-worktree id="tree-w-1" source="atlas-worktrees"></lf-worktree>
-            </lf-agent>
-            <lf-task id="parser-declarations" status="active">
+            Two workers own separate worktrees; open each worker to inspect its
+            evidence. The stalled dedupe leaf filed itself around this goal rather than
+            turning a worker into a pet.
+            <lf-atlas-worker id="w-1" state="working" on="parser-declarations"
+              ><details>
+                <summary>
+                  <strong>w-1</strong><output class="atlas-worker-state"></output>
+                </summary>
+                <div class="atlas-worker-body">
+                  <p class="atlas-worker-report"></p>
+                  Parser area owner; focused now on declarations and entity boundaries,
+                  but responsible for this whole branch of the plan.
+                  <lf-atlas-tree id="tree-w-1" source="atlas-worktrees"></lf-atlas-tree>
+                </div></details
+            ></lf-atlas-worker>
+            <lf-atlas-task id="parser-declarations" status="active">
               <strong>Declarations and entities</strong> Three new corpus cases remain.
-              <lf-task id="parser-stream" status="done">
+              <lf-atlas-task id="parser-stream" status="done">
                 <strong>Streaming core</strong> Constant memory over the full corpus.
-              </lf-task>
-              <lf-task id="parser-cdata" status="active">
+              </lf-atlas-task>
+              <lf-atlas-task id="parser-cdata" status="active">
                 <strong>CDATA edge cases</strong> Eleven legacy exports replay cleanly.
-                <lf-agent id="w-2" state="working" on="parser-cdata">
-                  <strong>w-2</strong> CDATA specialist: escaped-markup corpus cases.
-                  <lf-worktree id="tree-w-2" source="atlas-worktrees"></lf-worktree>
-                </lf-agent>
-              </lf-task>
-            </lf-task>
-            <lf-task
+                <lf-atlas-worker id="w-2" state="working" on="parser-cdata"
+                  ><details>
+                    <summary>
+                      <strong>w-2</strong><output class="atlas-worker-state"></output>
+                    </summary>
+                    <div class="atlas-worker-body">
+                      <p class="atlas-worker-report"></p>
+                      CDATA specialist: escaped-markup corpus cases.
+                      <lf-atlas-tree
+                        id="tree-w-2"
+                        source="atlas-worktrees"
+                      ></lf-atlas-tree>
+                    </div></details
+                ></lf-atlas-worker>
+              </lf-atlas-task>
+            </lf-atlas-task>
+            <lf-atlas-task
               id="parser-dedupe"
               status="blocked"
               stopped-at="2026-08-21T08:12:00-07:00"
@@ -5819,11 +5860,21 @@ stateDiagram-v2
               <strong>Deduplicate the corpus snapshot</strong> Three hours of worker
               activity produced no commit. Last worktree:
               <a href="#tree-w-5">atlas/dedupe-attempt</a>.
-              <lf-agent id="w-5" state="reaped" on="parser-dedupe">
-                <strong>w-5</strong> Dedupe specialist, reaped after three hours without
-                a commit; its branch and evidence remain inspectable.
-                <lf-worktree id="tree-w-5" source="atlas-worktrees"></lf-worktree>
-              </lf-agent>
+              <lf-atlas-worker id="w-5" state="reaped" on="parser-dedupe"
+                ><details>
+                  <summary>
+                    <strong>w-5</strong><output class="atlas-worker-state"></output>
+                  </summary>
+                  <div class="atlas-worker-body">
+                    <p class="atlas-worker-report"></p>
+                    Dedupe specialist, reaped after three hours without a commit; its
+                    branch and evidence remain inspectable.
+                    <lf-atlas-tree
+                      id="tree-w-5"
+                      source="atlas-worktrees"
+                    ></lf-atlas-tree>
+                  </div></details
+              ></lf-atlas-worker>
               <lf-ask id="decision-dedupe-region">
                 <h3>What should the host do with the stalled work?</h3>
                 <lf-options id="decision-dedupe" choose>
@@ -5846,8 +5897,8 @@ stateDiagram-v2
                   </lf-option>
                 </lf-options>
               </lf-ask>
-            </lf-task>
-            <lf-task
+            </lf-atlas-task>
+            <lf-atlas-task
               id="parser-zero"
               status="active"
               stopped-at="2026-08-21T08:46:00-07:00"
@@ -5868,24 +5919,33 @@ stateDiagram-v2
                   </lf-option>
                 </lf-options>
               </lf-ask>
-            </lf-task>
-          </lf-task>
+            </lf-atlas-task>
+          </lf-atlas-task>
 
-          <lf-task id="goal-schema" status="active" when="week 3" talk>
+          <lf-atlas-task id="goal-schema" status="active" when="week 3" talk>
             <strong>Reconcile schema and ledger</strong> Two goals and the nightly wait
             behind the schema choice.
-            <lf-task
+            <lf-atlas-task
               id="schema-choice"
               status="review"
               stopped-at="2026-08-21T07:20:00-07:00"
             >
               <strong>Choose the additive schema</strong> Both columns are nullable; the
               migration and reverse path are green.
-              <lf-agent id="w-8" state="waiting" on="schema-choice">
-                <strong>w-8</strong> Schema-choice specialist: migration and
-                reconciliation evidence.
-                <lf-worktree id="tree-w-8" source="atlas-worktrees"></lf-worktree>
-              </lf-agent>
+              <lf-atlas-worker id="w-8" state="waiting" on="schema-choice"
+                ><details>
+                  <summary>
+                    <strong>w-8</strong><output class="atlas-worker-state"></output>
+                  </summary>
+                  <div class="atlas-worker-body">
+                    <p class="atlas-worker-report"></p>
+                    Schema-choice specialist: migration and reconciliation evidence.
+                    <lf-atlas-tree
+                      id="tree-w-8"
+                      source="atlas-worktrees"
+                    ></lf-atlas-tree>
+                  </div></details
+              ></lf-atlas-worker>
               <lf-ask id="decision-schema-region">
                 <h3>What should the host do with the schema branch?</h3>
                 <lf-options id="decision-schema" choose>
@@ -5902,11 +5962,11 @@ stateDiagram-v2
                   </lf-option>
                 </lf-options>
               </lf-ask>
-            </lf-task>
-            <lf-task id="schema-backfill" status="planned" needs="schema-choice">
+            </lf-atlas-task>
+            <lf-atlas-task id="schema-backfill" status="planned" needs="schema-choice">
               <strong>Backfill reconciliation fields</strong>
-            </lf-task>
-            <lf-task
+            </lf-atlas-task>
+            <lf-atlas-task
               id="ledger-fixture"
               status="active"
               needs="schema-choice"
@@ -5924,32 +5984,41 @@ stateDiagram-v2
 Paste the complete CSV row here. Remove customer_name and billing_email before saving.</pre>
                 </lf-draft>
               </lf-ask>
-            </lf-task>
-            <lf-task
+            </lf-atlas-task>
+            <lf-atlas-task
               id="ledger-variance"
               status="planned"
               needs="schema-choice ledger-fixture"
             >
               <strong>Nightly variance report</strong> Unreachable until both inputs
               stand.
-            </lf-task>
-          </lf-task>
+            </lf-atlas-task>
+          </lf-atlas-task>
 
-          <lf-task id="goal-api" status="active" when="week 4" talk>
+          <lf-atlas-task id="goal-api" status="active" when="week 4" talk>
             <strong>Publish the parser contract</strong> Review the branch, not its
             author. A line comment routes to a fresh evidence worker and stays anchored
             here.
-            <lf-task
+            <lf-atlas-task
               id="api-shape"
               status="review"
               stopped-at="2026-08-21T10:35:00-07:00"
             >
               <strong>Review the public result type</strong>
-              <lf-agent id="w-3" state="waiting" on="api-shape">
-                <strong>w-3</strong> Public-contract specialist: result types and
-                compatibility tests.
-                <lf-worktree id="tree-w-3" source="atlas-worktrees"></lf-worktree>
-              </lf-agent>
+              <lf-atlas-worker id="w-3" state="waiting" on="api-shape"
+                ><details>
+                  <summary>
+                    <strong>w-3</strong><output class="atlas-worker-state"></output>
+                  </summary>
+                  <div class="atlas-worker-body">
+                    <p class="atlas-worker-report"></p>
+                    Public-contract specialist: result types and compatibility tests.
+                    <lf-atlas-tree
+                      id="tree-w-3"
+                      source="atlas-worktrees"
+                    ></lf-atlas-tree>
+                  </div></details
+              ></lf-atlas-worker>
               <lf-ask id="decision-api-region">
                 <h3>What should the host do with atlas/public-api?</h3>
                 <lf-options id="decision-api" choose>
@@ -5969,26 +6038,26 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
                   </lf-option>
                 </lf-options>
               </lf-ask>
-            </lf-task>
-            <lf-task id="api-errors" status="planned" needs="api-shape">
+            </lf-atlas-task>
+            <lf-atlas-task id="api-errors" status="planned" needs="api-shape">
               <strong>Map structured failures</strong>
-            </lf-task>
-            <lf-task id="api-sdk" status="planned" needs="api-shape">
+            </lf-atlas-task>
+            <lf-atlas-task id="api-sdk" status="planned" needs="api-shape">
               <strong>Regenerate the SDK fixture</strong>
-            </lf-task>
-          </lf-task>
+            </lf-atlas-task>
+          </lf-atlas-task>
 
-          <lf-task id="goal-docs" status="done" when="week 3">
+          <lf-atlas-task id="goal-docs" status="done" when="week 3">
             <strong>Document the operator path</strong>
-            <lf-task id="docs-runbook" status="done">
+            <lf-atlas-task id="docs-runbook" status="done">
               <strong>Write the replica runbook</strong>
-            </lf-task>
-            <lf-task id="docs-rollback" status="done">
+            </lf-atlas-task>
+            <lf-atlas-task id="docs-rollback" status="done">
               <strong>Write rollback and evidence capture</strong>
-            </lf-task>
-          </lf-task>
+            </lf-atlas-task>
+          </lf-atlas-task>
 
-          <lf-task
+          <lf-atlas-task
             id="goal-cutover"
             status="planned"
             when="weeks 5–6"
@@ -5998,22 +6067,44 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
           >
             <strong>Cut over the nightly</strong> This goal is visibly downstream of
             both schema and ledger evidence.
-            <lf-task
+            <lf-atlas-task
               id="cutover-shadow"
               status="planned"
               needs="ledger-variance api-shape"
             >
               <strong>Shadow both importers for one week</strong>
-            </lf-task>
-            <lf-task id="cutover-swap" status="planned" needs="cutover-shadow">
+            </lf-atlas-task>
+            <lf-atlas-task id="cutover-swap" status="planned" needs="cutover-shadow">
               <strong>Swap with the old path behind a flag</strong>
-            </lf-task>
-          </lf-task>
-        </lf-command>
+            </lf-atlas-task>
+          </lf-atlas-task>
+        </lf-atlas-plan>
       </section>
 
       <aside id="hub-rail">
-        <lf-command-readings id="hub-readings"></lf-command-readings>
+        <section class="panel atlas-overview" id="hub-readings">
+          <h2>Current work</h2>
+          <p class="atlas-progress">
+            <output data-atlas-count="progress">Plan loading</output>
+          </p>
+          <dl class="facts">
+            <dt>Running</dt>
+            <dd><output data-atlas-count="running">0</output></dd>
+            <dt>Workers</dt>
+            <dd><output data-atlas-count="workers">0</output></dd>
+            <dt>Quiet</dt>
+            <dd><output data-atlas-count="quiet">0</output></dd>
+            <dt>Stopped</dt>
+            <dd><output data-atlas-count="stopped">0</output></dd>
+          </dl>
+          <button type="button" class="button atlas-refresh" disabled>
+            Show updates
+          </button>
+          <details class="atlas-stopped">
+            <summary>Stopped work</summary>
+            <ul></ul>
+          </details>
+        </section>
         <section class="panel" id="hub-record">
           <h2>Record</h2>
           <p>

@@ -1235,8 +1235,8 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
     merely the thread's placement, so a later reply cannot silently retarget it."""
     v1 = PAGE.replace(
         "</section>",
-        '<lf-tasks id="work"><lf-task id="held-goal" status="active" talk>'
-        "<strong>Held goal</strong></lf-task></lf-tasks></section>",
+        '<lf-test-tasks id="work"><lf-test-task id="held-goal" status="active" talk>'
+        "<strong>Held goal</strong></lf-test-task></lf-test-tasks></section>",
     )
     (page_dir / "index.html").write_text(v1)
     published(page_dir)

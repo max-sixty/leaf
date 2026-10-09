@@ -7,6 +7,7 @@ stays in the supplied work directory, and the agent cwd stays outside any repo.
 """
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -498,7 +499,14 @@ def build_package(run: Run, page: Path) -> None:
 def build_shared_source(run: Run, page: Path) -> None:
     """Two worktree widgets on one source, whose snapshot lists an unrelated record
     first."""
-    run.leaf("page", "init", "--package", "command-hub", str(page), check=True)
+    run.leaf(
+        "page",
+        "init",
+        "--package",
+        "./" + os.path.relpath(ROOT / "examples/command-hub.page", run.work),
+        str(page),
+        check=True,
+    )
     (page / "index.html").write_text((FIXTURES / "hub.html").read_text())
     run.leaf(
         "data", "set", str(page), "project-worktrees",
@@ -1158,7 +1166,7 @@ def score_shared_source(run: Run, traces: list[list[dict]], replies: list[str]) 
         # The join from widget to record came from the declarations: no look at
         # the renderer in either phase.
         "source_unread": not any(
-            "lf-worktree.js" in c for t in traces for d in t for c in commands(d)
+            "lf-atlas-tree.js" in c for t in traces for d in t for c in commands(d)
         ),
     }
     page = run.work / "page"

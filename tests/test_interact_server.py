@@ -5626,7 +5626,7 @@ def test_a_thread_predicate_cannot_follow_replayed_value_state(page_dir):
     """Thread seats are installed from authored predicates once. Refuse a
     declaration that would make replay and the POST hold gate disagree about one."""
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-task"]["x-thread-seat"]["when"] = {"status": ["blocked"]}
+    registry["lf-test-task"]["x-thread-seat"]["when"] = {"status": ["blocked"]}
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
@@ -5643,10 +5643,10 @@ def test_a_hold_comment_can_only_hold_its_declared_exact_section(server, page_di
     version.write_text(
         PAGE.replace(
             "</section>",
-            '<lf-tasks id="work"><lf-task id="goal" status="active" talk>'
-            "<strong>Goal</strong></lf-task>"
-            '<lf-task id="plain-goal" status="active"><strong>Plain</strong>'
-            "</lf-task></lf-tasks></section>",
+            '<lf-test-tasks id="work"><lf-test-task id="goal" status="active" talk>'
+            "<strong>Goal</strong></lf-test-task>"
+            '<lf-test-task id="plain-goal" status="active"><strong>Plain</strong>'
+            "</lf-test-task></lf-test-tasks></section>",
         )
     )
     publish(page_dir)

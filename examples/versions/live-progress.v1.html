@@ -194,25 +194,30 @@
         </details>
         <details id="lp-release-owners">
           <summary>Release owners · 5</summary>
-          <lf-roster id="lp-owners">
-            <lf-agent id="lp-agent-deployer" state="working">
+          <section id="lp-owners">
+            <section id="lp-agent-deployer">
+              <p class="eyebrow">working</p>
               <strong>deployer</strong> Expanding candidate traffic while guardrails
               stay green.
-            </lf-agent>
-            <lf-agent id="lp-agent-ledger" state="working">
+            </section>
+            <section id="lp-agent-ledger">
+              <p class="eyebrow">working</p>
               <strong>ledger</strong> Comparing candidate and stable order counts.
-            </lf-agent>
-            <lf-agent id="lp-agent-finance" state="waiting">
+            </section>
+            <section id="lp-agent-finance">
+              <p class="eyebrow">waiting</p>
               <strong>finance</strong> Ready to inspect the first complete export batch.
-            </lf-agent>
-            <lf-agent id="lp-agent-observer" state="working">
+            </section>
+            <section id="lp-agent-observer">
+              <p class="eyebrow">working</p>
               <strong>observer</strong> Sampling error rate and latency during canary
               expansion.
-            </lf-agent>
-            <lf-agent id="lp-agent-builder" state="done">
+            </section>
+            <section id="lp-agent-builder">
+              <p class="eyebrow">done</p>
               <strong>builder</strong> Signed the candidate and recorded its provenance.
-            </lf-agent>
-          </lf-roster>
+            </section>
+          </section>
         </details>
 
         <details id="lp-rollback-procedure">

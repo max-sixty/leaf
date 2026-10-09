@@ -1,53 +1,43 @@
-/* Shared projection for the optional orchestration family. Leaf's kernel supplies the
- * document, log, Asks, and report folds; this package owns the meaning of Command's tags.
- * Later packages may replace or add role entries under `$command.widgets`. */
-import {
-  declarationFor,
-  elementsDeclaring,
-  layerFact,
-  readAsks,
-  quietSince,
-  quoted,
-  saidAt,
-  updateSequence,
-  widgetController,
-} from "/runtime/widget-api.js";
+/* Work projections read declared roles against one application publication.
+ * Pages own their task and worker vocabulary through $work.widgets; this reader
+ * owns progress, assignments, report age and stopped-work meaning independently
+ * of how a dashboard composes those facts. */
+import { declarationFor, elementsDeclaring, layerFact } from "./registry.js";
+import { readAsks } from "./asks/model.js";
+import { quietSince } from "./presence.js";
+import { quoted } from "./widget-elements.js";
+import { saidAt, updateSequence } from "./updates.js";
+import { widgetController } from "./widget-controller.js";
+import { addressableName } from "./anchor-resolution.js";
 
-const widgets = layerFact("$command")?.widgets ?? {};
+const widgets = () => layerFact("$work")?.widgets ?? {};
 
 function specs(role) {
-  return Object.entries(widgets).filter(([, spec]) => spec?.role === role);
+  return Object.entries(widgets()).filter(([, spec]) => spec?.role === role);
 }
 
-function assertModel() {
-  for (const role of ["command", "goal", "worker"])
-    if (!specs(role).length)
-      throw new Error(`leaf: $command.widgets declares no ${role} role`);
-}
-assertModel();
-
-export function commandRole(element, role = null) {
-  const spec = widgets[element?.localName];
+export function workRole(element, role = null) {
+  const spec = widgets()[element?.localName];
   return spec && (!role || spec.role === role) ? spec : null;
 }
 
-export function elementsWithCommandRole(root, role, { direct = false } = {}) {
+export function workElements(root, role, { direct = false } = {}) {
   const tags = new Set(specs(role).map(([tag]) => tag));
-  const candidates = direct ? [...root.children] : [...root.querySelectorAll("*")];
-  const boundary = closestCommandRole(root, "command");
+  const candidates = [...root.querySelectorAll("*")];
+  const boundary = workAncestor(root, "scope");
   return candidates.filter(
     (element) =>
       tags.has(element.localName) &&
-      closestCommandRole(element, "command") === boundary,
+      workAncestor(element, "scope") === boundary &&
+      (!direct || workAncestor(element.parentElement) === root),
   );
 }
 
-export const directCommandRole = (root, role) =>
-  elementsWithCommandRole(root, role, { direct: true });
+export const directWorkElements = (root, role) =>
+  workElements(root, role, { direct: true });
 
-export function closestCommandRole(element, role) {
-  for (let at = element; at; at = at.parentElement)
-    if (commandRole(at, role)) return at;
+export function workAncestor(element, role) {
+  for (let at = element; at; at = at.parentElement) if (workRole(at, role)) return at;
   return null;
 }
 
@@ -59,7 +49,7 @@ function stateReport(element, role) {
 }
 
 function stateVerb(element, role) {
-  const attribute = commandRole(element, role)?.state;
+  const attribute = workRole(element, role)?.state;
   const matches = Object.entries(declarationFor(element, "x-state") ?? {})
     .filter(
       ([, spec]) =>
@@ -70,7 +60,7 @@ function stateVerb(element, role) {
     .map(([verb]) => verb);
   if (matches.length !== 1)
     throw new Error(
-      `leaf: $command ${role} <${element.localName}> state ${attribute} needs one recorded widget verb`,
+      `leaf: $work ${role} <${element.localName}> state ${attribute} needs one recorded widget verb`,
     );
   return matches[0];
 }
@@ -84,23 +74,22 @@ const reportUpdates = (element, action) =>
   );
 
 function workerView(worker, read) {
-  const role = commandRole(worker, "worker");
+  const role = workRole(worker, "worker");
   const state = roleState(worker, "worker", read);
   const focus = role.on && worker.getAttribute(role.on);
   const [reportVerb] = stateReport(worker, "worker");
   const reports = reportVerb ? reportUpdates(worker, reportVerb) : [];
   const heard = reports.at(-1)?.ts ?? saidAt(worker);
   const running = role.running.includes(state);
-  const command = closestCommandRole(worker, "command");
-  const goal = closestCommandRole(worker.parentElement, "goal");
-  const remit =
-    goal && closestCommandRole(goal, "command") === command ? goal : command;
+  const scope = workAncestor(worker, "scope");
+  const goal = workAncestor(worker.parentElement, "goal");
+  const remit = goal && workAncestor(goal, "scope") === scope ? goal : scope;
   const candidate = focus ? document.getElementById(focus) : null;
   const assignment =
     candidate &&
-    commandRole(candidate, "goal") &&
-    closestCommandRole(candidate, "command") === command &&
-    (remit === command || remit.contains(candidate))
+    workRole(candidate, "goal") &&
+    workAncestor(candidate, "scope") === scope &&
+    (remit === scope || remit.contains(candidate))
       ? candidate
       : null;
   return {
@@ -117,43 +106,43 @@ function workerView(worker, read) {
 }
 
 const done = (goal, read) => {
-  const role = commandRole(goal, "goal");
+  const role = workRole(goal, "goal");
   return role.done.includes(roleState(goal, "goal", read));
 };
 
 function interventions(goal, open) {
-  const command = closestCommandRole(goal, "command");
+  const scope = workAncestor(goal, "scope");
   return elementsDeclaring(goal, "x-awaits").filter(
     (item) =>
       item !== goal &&
-      !commandRole(item, "goal") &&
-      closestCommandRole(item, "command") === command &&
-      closestCommandRole(item.parentElement, "goal") === goal &&
+      !workRole(item, "goal") &&
+      workAncestor(item, "scope") === scope &&
+      workAncestor(item.parentElement, "goal") === goal &&
       !quoted(item) &&
       open.has(item.id),
   );
 }
 
 function stopped(goal, open, nested, read) {
-  const role = commandRole(goal, "goal");
+  const role = workRole(goal, "goal");
   if (read(goal).thread.heldBy) return true;
   if (nested.length) return true;
   if (!role.stopped.includes(roleState(goal, "goal", read))) return false;
   if (open.has(goal.id)) return true;
-  const children = directCommandRole(goal, "goal");
+  const children = directWorkElements(goal, "goal");
   return children.length
     ? children.some((child) => stopped(child, open, interventions(child, open), read))
     : true;
 }
 
 function goalView(goal, open, read) {
-  const descendants = elementsWithCommandRole(goal, "goal");
-  const leaves = descendants.filter((item) => !directCommandRole(item, "goal").length);
+  const descendants = workElements(goal, "goal");
+  const leaves = descendants.filter((item) => !directWorkElements(item, "goal").length);
   const progressLeaves = leaves.length ? leaves : [goal];
-  const liveWorkers = directCommandRole(goal, "worker")
+  const liveWorkers = directWorkElements(goal, "worker")
     .map((worker) => workerView(worker, read))
     .filter((worker) => !worker.retired);
-  const role = commandRole(goal, "goal");
+  const role = workRole(goal, "goal");
   const state = roleState(goal, "goal", read);
   const [reportVerb] = stateReport(goal, "goal");
   const reports = reportVerb ? reportUpdates(goal, reportVerb) : [];
@@ -169,7 +158,7 @@ function goalView(goal, open, read) {
     element: goal,
     role,
     state,
-    title: goal.querySelector(":scope > strong")?.textContent.trim() || goal.id,
+    title: addressableName(goal) || goal.id,
     done: done(goal, read),
     stopped: stopped(goal, open, nested, read),
     held,
@@ -182,23 +171,21 @@ function goalView(goal, open, read) {
   };
 }
 
-export function commandSnapshot(plan) {
+export function readWork(scope) {
   const readings = new Map();
   const read = (element) => {
     if (!readings.has(element)) readings.set(element, widgetController(element).read());
     return readings.get(element);
   };
   const open = new Set(readAsks().user.map((ask) => ask.sourceId));
-  const goals = elementsWithCommandRole(plan, "goal").map((goal) =>
-    goalView(goal, open, read),
-  );
+  const goals = workElements(scope, "goal").map((goal) => goalView(goal, open, read));
   const byElement = new Map(goals.map((goal) => [goal.element, goal]));
-  const workers = elementsWithCommandRole(plan, "worker").map((worker) =>
+  const workers = workElements(scope, "worker").map((worker) =>
     workerView(worker, read),
   );
   const liveWorkers = workers.filter((worker) => !worker.retired);
   const leaves = goals.filter(
-    (goal) => !directCommandRole(goal.element, "goal").length,
+    (goal) => !directWorkElements(goal.element, "goal").length,
   );
   const stoppedGoals = goals
     .filter((goal) => goal.stopped)
@@ -210,7 +197,7 @@ export function commandSnapshot(plan) {
       );
     });
   return {
-    plan,
+    scope,
     goals,
     byElement,
     leaves,

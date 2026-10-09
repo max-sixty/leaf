@@ -931,17 +931,17 @@ graph LR
 </pre></lf-diagram>
   </lf-metric>
 </div>
-<lf-tasks id="plan">
-  <lf-task id="t-outer" status="active"><strong>Rebuild the feeders</strong>
-    <lf-task id="t-inner" status="review"><strong>Fit the baffles</strong>
+<lf-test-tasks id="plan">
+  <lf-test-task id="t-outer" status="active"><strong>Rebuild the feeders</strong>
+    <lf-test-task id="t-inner" status="review"><strong>Fit the baffles</strong>
       <lf-diagram id="in-task"><pre>
 graph LR
   A[request] --> B[queue]
   B --> C[worker]
 </pre></lf-diagram>
-    </lf-task>
-  </lf-task>
-</lf-tasks>
+    </lf-test-task>
+  </lf-test-task>
+</lf-test-tasks>
 <lf-code id="walk" language="python" hi="2"><pre>
 def bracket(temp):
     if temp &lt; 0:

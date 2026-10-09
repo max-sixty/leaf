@@ -1,0 +1,320 @@
+{
+  "$data": {
+    "description": "Reusable contracts for observed Command Hub facts supplied by the harness rather than authored into a version.",
+    "contracts": {
+      "atlas-worktrees": {
+        "description": "Current worktree evidence keyed by the id of its authored lf-atlas-tree seat.",
+        "instructions": {
+          "coordinator": "After worktree evidence changes, replace the complete page-bound source snapshot rather than republishing it as prose or appending an event:\n\n```bash\nleaf data set \"$PAGE\" <source-id> --file worktrees.json\n```\n\nRead `data_bindings` from `leaf page state \"$PAGE\"` to find source ids using the `atlas-worktrees` contract and their consuming widget ids. `worktrees.json` is an object keyed by authored worktree widget id. Each value carries `branch`, `base`, `head`, non-negative `ahead`, `behind`, `additions`, `deletions`, and `commits`, a `tests` value of `passing`, `failing`, `running`, or `not-run`, an RFC 3339 `observedAt` timestamp with a timezone, and optional `files` and `diff` strings. Keep a key stable for the same worktree, and give a different worktree a new authored lf-atlas-tree id; a reused id would attach old comments to the wrong worktree. Gather these facts with harness tools; Leaf validates, transports, and presents them but does not run git or inspect worker directories."
+        },
+        "schema": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "branch": {
+                "type": "string",
+                "minLength": 1
+              },
+              "base": {
+                "type": "string",
+                "minLength": 1
+              },
+              "head": {
+                "type": "string",
+                "minLength": 1
+              },
+              "ahead": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "behind": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "additions": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "deletions": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "commits": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "tests": {
+                "enum": [
+                  "passing",
+                  "failing",
+                  "running",
+                  "not-run"
+                ]
+              },
+              "observedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "files": {
+                "type": "string"
+              },
+              "diff": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "branch",
+              "base",
+              "head",
+              "ahead",
+              "behind",
+              "additions",
+              "deletions",
+              "commits",
+              "tests",
+              "observedAt"
+            ],
+            "additionalProperties": false
+          }
+        }
+      }
+    }
+  },
+  "$work": {
+    "description": "Atlas work roles read through the public work projection.",
+    "widgets": {
+      "lf-atlas-plan": {
+        "role": "scope"
+      },
+      "lf-atlas-task": {
+        "role": "goal",
+        "state": "status",
+        "done": [
+          "done"
+        ],
+        "stopped": [
+          "blocked",
+          "review",
+          "stalled"
+        ],
+        "review": [
+          "review"
+        ],
+        "stalled": [
+          "stalled"
+        ],
+        "depends": "needs",
+        "stoppedAt": "stopped-at"
+      },
+      "lf-atlas-worker": {
+        "role": "worker",
+        "state": "state",
+        "running": [
+          "working"
+        ],
+        "retired": [
+          "reaped",
+          "done"
+        ],
+        "on": "on"
+      },
+      "lf-atlas-tree": {
+        "role": "evidence"
+      }
+    }
+  },
+  "lf-atlas-plan": {
+    "description": "A goal-first command surface combining a work tree, its workers, and shared progress readings.",
+    "x-name": "label",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "label": {
+        "type": "string"
+      },
+      "phase": {
+        "type": "string"
+      },
+      "overview": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id"
+    ],
+    "additionalProperties": false,
+    "x-content": "members",
+    "x-refers": {
+      "overview": {}
+    },
+    "x-upgrade": true
+  },
+  "lf-atlas-task": {
+    "description": "One goal or piece of work, with ownership, status, and optional nested subgoals.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "status": {
+        "enum": [
+          "planned",
+          "active",
+          "blocked",
+          "review",
+          "stalled",
+          "done"
+        ]
+      },
+      "owner": {
+        "type": "string"
+      },
+      "when": {
+        "type": "string"
+      },
+      "tags": {
+        "type": "string",
+        "pattern": "^[a-z0-9-]+(,[a-z0-9-]+)*$"
+      },
+      "needs": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*( [a-z0-9][a-z0-9-]*)*$"
+      },
+      "stopped-at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "talk": {
+        "type": "boolean"
+      },
+      "overruled": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "id",
+      "status"
+    ],
+    "additionalProperties": false,
+    "x-owners": [
+      "lf-atlas-plan",
+      "lf-atlas-task"
+    ],
+    "x-content": "markup",
+    "x-paints": [
+      "status"
+    ],
+    "x-upgrade": true,
+    "x-thread-seat": {
+      "when": {
+        "talk": [
+          true
+        ]
+      },
+      "hold": "Send & pause"
+    },
+    "x-state": {
+      "status": {
+        "writer": "agent",
+        "unit": "widget",
+        "record": {
+          "kind": "value",
+          "attr": "status"
+        }
+      }
+    }
+  },
+  "lf-atlas-worker": {
+    "description": "One worker\u2019s identity, durable remit, current state, and reported activity.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "state": {
+        "enum": [
+          "working",
+          "waiting",
+          "blocked",
+          "idle",
+          "reaped",
+          "done"
+        ]
+      },
+      "on": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "overruled": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "id",
+      "state"
+    ],
+    "additionalProperties": false,
+    "x-owners": [
+      "lf-atlas-plan",
+      "lf-atlas-task"
+    ],
+    "x-content": "markup",
+    "x-refers": {
+      "on": {
+        "via": "$work.widgets",
+        "where": {
+          "role": "goal"
+        }
+      }
+    },
+    "x-upgrade": true,
+    "x-state": {
+      "state": {
+        "writer": "agent",
+        "unit": "widget",
+        "update": true,
+        "record": {
+          "kind": "value",
+          "attr": "state"
+        }
+      }
+    }
+  },
+  "lf-atlas-tree": {
+    "description": "A stable, commentable address for observed worktree evidence supplied by the harness.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "source": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      }
+    },
+    "required": [
+      "id",
+      "source"
+    ],
+    "additionalProperties": false,
+    "x-content": "empty",
+    "x-data": {
+      "worktrees": {
+        "contract": "atlas-worktrees",
+        "source": "source"
+      }
+    },
+    "x-upgrade": true,
+    "x-space": "wide"
+  }
+}

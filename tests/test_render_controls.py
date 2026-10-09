@@ -2293,14 +2293,7 @@ CONTROL_STABILITY_PAGE = leaf_page(
   <lf-tab id="stable-tab-a" label="First">First panel.</lf-tab>
   <lf-tab id="stable-tab-b" label="Second">Second panel.</lf-tab>
 </lf-tabs>
-<lf-command id="stable-command" label="Ship the control proof" phase="today">
-  <lf-agent id="stable-command-worker" state="working">
-    <strong>Worker</strong> Proving the command header.
-  </lf-agent>
-  <lf-task id="stable-command-task" status="active">
-    <strong>Keep every control row still</strong>
-  </lf-task>
-</lf-command>
+
 <lf-ask id="stable-playground-decision"><h2>How should the release card look?</h2>
 <lf-playground id="stable-playground" submit-label="Use these settings">
   <lf-playground-control name="radius" label="Corner radius" kind="range"
@@ -2403,10 +2396,6 @@ CONTROL_ARCHETYPES = (
     {
         "name": "tab",
         "target": "#stable-tabs .lf-tab-btn:nth-child(2)",
-    },
-    {
-        "name": "command-view",
-        "target": '#stable-command .lf-command-tile[data-lf-view="running"]',
     },
     {
         # The diff's own header: a filter, a count, the soft-wrap switch, and the

@@ -68,6 +68,13 @@ export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // user standing in a node it moves.
 export { render, setChildren, setRenderedChildren } from "./dom-children.js";
 export { readAsks, watchAsks } from "./asks/model.js";
+export {
+  readWork,
+  workRole,
+  workElements,
+  directWorkElements,
+  workAncestor,
+} from "./work.js";
 export { answersWithin, askAnswers } from "./asks/answer.js";
 export { readQueues, watchQueues, queueItemKey } from "./queue-api.js";
 export { queueActions } from "./application.js";

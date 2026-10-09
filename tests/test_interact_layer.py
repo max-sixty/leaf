@@ -19,6 +19,7 @@ import yaml
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND, PagePool, _retire
 from interact_support import (
+    COMMAND_HUB_PACKAGE,
     COMPOSITE_TIMEOUT,
     PAGE,
     PAGE_PACKAGES,
@@ -711,12 +712,10 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "skills/leaf/references/packages.md",
         "skills/leaf/references/page-authoring.md",
         "skills/leaf/references/serving-pages.md",
-        "skills/leaf/packages/command-hub/registry.json",
         "skills/leaf/packages/default/registry.json",
         "skills/leaf/packages/diagram/registry.json",
         "skills/leaf/packages/diff/registry.json",
         "skills/leaf/packages/playground/registry.json",
-        "skills/leaf/packages/targeting/registry.json",
         # The form a leaf process re-launches itself in.
         "skills/leaf/scripts/leaf/__main__.py",
     ]:
@@ -844,6 +843,9 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
 
     elsewhere = tmp_path / "unrelated-project"
     elsewhere.mkdir()
+    work = elsewhere / "work"
+    shutil.copytree(COMMAND_HUB_PACKAGE, work)
+    selected = ("./work", *PAGE_PACKAGES[1:])
     launcher = installed / "bin" / "leaf"
     page = tmp_path / "state" / "page"
 
@@ -866,7 +868,7 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
             launcher,
             "page",
             "init",
-            *(arg for name in PAGE_PACKAGES for arg in ("--package", name)),
+            *(arg for name in selected for arg in ("--package", name)),
             page,
         ],
         cwd=elsewhere,
@@ -876,8 +878,8 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
     )
     assert init_result.returncode == 0, init_result.stderr
     installed_registry = json.loads((page / "registry.json").read_text())
-    assert "lf-command" in installed_registry
-    assert installed_registry["$layer"]["packages"] == list(PAGE_PACKAGES)
+    assert "lf-test-plan" in installed_registry
+    assert installed_registry["$layer"]["packages"] == list(selected)
     copied = installed / "skills" / "leaf" / "scripts" / "leaf" / "layer.py"
     assert installed_registry["$layer"]["producer"] == {
         "commit": commit,
@@ -2182,9 +2184,9 @@ def test_the_layer_composer_is_the_browser_module_population():
     """The registry and composed layer, not independent filesystem globs, decide which
     browser modules a page receives. The JavaScript parser/linter owns import legality;
     this assertion owns the population it checks and includes dependency-only modules."""
-    command_hub = schema_model.BUNDLED_PACKAGES / "command-hub"
+    diagram = schema_model.BUNDLED_PACKAGES / "diagram"
     composition = layer_model.compose_layer(
-        [schema_model.ASSETS, schema_model.DEFAULT_PACKAGE, command_hub]
+        [schema_model.ASSETS, schema_model.DEFAULT_PACKAGE, diagram]
     )
     widgets = composition.directory_files["widgets"]
     upgraded = {
@@ -2194,7 +2196,7 @@ def test_the_layer_composer_is_the_browser_module_population():
     }
 
     assert upgraded <= widgets.keys()
-    assert "command-model.js" in widgets
+    assert "lf-diagram.js" in widgets
     assert {"lf-options-addition.js", "lf-options-settled.js"} <= widgets.keys()
 
 
@@ -4854,107 +4856,60 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
 def test_page_init_vendors_an_explicit_package_without_privileging_it(
     tmp_path, monkeypatch
 ):
+    """A bundled vocabulary is selected and removed by the same ordinary layer path."""
     monkeypatch.chdir(tmp_path)
     plain = tmp_path / "plain"
-    command = tmp_path / "command"
-
-    plain_result = CliRunner().invoke(cli_model.cli, ["page", "init", str(plain)])
-    packaged_result = CliRunner().invoke(
+    composed = tmp_path / "composed"
+    runner = CliRunner()
+    plain_result = runner.invoke(cli_model.cli, ["page", "init", str(plain)])
+    packaged_result = runner.invoke(
         cli_model.cli,
-        ["page", "init", "--package", "command-hub", str(command)],
+        ["page", "init", "--package", "diagram", str(composed)],
     )
-
     assert plain_result.exit_code == 0, plain_result.output
     assert packaged_result.exit_code == 0, packaged_result.output
     plain_registry = json.loads((plain / "registry.json").read_text())
-    packaged_registry = json.loads((command / "registry.json").read_text())
-    orchestration = {
-        "lf-roster",
-        "lf-agent",
-        "lf-tasks",
-        "lf-task",
-        "lf-command",
-        "lf-worktree",
-    }
-    assert orchestration.isdisjoint(plain_registry)
+    packaged_registry = json.loads((composed / "registry.json").read_text())
+    assert "lf-diagram" not in plain_registry
     assert "lf-activity" in plain_registry
-    assert orchestration <= packaged_registry.keys()
-    assert "$command" not in plain_registry
-    assert "$command" in packaged_registry
+    assert "lf-diagram" in packaged_registry
     assert plain_registry["$layer"]["packages"] == []
-    assert packaged_registry["$layer"]["packages"] == ["command-hub"]
-    assert not (plain / "widgets" / "lf-command.js").exists()
-    assert (command / "widgets" / "lf-command.js").is_file()
-    assert list((plain / "instructions").iterdir()) == []
-    assert (
-        "# Package `command-hub`"
-        in (command / "instructions" / "author.md").read_text()
-    )
-    plain_audiences = CliRunner().invoke(
-        cli_model.cli, ["page", "instructions", str(plain)]
-    )
-    assert plain_audiences.exit_code == 0, plain_audiences.output
-    assert json.loads(plain_audiences.output) == []
-    audiences = CliRunner().invoke(
-        cli_model.cli, ["page", "instructions", str(command)]
-    )
-    coordinator = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "page",
-            "instructions",
-            str(command),
-            "coordinator",
-            "--widget",
-            "lf-worktree",
-        ],
-    )
-    assert audiences.exit_code == 0, audiences.output
-    assert json.loads(audiences.output) == ["author", "coordinator", "worker"]
-    assert coordinator.exit_code == 0, coordinator.output
-    assert "# Package `command-hub`" in coordinator.output
-    assert "# Data contract `lf-worktree`" in coordinator.output
-    assert (
-        packaged_registry["$data"]["contracts"]["lf-worktree"]["instructions"][
-            "coordinator"
-        ]
-        in coordinator.output
-    )
-
-    revendor = CliRunner().invoke(cli_model.cli, ["page", "init", str(command)])
+    assert packaged_registry["$layer"]["packages"] == ["diagram"]
+    assert not (plain / "widgets" / "lf-diagram.js").exists()
+    assert (composed / "widgets" / "lf-diagram.js").is_file()
+    revendor = runner.invoke(cli_model.cli, ["page", "init", str(composed)])
     assert revendor.exit_code == 0, revendor.output
-    assert json.loads((command / "registry.json").read_text())["$layer"][
+    assert json.loads((composed / "registry.json").read_text())["$layer"][
         "packages"
-    ] == ["command-hub"]
-    assert (command / "widgets" / "lf-command.js").is_file()
-
-    removed = CliRunner().invoke(
-        cli_model.cli, ["page", "init", "--no-packages", str(command)]
+    ] == ["diagram"]
+    assert (composed / "widgets" / "lf-diagram.js").is_file()
+    removed = runner.invoke(
+        cli_model.cli, ["page", "init", "--no-packages", str(composed)]
     )
     assert removed.exit_code == 0, removed.output
-    removed_registry = json.loads((command / "registry.json").read_text())
+    removed_registry = json.loads((composed / "registry.json").read_text())
     assert removed_registry["$layer"]["packages"] == []
-    assert "lf-command" not in removed_registry
-    assert not (command / "widgets" / "lf-command.js").exists()
-    assert list((command / "instructions").iterdir()) == []
+    assert "lf-diagram" not in removed_registry
+    assert not (composed / "widgets" / "lf-diagram.js").exists()
 
 
-def test_pr_review_package_composes_its_data_brief(tmp_path, monkeypatch):
+def test_page_owned_pr_brief_composes_its_data_contract(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    package = schema_model.BUNDLED_PACKAGES / "pr-review"
+    package = ROOT / "examples" / "pr-walkthrough.page"
+    selection = "./" + os.path.relpath(package, tmp_path)
     page = tmp_path / "review"
 
     checked = CliRunner().invoke(cli_model.cli, ["package", "check", str(package)])
     initialized = CliRunner().invoke(
         cli_model.cli,
-        ["page", "init", "--package", "pr-review", str(page)],
+        ["page", "init", "--package", selection, str(page)],
     )
 
     assert checked.exit_code == 0, checked.output
     assert initialized.exit_code == 0, initialized.output
     registry = json.loads((page / "registry.json").read_text())
-    widget = registry["lf-pull-request"]
-    assert registry["$layer"]["packages"] == ["pr-review"]
+    widget = registry["lf-pr-brief"]
+    assert registry["$layer"]["packages"] == [selection]
     assert widget["x-data"] == {
         "request": {
             "contract": "pull-request",
@@ -4962,7 +4917,7 @@ def test_pr_review_package_composes_its_data_brief(tmp_path, monkeypatch):
         }
     }
     assert "pull-request" in registry["$data"]["contracts"]
-    assert (page / "widgets" / "lf-pull-request.js").is_file()
+    assert (page / "widgets" / "lf-pr-brief.js").is_file()
     assert "lf-call-diff" not in registry
     assert not (page / "widgets" / "lf-call-diff.js").exists()
 
@@ -4970,7 +4925,10 @@ def test_pr_review_package_composes_its_data_brief(tmp_path, monkeypatch):
 @pytest.mark.parametrize(
     ("package", "markup"),
     [
-        ("pr-review", '<lf-pull-request id="pr" source="pr-data"></lf-pull-request>'),
+        (
+            str(ROOT / "examples" / "pr-walkthrough.page"),
+            '<lf-pr-brief id="pr" source="pr-data"></lf-pr-brief>',
+        ),
         (
             "diff",
             (
@@ -4984,12 +4942,17 @@ def test_pr_review_package_composes_its_data_brief(tmp_path, monkeypatch):
 def test_review_evidence_packages_export_independently(
     tmp_path, monkeypatch, package, markup
 ):
-    """Call navigation and PR metadata each export with their owning package alone."""
+    """Call navigation and page-owned PR metadata export with their selected declarations."""
     monkeypatch.chdir(tmp_path)
-    page = tmp_path / package
+    selection = (
+        "./" + os.path.relpath(package, tmp_path)
+        if Path(package).is_absolute()
+        else package
+    )
+    page = tmp_path / "review"
     runner = CliRunner()
     initialized = runner.invoke(
-        cli_model.cli, ["page", "init", "--package", package, str(page)]
+        cli_model.cli, ["page", "init", "--package", selection, str(page)]
     )
     assert initialized.exit_code == 0, initialized.output
     (page / "index.html").write_text(
@@ -5044,7 +5007,7 @@ def test_visual_review_package_composes_its_run_contract(tmp_path, monkeypatch):
 
 def test_a_bundled_name_wins_over_a_same_named_project_path(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    local = tmp_path / "command-hub"
+    local = tmp_path / "diagram"
     local.mkdir()
     (local / "registry.json").write_text(
         json.dumps({"lf-local": element_declaration("lf-local")})
@@ -5054,23 +5017,23 @@ def test_a_bundled_name_wins_over_a_same_named_project_path(tmp_path, monkeypatc
     local_page = tmp_path / "local"
     bundled_result = CliRunner().invoke(
         cli_model.cli,
-        ["page", "init", "--package", "command-hub", str(bundled)],
+        ["page", "init", "--package", "diagram", str(bundled)],
     )
     local_result = CliRunner().invoke(
         cli_model.cli,
-        ["page", "init", "--package", "./command-hub", str(local_page)],
+        ["page", "init", "--package", "./diagram", str(local_page)],
     )
 
     assert bundled_result.exit_code == 0, bundled_result.output
     assert local_result.exit_code == 0, local_result.output
     bundled_registry = json.loads((bundled / "registry.json").read_text())
     local_registry = json.loads((local_page / "registry.json").read_text())
-    assert "lf-command" in bundled_registry
+    assert "lf-diagram" in bundled_registry
     assert "lf-local" not in bundled_registry
-    assert bundled_registry["$layer"]["packages"] == ["command-hub"]
-    assert "lf-command" not in local_registry
+    assert bundled_registry["$layer"]["packages"] == ["diagram"]
+    assert "lf-diagram" not in local_registry
     assert "lf-local" in local_registry
-    assert local_registry["$layer"]["packages"] == ["./command-hub"]
+    assert local_registry["$layer"]["packages"] == ["./diagram"]
 
 
 def test_init_merges_reaction_tokens_merge_patch_style(tmp_path, monkeypatch):

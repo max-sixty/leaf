@@ -282,12 +282,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     inset-inline-end: 0; z-index: 2; display: flex; align-items: center; gap: 4px;
     min-height: var(--lf-comment-head); padding-inline-start: var(--sp-2);
     background: var(--paper); }
-  /* A sticky head and its words paint the message's one animated ground. */
+  /* A sticky head and its words paint the message's one animated ground.
+     Shared message rules own wrapping, including progress disclosures below the
+     capped metadata when the card's actions leave too little inline room. */
   .lf-margin-thread .lf-thread-transcript .lf-msg { --lf-msg-rest-ground: var(--paper); }
   .lf-margin-thread .lf-thread-transcript .lf-msg-head { position: sticky;
     inset-block-start: 0; z-index: 1; background-color: var(--lf-msg-ground);
     max-inline-size: calc(100% - var(--lf-margin-controls-width, 0px));
-    padding-inline-end: 0; overflow: hidden; white-space: nowrap; }
+    padding-inline-end: 0; }
   @media (forced-colors: active) {
     .lf-margin-preview { border: 1px solid CanvasText; box-shadow: none; }
   }

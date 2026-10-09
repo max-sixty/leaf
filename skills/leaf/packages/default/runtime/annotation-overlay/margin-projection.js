@@ -63,7 +63,9 @@
    while that message is read there. A card opened on a thread shows its latest
    message (`showLatestTurn`). A landing, send, or step moves it; a new or growing
    agent turn follows while the reader is at the tail. Other state reads leave the
-   transcript where the user put it.
+   transcript where the user put it. A landing retains its explicit destination through
+   later fitting under that gesture's authority (`keepThreadLanding`); a newer reading
+   gesture ends that hold even when focus stays on the landed control.
 
    Each frozen cluster model names controls by contribution and entry identity. The Lit view
    retains their native nodes, so a state refresh cannot cancel a held pointer or move focus.
@@ -191,7 +193,7 @@ import { placeKeeper } from "/runtime/user-place.js";
 import { hostIn, under } from "/runtime/shadow.js";
 import { retainUserIntent } from "/runtime/user-intent.js";
 import { threadFocusDestination } from "/runtime/thread/focus.js";
-import { showLatestTurn } from "/runtime/thread/reply-landing.js";
+import { keepThreadLanding, showLatestTurn } from "/runtime/thread/reply-landing.js";
 import { strongestWorkflow } from "/runtime/thread/workflow.js";
 
 // A margin card's reply box.
@@ -854,6 +856,7 @@ export function createMarginProjection({
           preview.style.clipPath = `inset(${inset.map(layoutPx).join(" ")})`;
         } else preview.style.removeProperty("clip-path");
         keeps(preview, "data-lf-thread-placement", THREAD_SIDES[side]);
+        keepThreadLanding(previewList.querySelector(".lf-page-thread"));
         answerThreadPreviewPosition(true);
       })
       .catch((error) => {

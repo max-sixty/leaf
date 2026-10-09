@@ -1135,7 +1135,6 @@ def test_trace_page_scrolling_preserves_playback(browser, serve):
         frozen = position.inner_text()
         user.clock.run_for(round(duration))
         expect(position).to_have_text(frozen)
-        context.close()
 
 
 def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serve):
@@ -2150,7 +2149,6 @@ def test_trace_metadata_inspection_preserves_pending_checkpoint(browser, serve):
     rendered(user)
     expect(phase).to_have_text(requested_phase)
     expect(position).to_have_text(requested_position)
-    user.close()
 
 
 def test_trace_replaces_captures_without_blank_pixels_or_layout_displacement(

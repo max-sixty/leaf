@@ -3406,7 +3406,6 @@ def test_share_copies_access_after_a_bare_reload(browser, serve):
         recipient = open_page(browser, copied, context=context)
         expect(recipient.locator("#bg-share-guide")).to_be_visible()
         expect(recipient).not_to_have_url(re.compile(r"[?&]t="))
-        recipient.close()
     resized(page, 390, 844)
     page.get_by_role("button", name=re.compile(r"^More page controls")).click()
     page.evaluate("navigator.clipboard.writeText('before sharing')")
@@ -3424,7 +3423,6 @@ def test_share_copies_access_after_a_bare_reload(browser, serve):
     share.click()
     expect(link).to_have_value(copied)
     expect(copy).to_be_hidden()
-    page.close()
 
 
 def test_preview_diagnostics_keep_their_fixed_banner_overflow_seat(browser, serve):

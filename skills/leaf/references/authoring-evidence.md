@@ -148,8 +148,9 @@ images, video, and audio. Never inline media bytes. Offer image inspection by
 linking the image to its own media URL: `<a href="/media/…"><img
 src="/media/…" alt="…"></a>`. A click or Enter opens Image preview, where the reader
 can zoom to actual size, pan, and return to the page. A figure's caption stays visible
-there; Original opens the file separately. Links to another destination retain that
-destination.
+in a footer outside the image; images without an authored caption have no footer.
+Alt text remains the image's accessible description. Original opens the file separately.
+Links to another destination retain that destination.
 
 Use a recording for a fixed
 demo or screen capture; keep a live widget where the user should manipulate the

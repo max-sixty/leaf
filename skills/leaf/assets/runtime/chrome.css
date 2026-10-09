@@ -1451,17 +1451,19 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   .lf-media-viewer-original { display: inline-flex; align-items: center; justify-content: center; }
   .lf-media-viewer-zoom { min-width: 4em; }
   .lf-media-viewer-stage { position: relative; min-width: 0; min-height: 0; overflow: hidden;
-    display: grid; place-items: center; background: transparent; }
+    display: grid; place-items: center; padding: 16px; box-sizing: border-box; background: transparent; }
   /* Match PhotoSwipe's default backdrop while its manipulation module loads.
      Once it takes over, its backdrop alone dims the page. */
   .lf-media-viewer-stage:has(> img) {
     background: color-mix(in srgb, var(--paper) 80%, transparent); }
   .lf-media-viewer-stage > img { display: block; max-width: 100%; max-height: 100%;
     object-fit: contain; }
+  .lf-media-viewer-stage > img, .lf-media-viewer .pswp__img {
+    outline: 1px solid var(--border-2); box-shadow: 0 8px 24px var(--shade); }
   .lf-media-viewer .pswp { position: absolute; --pswp-bg: var(--paper); --pswp-root-z-index: 0; }
   .lf-media-viewer-caption { position: relative; z-index: 1501; background: var(--card);
-    max-width: none;
-    margin: 0; padding: 10px max(12px, var(--lf-safe-right)) max(10px, var(--lf-safe-bottom)) max(12px, var(--lf-safe-left));
+    max-width: none; text-align: center;
+    margin: 0; padding: 10px max(12px, var(--lf-safe-right), calc((100% - 70ch) / 2)) max(10px, var(--lf-safe-bottom)) max(12px, var(--lf-safe-left), calc((100% - 70ch) / 2));
     font-size: var(--t-sm); color: var(--muted); border-top: 1px solid var(--rule);
     max-height: 20dvh; overflow: auto; }
   .lf-command-reference-head { display: flex; align-items: center; justify-content: space-between;

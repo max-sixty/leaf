@@ -26,17 +26,20 @@ the page on the agent's own initiative, is a task the agent opens on the page or
 widget or section it concerns; housekeeping, such as re-vendoring or restarting the
 server, owes the user nothing and is no item.
 
-The user's tasks come from three places, and their owner and subject say how each
+The user's tasks come from declarations and the log, and their subject says how each
 ends. Each Ask in the markup is one, under the Ask's id, from the version that adds
 it, ended `done` when its widget is answered (`asks`); each agent turn in a thread
 that asks the user (`asks.thread_questions`) is one, under that turn's id, ended by
 the user's reply there or a settling reaction; the document starts state, so neither
-writes an event, and `page_tasks` reads them. The third is a `task` event the agent
+writes an event, and `page_tasks` reads them. Another is a `task` event the agent
 writes with `--on user` on a widget, an element or the page, never a thread, where
 the question is the task. Nothing else answers it, so it ends at the user's Done,
-their own `task_end`, which `undo` takes back. The agent can end any task on the
-user but an Ask's, which the markup holds and a version retires: ending a question's
-settles it, since the prompt reading takes an ended one off the user (`TaskReading.ends`).
+their own `task_end`, which `undo` takes back. A stamped document declaring
+`lf-review=sign-off` holds an approval question for that exact version, until its
+unwithdrawn `done` approval; `document_tasks` reads it beside the document's Asks.
+The agent can end any task on the user but an Ask's or required approval, which the
+markup holds and a version retires: ending a question's settles it, since the prompt
+reading takes an ended one off the user (`TaskReading.ends`).
 
 A start lasts until its item ends: a task's end, or for a move the reply or stamped
 version that answers it (`workflows.canonical_workflows`), and it holds its item
@@ -58,7 +61,7 @@ thread, a widget needing no seat; a start on an open task of the agent's or a mo
 the agent owes; and an end of an open task, the user's only of one the agent opened
 on them (`task_error`). `TaskReading` holds the log's tasks, starts and endings
 for one event basis; `canonical_tasks` supplies the same fold to standalone callers.
-`page_tasks` and `ask_tasks` derive the tasks held by threads and documents.
+`page_tasks` and `document_tasks` derive the tasks held by threads and documents.
 
 Not yet: a task whose session has ended reads open until another session ends it.
 
@@ -74,6 +77,7 @@ from pathlib import Path
 
 from .events import note_settlements, taken_back
 from .schema import agent_name
+from .structure import review_mode
 
 OUTCOMES = ("done", "failed", "dropped")
 
@@ -247,11 +251,12 @@ def log_tasks_open(events: list) -> list[dict]:
 # How a task ends, the one reading of it every reader takes (`ends` on each task):
 # the agent's at its `task_end` or a version's `--completes`, an Ask's when its widget
 # answers it, a question's at the user's reply or a settling reaction, and any other
-# task on the user at their Done.
+# task on the user at their Done; a stamped document's required sign-off at approval.
 ENDS_BY_AGENT = "agent"
 ENDS_BY_WIDGET = "widget"
 ENDS_BY_REPLY = "reply"
 ENDS_BY_DONE = "done"
+ENDS_BY_APPROVAL = "approval"
 
 
 def _log_task(task: dict) -> dict:
@@ -334,6 +339,40 @@ def ask_tasks(asks: dict) -> tuple[list[dict], list[dict]]:
     return standing, ended
 
 
+def document_tasks(
+    document, revision: int, stamp: int | None, approvals: list[dict]
+) -> tuple[list[dict], list[dict]]:
+    """A document's Ask tasks and its required approval of an actual public stamp.
+
+    Sign-off is a question on the user only once the agent stamps this exact
+    revision. It ends at that version's admitted, unwithdrawn approval, never at
+    a task_end. Approval admission still checks unanswered Asks alone, so the
+    approval question cannot block its own answer. An unstamped revision owes
+    no approval, and an older version's approval cannot settle a newer one.
+    """
+    standing, ended = ask_tasks(document.asks)
+    if stamp is None or review_mode(document.document) != "sign-off":
+        return standing, ended
+    approved = next(
+        (event for event in reversed(approvals) if event["version"] == stamp), None
+    )
+    task = _derived(
+        f"approval:v{stamp}",
+        {"kind": "page"},
+        None,
+        "done" if approved else "open",
+        ENDS_BY_APPROVAL,
+        ended={"state": "done", **_outcome(approved, None)} if approved else None,
+    )
+    task.update(
+        title=f"Approve v{stamp}?",
+        revision=revision,
+        approval={"version": stamp},
+    )
+    (standing if task["state"] == "open" else ended).append(task)
+    return standing, ended
+
+
 def page_tasks(
     log: list[dict],
     thread_asks: dict,
@@ -403,8 +442,8 @@ def task_error(
 
     An outcome ends a task still open, one of `tasks()`, every task on the page
     (`page_tasks`), read only for an outcome. Who may end it is how it `ends`: the
-    agent its own and any on the user but an Ask's, which the markup holds; the user
-    only one their Done ends."""
+    agent its own and any on the user but an Ask's or required approval, which the
+    markup holds; the user only one their Done ends."""
     kind = event["kind"]
     if kind == "task":
         subject = event["subject"]
@@ -452,6 +491,11 @@ def task_error(
             f"task {identity!r} is an Ask's, which ends when its widget answers it; "
             "to retire the Ask, leave it out of a stamped version, or mark it "
             "`restated` there"
+        )
+    if task["ends"] == ENDS_BY_APPROVAL:
+        return (
+            f"task {identity!r} requires the user's approval of "
+            f"v{task['approval']['version']}; it ends at the page's Approval control"
         )
     if task["state"] != "open":
         return f"task {identity!r} has already ended ({task['state']})"

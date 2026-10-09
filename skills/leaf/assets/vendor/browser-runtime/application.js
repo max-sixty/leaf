@@ -263,6 +263,8 @@ function advance(
 
 
 
+
+
 /** The public Ask record packages read. */
 
 
@@ -455,6 +457,9 @@ function localTasks(
   const undoing = new Set(
     local.flatMap(({ event }) => (event.kind === "undo" ? [event.undoes] : [])),
   );
+  const approving = new Set(
+    local.flatMap(({ event }) => (event.kind === "done" ? [event.version] : [])),
+  );
   const served = [...(view?.document.tasks ?? []), ...(state?.browser.tasks ?? [])];
   const ended = [
     ...(view?.document.ended_tasks ?? []),
@@ -468,18 +473,19 @@ function localTasks(
       .filter(reopened)
       .map((task) => ({ ...task, state: "open"         , outcome: null })),
   ];
+  const locallyEnded = (task          ) =>
+    ending.has(task.id) ||
+    (task.ends === "approval" && approving.has(task.approval.version));
   return {
-    open: open.filter((task) => !ending.has(task.id)),
+    open: open.filter((task) => !locallyEnded(task)),
     ended: [
       ...ended.filter((task) => !reopened(task)),
-      ...open
-        .filter((task) => ending.has(task.id))
-        .map((task) => ({
-          ...task,
-          state: "done"         ,
-          running: null,
-          outcome: { ts: null, detail: null },
-        })),
+      ...open.filter(locallyEnded).map((task) => ({
+        ...task,
+        state: "done"         ,
+        running: null,
+        outcome: { ts: null, detail: null },
+      })),
     ],
   };
 }
@@ -798,6 +804,8 @@ export function createSemanticApplication({
     const workflows             = [
       ...(state ? state.workflows : []),
       ...messages.flatMap((entry) => localWorkflow(entry, false) ?? []),
+      // A refused message or widget move has a destination to send again.
+      // Other gestures restore their own control or task when speculation ends.
       ...refused.flatMap((entry) => localWorkflow(entry, true) ?? []),
     ];
     const threads = readThreadRecords(

@@ -227,7 +227,7 @@ export type Workflow = Omit<WireWorkflow, "quiet" | "dropped" | "stage"> & {
  * the open ones on either side and `ended_tasks` the ones that ended, with their
  * outcome. A task on the user that an Ask or a thread's question holds has no title of
  * its own. */
-interface WireTask {
+type WireTask = {
   id: string;
   owner: "agent" | "user";
   subject: { kind: "thread" | "widget"; id: string } | { kind: "page" };
@@ -250,9 +250,6 @@ interface WireTask {
   agent: string | null;
   session: string | null;
   outcome: { id?: string; ts: string | null; detail?: string | null } | null;
-  /** How the task ends (`tasks.py`): the agent's own, an Ask's widget, a question's
-   * reply, or the user's Done. */
-  ends: "agent" | "widget" | "reply" | "done";
   /** The Ask a task on the user stands for: the widget that answers it, and whether a
    * thread in that widget's seat holds it with the agent meanwhile. */
   ask: {
@@ -261,7 +258,12 @@ interface WireTask {
     widget_tag: string;
     held_by_seat: boolean;
   } | null;
-}
+} & (
+  // The agent's own, an Ask's widget, a question's reply, or the user's Done.
+  | { ends: "agent" | "widget" | "reply" | "done"; approval?: never }
+  // The exact stamped version whose banner approval ends this task (`tasks.py`).
+  | { ends: "approval"; approval: { version: number } }
+);
 
 /** The public Ask record packages read. */
 export interface AskRecord {
@@ -455,6 +457,9 @@ function localTasks(
   const undoing = new Set(
     local.flatMap(({ event }) => (event.kind === "undo" ? [event.undoes] : [])),
   );
+  const approving = new Set(
+    local.flatMap(({ event }) => (event.kind === "done" ? [event.version] : [])),
+  );
   const served = [...(view?.document.tasks ?? []), ...(state?.browser.tasks ?? [])];
   const ended = [
     ...(view?.document.ended_tasks ?? []),
@@ -468,18 +473,19 @@ function localTasks(
       .filter(reopened)
       .map((task) => ({ ...task, state: "open" as const, outcome: null })),
   ];
+  const locallyEnded = (task: WireTask) =>
+    ending.has(task.id) ||
+    (task.ends === "approval" && approving.has(task.approval.version));
   return {
-    open: open.filter((task) => !ending.has(task.id)),
+    open: open.filter((task) => !locallyEnded(task)),
     ended: [
       ...ended.filter((task) => !reopened(task)),
-      ...open
-        .filter((task) => ending.has(task.id))
-        .map((task) => ({
-          ...task,
-          state: "done" as const,
-          running: null,
-          outcome: { ts: null, detail: null },
-        })),
+      ...open.filter(locallyEnded).map((task) => ({
+        ...task,
+        state: "done" as const,
+        running: null,
+        outcome: { ts: null, detail: null },
+      })),
     ],
   };
 }
@@ -798,6 +804,8 @@ export function createSemanticApplication({
     const workflows: Workflow[] = [
       ...(state ? state.workflows : []),
       ...messages.flatMap((entry) => localWorkflow(entry, false) ?? []),
+      // A refused message or widget move has a destination to send again.
+      // Other gestures restore their own control or task when speculation ends.
       ...refused.flatMap((entry) => localWorkflow(entry, true) ?? []),
     ];
     const threads = readThreadRecords(

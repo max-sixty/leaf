@@ -52,6 +52,14 @@ def build() -> dict:
         "thread": threads["e1"],
         "workflow": workflows["e4"],
         "readings": {
+            # A required approval of the exact stamped document, with no other
+            # Questions. Keep the whole browser reading for local approval folds.
+            "approval": reading(
+                PAGE.replace(
+                    "</head>", '<meta name="lf-review" content="sign-off"></head>'
+                ),
+                ({"kind": "note", "author": "agent", "version": 1, "text": "Ready"},),
+            ),
             # The agent asks a question over a board it sent, and the user moves a
             # card on it without answering: the thread is the user's to answer, and
             # the move, which owes nothing, stands in it without holding it.

@@ -737,34 +737,31 @@ def test_visual_review_allocates_focused_evidence_before_images_decode(browser, 
     )
     held = []
     context.route("**/media/*.png", lambda route: held.append(route))
-    try:
-        page = context.new_page()
-        page.goto(url, wait_until="domcontentloaded")
-        widget = page.locator("#visual-review-run")
-        expect(widget.locator(".lf-vr-case-title").first).to_be_visible()
-        expect(widget).to_have_attribute("data-compare-layout", "stack")
-        host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
-        geometry = """node => ({
-          host: node.getBoundingClientRect().toJSON(),
-          frames: [...node.querySelectorAll('.lf-shotframe')]
-            .map(frame => frame.getBoundingClientRect().toJSON()),
-        })"""
-        before = host.evaluate(geometry)
-        assert before["frames"][0]["height"] > 500, before
-        assert before["frames"][1]["top"] >= before["frames"][0]["bottom"], before
-        assert host.locator("img").evaluate_all(
-            "images => images.every(image => image.naturalWidth === 0)"
-        )
-        for route in held:
-            route.continue_()
-        context.unroute("**/media/*.png")
-        expect(host.locator("img").first).to_have_js_property("naturalWidth", 780)
-        expect(host.locator("img").last).to_have_js_property("naturalWidth", 780)
-        page.wait_for_function("document.body.hasAttribute('data-lf-presented')")
-        after = host.evaluate(geometry)
-        assert after == before, {"before": before, "after": after}
-    finally:
-        context.close()
+    page = context.new_page()
+    page.goto(url, wait_until="domcontentloaded")
+    widget = page.locator("#visual-review-run")
+    expect(widget.locator(".lf-vr-case-title").first).to_be_visible()
+    expect(widget).to_have_attribute("data-compare-layout", "stack")
+    host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
+    geometry = """node => ({
+      host: node.getBoundingClientRect().toJSON(),
+      frames: [...node.querySelectorAll('.lf-shotframe')]
+        .map(frame => frame.getBoundingClientRect().toJSON()),
+    })"""
+    before = host.evaluate(geometry)
+    assert before["frames"][0]["height"] > 500, before
+    assert before["frames"][1]["top"] >= before["frames"][0]["bottom"], before
+    assert host.locator("img").evaluate_all(
+        "images => images.every(image => image.naturalWidth === 0)"
+    )
+    for route in held:
+        route.continue_()
+    context.unroute("**/media/*.png")
+    expect(host.locator("img").first).to_have_js_property("naturalWidth", 780)
+    expect(host.locator("img").last).to_have_js_property("naturalWidth", 780)
+    page.wait_for_function("document.body.hasAttribute('data-lf-presented')")
+    after = host.evaluate(geometry)
+    assert after == before, {"before": before, "after": after}
 
 
 def test_visual_review_reports_an_image_failure_after_its_peer_has_loaded(
@@ -781,27 +778,22 @@ def test_visual_review_reports_an_image_failure_after_its_peer_has_loaded(
     )
     held = []
     context.route(f"**{failed_source}", lambda route: held.append(route))
-    try:
-        page = context.new_page()
-        page.goto(url, wait_until="domcontentloaded")
-        host = page.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
-        images = host.locator("img")
-        expect(images.first).to_have_js_property("naturalWidth", 780)
-        holding(page, held, 1, "the second selected capture")
-        # Finish the first image's layout while its peer is still pending. The
-        # later failure cannot borrow that load's invalidation or a stage resize.
-        rendered(page)
-        expect(images.last).to_have_js_property("complete", False)
-        assert host.evaluate("node => node.clientHeight") > 1000
-        expect(host.locator(".lf-error")).to_have_count(0)
-        refuse(held[0])
-        expect(host.locator(".lf-error")).to_contain_text(
-            "focus needs two decoded images"
-        )
-        expect(host.locator("img")).to_have_count(0)
-        consume_browser_errors(page, "focus needs two decoded images")
-    finally:
-        context.close()
+    page = context.new_page()
+    page.goto(url, wait_until="domcontentloaded")
+    host = page.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
+    images = host.locator("img")
+    expect(images.first).to_have_js_property("naturalWidth", 780)
+    holding(page, held, 1, "the second selected capture")
+    # Finish the first image's layout while its peer is still pending. The
+    # later failure cannot borrow that load's invalidation or a stage resize.
+    rendered(page)
+    expect(images.last).to_have_js_property("complete", False)
+    assert host.evaluate("node => node.clientHeight") > 1000
+    expect(host.locator(".lf-error")).to_have_count(0)
+    refuse(held[0])
+    expect(host.locator(".lf-error")).to_contain_text("focus needs two decoded images")
+    expect(host.locator("img")).to_have_count(0)
+    consume_browser_errors(page, "focus needs two decoded images")
 
 
 def test_visual_review_leads_with_evidence_and_walks_only_remaining_cases(

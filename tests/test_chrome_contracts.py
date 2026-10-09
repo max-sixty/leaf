@@ -41,6 +41,7 @@ from render_harness import (
     leaf_page,
     open_page,
     open_versions,
+    page_comment,
     panel_settled,
     resized,
     round_trip,
@@ -84,8 +85,7 @@ def test_refusal_notice_clears_live_reply_through_wrapping_and_expiry(
             if (!status.checkVisibility()) return;
             const r = node => node.getBoundingClientRect().toJSON();
             window.__noticeReplyFrames.push({status:r(status), field:r(field),
-                send:r(field.parentElement.querySelector('.lf-thread-send')),
-                general:r(document.querySelector('.lf-general leaf-text'))});
+                send:r(field.parentElement.querySelector('.lf-thread-send'))});
         }).observe(field);
     }""")
 
@@ -156,7 +156,7 @@ def test_refusal_notice_clears_live_reply_through_wrapping_and_expiry(
     frames = page.evaluate("window.__noticeReplyFrames")
     assert frames
     for frame in frames:
-        for key in ("field", "send", "general"):
+        for key in ("field", "send"):
             box, status = frame[key], frame["status"]
             assert (
                 status["right"] <= box["left"]
@@ -754,27 +754,34 @@ def test_reading_inside_a_long_thread_keeps_its_title_and_reply_row_on_the_lists
     seen = card.evaluate(
         """async card => {
           const {seenRect} = await window.__lfRuntimeImport('/runtime/geometry.js');
-          const title = card.querySelector(':scope > .lf-thread-summary')
-            .getBoundingClientRect();
-          const reply = card.querySelector(':scope > .lf-thread-reply')
-            .getBoundingClientRect();
           const turns = [...card.querySelectorAll('.lf-msg')];
-          const across = (edge) => turns.find((turn) => {
+          const turn = turns[Math.floor(turns.length / 2)];
+          // Put an actual message across each edge: a fixed scroll fraction may
+          // put the edge in a gap when message heights or native fonts change.
+          const across = async (selector, edge) => {
+            const control = card.querySelector(selector);
             const box = turn.getBoundingClientRect();
-            return box.top < edge && box.bottom > edge;
-          });
-          const under = across(reply.top), over = across(title.bottom);
+            card.parentElement.scrollTop += (box.top + box.bottom) / 2
+              - control.getBoundingClientRect()[edge];
+            await new Promise(requestAnimationFrame);
+            const placed = turn.getBoundingClientRect();
+            return {
+              edge: control.getBoundingClientRect()[edge],
+              top: placed.top, bottom: placed.bottom,
+              seen: seenRect(turn, new Map()),
+            };
+          };
           return {
-            reply: reply.top, title: title.bottom,
-            under: under && seenRect(under, new Map())?.bottom,
-            over: over && seenRect(over, new Map())?.top,
+            under: await across(':scope > .lf-thread-reply', 'top'),
+            over: await across(':scope > .lf-thread-summary', 'bottom'),
           };
         }"""
     )
-    assert seen["under"] is not None, seen
-    assert seen["under"] <= seen["reply"] + 0.5, seen
-    if seen["over"] is not None:
-        assert seen["over"] >= seen["title"] - 0.5, seen
+    for reading in seen.values():
+        assert reading["top"] < reading["edge"] < reading["bottom"], seen
+        assert reading["seen"] is not None, seen
+    assert seen["under"]["seen"]["bottom"] <= seen["under"]["edge"] + 0.5, seen
+    assert seen["over"]["seen"]["top"] >= seen["over"]["edge"] - 0.5, seen
     # An open reaction list hangs below its trigger in the top layer, and goes once the
     # trigger leaves the list, so scrolling its message up under the title still leaves
     # the title whole.
@@ -1141,9 +1148,10 @@ def test_incoming_reply_follows_a_selected_thread_before_later_cards(
     card.locator(".lf-msg").last.evaluate(
         "el => el.scrollIntoView({block: 'start', behavior: 'instant'})"
     )
-    # Reading later cards takes the composer away from its pinned edge, so a reply
-    # that would move it waits behind its notice and leaves the later card still.
+    # Naming a later card transfers the reading anchor to it. The idle thread still
+    # draws appended replies immediately, without moving that later reading.
     later = page.locator(f'.lf-thread[data-id="{selected}"] + .lf-thread')
+    later.locator(".lf-thread-summary").hover()
     reading_later = later.evaluate("el => el.getBoundingClientRect().top")
     also_visible = append_carried_log_record(
         serve.page_dir,
@@ -1152,15 +1160,15 @@ def test_incoming_reply_follows_a_selected_thread_before_later_cards(
             "author": "agent",
             "agent": "Codex",
             "parent": selected,
-            "text": "This short answer waits while I read later cards.",
+            "text": "This short answer arrives while I read later cards.",
         },
     )
     page.evaluate(
         "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
     )
     arriving = card.locator(f'.lf-msg[data-mid="{also_visible["id"]}"]')
-    expect(arriving).to_have_count(0)
-    expect(card.get_by_role("button", name="1 new reply", exact=True)).to_be_visible()
+    expect(arriving).to_have_count(1)
+    expect(card.locator(".lf-thread-news")).to_have_count(0)
     assert later.evaluate("el => el.getBoundingClientRect().top") == pytest.approx(
         reading_later, abs=2
     )
@@ -1549,7 +1557,7 @@ def test_a_news_resolved_card_keeps_its_place_after_an_offscreen_draft_is_cleare
     a move within the thread, so the card holds the settlement behind its notice until
     the user presses it, and stays put.
     """
-    url = serve(LONG_PAGE, comments=16)
+    url = serve(LONG_PAGE, comments=24)
     first, second = [
         event["id"]
         for event in events_model.read_events(serve.page_dir)
@@ -2781,7 +2789,6 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
     assert ".lf-target-trace {" in selected["chrome"]
     assert ".lf-drawing-mark path" in selected["chrome"]
     assert "::highlight(lf-version-insert)" in selected["marks"]
-    assert '.lf-msg[aria-busy="true"]' in selected["marks"]
 
 
 def test_a_traffic_wait_stops_when_repaints_outlive_its_deadline(monkeypatch):
@@ -2963,11 +2970,7 @@ def test_a_draft_wears_the_faces_its_sent_message_wears(
         panel_settled(page)
         page.locator(".lf-thread-summary").first.click()
         thread = page.locator(".lf-thread[open]")
-        box_selector = (
-            ".lf-general leaf-text"
-            if surface == "general"
-            else ".lf-thread[open] .lf-thread-reply leaf-text"
-        )
+        box_selector = ".lf-thread[open] .lf-thread-reply leaf-text"
     body = thread.locator(".lf-msg-body").first
     expect(body.locator("blockquote")).to_be_visible()
     # A source renderer can leave the code's colors correct while turning an inline
@@ -2979,7 +2982,9 @@ def test_a_draft_wears_the_faces_its_sent_message_wears(
               code: code.getBoundingClientRect().top};
     }""")
     assert flow["code"] == pytest.approx(flow["words"], abs=4), flow
-    box = page.locator(box_selector)
+    # The page's general box stands in the page comment card, the one place a page
+    # thread starts.
+    box = page_comment(page) if surface == "general" else page.locator(box_selector)
     write(box, MARKDOWN)
     box.evaluate("box => box.id = 'draft-face-editor'")
 

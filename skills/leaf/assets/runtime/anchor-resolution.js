@@ -64,7 +64,7 @@ function currentDatums(source, key, identity = null, dataSource = null) {
   );
 }
 
-const currentDatum = (source, key) => {
+export const projectedDatum = (source, key) => {
   const matches = currentDatums(source, key);
   return matches.length === 1 ? matches[0] : null;
 };
@@ -117,7 +117,7 @@ export function addressedElements(source, key) {
     );
   const part = visualPart(source, key)?.element;
   if (part) return [part];
-  const datum = currentDatum(source, key) ?? suppliedDatum(source, key);
+  const datum = projectedDatum(source, key) ?? suppliedDatum(source, key);
   return datum ? [datum] : [];
 }
 

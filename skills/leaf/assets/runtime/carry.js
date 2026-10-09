@@ -119,7 +119,7 @@ export function restoreCarry(
                   node.parentElement?.closest("[id]") === arrived &&
                   node.localName === record.partName,
               );
-        if (target) focusDestination(target, record.caret);
+        if (target) focusDestination(target, "return", { caret: record.caret });
       }
     });
   restoreFocus(false);

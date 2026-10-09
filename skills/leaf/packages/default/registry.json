@@ -712,7 +712,7 @@
   "lf-draft": {
     "description": "A block of text the user owns and can rewrite in place, with recorded revision history.",
     "x-space": "column",
-    "x-instructions": "Write Markdown source inside pre, HTML-escaping & before < and > and preserving newlines. Use a suggestion for an agent-proposed change to existing prose. A draft asks for an edit when needed is present; otherwise it is an optional editing surface. Use lf-ask when that request needs its own heading and supporting evidence, or page sign-off to approve the whole page. Preserve the user’s edits on revision. To replace an edited passage deliberately, write the new text and mark the draft restated; read $restated.",
+    "x-instructions": "Write exact Markdown source as <pre> followed by one newline, the HTML-escaped source, and </pre> immediately after the source. HTML consumes that first newline; every subsequent character, including indentation and trailing newlines, belongs to the draft. HTML-escape & before < and >. Use a suggestion for an agent-proposed change to existing prose. A draft asks for an edit when needed is present; otherwise it is an optional editing surface. Use lf-ask when that request needs its own heading and supporting evidence, or page sign-off to approve the whole page. Preserve the user’s exact source on revision; read authoring-revisions.md, Honor user state. To replace an edited passage deliberately, write the new text and mark the draft restated; read $restated.",
     "type": "object",
     "properties": {
       "id": {
@@ -749,7 +749,7 @@
         }
       }
     },
-    "x-example": "<lf-draft id=\"note-cli\"><pre>\nAdds --dry-run to every mutating command.\n</pre></lf-draft>"
+    "x-example": "<lf-draft id=\"note-cli\"><pre>\nAdds --dry-run to every mutating command.</pre></lf-draft>"
   },
   "lf-sample": {
     "description": "A quotation of page content, either static or an operable child Leaf page.",

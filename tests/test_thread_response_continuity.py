@@ -6,7 +6,7 @@ from leaf import event_log as events_model
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_navigation import source_revision
-from render_harness import leaf_page, open_page, round_trip, write
+from render_harness import leaf_page, open_page, page_comment, round_trip, write
 
 EDITOR_INSPECTION = """(() => {
   const attach = Element.prototype.attachShadow;
@@ -718,8 +718,7 @@ def test_direct_comment_arrival_keeps_its_canceled_entry_motion_canceled(
         browser, serve(ROOT / "examples/review-a-plan.html"), context=context
     )
     page.locator(".lf-threads-toggle").click()
-    field = page.locator(".lf-general leaf-text")
-    expect(field).to_be_visible()
+    field = page_comment(page)
     page.evaluate("""() => {
       window.__recuedArrivals = [];
       document.addEventListener('animationstart', event => {
@@ -757,6 +756,8 @@ def test_direct_comment_arrival_keeps_its_canceled_entry_motion_canceled(
             }""")
 
         before = reading_place()
+        # The send put the card away; the next thought is begun in it again.
+        page_comment(page)
         write(field, "Keep the next thought separate.")
         rendered(page)
         wait_for_probe(page, "pageSettled")

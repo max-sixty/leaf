@@ -31,8 +31,8 @@
    layers the browser is holding, because that is the one fact about the scene that its
    own DOM cannot be asked for in order. */
 
-import { releaseFocus, holdFocus, returningFocus } from "../focus.js";
-import { under } from "../shadow.js";
+import { releaseFocus, holdFocus, closeLayer } from "../focus.js";
+import { renderedUnder } from "../shadow.js";
 
 const entries = [];
 const watchedRoots = new WeakSet();
@@ -75,14 +75,14 @@ function pushNativeLayer(node) {
 // the user: standing nowhere. A modal is still modal as it announces its close, with the
 // page behind it inert, so a let-go there lands no one and only takes the body's stop
 // and gives it back; the modal's owner lands the user as it closes it (the Page Map's
-// cancel, the command reference's close).
+// cancellation returns to its opener or reading position; the command reference closes).
 function closing(event) {
   if (event.newState !== "closed") return;
   const entry = entries.find((candidate) => candidate.root === event.target);
   if (
     entry?.kind === "popover" &&
     entry.fromNowhere &&
-    event.target.contains(document.activeElement)
+    renderedUnder(document.activeElement, event.target)
   )
     releaseFocus();
 }
@@ -130,10 +130,10 @@ export function nativeModalAdmits(node) {
   const reading = owner[NATIVE_LAYERS];
   if (reading) {
     const modal = reading().findLast((layer) => layer.kind === "modal")?.root;
-    return !modal || under(node, modal);
+    return !modal || renderedUnder(node, modal);
   }
   return [...owner.querySelectorAll("dialog:modal")].every((modal) =>
-    under(node, modal),
+    renderedUnder(node, modal),
   );
 }
 
@@ -143,10 +143,10 @@ export function nativeModalAdmits(node) {
 // turn, before any queued close event can see a descendant left closed.
 export function transitionNativeAncestor(root, transition) {
   const descendants = nativeLayers().filter(
-    (layer) => layer.root !== root && under(layer.root, root),
+    (layer) => layer.root !== root && renderedUnder(layer.root, root),
   );
   const held = holdFocus(root);
-  returningFocus(() => {
+  closeLayer(() => {
     for (const layer of descendants.toReversed())
       if (layer.kind === "modal") layer.root.close();
       else layer.root.hidePopover();

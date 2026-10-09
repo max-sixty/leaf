@@ -26,18 +26,20 @@ Each slice contains at most one thread reply, with `kind: "reply"` and
 `writer: "turn"`. Before your first tool call, open with a short message to the
 user: the answer or what you are about to do. Leaf streams it into the captured
 thread at once. Later working messages stay in Codex. Your completed final
-commits the reply through the same durable writer as `leaf response reply`.
+commits the reply through the same durable writer as `leaf response reply`,
+unless an explicit successful reply already answered it.
 
 For a reply needing widgets, a prose question awaiting the user, a title or a
 changed anchor, author it with `leaf response reply <answer.ref>` and the rich
-options in [threads](threads.md). The command prepares the full reply on this
-turn's reservation; your completed final commits that content, including its
-text. Without preparation, Leaf commits your opening and final text. A failed
-or interrupted turn leaves no durable prepared answer. Leaf may title an
+options in [threads](threads.md). The command validates saved edits and commits
+immediately. The completed final yields to an explicit successful answer already
+in the log; otherwise Leaf commits your opening and final text. A later failure or
+interruption cannot discard an explicit committed reply. Leaf may title an
 untitled thread from its opening before your reply arrives; that name stands.
 
 If the user resolves the thread before completion, a successful reply still posts
-and reopens it. A prepared failure posts only while that input still needs an answer. A later reply remains pending for the next slice.
+and reopens it. Failure receipts are refused while this turn owns the answer.
+A later user reply remains pending for the next slice.
 
 Other answers in the slice take the operations their delivered `handling`
 clauses name.

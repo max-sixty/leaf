@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -33,11 +33,11 @@ describe("published runtime bundle", () => {
       }
       await writeFile(
         join(layer, "leaf.js"),
-        `import { state } from "${root}/page/state.js"; import { moduleUrl } from "${root}/runtime/url.js"; console.log(state, moduleUrl, import.meta.url);`,
+        `import { state } from "${root}/page/state.js"; import { moduleUrl, prose } from "${root}/runtime/url.js"; console.log(state, moduleUrl, prose, import.meta.url);`,
       );
       await writeFile(
         join(layer, "runtime", "url.js"),
-        "export const moduleUrl = import.meta.url;",
+        'export const moduleUrl = import.meta . url; export const prose = "import.meta.url";',
       );
       for (const entry of [
         "interaction-gallery-frame",
@@ -53,17 +53,13 @@ describe("published runtime bundle", () => {
       }
       await writeFile(
         join(layer, "widgets", "lf-study.js"),
-        `import { state } from "${root}/page/state.js"; console.log(state);`,
+        `import { state } from "${root}/page/state.js"; import { html } from "../vendor/lit.js"; console.log(state, html);`,
       );
       await writeFile(
         join(layer, "page", "state.js"),
         `export const state = { revision: "${revision}" };`,
       );
       await writeFile(join(layer, "vendor", "lit.js"), "export const html = 1;\n");
-      await writeFile(
-        join(layer, "vendor", "browser-runtime.js"),
-        'export { html } from "./lit.js";\n',
-      );
     }
 
     await bundleSite(directory);
@@ -79,8 +75,16 @@ describe("published runtime bundle", () => {
       expect(await readFile(join(layer, "leaf.js"), "utf8")).toContain(
         `new URL("${root}/leaf.js",location.origin).href`,
       );
+      // A relative import of a vendor module keeps the page's one copy.
+      expect(await readFile(join(layer, "widgets", "lf-study.js"), "utf8")).toContain(
+        `from"${root}/vendor/lit.js"`,
+      );
       expect(await readFile(join(layer, "leaf.js"), "utf8")).toContain(
         `new URL("${root}/runtime/url.js",location.origin).href`,
+      );
+      // Only a read of the module's URL is rewritten, not text that spells one.
+      expect(await readFile(join(layer, "leaf.js"), "utf8")).toContain(
+        '"import.meta.url"',
       );
       expect(await readFile(join(layer, "page", "state.js"), "utf8")).toBe(
         `export const state = { revision: "${revision}" };`,
@@ -94,13 +98,18 @@ describe("published runtime bundle", () => {
   it("collapses the production runtime's static modules", async () => {
     const directory = await mkdtemp(join(tmpdir(), "leaf-runtime-"));
     try {
-      // The production layer is the kernel composed with its bundled packages.
-      const runtime = join(directory, "layer");
+      // The production layer is a prepared installation's kernel composed with its
+      // bundled packages, as the site build vendors it.
+      const install = join(directory, "install");
       execFileSync(
-        fileURLToPath(new URL("../../bin/leaf", import.meta.url)),
-        ["page", "init", runtime],
-        { env: { ...process.env, XDG_STATE_HOME: join(directory, "state") } },
+        "uv",
+        ["run", "leaf-dev", "distribution", "--output", install],
+        { cwd: fileURLToPath(new URL("../..", import.meta.url)) },
       );
+      const runtime = join(directory, "layer");
+      execFileSync(join(install, "bin", "leaf"), ["page", "init", runtime], {
+        env: { ...process.env, XDG_STATE_HOME: join(directory, "state") },
+      });
 
       const output = join(directory, "bundled");
       await bundleLayer(runtime, "/published/layer", output);
@@ -110,11 +119,23 @@ describe("published runtime bundle", () => {
         await readFile(join(output, "runtime", "layer-client.js"), "utf8"),
       ).toBeTruthy();
       expect(bundled).not.toMatch(/from"\.\/runtime\/(?!bundle-)/);
-      // The framework is committed readable and delivered minified.
-      const framework = await readFile(join(output, "vendor", "browser-runtime.js"), "utf8");
-      expect(framework.length).toBeLessThan(
-        (await readFile(join(runtime, "vendor", "browser-runtime.js"), "utf8")).length / 1.5,
-      );
+      // The kernel holds the framework; the page still shares one Lit, which the
+      // revision's import map sends to its own vendor directory.
+      const kernel = (
+        await Promise.all(
+          (await readdir(join(output, "runtime")))
+            .filter((file) => file.endsWith(".js"))
+            .map((file) => readFile(join(output, "runtime", file), "utf8")),
+        )
+      ).join("\n");
+      expect(kernel).toContain('"accepted:presented"');
+      expect(kernel).toContain('from"/vendor/lit.js"');
+      expect(kernel).not.toContain("litHtmlVersions");
+      expect(kernel).not.toContain("browser-runtime");
+      // A vendor module's runtime import survives as its own module.
+      expect(
+        await readFile(join(output, "runtime", "shadow-stage.js"), "utf8"),
+      ).toBeTruthy();
       expect(
         await readFile(join(output, "widgets", "lf-suggestion.js"), "utf8"),
       ).not.toContain("/runtime/widget-api.js");

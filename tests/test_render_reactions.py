@@ -36,6 +36,7 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
+    page_comment,
     panel_settled,
     resized,
     round_trip,
@@ -393,7 +394,9 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
         serve(
             leaf_page(
                 "Reaction selection",
-                '<lf-draft id="draft"><pre>A passage to react to.</pre></lf-draft>',
+                '<p><lf-suggestion id="reaction-target"><lf-old>A passage to react to.'
+                "</lf-old><lf-new>A revised passage to react to.</lf-new>"
+                "</lf-suggestion></p>",
             )
         ),
     )
@@ -454,10 +457,10 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
         assert reaction.evaluate(read) == resting
         assert reaction.evaluate(PAINTS_STATE_MARK) is False
 
-    item = page.locator('.lf-margin-cluster[data-lf-margin-for="draft"]')
+    item = page.locator('.lf-margin-cluster[data-lf-margin-for="reaction-target"]')
 
     def open_margin_reactions():
-        item.get_by_role("button", name="Edit draft", exact=True).focus()
+        item.locator(".lf-sug-accept").focus()
         page.keyboard.press("e")
         expect(item.locator(f"{MARGIN_RESPONSES}:visible")).to_have_count(6)
 
@@ -565,10 +568,12 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve, s
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
 
-    # Opening Threads does not add an unanchored reaction target.
+    # Neither Threads nor the page comment card adds an unanchored reaction target.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    expect(page.locator(".lf-thread-panel-foot .lf-react-strip")).to_have_count(0)
+    expect(page.locator(".lf-thread-panel .lf-react-strip")).to_have_count(0)
+    page_comment(page)
+    expect(page.locator(".lf-page-comment-card .lf-react-strip")).to_have_count(0)
 
 
 def test_a_target_hint_opens_comment_and_a_token_seats_only_its_glyph(browser, serve):

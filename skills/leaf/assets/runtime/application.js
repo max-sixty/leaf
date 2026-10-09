@@ -18,9 +18,7 @@ import { saidNow } from "./presence.js";
 import { announce, notice } from "./notifications.js";
 import {
   approvalBlockingAsks as readApprovalBlockingAsks,
-  openAsks as readOpenAsks,
-  unansweredAsks as readUnansweredAsks,
-  watchAsks as observeAsks,
+  readAsks,
 } from "./asks/model.js";
 import { paintKeys } from "./keyboard/scopes.js";
 import { pendingTraffic } from "./traffic.js";
@@ -42,7 +40,8 @@ import { watchProjection } from "./projection-watch.js";
 import { clocked } from "./presence.js";
 import { createThreadDestinations } from "./thread/destination.js";
 import { createThreadActions } from "./thread/actions.js";
-import { registerMirrorConsumer } from "./thread/mirrors.js";
+import { createQueueActions } from "./queue-api.js";
+import { registerMirrorConsumer, createPrimaryReader } from "./thread/mirrors.js";
 import { createReadTracking } from "./thread/read.js";
 import { renderMarginThread } from "./thread/inline.js";
 import { threadBox as buildThreadBox } from "./thread/box.js";
@@ -90,10 +89,7 @@ export function mountApplication(dependencies) {
   const currentReceipts = () => readApplication().authoritative?.browser.receipts ?? [];
   const pendingApprovals = () => readApplication().effective.pendingApprovals;
   const acceptedApprovals = () => readApplication().effective.acceptedApprovals;
-  const openAsks = readOpenAsks;
-  const unansweredAsks = readUnansweredAsks;
   const approvalBlockingAsks = readApprovalBlockingAsks;
-  const watchAsks = observeAsks;
 
   // Retire the entries the ledger's lifecycle says wait only for release, once every
   // region that draws them has committed the reading that no longer does.
@@ -249,8 +245,6 @@ export function mountApplication(dependencies) {
     unaccountedGesture: engagement.unaccountedGesture,
   });
 
-  const createComment = (event) =>
-    post({ kind: "comment", revision: runtime.currentRevision, ...event });
   // The one bookkeeping door (delivery.js): the page draws the versions read as it
   // sends them, and they stand read or unread again by whatever the answer says.
   const markRead = async (messages) => {
@@ -263,7 +257,7 @@ export function mountApplication(dependencies) {
   };
   const read = createReadTracking({
     markRead,
-    showThread: dependencies.showThread,
+    showThread: (...args) => threadDestinations.openPageThread(...args),
     firstUnreadBtn: dependencies.firstUnreadBtn,
   });
 
@@ -272,6 +266,10 @@ export function mountApplication(dependencies) {
     withdraw: projectionCommands.withdraw,
     sendReaction: dependencies.sendReaction,
     currentRevision: () => runtime.currentRevision,
+  });
+  const queueActions = createQueueActions({
+    post,
+    arrive: (item) => dependencies.arriveAtQueueItem(item),
   });
   const replyView = {
     actions: threadActions,
@@ -293,7 +291,7 @@ export function mountApplication(dependencies) {
     settlement: settlementView,
     reaction: reactionView,
     read,
-    showThread: dependencies.showThread,
+    showThread: (...args) => threadDestinations.openPageThread(...args),
     landInThread: dependencies.landInThread,
   };
   const cardView = {
@@ -314,7 +312,7 @@ export function mountApplication(dependencies) {
   };
 
   const annotations = createAnnotationInventory({
-    openAsks,
+    readAsks,
     comparisonBase: dependencies.annotationCommands.comparisonBase,
     comparisonChanges: dependencies.annotationCommands.comparisonChanges,
     inlineComparison: dependencies.annotationCommands.inlineComparison,
@@ -419,7 +417,8 @@ export function mountApplication(dependencies) {
         ...view,
         card: {
           ...cardView,
-          nativeAuthored: required,
+          nativeAuthored: (message) =>
+            required && !threadPresenter.primaryOwnsMessage(message),
           showThread: view.travel.showThread,
           travel: { ...cardView.travel, ...view.travel },
         },
@@ -502,14 +501,14 @@ export function mountApplication(dependencies) {
 
   const threadBox = (owner, hint) =>
     buildThreadBox(owner, hint, {
-      createComment,
+      createComment: (command) => threadActions.create(command)?.delivery ?? null,
       onDraftChanged: invalidateDom,
       wireInput: dependencies.wireInput,
     });
   const threadSurfaceCommands = {
     invalidate: invalidateDom,
     composition: dependencies.compositionSurface,
-    reveal: dependencies.showThread,
+    reveal: (...args) => threadDestinations.openPageThread(...args),
   };
   let annotationRegistration = null;
   const consumeAnnotations = (owner, render) => {
@@ -536,6 +535,32 @@ export function mountApplication(dependencies) {
   const mountThreadViews = (owner, render) =>
     registerMirrorConsumer(owner, render, { commands: inlineView });
 
+  const registerThreadPresentation = (owner, { render, open }) => {
+    if (typeof open !== "function")
+      throw new TypeError("A Thread presentation needs an open callback");
+    const reader = createPrimaryReader(owner, render, inlineView, refreshThread);
+    const detachDestination = threadDestinations.register(owner, open, reader);
+    let detachPresentation;
+    try {
+      detachPresentation = threadPresenter.registerPrimary(reader);
+    } catch (error) {
+      detachDestination();
+      reader.unregister();
+      throw error;
+    }
+    let active = true;
+    return Object.freeze({
+      destination: reader.destination,
+      update: () => threadPresenter.present(),
+      unregister() {
+        if (!active) return;
+        active = false;
+        detachDestination();
+        detachPresentation();
+      },
+    });
+  };
+
   application = {
     ...projectionCommands,
     watchUpdates: observeUpdates,
@@ -543,8 +568,6 @@ export function mountApplication(dependencies) {
     approvalBlockingAsks,
     beginRead: beginStateRead,
     threadBox,
-    createComment,
-    createPageComment: createComment,
     dispatchWidget,
     hasPending,
     invalidateDom,
@@ -558,9 +581,8 @@ export function mountApplication(dependencies) {
     read,
     mountThread: threadPresenter.mount,
     mountRead: read.mount,
+    registerThreadPresentation,
     navigateToDatum: dependencies.anchorTravel.navigateToDatum,
-    openAsks,
-    unansweredAsks,
     pendingApprovals,
     acceptedApprovals,
     post,
@@ -576,9 +598,9 @@ export function mountApplication(dependencies) {
     registerThreadPanel,
     retireProjectionCoverage: projection.retireProjectionCoverage,
     threadActions,
+    queueActions,
     shallowSigs: projectionShallowSigs,
     startFeed: feed.startFeed,
-    watchAsks,
     wireInput: dependencies.wireInput,
   };
   return application;
@@ -587,18 +609,15 @@ export function mountApplication(dependencies) {
 export const approvalBlockingAsks = (...args) => app().approvalBlockingAsks(...args);
 export const beginRead = (...args) => app().beginRead(...args);
 export const threadBox = (...args) => app().threadBox(...args);
-export const createComment = (...args) => app().createComment(...args);
 export const dispatchWidget = (...args) => app().dispatchWidget(...args);
 export const hasPending = (...args) => app().hasPending(...args);
 export const invalidateDom = (...args) => app().invalidateDom(...args);
 export const landInThread = (...args) => app().landInThread(...args);
 export const midComposition = (...args) => app().midComposition(...args);
 export const navigateToDatum = (...args) => app().navigateToDatum(...args);
-export const openAsks = (...args) => app().openAsks(...args);
 // The one route to a thread by its root id: the thread's inline destination while
 // it has one, Threads otherwise, the same choice a mark and t/T make.
 export const openThread = (...args) => app().threadDestinations.openPageThread(...args);
-export const unansweredAsks = (...args) => app().unansweredAsks(...args);
 export const pendingApprovals = (...args) => app().pendingApprovals(...args);
 export const acceptedApprovals = (...args) => app().acceptedApprovals(...args);
 export const post = (...args) => app().post(...args);
@@ -610,18 +629,24 @@ export const placeThreads = (...args) => app().placeThreads(...args);
 export const placePageThreads = (...args) => app().placePageThreads(...args);
 export const consumeAnnotations = (...args) => app().consumeAnnotations(...args);
 export const mountThreadViews = (...args) => app().mountThreadViews(...args);
+export const registerThreadPresentation = (...args) =>
+  app().registerThreadPresentation(...args);
 export const registerThreadPanel = (...args) => app().registerThreadPanel(...args);
 export const threadActions = Object.freeze({
+  create: (...args) => app().threadActions.create(...args),
   reply: (...args) => app().threadActions.reply(...args),
   resolve: (...args) => app().threadActions.resolve(...args),
   reopen: (...args) => app().threadActions.reopen(...args),
   toggleReaction: (...args) => app().threadActions.toggleReaction(...args),
+});
+export const queueActions = Object.freeze({
+  open: (...args) => app().queueActions.open(...args),
+  done: (...args) => app().queueActions.done(...args),
 });
 export const shallowSigs = (...args) => app().shallowSigs(...args);
 export const startFeed = (...args) => app().startFeed(...args);
 export const unaccountedGesture = (...args) => app().unaccountedGesture(...args);
 export const undoable = (...args) => app().undoable(...args);
 export const undoLast = (...args) => app().undoLast(...args);
-export const watchAsks = (...args) => app().watchAsks(...args);
 export const watchUpdates = (...args) => app().watchUpdates(...args);
 export const wireInput = (...args) => app().wireInput(...args);

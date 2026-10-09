@@ -20,15 +20,20 @@
 import { html, nothing, render } from "../vendor/browser-runtime.js";
 import { el, reserve } from "./widget-elements.js";
 import { keeps, keepsText } from "./keeps.js";
+import { focusDestination } from "./focus.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
 const TAG = "leaf-banner-status";
+const website = document.querySelector("script[data-lf-server][data-lf-release]");
+const connecting = website ? "Connecting to the Leaf website…" : "Connecting…";
 const INITIAL = Object.freeze({
   tone: "",
-  summary: "Connecting…",
+  summary: connecting,
   queues: "",
   queuesWidest: "",
-  explanation: "Connecting…",
+  explanation: website
+    ? "Loading this website page. Website examples can take longer to connect than a usual Leaf page."
+    : connecting,
   publication: null,
 });
 
@@ -69,7 +74,7 @@ class BannerStatusView extends HTMLElement {
       keeps(this.#button, "aria-expanded", open);
       // Focus the scrollable explanation so keyboard users can reach long details.
       if (open && document.activeElement === this.#button)
-        this.#detail.focus({ preventScroll: true });
+        focusDestination(this.#detail, "move");
       this.#onToggle?.();
     });
   }

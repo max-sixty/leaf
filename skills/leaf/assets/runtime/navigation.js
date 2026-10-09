@@ -15,7 +15,7 @@ import {
   scrollersOf,
 } from "./reading-regions.js";
 import { walkOrigin, heldAsk, placeOf } from "./standing-target.js";
-import { focused } from "./keyboard/scopes.js";
+import { focused } from "./focus.js";
 import { bannerStanding } from "./banner-toolbar.js";
 import { pageSelection } from "./composing/capture.js";
 import { blockAt, closestAcross, pageRange } from "./passages.js";
@@ -101,7 +101,7 @@ async function arriveAtThread(next, destinations, panelIsOpen, threadsBox, inten
   if (!intent()) return false;
   threadsBox.revealNavigation(next.dataset.id);
   const standing = next.contains(document.activeElement);
-  focusThread(next, { preventScroll: true });
+  focusThread(next, "move");
   if (standing) landWalkedThread(next, threadsBox);
   scrollToThread(next.dataset.id, { keep: true });
   return true;

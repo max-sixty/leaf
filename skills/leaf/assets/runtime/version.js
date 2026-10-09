@@ -72,12 +72,12 @@ import {
 } from "./drafts.js";
 import { heldThreadId, replyDestination } from "./thread/focus.js";
 import { restoreReplyEditing } from "./thread/replies.js";
-import { focusDestination, onStanding } from "./focus.js";
+import { focusDestination, onStanding, focused, closeLayer } from "./focus.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { patchTree } from "./dom-children.js";
 import { labelOf, PRESS } from "./keyboard/bindings.js";
 import { commandShortcut } from "./keyboard/control-keys.js";
-import { focused, keys, paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
+import { keys, paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
 import { repaint } from "./repaint.js";
 import { notice } from "./notifications.js";
 import {
@@ -172,6 +172,7 @@ const PRIVATE_REVISION_PARAM = "_leaf-revision";
 // early runtime state for page source. An activation can then replace exactly that share
 // without erasing the presentation, layout, and mode facts the surviving runtime owns.
 function authoredAttributes(root) {
+  root = document.documentElement.lfInitial.authoredShell(root);
   const attributes = new Map();
   for (const { name, value } of root.attributes) {
     if (name.startsWith("data-lf-")) continue;
@@ -489,10 +490,8 @@ export function createVersionController({
         // second slot from either door. Escape remains live and stays in the complete
         // reference as the platform-standard close.
         promoteEscape: false,
-        run: () => {
-          closeVersionMenu();
-          returnToBannerControl(versionBtn);
-        },
+        run: () =>
+          closeLayer(closeVersionMenu, () => returnToBannerControl(versionBtn)),
       },
     ],
   };
@@ -1324,8 +1323,9 @@ export function createVersionController({
             ? replyDestination(replyThread, openThread, mayRestore)
             : null;
         })
-      : draftEditingDestination(draftEditing);
-    if (!replyThread && input) mayRestore.handoff(() => focusDestination(input));
+      : draftEditingDestination(draftEditing, mayRestore.handoff);
+    if (!replyThread && input)
+      mayRestore.handoff(() => focusDestination(input, "return"));
     if (mayRestore()) restoreDraftEditing(draftEditing, input);
   }
 
@@ -1898,8 +1898,9 @@ export function createVersionController({
       if (!anchoringIsReady()) return;
       tabStore.set(VIEW_KEY, JSON.stringify(captureView()));
     });
-    const restoreCarryScroll = handoff && restoreCarry(handoff.carry);
-    const currentIntent = retainUserIntent({ fallback: compositionInput });
+    const currentIntent = retainUserIntent({ fallback: compositionInput, since: 0 });
+    const restoreCarryScroll =
+      handoff && restoreCarry(handoff.carry, new Map(), currentIntent.handoff);
     const landArrival = () =>
       landContinuity(async () => {
         if (!currentIntent()) return;
@@ -1907,7 +1908,7 @@ export function createVersionController({
           restorePointer(handoff.pointer);
           restoreView(handoff.view, currentIntent);
           restoreRetainedStanding(handoff.retainedStanding);
-          currentIntent.handoff(restoreCarryScroll);
+          restoreCarryScroll();
           await restoreEditingContinuity(handoff, currentIntent);
           if (handoff.comparison !== null && stamped(handoff.comparison))
             showComparison(handoff.comparison);
@@ -1944,7 +1945,7 @@ export function createVersionController({
   function aimArrival() {
     const fresh = performance.getEntriesByType("navigation")[0]?.type === "navigate";
     const arrivedAt = location.hash;
-    const currentIntent = retainUserIntent();
+    const currentIntent = retainUserIntent({ since: 0 });
     return function landFragment() {
       aimedAt ??= fresh && fragmentTarget(arrivedAt);
       if (!aimedAt || !currentIntent()) return;

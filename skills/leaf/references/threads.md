@@ -92,18 +92,15 @@ without appending another message. Use `--attempt` to name retries of a progress
 update. `--failure <code>` posts a failure receipt when no answer is coming; it
 settles the input without reopening a closed thread.
 
-The delivery's `writer` records custody at capture. The current reservation
-controls commitment, so the same immutable reference remains usable after
-interruption or a later turn. While a provider owns it, the reply belongs to that turn's
-opening and final messages. Use the same response command when the answer needs
-markup, a question, a title or relocation: it prepares the complete authored
-reply under that exact active reservation, without answering the input yet. The
-provider's completed final commits the prepared reply, including its text; without
-a prepared reply it commits its own final text. A failed or interrupted turn leaves
-no durable prepared answer. Reconnect preserves preparation for the same response
-reservation. Without a standing provider reservation, the command commits immediately.
-The prepared operation retains its author’s voice and retry identity when the
-provider commits it. Forward its reference to a command hub worker as that
+The delivery's `writer` records the automatic reply route at capture. With
+`writer: "turn"`, Leaf streams the provider's opening and commits its completed
+final text unless an explicit reply has already answered the input. Use the same
+response command for an explicit answer, including markup, a question, a title or
+relocation: it validates saved edits and commits immediately. Its author, retry
+identity and content remain in the log even if the provider later fails or
+reconnects. The provider's final yields to that successful answer. A failure
+receipt is refused while an active provider reservation still promises an answer.
+Forward the response reference to a command hub worker as that
 package’s coordinator instructions direct; the worker speaks under its own
 session while the page’s captured logical owner remains the last claimant.
 That authorization survives the owner’s release or process restart; another
@@ -182,8 +179,9 @@ takes that move in hand, as `leaf task start` does, with the update as its
 [Conversation handoff](conversation-loop.md#when-to-write), "When to write", makes
 the first one your first command after a delivery. A proactive progress update
 names a thread with no response due. The updates stay visible until the
-next non-ephemeral agent reply in that thread, then fold under “Previous updates”
-without summary prose. The original messages remain available to expand and edit.
+next non-ephemeral agent reply in that thread, then fold behind “Show N progress
+messages” beside that reply’s timestamp. The original messages remain available
+to expand and edit.
 Intervening user messages remain visible; separate runs of updates fold separately.
 One update can fold on its own. An explicit summary can cover those updates instead.
 
@@ -208,8 +206,7 @@ in the append-only event log. Only text is revised; any widget markup stays froz
 A committed reply or `leaf thread` write prints the records it appended, one JSON
 line each, as `leaf page events` prints them. A first `--title` travels in the same
 message record; an explicit `leaf thread edit <page> <thread-id> --title` is a separate naming gesture.
-Preparation prints its response reference and `state: prepared`, leaving commitment
-to the provider final. A refusal lists the ids it knows.
+A refusal lists the ids it knows.
 
 An ordinary reply leaves the thread open, or reopens a resolved thread, so the user
 can inspect the answer or revised page. Reactions, ephemeral updates and failure receipts do not reopen it. The user closes it by default. Resolve it yourself only when the

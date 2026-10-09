@@ -34,7 +34,10 @@
     cursor: help;
   }
 }
+/* The phrase takes the pointer; this one-pixel carrier supplies its keyboard route.
+   Keep its declared box independent of the floor for standalone offered controls. */
 .lf-gloss-mark {
+  min-width: 0; min-height: 0;
   position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
   opacity: 0; pointer-events: none;
 }
@@ -1600,15 +1603,50 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
     }
     :scope:is(lf-tabs)[list="side"].lf-rendered > lf-tab { grid-column: 1 / -1; grid-row: auto; }
   }
+  /* A side list told it has a definite height to fill (`--lf-full-height`, layouts.css),
+   * as a full-height workspace's body is, takes that height, and its list and its open
+   * item each scroll on their own, as a mail client's do: walking a long queue never
+   * moves the item being read, and reading down a long item never moves the queue. Each
+   * is a reading region (lf-tabs.js). Stacked, the list is a row of its own height over
+   * the item, which takes the rest; beside the item, both span the two rows, and an item
+   * spanning the flexible row adds nothing to the row its own height would size. */
+  @container style(--lf-full-height: 1) {
+    :scope:is(lf-tabs)[list="side"].lf-rendered {
+      grid-template-rows: auto minmax(0, 1fr);
+      --lf-full-height: inherit;
+    }
+    :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip { grid-row: 1; }
+    :scope:is(lf-tabs)[list="side"].lf-rendered > lf-tab { grid-row: 2; }
+    @container (width >= 36rem) {
+      :scope:is(lf-tabs)[list="side"].lf-rendered > :is(.lf-tabstrip, lf-tab) {
+        grid-row: 1 / -1;
+      }
+    }
+    /* Only the open panel stretches: a closed one kept for find-in-page
+     * (`hidden="until-found"`) still has a box in the same cell, and stretched it would
+     * stand over the open one and take its presses. */
+    :scope:is(lf-tabs)[list="side"].lf-rendered
+      > :is(.lf-tabstrip, lf-tab:not([hidden])) {
+      align-self: stretch;
+      min-block-size: 0;
+      overflow: auto;
+      --lf-top: 0px;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+    }
+  }
 
     /* A set in the page's flow (the root set, its strip a row; lf-tabs.js) is
      * navigation over sections of one page rather than a framed widget inside it: a
      * sticky horizontal index, one panel shown. It lays out nothing
      * of its own. The strip and the panel are blocks of `main` like any other, so they
      * take the page's width, column or wide, and whatever stands in `main` beside the set
-     * (a header, a sidebar) stays where it would on a page without tabs. */
+     * (a header, a sidebar) stays where it would on a page without tabs. Even a short
+     * view fills the window below the sticky inset, so switching to it can land the
+     * strip at that inset without the document's end clamping the scroll. */
   :where(:scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="page"]) {
     margin-block: 0 32px;
+    min-block-size: calc(100dvh - var(--lf-top));
     border: 0;
     border-radius: 0;
     background: transparent;
@@ -1623,10 +1661,14 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
   :scope:is(lf-tabs)[data-lf-tabs-flow="page"] { --lf-top-outer: var(--lf-top); }
   :scope:is(lf-tabs)[data-lf-tabs-flow="page"] > lf-tab {
     --lf-top: calc(var(--lf-top-outer) + var(--lf-tabstrip-h));
+    --lf-landing-room: var(--lf-landing-gap);
   }
   :scope:is(lf-tabs)[data-lf-tabs-flow="page"] > .lf-tabstrip {
     position: sticky;
     top: var(--lf-top);
+    /* Its names stand 8px below where it sticks (`--lf-head-inset`, kernel
+       shadow.css), and the root's landing room counts the strip itself. */
+    --lf-head-inset: 8px;
     z-index: 2;
     box-sizing: border-box;
     block-size: var(--lf-tabstrip-h);
@@ -1759,6 +1801,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
     :scope:is(lf-tabs):not(.lf-rendered):nth-child(1 of lf-tabs):not(
     [list="side"]):has(> lf-tab){
       border: 0; border-radius: 0; background: transparent;
+      min-block-size: calc(100dvh - var(--lf-top));
       --lf-block-frame: 0;
       &::before { border-radius: 0; background: var(--paper); }
       & > lf-tab { padding: var(--sp-4) 0 0; --lf-block-frame: trim; }
@@ -1802,7 +1845,8 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
  * of the host and the transparent native checkbox covers them — one fallback for loading
  * and controls-off alike.
  * Print stacks both frames. */
-:scope:is(lf-shot) { display: block; margin: 16px 0; }
+:scope:is(lf-shot) { display: block; margin: 16px 0;
+    --lf-shot-rail-size: max(34px, var(--aim-floor)); }
 :scope:is(lf-shot):has(.lf-shotframe) { display: grid; }
 /* Where the runtime runs, the rail and the frame stand empty from the first paint, the
  * frame in the pair's shape, which delivery reads from the images
@@ -1810,7 +1854,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
  * arrive in a box that is already there. */
 @scope (html[data-lf-interactive] :scope) {
   :scope:is(lf-shot):not(:has(> .lf-shotrail)){
-    &::before { content: ""; display: block; height: 34px; border: 1px solid var(--rule);
+    &::before { content: ""; display: block; height: var(--lf-shot-rail-size); border: 1px solid var(--rule);
       border-bottom: 0; border-radius: var(--r) var(--r) 0 0; background: var(--card); }
     &::after { content: ""; display: block; box-sizing: border-box;
       aspect-ratio: attr(data-lf-media-width type(<number>)) /
@@ -1848,7 +1892,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 :scope:is(lf-shot) .lf-shotframe img { display: block; width: 100%; height: auto;
     background: var(--card); }
 :scope:is(lf-shot) .lf-shotrail { display: flex; grid-area: 1 / 1; align-items: center;
-    justify-content: space-between; height: 34px; padding: 0 11px;
+    justify-content: space-between; height: var(--lf-shot-rail-size); padding: 0 11px;
     border: 1px solid var(--rule); border-bottom: 0;
     border-radius: var(--r) var(--r) 0 0; color: var(--muted);
     background: var(--card); }
@@ -2325,6 +2369,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
       margin-inline-start: auto;
       position: sticky;
       top: calc(var(--lf-top) + var(--sp-3));
+      --lf-head-inset: var(--sp-3);
     }
     :scope:is(lf-ask)::after { content: ""; display: block; clear: both; }
   }
@@ -2332,15 +2377,17 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 :where(:scope:is(lf-ask):has(> :is(h1, h2, h3, h4, h5, h6):first-child ~ :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options:last-child)) {
   margin-block-start: var(--sp-4);
 }
-/* An Ask that is a full-height workspace's body (`--lf-full-height` on main, layouts.css) and is a
- * heading and one answer gives the answer what the heading leaves, so a widget composing
- * its own regions there, such as a playground, fills the window. With context between
- * the two there is no one box to give the height to, so every part keeps its own.
- * `--lf-full-height` inherits, so the query holds for every Ask in the workspace; only
- * the one that is main's child is the body, and an Ask in a pane stays in block flow. */
+/* An Ask told it has a definite height to fill (`--lf-full-height`, layouts.css), as a
+ * full-height workspace's body is, that is a heading and one answer gives the answer
+ * what the heading leaves and tells it so, so a widget composing its own regions there,
+ * such as a playground, fills the window. With context between the two there is no one
+ * box to give the height to, so every part keeps its own. */
 @container style(--lf-full-height: 1) {
-  :scope:is(main > lf-ask) { display: flex; flex-direction: column; }
-  :scope:is(main > lf-ask) > :nth-child(2):last-child {
+  :scope:is(lf-ask) { display: flex; flex-direction: column; }
+  :scope:is(lf-ask):has(> :nth-child(2 of :not(script, style, template)):nth-last-child(1 of :not(script, style, template))) {
+    --lf-full-height: inherit;
+  }
+  :scope:is(lf-ask) > :nth-child(2 of :not(script, style, template)):nth-last-child(1 of :not(script, style, template)) {
     flex: 1 1 0;
     min-block-size: 0;
     margin-block-end: 0;

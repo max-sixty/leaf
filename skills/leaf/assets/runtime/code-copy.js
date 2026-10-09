@@ -38,7 +38,8 @@ export function copyCodeBlock(pre, source) {
     copy.tooltip = "none";
     copy.addEventListener("click", () => (copy.value = source()), { capture: true });
     pre.addEventListener("pointerdown", (event) => {
-      if (event.pointerType === "touch" && copy.isConnected) focusDestination(pre);
+      if (event.pointerType === "touch" && copy.isConnected)
+        focusDestination(pre, "move");
     });
     pre.addEventListener("pointerenter", () => refreshAnchorView(copy));
     controls.set(pre, copy);
@@ -81,7 +82,7 @@ export function watchCodeBlocks() {
         copy.addEventListener(
           "keydown",
           (event) => {
-            if (event.key === "Tab") focusDestination(pre);
+            if (event.key === "Tab") focusDestination(pre, "step");
           },
           options,
         );
@@ -99,7 +100,7 @@ export function watchCodeBlocks() {
             event.preventDefault();
             refreshAnchorView(copy);
             const button = copy.shadowRoot?.querySelector("button");
-            if (button) focusDestination(button);
+            if (button) focusDestination(button, "move");
           },
           options,
         );

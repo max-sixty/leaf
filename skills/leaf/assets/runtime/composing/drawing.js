@@ -32,12 +32,14 @@
  * drawing stands over into the record, for whoever reads the comment without the page.
  */
 
-import { targetElement, targetPlace } from "../resolved-target.js";
-import { clippedContents, documentPoint, shownBox } from "../geometry.js";
+import { exactTarget } from "../resolved-target.js";
+import { captureDrawingFrame, resolveDrawingFrame } from "./drawing-geometry.js";
+import { clippedContents, elementFrame } from "../geometry.js";
 import { clamp, overlaps } from "../rect.js";
 import { COLLAPSE } from "../collapse.js";
 import {
   cut,
+  closestAcross,
   elementFromPointAcross,
   elementOver,
   leafSurface,
@@ -55,7 +57,6 @@ import {
   MAX_DRAWING_POINTS,
   MAX_DRAWING_STROKES,
   MAX_DRAWING_SAYS_LENGTH,
-  strokesIn,
 } from "./drawing-record.js";
 
 const MIN_DISTANCE = 2;
@@ -239,7 +240,10 @@ export function createDrawingController({
     if (atPointer.x < 0) return null;
     const at = elementFromPointAcross(atPointer.x, atPointer.y);
     if (!at || leafSurface(at)) return null;
-    return aimTargetAt(at) ?? targetNearest(atPointer);
+    const target = aimTargetAt(at) ?? targetNearest(atPointer);
+    return (
+      target && { ...target, frameReference: captureDrawingFrame(target.element, at) }
+    );
   }
 
   // The drawing a draft already holds. Read off the durable drafts rather than
@@ -252,10 +256,7 @@ export function createDrawingController({
   // Where a draft's element stands now: the element, or null once it has gone or its
   // data moved on, which leaves its drawing no frame to be drawn in or added to.
   function targetOf(anchor) {
-    const found = resolveAnchor(anchor, "");
-    return found && found.status !== "outdated"
-      ? (targetElement(found) ?? targetPlace(found))
-      : null;
+    return exactTarget(resolveAnchor(anchor, ""));
   }
 
   // A later stroke of the session goes to the first stroke's draft wherever it starts, in
@@ -268,35 +269,21 @@ export function createDrawingController({
     return element ? { anchor: session.anchor, element } : null;
   }
 
-  function strokeFrom(points, targetBox) {
-    const origin = documentPoint(targetBox.left, targetBox.top);
-    return points.map(({ left, top }) => [
-      rounded(
-        clamp(left - origin.left, -DRAWING_COORDINATE_LIMIT, DRAWING_COORDINATE_LIMIT),
-      ),
-      rounded(
-        clamp(top - origin.top, -DRAWING_COORDINATE_LIMIT, DRAWING_COORDINATE_LIMIT),
-      ),
-    ]);
-  }
+  // All points enter the same target-local frame when sampled. Existing
+  // strokes keep that frame as later strokes join, independent of the target's size.
+  const strokesWith = (held, { points }) => [...(held?.strokes ?? []), points];
 
-  // A stroke's points after the drawing its draft holds. Strokes drawn before the target
-  // resized are scaled to its current size, so all the strokes share one box.
-  const strokesWith = (held, { points, box }) => [
-    ...(held ? strokesIn(held, box) : []),
-    strokeFrom(points, box),
-  ];
-
-  // The drawing's geometry, and the size of the box its offsets were drawn in, which is
+  // The drawing's geometry, and the target's size at this capture, which is
   // what places a mark on a picture that has no words. The window is read with the box,
   // so the two describe the same layout: the one the agent's picture of the comment lays
   // the page out in again.
-  function drawingOf(strokes, box) {
+  function drawingOf(strokes, frame, reference) {
     const { clientWidth, clientHeight } = document.documentElement;
     return {
       format: DRAWING_FORMAT,
       strokes,
-      box: [rounded(box.width), rounded(box.height)],
+      box: [rounded(frame.width), rounded(frame.height)],
+      ...(reference && { frame: reference }),
       viewport: [clientWidth, clientHeight],
       scheme: shownScheme(),
     };
@@ -306,18 +293,28 @@ export function createDrawingController({
   // every stroke it then holds: the reading walks the page's text, and the geometry above
   // is rebuilt on every frame of a stroke. So is `at`, where the box stands in the
   // anchor's section, which outlives the element a data revision replaces.
-  function captured(strokes, box, anchor) {
+  function captured(strokes, frame, anchor, reference) {
     const section = sectionOf(anchor);
-    const frame = section && shownBox(section);
+    const sectionFrame = section && elementFrame(section);
+    const placement = sectionFrame?.matrix.inverse().multiply(frame.matrix);
     const drawing = {
-      ...drawingOf(strokes, box),
-      ...(frame?.width &&
-        frame?.height && {
-          at: [rounded(box.left - frame.left), rounded(box.top - frame.top)],
-        }),
+      ...drawingOf(strokes, frame, reference),
+      ...(placement && {
+        at: [
+          placement.a,
+          placement.b,
+          placement.c,
+          placement.d,
+          placement.e,
+          placement.f,
+        ].map(rounded),
+      }),
     };
     const said = wordsUnder(
-      drawing.strokes.flat().map(([x, y]) => [box.left + x, box.top + y]),
+      drawing.strokes.flat().map(([x, y]) => {
+        const point = frame.matrix.transformPoint({ x, y });
+        return [point.x, point.y];
+      }),
     );
     if (!said) return drawing;
     const says =
@@ -332,14 +329,15 @@ export function createDrawingController({
     // A projection may replace the target during capture. Resolve the semantic anchor
     // again so the stroke follows a valid replacement and cancels if it disappeared.
     const target = targetOf(stroke.anchor);
-    const box = target && shownBox(target);
-    if (!box?.width || !box?.height) {
+    const source = target && resolveDrawingFrame(target, stroke.frameReference);
+    const frame = source && elementFrame(source);
+    if (!frame) {
       stroke.invalid = true;
       shiftDrawingPaint();
       return false;
     }
     stroke.target = target;
-    stroke.box = box;
+    stroke.frame = frame;
     const screen = { x, y };
     const prior = stroke.lastScreen;
     if (prior) {
@@ -348,9 +346,14 @@ export function createDrawingController({
       stroke.distance += distance;
     }
     stroke.lastScreen = screen;
-    // Samples stay in the document plane. One target-relative origin is chosen when the
-    // stroke is framed, so layout movement cannot mix coordinate bases.
-    stroke.points.push(documentPoint(x, y));
+    // Capture the target-local point now, where the target and pointer were read
+    // together. Later layout or an enclosing scroll carries earlier points with the
+    // target rather than reinterpreting their origin on the next pointer movement.
+    const local = frame.matrix.inverse().transformPoint({ x, y });
+    stroke.points.push([
+      rounded(clamp(local.x, -DRAWING_COORDINATE_LIMIT, DRAWING_COORDINATE_LIMIT)),
+      rounded(clamp(local.y, -DRAWING_COORDINATE_LIMIT, DRAWING_COORDINATE_LIMIT)),
+    ]);
     if (stroke.points.length > MAX_DRAWING_POINTS)
       stroke.points = stroke.points.filter(
         (_point, index, points) => index % 2 === 0 || index === points.length - 1,
@@ -367,14 +370,17 @@ export function createDrawingController({
   function begin(event) {
     if (!drawModeOn || !event.isPrimary || event.button !== 0) return;
     const origin = event.composedPath()[0];
-    // Runtime surfaces remain operable wherever their owner seats them.
-    if (leafSurface(origin)) return;
+    // Runtime surfaces and widget offers remain operable wherever their owner seats them.
+    if (leafSurface(origin) || closestAcross(origin, "[data-lf-offer]")) return;
     claimThroughClick = true;
     claimedPointer = event.pointerId;
     claim(event);
     const target = sessionTarget() ?? targetAtPointer();
-    const box = target && shownBox(target.element);
-    if (!box?.width || !box?.height) {
+    const held = target && heldDrawing(target.anchor);
+    const reference = held ? held.frame : target?.frameReference;
+    const source = target && resolveDrawingFrame(target.element, reference);
+    const frame = source && elementFrame(source);
+    if (!frame) {
       announce("Draw on or beside something on the page.");
       return;
     }
@@ -387,7 +393,8 @@ export function createDrawingController({
     event.target.setPointerCapture(event.pointerId);
     stroke = {
       anchor: target.anchor,
-      box,
+      frameReference: reference,
+      frame,
       distance: 0,
       lastScreen: null,
       points: [],
@@ -436,8 +443,9 @@ export function createDrawingController({
     const held = heldDrawing(completed.anchor);
     const drawing = captured(
       strokesWith(held, completed),
-      completed.box,
+      completed.frame,
       completed.anchor,
+      completed.frameReference,
     );
     session = { anchor: completed.anchor };
     lastDrawn = { anchor: completed.anchor };
@@ -462,7 +470,7 @@ export function createDrawingController({
   // Take back a drawing's last stroke: the named draft's, from its composer's control, or
   // the undo target's. The record loses its last stroke in its own frame, so a drawing
   // whose element has gone can still be taken apart from its box. Where the element is
-  // shown, the remaining strokes are reframed in its current box and read again for the
+  // shown, the remaining strokes keep their coordinates and are read again for the
   // words they stand over; where it is not, the words go, since they spoke for strokes
   // that are no longer all there. The last stroke taken back takes the drawing with it.
   function undoStroke(anchor = undoTarget()?.anchor) {
@@ -472,16 +480,17 @@ export function createDrawingController({
       return;
     }
     const target = targetOf(anchor);
-    const box = target && shownBox(target);
-    const shown = Boolean(box?.width && box?.height);
-    const strokes = (shown ? strokesIn(held, box) : held.strokes).slice(0, -1);
+    const source = target && resolveDrawingFrame(target, held.frame);
+    const frame = source && elementFrame(source);
+    const shown = Boolean(frame);
+    const strokes = held.strokes.slice(0, -1);
     const { says, ...unread } = held;
     replaceDrawing(
       anchor,
       !strokes.length
         ? null
         : shown
-          ? captured(strokes, box, anchor)
+          ? captured(strokes, frame, anchor, held.frame)
           : { ...unread, strokes },
     );
     announce(
@@ -529,7 +538,11 @@ export function createDrawingController({
   function activeDrawing() {
     if (!stroke || stroke.points.length < 2) return null;
     return {
-      drawing: drawingOf(strokesWith(heldDrawing(stroke.anchor), stroke), stroke.box),
+      drawing: drawingOf(
+        strokesWith(heldDrawing(stroke.anchor), stroke),
+        stroke.frame,
+        stroke.frameReference,
+      ),
       target: stroke.target,
       className: "lf-drawing-active",
     };
@@ -540,12 +553,15 @@ export function createDrawingController({
   const detached = new WeakMap();
   function inSection(held) {
     if (!detached.has(held)) {
-      const [left, top] = held.at;
-      const { box, ...unframed } = held;
+      const matrix = new window.DOMMatrix(held.at);
+      const { box, frame, ...unframed } = held;
       detached.set(held, {
         ...unframed,
         strokes: held.strokes.map((points) =>
-          points.map(([x, y]) => [x + left, y + top]),
+          points.map(([x, y]) => {
+            const point = matrix.transformPoint({ x, y });
+            return [point.x, point.y];
+          }),
         ),
       });
     }
@@ -556,8 +572,13 @@ export function createDrawingController({
   // element stood once a revision took the element away; null where the section has gone
   // too, which leaves the ink nowhere to be drawn and Draw mode's undo nothing to aim at.
   function inkFrame(anchor, held) {
-    const target = targetOf(anchor);
-    if (target) return { target, drawing: held, detached: false };
+    const found = resolveAnchor(anchor, "");
+    const target = exactTarget(found);
+    if (target && resolveDrawingFrame(target, held.frame))
+      return { target, drawing: held, detached: false };
+    // A temporarily hidden visual part can return with its original frame.
+    // Its containing widget is a travel fallback, not a place to park its ink.
+    if (found?.status === "fallback") return null;
     const section = held.at && sectionOf(anchor);
     return section
       ? { target: section, drawing: inSection(held), detached: true }
@@ -685,6 +706,7 @@ export function createDrawingController({
     setDrawMode,
     undoStroke,
     removeDrawing,
+    target: targetOf,
     drawings: () => {
       const active = activeDrawing();
       return [...draftDrawings(active && stroke), ...(active ? [active] : [])];

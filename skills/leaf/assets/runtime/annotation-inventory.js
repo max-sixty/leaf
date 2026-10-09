@@ -38,7 +38,7 @@ import { placeOf } from "./standing-target.js";
 import { scrollBehavior } from "./motion.js";
 
 export function createAnnotationInventory({
-  openAsks,
+  readAsks,
   comparisonBase,
   comparisonChanges,
   inlineComparison,
@@ -321,7 +321,7 @@ export function createAnnotationInventory({
       );
     }
 
-    const asks = openAsks();
+    const asks = readAsks().user;
     for (const ask of asks) {
       const id = ask.id;
       const target = elementById(id);
@@ -336,7 +336,7 @@ export function createAnnotationInventory({
         // glyph already shows.
         label: addressableLabel(target) || null,
         activate: () => {
-          const standing = openAsks();
+          const standing = readAsks().user;
           const next = standing.find((candidate) => candidate.id === id);
           if (next) goToAsk(next, standing);
         },

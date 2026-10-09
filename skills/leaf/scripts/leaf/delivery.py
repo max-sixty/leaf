@@ -170,7 +170,9 @@ def current_responses(page_dir: Path, events: list[dict]) -> dict[str, dict]:
     }
 
 
-def batch_data(page_dir: Path, transaction, batch: list[dict]) -> dict:
+def batch_data(
+    page_dir: Path, transaction, batch: list[dict], *, responses: dict | None = None
+) -> dict:
     """Capture one complete ordered page batch, less what `freeze_delivery` writes
     for its transport: the address of a thread reply, and the `handling` that follows
     from it."""
@@ -195,7 +197,8 @@ def batch_data(page_dir: Path, transaction, batch: list[dict]) -> dict:
         thread_widgets(thread_structure(events), names),
         within,
     )
-    responses = current_responses(page_dir, events)
+    if responses is None:
+        responses = current_responses(page_dir, events)
     by_id = {event["id"]: event for event in events}
     words = GestureWords(events, registry, revisions_on_disk(page_dir))
 
@@ -589,7 +592,7 @@ def receive_held(
     for batch in payload["batches"]:
         try:
             pages.append(receive_one(batch, session_id, deadline=deadline))
-        except FileNotFoundError, ReceiptRefused, TimeoutError:
+        except (FileNotFoundError, ReceiptRefused, TimeoutError):
             continue
     return pages
 

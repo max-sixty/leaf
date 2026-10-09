@@ -75,6 +75,8 @@
 import {
   answers,
   bindings,
+  bindingEnabled,
+  declaredBindings,
   allBindings,
   lineOf,
   titleOf,
@@ -93,16 +95,10 @@ import {
   universalCommandReference,
 } from "./register.js";
 import { EVERYTHING, nativeClaimAt } from "./text-entry.js";
-import { takesLetters } from "../focus.js";
-import {
-  focused,
-  recoveredLabelFocus,
-  scopesAt,
-  scopesFor,
-  scopeIdentity,
-} from "./scopes.js";
+import { takesLetters, focused, recoveredLabelFocus } from "../focus.js";
+import { scopesAt, scopesFor, scopeIdentity } from "./scopes.js";
 import { nativeLayers } from "./layer-stack.js";
-import { shadowHost, under, excludedByInert } from "../shadow.js";
+import { shadowHost, renderedUnder, excludedByInert } from "../shadow.js";
 
 // The two questions a scope answers, named apart because the surfaces ask them apart: the
 // reference lists a scope the page *has* and filters its rows by liveness only where the user
@@ -187,9 +183,11 @@ const escapeOrder = (scopes, active) => {
   for (const scope of outer) {
     const at = root.get(scope);
     if (depth.get(scope) < 1 || at === document) continue;
-    if (!surface || under(at, surface)) surface = at;
+    if (!surface || renderedUnder(at, surface)) surface = at;
   }
-  const within = surface ? outer.filter((s) => under(root.get(s), surface)) : [];
+  const within = surface
+    ? outer.filter((s) => renderedUnder(root.get(s), surface))
+    : [];
   // Stable, so two scopes rooted at the same node keep the register's order.
   within.sort((a, b) => depth.get(a) - depth.get(b));
   const rest = outer.filter((scope) => !within.includes(scope));
@@ -235,7 +233,7 @@ export function stack(binding = null) {
   const visible = modalAt < 0 ? layers : layers.slice(modalAt);
   // The newest native modal is the one boundary the browser makes inert behind it.
   const floor = modalAt < 0 ? null : visible[0].root;
-  const aboveFloor = (scope) => !floor || under(scopeRoot(scope), floor);
+  const aboveFloor = (scope) => !floor || renderedUnder(scopeRoot(scope), floor);
   const top = visible.at(-1) ?? null;
   // The topmost layer also holds the focused control and explicitly inner modes: they
   // stand above the browser's light-dismiss boundary whatever their own root is.
@@ -254,7 +252,7 @@ export function stack(binding = null) {
     const layer = visible[index];
     take(
       (scope) =>
-        under(scopeRoot(scope), layer.root) ||
+        renderedUnder(scopeRoot(scope), layer.root) ||
         (layer === top && foreground(scope) && aboveFloor(scope)),
     );
     parts.push(layer.kind === "modal" ? MODAL_BOUNDARY : POPOVER_BOUNDARY);
@@ -452,16 +450,28 @@ export function dispatchKey(ev, { beforeCommand }) {
 // An action chosen from the reference has no keydown to match, but it still belongs to
 // exactly one live scope. Resolve it through the same innermost-first stack and the same
 // shadowing as a key press.
-function commandMatching(matches) {
+// A deliberately disabled shortcut leaves its command unbound and executable;
+// nearer key claims still constrain every shortcut that remains enabled.
+const reachableBindings = (row, scope, nearer, unclaimedEscape, commands) =>
+  (commands ? declaredBindings(row) : bindings(row)).filter((binding) =>
+    commands && !bindingEnabled(binding)
+      ? true
+      : binding === "Escape"
+        ? unclaimedEscape.has(scopeIdentity(scope))
+        : !nearer.takes(binding),
+  );
+function commandMatching(matches, commands = false) {
   const unclaimedEscape = unclaimedScopes("Escape");
   const nearer = shadow();
   for (const scope of stack()) {
     for (const row of scope.rows) {
       if (!live(row)) continue;
-      const reachable = bindings(row).filter((binding) =>
-        binding === "Escape"
-          ? unclaimedEscape.has(scopeIdentity(scope))
-          : !nearer.takes(binding),
+      const reachable = reachableBindings(
+        row,
+        scope,
+        nearer,
+        unclaimedEscape,
+        commands,
       );
       const entry = commandEntries(row, reachable).find(
         (command) =>
@@ -474,7 +484,7 @@ function commandMatching(matches) {
   }
   return null;
 }
-const commandFor = (id) => commandMatching((command) => command.id === id);
+const commandFor = (id) => commandMatching((command) => command.id === id, true);
 // A contextual surface asks the dispatcher which of its routes to one capability is
 // reachable from the user's current scope, and the box's placeholder names whichever one
 // dispatch would answer. Asked by command id rather than by row, so the surface holds no
@@ -489,17 +499,19 @@ export function activeCommandLabel(ids) {
 // intrinsic key and an Ask alias can share a command id while only one is shadowed.
 // The reference is a modal scope and shadows the page once it opens, so callers take
 // this snapshot before opening it.
-export function availableCommandRoutes() {
+export function availableCommandRoutes({ commands = false } = {}) {
   const routes = new Map();
   const unclaimedEscape = unclaimedScopes("Escape");
   const nearer = shadow();
   for (const scope of stack()) {
     for (const row of scope.rows) {
       if (!live(row)) continue;
-      const reachable = bindings(row).filter((binding) =>
-        binding === "Escape"
-          ? unclaimedEscape.has(scopeIdentity(scope))
-          : !nearer.takes(binding),
+      const reachable = reachableBindings(
+        row,
+        scope,
+        nearer,
+        unclaimedEscape,
+        commands,
       );
       for (const binding of allBindings(row).length ? reachable : [undefined]) {
         for (const command of commandEntries(row, [binding])) {

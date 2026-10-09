@@ -526,8 +526,9 @@
           // box that holds the control answers nothing — the control is inside it — so the
           // walk stops there rather than reading its rank.
           //
-          // A z-index named on the way up stops the walk: it lifts the box past the holder
-          // this would rank, so the reading says what it said before. Position lifts a box
+          // A z-index named on the way up orders its box only inside the stacking context
+          // around it, so the walk goes on from that context, which paints in the
+          // positioned layer around it as a positioned box does. Position lifts a box
           // the same way without naming one — a positioned box leaves its holder's place in
           // the flow to paint in the positioned layer of the nearest ancestor stacking
           // context. A positioned holder still answers for it, since the two paint in that
@@ -547,9 +548,26 @@
             }
             return false;
           };
+          // Ending the walk at the first z-index left the grip's ring reported under a
+          // thread's sticky title, whose z-index lifts it inside the list and no further,
+          // while every pixel of the ring's run was the ring's. The context paints as one
+          // unit, so its own rank answers for everything in it; a static holder above a
+          // static context answers through `clears`, as above a positioned box.
+          const forms = (n) => {
+            const s = getComputedStyle(n);
+            return (
+              stacked(s, above(n)) ||
+              s.position === "fixed" ||
+              s.position === "sticky" ||
+              s.isolation === "isolate" ||
+              s.transform !== "none" ||
+              s.filter !== "none" ||
+              parseFloat(s.opacity) < 1
+            );
+          };
           let under = false;
           let hoisted = false;
-          for (let a = over; a && control >= 0; a = above(a)) {
+          for (let a = over; a && control >= 0;) {
             if (holds(a, el)) break;
             const acs = getComputedStyle(a);
             const ranked = inside.indexOf(a);
@@ -558,8 +576,16 @@
                 hoisted && acs.position === "static" ? clears(el) : ranked > control;
               break;
             }
-            if (acs.zIndex !== "auto") break;
-            if (acs.position !== "static") hoisted = true;
+            if (acs.zIndex !== "auto") {
+              let context = above(a);
+              while (context && !holds(context, el) && !forms(context))
+                context = above(context);
+              a = context;
+              hoisted = false;
+              continue;
+            }
+            if (acs.position !== "static" || forms(a)) hoisted = true;
+            a = above(a);
           }
           // Nothing beneath a box the control paints over is over the ring either, so this
           // side is answered rather than carried on down the stack.

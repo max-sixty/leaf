@@ -6,7 +6,7 @@ import { drawnEdge } from "./drawn-edge.js";
 import { slide } from "./motion.js";
 import { declareOccluder } from "./geometry.js";
 import { currentAuxiliarySurface } from "./auxiliary-surfaces.js";
-import { handBack, letGo } from "./focus.js";
+import { letGo, openLayer, openerOf } from "./focus.js";
 import { keys } from "./keyboard/scopes.js";
 import { pageRung } from "./keyboard/register.js";
 import { rowWalk } from "./walk-position.js";
@@ -164,7 +164,7 @@ export function createDrawers({
   function registerDrawer(key, names, panel, btn, close, paint, side) {
     const entrances = [btn, ...(doors[key] ?? [])];
     const returnDoor = () => {
-      const opened = drawers.get(key)?.openedBy;
+      const opened = openerOf(panel);
       return opened && opened !== btn && opened.checkVisibility()
         ? opened
         : bannerControlDoor(btn);
@@ -180,8 +180,9 @@ export function createDrawers({
       // Every drawer list ends above the bottom bar, which stands over the drawer in
       // both postures.
       underBand: true,
-      focus: () =>
+      landing: () =>
         panel.querySelector(".lf-drawer-list button, .lf-drawer-list a[href]") ?? panel,
+      opener: returnDoor,
       arrival: "presentation",
       show({ phase }) {
         dismissBannerControls();
@@ -195,14 +196,12 @@ export function createDrawers({
         panel.classList.toggle("open", true);
         if (phase === "gesture") slide(panel, side, "in");
       },
-      hide({ returnFocus, swap }) {
+      hide({ swap }) {
         for (const door of entrances) keeps(door, "aria-expanded", "false");
         if (!panel.classList.contains("open")) return;
-        // Before the slide, which makes the drawer inert and would drop focus to body.
-        if (returnFocus && panel.contains(document.activeElement))
-          handBack(returnDoor());
-        // The door a press opened it from is that opening's, not the next one's.
-        drawers.get(key).openedBy = null;
+        // The door a press opened it from is that opening's, not the next one's; the
+        // surfaces' owner read it (`opener`) before this hide.
+        openLayer(panel, null);
         // Slid out before hidden, and hidden only if still closed on arrival — a
         // reopen mid-slide leaves the panel standing rather than racing the finish.
         const out = swap ? null : slide(panel, side, "out");
@@ -215,7 +214,7 @@ export function createDrawers({
         else hide();
       },
     });
-    drawers.set(key, { names, panel, btn, close, entrances, openedBy: null });
+    drawers.set(key, { names, panel, btn, close, entrances });
   }
   // The painters are thunks: each drawer's owner imports this module back, so neither
   // painter is a binding this module can read as it evaluates.
@@ -255,7 +254,7 @@ export function createDrawers({
       drawer.btn.classList.add("lf-auxiliary-toggle");
       for (const door of drawer.entrances) {
         door.onclick = (event) => {
-          drawer.openedBy = door;
+          openLayer(drawer.panel, door);
           setOpenDrawer(drawerIsOpen(key) ? null : key, {
             focus: pressIsKeyboardActivation(event),
           });
@@ -291,10 +290,7 @@ export function createDrawers({
           description: `Close the ${drawers.get(currentDrawer()).names[1]}`,
           // A drawer's parent is the document, so its step lands the user there rather
           // than on the edge button that reopens it.
-          out: () => {
-            setOpenDrawer(null, { returnFocus: false });
-            letGo();
-          },
+          out: () => setOpenDrawer(null, { land: letGo }),
         }
       : null,
   );

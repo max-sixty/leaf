@@ -1,7 +1,9 @@
 """The picture of a drawing comment, as the user saw it.
 
-A drawing's ink replays scaled to its element's current box, so once the page reflows
-the agent cannot tell from the page in front of it what the user's strokes crossed.
+A drawing's ink keeps local coordinates in its recorded frame: native visual coordinates
+inside its semantic target, or HTML pixels. Intrinsic resizing carries ink with the
+content. Once text reflows under it, the current page no longer shows what the
+user's strokes crossed.
 The record holds what reproduces the moment: the comment's immutable `revision`, and
 the `viewport` and `scheme` of the window it was drawn in. `leaf page picture` serves
 that revision with the log as it stood once the comment was appended, opens it in the

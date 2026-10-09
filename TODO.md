@@ -179,12 +179,10 @@ and its chrome coordinate.
   newcomer out of view rather than pushing down the card being read. The user sees
   it only in the count; give that arrival a visible route while preserving the
   current reading.
-- **Hold the shipped workspaces to the overflow advice.** `alert-review` shows one
-  alert's decision at a time, but `page check --render` still advises that its queue
-  (`ar-queue`) runs 106px past its region at every width from 720 to 1920px, and
-  `rust-sort`'s stage pane 100px at 720px. Fit both, then make
-  `test_page_fixture_renders` fail on that advice for workspace examples, with
-  `rust-sort`'s source pane the one reader allowed to scroll; today it asserts only
+- **Hold the shipped workspaces to the overflow advice.** `page check --render` still
+  advises that `rust-sort`'s stage pane runs 100px past its region at 720px. Fit it,
+  then make `test_page_fixture_renders` fail on that advice for workspace examples,
+  with `rust-sort`'s source pane the one reader allowed to scroll; today it asserts only
   the gate's failures ([plan](notes/chrome-and-covers.md)).
 - **Decide whether the desktop bottom bar goes.** Its key hints would move behind `?`
   and its status into the banner; the bar is how a desktop user learns the keys
@@ -198,9 +196,9 @@ and its chrome coordinate.
 - **Let a block be a workspace.** `feature-gallery` shows a workspace inside a column
   page, and since `layout-workspace` works only on `main`, it restates the Layout's
   full-height switch (720px by 480px) and its pane scrolling in about 20 lines. The pane
-  rules can't simply key on `--lf-full-height`: they say which panes the workspace sizes
-  by where they stand under `main`, and the property is inherited by every descendant.
-  Taking the Layout onto a block also means the runtime's layout region
+  rules now key on `--lf-full-height`, which a box sets for the children it sizes and
+  which does not inherit, so a block workspace needs only to set it on its body and its
+  grid of panes. Taking the Layout onto a block also means the runtime's layout region
   (`syncLayoutRegion`) and the render check's held-panes reading (`heldPanes`), which
   both look only at `main`, have to look at that block too. It waits for a page that
   needs it; a workspace page's own pane grid stays plain CSS.

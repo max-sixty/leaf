@@ -5,6 +5,7 @@ import re
 import threading
 from copy import deepcopy
 from datetime import datetime, timedelta
+from itertools import pairwise
 
 import pytest
 from click.testing import CliRunner
@@ -34,6 +35,7 @@ from leaf.render_gate.preview import preview_server
 from leaf.render_gate.readings import DevtoolsIssues
 from leaf.schema import ELEMENT_ID
 from leaf.validation import compatibility as validation_model
+from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ASKS_IN_ORDER,
@@ -111,6 +113,7 @@ from render_harness import (
     leaf_page,
     open_page,
     opened_tab,
+    page_comment,
     page_registry,
     pane_posture,
     panel_settled,
@@ -444,6 +447,248 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve, recon
             held.pop(0).continue_()
 
 
+def test_diff_coordinates_keep_identity_separate_from_source_navigation(browser, serve):
+    """An analyzer's old-source fallback must never retarget a durable new address."""
+    url = serve(
+        leaf_page(
+            "source coordinates",
+            '<h1 id="title">Call locations</h1>'
+            '<lf-call-diff id="calls" source="calls-data" diff="patch"></lf-call-diff>'
+            '<lf-diff id="patch" source="patch-data"><pre></pre></lf-diff>',
+        ),
+        packages=("diff",),
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "patch-data",
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        "@@ -5,4 +8,4 @@\n shifted()\n-removed()\n+added()\n next()\n last()\n",
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "calls-data",
+        "calldiff diff main → feature\n  shifted()  app.py:8\n"
+        "  absent_new()  app.py:6\n- removed()  app.py:6\n"
+        "+ added()  app.py:9\n  last()  app.py:11",
+    )
+    page = open_page(browser, url)
+    diff = page.locator("#patch")
+
+    def resolved(key):
+        return diff.evaluate(
+            "(diff, key) => diff.lfDataDatum(JSON.stringify(key))?.dataset.lfDatum ?? null",
+            key,
+        )
+
+    assert resolved(["app.py", "new", 5]) is None
+    assert resolved(["app.py", "new", 6]) is None
+    assert resolved(["app.py", "both", 5, 99]) is None
+    assert resolved(["app.py", "both", 5, 8]) == '["app.py","both",5,8]'
+    assert resolved(["app.py", "old", 8]) == '["app.py","both",8,11]'
+    assert resolved(["app.py", "new", 8]) == '["app.py","both",5,8]'
+    assert resolved(["app.py", "file", "extra"]) is None
+
+    links = page.locator("#calls .lf-call-location:visible")
+    for index, key in enumerate(
+        [
+            '["app.py","both",5,8]',
+            None,
+            '["app.py","old",6]',
+            '["app.py","new",9]',
+            '["app.py","both",8,11]',
+        ]
+    ):
+        link = links.nth(index)
+        location = link.inner_text()
+        link.click()
+        if key is None:
+            expect(page.locator(".lf-live")).to_have_text(
+                f"{location} is not present in the exact patch"
+            )
+            continue
+        target = page.locator(f"#patch [data-lf-datum='{key}']")
+        expect(target).to_be_focused()
+        expect(target).to_be_in_viewport()
+        expect(page.locator(".lf-live")).to_have_text(
+            f"Opened {location} in the exact patch"
+        )
+
+    # A note describes its exact holder, including the side, rather than reconstructing
+    # a section-only address that makes two different source lines sound identical.
+    for side, number in [("old", 6), ("new", 9)]:
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": f"About the {side} line",
+                "anchor": {
+                    "section": "patch",
+                    "datum": json.dumps(
+                        ["app.py", side, number], separators=(",", ":")
+                    ),
+                },
+            },
+        )
+    told(page)
+    notes = page.locator(".lf-mark-note")
+    expect(notes).to_have_count(2)
+    names = notes.evaluate_all(
+        "notes => notes.map(note => note.getAttribute('aria-label'))"
+    )
+    assert any("old line 6" in name and "app.py" in name for name in names), names
+    assert any("new line 9" in name and "app.py" in name for name in names), names
+    for key in ['["app.py","old",6]', '["app.py","new",9]']:
+        assert page.locator(f"#patch [data-lf-datum='{key}']").evaluate(
+            "line => line.ariaDetailsElements.some(note => note.matches('.lf-mark-note'))"
+        )
+
+    # Different exact context identities may share one old-side number in admitted
+    # overlapping hunks. A source request must not choose among them by row order.
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "patch-data",
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        "@@ -5 +8 @@\n same()\n@@ -5 +20 @@\n same()\n",
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "calls-data",
+        "calldiff diff main → feature\n- same()  app.py:5",
+    )
+    told(page)
+    expect(links).to_have_count(1)
+    links.first.click()
+    expect(page.locator(".lf-live")).to_have_text(
+        "app.py:5 is not present in the exact patch"
+    )
+    assert resolved(["app.py", "source", "old", 5]) is None
+    assert resolved(["app.py", "old", 5]) is None
+    assert resolved(["app.py", "both", 5, 8]) == '["app.py","both",5,8]'
+    assert resolved(["app.py", "both", 5, 20]) == '["app.py","both",5,20]'
+    assert resolved(["app.py", "new", 8]) == '["app.py","both",5,8]'
+    assert resolved(["app.py", "new", 20]) == '["app.py","both",5,20]'
+
+
+@pytest.mark.parametrize("manifest", [False, True])
+def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
+    browser, serve, manifest
+):
+    """Old source b.py and durable destination b.py identify different rename rows."""
+    url = serve(
+        leaf_page(
+            "renamed source paths",
+            '<h1 id="title">Renamed calls</h1>'
+            '<lf-call-diff id="calls" source="calls-data" diff="patch"></lf-call-diff>'
+            '<lf-diff id="patch" source="patch-data" collapsed><pre></pre></lf-diff>',
+        ),
+        packages=("diff",),
+    )
+    patch = ""
+    for previous, current in [("a.py", "b.py"), ("b.py", "c.py")]:
+        patch += (
+            f"diff --git a/{previous} b/{current}\n"
+            f"similarity index 50%\nrename from {previous}\nrename to {current}\n"
+            f"--- a/{previous}\n+++ b/{current}\n"
+            f"@@ -1,2 +1,2 @@\n context()\n-removed_{previous[0]}()\n+added_{current[0]}()\n"
+        )
+    patch += (
+        "diff --git a/a.py b/a.py\nnew file mode 100644\n"
+        "--- /dev/null\n+++ b/a.py\n@@ -0,0 +1 @@\n+new_a()\n"
+    )
+    data_model.cmd_data_set(
+        serve.page_dir, "patch-data", patch_manifest(patch) if manifest else patch
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "calls-data",
+        "calldiff diff main → feature\n- removed_b()  b.py:2\n"
+        "- removed_a()  a.py:2\n+ new_a()  a.py:1\n+ added_b()  b.py:2",
+    )
+    page = open_page(browser, url)
+    expect(page.locator("#patch .lf-diff-head").nth(0)).to_contain_text("a.py → b.py")
+    expect(page.locator("#patch .lf-diff-head").nth(1)).to_contain_text("b.py → c.py")
+    links = page.locator("#calls .lf-call-location:visible")
+    for index, key in enumerate(
+        [
+            '["c.py","old",2]',
+            '["b.py","old",2]',
+            '["a.py","new",1]',
+            '["b.py","new",2]',
+        ]
+    ):
+        links.nth(index).click()
+        line = page.locator(f"#patch [data-lf-datum='{key}']")
+        expect(line).to_be_focused()
+        expect(line).to_be_in_viewport()
+        page.keyboard.press("c")
+        expect(page.locator("#lf-composer-quote")).to_contain_text(json.loads(key)[0])
+        expect(page.locator(".lf-fab-input")).to_be_focused()
+        page.keyboard.press("Escape")
+    # Source navigation never replaces the projection's destination identity.
+    assert (
+        page.locator("#patch").evaluate(
+            'diff => diff.lfDataDatum(\'["b.py","old",2]\').textContent.trim()'
+        )
+        == "removed_a()"
+    )
+
+    # The parser and manifest producer admit repeated preimages even though a real
+    # Git comparison ordinarily has only one rename per source. Such navigation has
+    # no unique owner; canonical destination identities still name each file exactly.
+    header = page.locator("#patch .lf-diff-head").nth(1)
+    header.evaluate("node => { node.dataset.identityProbe = 'held'; node.focus(); }")
+    stat_before = header.locator(".lf-diff-stat").bounding_box()
+    long_preimage = (
+        patch.replace("a/b.py b/c.py", "a/legacy/very/long/original.py b/c.py")
+        .replace("rename from b.py", "rename from legacy/very/long/original.py")
+        .replace("--- a/b.py", "--- a/legacy/very/long/original.py")
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "patch-data",
+        patch_manifest(long_preimage) if manifest else long_preimage,
+    )
+    told(page)
+    expect(header).to_contain_text("legacy/very/long/original.py → c.py")
+    stat_long = header.locator(".lf-diff-stat").bounding_box()
+    assert stat_long["x"] == pytest.approx(stat_before["x"], abs=0.5)
+    assert stat_long["y"] == pytest.approx(stat_before["y"], abs=0.5)
+    ambiguous = (
+        patch.replace("a/b.py b/c.py", "a/a.py b/c.py")
+        .replace("rename from b.py", "rename from a.py")
+        .replace("--- a/b.py", "--- a/a.py")
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "patch-data",
+        patch_manifest(ambiguous) if manifest else ambiguous,
+    )
+    told(page)
+    expect(header).to_contain_text("a.py → c.py")
+    expect(header).to_have_attribute("data-identity-probe", "held")
+    expect(header).to_be_focused()
+    stat_after = header.locator(".lf-diff-stat").bounding_box()
+    assert stat_after["x"] == pytest.approx(stat_before["x"], abs=0.5)
+    assert stat_after["y"] == pytest.approx(stat_before["y"], abs=0.5)
+    links.nth(1).click()
+    expect(page.locator(".lf-live")).to_have_text(
+        "a.py:2 is not present in the exact patch"
+    )
+    assert page.locator("#patch").evaluate(
+        "(diff, key) => diff.lfDataDatum(JSON.stringify(key)) === null",
+        ["a.py", "source", "old", 2],
+    )
+    assert (
+        page.locator("#patch").evaluate(
+            "(diff, key) => diff.lfDataDatum(JSON.stringify(key)).textContent.trim()",
+            ["c.py", "old", 2],
+        )
+        == "removed_b()"
+    )
+
+
 def test_call_diff_projects_stable_commentable_rows(browser, serve):
     authored = leaf_page(
         "call diff",
@@ -454,8 +699,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
 <lf-diff id="patch" source="review-patch" collapsed review><pre></pre></lf-diff>
 """,
     )
-    # pr-review's lf-call-diff points at an lf-diff, which travels in `diff`.
-    url = serve(authored, packages=("pr-review", "diff"))
+    url = serve(authored, packages=("diff",))
     call_diff = """calldiff diff main → feature
 
   Limiter.bucket_key(self, request)  gateway/limits.py:38
@@ -698,7 +942,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     data_model.cmd_data_set(
         serve.page_dir,
         "request-call-diff",
-        "calldiff diff main → shifted\n  shifted_call()  gateway/limits.py:100",
+        "calldiff diff main → shifted\n  shifted_call()  gateway/limits.py:102",
     )
     told(page)
     shifted = page.locator(
@@ -707,7 +951,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     root_location.click()
     expect(shifted).to_be_in_viewport()
     expect(page.locator(".lf-live")).to_have_text(
-        "Opened gateway/limits.py:100 in the exact patch"
+        "Opened gateway/limits.py:102 in the exact patch"
     )
 
     data_model.cmd_data_set(serve.page_dir, "request-call-diff", "not CallDiff output")
@@ -751,7 +995,7 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
             '<lf-call-diff id="request-calls" source="request-call-diff" diff="patch">'
             '</lf-call-diff><lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>',
         ),
-        packages=("pr-review", "diff"),
+        packages=("diff",),
     )
     header = "calldiff diff main → feature\n"
     first = "  Limiter.first(self)  gateway/limits.py:10\n+ ├─ one()  gateway/limits.py:11\n"
@@ -1459,16 +1703,34 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
 
 
 def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
-    """A focused review is a wide page, not prose followed by a narrow widget.
+    """A focused review is a workspace, not prose followed by a narrow widget.
 
-    The case picker never taxes the evidence width, the disposition is available before
-    the pixels, and a tall mobile pair keeps its authored focus width side by side in an
-    evidence stage as tall as the pair, which the page scrolls through. Capture facts
-    follow the comparison rather than delaying it.
+    The case picker never taxes the evidence width, and the disposition is available
+    before the pixels. The review fills the window, and Fit shrinks a tall mobile pair,
+    side by side, to fit the evidence pane, so the reader sees all of it and nothing
+    scrolls; in a window too short to fit it at a readable scale the pair takes its
+    width and the pane scrolls it. Capture facts follow the comparison rather than
+    delaying it.
     """
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
-    resized(page, 1366, 768)
+    resized(page, 1440, 900)
     widget = page.locator("#visual-review-run")
+    contained = widget.evaluate(
+        """node => {
+          const body = node.querySelector('.lf-vr-cases');
+          const frames = [...node.querySelectorAll(
+            '.lf-vr-case:not([hidden]) .lf-shotframe')];
+          return {bodyBottom: body.getBoundingClientRect().bottom,
+                  framesBottom: Math.max(...frames.map(
+                    frame => frame.getBoundingClientRect().bottom)),
+                  image: frames[0].querySelector('img').getBoundingClientRect().width,
+                  page: document.scrollingElement.scrollHeight - innerHeight};
+        }"""
+    )
+    assert contained["framesBottom"] <= contained["bodyBottom"] + 0.5, contained
+    assert 0.7 * 350 < contained["image"] < 350, contained
+    assert contained["page"] <= 0, contained
+    resized(page, 1366, 768)
     gallery_scope = widget.get_by_role("radiogroup", name="Scope")
     expect(gallery_scope).to_be_visible()
     expect(widget).to_have_attribute("data-inspection-scope", "focus")
@@ -1498,6 +1760,9 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     assert case_image_width == pytest.approx(350, abs=1), geometry
     assert widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host").evaluate(
         "node => node.scrollHeight <= node.clientHeight + 1"
+    )
+    assert widget.locator(".lf-vr-cases").evaluate(
+        "node => node.scrollHeight > node.clientHeight"
     )
     assert geometry["support"]["top"] >= geometry["evidence"]["bottom"]
     case = widget.locator(".lf-vr-case:not([hidden])")
@@ -1602,29 +1867,65 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     )
 
 
+def test_a_visual_review_inside_a_section_of_a_workspace_flows(browser, serve):
+    """Only a review the workspace gives a height fills it. In a section of the body it is
+    not told it has one (`--lf-full-height` does not inherit), so it takes its content's
+    height with its pair at the stage's width, the body scrolls it, and it settles:
+    sized from its own pane, it grew a little on each pass."""
+    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
+    resized(page, 1440, 900)
+    widget = page.locator("#visual-review-run")
+    expect(widget.locator(".lf-vr-case:not([hidden]) lf-shot")).to_be_visible()
+    widget.evaluate(
+        """review => {
+          const section = document.createElement('section');
+          const intro = document.createElement('p');
+          intro.textContent = 'An intro paragraph before the review.';
+          review.before(section);
+          section.append(intro, review);
+        }"""
+    )
+    reading = """review => ({
+      image: review.querySelector('.lf-vr-case:not([hidden]) .lf-shotframe img')
+        .getBoundingClientRect().width,
+      paneScrolls: getComputedStyle(review.querySelector('.lf-vr-cases')).overflowY,
+    })"""
+    rendered(page)
+    first = widget.evaluate(reading)
+    page.wait_for_timeout(500)
+    rendered(page)
+    assert widget.evaluate(reading) == first == {"image": 350, "paneScrolls": "visible"}
+
+
 def test_visual_review_fits_frames_using_the_authored_spacing(browser, serve):
-    """Fitting and the painted frame tracks agree when spacing is authored in rem."""
+    """Fitting and the painted frame tracks agree when spacing is authored in rem: the
+    frames stand a rem apart, and where the page scrolls the review, in a window too
+    short for the workspace to fill, the pair takes the stage's whole width."""
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     widget = page.locator("#visual-review-run")
     widget.locator(".lf-vr-shot-host").evaluate_all(
         "nodes => nodes.forEach(node => node.style.setProperty('--sp-2', '1rem'))"
     )
-    resized(page, 760, 800)
-    expect(widget).to_have_attribute("data-compare-layout", "side")
-    geometry = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host").evaluate(
-        """host => {
-          const shot = host.querySelector('lf-shot');
-          const frames = [...shot.querySelectorAll('.lf-shotframe')]
-            .map(frame => frame.getBoundingClientRect());
-          return {available: host.clientWidth, width: shot.getBoundingClientRect().width,
-                  gap: frames[1].left - frames[0].right,
-                  rem: parseFloat(getComputedStyle(document.documentElement).fontSize),
-                  overflow: host.scrollWidth - host.clientWidth};
-        }"""
-    )
-    assert geometry["gap"] == pytest.approx(geometry["rem"], abs=0.1), geometry
+    for height in (800, 470):
+        resized(page, 760, height)
+        expect(widget).to_have_attribute("data-compare-layout", "side")
+        geometry = widget.locator(
+            ".lf-vr-case:not([hidden]) .lf-vr-shot-host"
+        ).evaluate(
+            """host => {
+              const shot = host.querySelector('lf-shot');
+              const frames = [...shot.querySelectorAll('.lf-shotframe')]
+                .map(frame => frame.getBoundingClientRect());
+              return {available: host.clientWidth,
+                      width: shot.getBoundingClientRect().width,
+                      gap: frames[1].left - frames[0].right,
+                      rem: parseFloat(getComputedStyle(document.documentElement).fontSize),
+                      overflow: host.scrollWidth - host.clientWidth};
+            }"""
+        )
+        assert geometry["gap"] == pytest.approx(geometry["rem"], abs=0.1), geometry
+        assert geometry["overflow"] == 0, geometry
     assert geometry["width"] == pytest.approx(geometry["available"], abs=0.1), geometry
-    assert geometry["overflow"] == 0, geometry
 
 
 def test_visual_review_discloses_focus_without_distorting_unsupported_browsers(
@@ -1755,7 +2056,10 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     expect(card).to_have_css("opacity", "1")
     rendered(page)
     assert card.bounding_box()["x"] == pytest.approx(before["x"], abs=1)
+    expect(card.locator(".lf-page-thread")).to_be_focused()
     page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(card).to_be_hidden()
     page.locator(".lf-margin-marker").click()
     expect(card).to_have_css("opacity", "1")
     rendered(page)
@@ -2101,9 +2405,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
         "stamping the displayed revision replaced its main"
     )
 
-    write(
-        page.locator(".lf-general leaf-text"), "This comment belongs to the live draft."
-    )
+    write(page_comment(page), "This comment belongs to the live draft.")
     with sending(page, "the comment on the live draft"):
         page.locator(".lf-general button").click()
     assert events_model.read_events(serve.page_dir)[-1]["revision"] == 2
@@ -3428,8 +3730,8 @@ def test_a_live_revision_reapplies_the_authored_thread_seat_predicate(browser, s
         told(page)
         return page.evaluate(
             """async () => {
-              const {openAsks} = await window.__lfRuntimeImport('/runtime/application.js');
-              return openAsks().map(ask => ask.sourceId);
+              const {readAsks} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+              return readAsks().user.map(ask => ask.sourceId);
             }"""
         )
 
@@ -3659,7 +3961,7 @@ def test_revision_remembers_the_active_region_when_a_workspace_reflows(browser, 
     right = page.locator("#right-reading > div")
     left.evaluate("el => el.scrollTop = 180")
     right.evaluate("el => el.scrollTop = 360")
-    page.locator("#right-subject").focus()
+    page.locator("#right-subject").click()
     before = page.locator("#right-landmark").evaluate(
         """el => el.getBoundingClientRect().top -
           el.closest('lf-pane > div').getBoundingClientRect().top"""
@@ -3680,6 +3982,49 @@ def test_revision_remembers_the_active_region_when_a_workspace_reflows(browser, 
           parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)"""
     )
     assert abs(after - before) <= 4, (before, after)
+
+
+def test_revision_keeps_a_focused_control_visible_without_a_text_landmark(
+    browser, serve
+):
+    """A focused control remains the place when its pane has no quotable text."""
+    content = """
+<header><h1>Control workspace</h1></header>
+<div id="reading-split">
+  <lf-pane id="left-reading" label="Left reading"><div>
+    <p>Another pane's reading does not name the active control.</p>
+  </div></lf-pane>
+  <lf-pane id="right-reading" label="Right reading"><div>
+    <div style="height: 1100px"></div>
+    <button id="right-subject">Right subject</button>
+    <div style="height: 500px"></div>
+  </div></lf-pane>
+</div>
+"""
+    split = regions_side_by_side("reading-split")
+    first = leaf_page(
+        "Focused control continuity", content, head=split, layout="workspace"
+    )
+    page = open_page(browser, live_url(serve(first)))
+    resized(page, 900, 760)
+    pane_posture(page, page.locator("#right-reading"), "bounded")
+    page.locator("#right-subject").click()
+
+    revised = leaf_page(
+        "Focused control continuity",
+        '<div style="height: 1000px"></div>' + content,
+        head=split,
+    )
+    stamp_page(serve.page_dir, revised, "put the workspace in the document")
+    wait_for_revision(page, 2)
+    pane_posture(page, page.locator("#right-reading"), "flow")
+    visible = page.locator("#right-subject").evaluate(
+        """el => {
+          const rect = el.getBoundingClientRect();
+          return rect.top >= 0 && rect.bottom <= innerHeight;
+        }"""
+    )
+    assert visible
 
 
 def test_revision_reveals_a_page_landmark_around_an_empty_active_region(browser, serve):
@@ -4081,12 +4426,12 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
     """Unsent words hold an arriving version, but clearing them releases it.
 
     The chip is news during the hold, not a required confirmation: after the user
-    leaves the text box, the ordinary poll activates the already-published version.
+    puts the page comment card away, the ordinary poll activates the already-published
+    version.
     """
     version_url = serve(LIVE_V1)
     page = open_page(browser, live_url(version_url))
-    page.locator(".lf-threads-toggle").click()
-    general = page.locator(".lf-general leaf-text")
+    general = page_comment(page)
     write(general, "Do not replace the page under these words.")
 
     (serve.page_dir / "index.html").write_text(LIVE_V2)
@@ -4094,9 +4439,9 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
     expect(page).to_have_title("Live first")
     expect_banner_control_offered(page.locator(".lf-latest-chip"))
 
-    # Leaving the text box releases the hold. The live address and durable panel
+    # Leaving the text box releases the hold. The live address and the card's durable
     # draft survive the arriving document without a confirmation press.
-    general.press("Tab")
+    page.keyboard.press("Escape")
     expect(general).not_to_be_focused()
     told(page)
     expect(page).to_have_title("Live second")
@@ -4112,8 +4457,7 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
     )
 
     # Keep editing after the first release, then ask v3 to honor the hold again.
-    general.focus()
-    expect(general).to_be_focused()
+    page_comment(page)
     (serve.page_dir / "index.html").write_text(LIVE_V3)
     told(page)
     expect(page).to_have_title("Live second")
@@ -4500,6 +4844,57 @@ customElements.define('page-counter', class extends HTMLElement {
     assert page.locator("#lk-evidence").evaluate("el => el.scrollTop") == 40
 
 
+@pytest.mark.parametrize("start", ["generated", "authored"])
+@pytest.mark.parametrize("typed", [False, True], ids=["clicked", "typed"])
+def test_replacing_document_yields_to_input_before_runtime_loads(
+    browser, serve, start, typed
+):
+    """The fresh page belongs to its reader before its module graph arrives."""
+    html = leaf_page(
+        "Arrival",
+        '<h1>Arrival</h1><lf-activity id="feed"></lf-activity>'
+        '<section id="notes"><h2>Notes</h2>'
+        '<input id="first" type="text" aria-label="First">'
+        '<input id="second" type="text" aria-label="Second"></section>',
+    )
+    page = open_page(browser, live_url(serve(html)))
+    panel = page.locator(".lf-threads-toggle")
+    panel.click()
+    expect(panel).to_have_attribute("aria-expanded", "true")
+    first = page.locator(
+        "#feed .lf-activity-news" if start == "generated" else "#first"
+    )
+    first.focus()
+    expect(first).to_be_focused()
+    original_document = page.evaluate("performance.timeOrigin")
+    blocked = []
+    page.route("**/leaf.js", lambda route: blocked.append(route))
+    stamp_page(
+        serve.page_dir,
+        html.replace("</head>", '<script type="module">void 0;</script></head>'),
+        "Replace executable inputs",
+    )
+    page.wait_for_function(
+        "old => performance.timeOrigin !== old", arg=original_document
+    )
+    page.wait_for_function("document.readyState !== 'loading'")
+    assert blocked, "the runtime module must still be withheld"
+    second = page.locator("#second")
+    second.click()
+    if typed:
+        page.keyboard.type("Keep this input")
+    expect(second).to_be_focused()
+    page.unroute("**/leaf.js")
+    for route in blocked:
+        route.continue_()
+    wait_for_revision(page, 2)
+    wait_until_ready(page)
+    expect(panel).to_have_attribute("aria-expanded", "true")
+    expect(second).to_be_focused()
+    if typed:
+        expect(second).to_have_value("Keep this input")
+
+
 def test_replacing_document_keeps_typing_while_presentation_is_held(browser, serve):
     """An authored field receives real keys before the fresh state answer arrives."""
     module = '<script type="module">void 0;</script>'
@@ -4599,8 +4994,7 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
     """A request started by the old realm cannot apply a later response in the new one."""
     version_url = serve(LIVE_V1)
     page = open_page(browser, live_url(version_url))
-    page.locator(".lf-threads-toggle").click()
-    general = page.locator(".lf-general leaf-text")
+    general = page_comment(page)
     write(general, "Do not replace the page under these words.")
 
     # Let the page learn that the second revision exists before holding a read. The
@@ -4640,10 +5034,11 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
         # The chip's own read remains independent of the background read held above. It
         # moves the page to the second revision, then the third revision is written
         # before the held request is released.
-        banner_control(page, ".lf-latest-chip").click()
+        # Opening More to reach the chip puts the card away, keeping its words.
+        chip = banner_control(page, ".lf-latest-chip")
+        chip.click()
         expect(page).to_have_title("Live second")
-        general.focus()
-        expect(general).to_be_focused()
+        page_comment(page)
         (serve.page_dir / "index.html").write_text(LIVE_V3)
 
         # The premise of the whole reading arrangement, stated rather than inferred: a read the
@@ -4867,7 +5262,7 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     # exact record still says the third Ask.
     page.evaluate("""() => {
         const earlier = document.getElementById('refill-now').getBoundingClientRect();
-        document.scrollingElement.scrollBy({top: earlier.bottom - 80, behavior: 'instant'});
+        document.scrollingElement.scrollBy({top: earlier.bottom - 220, behavior: 'instant'});
     }""")
 
     stamp_page(d, ASKS_PAGE, "two")
@@ -4878,11 +5273,13 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     # The condition the restore is for, stated rather than assumed: an earlier Ask's own
     # prose is on screen above the one the user was standing on, so a walk reading the
     # page alone starts behind them and steps forward onto the Ask they just left.
-    assert page.evaluate("""() => {
+    position = page.evaluate("""() => {
             const decision = document.getElementById('t-baffles-decision').getBoundingClientRect();
         const earlier = document.getElementById('refill-now').getBoundingClientRect();
-        return earlier.bottom > 42 && earlier.bottom <= decision.top;
-    }"""), "the user is at the top of the window, where either reading would do"
+        return {earlierBottom: earlier.bottom, decisionTop: decision.top,
+                scrollTop: document.scrollingElement.scrollTop};
+    }""")
+    assert 42 < position["earlierBottom"] <= position["decisionTop"], position
     page.keyboard.press("q")
     expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-ask", "1")
 
@@ -8739,7 +9136,15 @@ def test_command_goal_thread_follows_its_declaration_not_talk(
     expect(seat.get_by_role("button", name="pause", exact=True)).to_be_visible()
 
 
-def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
+@pytest.mark.parametrize(
+    "provided",
+    [
+        "ledger_id,amount\n7,42",
+        "ledger_id,amount\n7,42\n",
+        "\nledger_id,amount\n7,42  \n",
+    ],
+)
+def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided):
     """An input action discharges the request live; the honoring version removes its
     authored `needed` condition, so incorporating its state into source cannot turn the input back into
     a decision."""
@@ -8748,8 +9153,16 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     page = open_page(browser, live_url(url))
     draft = page.locator("#ledger-cargo")
     draft_control(page, "edit", "ledger-cargo").click()
-    provided = "ledger_id,amount\n7,42"
-    write(draft.get_by_role("textbox", name="Edit ledger-cargo"), provided)
+    editor = draft.get_by_role("textbox", name="Edit ledger-cargo")
+    if provided.startswith("\n"):
+        # CodeMirror's bulk insertText reading drops an initial LF;
+        # create that line through the editor's ordinary key route instead.
+        write(editor, "")
+        page.keyboard.press("Shift+Enter")
+        page.keyboard.insert_text(provided[1:])
+    else:
+        write(editor, provided)
+    expect(draft.get_by_role("textbox")).to_have_js_property("value", provided)
     draft_control(page, "save", "ledger-cargo").click()
     round_trip(page)
     expect_asks_answered(page, "1/5")
@@ -8757,7 +9170,8 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
 
     honoring = re.sub(
         r'<lf-draft id="ledger-cargo" needed>.*?</lf-draft>',
-        f'<lf-draft id="ledger-cargo"><pre>\n{provided}\n</pre></lf-draft>',
+        # The authoring contract adds only the opening LF consumed by HTML.
+        f'<lf-draft id="ledger-cargo"><pre>\n{provided}</pre></lf-draft>',
         COMMAND_HUB_PAGE,
         flags=re.DOTALL,
     )
@@ -8772,6 +9186,94 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     expect(page.locator("#ledger-fixture > .lf-task-meta")).not_to_contain_text(
         "privileged input"
     )
+    draft_control(page, "edit", "ledger-cargo").click()
+    expect(page.locator("#ledger-cargo").get_by_role("textbox")).to_have_js_property(
+        "value", provided
+    )
+
+
+@pytest.mark.parametrize(
+    ("markup", "path", "leaf_id"),
+    [
+        (
+            COMMAND_HUB_PAGE,
+            [
+                "One clean shadow week",
+                "Replace the XML parser",
+                "Declarations and entities",
+                "CDATA edge cases",
+            ],
+            "parser-cdata",
+        ),
+        (
+            REPORT_PAGE,
+            ["Tasks", "Rebuild the feeders", "Fit squirrel baffles"],
+            "t-parser",
+        ),
+    ],
+)
+def test_task_hierarchy_is_accessible_through_reports_and_revisions(
+    browser, serve, markup, path, leaf_id
+):
+    """The listening reader gets the same parents as the visible task nesting.
+
+    Read Chrome's native accessibility tree: Playwright's DOM-based name calculator
+    does not yet read ariaLabelledByElements, although Chrome exposes those names to
+    assistive technology. A report repaints row metadata; a revision changes titles.
+    Neither may flatten the groups or retain the previous title as their name.
+    """
+    page = open_page(browser, live_url(serve(markup)))
+    session = page.context.new_cdp_session(page)
+
+    def hierarchy(expected):
+        nodes = session.send("Accessibility.getFullAXTree")["nodes"]
+        by_id = {node["nodeId"]: node for node in nodes}
+        groups = {
+            node.get("name", {}).get("value"): node
+            for node in nodes
+            if node.get("role", {}).get("value") == "group"
+        }
+        assert all(name in groups for name in expected), groups.keys()
+        for parent, child in pairwise(expected):
+            ancestor = by_id[groups[child]["parentId"]]
+            while ancestor.get("role", {}).get("value") != "group":
+                ancestor = by_id[ancestor["parentId"]]
+            assert ancestor["nodeId"] == groups[parent]["nodeId"]
+        return groups
+
+    hierarchy(path)
+    sent = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "report", str(serve.page_dir), leaf_id, "status", "value=done"],
+    )
+    assert sent.exit_code == 0, sent.output
+    told(page)
+    leaf = page.locator(f"#{leaf_id}")
+    expect(leaf).to_have_attribute("status", "done")
+    hierarchy(path)
+    assert "done" in leaf.aria_snapshot()
+
+    # Naming references the title node, so a revision's replacement title is what
+    # the group says. The command root also reads its current label after patching.
+    changed = markup.replace(path[-1], "Verify the final corpus")
+    changed_path = [*path[:-1], "Verify the final corpus"]
+    if markup == COMMAND_HUB_PAGE:
+        changed = changed.replace(path[0], "Ready for the shadow week")
+        changed_path[0] = "Ready for the shadow week"
+    stamp_page(serve.page_dir, changed, "Clarify the plan's current titles")
+    wait_for_revision(page, 2)
+    groups = hierarchy(changed_path)
+    assert path[-1] not in groups
+    if markup == COMMAND_HUB_PAGE:
+        assert path[0] not in groups
+        # The richer projection remains a native control inside its goal group.
+        crew = page.locator("#goal-parser > .lf-task-meta").get_by_role(
+            "button", name="1 worker"
+        )
+        crew.click()
+        expect(crew).to_have_attribute("aria-expanded", "true")
+        expect(page.locator("#w-1")).to_be_visible()
+        hierarchy(changed_path)
 
 
 def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, serve):
@@ -9884,6 +10386,94 @@ def test_command_hub_readings_stay_in_their_own_document(browser, serve):
     expect(seat.first).to_contain_text("One clean shadow week")
 
 
+COMMAND_GOAL_CONTROLS = leaf_page(
+    "Task controls",
+    """
+<h1>Task controls</h1>
+<p id="outside-words">Read these words before inspecting the task.</p>
+<lf-command id="control-plan" label="Inspect the task">
+  <lf-task id="control-goal" status="active">
+    <strong id="goal-words">Inspect the worker evidence</strong>
+    <p><label for="goal-select">Evidence format</label>
+      <select id="goal-select"><option>Brief</option><option>Complete</option></select></p>
+    <p id="goal-editor" contenteditable="true" aria-label="Working note">Write a note</p>
+    <p id="goal-region" tabindex="0">Focus this evidence</p>
+    <p id="goal-aria" role="button" tabindex="0">Inspect this evidence</p>
+    <lf-tabs id="goal-tabs">
+      <lf-tab id="goal-tab" label="Evidence"><p id="nested-words">Read nested evidence</p></lf-tab>
+    </lf-tabs>
+    <lf-task id="child-goal" status="active"><strong id="child-words">Child task</strong>
+      <lf-agent id="child-worker" state="idle"><strong>Child worker</strong></lf-agent>
+    </lf-task>
+    <lf-agent id="control-worker" state="idle"><strong id="worker-words">Task worker</strong></lf-agent>
+  </lf-task>
+</lf-command>
+""",
+    # Preserve an outside selection on pointer-down, as nonselectable controls do,
+    # so the selection regression exercises the boundary rather than browser clearing.
+    head="<style>#goal-words { user-select: none; }</style>",
+)
+
+
+def test_command_goal_clicks_leave_nested_controls_to_their_owners(browser, serve):
+    """Native controls, platform regions and nested widgets never open the crew."""
+    page = open_page(browser, serve(COMMAND_GOAL_CONTROLS))
+    goal = page.locator("#control-goal")
+    crew = goal.locator(":scope > .lf-task-meta .lf-task-crew")
+    opened = []
+    for target in (
+        "#goal-select",
+        "label[for=goal-select]",
+        "#goal-editor",
+        "#goal-region",
+        "#goal-aria",
+        "#nested-words",
+    ):
+        page.locator(target).click()
+        page.keyboard.press("Escape")
+        rendered(page)
+        opened.append((target, goal.get_attribute("data-lf-open") is not None))
+        if goal.get_attribute("data-lf-open") is not None:
+            crew.click()
+            rendered(page)
+    assert opened == [(target, False) for target, _ in opened]
+
+    # The row still opens its own crew; a child task and a worker keep their boundaries.
+    page.locator("#child-words").click()
+    expect(page.locator("#child-worker")).to_be_visible()
+    expect(goal).not_to_have_attribute("data-lf-open", "")
+    page.locator("#goal-words").click()
+    expect(page.locator("#control-worker")).to_be_visible()
+    page.locator("#worker-words").click()
+    expect(page.locator("#control-worker")).to_be_visible()
+    crew.focus()
+    page.keyboard.press("Enter")
+    expect(page.locator("#control-worker")).to_be_hidden()
+    page.keyboard.press("Space")
+    expect(page.locator("#control-worker")).to_be_visible()
+
+
+def test_command_goal_selection_only_guards_the_drag_that_ends_inside_it(
+    browser, serve
+):
+    """A standing selection elsewhere cannot make an ordinary task row dead."""
+    page = open_page(browser, serve(COMMAND_GOAL_CONTROLS))
+    words = page.locator("#outside-words")
+    words.dblclick()
+    assert page.evaluate("!getSelection().isCollapsed")
+    page.locator("#goal-words").click()
+    assert page.evaluate("!getSelection().isCollapsed")
+    expect(page.locator("#control-worker")).to_be_visible()
+
+    crew = page.locator("#control-goal > .lf-task-meta .lf-task-crew")
+    crew.click()
+    words = page.locator("#child-words").bounding_box()
+    y = words["y"] + words["height"] / 2
+    select(page, (words["x"] + 1, y), (words["x"] + words["width"] - 1, y))
+    assert page.evaluate("!getSelection().isCollapsed")
+    expect(page.locator("#child-worker")).to_be_hidden()
+
+
 def test_nested_command_projections_stop_at_their_own_boundary(browser, serve):
     command = leaf_page(
         "nested command boundaries",
@@ -10081,7 +10671,7 @@ def test_datum_travel_resolves_the_destination_after_reveal(
             '<lf-call-diff id="calls" source="calls-data" diff="patch"></lf-call-diff>'
             '<lf-diff id="patch" source="patch-data"><pre></pre></lf-diff>',
         ),
-        packages=("pr-review", "diff"),
+        packages=("diff",),
     )
     data_model.cmd_data_set(
         serve.page_dir,

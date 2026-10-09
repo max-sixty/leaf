@@ -83,9 +83,10 @@ write `{section, quote, suffix}` by hand: a hand-written anchor detaches silentl
 when its sentence changes. Seeded message markup must pass the door `leaf thread
 reply` runs, and the suite posts each fragment through it.
 
-A widget with a live half, such as an `lf-agent` row saying how long since its
-worker reported, needs both a seed so the corpus sweeps see it and a fixture that
-mints its own timestamps to pin what it says, since a seed's `ts` is a fixed instant.
+A widget with a live half, such as an `lf-atlas-worker` row whose quiet state depends
+on when its worker last reported (`command-hub.page/widgets/lf-atlas-worker.js`),
+needs both a seed so the corpus sweeps see it and a fixture that mints its own
+timestamps to pin what it says, since a seed's `ts` is a fixed instant.
 
 ## Media
 

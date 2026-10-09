@@ -402,7 +402,10 @@ A mechanical surface that must stop motion before a review gesture is handled us
 `onUserInput(callback)`. The shared input owner calls it synchronously during capture
 for pointer, key, input, wheel, touch and window blur events; the callback observes and
 does not claim the event. Filter the events belonging to the surface and release the
-returned subscription when it disconnects. Keyboard commands still use `commands()`.
+returned subscription when it disconnects. Keyboard commands still use `commands()`. A drawing stroke dispatches the bubbling,
+composed `lf-inspect` event on its semantic target before reading its coordinate frame.
+A moving visual handles that event to freeze the evidence being drawn on; entering
+Draw mode alone does not inspect a visual.
 
 A module implementing its own navigation captures `retainUserIntent()` in the gesture
 that starts it, before its
@@ -996,7 +999,8 @@ workflow or `null`, plus `offers: {open, done}` for current command availability
 arrival, including completed Asks and tasks. It resolves to `false` for an unavailable
 row. `queueActions.done(key)` returns an admission promise only for a current
 `onYou` task with `ends === "done"`; otherwise it returns `null`. An Ask ends through
-its widget and a question through a reply. Done removes its task optimistically,
+its widget, a conversational question through a reply, and required sign-off through
+its version's banner approval. Done removes its task optimistically,
 a duplicate cannot send again, and refusal restores the authoritative reading.
 The server remains final for all actions. Collections retain their shape while
 `phase` is `waiting`, `ready`, or `offline`; activate only a ready collection.

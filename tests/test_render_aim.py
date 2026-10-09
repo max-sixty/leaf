@@ -245,7 +245,7 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     expect(preview).to_be_visible()
     page.evaluate("() => (window.__lfForceMarginRender = false)")
     expect(preview.get_by_text("Carry this comment into its thread.")).to_be_visible()
-    expect(target).to_be_focused()
+    expect(preview.locator(".lf-page-thread")).to_be_focused()
     message = preview.locator(".lf-msg-body").first
     expect(preview.locator(".lf-page-thread")).to_have_attribute(
         "data-thread", admitted["id"]

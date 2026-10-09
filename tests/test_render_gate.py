@@ -195,6 +195,134 @@ def test_the_render_gate_renders_where_the_margin_content_changes(browser, serve
     assert seen[4:] == [(width, 900, "light") for width in reading.margin_widths]
 
 
+def test_the_render_gate_reports_trapped_margins_as_advice(browser, serve):
+    """An author's inset and the heading's margin both count inside its selectable
+    box. The report names the rendered sum without forbidding an intentional inset;
+    a card declaring edge trim keeps its padding and needs no advice."""
+    source = leaf_page(
+        "Authored block edges",
+        """
+<style>
+@media (max-width:600px) { #compact-frame { padding:16px; } }
+@media (prefers-color-scheme:dark) { #dark-frame { padding:16px; } }
+</style>
+<h1>Audit</h1>
+<aside class="sidenote">This note introduces a margin viewport.</aside>
+<section id="finding" style="padding:16px">
+  <h2 style="margin-block:32px 0">Finding</h2>
+  Plain text prevents a second edge margin.
+</section>
+<section id="structural" style="display:flow-root">
+  <h2 style="margin-block:32px 0">Undeclared structural frame</h2>Words
+</section>
+<section style="display:flow-root;--lf-block-frame:trim">
+  <h2>Trimmed structural frame</h2><p>Wide content retains the page's room.</p>
+</section>
+<div id="card" style="padding:16px;--lf-block-frame:1">
+  <h2>A deliberately padded card</h2><p>Its inset remains intentional.</p>
+</div>
+<div style="padding:16px;--lf-block-frame:1">
+  <div id="row" style="display:flex;gap:12px">
+    <p>Left.</p><p>Right.</p>
+  </div>
+</div>
+<section id="compact-frame"><h2 style="margin-block:32px 0">Compact inset</h2>Words</section>
+<section id="dark-frame"><h2 style="margin-block:32px 0">Dark inset</h2>Words</section>
+""",
+    )
+    reading = render_gate_model.render_version(browser, serve(source, packages=()))
+    assert reading.failures == [], reading.failures
+    assert reading.margin_widths
+    assert reading.advice == [
+        (
+            "<section id=finding> draws 16px of inset and shows 48px above its <h2>: "
+            "32px of child margin stays inside the box. Use --lf-block-frame: 1 for a "
+            "drawn frame, or --lf-block-frame: trim for a transparent grouping; "
+            "put spacing between "
+            "selectable blocks in the parent's gap or outside margins"
+        ),
+        (
+            "<section id=structural> draws 0px of inset and shows 32px above its <h2>: "
+            "32px of child margin stays inside the box. Use --lf-block-frame: 1 for a "
+            "drawn frame, or --lf-block-frame: trim for a transparent grouping; "
+            "put spacing between "
+            "selectable blocks in the parent's gap or outside margins"
+        ),
+        *(
+            f"<div id=row> trims only one item at its {edge} edge while another keeps "
+            "13px of margin. Declare --lf-holds-edge: 1 on this flex or grid row to "
+            "keep its items aligned"
+            for edge in ("above", "below")
+        ),
+        (
+            "[dark] <section id=dark-frame> draws 16px of inset and shows 48px above its <h2>: "
+            "32px of child margin stays inside the box. Use --lf-block-frame: 1 for a "
+            "drawn frame, or --lf-block-frame: trim for a transparent grouping; "
+            "put spacing between "
+            "selectable blocks in the parent's gap or outside margins"
+        ),
+        (
+            "<section id=compact-frame> draws 16px of inset and shows 48px above its <h2>: "
+            "32px of child margin stays inside the box. Use --lf-block-frame: 1 for a "
+            "drawn frame, or --lf-block-frame: trim for a transparent grouping; "
+            "put spacing between "
+            "selectable blocks in the parent's gap or outside margins (at 540x720)"
+        ),
+    ]
+
+
+def test_framing_advice_leaves_chrome_findings_to_leaf(browser, serve):
+    page = open_page(browser, serve(leaf_page("Chrome ownership", "<h1>Audit</h1>")))
+    page.locator(".lf-chrome").evaluate(
+        """chrome => {
+          const box = document.createElement('section');
+          box.id = 'chrome-inset';
+          box.style.cssText = 'padding:16px';
+          box.innerHTML = '<h2 style="margin-block:32px 0">Chrome title</h2>Words';
+          chrome.append(box);
+        }"""
+    )
+    page.locator("main").evaluate(
+        """main => {
+          const generated = document.createElement('div');
+          generated.className = 'lf-ui';
+          generated.innerHTML = '<section id="generated-inset" style="padding:16px">'
+            + '<h2 style="margin-block:32px 0">Generated title</h2>Words</section>';
+          main.append(generated);
+          customElements.define('module-frame', class extends HTMLElement {});
+          const host = document.createElement('module-frame');
+          host.attachShadow({ mode: 'open' }).innerHTML =
+            '<section id="module-inset" style="padding:16px">'
+            + '<h2 style="margin-block:32px 0">Module title</h2>Words</section>';
+          main.append(host);
+          const markup = document.createElement('lf-card');
+          markup.id = 'markup-frame';
+          markup.style.cssText = 'display:block;padding:16px;border:0';
+          markup.innerHTML = '<h2 style="margin-block:32px 0">Host title</h2>'
+            + '<section id="authored-inset" style="padding:16px">'
+            + '<h2 style="margin-block:32px 0">Authored title</h2>Words</section>';
+          markup.attachShadow({ mode: 'open' }).innerHTML =
+            '<section id="shadow-inset" style="padding:16px">'
+            + '<h2 style="margin-block:32px 0">Shadow title</h2>Words</section><slot></slot>';
+          main.append(markup);
+        }"""
+    )
+    page.add_style_tag(content="#markup-frame::before { content: none; }")
+    traps = {
+        box["id"]: box
+        for box in render_checks_model.evaluate_probe(page, "trappedMargins")
+    }
+    assert traps["chrome-inset"]["chrome"]
+    for ident in ("chrome-inset", "generated-inset", "module-inset", "shadow-inset"):
+        assert not traps[ident]["authored"]
+    assert traps["markup-frame"]["authored"]
+    assert traps["authored-inset"]["authored"]
+    advice = render_gate_readings.framing_advice(page)
+    assert len(advice) == 2, advice
+    assert advice[0].startswith("<lf-card id=markup-frame> draws 16px")
+    assert advice[1].startswith("<section id=authored-inset> draws 16px")
+
+
 def test_the_render_gate_reports_a_defect_specific_to_the_compact_viewport(
     browser, serve
 ):
@@ -2841,9 +2969,9 @@ def test_page_fixture_renders(browser, serve, source):
     render_gate.version.render_version — the pass `page check --render` runs on
     agent-authored pages — so this sweep also proves the gate a user's page goes through.
 
-    It also reads the theme's frame trim, which the gate leaves to the suite: every box
-    a shipped theme or example frames declares its frame, and a row at a frame's edge
-    holds it, so no box shows more inset than it draws.
+    The frame readings the gate offers as advice must be empty for shipped pages:
+    every box a shipped theme or example frames declares its frame, and a row at a
+    frame's edge holds it, so no box shows more inset than it draws.
 
     And nothing the runtime adds stands among the elements the page wrote, where it
     would change which child the page's own rules find first, last, or next.
@@ -3644,21 +3772,31 @@ def test_frame_edges_pass_through_whatever_stands_at_them(browser, serve):
     ]
 
 
-def test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it(browser, serve):
-    """Following the edge into a row trims its first item and not the ones beside it,
-    so the row splits; the reading names the row until it declares --lf-holds-edge, and
-    then the trim stops there and the row lines up again."""
+@pytest.mark.parametrize("display", ("flex", "grid"))
+@pytest.mark.parametrize("frame", ("1", "trim", "propagated"))
+def test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it(
+    browser, serve, display, frame
+):
+    """A row holds its edge whether it declares the frame or receives its edge from
+    outside. The advice names the actual split, and its documented declaration stops
+    that trim. An unframed row's deliberate item margins remain the author's choice."""
+    row = f"""<div id="row" style="display:{display};grid-template-columns:1fr 1fr;gap:12px;
+      padding:24px;--lf-block-frame:{"0" if frame == "propagated" else frame}">
+  <p id="left">Left.</p><p id="right">Right.</p>
+</div>"""
+    if frame == "propagated":
+        row = f'<div style="--lf-block-frame:1">{row}</div>'
     page = open_page(
         browser,
         serve(
             leaf_page(
                 "Split row",
-                """<div id="frame" style="padding:24px;--lf-block-frame:1">
-  <div id="row" style="display:flex;gap:12px">
-    <p id="left">Left.</p>
-    <p id="right">Right.</p>
-  </div>
-</div>""",
+                f"""<h1>Rows</h1>{row}
+<div id="deliberate" style="display:{display};grid-template-columns:1fr 1fr">
+  <p style="margin-block-start:0">One deliberately higher item.</p>
+  <p style="margin-block-start:13px">One lower item.</p>
+</div>
+<p>Following text keeps the rows away from the page frame's edges.</p>""",
             )
         ),
     )
@@ -3675,6 +3813,15 @@ def test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it(browser, serve):
         f["id"] == "row" and f["edge"] == "above"
         for f in render_checks_model.evaluate_probe(page, "splitEdges")
     )
+    assert any(
+        "<div id=row> trims only one item at its above edge" in line
+        for line in render_gate_readings.framing_advice(page)
+    )
+    assert not [
+        f
+        for f in render_checks_model.evaluate_probe(page, "splitEdges")
+        if f["id"] == "deliberate"
+    ]
     page.locator("#row").evaluate("el => el.style.setProperty('--lf-holds-edge', '1')")
     left, right = tops()
     assert left == right

@@ -1818,6 +1818,21 @@
         margin: 0;
       }
 
+      #bg-framed-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--sp-3);
+        padding: var(--sp-3);
+        border: 1px solid var(--rule);
+        background: var(--card);
+        --lf-block-frame: 1;
+        --lf-holds-edge: 1;
+      }
+
+      #bg-framed-row > p {
+        flex: 1 1 14rem;
+      }
+
       /* The summary beside the log at one part to two, from bases of 14rem and 28rem,
          so the two stack below 696px. */
       #bg-run {
@@ -8499,6 +8514,20 @@ gallery/
                 after="/media/051bee487bfb5d13.png"
               ></lf-shot>
             </section>
+          </section>
+
+          <section id="bg-frame-edges">
+            <h2>Framed rows</h2>
+            <p>
+              This row draws its own frame and declares that its items keep their
+              margins. Both paragraphs start at the same height and leave equal space
+              below them. Narrow the window to stack them: each item keeps the same
+              spacing when the row wraps.
+            </p>
+            <div id="bg-framed-row">
+              <p>Preview checks run before the release.</p>
+              <p>Delivery checks run after the release.</p>
+            </div>
           </section>
 
           <section id="bg-layout-family">

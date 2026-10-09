@@ -18,10 +18,9 @@ def _answers_live_reply(event: dict, live_reply: dict) -> bool:
 
     A provisional reply is reserved under a delivery attempt and addressed to a
     response, and the durable answer names itself by either. Reading only the response
-    address let an answer whose address had moved stand beside its own placeholder — and
-    since every consumer keys a message on its attempt, the two collided on one key and
-    the panel drew the empty draft rather than the answer the log held. A draft this
-    reading finds no identity on is one nothing in the log can answer, and it stands.
+    address let an answer whose address had moved stand beside its own placeholder, and
+    the panel drew the draft rather than the answer the log held. A draft this reading
+    finds no identity on is one nothing in the log can answer, and it stands.
     """
     return any(
         live_reply.get(named) is not None and event.get(named) == live_reply[named]
@@ -29,9 +28,33 @@ def _answers_live_reply(event: dict, live_reply: dict) -> bool:
     )
 
 
+def _response_key(responds: str) -> dict:
+    """The name an agent's answer to `responds` is drawn under, provisional or durable.
+
+    A provisional reply and the answer that retires it are one message to the reader,
+    but the answer's own attempt need not be the one the provisional reply was reserved
+    under: an explicit `response reply` takes an author's retry key from a namespace of
+    its own, so it can never consume the provider final's append identity. The input
+    they both answer is the identity they share, and an input takes one answer. A
+    failure receipt is no answer (`thread.post_reply`): an answer may still follow it,
+    so the receipt keeps its own name."""
+    return {"key": f"response:{responds}"}
+
+
 def _named(event: dict) -> dict:
-    """One served thread event carrying the name it is shown under (`agent_name`)."""
-    return {**event, "agent": agent_name(event)}
+    """One served thread event carrying the name it is shown under (`agent_name`),
+    and an agent's answer the name its provisional reply was drawn under."""
+    answers = (
+        event.get("author") == "agent"
+        and event.get("responds") is not None
+        and not event.get("failure")
+        and not event.get("ephemeral")
+    )
+    return {
+        **event,
+        "agent": agent_name(event),
+        **(_response_key(event["responds"]) if answers else {}),
+    }
 
 
 def browser_thread(
@@ -39,7 +62,11 @@ def browser_thread(
 ) -> tuple[dict, FrozenThreadReading]:
     """Serialize the shared frozen-thread work reading, adding presentation only.
     Messages and closing events carry their canonical display name; provisional
-    replies and unread/summary protection never become durable work authority."""
+    replies and unread/summary protection never become durable work authority.
+
+    A provisional reply joins its thread once it has words. Before then the input's
+    workflow says the agent is replying, and an empty message would only reserve a
+    bubble with nothing in it."""
     events, threads = work.events, work.threads
     reading, asks = work.thread, work.asks
     unread = unread_content(
@@ -83,8 +110,10 @@ def browser_thread(
                 "unread": unread[thread_id],
             }
         )
-    if live_reply is not None and not any(
-        _answers_live_reply(event, live_reply) for event in events
+    if (
+        live_reply is not None
+        and live_reply.get("text")
+        and not any(_answers_live_reply(event, live_reply) for event in events)
     ):
         target = next(
             (
@@ -103,6 +132,8 @@ def browser_thread(
                 {
                     "id": f"stream:{live_reply['turn']}",
                     "attempt": live_reply["attempt"],
+                    **_response_key(live_reply["responds"]),
+                    "provisional": True,
                     "kind": "reply",
                     "addressable": False,
                     "author": "agent",

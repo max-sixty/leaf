@@ -3099,10 +3099,21 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     assert watcher is not None
     request.addfinalizer(watcher.close)
     thread = page.locator(f'.lf-threads > [data-id="{comment["id"]}"]')
-    # An active editor holds the turn's update so this journey exercises the receipt
-    # beside held news; an idle panel thread now shows the update immediately.
+    # An active editor holds the turn's opening so this journey exercises the receipt
+    # beside held news; an idle panel thread streams it immediately. The reply joins
+    # the thread with its first words, not when the turn opens its seat.
     thread.locator("leaf-text").focus()
     turn.begin()
+    turn.reply_stream.update(
+        {
+            "message": {
+                "item": "msg-0",
+                "phase": "commentary",
+                "text": "Looking at the page.",
+                "complete": False,
+            }
+        }
+    )
     # Present the accepted turn before resolving it: coalescing these server writes
     # would never exercise a workflow receipt disappearing beside the news control.
     told(page)

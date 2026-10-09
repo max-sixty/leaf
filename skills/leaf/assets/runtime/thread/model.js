@@ -32,6 +32,11 @@ export const turns = (thread) =>
 // margin row — keys itself by this rather than by the id, which changes when the log
 // answers.
 export const threadKey = (thread) => thread.root.attempt ?? thread.id;
+// The name a message is drawn under, which the log's answer does not change: the
+// server's `key` where it names one, as it does for an agent's answer to an input and
+// the provisional reply that stood for it (`served_state/thread.py`), else the user's
+// own attempt for a message this tab sent, else the id the log gave it.
+export const messageKey = (message) => message.key ?? message.attempt ?? message.id;
 
 // Every name that reaches a thread: its own id, the id of each message in it, which a
 // reply or settlement names as its `parent`, and the pending id a message this tab sent
@@ -245,6 +250,7 @@ export function readThreadRecords(
         "awaits",
         "ephemeral",
         "suggestion",
+        "provisional",
       ])
         if (message[field] !== undefined) record[field] = message[field];
       const units = unitsByMessage.get(message.id) ?? [];
@@ -270,7 +276,7 @@ export function readThreadRecords(
       return {
         ...record,
         unread: unreadMessages.has(message.id),
-        key: message.attempt ?? message.id,
+        key: messageKey(message),
         body,
         // The message's own input and the moves on widgets frozen into it, in the
         // published order `strongestWorkflow` reads.

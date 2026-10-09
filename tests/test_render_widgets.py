@@ -10804,8 +10804,8 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
         },
     )
     told(page)
-    # Revealing the reply in either view settles the thread's shared unread state.
-    panel_thread.get_by_role("button", name="1 new reply", exact=True).click()
+    # Revealing the edit in either view settles the thread's shared unread state.
+    panel_thread.get_by_role("button", name="1 message edited", exact=True).click()
 
     expect(inline.locator(".lf-msg-body")).to_contain_text("The north bracket fits.")
     expect(panel.locator(".lf-msg-text")).to_contain_text("The north bracket fits.")

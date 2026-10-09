@@ -36,14 +36,17 @@
 
    An open panel card shows appended messages immediately when no composition is
    active: its idle reply row and later cards may move, while existing messages keep
-   their place. Changes to existing messages, reactions, folds and settlement use
-   the same hold as a seat in page flow. A closed card holds nothing,
-   since its title row draws at one size whatever it says. A reply pinned to its
-   scrollport lets a turn joining the thread's end grow up into the room scrolled past
-   (thread-list.js, `followThreadEnd`), though nothing that changes above that end. A
-   held change leaves the controls it touches drawn as they were, and a press on one
-   means what it drew (actions.js, `toggleReaction` and `settle`) and shows what the
-   thread holds.
+   their place. A reply the agent is still streaming at the thread's end is such an
+   appended message, its words joining it as they come and its answer completing it
+   in place, so it streams into an idle open card and a held one counts it once as a
+   new reply. Changes to other existing messages, reactions, folds and settlement use
+   the same hold as a seat in page flow, and a notice calls a changed message an edit.
+   A closed card holds nothing, since its title row draws at one size whatever it says.
+   A reply pinned to its scrollport lets a turn joining the thread's end grow up into
+   the room scrolled past (thread-list.js, `followThreadEnd`), though nothing that
+   changes above that end. A held change leaves the controls it touches drawn as they
+   were, and a press on one means what it drew (actions.js, `toggleReaction` and
+   `settle`) and shows what the thread holds.
 
    `HeldNews` is that one owner for a seat, and `HeldArrivals` for the seats a widget has
    not opened. Each reads every reading against the one it drew last, the only baseline:
@@ -74,8 +77,10 @@
    it shows.
 
    Decisions. An idle open panel card shows appended messages (the user's decision,
-   2026-10-08, relaxing #1694's blanket hold). Its existing reading and active editor
-   remain protected. Rejected: filling the list (#1480), which makes the
+   2026-10-08, relaxing #1694's blanket hold), and a streaming reply's words as they
+   come (2026-10-09: holding them as an edit left the agent's opening an empty bubble
+   behind "1 new reply" until the user pressed it). Its existing reading and active
+   editor remain protected. Rejected: filling the list (#1480), which makes the
    open card as tall as the panel and leaves later cards below the fold; and letting a
    list that cannot scroll push its contents down, which needs the shift watch to stop
    checking such lists. Arrival is read from where the user stands (the user's decision,
@@ -95,7 +100,7 @@ import { keeps, keepsText, layoutPx } from "../keeps.js";
 import { keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { focusThread, threadFocusStop } from "./focus.js";
-import { isReaction, threadKey, threadNames } from "./model.js";
+import { isReaction, messageKey, threadKey, threadNames } from "./model.js";
 import { allThreads } from "./state.js";
 import { THREAD } from "./selectors.js";
 import { closestAcross } from "../passages.js";
@@ -160,34 +165,51 @@ const fold = (summary, drawn) =>
   ]);
 
 // What of `now` the seat would draw differently from `was`, the thread as it drew it:
-// each message that is new or whose words changed, each reaction put on a reply or taken
-// off it, each summary that comes or goes, and the thread's settlement; `changed` the
-// keys of the messages the news changes, every one where the settlement changes, which
-// moves the thread's controls into or out of its head row and draws or folds its
-// reaction strips; `folds` the keys of the messages a summary that comes or goes covers,
-// and the ids of those that go, whose checkpoints a summary's change redraws from their
-// tops. A summary a new reply completes, as progress is folded when the agent's answer
-// arrives, moves what it covers but is that reply's news, so the notice does not count
-// it. A message the log took back is no news: it goes. Null where nothing differs.
+// each message that joins it, each one whose words changed, each reaction put on a reply
+// or taken off it, each summary that comes or goes, and the thread's settlement. A turn
+// joining the thread counts as the agent's reply or as a message of the user's, such as
+// one from another tab. Words joining the reply still streaming at the thread's end, and
+// the answer that completes that reply, are that reply arriving: they grow the thread
+// at its end as an appended turn does. Words changing in any other message are an edit.
+// `changed` the keys of the messages the news changes in place, every one where the
+// settlement changes, which moves the thread's controls into or out of its head row and
+// draws or folds its reaction strips; `folds` the keys of the messages a summary that
+// comes or goes covers, and the ids of those that go, whose checkpoints a summary's
+// change redraws from their tops. A summary a new reply completes, as progress is
+// folded when the agent's answer arrives, moves what it covers but is that reply's news,
+// so the notice does not count it. A message the log took back is no news: it goes.
+// Null where nothing differs.
 function difference(was, now) {
   const drawn = new Map(was.messages.map((message) => [message.key, message]));
+  const last = was.messages.at(-1)?.key;
   const settled =
     Boolean(was.resolved) === Boolean(now.resolved)
       ? null
       : now.resolved
         ? "Resolved"
         : "Reopened";
-  const news = { settled, replies: 0, reactions: 0, appended: false };
+  const news = {
+    settled,
+    replies: 0,
+    messages: 0,
+    edits: 0,
+    reactions: 0,
+    appended: false,
+  };
   const changed = new Set();
   const arrived = new Set();
   for (const message of now.messages) {
     const prior = drawn.get(message.key);
-    if (!prior) {
-      news.replies += 1;
+    const reworded =
+      prior !== undefined &&
+      JSON.stringify(prior.body) !== JSON.stringify(message.body);
+    if (!prior || (reworded && prior.provisional && message.key === last)) {
+      if (message.author === "agent") news.replies += 1;
+      else news.messages += 1;
       news.appended = true;
       arrived.add(message.id);
-    } else if (JSON.stringify(prior.body) !== JSON.stringify(message.body)) {
-      news.replies += 1;
+    } else if (reworded) {
+      news.edits += 1;
       changed.add(message.key);
     } else if (settled) changed.add(message.key);
     else if (message.reactions && prior.reactions) {
@@ -215,7 +237,8 @@ function difference(was, now) {
     ),
     summaries: gone.map(({ id }) => id),
   };
-  if (!settled && !news.replies && !news.reactions && !news.summaries) return null;
+  const counts = ["replies", "messages", "edits", "reactions", "summaries"];
+  if (!settled && counts.every((count) => !news[count])) return null;
   const appendedAtEnd =
     news.appended &&
     was.messages.every((message, index) => now.messages[index]?.key === message.key);
@@ -224,26 +247,27 @@ function difference(was, now) {
 
 // The thread `now` with what `was`, the thread as the seat drew it, did not show held
 // back: what the log's news changed, as drawn. That is its settlement; its messages, the
-// new ones left out, a reaction taken off still standing, and each one's words as drawn,
-// which only an edit changes; and its summaries as drawn. A held thread is read from
-// this as from any other, so what the reading derives from those, such as its title, its
-// reaction strips or its controls, agrees with what it draws.
+// new ones left out, a reaction taken off or a streaming reply gone still standing, and
+// each one's words as drawn, which only an edit or a stream changes; and its summaries
+// as drawn. A held thread is read from this as from any other, so what the reading
+// derives from those, such as its title, its reaction strips or its controls, agrees
+// with what it draws.
 // Whose turn it is and each message's delivery read as they stand, as the server
 // derives them: they change the title's status and a message's head row in place, as
 // in a thread that holds nothing, so a resolution held from the card already takes its
 // turn off the title.
 function withheld(was, now) {
-  const key = (message) => message.attempt ?? message.id;
-  const standing = new Map(now.msgs.map((message) => [key(message), message]));
+  const standing = new Map(now.msgs.map((message) => [messageKey(message), message]));
   const msgs = was.msgs.flatMap((prior) => {
-    const message = standing.get(key(prior));
-    if (!message) return isReaction(prior) ? [prior] : [];
+    const message = standing.get(messageKey(prior));
+    if (!message) return isReaction(prior) || prior.provisional ? [prior] : [];
     const { text, body, edited } = prior;
     return [{ ...message, text, body, edited }];
   });
   return {
     ...now,
-    root: msgs.find((message) => key(message) === key(now.root)) ?? now.root,
+    root:
+      msgs.find((message) => messageKey(message) === messageKey(now.root)) ?? now.root,
     resolved: was.resolved,
     msgs,
     summaries: was.summaries,
@@ -279,10 +303,20 @@ export function growthInsideIsSeen(nodes) {
 }
 
 const counted = (count, one, many) => count && `${count} ${count === 1 ? one : many}`;
-const newsLabel = ({ settled, replies, reactions, summaries, threads }) =>
+const newsLabel = ({
+  settled,
+  replies,
+  messages,
+  edits,
+  reactions,
+  summaries,
+  threads,
+}) =>
   [
     settled,
     counted(replies, "new reply", "new replies"),
+    counted(messages, "new message", "new messages"),
+    counted(edits, "message edited", "messages edited"),
     counted(reactions, "reaction changed", "reactions changed"),
     counted(summaries, "summary changed", "summaries changed"),
     counted(threads, "new thread", "new threads"),

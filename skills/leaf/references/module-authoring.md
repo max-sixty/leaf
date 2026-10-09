@@ -226,8 +226,9 @@ names the apparatus's own physical scrollport. Dispose both registrations with t
 DOM owners.
 `readingPosture(node)` is `bounded` exactly while the region's body is its own
 scroller, and `watchReadingRegionTransitions(listener)` receives a `shift` when a
-shown region's scroller or width changes without a gesture; the continuity owner records the user's
-place as they scroll and restores it there.
+shown region's scroller or width changes without a gesture, or the page's width or
+banner does (an entry with no region); the continuity owner records the user's place as
+they scroll and restores it there.
 
 A compound widget whose parts scroll independently registers each with
 `registerReadingRegion({id, host, body})`, taking a stable id from

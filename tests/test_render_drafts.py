@@ -185,6 +185,74 @@ def test_a_visible_focused_element_is_the_reading_place_until_the_reader_scrolls
     assert not in_view(), "stale focus displaced the reader's new place"
 
 
+@pytest.mark.parametrize("region", [False, True], ids=["page", "pane"])
+def test_a_page_keeps_its_place_below_the_banner_as_the_window_changes_width(
+    browser, serve, region
+):
+    """The banner takes a second row when the window narrows. The browser's scroll
+    anchoring holds the line the reader landed on where it stood in the window, which is
+    now under the banner; the page moves with the banner instead, in a document as in
+    a pane the page carries, and back again when the window widens. A control the reader
+    has focused at the top of the page, where the browser anchors nothing, stays in view
+    as the words above it rewrap."""
+    lines = "".join(
+        f'<p id="line-{n}">Line {n} of the incident, long enough to rewrap when the '
+        "window narrows to a phone and the banner takes its second row.</p>"
+        for n in range(60)
+    )
+    lines = f'<lf-pane id="reading" label="Reading"><div>{lines}</div></lf-pane>' if region else lines
+    question = (
+        '<lf-ask id="ask"><h2>Which way?</h2><lf-options id="way" choose>'
+        '<lf-option id="way-one"><strong>One</strong> the first way.</lf-option>'
+        '<lf-option id="way-two"><strong>Two</strong> the second way.</lf-option>'
+        "</lf-options></lf-ask>"
+    )
+    opening = "".join(
+        f"<p>Paragraph {n} opens the page with enough words that it rewraps to more "
+        "lines when the window narrows, pushing what follows further down.</p>"
+        for n in range(6)
+    )
+    source = leaf_page("Keeping a place", f"{opening}{question}{lines}")
+    page = open_page(browser, serve(source))
+    resized(page, 1280, 800)
+    rendered(page)
+    reading = """async (id) => {
+      const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
+      let node = document.getElementById(id) ?? document.activeElement;
+      while (!id && node.shadowRoot?.activeElement) node = node.shadowRoot.activeElement;
+      return {band: landingBand(document.scrollingElement).top,
+              top: node.getBoundingClientRect().top,
+              bottom: node.getBoundingClientRect().bottom};
+    }"""
+
+    page.evaluate("location.hash = 'line-30'")
+    rendered(page)
+    landed = page.evaluate(reading, "line-30")
+    below = landed["top"] - landed["band"]
+    resized(page, 700, 800)
+    rendered(page)
+    narrowed = page.evaluate(reading, "line-30")
+    assert narrowed["band"] > landed["band"], "the banner should take a second row"
+    assert narrowed["top"] - narrowed["band"] == pytest.approx(below, abs=2), narrowed
+    resized(page, 1280, 800)
+    rendered(page)
+    assert page.evaluate(reading, "line-30") == pytest.approx(landed, abs=2)
+
+    page.evaluate("document.scrollingElement.scrollTop = 0")
+    resized(page, 1280, 1100)
+    page.locator("#way-one").evaluate(
+        """option => [option, ...option.shadowRoot?.querySelectorAll('*') ?? [],
+                     ...option.querySelectorAll('*')].find(node => node.tabIndex >= 0).focus()"""
+    )
+    rendered(page)
+    focused = page.evaluate(reading, None)
+    assert page.evaluate("document.scrollingElement.scrollTop") == 0
+    assert focused["bottom"] < 1100, focused
+    resized(page, 420, 1100)
+    rendered(page)
+    assert page.evaluate(reading, None)["bottom"] < 1100, "the focused option left the window"
+
+
 @pytest.mark.parametrize("bounded", [False, True])
 def test_typing_in_a_visible_inline_reply_keeps_the_reading_position(
     browser, serve, bounded

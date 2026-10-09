@@ -95,7 +95,7 @@ import {
   prepareDeclaredMarkdown,
   formatDeclaredMarkdown,
 } from "./markdown.js";
-import { pageScroller } from "./scrolling.js";
+import { moveScrollerBy, pageScroller } from "./scrolling.js";
 import {
   containingReadingRegionFor,
   effectiveScroller,
@@ -1684,16 +1684,26 @@ export function createVersionController({
   // left to keep: its reading goes when the next reading is taken, so a page whose
   // blocks come and go carries only the regions it has.
   const regionViews = new Map();
+  // The page's own record holds no words: reading them would scan every block above the
+  // window on each scroll, and the browser's scroll anchoring already keeps them where
+  // they stood. Nor does it hold an offset, which would undo that anchoring. What is left
+  // is a focused control the user could see, which anchoring does not keep in view.
+  let pageView = null;
   const dropGoneRegions = () => {
     const standing = new Set(readingRegions().map(({ id }) => id));
     for (const id of regionViews.keys()) if (!standing.has(id)) regionViews.delete(id);
   };
 
   // Only the page's own regions, only those a scroll moved, and only their own words: a
-  // scroll is frequent, and a page with no regions (most documents) records nothing and
-  // reads no text at all. `moved` names the scrollers that moved; none names every one.
+  // scroll is frequent, and a page with no regions (most documents) records only where
+  // focus stands and reads no text at all. `moved` names the scrollers that moved; none
+  // names every one.
   function recordRegions(moved = null) {
     dropGoneRegions();
+    if (!moved || moved.has(pageScroller)) {
+      const { y, scroller, ...place } = capturePlace(null, []);
+      pageView = place;
+    }
     const main = document.querySelector("body > main");
     const shown = readingRegions().filter(
       (region) =>
@@ -1765,6 +1775,7 @@ export function createVersionController({
       restorePlace(reading, region, currentIntent);
       restored.add(box);
     }
+    return restored;
   }
 
   // A region handed to another scroller keeps the reading recorded before the handover.
@@ -1772,13 +1783,23 @@ export function createVersionController({
   // restores that reading. A visible focused element is itself a live reading landmark;
   // focus retained on an element the reader scrolled past is not.
   // A composition change in progress owns any shift inside it.
+  //
+  // The page shifts with the window. The browser's scroll anchoring holds its words where
+  // they stood in the window, but a place stands below the landing band, which moves when
+  // the banner takes another row: the line the user was reading went under it. So the
+  // page moves with its band first, and a region the page carries lands against the new
+  // band from its own record.
   function restoreShifted(shifted, currentIntent) {
     if (compositionChanges.size) return;
     if (!currentIntent()) return;
+    const page = shifted.find(({ region }) => !region);
+    if (page?.band) moveScrollerBy(pageScroller, -page.band);
     const candidates = shifted
       .map(({ region }) => region)
-      .filter((region) => shownRegionBounds(region));
-    restoreRegions(candidates, currentIntent);
+      .filter((region) => region && shownRegionBounds(region));
+    const restored = restoreRegions(candidates, currentIntent);
+    if (page && hasLandmark(pageView) && !restored.has(pageScroller))
+      restorePlace(pageView, null, currentIntent);
     recordRegions();
   }
 

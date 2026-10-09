@@ -101,9 +101,11 @@ File-side fixtures live in `interact_support.py`, browser fixtures in
 `tests/runtime/*.test.mjs` holds what one runtime module decides on its own, in the
 document `tests/runtime/dom.mjs` puts up; `build/browser/application.test.mjs` owns
 the publisher's composition of those folds. Both build served threads and workflows
-with `served.mjs` from what `served_records.py` folds through the server: a record
-that carries every field the server sends, with only the fields a case is about
-changed, or a whole reading where the case rests on how the server relates them.
+with `served.mjs` from what `served_records.py` folds through the server. The helper
+invokes that producer directly, including the shared admitted gesture sequence;
+there is no generated output to keep in sync. Each fixture carries every field the
+server sends, with only the fields a case is about changed, or a whole reading
+where the case rests on how the server relates them.
 `fixtures/pages/` holds full-page regressions under `examples/AGENTS.md`'s rules.
 
 A fold whose result rests on a platform primitive that differs between Node and

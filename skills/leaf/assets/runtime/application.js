@@ -464,12 +464,18 @@ export function mountApplication(dependencies) {
     ledger,
     currentReceipts,
     applyAcceptedState: receiveState,
-    settleRejected: () =>
-      stateApplication.runSerialized(async () => {
+    settleRejected: async (entry, state) => {
+      if (state)
+        await receiveState(state).catch((error) =>
+          console.error("leaf: state in refused event response", error),
+        );
+      await stateApplication.runSerialized(async () => {
+        ledger.refuse(entry);
         const prepared = invalidateDom();
         releasePendingSafely("rejected event presentation");
         await prepared;
-      }),
+      });
+    },
     settlementChanged: (entry, accepted) => {
       if (accepted) {
         // A poll can present the attempt before its POST answers. Retry after

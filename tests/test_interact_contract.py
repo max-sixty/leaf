@@ -701,7 +701,10 @@ def test_server_takes_back_only_a_standing_gesture_of_the_users_own(server, page
     # Once, and never the undo itself: repeated presses walk back through the
     # user's history rather than toggling the last gesture on and off.
     status, body = fetch(f"{server}/api/event", data=json.dumps(undone).encode())
-    assert status == 400 and "already been taken back" in json.loads(body)["error"]
+    refusal = json.loads(body)
+    assert status == 400 and "already been taken back" in refusal["error"]
+    assert took_back in refusal["state"]["events"]
+    assert refusal["state"]["browser"]["basis"]["through_seq"] >= took_back["seq"]
     status, body = fetch(
         f"{server}/api/event",
         data=json.dumps({"kind": "undo", "undoes": took_back["id"]}).encode(),

@@ -1404,7 +1404,7 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
      cuts that. */
   .lf-drawings { pointer-events: none; }
   .lf-drawing-mark { position: absolute; display: block; overflow: visible;
-    pointer-events: none; }
+    max-width: none; pointer-events: none; }
   .lf-drawing-mark path { fill: none; stroke: var(--mark-ink); stroke-width: 3px;
     stroke-linecap: round; stroke-linejoin: round; }
   .lf-drawing-mark:is(.lf-drawing-active, .lf-drawing-pending, .lf-drawing-parked) path {
@@ -1415,8 +1415,6 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   .lf-composer { display: none; }
   .lf-fab-bar .lf-composer > :not(.lf-compose-field, .lf-composer-media) {
     display: none !important; }
-  .lf-fab-bar .lf-composer-media { flex: none; max-width: 148px; padding: 0; }
-  .lf-fab-bar .lf-composer-media-open { width: 42px; height: 34px; }
   /* A suggestion renders verbatim — its characters are what the next version
      carries (see msgNode) — so this is where they keep their own line breaks. */
   .lf-live { position: fixed; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }

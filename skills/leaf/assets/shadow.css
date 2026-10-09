@@ -982,13 +982,12 @@ button.lf-media-open { cursor: zoom-in; }
   object-fit: cover; }
 /* Controls stay inside each tile, so the scrolling shelf never cuts their hit area.
    Images and drawings keep their own thumbnail dimensions beside full-height presses. */
-.lf-composer-drawing > .lf-composer-media-open { padding: 4px;
-  box-sizing: border-box; }
-.lf-composer-drawing > .lf-composer-media-open > svg { display: block; width: 100%;
-  height: 100%; overflow: visible; }
-.lf-composer-drawing > .lf-composer-media-open path { fill: none;
-  stroke: var(--accent); stroke-width: 2px; stroke-linecap: round;
-  stroke-linejoin: round; }
+.lf-composer-drawing > .lf-composer-media-open { padding: 0;
+  box-sizing: border-box; position: relative; }
+.lf-drawing-context-status { position: absolute; inset-inline: 0; inset-block-end: 0;
+  padding: 2px; font: 10px/1.2 var(--sans); background: var(--paper); color: var(--ink-2); }
+.lf-composer-drawing > .lf-composer-media-open > canvas { display: block; width: 100%;
+  height: 100%; object-fit: contain; }
 .lf-composer-media-item > button:not(.lf-media-open) { flex: none; display: grid; place-items: center;
   inline-size: max(26px, var(--aim-floor)); min-block-size: var(--aim-floor);
   padding: 0; border: 0; font: inherit;
@@ -1053,10 +1052,15 @@ button.lf-media-open { cursor: zoom-in; }
 .lf-fab-bar[data-lf-presentation="inline"].lf-response-open
           > .lf-response-options { display: inline-flex; align-items: center;
           flex-wrap: wrap; gap: 4px; max-width: 100%; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media {
+.lf-fab-bar .lf-composer-media {
           flex: none; max-width: 148px; padding: 0; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media-open {
+.lf-fab-bar .lf-composer-media:has(> .lf-composer-drawing) {
+          --lf-drawing-preview-width: 96px;
+          max-width: calc(var(--lf-drawing-preview-width) + 2 * max(26px, var(--aim-floor)) + 2px); }
+.lf-fab-bar .lf-composer-media-open {
           width: 42px; height: 34px; }
+.lf-fab-bar .lf-composer-drawing > .lf-composer-media-open {
+          width: var(--lf-drawing-preview-width); height: 64px; }
 @media print {
   .lf-fab-bar[data-lf-presentation="inline"] { display: none !important; }
 }

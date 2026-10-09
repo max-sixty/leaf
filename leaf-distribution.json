@@ -1,7 +1,7 @@
 {
   "producer": {
-    "commit": "ea3d4d6f9948",
-    "committed": "2026-10-09T01:26:50-07:00",
+    "commit": "d12f1cc88609",
+    "committed": "2026-10-09T01:29:00-07:00",
     "dirty": false
   },
   "runtime_paths": [
@@ -49,6 +49,8 @@
     "color-scheme.js",
     "composing/aim.js",
     "composing/capture.js",
+    "composing/drawing-context.js",
+    "composing/drawing-geometry.js",
     "composing/drawing-ink.js",
     "composing/drawing-record.js",
     "composing/drawing.js",

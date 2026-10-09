@@ -1,7 +1,7 @@
 {
   "producer": {
-    "commit": "b91b9660cd61",
-    "committed": "2026-10-09T09:28:29-07:00",
+    "commit": "94283b9ac79e",
+    "committed": "2026-10-09T10:29:40-07:00",
     "dirty": false
   },
   "runtime_paths": [
@@ -233,6 +233,7 @@
     "widget-elements.js",
     "widget-imports.js",
     "widget-loader.js",
-    "widget-upgrade.js"
+    "widget-upgrade.js",
+    "work.js"
   ]
 }

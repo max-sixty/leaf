@@ -173,9 +173,7 @@ def initial_sample_events(
                 raise ValueError("; ".join(errors))
             if "markup" in event:
                 fragment = SourceDocument(event["markup"])
-                readings = initial_data_document_readings(
-                    child.lf_elements, events, registry
-                )
+                readings = initial_data_document_readings(child, events, registry)
                 readings.append(
                     (fragment.lf_elements, f"incoming {kind} markup", registry)
                 )

@@ -1155,7 +1155,7 @@ dd { margin: 0 0 8px 0; }
  * without it, and stating it there would be a declaration that could never be
  * wrong and never do anything. */
 .eyebrow, .tag, figcaption, caption, th:not([scope="row"]), .facts dt,
-.lf-error, .lf-chips span {
+.lf-error {
   font-family: var(--sans); font-variant-numeric: tabular-nums; }
 
 /* The compact face a small label rides in, set in the chip tokens (:root) that every
@@ -1171,15 +1171,8 @@ dd { margin: 0 0 8px 0; }
   box-sizing: border-box; max-width: 100%; overflow-wrap: break-word;
   border-radius: var(--chip-r); background: var(--chip); color: var(--ink-2); }
 
-/* A row of chips a widget writes, and the chips in it, in the face above. task rows write these. */
-.lf-chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 2px 0 6px; }
-.lf-chips span {
-  display: inline-block; font-size: var(--t-6); line-height: var(--chip-lh);
-  padding: var(--chip-pad);
-  box-sizing: border-box; max-width: 100%; overflow-wrap: break-word;
-  border-radius: var(--chip-r); background: var(--chip); color: var(--ink-2); }
-/* The block something is about (§): an option row's `for`, which lf-options writes,
- * and an agent's section, which lf-agent does. It points; it never supplies the row's words, so it
+/* The block an option row is about (§): its `for`, which lf-options writes.
+ * It points; it never supplies the row's words, so it
  * reads as what it is — an id, written the way the thread panel writes an element
  * anchor — and rides at the line's end with the mark, out of the way of what the row
  * says.

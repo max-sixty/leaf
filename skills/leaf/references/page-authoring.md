@@ -128,8 +128,9 @@ from these:
 A page grows without changing its Layout: a report that gains live status gains a row of
 tiles, and its comments and anchors stay put.
 
-Use `lf-roster` when one orchestrator publishes the page and multiple workers
-report to it. On a one-agent page, the banner carries that activity. A revisited
+Compose worker readings with a page-owned adapter when multiple workers report
+to one orchestrator. Declare their report verbs and use the public work projection
+for task and worker state. On a one-agent page, the banner carries that activity. A revisited
 page with several contributors, such as a working board, command hub, or long
 review, can use `lf-activity` to show recent changes; a read-once page needs no
 activity feed.

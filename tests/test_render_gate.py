@@ -45,6 +45,8 @@ from render_cases_layout import (
     CODE_CONTROL_PAGE,
     CODE_FAULT_PAGE,
     CUSTOM_WIDGET_PAGE,
+    DRAWING_CONTROL_LAYER,
+    DRAWING_CONTROL_WIDGETS,
     EDGE_IDS,
     EDGES,
     FLOATING_PAGE,
@@ -307,6 +309,11 @@ def test_framing_advice_leaves_chrome_findings_to_leaf(browser, serve):
           generated.innerHTML = '<section id="generated-inset" style="padding:16px">'
             + '<h2 style="margin-block:32px 0">Generated title</h2>Words</section>';
           document.getElementById('member-frame').append(generated);
+          const layout = document.createElement('div');
+          layout.innerHTML = '<section id="member-module-inset" style="padding:16px">'
+            + '<h2 style="margin-block:32px 0">Module layout</h2>Words</section>'
+            + '<button class="lf-ui">Module control</button>';
+          document.getElementById('column').append(layout);
           customElements.define('module-frame', class extends HTMLElement {});
           const host = document.createElement('module-frame');
           host.attachShadow({ mode: 'open' }).innerHTML =
@@ -333,7 +340,13 @@ def test_framing_advice_leaves_chrome_findings_to_leaf(browser, serve):
         for box in render_checks_model.evaluate_probe(page, "trappedMargins")
     }
     assert traps["chrome-inset"]["chrome"]
-    for ident in ("chrome-inset", "generated-inset", "module-inset", "shadow-inset"):
+    for ident in (
+        "chrome-inset",
+        "generated-inset",
+        "module-inset",
+        "shadow-inset",
+        "member-module-inset",
+    ):
         assert not traps[ident]["authored"]
     assert traps["markup-frame"]["authored"]
     assert traps["authored-inset"]["authored"]
@@ -348,6 +361,7 @@ def test_framing_advice_leaves_chrome_findings_to_leaf(browser, serve):
         ("member-inset", "section"),
     ):
         assert any(line.startswith(f"<{tag} id={ident}> draws 16px") for line in advice)
+    assert render_checks_model.evaluate_probe(page, "apparatusAmongAuthored") == []
 
 
 def test_the_render_gate_reports_a_defect_specific_to_the_compact_viewport(
@@ -5036,10 +5050,22 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
     cut a box while overflow computes `visible`. Containment carries the placed case
     too, being what makes a static box the containing block of the box it then cuts —
     the converse of the box hung off `holding`, which is placed out of a clip that never
-    held it."""
-    failures = render_gate_model.render_version(
-        browser, serve(OVER_ITS_CONTAINER)
-    ).failures
+    held it.
+
+    HTML drawings own their clipped internal coordinates just as SVG does. Their
+    viewport still belongs to page flow, and offered controls still lose presses
+    when clipped, beside a clean control the viewport shows completely."""
+    url = serve(
+        OVER_ITS_CONTAINER,
+        layer_registry=DRAWING_CONTROL_LAYER,
+        layer_widgets=DRAWING_CONTROL_WIDGETS,
+    )
+    page = open_page(browser, url)
+    expect(page.locator("lf-test-drawing-control [data-lf-offer]")).to_have_count(2)
+    expect(page.locator("#clipped-drawing-control")).to_have_text("Inspect")
+    expect(page.locator("#clean-drawing-control")).to_have_text("Inspect")
+    page.close()
+    failures = render_gate_model.render_version(browser, url).failures
 
     assert [
         f
@@ -5073,6 +5099,20 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
         for f in failures
         if "<div id=cut-by-paint> is drawn" in f and "outside <div id=contained>" in f
     ], f"a container that cuts by containment answered for nothing: {failures}"
+    assert not [f for f in failures if "id=drawing-pixels>" in f], failures
+    assert [
+        f
+        for f in failures
+        if "<div id=outside-viewport> is drawn" in f
+        and "outside <div id=drawing-holder>" in f
+    ], f"a drawing viewport escaped its page-flow holder: {failures}"
+    assert [
+        f
+        for f in failures
+        if "(#clipped-drawing-control)" in f
+        and "page offers a press it does not show" in f
+    ], f"the drawing declaration concealed a lost control: {failures}"
+    assert not [f for f in failures if "(#clean-drawing-control)" in f], failures
 
 
 def test_the_render_gate_reads_a_scrolled_container_from_its_content(browser, serve):

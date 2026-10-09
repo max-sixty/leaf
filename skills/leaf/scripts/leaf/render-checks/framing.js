@@ -8,21 +8,27 @@ const declared = (el) =>
 const frames = (style) =>
   ["1", "trim"].includes(style.getPropertyValue("--lf-block-frame").trim());
 
-// Markup and member containers keep the page's authored boxes; other widgets own
-// their implementation children. Generated apparatus stays module-owned in either case,
-// including across a shadow host. The host's outer box remains the page's to style.
-const moduleOwnsChildren = (parent) => {
-  for (let node = parent; node && node.localName !== "main"; node = upFrom(node))
-    if (declared(node))
-      return !["markup", "members"].includes(declarationFor(node, "x-content"));
+// Markup containers keep the page's boxes; member containers keep only declared
+// member hosts. Their other descendants are implementation layout. Generated
+// apparatus stays module-owned in either case, including across a shadow host.
+const moduleOwnsBox = (el) => {
+  for (
+    let child = el, parent = upFrom(child);
+    parent && parent.localName !== "main";
+    child = parent, parent = upFrom(parent)
+  ) {
+    if (!declared(parent)) continue;
+    const content = declarationFor(parent, "x-content");
+    if (content === "markup") return false;
+    return (
+      content !== "members" ||
+      !(declarationFor(child, "x-owners") || []).includes(parent.localName)
+    );
+  }
   return false;
 };
 const pageOwnsFrame = (el) => {
-  if (
-    el.getRootNode() instanceof ShadowRoot ||
-    inChrome(el) ||
-    moduleOwnsChildren(upFrom(el))
-  )
+  if (el.getRootNode() instanceof ShadowRoot || inChrome(el) || moduleOwnsBox(el))
     return false;
   for (let node = el; node; node = upFrom(node))
     if (node.matches(generated)) return false;
@@ -266,7 +272,7 @@ export function splitEdges() {
 export function apparatusAmongAuthored() {
   const modules = (parent) => {
     if (declared(parent) || parent.matches("[data-interaction-gallery]")) return true;
-    return moduleOwnsChildren(upFrom(parent));
+    return moduleOwnsBox(parent);
   };
   const found = new Set();
   for (const el of document.querySelectorAll(`main :is(${generated})`)) {

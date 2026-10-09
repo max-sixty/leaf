@@ -864,7 +864,7 @@ ROOM_GEOMETRY = (
 }"""
 )
 # A wide widget inside each of the two kinds of holder: a box that paints (the quoted
-# frame, the option's card, the metric, the nested task's rail, the note a code block
+# frame, the option's card, the metric, a native nested section's rail, the note a code block
 # builds, the page's own div) and a wrapper that doesn't (a plain section). The div is
 # the case the theme cannot name: it draws its box in the page's own style and declares
 # the frame there, which is the whole of what a project writes to hold an exhibit inside
@@ -922,24 +922,26 @@ graph LR
   <lf-column id="e2" label="Done"></lf-column>
 </lf-board>
 <div class="layout-tiles" id="nums">
-  <dl id="me1" class="panel"><dt>p95, with the path it measures
+  <section id="me1" class="panel">
+    <dl><dt>p95, with the path it measures</dt><dd><strong>410ms</strong></dd></dl>
     <lf-diagram id="in-metric"><pre>
 graph LR
   A[request] --> B[queue]
   B --> C[worker]
-</pre></lf-diagram></dt><dd><strong>410ms</strong></dd></dl>
+</pre></lf-diagram>
+  </section>
 </div>
-<lf-tasks id="plan">
-  <lf-task id="t-outer" status="active"><strong>Rebuild the feeders</strong>
-    <lf-task id="t-inner" status="review"><strong>Fit the baffles</strong>
+<section id="plan">
+  <section id="t-outer" class="nested-frame"><strong>Rebuild the feeders</strong>
+    <section id="t-inner" class="nested-frame"><strong>Fit the baffles</strong>
       <lf-diagram id="in-task"><pre>
 graph LR
   A[request] --> B[queue]
   B --> C[worker]
 </pre></lf-diagram>
-    </lf-task>
-  </lf-task>
-</lf-tasks>
+    </section>
+  </section>
+</section>
 <lf-code id="walk" language="python" hi="2"><pre>
 def bracket(temp):
     if temp &lt; 0:
@@ -962,6 +964,11 @@ graph LR
 </pre></lf-diagram>
 </div>
 """,
+).replace(
+    "</head>",
+    "<style>.nested-frame > .nested-frame { --lf-block-frame: 1; "
+    "border-inline-start: 1px solid var(--rule); padding-inline-start: 1rem; }"
+    "</style></head>",
 )
 
 # A box of the page's own that both draws and scrolls, holding a wide widget. The theme

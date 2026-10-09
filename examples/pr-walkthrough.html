@@ -1,6 +1,9 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <style>
+      @import url("/page/theme.css");
+    </style>
     <title>PR walkthrough: Worktrunk unified diff</title>
     <meta
       name="description"
@@ -512,11 +515,11 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
 
         <section class="panel" id="pr-source-facts">
           <h2>Captured pull request</h2>
-          <lf-pull-request
+          <lf-pr-brief
             id="pr-reviewed-request"
             data-height="959"
             source="pr-review-facts"
-          ></lf-pull-request>
+          ></lf-pr-brief>
         </section>
 
         <section class="panel" id="pr-history">

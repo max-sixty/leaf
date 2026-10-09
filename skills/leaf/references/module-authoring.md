@@ -964,6 +964,19 @@ feature gallery switches Conversation, Shelf and Feed with these APIs.
 
 ## Reading Asks and obligation queues
 
+`readWork(scope)` projects a page-owned work hierarchy from the current application
+publication. Declare `$work.widgets` roles: `scope` bounds one hierarchy; `goal`
+names a recorded `state` attribute, `done` values and `stopped` values; `worker`
+names its recorded `state`, `running` and `retired` values and optional assignment
+attribute `on`; `evidence` declares an observed-data seat. The returned `goals`,
+`workers`, terminal `leaves`, `done`, `stopped`, `liveWorkers`, `running` and `quiet`
+readings retain their authored `element` identities. Stopped goals include held
+threads and outstanding interventions; worker reports retain last-heard time and
+respect the closest scope and goal's remit. No dashboard stores another copy.
+`workRole`, `workElements`, `directWorkElements` and `workAncestor` read the same
+role declaration for page-owned adapters. Atlas demonstrates native composition
+in `examples/command-hub.page/`; these domain tags are owned by that page.
+
 `readAsks()` returns the publisher's immutable `{phase, all, user, unanswered}`.
 `all` is the complete standing Ask inventory, `user` is the set currently on the
 user, and `unanswered` retains every standing unanswered Ask, including those held

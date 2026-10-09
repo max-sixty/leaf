@@ -1,0 +1,4 @@
+lf-test-plan, lf-test-tasks, lf-test-roster, lf-test-task, lf-test-worker, lf-test-tree { display: block; }
+.work-state { display: block; color: var(--muted); }
+
+.work-progress { font-variant-numeric: tabular-nums; display: inline-block; }

@@ -2196,7 +2196,11 @@ def test_shipped_data_opens_in_its_package_projection(site, served_example, brow
     snapshot = page.locator('#tree-w-1 [data-lf-datum="tree-w-1"]')
     expect(snapshot).to_have_count(1)
     expect(snapshot).to_contain_text("atlas/xml-declarations")
-    expect(snapshot).to_contain_text("tests running")
+    expect(
+        snapshot.locator("dt", has_text="Tests").locator(
+            "xpath=following-sibling::dd[1]"
+        )
+    ).to_have_text("running")
 
 
 def test_a_comment_persists_without_inventing_an_agent_reply(served_example, browser):

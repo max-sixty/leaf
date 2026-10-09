@@ -1018,9 +1018,9 @@ def _seat_filler(name):
 
 TASK_SEAT_PAGE = leaf_page(
     "seat",
-    f"<h1 id='h'>Three jobs</h1>{_seat_filler('lead')}<lf-command id='hub' "
-    "label='Before the frost'><lf-task id='jobs' status='active' talk>"
-    f"<strong>Which jobs are worth starting?</strong></lf-task></lf-command>"
+    f"<h1 id='h'>Three jobs</h1>{_seat_filler('lead')}<lf-test-plan id='hub' "
+    "label='Before the frost'><lf-test-task id='jobs' status='active' talk>"
+    f"<strong>Which jobs are worth starting?</strong></lf-test-task></lf-test-plan>"
     f"{_seat_filler('tail')}",
 )
 

@@ -993,7 +993,7 @@ FOCUS_IN_PAGE = """() => {
 # had no class of its own: DOMTokenList leaves `class=""` behind, and that is a residue of
 # the runtime's paint rather than anything the page says.
 # Generated text is blanked before the compare, because a widget may render a clock
-# and a clock is not a press: lf-agent's elapsed line re-renders on every poll, so the
+# and a clock is not a press: lf-test-worker's elapsed line re-renders on every poll, so the
 # minute turning during a long sweep read as a press that had reached a widget. What the
 # check is for survives untouched — a stray pick writes `chosen` on the option and a
 # stray tab switch moves the panels' attributes, both of them authored rather than
@@ -1343,20 +1343,20 @@ MANY_ASKS_PAGE = leaf_page(
     """
 <h1>Many decisions</h1>
 <p>A drawer long enough to scroll.</p>
-<lf-tasks id="plan">
+<lf-test-tasks id="plan">
 """
     + "\n".join(
-        f'<lf-task id="t-{i}" status="review" owner="wren">'
+        f'<lf-test-task id="t-{i}" status="review" owner="wren">'
         f"<strong>Waiting on you, item {i}</strong>"
         f'<lf-ask id="t-{i}-decision"><h2>Decision {i}</h2>'
         f'<lf-options id="t-{i}-choice" choose>'
         f'<lf-option id="t-{i}-yes"><strong>Approve</strong></lf-option>'
         f'<lf-option id="t-{i}-no"><strong>Request changes</strong></lf-option>'
-        f"</lf-options></lf-ask></lf-task>"
+        f"</lf-options></lf-ask></lf-test-task>"
         for i in range(24)
     )
     + """
-</lf-tasks>
+</lf-test-tasks>
 """,
 )
 # Native values and prose paths must remain readable in a narrow column.

@@ -1100,8 +1100,8 @@ def test_init_allows_a_logged_report_the_incoming_layer_no_longer_speaks(page_di
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-tasks id="tree"><lf-task id="t1" status="active">'
-            "<strong>Parse</strong></lf-task></lf-tasks></section>",
+            '<lf-test-tasks id="tree"><lf-test-task id="t1" status="active">'
+            "<strong>Parse</strong></lf-test-task></lf-test-tasks></section>",
         )
     )
     publish(page_dir)
@@ -1116,11 +1116,11 @@ def test_init_allows_a_logged_report_the_incoming_layer_no_longer_speaks(page_di
     )
 
     registry = json.loads((page_dir / "registry.json").read_text())
-    task = registry["lf-task"]
+    task = registry["lf-test-task"]
     task.pop("x-state")
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
-    (overlay / "registry.json").write_text(json.dumps({"lf-task": task}))
+    (overlay / "registry.json").write_text(json.dumps({"lf-test-task": task}))
 
     result = CliRunner().invoke(
         cli_model.cli,
@@ -1274,11 +1274,11 @@ def test_revendoring_serializes_with_a_worker_report_entering_the_log(
     _tasks_version(page_dir, "active")
     publish(page_dir)
     registry = json.loads((page_dir / "registry.json").read_text())
-    task = registry["lf-task"]
+    task = registry["lf-test-task"]
     task.pop("x-state")
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
-    (overlay / "registry.json").write_text(json.dumps({"lf-task": task}))
+    (overlay / "registry.json").write_text(json.dumps({"lf-test-task": task}))
     _, refusal = assert_revendor_serializes_writer(
         page_dir,
         monkeypatch,
@@ -1291,7 +1291,8 @@ def test_revendoring_serializes_with_a_worker_report_entering_the_log(
     assert refusal is None
     assert events_model.read_events(page_dir)[-1]["kind"] == "report"
     assert (
-        "x-state" not in json.loads((page_dir / "registry.json").read_text())["lf-task"]
+        "x-state"
+        not in json.loads((page_dir / "registry.json").read_text())["lf-test-task"]
     )
 
 
@@ -2784,7 +2785,7 @@ def test_generated_child_declaration_closes_its_boundary(page_dir, mutation, mes
     elif mutation == "wrong-id":
         option["properties"]["id"]["pattern"] = "^option-.+$"
     elif mutation == "report-creates":
-        registry["lf-agent"]["x-state"]["state"]["creates"] = {
+        registry["lf-test-worker"]["x-state"]["state"]["creates"] = {
             "child": "lf-option",
             "words": "doing",
         }
@@ -2824,7 +2825,7 @@ def test_unrecorded_fold_units_are_required_strings(page_dir):
     [
         ("lf-options", "choose", "unit"),
         ("lf-draft", "edit", "unit"),
-        ("lf-task", "status", "unit"),
+        ("lf-test-task", "status", "unit"),
         ("lf-board", "move", "widget"),
     ],
 )
@@ -3010,7 +3011,7 @@ def test_recorded_declarations_cannot_override_the_fixed_payload(page_dir, mutat
     if mutation == "detail":
         spec["detail"] = {"type": "object", "additionalProperties": False}
     elif mutation == "update-field":
-        registry["lf-agent"]["x-state"]["state"]["update"] = "doing"
+        registry["lf-test-worker"]["x-state"]["state"]["update"] = "doing"
     else:
         spec["record"][mutation.removeprefix("record-")] = "custom"
     (page_dir / "registry.json").write_text(json.dumps(registry))
@@ -3023,7 +3024,10 @@ def test_recorded_declarations_cannot_override_the_fixed_payload(page_dir, mutat
 
 def test_value_records_use_the_string_type_html_attributes_carry(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-agent"]["properties"]["state"] = {"type": "integer", "minimum": 0}
+    registry["lf-test-worker"]["properties"]["state"] = {
+        "type": "integer",
+        "minimum": 0,
+    }
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
@@ -3036,7 +3040,8 @@ def test_report_update_prose_is_required_only_when_declared(page_dir):
     """The report flag fixes nonempty text; reports without it carry just their value."""
     registry = json.loads((page_dir / "registry.json").read_text())
     page = ModelPage(
-        '<lf-agent id="agent" state="working">Agent</lf-agent>', registry=registry
+        '<lf-test-worker id="agent" state="working">Agent</lf-test-worker>',
+        registry=registry,
     )
     command = {
         "kind": "report",
@@ -3064,9 +3069,10 @@ def test_report_update_prose_is_required_only_when_declared(page_dir):
             page, [], {**command, "kind": "action", "author": "user", "detail": detail}
         )
 
-    del registry["lf-agent"]["x-state"]["state"]["update"]
+    del registry["lf-test-worker"]["x-state"]["state"]["update"]
     page = ModelPage(
-        '<lf-agent id="agent" state="working">Agent</lf-agent>', registry=registry
+        '<lf-test-worker id="agent" state="working">Agent</lf-test-worker>',
+        registry=registry,
     )
     admitted = event_contracts_model.admitted_event(
         page, [], {**command, "detail": {"value": "waiting"}}
@@ -3080,7 +3086,7 @@ def test_report_update_prose_is_required_only_when_declared(page_dir):
     ("tag", "verb", "field"),
     [
         ("lf-suggestion", "decide", "unit"),
-        ("lf-task", "status", "unit"),
+        ("lf-test-task", "status", "unit"),
     ],
 )
 def test_every_fold_verb_declares_its_coordinate(page_dir, tag, verb, field):
@@ -3100,7 +3106,7 @@ def test_every_fold_verb_declares_its_coordinate(page_dir, tag, verb, field):
     [
         ("lf-draft", "edit", "body"),
         ("lf-board", "move", "position"),
-        ("lf-task", "status", "value `status`"),
+        ("lf-test-task", "status", "value `status`"),
         ("lf-options", "choose", "attribute `chosen`"),
     ],
 )
@@ -3127,17 +3133,12 @@ def test_physical_record_slots_remain_local_to_the_coordinate(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
 
     # A different host attribute is a different value slot on the same unit.
-    task = registry["lf-task"]
+    task = registry["lf-test-task"]
     owner = json.loads(json.dumps(task["x-state"]["status"]))
     owner["record"] = {"kind": "value", "attr": "owner"}
     task["properties"]["owner"] = {"type": "string"}
     task.setdefault("required", []).append("owner")
     task["x-state"]["owner"] = owner
-    registry["lf-tasks"]["x-example"] = re.sub(
-        r"<lf-task\b(?![^>]*\bowner=)",
-        '<lf-task owner="test"',
-        registry["lf-tasks"]["x-example"],
-    )
 
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
@@ -3362,13 +3363,13 @@ def test_withdrawal_may_name_an_outcome_that_retires_no_slots(trial_page):
             "a flag is there or it isn't",
         ),
         (
-            "lf-task",
+            "lf-test-task",
             "x-awaits",
             {"when": {"status": [True]}},
             "that attribute is not a flag",
         ),
         (
-            "lf-task",
+            "lf-test-task",
             "x-awaits",
             {"when": {"status": ["reviewing"]}},
             "its own enum does not admit",
@@ -3425,7 +3426,7 @@ def test_check_refuses_a_predicate_no_page_could_carry(
 )
 def test_a_local_ask_declares_its_answered_condition(page_dir, declaration, message):
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-task"]["x-awaits"] = declaration
+    registry["lf-test-task"]["x-awaits"] = declaration
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
@@ -3541,7 +3542,7 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
             "colour",
         ),
         ("lf-option", "x-refers", {"for": {}, "about": {}}, "about"),
-        ("lf-task", "x-paints", ["status", "urgency"], "urgency"),
+        ("lf-test-task", "x-paints", ["status", "urgency"], "urgency"),
         ("lf-code", "x-lines", ["hi", "upto"], "upto"),
         ("lf-code", "x-language", "dialect", "dialect"),
         ("lf-column", "x-tone", "shade", "shade"),
@@ -3579,7 +3580,7 @@ def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
             "names unknown registry map '$missing.widgets'",
         ),
         (
-            {"via": "$command.widgets", "where": {"role": "imaginary"}},
+            {"via": "$work.widgets", "where": {"role": "imaginary"}},
             "but no declared widget matches",
         ),
     ],
@@ -5016,8 +5017,8 @@ def test_init_allows_to_drop_the_contract_of_a_held_comment(page_dir):
     version.write_text(
         PAGE.replace(
             "</section>",
-            '<lf-tasks id="work"><lf-task id="goal" status="active" talk>'
-            "<strong>Goal</strong></lf-task></lf-tasks></section>",
+            '<lf-test-tasks id="work"><lf-test-task id="goal" status="active" talk>'
+            "<strong>Goal</strong></lf-test-task></lf-test-tasks></section>",
         )
     )
     publish(page_dir)
@@ -5034,7 +5035,7 @@ def test_init_allows_to_drop_the_contract_of_a_held_comment(page_dir):
     )
     registry_path = package / "registry.json"
     registry = json.loads(registry_path.read_text())
-    del registry["lf-task"]["x-thread-seat"]["hold"]
+    del registry["lf-test-task"]["x-thread-seat"]["hold"]
     registry_path.write_text(json.dumps(registry))
 
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])

@@ -118,8 +118,8 @@
       }
     }
   },
-  "lf-pull-request": {
-    "description": "A commentable account of a pull request, including the original author’s description and observed checks.",
+  "lf-pr-brief": {
+    "description": "The review packet\u2019s live author brief and observed checks.",
     "x-instructions": "Place one empty element before the agent-authored walkthrough and bind it to the page's pull-request source. The widget labels the original author description, so surrounding prose can carry the reviewer's analysis.",
     "type": "object",
     "properties": {
@@ -145,7 +145,6 @@
       }
     },
     "x-upgrade": true,
-    "x-height": true,
-    "x-example": "<lf-pull-request id=\"reviewed-pr\" data-height=\"640\" source=\"pr-1842\"></lf-pull-request>"
+    "x-height": true
   }
 }

@@ -1,4 +1,232 @@
 {
+  "$data": {
+    "description": "Reusable contracts for observed Command Hub facts supplied by the harness rather than authored into a version.",
+    "contracts": {
+      "pull-request": {
+        "description": "One observed pull request, including its Markdown author description, revision, diff statistics, and checks.",
+        "instructions": {
+          "producer": "Replace the complete source whenever the pull request or its checks change:\n\n```bash\nleaf data set \"$PAGE\" <source-id> --file pull-request.json\n```\n\nThe JSON object carries `repository`, positive integer `number`, `title`, `author`, `base`, `head`, `revision`, `status`, a Markdown `description`, RFC 3339 `observedAt`, a `diff` object counting the change's `files`, `additions`, `deletions`, and `commits`, and a `checks` map from check name to status. Keep the source id on the same pull request for the page's lifetime. Leaf presents these supplied facts; it does not query a forge."
+        },
+        "schema": {
+          "type": "object",
+          "properties": {
+            "repository": {
+              "type": "string",
+              "minLength": 1
+            },
+            "number": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
+            "author": {
+              "type": "string",
+              "minLength": 1
+            },
+            "base": {
+              "type": "string",
+              "minLength": 1
+            },
+            "head": {
+              "type": "string",
+              "minLength": 1
+            },
+            "revision": {
+              "type": "string",
+              "minLength": 1
+            },
+            "status": {
+              "enum": [
+                "draft",
+                "open",
+                "merged",
+                "closed"
+              ]
+            },
+            "description": {
+              "type": "string",
+              "description": "The author's pull-request description as Markdown. Raw HTML is displayed as text."
+            },
+            "observedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "diff": {
+              "type": "object",
+              "properties": {
+                "files": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "additions": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "deletions": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "commits": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "files",
+                "additions",
+                "deletions",
+                "commits"
+              ],
+              "additionalProperties": false
+            },
+            "checks": {
+              "type": "object",
+              "propertyNames": {
+                "minLength": 1
+              },
+              "additionalProperties": {
+                "enum": [
+                  "queued",
+                  "running",
+                  "passed",
+                  "failed",
+                  "cancelled",
+                  "skipped"
+                ]
+              }
+            }
+          },
+          "required": [
+            "repository",
+            "number",
+            "title",
+            "author",
+            "base",
+            "head",
+            "revision",
+            "status",
+            "description",
+            "observedAt",
+            "diff",
+            "checks"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "atlas-worktrees": {
+        "description": "Current worktree evidence keyed by the id of its authored lf-atlas-tree seat.",
+        "instructions": {
+          "coordinator": "After worktree evidence changes, replace the complete page-bound source snapshot rather than republishing it as prose or appending an event:\n\n```bash\nleaf data set \"$PAGE\" <source-id> --file worktrees.json\n```\n\nRead `data_bindings` from `leaf page state \"$PAGE\"` to find source ids using the `atlas-worktrees` contract and their consuming widget ids. `worktrees.json` is an object keyed by authored worktree widget id. Each value carries `branch`, `base`, `head`, non-negative `ahead`, `behind`, `additions`, `deletions`, and `commits`, a `tests` value of `passing`, `failing`, `running`, or `not-run`, an RFC 3339 `observedAt` timestamp with a timezone, and optional `files` and `diff` strings. Keep a key stable for the same worktree, and give a different worktree a new authored lf-atlas-tree id; a reused id would attach old comments to the wrong worktree. Gather these facts with harness tools; Leaf validates, transports, and presents them but does not run git or inspect worker directories."
+        },
+        "schema": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "branch": {
+                "type": "string",
+                "minLength": 1
+              },
+              "base": {
+                "type": "string",
+                "minLength": 1
+              },
+              "head": {
+                "type": "string",
+                "minLength": 1
+              },
+              "ahead": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "behind": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "additions": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "deletions": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "commits": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "tests": {
+                "enum": [
+                  "passing",
+                  "failing",
+                  "running",
+                  "not-run"
+                ]
+              },
+              "observedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "files": {
+                "type": "string"
+              },
+              "diff": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "branch",
+              "base",
+              "head",
+              "ahead",
+              "behind",
+              "additions",
+              "deletions",
+              "commits",
+              "tests",
+              "observedAt"
+            ],
+            "additionalProperties": false
+          }
+        }
+      }
+    }
+  },
+  "lf-pr-brief": {
+    "description": "The review packet’s live author brief and observed checks.",
+    "x-instructions": "Place one empty element before the agent-authored walkthrough and bind it to the page's pull-request source. The widget labels the original author description, so surrounding prose can carry the reviewer's analysis.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "source": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      }
+    },
+    "required": [
+      "id",
+      "source"
+    ],
+    "additionalProperties": false,
+    "x-content": "empty",
+    "x-data": {
+      "request": {
+        "contract": "pull-request",
+        "source": "source"
+      }
+    },
+    "x-upgrade": true,
+    "x-height": true
+  },
   "lf-merge-film": {
     "description": "An animated, scrubbable film of worktrunk's wt merge, drawn as one SVG in the page's colours, with flags that re-plot the run. Its commits, refs, worktrees and hook chips are commentable visual parts while they are on screen. Each paint dispatches a bubbling film-frame event naming the current step, its caption and the run's status per step.",
     "type": "object",
@@ -90,6 +318,236 @@
       "head-code": {},
       "merge-code": {}
     }
+  },
+  "$work": {
+    "description": "Atlas work roles read through the public work projection.",
+    "widgets": {
+      "lf-atlas-plan": {
+        "role": "scope"
+      },
+      "lf-atlas-task": {
+        "role": "goal",
+        "state": "status",
+        "done": [
+          "done"
+        ],
+        "stopped": [
+          "blocked",
+          "review",
+          "stalled"
+        ],
+        "review": [
+          "review"
+        ],
+        "stalled": [
+          "stalled"
+        ],
+        "depends": "needs",
+        "stoppedAt": "stopped-at"
+      },
+      "lf-atlas-worker": {
+        "role": "worker",
+        "state": "state",
+        "running": [
+          "working"
+        ],
+        "retired": [
+          "reaped",
+          "done"
+        ],
+        "on": "on"
+      },
+      "lf-atlas-tree": {
+        "role": "evidence"
+      }
+    }
+  },
+  "lf-atlas-plan": {
+    "description": "A goal-first command surface combining a work tree, its workers, and shared progress readings.",
+    "x-name": "label",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "label": {
+        "type": "string"
+      },
+      "phase": {
+        "type": "string"
+      },
+      "overview": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id"
+    ],
+    "additionalProperties": false,
+    "x-content": "members",
+    "x-refers": {
+      "overview": {}
+    },
+    "x-upgrade": true
+  },
+  "lf-atlas-task": {
+    "description": "One goal or piece of work, with ownership, status, and optional nested subgoals.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "status": {
+        "enum": [
+          "planned",
+          "active",
+          "blocked",
+          "review",
+          "stalled",
+          "done"
+        ]
+      },
+      "owner": {
+        "type": "string"
+      },
+      "when": {
+        "type": "string"
+      },
+      "tags": {
+        "type": "string",
+        "pattern": "^[a-z0-9-]+(,[a-z0-9-]+)*$"
+      },
+      "needs": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*( [a-z0-9][a-z0-9-]*)*$"
+      },
+      "stopped-at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "talk": {
+        "type": "boolean"
+      },
+      "overruled": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "id",
+      "status"
+    ],
+    "additionalProperties": false,
+    "x-owners": [
+      "lf-atlas-plan",
+      "lf-atlas-task"
+    ],
+    "x-content": "markup",
+    "x-upgrade": true,
+    "x-thread-seat": {
+      "when": {
+        "talk": [
+          true
+        ]
+      },
+      "hold": "Send & pause"
+    },
+    "x-state": {
+      "status": {
+        "writer": "agent",
+        "unit": "widget",
+        "record": {
+          "kind": "value",
+          "attr": "status"
+        }
+      }
+    }
+  },
+  "lf-atlas-worker": {
+    "description": "One worker’s identity, durable remit, current state, and reported activity.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "state": {
+        "enum": [
+          "working",
+          "waiting",
+          "blocked",
+          "idle",
+          "reaped",
+          "done"
+        ]
+      },
+      "on": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "overruled": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "id",
+      "state"
+    ],
+    "additionalProperties": false,
+    "x-owners": [
+      "lf-atlas-plan",
+      "lf-atlas-task"
+    ],
+    "x-content": "markup",
+    "x-refers": {
+      "on": {
+        "via": "$work.widgets",
+        "where": {
+          "role": "goal"
+        }
+      }
+    },
+    "x-upgrade": true,
+    "x-state": {
+      "state": {
+        "writer": "agent",
+        "unit": "widget",
+        "update": true,
+        "record": {
+          "kind": "value",
+          "attr": "state"
+        }
+      }
+    }
+  },
+  "lf-atlas-tree": {
+    "description": "A stable, commentable address for observed worktree evidence supplied by the harness.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "source": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      }
+    },
+    "required": [
+      "id",
+      "source"
+    ],
+    "additionalProperties": false,
+    "x-content": "empty",
+    "x-data": {
+      "worktrees": {
+        "contract": "atlas-worktrees",
+        "source": "source"
+      }
+    },
+    "x-upgrade": true,
+    "x-space": "wide"
   },
   "lf-conversation-workspace": {
     "description": "A worked package reader sharing Leaf conversations and obligations.",

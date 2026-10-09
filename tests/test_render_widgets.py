@@ -12776,7 +12776,7 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
       const presses = [...document.querySelectorAll('[data-lf-offer]')]
         .filter((el) => el.dataset.lfOffer !== '');
       const said = [document.querySelector('#intro > .tag'),
-                    document.querySelector('#t-camera .lf-chips > span')];
+                    document.querySelector('#owner-fact > .tag')];
       return {
         presses: presses.map(kind), said: said.map(kind),
         saidMarked: said.map((el) => el.hasAttribute('data-lf-offer')),

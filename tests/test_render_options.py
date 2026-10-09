@@ -1936,8 +1936,8 @@ def test_a_chip_an_option_says_stands_with_the_rest_of_its_words(browser, serve)
 
 
 def test_one_chip_holds_every_short_fact(browser, serve):
-    """The three writers of a chip, on one page: an author's inline label, a facet of a
-    decision, and the row a task builds from its own attributes.
+    """Three uses of a chip, on one page: an author's inline label, a facet of a
+    decision, and a value in a native facts list.
 
     They stated the chip three times and agreed on every number but one, which is the
     kind of agreement nobody is keeping: the inline label alone padded itself top and
@@ -1955,7 +1955,7 @@ def test_one_chip_holds_every_short_fact(browser, serve):
         for where, sel in [
             ("in prose", "#intro > .tag"),
             ("on a decision", "#p-keep > small.tag"),
-            ("in a task's row", "#t-camera .lf-chips > span"),
+            ("in a facts list", "#owner-fact > .tag"),
         ]
     }
     ((first, (look, box)), *rest) = worn.items()
@@ -1980,17 +1980,17 @@ def test_long_chip_labels_stay_inside_a_narrow_column(browser, serve):
     source = (
         CHIP_PAGE.replace("experimental", label)
         .replace("reversible", label)
-        .replace('owner="finch"', f'owner="{label}"')
+        .replace("finch", label)
         .replace(
             "</head>",
-            "<style>#intro, #p-keep, #t-camera .lf-chips { width: 240px; }</style></head>",
+            "<style>#intro, #p-keep, #owner-fact { width: 240px; }</style></head>",
         )
     )
     page = open_page(browser, serve(source))
     for chip_selector in (
         "#intro > .tag",
         "#p-keep > small.tag",
-        "#t-camera .lf-chips > span",
+        "#owner-fact > .tag",
     ):
         expect(page.locator(chip_selector)).to_have_text(label)
         geometry = page.locator(chip_selector).evaluate("""el => {
@@ -2009,43 +2009,37 @@ def test_long_chip_labels_stay_inside_a_narrow_column(browser, serve):
 
 
 def test_what_a_widget_paints_it_says_to_a_user_listening(browser, serve):
-    """A tint is a fact to whoever can see it and nothing at all to whoever can't. A
-    task's marker and an event's kind band each carried their whole meaning in colour,
-    so a user listening was handed every word around the fact and never the fact:
-    done sounded exactly like blocked.
-
-    Declared (x-paints) rather than written into each module, which is what lets it
-    reach the two widgets here that have no module at all, and read as the value or, for
-    a flag carrying none, the attribute's own name. Said in text, because that is the
-    one thing every screen reader announces in every mode — and therefore clipped to
-    nothing, holding no room, and out of the selection, since a word the eye can't see
-    is a word the clipboard has no business carrying."""
-    page = open_page(browser, serve(PAINTED_PAGE))
-    for sel, word in (
-        ("#e-dark", "failure"),
-        ("#t-baffles", "blocked"),
-    ):
-        assert word in page.locator(sel).aria_snapshot(), (
-            f"{sel} paints `{word}` and says nothing of it to a user listening"
-        )
-    room = page.locator(".lf-quiet").evaluate_all(
-        """els => els.map(el => { const r = el.getBoundingClientRect();
-             return [el.textContent, r.width, r.height,
-                     getComputedStyle(el).userSelect]; })"""
+    """A module-free widget's paint-only fact is spoken without changing its copy."""
+    declaration = {
+        "description": "A state whose meaning is expressed through tint alone.",
+        "type": "object",
+        "x-upgrade": False,
+        "properties": {"id": {"type": "string"}, "status": {"enum": ["blocked"]}},
+        "required": ["id", "status"],
+        "additionalProperties": False,
+        "x-content": "markup",
+        "x-paints": ["status"],
+    }
+    page = open_page(
+        browser, serve(PAINTED_PAGE, layer_registry={"lf-test-signal": declaration})
     )
-    assert len(room) == 2, f"one quiet word per painted fact, got {room}"
-    for word, width, height, select_mode in room:
-        assert width <= 1 and height <= 1, f"`{word}` is painting {width}x{height}"
-        assert select_mode == "none", f"`{word}` would come away in a copy of the page"
-    # And the browser agrees: a selection drawn across the whole event carries the
-    # words the page shows and not the one it only says.
-    spoken = page.evaluate(
-        """() => { const el = document.getElementById("e-dark");
+    assert "blocked" in page.locator("#painted").aria_snapshot()
+    quiet = page.locator("#painted .lf-quiet")
+    expect(quiet).to_have_count(1)
+    expect(quiet).to_have_text("blocked")
+    width, height, select_mode = quiet.evaluate(
+        """el => { const r = el.getBoundingClientRect();
+             return [r.width, r.height, getComputedStyle(el).userSelect]; }"""
+    )
+    assert width <= 1 and height <= 1, f"spoken status is painting {width}x{height}"
+    assert select_mode == "none", "spoken status would come away in a copy"
+    words = page.evaluate(
+        """() => { const el = document.getElementById('painted');
              const r = document.createRange(); r.selectNodeContents(el);
              getSelection().removeAllRanges(); getSelection().addRange(r);
              return getSelection().toString(); }"""
     )
-    assert "went dark" in spoken and "failure" not in spoken, spoken
+    assert "Waiting on the brackets" in words and "blocked" not in words
 
 
 def test_a_multiple_page_ask_waits_for_done(browser, serve):

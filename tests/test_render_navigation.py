@@ -15061,10 +15061,10 @@ def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):
   <lf-option id="sh-steel"><strong>Steel</strong> Galvanised, drop-in.</lf-option>
   <lf-option id="sh-cedar"><strong>Cedar</strong> Cheap; needs sealing.</lf-option>
 </lf-options></lf-ask>
-<lf-command id="hub" label="The rail">
-  <lf-task id="fitting" status="active" talk><strong>Who fits the rail?</strong>
-  Either crew can take it, and neither has said which week.</lf-task>
-</lf-command>
+<lf-test-plan id="hub" label="The rail">
+  <lf-test-task id="fitting" status="active" talk><strong>Who fits the rail?</strong>
+  Either crew can take it, and neither has said which week.</lf-test-task>
+</lf-test-plan>
 """,
         )
     )
@@ -15363,9 +15363,9 @@ def test_c_enters_a_seated_reply_without_revealing_the_thread_heading(
         leaf_page(
             "Reply without travel",
             '<div style="height:1000px"></div>'
-            '<lf-command id="hub" label="A task">'
-            '<lf-task id="fitting" status="active" talk>A task to discuss.</lf-task>'
-            '</lf-command><div style="height:1400px"></div>',
+            '<lf-test-plan id="hub" label="A task">'
+            '<lf-test-task id="fitting" status="active" talk>A task to discuss.</lf-test-task>'
+            '</lf-test-plan><div style="height:1400px"></div>',
         )
     )
     append_carried_log_record(
@@ -15620,8 +15620,8 @@ ASK_THREAD_PAGE = leaf_page(
     <lf-option id="ship-wait">Wait a week</lf-option>
   </lf-options>
 </lf-ask>
-<lf-tasks id="tasks">
-  <lf-task id="retry" status="review" owner="infra">
+<lf-test-tasks id="tasks">
+  <lf-test-task id="retry" status="review" owner="infra">
     <strong>Retry budget</strong> The retry budget doubles under load.
     <lf-ask id="retry-ask">
       <h3>Raise the retry budget?</h3>
@@ -15630,8 +15630,8 @@ ASK_THREAD_PAGE = leaf_page(
         <lf-option id="retry-keep">Keep it</lf-option>
       </lf-options>
     </lf-ask>
-  </lf-task>
-</lf-tasks>""",
+  </lf-test-task>
+</lf-test-tasks>""",
 )
 
 

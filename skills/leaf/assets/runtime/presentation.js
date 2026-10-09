@@ -599,8 +599,8 @@ export function renderSaid(root) {
   }
 }
 
-// What a widget states without local words. A task's status marker, a milestone's dot, an
-// entry's kind band: each is a fact the eye reads off paint alone, so a user listening
+// What a widget states without local words. A paint-only status marker or kind band
+// is a fact the eye reads off paint alone, so a user listening
 // is handed every word around it and nothing of the fact itself — done sounded exactly
 // like blocked. Same reasoning as renderSaid, one rung quieter: the registry names the
 // attributes (x-paints) and one pass speaks them, because left to each module it is a

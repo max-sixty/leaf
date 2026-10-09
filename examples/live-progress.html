@@ -291,27 +291,32 @@
           </details>
           <details id="lp-release-owners">
             <summary>Release owners · 5</summary>
-            <lf-roster id="lp-owners">
-              <lf-agent id="lp-agent-deployer" state="waiting">
+            <section id="lp-owners">
+              <section id="lp-agent-deployer">
+                <p class="eyebrow">waiting</p>
                 <strong>deployer</strong> Holding promotion at 25% while finance parity
                 is red.
-              </lf-agent>
-              <lf-agent id="lp-agent-ledger" state="working">
+              </section>
+              <section id="lp-agent-ledger">
+                <p class="eyebrow">working</p>
                 <strong>ledger</strong> Reconciling <code>co_18427</code> against the
                 candidate export.
-              </lf-agent>
-              <lf-agent id="lp-agent-finance" state="blocked">
+              </section>
+              <section id="lp-agent-finance">
+                <p class="eyebrow">blocked</p>
                 <strong>finance</strong> Waiting for the missing export row before
                 signing off.
-              </lf-agent>
-              <lf-agent id="lp-agent-observer" state="idle">
+              </section>
+              <section id="lp-agent-observer">
+                <p class="eyebrow">idle</p>
                 <strong>observer</strong> Ready to watch the release after promotion.
-              </lf-agent>
-              <lf-agent id="lp-agent-builder" state="done">
+              </section>
+              <section id="lp-agent-builder">
+                <p class="eyebrow">done</p>
                 <strong>builder</strong> Signed the candidate and recorded its
                 provenance.
-              </lf-agent>
-            </lf-roster>
+              </section>
+            </section>
           </details>
 
           <details id="lp-rollback-procedure">

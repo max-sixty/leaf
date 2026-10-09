@@ -6755,7 +6755,7 @@ def test_passage_range_spanning_shadow_root_children_reads_the_stage(browser, se
     result = page.evaluate(
         """async () => {
           const {shadowStage} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const {rangeAnchor} = await window.__lfRuntimeImport('/runtime/composing/capture.js');
+          const {anchorForRange} = await window.__lfRuntimeImport('/runtime/anchor-resolution.js');
           const host = document.querySelector('lf-diff');
           const first = document.createElement('p');
           first.textContent = 'first';
@@ -6765,7 +6765,7 @@ def test_passage_range_spanning_shadow_root_children_reads_the_stage(browser, se
           const range = document.createRange();
           range.setStart(first.firstChild, 0);
           range.setEnd(last.firstChild, last.firstChild.length);
-          return rangeAnchor(range);
+          return anchorForRange(range);
         }"""
     )
     assert result["section"] == "patch"

@@ -521,7 +521,7 @@ def widget_inline_hints(page: Page) -> None:
 
 def hub_workers(page: Page) -> None:
     """The plan with the parser goal's workers shown, its worktree in view."""
-    page.locator("#goal-parser > .lf-task-meta .lf-task-crew").click()
+    page.locator("#w-1 > details > summary").click()
     page.locator("#tree-w-1").scroll_into_view_if_needed()
 
 

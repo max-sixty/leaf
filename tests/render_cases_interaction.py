@@ -216,11 +216,11 @@ SEATED_QUESTION_PAGE = leaf_page(
     "seated question",
     """
 <h1 id="h">Three jobs</h1>
-<lf-command id="hub" label="Before the frost">
-  <lf-task id="jobs" status="active" talk><strong>Which jobs are worth starting?</strong>
+<lf-test-plan id="hub" label="Before the frost">
+  <lf-test-task id="jobs" status="active" talk><strong>Which jobs are worth starting?</strong>
   The mounts came down in January, the bird bath froze eleven mornings, and the camera
-  is still in its box.</lf-task>
-</lf-command>
+  is still in its box.</lf-test-task>
+</lf-test-plan>
 """,
 )
 
@@ -285,24 +285,19 @@ CHIP_PAGE = leaf_page(
 <lf-options id="picks" choose>
   <lf-option id="p-keep"><small class="tag">reversible</small><strong>Keep the store</strong></lf-option>
 </lf-options></lf-ask>
-<lf-tasks id="plan">
-  <lf-task id="t-camera" status="active" owner="finch"><strong>Mount the camera</strong></lf-task>
-</lf-tasks>
+<dl class="facts"><dt>Owner</dt><dd id="owner-fact"><span class="tag">finch</span></dd></dl>
 """,
 )
 PAINTED_PAGE = leaf_page(
     "painted",
     """
 <h1 id="h">What the paint says</h1>
-<ol id="tl">
-  <li id="e-dark"><time>09:12</time> <small>failure</small> <strong>Feed stopped</strong>
-  The north camera went dark and the alert never fired.</li>
-</ol>
-<lf-tasks id="plan">
-  <lf-task id="t-baffles" status="blocked" owner="finch"><strong>Fit squirrel baffles</strong>
-  Waiting on the brackets.</lf-task>
-</lf-tasks>
+<lf-test-signal id="painted" status="blocked"><strong>Fit squirrel baffles</strong>
+  Waiting on the brackets.</lf-test-signal>
 """,
+).replace(
+    "</head>",
+    "<style>lf-test-signal[status=blocked] { color: #9d2525; }</style></head>",
 )
 SETTLED_ASK_PAGE = ASK_PAGE.replace(
     '<lf-options id="jobs" choose multiple>',
@@ -508,26 +503,26 @@ ASKS_PAGE = leaf_page(
   <lf-old><p id="refill-was">Refill every feeder each morning.</p></lf-old>
   <lf-new><p id="refill-now">Refill a feeder when its camera says so.</p></lf-new>
 </lf-suggestion>
-<lf-tasks id="plan">
-  <lf-task id="t-mounts" status="done"><strong>Replace the mounts</strong></lf-task>
-  <lf-task id="t-baffles" status="review" owner="finch"><strong>Fit squirrel baffles</strong>
+<lf-test-tasks id="plan">
+  <lf-test-task id="t-mounts" status="done"><strong>Replace the mounts</strong></lf-test-task>
+  <lf-test-task id="t-baffles" status="review" owner="finch"><strong>Fit squirrel baffles</strong>
     <lf-ask id="t-baffles-decision"><h2>Are the baffles ready?</h2>
       <lf-options id="t-baffles-review" choose>
         <lf-option id="t-baffles-approve"><strong>Approve</strong></lf-option>
         <lf-option id="t-baffles-revise"><strong>Request changes</strong></lf-option>
       </lf-options>
     </lf-ask>
-  </lf-task>
-  <lf-task id="t-bath" status="blocked"><strong>Heat the bird bath</strong>
+  </lf-test-task>
+  <lf-test-task id="t-bath" status="blocked"><strong>Heat the bird bath</strong>
     <lf-ask id="t-bath-decision"><h2>How should the bath proceed?</h2>
       <lf-options id="t-bath-choice" choose>
         <lf-option id="t-bath-wait"><strong>Wait for the transformer</strong></lf-option>
         <lf-option id="t-bath-skip"><strong>Leave it unheated</strong></lf-option>
       </lf-options>
     </lf-ask>
-  </lf-task>
-  <lf-task id="t-camera" status="active"><strong>Mount the camera</strong></lf-task>
-</lf-tasks>
+  </lf-test-task>
+  <lf-test-task id="t-camera" status="active"><strong>Mount the camera</strong></lf-test-task>
+</lf-test-tasks>
 <lf-ask id="honored-decision"><h2>Which gate design?</h2>
 <lf-options id="honored" choose>
   <lf-option id="hon-tiers" chosen><strong>Two-tier gates</strong></lf-option>
@@ -678,11 +673,11 @@ ROOM_WIDGETS = """<lf-board id="{id}-b">
     <lf-card id="{id}-mounts"><strong>South mounts</strong></lf-card>
   </lf-column>
 </lf-board>
-<lf-roster id="{id}-r">
-  <lf-agent id="{id}-wren" state="working">
+<lf-test-roster id="{id}-r">
+  <lf-test-worker id="{id}-wren" state="working">
     <strong>wren</strong> Fitting the brackets.
-  </lf-agent>
-</lf-roster>"""
+  </lf-test-worker>
+</lf-test-roster>"""
 
 # Which element holds each room, and the custom property the theme spends it through.
 ROOMS = [("-b", "--lf-grip-room"), ("-r", "--lf-state-room")]
@@ -742,12 +737,12 @@ THREAD_DIFF_PAGE = leaf_page(
     """
 <h1 id="cd-h">Bracket order</h1>
 <p id="cd-lede">The south pair is up and drawing traffic.</p>
-<lf-command id="cd-command" label="Bracket extras">
-  <lf-task id="cd-q" status="active" talk>
+<lf-test-plan id="cd-command" label="Bracket extras">
+  <lf-test-task id="cd-q" status="active" talk>
     <strong>Which extras go in?</strong>
     <p>Choose between a seed tray and a second pole.</p>
-  </lf-task>
-</lf-command>
+  </lf-test-task>
+</lf-test-plan>
 """,
 )
 LIVE_READING = (
@@ -989,12 +984,12 @@ REPORT_PAGE = leaf_page(
     "reports",
     """
 <h1 id="h">The feeders</h1>
-<lf-tasks id="plan">
-  <lf-task id="t-feeders" status="active" owner="wren"><strong>Rebuild the feeders</strong>
-    <lf-task id="t-mounts" status="done"><strong>Replace the mounts</strong></lf-task>
-    <lf-task id="t-parser" status="active"><strong>Fit squirrel baffles</strong></lf-task>
-  </lf-task>
-</lf-tasks>
+<lf-test-tasks id="plan">
+  <lf-test-task id="t-feeders" status="active" owner="wren"><strong>Rebuild the feeders</strong>
+    <lf-test-task id="t-mounts" status="done"><strong>Replace the mounts</strong></lf-test-task>
+    <lf-test-task id="t-parser" status="active"><strong>Fit squirrel baffles</strong></lf-test-task>
+  </lf-test-task>
+</lf-test-tasks>
 """,
 )
 COMMAND_HUB_EXAMPLE = next(
@@ -1007,12 +1002,12 @@ ROSTER_PAGE = leaf_page(
     "fleet",
     """
 <h1 id="h">The aviary crew</h1>
-<lf-roster id="crew">
-  <lf-agent id="ag-wren" state="working">
-    <strong>wren</strong> The feeders.</lf-agent>
-  <lf-agent id="ag-finch" state="idle"><strong>finch</strong> Free.</lf-agent>
-  <lf-agent id="ag-siskin" state="working"><strong>siskin</strong> Has never reported.</lf-agent>
-</lf-roster>
+<lf-test-roster id="crew">
+  <lf-test-worker id="ag-wren" state="working">
+    <strong>wren</strong> The feeders.</lf-test-worker>
+  <lf-test-worker id="ag-finch" state="idle"><strong>finch</strong> Free.</lf-test-worker>
+  <lf-test-worker id="ag-siskin" state="working"><strong>siskin</strong> Has never reported.</lf-test-worker>
+</lf-test-roster>
 """,
 )
 
@@ -1083,12 +1078,12 @@ STANDING_PAGE = leaf_page(
   <lf-column id="ab-doing" label="Doing"><lf-card id="ab-importer"><strong>Wire the importer</strong></lf-card></lf-column>
   <lf-column id="ab-done" label="Done"><lf-card id="ab-notes"><strong>Draft the notes</strong></lf-card></lf-column>
 </lf-board>
-<lf-tasks id="ab-plan">
-  <lf-task id="ab-baffles" status="active" owner="wren"><strong>Fit the baffles</strong></lf-task>
-</lf-tasks>
-<lf-roster id="ab-crew">
-  <lf-agent id="ab-wren" state="working"><strong>wren</strong> The importer.</lf-agent>
-</lf-roster>
+<lf-test-tasks id="ab-plan">
+  <lf-test-task id="ab-baffles" status="active" owner="wren"><strong>Fit the baffles</strong></lf-test-task>
+</lf-test-tasks>
+<lf-test-roster id="ab-crew">
+  <lf-test-worker id="ab-wren" state="working"><strong>wren</strong> The importer.</lf-test-worker>
+</lf-test-roster>
 <lf-draft id="ab-email"><pre>The words as this version authored them.</pre></lf-draft>
 <lf-suggestion id="ab-sug-410">
   <lf-old><p id="ab-404">The retired response is a plain 404.</p></lf-old>

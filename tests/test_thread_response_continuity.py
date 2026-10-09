@@ -406,7 +406,9 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
 
     tail = '<p id="continuity-tail">Review the next step here.</p>'
     if place == "seat":
-        authored = SEATED_QUESTION_PAGE.replace("</lf-command>", "</lf-command>" + tail)
+        authored = SEATED_QUESTION_PAGE.replace(
+            "</lf-test-plan>", "</lf-test-plan>" + tail
+        )
         anchor = {"section": "jobs"}
         selector = '[data-lf-thread-seat="jobs"] > .lf-page-thread'
     elif place in ("margin", "panel"):

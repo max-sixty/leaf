@@ -37,7 +37,13 @@ import { THREAD } from "../thread/selectors.js";
 import { keys, paintKeys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
 import { PRESS } from "../keyboard/bindings.js";
-import { onStanding, takesLetters, focusDestination, focused } from "../focus.js";
+import {
+  onStanding,
+  takesLetters,
+  focusDestination,
+  focused,
+  closeLayer,
+} from "../focus.js";
 import { repaint } from "../repaint.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { bindQueuedWork } from "../queued-work.js";
@@ -150,6 +156,7 @@ export function createSelectionComposer({
   endFabFocus,
   landFabFocus,
   showFab,
+  letGoOfFab,
   createComment,
   landSent,
   refreshThread,
@@ -373,10 +380,7 @@ export function createSelectionComposer({
     });
   };
 
-  function setResponseOptions(
-    open,
-    { focus = null, returnFocus = false, place = true } = {},
-  ) {
+  function setResponseOptions(open, { focus = null, place = true } = {}) {
     const next = Boolean(open && fabAnchorAt() && responseOptionsAvailable());
     if (next === responseOptionsOpen) {
       if (next && focus) focusResponseOption(focus);
@@ -387,10 +391,6 @@ export function createSelectionComposer({
     fabBar.classList.toggle("lf-response-open", next);
     if (place && fabAnchorAt()) showFab(fabAnchorAt());
     if (next && focus) focusResponseOption(focus);
-    else if (!next && returnFocus) {
-      const back = [fabInput, fab].find((control) => control.checkVisibility());
-      if (back) focusDestination(back, "return");
-    }
     paintKeys();
     return next;
   }
@@ -625,7 +625,7 @@ export function createSelectionComposer({
     )
       transferDraft(composerCtx(pendingAnchor), ctx, text);
     detachComposer();
-    showFab(null, { returnFocus: "none" });
+    showFab(null);
   }
   // The composer going down because its draft is spent rather than because the user
   // dropped it: the words are somewhere else now, or on their way back.
@@ -634,7 +634,7 @@ export function createSelectionComposer({
     // Settlement may arrive after Escape has already started another keyboard gesture.
     // Move focus only when it still belongs to the field this settlement hid; showFab's
     // page return makes that distinction from a later focus elsewhere.
-    showFab(null, { returnFocus: "page" });
+    letGoOfFab();
   }
 
   // The response bar's Comment action returns to this same compact field on the anchor
@@ -825,7 +825,15 @@ export function createSelectionComposer({
     keys: ["Escape"],
     description: "Close other responses",
     title: "close",
-    run: () => setResponseOptions(false, { returnFocus: true }),
+    // Closing the other responses hands the user back to the bar they opened them from.
+    run: () =>
+      closeLayer(
+        () => setResponseOptions(false),
+        () => {
+          const back = [fabInput, fab].find((control) => control.checkVisibility());
+          if (back) focusDestination(back, "return");
+        },
+      ),
   };
   const responseOptionRows = () => [
     RESPONSE_REACTION,

@@ -72,7 +72,7 @@ import {
 } from "./drafts.js";
 import { heldThreadId, replyDestination } from "./thread/focus.js";
 import { restoreReplyEditing } from "./thread/replies.js";
-import { focusDestination, onStanding, focused } from "./focus.js";
+import { focusDestination, onStanding, focused, closeLayer } from "./focus.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { patchTree } from "./dom-children.js";
 import { labelOf, PRESS } from "./keyboard/bindings.js";
@@ -490,10 +490,8 @@ export function createVersionController({
         // second slot from either door. Escape remains live and stays in the complete
         // reference as the platform-standard close.
         promoteEscape: false,
-        run: () => {
-          closeVersionMenu();
-          returnToBannerControl(versionBtn);
-        },
+        run: () =>
+          closeLayer(closeVersionMenu, () => returnToBannerControl(versionBtn)),
       },
     ],
   };

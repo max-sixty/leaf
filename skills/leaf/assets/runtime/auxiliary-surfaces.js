@@ -52,8 +52,11 @@ import {
   deepFocus,
   tabStops,
   holdFocus,
-  nativeLayerSteps,
   focusDestination,
+  closeLayer,
+  handBack,
+  layerLanding,
+  standingIn,
 } from "./focus.js";
 import { userStore } from "./storage.js";
 import { pagePresented } from "./presentation.js";
@@ -104,37 +107,45 @@ export function createAuxiliarySurfaces({
       for (const popover of openPopovers())
         if (!under(popover, next.surface)) popover.hidePopover();
     const held = holdFocus(document);
-    nativeLayerSteps(() => {
-      if (previous) previous.surface.removeAttribute("data-lf-covered");
-      active = next;
-      standing = selected;
-      keeps(band, "inert", next && !next.underBand ? "" : null);
-      if (next) keeps(next.surface, "data-lf-covered", "");
-      if (changedPosture || !envelope.open) {
-        // Opening a restored sample must not take focus from its containing page.
-        // Native modality still begins while its own focusing steps are suppressed.
-        transitionNativeAncestor(envelope, () => {
-          if (envelope.open) envelope.close();
-          const unfocused = !document.hasFocus();
-          if (unfocused) envelope.inert = true;
-          if (next) envelope.showModal();
-          else envelope.show();
-          if (unfocused) envelope.inert = false;
-        });
-      }
-    });
-    band.toggleAttribute("data-lf-over-covering", Boolean(next?.underBand));
-    keepsHidden(scrim, !next);
-    keeps(document.documentElement, "data-lf-covering-surface", next?.surface.id);
-    const restored = held?.();
-    if (
-      next &&
-      document.hasFocus() &&
-      !restored &&
-      !document.activeElement?.closest(":popover-open")
-    )
-      focusDestination(landingIn(next), "return");
+    closeLayer(
+      () => {
+        if (previous) previous.surface.removeAttribute("data-lf-covered");
+        active = next;
+        standing = selected;
+        keeps(band, "inert", next && !next.underBand ? "" : null);
+        if (next) keeps(next.surface, "data-lf-covered", "");
+        if (changedPosture || !envelope.open) {
+          // Opening a restored sample must not take focus from its containing page.
+          // Native modality still begins while its own focusing steps are suppressed.
+          transitionNativeAncestor(envelope, () => {
+            if (envelope.open) envelope.close();
+            const unfocused = !document.hasFocus();
+            if (unfocused) envelope.inert = true;
+            if (next) envelope.showModal();
+            else envelope.show();
+            if (unfocused) envelope.inert = false;
+          });
+        }
+        band.toggleAttribute("data-lf-over-covering", Boolean(next?.underBand));
+        keepsHidden(scrim, !next);
+        keeps(document.documentElement, "data-lf-covering-surface", next?.surface.id);
+      },
+      seatLanding(next, held),
+    );
   }
+  // Where a re-seat lands the user: back where they stood, or, entering a covering
+  // surface from outside it, on its landing. Either is the layer's return, no arrival.
+  const seatLanding = (next, held) =>
+    layerLanding(() => {
+      const restored = held?.();
+      if (
+        next &&
+        document.hasFocus() &&
+        !restored &&
+        !document.activeElement?.closest(":popover-open")
+      )
+        focusDestination(landingIn(next), "return");
+    });
 
   function registerAuxiliarySurface({
     key,
@@ -144,6 +155,7 @@ export function createAuxiliarySurfaces({
     beside = false,
     underBand = false,
     landing,
+    opener,
     show,
     hide,
     arrival = "mount",
@@ -158,11 +170,12 @@ export function createAuxiliarySurfaces({
       !scroller ||
       !edge ||
       !landing ||
+      !opener ||
       !show ||
       !hide
     )
       throw new Error(
-        "leaf: an auxiliary surface needs a key, an id and an accessible name, a scroller, an edge, a focus destination, and visibility callbacks",
+        "leaf: an auxiliary surface needs a key, an id and an accessible name, a scroller, an edge, a focus destination, an opener, and visibility callbacks",
       );
     if (controllers.has(key))
       throw new Error(`leaf: duplicate auxiliary surface ${key}`);
@@ -174,6 +187,7 @@ export function createAuxiliarySurfaces({
       covers: () => !beside || !standsBeside(),
       underBand,
       landing,
+      opener,
       show,
       hide,
       arrival,
@@ -208,9 +222,13 @@ export function createAuxiliarySurfaces({
     });
   }
 
+  // Closing hands a user who stood in the surface back to its opener, the control that
+  // opens it again (`handBack`, which lets go where none takes them), or wherever the
+  // closer's `land` puts them instead, as the Escape step's `letGo` does. A surface's own
+  // `hide` moves no focus, so the close places the user once (focus.js, `closeLayer`).
   function select(
     key,
-    { remember = true, returnFocus = true, focus = false, phase = "gesture" } = {},
+    { remember = true, focus = false, phase = "gesture", land } = {},
   ) {
     if (key !== null && !controllers.has(key))
       throw new Error(`leaf: unknown auxiliary surface ${key}`);
@@ -235,7 +253,15 @@ export function createAuxiliarySurfaces({
     // of one side panel: selecting one in the other's place swaps them where they stand,
     // with no slide for either (`swap`).
     const swap = Boolean(previous && selected && previous.edge === selected.edge);
-    previous?.hide({ returnFocus, swap });
+    if (previous) {
+      // Read before the hide, which forgets the door a press opened the surface from.
+      const opener = previous.opener();
+      const inside = standingIn(previous.surface);
+      closeLayer(
+        () => previous.hide({ swap }),
+        land ?? (inside && (() => handBack(opener))),
+      );
+    }
     if (selected && !arriving) selected.show({ phase: swap ? "swap" : phase });
     sync();
     syncLayout();

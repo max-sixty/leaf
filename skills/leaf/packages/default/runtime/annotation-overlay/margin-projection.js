@@ -127,11 +127,14 @@ import {
   focusDestination,
   handBack,
   holdFocus,
+  layerLanding,
   letGo,
   onPress,
   onStanding,
   pressLed,
   focused,
+  closeLayer,
+  rove,
 } from "/runtime/focus.js";
 import { TEXT_FIELD } from "/runtime/control-selectors.js";
 import { closeControl, el, offer } from "/runtime/widget-elements.js";
@@ -991,15 +994,13 @@ export function createMarginProjection({
     });
   }
 
+  // Folding a cluster the user stood in hands them back to its toggle.
+  const landOnToggle = (entry) =>
+    layerLanding(() => handBack(hosts.get(entry.key)?.more));
   function setOptionsOpen(
     entry,
     open,
-    {
-      returnFocus = false,
-      focusOption = null,
-      owner = null,
-      preservePreview = false,
-    } = {},
+    { land = null, focusOption = null, owner = null, preservePreview = false } = {},
   ) {
     const previousKey = expandedOptionsKey;
     const previousOwner = expandedOptionsOwner;
@@ -1010,10 +1011,14 @@ export function createMarginProjection({
     expandedOptionsKey = nextKey;
     expandedOptionsOwner = nextOwner;
     const paint = () => {
+      // Folding is closing a layer (focus.js, `closeLayer`): the refresh moves no one, and
+      // a closer that names a landing, as the fold's own Escape does, puts the user there.
+      if (!open) {
+        closeLayer(() => renderAnnotations.refresh(), land);
+        return;
+      }
       renderAnnotations.refresh();
-      if (returnFocus && previousKey) {
-        handBack(hosts.get(previousKey)?.more);
-      } else if (focusOption && nextKey) {
+      if (focusOption && nextKey) {
         const choices = clusterMarginEntries(hosts.get(nextKey)?.options);
         const fallback = clusterMarginEntries(hosts.get(nextKey));
         const next =
@@ -1137,7 +1142,7 @@ export function createMarginProjection({
         return distance < nearest.distance ? { row, distance } : nearest;
       }, null)?.row;
     }
-    for (const row of markerRows()) keeps(row, "tabindex", row === stop ? 0 : -1);
+    rove(markerRows(), stop);
   }
 
   function syncRoving() {
@@ -1416,7 +1421,7 @@ export function createMarginProjection({
         ? null
         : () => {
             if (node.lfChoice.kind !== "comment") {
-              setOptionsOpen(node.lfEntry, false, { returnFocus: true });
+              setOptionsOpen(node.lfEntry, false, { land: landOnToggle(node.lfEntry) });
               activate(node.lfChoice.items[0], node.lfEntry, { focusMap: false });
               return;
             }
@@ -1468,18 +1473,11 @@ export function createMarginProjection({
       // A secondary projection can become the primary when its press settles. Keep
       // focus on that same semantic control instead of jumping to the first status
       // reading merely because the cluster stayed engaged and replaced its peers.
-      const next =
-        (focus.focusedRecord
-          ? clusterMarginEntries(host).find(
-              (candidate) =>
-                contributionEntryRecord(candidate)?.key === focus.focusedRecord.key &&
-                contributionEntryRecord(candidate)?.owner === focus.focusedRecord.owner,
-            )
-          : null) ??
-        primary ??
-        clusterMarginEntries(options)[0] ??
-        clusterMarginEntries(host)[0];
-      if (next) focusDestination(next, "return");
+      focus.restore?.(
+        primary,
+        clusterMarginEntries(options)[0],
+        clusterMarginEntries(host)[0],
+      );
     }
     return primary;
   }
@@ -1502,14 +1500,16 @@ export function createMarginProjection({
       document.dispatchEvent(new CustomEvent("lf-margin-entry-options-closed"));
   }
 
+  // The card hangs from another entry, and a user standing on the entry it hung from goes
+  // with it: the same place, the thread's own entry, under a new control.
   function transferThreadCard(
     button,
-    { returnFocus = document.activeElement === previewMarginEntry } = {},
+    carry = document.activeElement === previewMarginEntry,
   ) {
     if (previewMarginEntry === button) return;
     forgetThreadPreviewPlacement();
     previewMarginEntry = button;
-    if (returnFocus) focusDestination(button, "return");
+    if (carry) focusDestination(button, "return");
   }
 
   function renderNow(inventory) {
@@ -1620,9 +1620,9 @@ export function createMarginProjection({
       marker.lfEntry = entry;
       const focus = {
         focusedOption: Boolean(host.options?.contains(document.activeElement)),
-        focusedRecord: document.activeElement?.matches(".lf-margin-entry")
-          ? contributionEntryRecord(document.activeElement)
-          : null,
+        // The entry the user stands on, by its contribution's key, across the projection
+        // that may replace its control (focus.js, keyed `holdFocus`).
+        restore: holdFocus(host, { key: "data-lf-margin-entry-identity" }),
       };
       const projection = clusterProjection(entry, {
         expandedKey: expandedOptionsKey,
@@ -1650,7 +1650,7 @@ export function createMarginProjection({
     if (previewEntry) {
       const fresh = pageInventory.find((entry) => entry.key === previewEntry.key);
       if (!fresh || !fresh.items.some((item) => item.kind === "comment"))
-        closePreview(preview.contains(document.activeElement));
+        closePreview(landOnEntry);
       else {
         previewEntry = fresh;
         const owner = threadMarginEntry(fresh);
@@ -1668,7 +1668,7 @@ export function createMarginProjection({
         if (!owner || (!owner.checkVisibility() && forcedInlineKey !== fresh.key))
           closePreview();
         else {
-          transferThreadCard(owner, { returnFocus: threadOwnerHeld });
+          transferThreadCard(owner, threadOwnerHeld);
           buildThreadCard(fresh);
           for (const row of markerRows())
             syncReadingRelation(row, primaryReading(row.lfEntry));
@@ -1927,13 +1927,22 @@ export function createMarginProjection({
       });
   }
 
-  function closePreview(returnFocus = false) {
+  // Closing the card hands a user who stood in it on (focus.js, `closeLayer`). A close
+  // aimed at the card itself, its Close or its Escape, hands them back to the margin
+  // entry it hangs from (`landOnEntry`); any other, a mode or a rerender, lets them go.
+  const landOnEntry = layerLanding((button) =>
+    handBack(button, ...(button?.lfEntry ? mapControlPlaces(button.lfEntry) : [])),
+  );
+  function closePreview(land = letGo) {
+    const button = previewMarginEntry;
+    // Hiding the card takes focus inside it to the body.
+    const heldInside = preview.contains(focused());
+    closeLayer(() => hidePreview(), heldInside && (() => land(button)));
+    paintKeys();
+  }
+  function hidePreview() {
     carryCommentFrame(null);
     clearThreadTransition();
-    const button = previewMarginEntry;
-    // Hiding the card takes focus inside it to the body, so a close the user did not
-    // aim at the card itself — a mode, a rerender — lands them instead.
-    const heldInside = preview.contains(focused());
     // A cluster the walk unfolded to hang the view from folds with the view; one the
     // user unfolded stays, and is its own rung.
     const forcedOptionsKey = forcedInlineOptionsKey;
@@ -1956,10 +1965,6 @@ export function createMarginProjection({
       syncReadingRelation(row, primaryReading(row.lfEntry));
     for (const reading of readingMarginEntries.values())
       syncReadingRelation(reading, reading.lfChoice);
-    if (returnFocus)
-      handBack(button, ...(button?.lfEntry ? mapControlPlaces(button.lfEntry) : []));
-    else if (heldInside) letGo();
-    paintKeys();
   }
 
   // The thread view, for the owners that open and close it from outside. What
@@ -2040,10 +2045,12 @@ export function createMarginProjection({
       // press a fold that teleports focus somewhere third. So the question goes to
       // `optionsRung`, the step that would actually answer next, which also declines
       // for a host that has gone or an entry whose own state holds its actions open.
+      // The step lands the user wherever they stood, the page their press displaced
+      // included, so its landing is the close's own rather than one for a user inside.
       out: () => {
         const standing = unfoldedUnder();
-        closePreview(standing);
-        if (!standing) letGo();
+        const button = previewMarginEntry;
+        closeLayer(() => closePreview(), standing ? () => landOnEntry(button) : letGo);
       },
     };
   }
@@ -2070,7 +2077,8 @@ export function createMarginProjection({
       root: host,
       description: "Fold the secondary page actions",
       title: "close options",
-      out: () => setOptionsOpen(host.lfEntry, false, { returnFocus: true }),
+      out: () =>
+        setOptionsOpen(host.lfEntry, false, { land: landOnToggle(host.lfEntry) }),
     };
   }
   pageRung("margin options", optionsRung);
@@ -2099,16 +2107,23 @@ export function createMarginProjection({
   function activate(item, entry, { focusMap = true } = {}) {
     if (expandedOptionsKey && expandedOptionsKey !== entry.key)
       setOptionsOpen(entry, false);
-    closePreview();
-    leavePageMap();
     const landsOnTarget = focusMap && !entryHasMarginHost(entry);
-    if (focusMap && !landsOnTarget) handBack(...mapControlPlaces(entry));
-    sourceItem(item).activate();
     // A Page Map-only location has no margin entry to receive the handoff. Reveal its
     // target first, then lend that authored element a programmatic tab stop so keyboard
     // focus and the visible arrival name the same place.
-    if (landsOnTarget && targetFor(entry)?.isConnected)
-      focusDestination(targetFor(entry), "move");
+    closeLayer(
+      () => {
+        closePreview();
+        leavePageMap();
+      },
+      focusMap &&
+        (() => {
+          if (!landsOnTarget) return handBack(...mapControlPlaces(entry));
+          sourceItem(item).activate();
+          if (targetFor(entry)?.isConnected) focusDestination(targetFor(entry), "move");
+        }),
+    );
+    if (!landsOnTarget) sourceItem(item).activate();
   }
 
   function openThreadChoice(entry, button) {
@@ -2478,7 +2493,7 @@ export function createMarginProjection({
 
   function mount() {
     mountMarginLayer(toolbar);
-    previewClose.onclick = () => closePreview(true);
+    previewClose.onclick = () => closePreview(landOnEntry);
     // Leaving the card's reply row with nothing typed lets the card take its place again.
     onStanding((node, cause, left) => {
       const row =

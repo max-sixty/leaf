@@ -31,7 +31,7 @@
    layers the browser is holding, because that is the one fact about the scene that its
    own DOM cannot be asked for in order. */
 
-import { releaseFocus, holdFocus, nativeLayerSteps } from "../focus.js";
+import { releaseFocus, holdFocus, closeLayer } from "../focus.js";
 import { under } from "../shadow.js";
 
 const entries = [];
@@ -75,7 +75,7 @@ function pushNativeLayer(node) {
 // the user: standing nowhere. A modal is still modal as it announces its close, with the
 // page behind it inert, so a let-go there lands no one and only takes the body's stop
 // and gives it back; the modal's owner lands the user as it closes it (the Page Map's
-// cancel, the command reference's close).
+// cancellation returns to its opener or reading position; the command reference closes).
 function closing(event) {
   if (event.newState !== "closed") return;
   const entry = entries.find((candidate) => candidate.root === event.target);
@@ -146,7 +146,7 @@ export function transitionNativeAncestor(root, transition) {
     (layer) => layer.root !== root && under(layer.root, root),
   );
   const held = holdFocus(root);
-  nativeLayerSteps(() => {
+  closeLayer(() => {
     for (const layer of descendants.toReversed())
       if (layer.kind === "modal") layer.root.close();
       else layer.root.hidePopover();

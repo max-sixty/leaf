@@ -32,6 +32,7 @@ import {
   targetCandidates,
   widgetController,
   focusDestination,
+  holdFocus,
 } from "/runtime/widget-api.js";
 import "../vendor/webawesome.esm.js";
 
@@ -572,7 +573,11 @@ customElements.define(
       layoutChanged(this);
     }
 
+    // A rebuild keeps the user in the row they stood in, or the nearest that survived it,
+    // or on the control that adds one, rather than dropping them to the body when the
+    // row they removed goes.
     #renderTargets() {
+      const restoreFocus = holdFocus(this.#targetList, { key: "data-target-key" });
       render(
         this.#configuration.targets.length
           ? repeat(
@@ -672,6 +677,7 @@ customElements.define(
           : html`<p ${offered("lf-targeting-empty")}>No targets selected.</p>`,
         this.#targetList,
       );
+      restoreFocus?.(this.#arm);
     }
 
     #classesFor(target) {
@@ -710,6 +716,7 @@ customElements.define(
     }
 
     #renderChanges() {
+      const restoreFocus = holdFocus(this.#changeList, { key: "data-change-id" });
       render(
         this.#configuration.changes.length
           ? repeat(
@@ -719,7 +726,10 @@ customElements.define(
                 const target = this.#configuration.targets.find(
                   (candidate) => candidate.key === change.target,
                 );
-                return html`<div ${offered("lf-targeting-change")}>
+                return html`<div
+                  ${offered("lf-targeting-change")}
+                  data-change-id=${change.id}
+                >
                   <span ${offered("lf-targeting-change-summary")}
                     >${
                       change.kind === "style"
@@ -745,6 +755,7 @@ customElements.define(
           : html`<p ${offered("lf-targeting-empty")}>No changes added.</p>`,
         this.#changeList,
       );
+      restoreFocus?.(this.#arm);
     }
 
     #elementsFor(target) {

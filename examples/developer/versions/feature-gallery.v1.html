@@ -340,7 +340,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 {
   ariaLabel: "Checks complete by run: baseline 4, 7, 9; candidate 5, 9, 12",
   marginBottom: 40,
-  x: {label: "run", ticks: [1, 2, 3]},
+  x: {label: "run", ticks: [1, 2, 3], tickFormat: "d"},
   y: {grid: true, label: "checks complete"},
   color: {legend: true, range: ["var(--series-1)", "var(--series-2)"]},
   marks: [
@@ -427,15 +427,15 @@ gallery/
           <h4 id="bg-event-history">Observed events</h4>
           <ol id="bg-chronology">
             <li id="bg-chronology-alert">
-              <time>09:14</time> <small>warning</small>
+              <time>09:14</time> <small class="tag warn">warning</small>
               <strong>Rain started</strong> The open path became slippery.
             </li>
             <li id="bg-chronology-switch">
-              <time>09:20</time> <small>intervention</small>
+              <time>09:20</time> <small class="tag">intervention</small>
               <strong>Route changed</strong> The sample moved under cover.
             </li>
             <li id="bg-chronology-clear">
-              <time>09:42</time> <small>observation</small>
+              <time>09:42</time> <small class="tag">observation</small>
               <strong>Walk resumed</strong>
             </li>
           </ol>

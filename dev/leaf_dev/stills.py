@@ -31,7 +31,6 @@ whole, when the reading names none), ready to hand off as an `lf-shot` pair, and
 crops cover both stills' regions.
 """
 
-import subprocess
 import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -44,7 +43,7 @@ from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page
 
 from leaf_dev import ROOT
-from leaf_dev.arms import build_pair, run_directory, serving_source
+from leaf_dev.arms import build_pair, copy_committed, run_directory, serving_source
 from leaf_dev.browser import BESIDE, DESKTOP, chrome, load, settle, tab
 
 OUT = ROOT / ".tmp" / "stills"
@@ -1007,15 +1006,8 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
             for arm, commit in commits.items():
                 source_roots[arm] = scratch / f"{arm}-source"
                 source_roots[arm].mkdir()
-                archive = subprocess.run(
-                    ["git", "-C", ROOT, "archive", commit, "examples"],
-                    capture_output=True,
-                    check=True,
-                ).stdout
-                subprocess.run(
-                    ["tar", "-x", "-C", source_roots[arm]],
-                    input=archive,
-                    check=True,
+                copy_committed(
+                    ("examples", "leaf-assets.json"), source_roots[arm], commit
                 )
         with chrome() as browser:
             for state in states:

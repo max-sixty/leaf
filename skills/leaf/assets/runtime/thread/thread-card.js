@@ -1026,7 +1026,10 @@ export class ThreadView {
     const toggle = this.node.querySelector(
       `.lf-summary-expand[data-summary-toggle="${CSS.escape(ids[0])}"]`,
     );
-    if (toggle) focusDestination(toggle, "return");
+    if (toggle) {
+      focusDestination(toggle, "return");
+      scrollThreadIntoView(this.node, toggle, "instant");
+    }
   }
 
   // The panel's resolved title keeps its state label as the reopening action.

@@ -1161,6 +1161,7 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     collapse = fresh_card.get_by_role(
         "button", name=f"Hide {count} progress {noun}", exact=True
     )
+    expect(collapse).to_be_in_viewport()
     collapse.press("Enter")
     expect(fresh_original).to_be_hidden()
     if interleaved:

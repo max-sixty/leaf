@@ -731,7 +731,7 @@
     // counts here, for the same reason as on an ancestor below.
     for (const child of e.querySelectorAll("*"))
       if (
-        child.checkVisibility() &&
+        child.checkVisibility({ visibilityProperty: true, opacityProperty: true }) &&
         ((shown(child) && named(child)) || overlaid(child))
       )
         return null;

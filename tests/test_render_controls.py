@@ -8434,10 +8434,20 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
     page.locator(".lf-tab-btn").first.focus()
     assert page.evaluate(SEEN_STOP) is None
     name = page.locator(".lf-tab-name").first
-    name.evaluate("node => { node.style.display = 'none'; }")
-    lost = page.evaluate(SEEN_STOP)
-    assert lost and "lf-tab-btn" in lost, lost
-    name.evaluate("node => { node.style.removeProperty('display'); }")
+    for property, value in (
+        ("display", "none"),
+        ("visibility", "hidden"),
+        ("opacity", "0"),
+    ):
+        name.evaluate(
+            "(node, [property, value]) => node.style.setProperty(property, value)",
+            [property, value],
+        )
+        lost = page.evaluate(SEEN_STOP)
+        assert lost and "lf-tab-btn" in lost, (property, lost)
+        name.evaluate(
+            "(node, property) => node.style.removeProperty(property)", property
+        )
     page.add_style_tag(
         content=".lf-tab-btn > .lf-tab-name { outline: none !important; }"
     )

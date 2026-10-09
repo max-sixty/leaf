@@ -846,6 +846,10 @@ def test_visual_review_case_navigation_keeps_equal_stable_step_targets(
     page.keyboard.press("Tab")
     expect(next_button).to_be_focused()
     assert nav.evaluate(reading) == baseline
+    for key, case_record in zip(("Enter", "Space"), record["cases"][1:], strict=True):
+        page.keyboard.press(key)
+        expect(selected).to_have_js_property("value", case_record["id"])
+        assert nav.evaluate(reading) == baseline
     # One remaining case disables both step controls and gives the picker a much
     # longer label. The navigation owns their allocation throughout the refresh.
     single = record | {

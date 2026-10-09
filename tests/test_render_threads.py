@@ -10937,11 +10937,12 @@ def test_a_scaled_floating_draft_keeps_its_room_when_its_passage_scrolls_away(
 
 
 @pytest.mark.parametrize("surface", ["composer", "composer-widget", "composer-panel"])
-def test_pending_message_headers_match_their_bodies(browser, serve, surface):
-    """Delivery follows complete messages, including in a shadow-root thread.
+def test_pending_messages_stay_readable_through_admission(browser, serve, surface):
+    """Delivery receipts distinguish sends without fading their readable content.
 
     Hold both user messages before admission, then admit each separately. Headers
-    and bodies must share each message's delivery paint through both transitions.
+    and bodies stay fully opaque in ordinary and shadow-root threads while each
+    message's busy state follows its own admission.
     """
     page, _box, send, _after, reply = pressed_send_surface(browser, serve, surface)
     held = []
@@ -10991,16 +10992,35 @@ def test_pending_message_headers_match_their_bodies(browser, serve, surface):
               return {
                 headers: [...root.querySelectorAll('.lf-msg-head')].map(opacity),
                 bodies: [...root.querySelectorAll('.lf-msg-body')].map(opacity),
+                pending: [...root.querySelectorAll('.lf-msg')].map(node =>
+                  node.getAttribute('aria-busy') === 'true'),
+                pendingCursors: [...root.querySelectorAll('.lf-msg[aria-busy="true"] .lf-msg-body')]
+                  .map(node => getComputedStyle(node).cursor),
               };
             }"""
         )
 
-    assert reading() == {"headers": [0.5, 0.5], "bodies": [0.5, 0.5]}
+    assert reading() == {
+        "headers": [1, 1],
+        "bodies": [1, 1],
+        "pending": [True, True],
+        "pendingCursors": ["progress", "progress"],
+    }
     held.pop().continue_()
     holding(page, held, 1, "the reply following its admitted root")
     rendered(page)
-    assert reading() == {"headers": [1, 0.5], "bodies": [1, 0.5]}
+    assert reading() == {
+        "headers": [1, 1],
+        "bodies": [1, 1],
+        "pending": [False, True],
+        "pendingCursors": ["progress"],
+    }
     held.pop().continue_()
     page.unroute("**/api/event", hold)
     round_trip(page)
-    assert reading() == {"headers": [1, 1], "bodies": [1, 1]}
+    assert reading() == {
+        "headers": [1, 1],
+        "bodies": [1, 1],
+        "pending": [False, False],
+        "pendingCursors": [],
+    }

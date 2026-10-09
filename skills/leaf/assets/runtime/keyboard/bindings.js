@@ -223,9 +223,21 @@ export const contextualRoute = (route, command) => ({
   [ROUTED_COMMAND]: command,
 });
 export const routedCommand = (route) => route?.[ROUTED_COMMAND] ?? null;
-// Bindings are routes to commands, not their identity. A contextual projection may add a
-// route without mutating this intrinsic set; dispatch still reads one spelling here.
-export const bindings = declaredBindings;
+// A preference removes character-only routes, including Shift variants, without
+// withdrawing their commands or native activation. Declaration checks stay unfiltered.
+export const quickShortcuts = () => document.documentElement.lfKeyboard.quick;
+export const setQuickShortcuts = (on) =>
+  document.documentElement.lfKeyboard.setQuick(on);
+export const bindingEnabled = (binding) => {
+  const { key, mods } = parsed(binding);
+  return (
+    quickShortcuts() ||
+    key.length !== 1 ||
+    key === " " ||
+    mods.some((mod) => mod !== "Shift")
+  );
+};
+export const bindings = (row) => declaredBindings(row).filter(bindingEnabled);
 // The command identities under one row. Equivalent bindings keep the row's identity
 // and share its implementation; distinct results are routes and expose only those exact
 // identities. Dispatch and every command-facing projection consume this split.

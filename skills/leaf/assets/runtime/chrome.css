@@ -1479,6 +1479,11 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
     gap: 12px; margin-bottom: 8px; }
   .lf-command-reference-title { font-weight: 600; }
   .lf-command-reference-close { flex: none; }
+  .lf-command-reference-preference { display: grid; grid-template-columns: auto 1fr;
+    align-items: center; column-gap: 8px; row-gap: 2px; margin: 4px 0 12px; flex: none; }
+  .lf-command-reference-preference input { margin: 0; }
+  .lf-command-reference-preference small { grid-column: 2; color: var(--muted);
+    font-size: var(--t-6); }
   .lf-command-reference-search { width: 100%; box-sizing: border-box; font: inherit; padding: 7px 9px;
     border: 1px solid var(--border-2); border-radius: var(--r); background: var(--paper);
     color: var(--ink); }

@@ -3,8 +3,9 @@
    the prepaint bootstrap held before presentation once the page presents. */
 import { dispatchKey } from "./dispatch.js";
 import { MODIFIER_KEYS } from "../control-selectors.js";
+import { quickShortcuts } from "./bindings.js";
 import { beforeShortcutCommand } from "./shortcut-bar.js";
-import { claimsEsc } from "./scopes.js";
+import { claimsEsc, paintKeys } from "./scopes.js";
 import { onStanding, takesLetters, typesText, focused } from "../focus.js";
 import { nextFrame } from "../rendering.js";
 import { PRESENTATION } from "../presentation.js";
@@ -32,6 +33,12 @@ export function mountKeyboard({
     }
   };
   document.addEventListener("keydown", press);
+  document.addEventListener("lf-keyboard-preference", () => {
+    paintKeys();
+    if (quickShortcuts()) return;
+    setGoToSequence(false);
+    setReact(false);
+  });
   // Keys pressed before the page presented were held by the prepaint bootstrap
   // (runtime/bootstrap.js), since the commands they name read state the page did not
   // have yet. The presented page takes them and presses them in order, a frame apart as
@@ -46,6 +53,7 @@ export function mountKeyboard({
       // A hold that ended unpresented has nothing to hand over.
       if (!keys) return;
       const next = () => {
+        if (!quickShortcuts()) keys.length = 0;
         if (!keys.length) {
           release();
           return;

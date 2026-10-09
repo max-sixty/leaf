@@ -8,6 +8,63 @@ import {
   reflectFirstScopes,
   reflectKeys,
 } from "../../skills/leaf/assets/runtime/keyboard/scopes.js";
+import { setQuickShortcuts } from "../../skills/leaf/assets/runtime/keyboard/bindings.js";
+
+test("quick shortcuts withdraw character routes while native commands and modified keys remain", () => {
+  const owner = document.createElement("section");
+  const character = document.createElement("button");
+  const modified = document.createElement("button");
+  owner.append(character, modified);
+  document.body.append(owner);
+  let runs = 0;
+  keys(
+    character,
+    commandScope("Character action", [
+      {
+        id: "preference.character",
+        title: "Run character action",
+        keys: ["a", "Shift+a", "1", "?"],
+        control: character,
+        run: () => runs++,
+      },
+    ]),
+  );
+  keys(
+    modified,
+    commandScope("Modified action", [
+      {
+        id: "preference.modified",
+        title: "Run modified action",
+        keys: ["Mod+a", "Alt+a", "Shift+ArrowLeft", "Enter", " "],
+        control: modified,
+        run: () => runs++,
+      },
+    ]),
+  );
+  try {
+    reflectFirstScopes();
+    assert.equal(character.getAttribute("aria-keyshortcuts"), "a Shift+a 1 ?");
+    setQuickShortcuts(false);
+    paintKeys();
+    reflectKeys();
+    assert.equal(character.getAttribute("aria-keyshortcuts"), null);
+    assert.equal(character.disabled, false);
+    assert.equal(
+      modified.getAttribute("aria-keyshortcuts"),
+      "Meta+a Control+a Alt+a Shift+ArrowLeft Enter Space",
+    );
+    character.click();
+    modified.click();
+    assert.equal(runs, 2);
+    setQuickShortcuts(true);
+    paintKeys();
+    reflectKeys();
+    assert.equal(character.getAttribute("aria-keyshortcuts"), "a Shift+a 1 ?");
+  } finally {
+    setQuickShortcuts(true);
+    owner.remove();
+  }
+});
 
 test("a command owns its native button across availability, replacement and reconnection", () => {
   const owner = document.createElement("section");

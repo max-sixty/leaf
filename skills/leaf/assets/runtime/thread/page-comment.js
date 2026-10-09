@@ -39,6 +39,7 @@ import {
   dismissBannerControls,
   registerBannerControl,
 } from "../banner-toolbar.js";
+import { focusDestination } from "../focus.js";
 
 const NAME = "Comment on the page";
 
@@ -112,12 +113,13 @@ export function createPageComment({
       // Opened from the control's own place, so Escape hands the user to the control
       // whether a press or a key opened it: the door where the control stands, More's on
       // a phone.
-      bannerControlDoor(control)?.focus({ preventScroll: true });
+      const door = bannerControlDoor(control);
+      if (door) focusDestination(door, "move");
       card.showPopover({ source: control });
     }
     // At once rather than at `toggle`, which comes a task later: the words typed right
     // after the press belong in the box, not to the control or the page's keys.
-    input.focus({ preventScroll: true });
+    focusDestination(input, "move");
   }
 
   let sync = () => {};

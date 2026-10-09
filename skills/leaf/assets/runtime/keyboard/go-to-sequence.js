@@ -74,7 +74,7 @@ import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { el, PRESSABLE } from "../widget-elements.js";
 import { allButCommandReference, pageCommand, pageScope } from "./register.js";
 import { focusedThreadTarget } from "../thread/focus.js";
-import { letGo } from "../focus.js";
+import { letGo, focusDestination } from "../focus.js";
 import { pageParts } from "../passages.js";
 import { addressableSays } from "../anchor-resolution.js";
 import { announce, notice } from "../notifications.js";
@@ -222,7 +222,7 @@ export function createGoToSequence({
   // remain one behavior.
   function press(control) {
     scrollToElement(control, undefined, "nearest");
-    control.focus({ preventScroll: true });
+    focusDestination(control, "press");
     control.click();
   }
 
@@ -258,7 +258,7 @@ export function createGoToSequence({
       // the platform's own close route.
       go: (summary) => {
         scrollToElement(summary.parentElement, undefined, "nearest");
-        summary.focus({ preventScroll: true });
+        focusDestination(summary, "move");
       },
     },
     // Native and role-specific targets keep their meaning before the generic offered

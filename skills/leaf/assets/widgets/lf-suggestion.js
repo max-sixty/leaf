@@ -313,7 +313,7 @@ customElements.define(
                 text: outcome
                   ? `${outcome === "accept" ? "Accepted" : "Rejected"} suggested change`
                   : "Accept or reject suggested change",
-                activate: () => this.#margin?.focus(this.#focusKey()),
+                activate: () => this.#margin?.focus(this.#focusKey(), "move"),
               },
             ]
           : [],

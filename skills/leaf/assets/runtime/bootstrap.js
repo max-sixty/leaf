@@ -89,6 +89,7 @@
       else beat ||= setTimeout(show, 150);
     };
     const hold = (event) => {
+      if (!root.lfKeyboard.quick) return letGo();
       if (event.isComposing || HALF_PRESSES.has(event.key)) return;
       // Shift chooses which character prints; Ctrl, Alt and Meta make a chord instead.
       const printed =

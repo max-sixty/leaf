@@ -110,7 +110,14 @@ import {
   snapSelection,
 } from "./capture.js";
 import { repaint } from "../repaint.js";
-import { drawn, handBack, holdFocus, letGo, takesLetters } from "../focus.js";
+import {
+  drawn,
+  handBack,
+  holdFocus,
+  letGo,
+  takesLetters,
+  focusDestination,
+} from "../focus.js";
 import { commandScope, focused, projectCommandScope } from "../keyboard/scopes.js";
 import { shadowHost, under } from "../shadow.js";
 import { nativeLayers } from "../keyboard/layer-stack.js";
@@ -435,7 +442,7 @@ export function createResponseSurface({
     if (!sameAnchor(previous, fabAnchor)) refreshThread();
     repaint(); // the c row names this anchor, so the line is one more rendering of it
     if (!fabAnchor && returnFocus !== "none") {
-      if (returnToPanel) threadsBox.focus({ preventScroll: true });
+      if (returnToPanel) focusDestination(threadsBox, "return");
       // The shared return tests each representative: a hidden or rebuilt proxy cannot
       // skip a subject that still takes focus. If none remains, it lands on the page.
       else if (leavingBar && returnFocus === "target") handBack(...returnTargets);
@@ -725,7 +732,7 @@ export function createResponseSurface({
       const landed =
         positioned &&
         (!hasQuote(words) || sameAnchor(words, anchor)) &&
-        handoff.intent.handoff(() => fabInput.focus({ preventScroll: true }));
+        handoff.intent.handoff(() => focusDestination(fabInput, "move"));
       if (!landed) endFabFocus();
     });
   }

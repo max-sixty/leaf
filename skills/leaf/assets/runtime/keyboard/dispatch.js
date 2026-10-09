@@ -75,6 +75,8 @@
 import {
   answers,
   bindings,
+  bindingEnabled,
+  declaredBindings,
   allBindings,
   lineOf,
   titleOf,
@@ -452,16 +454,28 @@ export function dispatchKey(ev, { beforeCommand }) {
 // An action chosen from the reference has no keydown to match, but it still belongs to
 // exactly one live scope. Resolve it through the same innermost-first stack and the same
 // shadowing as a key press.
-function commandMatching(matches) {
+// A deliberately disabled shortcut leaves its command unbound and executable;
+// nearer key claims still constrain every shortcut that remains enabled.
+const reachableBindings = (row, scope, nearer, unclaimedEscape, commands) =>
+  (commands ? declaredBindings(row) : bindings(row)).filter((binding) =>
+    commands && !bindingEnabled(binding)
+      ? true
+      : binding === "Escape"
+        ? unclaimedEscape.has(scopeIdentity(scope))
+        : !nearer.takes(binding),
+  );
+function commandMatching(matches, commands = false) {
   const unclaimedEscape = unclaimedScopes("Escape");
   const nearer = shadow();
   for (const scope of stack()) {
     for (const row of scope.rows) {
       if (!live(row)) continue;
-      const reachable = bindings(row).filter((binding) =>
-        binding === "Escape"
-          ? unclaimedEscape.has(scopeIdentity(scope))
-          : !nearer.takes(binding),
+      const reachable = reachableBindings(
+        row,
+        scope,
+        nearer,
+        unclaimedEscape,
+        commands,
       );
       const entry = commandEntries(row, reachable).find(
         (command) =>
@@ -474,7 +488,7 @@ function commandMatching(matches) {
   }
   return null;
 }
-const commandFor = (id) => commandMatching((command) => command.id === id);
+const commandFor = (id) => commandMatching((command) => command.id === id, true);
 // A contextual surface asks the dispatcher which of its routes to one capability is
 // reachable from the user's current scope, and the box's placeholder names whichever one
 // dispatch would answer. Asked by command id rather than by row, so the surface holds no
@@ -489,17 +503,19 @@ export function activeCommandLabel(ids) {
 // intrinsic key and an Ask alias can share a command id while only one is shadowed.
 // The reference is a modal scope and shadows the page once it opens, so callers take
 // this snapshot before opening it.
-export function availableCommandRoutes() {
+export function availableCommandRoutes({ commands = false } = {}) {
   const routes = new Map();
   const unclaimedEscape = unclaimedScopes("Escape");
   const nearer = shadow();
   for (const scope of stack()) {
     for (const row of scope.rows) {
       if (!live(row)) continue;
-      const reachable = bindings(row).filter((binding) =>
-        binding === "Escape"
-          ? unclaimedEscape.has(scopeIdentity(scope))
-          : !nearer.takes(binding),
+      const reachable = reachableBindings(
+        row,
+        scope,
+        nearer,
+        unclaimedEscape,
+        commands,
       );
       for (const binding of allBindings(row).length ? reachable : [undefined]) {
         for (const command of commandEntries(row, [binding])) {

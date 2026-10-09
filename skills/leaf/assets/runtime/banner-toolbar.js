@@ -41,7 +41,6 @@ import {
   onStanding,
   readCaret,
   releaseFocus,
-  returningFocus,
 } from "./focus.js";
 import { selectEnds } from "./passages.js";
 
@@ -59,6 +58,7 @@ export const BANNER_CONTROL_RANK = Object.freeze({
   commands: 75,
   blanket: 80,
   versions: 90,
+  keyboard: 95,
   approval: 100,
   pageComment: 105,
   // Questions and Threads are the two doors to the one side panel, side by side.
@@ -189,7 +189,7 @@ export function restoreBannerStanding(held) {
   opener = null;
   // Handing the borrowed focus back is the menu's own return, not the user going there.
   if (held?.node?.isConnected && held.node !== document.body)
-    returningFocus(() => focusDestination(held.node, held.caret));
+    focusDestination(held.node, "return", { caret: held.caret });
   else releaseFocus();
   if (held?.ends?.every(([node]) => node.isConnected)) selectEnds(...held.ends);
 }
@@ -216,7 +216,8 @@ function paint() {
   // Where the control stands, not whether it would take a press: a refused Approval
   // is still a Tab stop.
   const door = bannerControlDoor(held.control);
-  (door === held.control ? held.focusTarget : door)?.focus({ preventScroll: true });
+  const place = door === held.control ? held.focusTarget : door;
+  if (place) focusDestination(place, "return");
 }
 
 const focusable = (entry) =>
@@ -228,8 +229,8 @@ const focusable = (entry) =>
 overflowMenu.addEventListener("toggle", (event) => {
   const open = event.newState === "open";
   render(rowTemplate(), bannerActions);
-  if (open && document.activeElement === overflowBtn)
-    menu.find(focusable)?.focusTarget.focus();
+  const first = open && document.activeElement === overflowBtn && menu.find(focusable);
+  if (first) focusDestination(first.focusTarget, "move", { scroll: true });
   if (!open) opener = null;
   repaint();
 });
@@ -352,10 +353,10 @@ export function showBannerControls(changes) {
   const removed = moved.find(({ entry, heldFocus }) => heldFocus && !entry.present);
   if (removed) focusAfterRemoval(removed.entry, removed.wasInMenu);
   // The step takes the place of the control focus stood on, so focus takes it too.
-  else if (loopFocus && !visible(loopFocus))
-    moved
-      .find(({ entry }) => entry.present)
-      ?.entry.focusTarget.focus({ preventScroll: true });
+  else if (loopFocus && !visible(loopFocus)) {
+    const step = moved.find(({ entry }) => entry.present);
+    if (step) focusDestination(step.entry.focusTarget, "return");
+  }
 }
 
 export function showNews(control, on) {
@@ -385,7 +386,7 @@ function focusAfterRemoval(entry, wasInMenu) {
     run.findIndex((candidate) => candidate === entry),
   );
   const next = [...run.slice(at), ...run.slice(0, at).reverse()].find(focusable);
-  (next?.focusTarget ?? overflowBtn).focus({ preventScroll: true });
+  focusDestination(next?.focusTarget ?? overflowBtn, "return");
 }
 
 // A secondary control stands behind a door this owner holds shut, so it
@@ -412,10 +413,10 @@ export function bannerControlDoor(control) {
 // hands the user back to the door, and the user stands on the control.
 export function returnToBannerControl(control) {
   if (overflowMenu.contains(control) && !overflowMenu.matches(":popover-open")) {
-    overflowBtn.focus({ preventScroll: true });
+    focusDestination(overflowBtn, "return");
     overflowMenu.showPopover();
   }
-  control.focus({ preventScroll: true });
+  focusDestination(control, "return");
 }
 
 export function dismissBannerControls() {

@@ -374,13 +374,18 @@ pageGeometry = createPageGeometry({
   activeActionAnchor: () => responseSurface.fabAnchorAt(),
   refreshActionBar: () => responseSurface.refreshFab(),
 });
+// A placement through the margin where it is mounted, which reveals a hidden row first,
+// with `focusDestination`'s arguments.
+const focusForNavigation = (node, cause, options) =>
+  app?.overlay?.focusForNavigation
+    ? app.overlay.focusForNavigation(node, cause, options)
+    : focusDestination(node, cause, options);
 const anchorTravel = createAnchorTravel({
   anchors: anchorPlacement,
   surfaces: auxiliarySurfaces,
   currentThreads: allThreads,
   refreshThread: () => app.refreshThread(),
-  focusForNavigation: (node, caret) =>
-    (app?.overlay?.focusForNavigation ?? focusDestination)(node, caret),
+  focusForNavigation,
   threadFocusTarget: (id, options) =>
     app.threadDestinations.threadFocusTarget(id, options),
   announce,
@@ -558,7 +563,7 @@ pageMapDialog = createPageMapDialog({
 // Ask view is constructed below by its owner factory; all accesses above are inert closures.
 asks = createAskView({
   panelIsOpen,
-  focusForNavigation: app.overlay?.focusForNavigation ?? focusDestination,
+  focusForNavigation,
   presentedControl: app.overlay?.presentedControl,
   setPanel: (...args) => threadPanelController.setPanel(...args),
   prepareTrip: anchorTravel.prepareTrip,
@@ -851,10 +856,10 @@ const standing = createStanding({
 const skipToChrome = offer("button", "lf-skip", "Skip to Leaf controls");
 skipToChrome.onclick = () => {
   for (const control of tabStops(banner)) {
-    control.focus({ preventScroll: true });
+    focusDestination(control, "move");
     if (control.matches(":focus")) return;
   }
-  focusDestination(banner);
+  focusDestination(banner, "move");
 };
 
 if (!offlineInteractive) {

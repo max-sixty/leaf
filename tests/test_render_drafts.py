@@ -1073,7 +1073,7 @@ def test_a_draft_forwards_edit_save_and_cancel_without_consuming_native_digits(
         question.evaluate(
             """async element => {
               const {focusDestination} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-              focusDestination(element);
+              focusDestination(element, 'move');
             }"""
         )
         expect(question).to_be_focused()

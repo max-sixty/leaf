@@ -754,27 +754,34 @@ def test_reading_inside_a_long_thread_keeps_its_title_and_reply_row_on_the_lists
     seen = card.evaluate(
         """async card => {
           const {seenRect} = await window.__lfRuntimeImport('/runtime/geometry.js');
-          const title = card.querySelector(':scope > .lf-thread-summary')
-            .getBoundingClientRect();
-          const reply = card.querySelector(':scope > .lf-thread-reply')
-            .getBoundingClientRect();
           const turns = [...card.querySelectorAll('.lf-msg')];
-          const across = (edge) => turns.find((turn) => {
+          const turn = turns[Math.floor(turns.length / 2)];
+          // Put an actual message across each edge: a fixed scroll fraction may
+          // put the edge in a gap when message heights or native fonts change.
+          const across = async (selector, edge) => {
+            const control = card.querySelector(selector);
             const box = turn.getBoundingClientRect();
-            return box.top < edge && box.bottom > edge;
-          });
-          const under = across(reply.top), over = across(title.bottom);
+            card.parentElement.scrollTop += (box.top + box.bottom) / 2
+              - control.getBoundingClientRect()[edge];
+            await new Promise(requestAnimationFrame);
+            const placed = turn.getBoundingClientRect();
+            return {
+              edge: control.getBoundingClientRect()[edge],
+              top: placed.top, bottom: placed.bottom,
+              seen: seenRect(turn, new Map()),
+            };
+          };
           return {
-            reply: reply.top, title: title.bottom,
-            under: under && seenRect(under, new Map())?.bottom,
-            over: over && seenRect(over, new Map())?.top,
+            under: await across(':scope > .lf-thread-reply', 'top'),
+            over: await across(':scope > .lf-thread-summary', 'bottom'),
           };
         }"""
     )
-    assert seen["under"] is not None, seen
-    assert seen["under"] <= seen["reply"] + 0.5, seen
-    if seen["over"] is not None:
-        assert seen["over"] >= seen["title"] - 0.5, seen
+    for reading in seen.values():
+        assert reading["top"] < reading["edge"] < reading["bottom"], seen
+        assert reading["seen"] is not None, seen
+    assert seen["under"]["seen"]["bottom"] <= seen["under"]["edge"] + 0.5, seen
+    assert seen["over"]["seen"]["top"] >= seen["over"]["edge"] - 0.5, seen
     # An open reaction list hangs below its trigger in the top layer, and goes once the
     # trigger leaves the list, so scrolling its message up under the title still leaves
     # the title whole.

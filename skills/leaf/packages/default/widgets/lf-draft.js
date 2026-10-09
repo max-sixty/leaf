@@ -510,7 +510,7 @@ customElements.define(
       // in the body's text, so it names a word only in a box holding that text — a
       // resumed edit opens with different words at those offsets.
       if (at && editor.value === effective) editor.setSelectionRange(at[0], at[1]);
-      if (arrive) editor.focus({ preventScroll: at !== undefined });
+      if (arrive) focusDestination(editor, "move", { scroll: at === undefined });
     }
 
     #close(discard) {
@@ -529,13 +529,13 @@ customElements.define(
       this.#failed = false;
       this.#refreshControls();
       if (stood) {
-        if (this.#sending) focusDestination(this);
+        if (this.#sending) focusDestination(this, "return");
         else
           nextRender(() => {
             // Command availability is painted before this callback. A new gesture
             // elsewhere wins over handing back the editor's vacated focus.
             if (this.isConnected && !this.#editor && mayReturn())
-              focusDestination(this.#controls.get("edit"));
+              focusDestination(this.#controls.get("edit"), "return");
           });
       }
       // Replay may have been held by this editor. Its close is the generic projection

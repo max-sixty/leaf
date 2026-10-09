@@ -2,9 +2,9 @@
    page policy around a real input (transient modes and the expanded shortcut bar), and presses the keys
    the prepaint bootstrap held before presentation once the page presents. */
 import { dispatchKey } from "./dispatch.js";
-import { MODIFIER_KEYS } from "./bindings.js";
+import { MODIFIER_KEYS, quickShortcuts } from "./bindings.js";
 import { beforeShortcutCommand } from "./shortcut-bar.js";
-import { claimsEsc, focused } from "./scopes.js";
+import { claimsEsc, focused, paintKeys } from "./scopes.js";
 import { onStanding, takesLetters, typesText } from "../focus.js";
 import { nextFrame } from "../rendering.js";
 import { PRESENTATION } from "../presentation.js";
@@ -32,6 +32,12 @@ export function mountKeyboard({
     }
   };
   document.addEventListener("keydown", press);
+  document.addEventListener("lf-keyboard-preference", () => {
+    paintKeys();
+    if (quickShortcuts()) return;
+    setGoToSequence(false);
+    setReact(false);
+  });
   // Keys pressed before the page presented were held by the prepaint bootstrap
   // (runtime/bootstrap.js), since the commands they name read state the page did not
   // have yet. The presented page takes them and presses them in order, a frame apart as
@@ -46,6 +52,7 @@ export function mountKeyboard({
       // A hold that ended unpresented has nothing to hand over.
       if (!keys) return;
       const next = () => {
+        if (!quickShortcuts()) keys.length = 0;
         if (!keys.length) {
           release();
           return;
@@ -65,7 +72,8 @@ export function mountKeyboard({
   // Focus entering a box, or a control that claims Escape, disarms the sequence — a
   // digit typed in a box is text, and a chip left blooming would promise a cancel the
   // control would consume. The paint that answers the move is repaint.js's. A chrome
-  // placement moves no one (focus.js, `placeChrome`), so it publishes nothing to disarm.
+  // placement handing the user straight back to the node it moved moves no one, so it
+  // publishes nothing to disarm (focus.js, `onStanding`).
   onStanding(() => {
     // The same question `setGoToSequence` asks before arming, so it takes the same answer: two
     // readings of where the user is standing would refuse to arm somewhere they then

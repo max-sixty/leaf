@@ -55,7 +55,6 @@ PUBLIC_TABS = [
 # underlying widget and thread states already stand in the feature gallery.
 DEVELOPER_TABS = [
     (EXAMPLES_DIR / "developer" / "feature-gallery.html", "Core features"),
-    (EXAMPLES_DIR / "developer" / "targeting-gallery.html", "Targeting package"),
     (
         EXAMPLES_DIR / "developer" / "visual-review-gallery.html",
         "Visual review package",

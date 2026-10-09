@@ -68,6 +68,7 @@ import { createAnchorControls } from "./runtime/anchor-controls.js";
 import { createAnchorTravel } from "./runtime/anchor-travel.js";
 import {
   aimTargetAt,
+  aimTargets,
   resolveAnchor,
   setAnchoringReady,
 } from "./runtime/anchor-resolution.js";
@@ -620,7 +621,6 @@ selectionComposer = createSelectionComposer({
   designModeActive: designMode.active,
   openPageThread: app.threadDestinations.openPageThread,
   threadTransitionOrigin: app.overlay?.threadTransitionOrigin,
-  anchorStands: (...args) => responseSurface.anchorStands(...args),
   anchorTravelAt: (...args) => responseSurface.anchorTravelAt(...args),
   bringForward: (...args) => responseSurface.bringForward(...args),
   fabAnchorAt: (...args) => responseSurface.fabAnchorAt(...args),
@@ -710,7 +710,8 @@ targets = createTargetPicker({
   commentOnTarget: responseSurface.commentOnTarget,
   updateFab: responseSurface.updateFab,
   fabAnchorAt: responseSurface.fabAnchorAt,
-  pointerModeActive: () => designMode.active() || drawing.drawModeActive(),
+  drawModeActive: () => drawing.drawModeActive(),
+  readTargets: () => (designMode.active() ? designMode.targets() : aimTargets()),
   armChanged: () => aim.armChanged(),
 });
 drawing = createDrawingController({

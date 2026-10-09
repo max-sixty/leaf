@@ -211,10 +211,9 @@ def test_work_status_is_a_generated_browser_passage(browser, serve, owner):
             expect(page.locator("#goal > .lf-quiet")).to_have_count(0)
         captured = line.evaluate("""async el => {
           const {says, pageText} = await window.__lfRuntimeImport('/runtime/passages.js');
-          const {rangeAnchor} = await window.__lfRuntimeImport('/runtime/composing/capture.js');
-          const {resolveAnchor} = await window.__lfRuntimeImport('/runtime/anchor-resolution.js');
+          const {anchorForRange, resolveAnchor} = await window.__lfRuntimeImport('/runtime/anchor-resolution.js');
           const range = document.createRange(); range.selectNodeContents(el);
-          const anchor = rangeAnchor(range);
+          const anchor = anchorForRange(range);
           const resolved = resolveAnchor(anchor, pageText());
           return {words: says(el), anchor, kind: resolved?.kind, exact: resolved?.exact};
         }""")

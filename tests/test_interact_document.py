@@ -1580,15 +1580,12 @@ def test_the_block_a_text_node_sits_in_is_one_list_on_both_sides():
     assert set(found.group(1).split(",")) == passages_model.TEXT_BLOCK_TAGS
 
 
-def test_the_context_an_anchor_stores_is_one_number_on_both_sides():
-    """CONTEXT (the file side) and the capture's own CONTEXT are how much of a passage's
-    surroundings an anchor writes down, and both sides must mean the same by it: the
-    browser writes the prefix and suffix, and `leaf thread open` writes them from a version
-    file, so a file-side capture storing a different amount makes an anchor the browser
-    would never have made — and the resolver demands a full contextual match before it
-    calls two identical quotes apart.
+def test_anchor_capture_starts_with_the_same_context_on_both_sides():
+    """Unique quotes share the initial width; repeated browser selections may grow it.
 
-    The quote itself is uncapped on both sides. This is the neighbourhood only."""
+    File capture requires a unique quote. The browser knows which occurrence the user
+    selected, so it widens context to identify that span, up to semantic fences.
+    """
     _, found = _sole_definition(r"const CONTEXT = (\d+);", "the captured context width")
     assert int(found.group(1)) == anchor_capture_model.CONTEXT
 

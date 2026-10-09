@@ -5,6 +5,7 @@ import { pageCommand } from "../keyboard/register.js";
 import { coarsePointer, pointerAt, pressIsKeyboardActivation } from "../pointer.js";
 import { elementFromPointAcross, inChrome } from "../passages.js";
 import { aimTargetAt } from "../anchor-resolution.js";
+import { setRuntimeRootStyle } from "../root-state.js";
 import { pointInto } from "../pointed-place.js";
 
 // While ⌥ is held the page shows what a click would take — the item under
@@ -31,10 +32,11 @@ export function createAim({
   targetPicker,
 }) {
   let aiming = false;
-  // Design is the active input mode, so the sequence is unavailable while it stands. Keep
-  // that priority in the aim's one public reading as well as its press claim: the promise
-  // painted under the pointer and the gesture that follows must have the same owner.
-  const aimIsAvailable = () => !designMode.active() && !drawModeActive();
+  // The explicit target picker selects inside Design mode too: its shared target map
+  // owns the pointer until a choice opens a comment in the standing mode. Without that
+  // map, Design owns its own presses. Draw keeps the page for ink in either case.
+  const aimIsAvailable = () =>
+    !drawModeActive() && (!designMode.active() || targetPicker.active());
   // Whether the page is armed, given whether the modifier is held: the one reading the
   // box and the press claim both derive from, so the box cannot promise what the press
   // does not do. The cursor class (armChanged) reads the two sources without the mode
@@ -77,12 +79,14 @@ export function createAim({
   function aimedTarget() {
     const pointer = pointerAt();
     if (pointer.x < 0) return null;
-    return pointedTarget(onPage(elementFromPointAcross(pointer.x, pointer.y)));
+    const at = elementFromPointAcross(pointer.x, pointer.y);
+    return pointedTarget(designMode.active() ? at : onPage(at));
   }
   // The target a press names, with the row inside it the press landed on: a comment on a
   // target taller than the window stands where the user pointed (pointed-place.js).
   function pointedTarget(at) {
-    const target = at && aimTargetAt(at);
+    const target =
+      at && (designMode.active() ? designMode.target(at) : aimTargetAt(at));
     // A drawing's part already names where on the picture it is.
     const point = target?.anchor.visual ? null : pointInto(target?.element, at);
     return target && { ...target, point };
@@ -90,6 +94,13 @@ export function createAim({
   // The armed page's one writer, called when either source of the arm changes.
   function armChanged() {
     document.body.classList.toggle("lf-aiming", aiming || targetPicker.active());
+    // Picker keys name the Design legend's corners while the picker owns the choice.
+    // Inherit through the paint stages, whose boxes may live in shadow roots.
+    setRuntimeRootStyle(
+      document.body,
+      "--lf-design-tag-visibility",
+      targetPicker.active() ? "hidden" : "visible",
+    );
     refreshAim();
   }
   function setAiming(on) {
@@ -151,9 +162,9 @@ export function createAim({
     "auxclick",
     "dblclick",
   ];
-  // The press Design mode or the armed page has taken until the next one starts. Design is
-  // the input mode and therefore stands first while active; the page is armed only when it
-  // is not in that mode. A claimed press stays claimed when target resolution finds
+  // The press Design mode or the armed page has taken until the next one starts. An open
+  // picker owns the choice inside the standing mode; otherwise Design owns its presses.
+  // A claimed press stays claimed when target resolution finds
   // nothing: that gap cannot turn back into an activation underneath the mode, and the
   // picker stays open for the next press.
   //
@@ -174,8 +185,10 @@ export function createAim({
       // The node pressed, not the widget host a shadow tree retargets it to: a Leaf
       // surface a widget seats in its own shadow tree is only visible from inside.
       const pressed = ev.composedPath()[0];
-      const designTarget = designMode.press(pressed);
-      const armed = armedBy(ev.getModifierState(AIM.modifier)) && onPage(ev.target);
+      const designTarget = !targetPicker.active() && designMode.press(pressed);
+      const armed =
+        armedBy(ev.getModifierState(AIM.modifier)) &&
+        (designMode.active() ? designMode.target(pressed) : onPage(ev.target));
       // The item the outline is naming, through the reading that named it (aimedTarget,
       // which aimTarget and so the box itself go through) rather than through this event's own
       // target. Both are hit tests at the one place the pointer is, and asking twice is what

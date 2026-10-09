@@ -92,6 +92,12 @@ import { repaint } from "../repaint.js";
 import { walkPosition } from "../walk-position.js";
 import { declareBottomBar } from "../geometry.js";
 import { pagePresented } from "../presentation.js";
+import {
+  BANNER_CONTROL_RANK,
+  bannerControlDoor,
+  dismissBannerControls,
+  registerBannerControl,
+} from "../banner-toolbar.js";
 
 // The shortcut bar — the register's short rendering. Its fact chips are aria-hidden (the spoken
 // copies are placeholders, announcements, and the reference); More is a real button because
@@ -325,6 +331,19 @@ const completeLine = (scopes, candidates) => {
 };
 const openCompleteReference = () =>
   openCommandReference((id) => executeCommand(id, beforeShortcutCommand));
+const keyboardSettings = el("button", "lf-btn", "Keyboard shortcuts");
+keyboardSettings.type = "button";
+keyboardSettings.addEventListener("click", () => {
+  dismissBannerControls();
+  bannerControlDoor(keyboardSettings)?.focus({ preventScroll: true });
+  openCompleteReference();
+});
+registerBannerControl({
+  key: "keyboard",
+  control: keyboardSettings,
+  rank: BANNER_CONTROL_RANK.keyboard,
+  seat: "menu",
+});
 function advanceShortcutHelp() {
   if (!shortcutHelpAvailable() || shortcutBarIsExpanded) return openCompleteReference();
   const scopes = stack();

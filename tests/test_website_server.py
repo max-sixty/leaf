@@ -4887,14 +4887,18 @@ def test_a_title_written_after_the_reply_is_still_timed():
     answered = {
         "active": {"revision": 2},
         "events": [comment, reply],
-        "thread": {"threads": [{"id": comment["id"], "title": None}]},
+        "browser": {"thread": {"threads": [{"id": comment["id"], "title": None}]}},
     }
     context = _StateReads(
         [
             {
                 **answered,
                 "events": [comment, reply, title],
-                "thread": {"threads": [{"id": comment["id"], "title": title["title"]}]},
+                "browser": {
+                    "thread": {
+                        "threads": [{"id": comment["id"], "title": title["title"]}]
+                    }
+                },
             }
         ]
     )
@@ -5482,10 +5486,12 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
                     "activity": {"kind": "away"},
                     "source_error": None,
                     "events": TURN_LOG,
-                    "thread": {
-                        "threads": [
-                            {"id": "test-comment", "title": "Deployment heading"}
-                        ]
+                    "browser": {
+                        "thread": {
+                            "threads": [
+                                {"id": "test-comment", "title": "Deployment heading"}
+                            ]
+                        }
                     },
                 },
                 published,
@@ -5652,10 +5658,12 @@ def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
                     "activity": {"kind": "away"},
                     "source_error": None,
                     "events": TURN_LOG,
-                    "thread": {
-                        "threads": [
-                            {"id": "test-comment", "title": "Deployment heading"}
-                        ]
+                    "browser": {
+                        "thread": {
+                            "threads": [
+                                {"id": "test-comment", "title": "Deployment heading"}
+                            ]
+                        }
                     },
                 },
                 published,
@@ -5804,7 +5812,7 @@ def test_journey_reads_and_times_inline_message_title():
     comment, _title, reply = TURN_LOG
     titled_reply = {**reply, "title": "Release recorded"}
     threads = list(journey.build_threads([comment, titled_reply], {}).values())
-    assert journey.titled({"thread": {"threads": threads}}, comment["id"])
+    assert journey.titled({"browser": {"thread": {"threads": threads}}}, comment["id"])
     assert (
         journey.recorded_steps(
             [comment, titled_reply], comment, {"activated_at": reply["ts"]}

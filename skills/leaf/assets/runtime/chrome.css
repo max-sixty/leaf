@@ -629,7 +629,7 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   .lf-page-comment-card:popover-open { display: flex; flex-direction: column; }
   @media screen and (width <= 480px) {
     .lf-page-comment-card { right: calc(var(--lf-card-inset) + var(--lf-safe-right));
-      width: calc(100vw - 2 * var(--lf-card-inset) - var(--lf-safe-left) - var(--lf-safe-right)); }
+      width: calc(100% - 2 * var(--lf-card-inset) - var(--lf-safe-left) - var(--lf-safe-right)); }
   }
   /* The controls stay packed against the row's end. Approval and Threads each hold the
      widest words they can show, measured by the reserve calls where the banner is
@@ -969,13 +969,10 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
      theme.css) at minus the top padding, as a workspace pane's body does, so an open
      thread's title stands on the scrollport's edge. At the foot, the reply row stands
      where a landing puts a thread's end and paints the band below it (below). */
-  /* The editor takes a share of this actual list, so typing leaves the preceding
-     turn readable even when the panel is short. */
-  /* Even the fallback keeps one complete reply control and its focus band readable;
-     the surrounding body scrolls instead of compressing this reading box to zero. */
-  /* The reading frame owns its pinned edges above the sibling composer scrollport.
-     Making that foot a positioned containing block must not put its border over the
-     reply's ground at their shared edge. */
+  /* Even a short panel keeps one complete reply control and its focus band readable;
+     the panel body scrolls instead of compressing this reading box to zero. The frame
+     paints its pinned edges above the panel's foot, so a foot made a positioned
+     containing block never lays its border over the reply's ground at their edge. */
   .lf-threads-frame { flex: 1; z-index: 1;
     min-height: calc(var(--lf-compose-h) + 2 * var(--focus-ring-room));
     display: grid; container-type: size; }

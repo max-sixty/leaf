@@ -2213,6 +2213,9 @@ def test_comment_on_the_page_starts_a_thread_from_a_card_under_the_banner(
     bounds = card.bounding_box()
     assert bounds["x"] >= 0 and bounds["x"] + bounds["width"] <= 500, bounds
     assert bounds["y"] + bounds["height"] <= 240, bounds
+    # The editor gives way first: its words scroll while the card around it does not.
+    assert box.evaluate("el => el.scrollHeight > el.clientHeight")
+    assert card.evaluate("el => el.scrollHeight <= el.clientHeight")
     resized(page, 500, 180)
     box.press("Tab")
     send_button = card.locator(".lf-compose-submit")

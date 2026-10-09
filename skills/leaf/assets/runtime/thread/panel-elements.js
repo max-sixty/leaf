@@ -67,12 +67,6 @@ export function createThreadPanelElements({
         // Header and View keep selecting the list. Its outer region also owns the
         // scroll that brings the list into view when the panel body is exhausted.
         registerReadingRegion({ id, host: panelBody, body: threadsBox }),
-        registerReadingRegion({
-          id: compoundReadingRegionId(panel, "composer"),
-          host: panelFoot,
-          body: panelFoot,
-          apparatusFor: id,
-        }),
       ];
       stopReadingRegion = () => {
         for (const stop of stops) stop();

@@ -216,10 +216,6 @@ words the render gate pairs with the file.
 the body that scrolls it whenever the theme makes it scroll. The host makes focus in a
 pane's header or footer select that pane. Register from `connectedCallback` and call
 the returned cleanup from `disconnectedCallback`, so a reconnect can claim the same id.
-Separately scrolling apparatus adds `apparatusFor: ownerId`, naming an already live
-region: focus there still selects that owner for reading, while `scrollerFor(node)`
-names the apparatus's own physical scrollport. Dispose both registrations with their
-DOM owners.
 `readingPosture(node)` is `bounded` exactly while the region's body is its own
 scroller, and `watchReadingRegionTransitions(listener)` receives a `shift` when a
 shown region's scroller or width changes without a gesture; the continuity owner records the user's

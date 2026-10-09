@@ -547,9 +547,27 @@
             }
             return false;
           };
+          // A z-index orders its box only inside the stacking context around it, so a
+          // z-index named on the way up sends the walk on to that context rather than
+          // ending it: nothing inside the context paints outside the context's own place.
+          // Ending it there left the grip's ring reported under a thread's sticky title,
+          // whose z-index lifts it inside the list and no further, while every pixel of
+          // the ring's run was the ring's.
+          const forms = (n) => {
+            const s = getComputedStyle(n);
+            return (
+              stacked(s, above(n)) ||
+              s.position === "fixed" ||
+              s.position === "sticky" ||
+              s.isolation === "isolate" ||
+              s.transform !== "none" ||
+              s.filter !== "none" ||
+              parseFloat(s.opacity) < 1
+            );
+          };
           let under = false;
           let hoisted = false;
-          for (let a = over; a && control >= 0; a = above(a)) {
+          for (let a = over; a && control >= 0; ) {
             if (holds(a, el)) break;
             const acs = getComputedStyle(a);
             const ranked = inside.indexOf(a);
@@ -558,8 +576,16 @@
                 hoisted && acs.position === "static" ? clears(el) : ranked > control;
               break;
             }
-            if (acs.zIndex !== "auto") break;
+            if (acs.zIndex !== "auto") {
+              let context = above(a);
+              while (context && !holds(context, el) && !forms(context))
+                context = above(context);
+              a = context;
+              hoisted = false;
+              continue;
+            }
             if (acs.position !== "static") hoisted = true;
+            a = above(a);
           }
           // Nothing beneath a box the control paints over is over the ring either, so this
           // side is answered rather than carried on down the stack.

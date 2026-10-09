@@ -514,9 +514,13 @@ identity must survive a rewrite ("Stable anchors").
 Changing the registry or JavaScript opens a fresh document. Leaf restores reading
 position, recoverable drafts, and comparison state. It can also restore focus and
 supported control state when an element keeps its authored id and tag. Element
-instances and arbitrary module state do not survive the reload. Both update paths
-wait while the user is composing, dragging, or undoing, has a gesture the server
-has not yet admitted, or has the version menu open.
+instances and arbitrary module state do not survive the reload. Reloads wait while
+the user is composing. An in-place revision can arrive during selection, commenting,
+or editing when it preserves every selected passage or comment's complete authored
+anchor scope and every active native editor. Thread replies keep their editing session
+independently of the page's authored content. Otherwise the revision waits until
+composition ends. Both update paths wait during dragging or undoing, while a gesture
+awaits server admission, or while the version menu is open.
 
 Page modules follow `references/module-authoring.md`, "What a behavior module owes". In
 particular, its `once()`, `quoted()`, `offer()`, `layoutChanged()`, and durable-state

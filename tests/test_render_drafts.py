@@ -1749,8 +1749,8 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
     """A refusal leaves nothing standing and the words back where they were written.
 
     The user has moved on to the pending thread in Threads by the time the refusal
-    lands, so the card stays shut rather than take their keys: the words wait in its
-    box, and focus falls from the withdrawn thread to the list it stood in."""
+    lands, so the card's box does not take their keys back: the words wait in it, and
+    focus falls from the withdrawn thread to the list it stood in."""
     browser, held = held_events
     page = open_page(browser, serve(LONG_PAGE))
     page.locator(".lf-threads-toggle").click()
@@ -1782,7 +1782,7 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
     expect(page.locator('.lf-thread[data-id^="pending:"]')).to_have_count(0)
     expect(page.locator(".lf-threads > .lf-thread")).to_have_count(before)
     expect(page.locator(".lf-threads")).to_be_focused()
-    expect(page.locator(".lf-page-comment-card")).to_be_hidden()
+    expect(box).not_to_be_focused()
     expect(box).to_have_js_property("value", words)
     expect(page.locator(".lf-notice")).to_contain_text("Couldn't send")
     assert stored_draft_text(page, "general") == words

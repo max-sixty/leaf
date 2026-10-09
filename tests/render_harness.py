@@ -1606,12 +1606,15 @@ def page_comment(page):
     """Open the page comment card from the banner and return its box, focused.
 
     The card is the one place a page thread starts (thread/page-comment.js): its control
-    stands on the banner's row on a desk and in More on a phone. A card already open is
-    left open, so a caller can come back to the box it is writing in."""
+    stands on the banner's row on a desk and in More on a phone. A card already open, as
+    a send leaves it, is left open and its box pressed, so a caller comes back to the box
+    it writes in."""
     card = page.locator(".lf-page-comment-card")
-    if not card.evaluate("card => card.matches(':popover-open')"):
-        banner_control(page, ".lf-page-comment").click()
     box = card.locator(".lf-general leaf-text")
+    if card.evaluate("card => card.matches(':popover-open')"):
+        box.click()
+    else:
+        banner_control(page, ".lf-page-comment").click()
     expect(box).to_be_focused()
     return box
 

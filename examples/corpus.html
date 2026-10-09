@@ -8523,13 +8523,15 @@ gallery/
                 This embedded sample is a framed tabbed section. The browser test also
                 presents this same tab set at the root of a page, where it becomes
                 borderless top navigation for page-scale views. Both forms remember the
-                selected panel after reload. At page level, scroll a view and switch
-                away and back: an unread view opens below the tab strip, and a view you
-                already read returns to its place. The strip stays put even when the
-                next view is shorter than the window. Browser Back and Forward return to
-                the corresponding views. Narrow the window until the gallery’s own tab
-                names overflow, then page them with the edge arrows. Reduced motion
-                makes that move immediate.
+                selected panel after reload. Horizontal tab strips stay at the top of
+                the view while their panel is being read, below any enclosing tabs.
+                Switching a pinned embedded strip opens its new panel at the start. At
+                page level, scroll a view and switch away and back: an unread view opens
+                below the tab strip, and a view you already read returns to its place.
+                The strip stays put even when the next view is shorter than the window.
+                Browser Back and Forward return to the corresponding views. Narrow the
+                window until the gallery’s own tab names overflow, then page them with
+                the edge arrows. Reduced motion makes that move immediate.
               </p>
               <lf-tabs id="bg-tabs">
                 <lf-tab id="bg-tab-current" label="Current">
@@ -8789,7 +8791,9 @@ gallery/
                 Sample labels invented content. Choose “Before” or “After” above the
                 image, or press the Shot control or image to flip. The selected label is
                 red for Before and green for After; a split colors both labels without
-                selecting either. This pair carries
+                selecting either. Scroll through a tall pair: the Before/After rail
+                stays at the top of the view until the pair ends, below any page tabs.
+                This pair carries
                 <code>outlines</code>, so outlines mark each region where the two images
                 differ, on both sides of the divider, and the rail counts them.
               </p>

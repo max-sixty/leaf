@@ -285,6 +285,7 @@ def test_samples_use_captured_resources_and_independent_event_logs(server, page_
     status, document = fetch(child + "/")
     assert status == 200, document
     assert b"Child text." in document
+    assert b"data-lf-share-url" not in document
     root = "/revisions/" + files_model.revision_path(page_dir, 1).stem
     assert f'data-lf-entry="{root}/leaf.js"'.encode() in document
     assert f'data-lf-page-root="{child.removeprefix(server)}"'.encode() in document

@@ -4,7 +4,7 @@ import io
 import os
 import re
 import socket
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from browser_sources import browser_function
@@ -3365,6 +3365,68 @@ def test_every_more_row_wears_one_face_and_rings_inside_the_menu(browser, serve)
     assert ring["matches"] and ring["clear"] >= 2, ring
 
 
+def test_share_copies_access_after_a_bare_reload(browser, serve):
+    """The copied address opens the viewed version and passage in a fresh browser."""
+    url = serve(FEATURE_GALLERY)
+    page = open_page(browser, url + "&view=reading#bg-share-guide")
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    expect(page).not_to_have_url(re.compile(r"[?&]t="))
+    page.reload()
+    wait_until_ready(page)
+    page.get_by_role("button", name="More page controls", exact=True).click()
+    share = page.locator(".lf-share > summary")
+    for _ in range(15):
+        if share.evaluate("element => element === document.activeElement"):
+            break
+        page.keyboard.press("Tab")
+    expect(share).to_be_focused()
+    page.keyboard.press("Enter")
+    link = page.get_by_role("textbox", name="Share link", exact=True)
+    expect(link).to_have_value(re.compile(r"[?&]t="))
+    page.keyboard.press("Tab")
+    expect(link).to_be_focused()
+    page.keyboard.press("Tab")
+    copy = page.get_by_role("button", name="Copy link", exact=True)
+    expect(copy).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-notice")).to_have_text("Link copied")
+    copied = page.evaluate("navigator.clipboard.readText()")
+    assert parse_qs(urlsplit(copied).query) == {
+        "t": parse_qs(urlsplit(url).query)["t"],
+        "view": ["reading"],
+    }
+    assert urlsplit(copied).path == urlsplit(url).path
+    assert urlsplit(copied).fragment == "bg-share-guide"
+    expect(copy).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(
+        page.get_by_role("button", name="More page controls", exact=True)
+    ).to_be_focused()
+    with browser.new_context() as context:
+        recipient = open_page(browser, copied, context=context)
+        expect(recipient.locator("#bg-share-guide")).to_be_visible()
+        expect(recipient).not_to_have_url(re.compile(r"[?&]t="))
+        recipient.close()
+    resized(page, 390, 844)
+    page.get_by_role("button", name=re.compile(r"^More page controls")).click()
+    page.evaluate("navigator.clipboard.writeText('before sharing')")
+    share.click()
+    copy.click()
+    expect(page.locator(".lf-notice")).to_have_text("Link copied")
+    assert page.evaluate("navigator.clipboard.readText()") == copied
+    # Plain HTTP outside loopback has no clipboard API; the link remains usable.
+    page.add_init_script(
+        "Object.defineProperty(navigator, 'clipboard', {value: undefined})"
+    )
+    page.reload()
+    wait_until_ready(page)
+    page.get_by_role("button", name=re.compile(r"^More page controls")).click()
+    share.click()
+    expect(link).to_have_value(copied)
+    expect(copy).to_be_hidden()
+    page.close()
+
+
 def test_preview_diagnostics_keep_their_fixed_banner_overflow_seat(browser, serve):
     """Developer diagnostics stay behind More at every width."""
     html = SUGGESTION_PAGE.replace(
@@ -3667,12 +3729,6 @@ def test_a_phone_banner_keeps_fixed_primary_and_menu_seats(browser, serve, other
     # Every secondary control, from the keyboard, through that one door. The press is the
     # popover's own invoker, so the menu opens and puts the user on its first control
     # without anything here focusing it for them.
-    want = secondary.evaluate_all(
-        """els => els.filter(el => getComputedStyle(el).display !== 'none' &&
-                                   getComputedStyle(el).visibility !== 'hidden')
-                     .map(el => (el.getAttribute('aria-label') || el.textContent).trim())"""
-    )
-    assert len(want) >= 2, f"only {want} stand in More, which walks nothing"
     page.evaluate(RELEASE_FOCUS)
     threads = page.locator(".lf-threads-toggle")
     for _ in range(20):
@@ -3686,6 +3742,11 @@ def test_a_phone_banner_keeps_fixed_primary_and_menu_seats(browser, serve, other
     page.keyboard.press("Enter")
     expect(page.locator(".lf-banner-menu")).to_be_visible()
     expect(more).to_have_attribute("aria-expanded", "true")
+    want = secondary.evaluate_all(
+        """els => els.filter(el => el.checkVisibility())
+                     .map(el => (el.getAttribute('aria-label') || el.textContent).trim())"""
+    )
+    assert len(want) >= 2, f"only {want} stand in More, which walks nothing"
     menu = page.locator(".lf-banner-menu").bounding_box()
     assert menu["x"] >= 0 and menu["x"] + menu["width"] <= 390, menu
     assert menu["width"] <= 390 - 16, menu

@@ -977,6 +977,29 @@ def test_back_to_a_fragment_the_page_has_hidden_since_lands_on_it(browser, serve
     expect(target).to_be_in_viewport()
 
 
+def test_page_tabs_mark_only_the_selected_name_in_forced_colors(browser, serve):
+    """A forced transparent border must not make every page tab look selected."""
+    page = open_page(browser, serve(ROOT_TABS_PAGE))
+    page.emulate_media(forced_colors="active")
+    page.keyboard.press("Tab")
+    page.locator("#root-tabs > .lf-tabstrip .lf-tab-btn").first.focus()
+    reading = """() => {
+      const strip = document.querySelector('#root-tabs > .lf-tabstrip');
+      const background = getComputedStyle(strip).backgroundColor;
+      return [...strip.querySelectorAll('.lf-tab-btn')].map(tab => {
+        const name = getComputedStyle(tab.querySelector('.lf-tab-name'));
+        return {selected: tab.getAttribute('aria-selected') === 'true',
+          marked: name.borderBottomColor !== background
+            && parseFloat(name.borderBottomWidth) > 0};
+      });
+    }"""
+    for _ in range(2):
+        marks = page.evaluate(reading)
+        assert any(mark["selected"] for mark in marks), marks
+        assert all(mark["selected"] == mark["marked"] for mark in marks), marks
+        page.keyboard.press("ArrowRight")
+
+
 def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
     """Page tabs are sections of one page: on a wide page the header, the strip and the
     open panel share main's left edge and the panel takes main's width."""
@@ -1177,6 +1200,16 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     )
     expect(tabs.nth(1)).to_have_accessible_description("sev b · suggested fix")
     assert page.evaluate(rows) == heights
+    page.keyboard.press("Tab")
+    tabs.first.focus()
+    clearance = tabs.first.evaluate("""tab => {
+      const name = tab.querySelector('.lf-tab-name');
+      const style = getComputedStyle(name);
+      return {ringRight: name.getBoundingClientRect().right
+        + parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset),
+        answerLeft: tab.querySelector('.lf-tab-answer').getBoundingClientRect().left};
+    }""")
+    assert clearance["ringRight"] <= clearance["answerLeft"], clearance
 
     moved = page.locator("#queue").evaluate(
         """async queue => {

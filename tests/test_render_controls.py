@@ -126,26 +126,50 @@ def test_native_disclosure_inherits_the_offered_control_target(browser, serve, t
                 "Native disclosure",
                 """<h1>Comparison</h1>
 <details id="comparison"><p>Inspection controls.</p></details>
+<details id="wrapped-comparison" style="width: 160px"><p>Wrapped controls.</p></details>
 <script type="module">
 import {offer} from '/runtime/widget-api.js';
 const summary = offer('summary', '', 'Inspect comparison');
 summary.id = 'inspect';
 document.querySelector('#comparison').prepend(summary);
+const wrapped = offer('summary', '', 'A long disclosure label that wraps across several lines');
+wrapped.id = 'wrapped-inspect';
+document.querySelector('#wrapped-comparison').prepend(wrapped);
 </script>""",
             )
         ),
         context=context,
     )
-    control = page.locator("#inspect")
-    before = control.bounding_box()
-    floor = 44 if touch else 24
-    assert min(before["width"], before["height"]) >= floor - 0.5, before
-    control.click()
-    expect(page.locator("#comparison")).to_have_attribute("open", "")
-    assert control.bounding_box() == before
-    control.press("Space")
-    expect(page.locator("#comparison")).not_to_have_attribute("open", "")
-    assert control.bounding_box() == before
+    for control_id, detail_id in (
+        ("inspect", "comparison"),
+        ("wrapped-inspect", "wrapped-comparison"),
+    ):
+        control = page.locator(f"#{control_id}")
+        before = control.bounding_box()
+        floor = 44 if touch else 24
+        assert min(before["width"], before["height"]) >= floor - 0.5, before
+        label_room = control.evaluate(
+            """node => {
+              const range = document.createRange(); range.selectNodeContents(node);
+              const box = node.getBoundingClientRect(), text = range.getBoundingClientRect();
+              return {above: text.top-box.top, below: box.bottom-text.bottom,
+                      display: getComputedStyle(node).display};
+            }"""
+        )
+        assert abs(label_room["above"] - label_room["below"]) <= 2, label_room
+        assert label_room["display"] == "list-item", label_room
+        if touch:
+            control.tap()
+        else:
+            control.click()
+        expect(page.locator(f"#{detail_id}")).to_have_attribute("open", "")
+        assert control.bounding_box() == before
+        control.press("Space")
+        expect(page.locator(f"#{detail_id}")).not_to_have_attribute("open", "")
+        assert control.bounding_box() == before
+        control.press("Enter")
+        expect(page.locator(f"#{detail_id}")).to_have_attribute("open", "")
+        assert control.bounding_box() == before
 
 
 def test_offered_native_targets_keep_their_navigation_meaning(browser, serve):

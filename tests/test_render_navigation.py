@@ -8537,6 +8537,15 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     close = page.get_by_role("button", name="Back to more shortcuts")
     expect(close).to_be_visible()
     expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
+    search = page.get_by_role("combobox", name="Search commands")
+    expect(search).to_be_focused()
+    # The editor's native focus is inside the shared control's shadow tree. Closing
+    # directly from it must return to the same Help door as closing from a result.
+    page.keyboard.press("Escape")
+    expect(help_el).to_be_hidden()
+    expect(opener).to_be_focused()
+    opener.click()
+    expect(search).to_be_focused()
     for command in [
         "test.projected-only",
         "response.reaction.choose",
@@ -8585,6 +8594,18 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     page.mouse.click(2, 2)
     expect(help_el).to_be_hidden()
     expect(opener).to_be_focused()
+
+    # A keyboard opening from an ordinary page control owes that control back too,
+    # including when light dismissal closes the focused native search editor.
+    page.keyboard.press("Escape")
+    page_control = page.locator("#projected-only-command")
+    page_control.click()
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    expect(search).to_be_focused()
+    page.mouse.click(2, 2)
+    expect(help_el).to_be_hidden()
+    expect(page_control).to_be_focused()
 
 
 def test_the_reference_runs_available_commands_and_explains_the_rest(browser, serve):

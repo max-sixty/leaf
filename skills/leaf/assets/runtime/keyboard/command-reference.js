@@ -59,6 +59,7 @@ import {
   openLayer,
   openerOf,
   rove,
+  standingIn,
 } from "../focus.js";
 import { closeControl, searchField } from "../widget-elements.js";
 import { keeps } from "../keeps.js";
@@ -826,8 +827,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
   // Focusing a text input replaces the document selection. Keep a passage the user has
   // in hand and focus Close instead; an ordinary opening lands directly in search.
   const preserveSelection = fresh && Boolean(pageSelection());
-  const handingBack =
-    !open && restoreFocus && commandReferenceDialog.contains(focused());
+  const handingBack = !open && restoreFocus && standingIn(commandReferenceDialog);
   const restore = handingBack ? openerOf(commandReferenceDialog) : null;
   if (fresh) {
     commandReferenceInvoke = invokeCommand;

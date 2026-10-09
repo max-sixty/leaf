@@ -307,6 +307,33 @@ def test_a_section_handed_a_settled_move_is_told_nothing_is_owed(page_dir):
     assert "--for" not in mistaken.output
 
 
+def test_a_reply_refused_after_user_resolution_names_the_resolution(page_dir):
+    """An agent should know why its delivered reply became unnecessary."""
+    root = append_carried_log_record(
+        published(page_dir),
+        {"kind": "comment", "author": "user", "text": "Can you check this?"},
+    )
+    reference = response_reference(page_dir, root["id"])
+    resolution = append_carried_log_record(
+        page_dir,
+        {"kind": "resolve", "author": "user", "parent": root["id"]},
+    )
+
+    refused = CliRunner().invoke(
+        cli_model.cli,
+        ["response", "reply", reference, "--text", "I checked it."],
+    )
+
+    assert refused.exit_code != 0
+    assert "the user resolved the thread" in refused.output
+    assert resolution["ts"] in refused.output
+    assert "leaf thread reply" not in refused.output
+    misplaced = comment(page_dir, "--section", root["id"], "--text", "I checked it.")
+    assert "the user resolved the thread" in misplaced.output
+    assert "leaf thread reply" not in misplaced.output
+    assert not any(e["kind"] == "reply" for e in events_model.read_events(page_dir))
+
+
 def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
     """A message is not the only id an agent is handed. A user's press on a widget
     frozen into a reply is answered through its exact delivery reference. The

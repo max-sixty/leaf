@@ -2342,27 +2342,33 @@ def test_a_sent_page_comment_keeps_its_room_without_stranding_send(browser, serv
         "the card scrolled before its empty editor gave back its room"
     )
 
-    # An attachment's room is held too: a refusal that hands back the words and the
-    # image leaves Send where the send left it.
+    # An attachment's room is held too: while the send is out, and once a refusal hands
+    # back the words and the image, the field and Send stand where the send left them.
     resized(page, 1200, 900)
     box = page_comment(page)
     refused = "\n".join(f"Refused line {n}" for n in range(4))
     write(box, refused)
     paste_image(box, (example_media() / "051bee487bfb5d13.png").read_bytes())
     expect(card.locator(".lf-composer-media img")).to_be_visible()
-    before = send.bounding_box()
-    page.route(
-        "**/api/event",
-        lambda route: route.fulfill(
-            status=400,
-            json={"ok": False, "final": True, "error": "refused before append"},
-        ),
-    )
+    field = card.locator(".lf-compose-field")
+    before = [send.bounding_box(), field.bounding_box()]
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
     send.click()
+    expect(box).to_have_js_property("value", "")
+    rendered(page)
+    assert [send.bounding_box(), field.bounding_box()] == before, (
+        "the pending send moved the field or Send"
+    )
+    held.pop().fulfill(
+        status=400, json={"ok": False, "final": True, "error": "refused before append"}
+    )
     expect(card.locator(".lf-composer-media img")).to_be_visible()
     expect(box).to_have_js_property("value", refused)
     rendered(page)
-    assert send.bounding_box() == before, "the refusal moved Send without a gesture"
+    assert [send.bounding_box(), field.bounding_box()] == before, (
+        "the refusal moved the field or Send without a gesture"
+    )
     page.unroute("**/api/event")
     assert all("400" in error for error in take_browser_errors(page))
 

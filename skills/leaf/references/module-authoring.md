@@ -232,9 +232,10 @@ such as a tab switch, runs the change through `preserveReadingRegions(owner, cha
 which awaits the change's returned layout promise before restoring the visible regions'
 scrollers. `runtime/reading-regions.js` describes the region model.
 
-A widget that re-renders or resizes content inside a scroller of its own holds the
-user's place with `placeKeeper(scroller, {items, identity})` rather than by restoring a
-`scrollTop`; `runtime/user-place.js` describes it.
+A widget that re-renders or resizes content holds the user's place with
+`placeKeeper(scroller, {items, identity})` rather than by restoring a `scrollTop`.
+This includes synchronous changes in the platform page scroller when native anchoring
+does not retain the focused control; `runtime/user-place.js` describes the hold.
 
 A widget that remembers where the user was reading, in a view it hides and shows again,
 keeps a place rather than an offset: `capturePlace()` reads the page's place as a

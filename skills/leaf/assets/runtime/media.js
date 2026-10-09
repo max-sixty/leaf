@@ -295,7 +295,9 @@ document.addEventListener("click", (event) => {
     event.preventDefault();
     open(
       trigger?.dataset.lfMediaUrl || link.href,
-      (trigger?.querySelector("img") || image)?.alt || "Image",
+      trigger?.dataset.lfMediaAlt ||
+        (trigger?.querySelector("img") || image)?.alt ||
+        "Image",
       trigger || link,
     );
   }

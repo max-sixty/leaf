@@ -1,6 +1,7 @@
 /* A page-owned worktree adapter preserves the source record's stable identity
  * and provenance. Native details owns disclosure; Leaf owns datum comments. */
 import {
+  ago,
   HeldReading,
   html,
   once,
@@ -51,7 +52,9 @@ customElements.define(
                     <dd>${record.tests}</dd>
                     <dt>Observed</dt>
                     <dd>
-                      <time datetime=${record.observedAt}>${record.observedAt}</time>
+                      <time datetime=${record.observedAt} title=${record.observedAt}
+                        >${ago(record.observedAt)}</time
+                      >
                     </dd>
                   </dl>
                   <h4>Files</h4>

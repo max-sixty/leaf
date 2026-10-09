@@ -1,5 +1,7 @@
 """Public work projections keep task identity apart from page-owned dashboards."""
 
+import re
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -15,8 +17,10 @@ from render_cases_interaction import COMMAND_HUB_EXAMPLE, live_url
 from render_harness import (
     open_page,
     page_registry,
+    refuse,
     sending,
     stamp_page,
+    ticked,
     told,
     wait_for_revision,
     write,
@@ -147,7 +151,10 @@ customElements.define("lf-project-milestone", class extends HTMLElement {
 
 def test_atlas_report_waits_behind_a_stationary_updates_control(browser, serve):
     page = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
-    page.locator("#w-1 > details > summary").click()
+    # The status is part of the summary's hit area, including at phone widths.
+    # A native form output here consumes activation instead of opening details.
+    page.locator("#w-1 .atlas-worker-state").click()
+    expect(page.locator("#w-1 > details")).to_have_attribute("open", "")
     # A visible status already speaks the fact; x-paints would add it twice.
     expect(page.locator("#ground-corpus > .atlas-task-state")).to_have_text("done")
     expect(page.locator("#ground-corpus > .lf-quiet")).to_have_count(0)
@@ -177,6 +184,31 @@ def test_atlas_report_waits_behind_a_stationary_updates_control(browser, serve):
     updates.click()
     expect(report).to_contain_text("Expanded report.")
     expect(updates).to_be_disabled()
+    heard = report.locator("time")
+    event = next(
+        row
+        for row in reversed(read_events(serve.page_dir))
+        if row["kind"] == "report" and row["widget"] == "w-1"
+    )
+    expect(heard).to_have_attribute("datetime", event["ts"])
+    expect(heard).to_have_text("just now")
+    tree = page.locator("#tree-w-1")
+    tree.locator("summary").click()
+    observed = tree.locator("time")
+    expect(observed).to_have_attribute("datetime", "2026-08-21T11:42:00-07:00")
+    expect(observed).to_have_text(re.compile(r"\d+d ago"))
+    age_days = int(observed.inner_text().removesuffix("d ago"))
+
+    # The unchanged source retains its exact timestamp while the shared clock
+    # advances both readable ages, without any report or data refresh.
+    page.route("**/api/state*", refuse)
+    page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(days=3))
+    ticked(page)
+    expect(heard).to_have_text("3d ago")
+    expect(observed).to_have_text(f"{age_days + 3}d ago")
+    expect(tree.locator("details")).to_have_attribute("open", "")
+    expect(heard).to_have_attribute("datetime", event["ts"])
+    expect(observed).to_have_attribute("datetime", "2026-08-21T11:42:00-07:00")
 
 
 @pytest.mark.parametrize("owner", ["atlas", "private"])

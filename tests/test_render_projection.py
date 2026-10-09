@@ -210,6 +210,7 @@ def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, 
 <p id="agent-summary">The reviewer found one changed request path.</p>
 <lf-pr-brief id="reviewed-pr" source="pr-1842"></lf-pr-brief>
 """,
+        head='<style>@import url("/page/theme.css");</style>',
     )
     url = serve(
         authored,
@@ -219,6 +220,9 @@ def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, 
             .relative_to(Path.home())
             .as_posix(),
         ),
+        page_files={
+            "theme.css": (ROOT / "examples/pr-walkthrough.page/theme.css").read_text()
+        },
     )
     record = {
         "repository": "acme/leaf",
@@ -256,6 +260,10 @@ def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, 
     expect(card).to_contain_text("main → retry-ledger · revision 8f3b2cd")
     expect(card.locator(".pr-description h4")).to_have_text("Author's description")
     description = card.locator(".pr-description > div")
+    paragraphs = description.locator(":scope > p")
+    assert paragraphs.count() >= 2
+    first, second = paragraphs.nth(0).bounding_box(), paragraphs.nth(1).bounding_box()
+    assert second["y"] > first["y"] + first["height"]
     expect(description.locator("strong")).to_have_text("Retries")
     expect(description.locator("code")).to_have_text("Vec<T>")
     expect(description.get_by_role("link", name="retry notes")).to_have_attribute(

@@ -3,9 +3,9 @@
     uv run leaf-dev verify-site [TARGET] [--release RELEASE]
 
 The release pass loads three pages, holds each to the release `leaf-dev site` built
-(or `--release`), and prints their startup profile. `wrangler` runs it against the
-built site through the local Worker and its page container, printing the Worker's log
-beside a failure; `.github/workflows/publish-site.yaml` runs it there before deploying
+(or `--release`), and prints their startup profile. `website-worker` runs it against
+the built site through the local Worker and its page container, printing the Worker's
+log beside a failure; `.github/workflows/publish-site.yaml` runs it there before deploying
 and again against the deployed release.
 
 This module also owns reaching the website for `leaf-dev journey`: a user session
@@ -586,7 +586,7 @@ def local_adapter() -> Iterator[tuple[str, str]]:
     """Build the site and serve it with the website adapter under a temporary copy of
     the host's Codex login, removed with the adapter's pages and task history."""
     out = run_directory(ROOT / ".tmp" / "verify-site")
-    log = out / "website-agent-local.log"
+    log = out / "website-adapter.log"
     with (
         tempfile.TemporaryDirectory(prefix="leaf-site-agent.") as temporary,
         logged(log) as output,
@@ -715,9 +715,9 @@ def built_release() -> str:
     help="Require this release (default: the one `leaf-dev site` built).",
 )
 def verify_site(target: str, release: str | None) -> None:
-    """Verify a release at TARGET: an origin, or `wrangler` for the built site
+    """Verify a release at TARGET: an origin, or `website-worker` for the built site
     through the local Worker. `leaf-dev journey` runs the agent at either."""
-    if target == "wrangler":
+    if target == "website-worker":
         with local_worker() as (origin, built):
             run_verification(
                 origin,

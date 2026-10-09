@@ -53,7 +53,7 @@
    Raw update and history readings remain direct semantic selections. */
 import { watchProjection } from "./projection-watch.js";
 import { currentProjection } from "./projection/state.js";
-import { projectionRegionsPresented } from "./semantic-state.js";
+import { readApplication, projectionRegionsPresented } from "./semantic-state.js";
 
 import { runtime } from "./context.js";
 import { closestAcross } from "./passages.js";
@@ -90,10 +90,14 @@ export const saidAt = (el) =>
 // The server's history reading: the newest moves, newest first, each already carrying
 // its thread, whether it was undone, and a gesture's words as its own document had
 // them. The server sends it only to a page holding a widget that declares
-// `x-history`; elsewhere the callback reads an empty feed.
+// `x-history`; elsewhere the callback reads an empty feed. The second argument names
+// whether this is the complete ready application, so a retained mechanical reading
+// is never replaced by the empty preparation reading.
 export const watchHistory = (owner, callback) =>
   watchProjection(owner, () =>
-    callback(structuredClone(runtime.browser?.history ?? [])),
+    callback(structuredClone(runtime.browser?.history ?? []), {
+      ready: readApplication().phase === "ready",
+    }),
   );
 
 // A report can speak only once the renderer of its widget and coordinate chrome

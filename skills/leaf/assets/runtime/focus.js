@@ -26,9 +26,9 @@
    Rejected: keeping wrappers around a placement (`returningFocus`, `placeChrome`) that a
    caller could forget, which is how those returns reached the readers as moves.
 
-   And it is the one reader of the user's inputs, so the one owner of whether they have
-   moved on since a hold began or a delayed move was scheduled. The two ask different
-   questions, so it keeps two counts:
+   And it exposes the document's input count, begun by prepaint.js before any module
+   can load, so delayed work knows whether the user has moved on since it began.
+   A hold asks a different question, so the two counts stay distinct:
 
    - A hold (`holdFocus`, `holdStanding`, `handBack`'s retry) reads `placements`: has
      focus been put anywhere since, by the user or by an owner, other than by a hold's
@@ -522,24 +522,13 @@ addEventListener(
 // window losing focus, as find-in-page takes it. Delayed work compares the count it
 // began at (user-intent.js), as a hand-back waiting a frame for its target does. A scroll is none of these: the runtime's own landings fire
 // it, and each of the user's ways of scrolling begins with one that is.
-let inputs = 0;
-export const inputCount = () => inputs;
+const inputs = document.documentElement.lfInputs;
+export const inputCount = () => inputs.count;
 // Mechanical owners may stop motion at the input edge, before a command or drawing
 // handler consumes it. Observation adds no binding and never claims the event.
-const inputReaders = new Set();
-export function onUserInput(read) {
-  inputReaders.add(read);
-  return () => inputReaders.delete(read);
-}
-const input = (event) => {
-  inputs++;
-  for (const read of inputReaders) read(event);
-};
-for (const type of ["pointerdown", "keydown", "input", "wheel", "touchstart"])
-  addEventListener(type, input, { capture: true, passive: true });
-addEventListener("blur", (event) => {
-  if (event.target !== window) return;
-  input(event);
+export const onUserInput = (read) => inputs.observe(read);
+onUserInput((event) => {
+  if (event.type !== "blur") return;
   landLabelPress();
   endPress(event, false);
 });
@@ -934,7 +923,9 @@ function holdOn(held) {
         if (place !== held)
           carried.set(
             place,
-            before?.inputs === inputs ? before : { from: held, inputs },
+            before?.inputs === inputCount()
+              ? before
+              : { from: held, inputs: inputCount() },
           );
         return true;
       }
@@ -1146,10 +1137,10 @@ export function handBack(...destinations) {
   const yielded = !drawn(deepFocus());
   if (yielded) releaseFocus();
   const began = placements;
-  const pendingInput = inputs;
+  const pendingInput = inputCount();
   nextRender(() => {
     if (
-      inputs !== pendingInput ||
+      inputCount() !== pendingInput ||
       placements !== began ||
       (yielded && deepFocus() !== document.body) ||
       landed()

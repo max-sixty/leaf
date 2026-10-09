@@ -455,10 +455,13 @@ export function forgetContributionControls(offered) {
   presented.delete(offered);
 }
 
-/** Activate the current record and retain focus through its current surface. */
+/** Activate the current record and retain focus through its current surface: the
+ *  activation's `focus(key)` hands the user on from the control they pressed to the
+ *  entry `key` names, which is a return (focus.js, `focusDestination`). `reveal` shows a
+ *  destination its surface hides first, as the margin does a row annotations hide. */
 export function activateContributionControl(
   { offered, entry, control, surface, event },
-  focus = focusDestination,
+  reveal = null,
 ) {
   return offered.registration.activate(entry.key, {
     origin: control,
@@ -467,7 +470,8 @@ export function activateContributionControl(
     focus: (key) => {
       const destination = offered.registration.control(key, surface, true);
       if (!destination) return false;
-      focus(destination);
+      reveal?.(destination);
+      focusDestination(destination, "return");
       return true;
     },
   });

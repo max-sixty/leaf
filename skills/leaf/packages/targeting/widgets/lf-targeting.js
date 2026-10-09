@@ -31,6 +31,7 @@ import {
   says,
   targetCandidates,
   widgetController,
+  focusDestination,
 } from "/runtime/widget-api.js";
 import "../vendor/webawesome.esm.js";
 
@@ -355,7 +356,7 @@ customElements.define(
           when: () => this.#armed,
           run: () => {
             this.disarm();
-            this.#arm.focus({ preventScroll: true });
+            focusDestination(this.#arm, "return");
           },
         },
       ]);
@@ -376,7 +377,7 @@ customElements.define(
           this.#tabIndexes.set(element, element.getAttribute("tabindex"));
           element.tabIndex = 0;
         }
-        this.#preview.focus({ preventScroll: true });
+        focusDestination(this.#preview, "move");
       } else {
         for (const [element, prior] of this.#tabIndexes) {
           if (prior === null) element.removeAttribute("tabindex");
@@ -445,7 +446,8 @@ customElements.define(
         this.#candidateList,
       );
       keepsHidden(this.#candidateList, false);
-      this.#candidateList.querySelector("button")?.focus({ preventScroll: true });
+      const first = this.#candidateList.querySelector("button");
+      if (first) focusDestination(first, "move");
       layoutChanged(this);
       return true;
     }
@@ -528,7 +530,7 @@ customElements.define(
         `[data-target-key="${key}"] .lf-targeting-name`,
       );
       await field.updateComplete;
-      if (field.isConnected && mayFocus()) field.focus({ preventScroll: true });
+      if (field.isConnected && mayFocus()) focusDestination(field, "move");
     }
 
     #nextTarget() {

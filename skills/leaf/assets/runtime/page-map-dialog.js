@@ -6,11 +6,11 @@
    refresh from cancelling a held pointer or moving focus.
    Compact clusters use this same complete dialog for overflow.
 
-   A native dialog delivers `close` after it has hidden the dialog. A close overtaken by a
-   reopen therefore leaves the new opening's target and focus route intact. The Page Map's
-   own Close button returns focus to its invoker. Keyboard departure and record actions
-   place focus synchronously, set `closeOwnsFocus`, and prevent the later close event from
-   overwriting that route.
+   A native dialog delivers `close` after it has hidden the dialog, a task later. A close
+   overtaken by a reopen therefore leaves the new opening's target and focus route intact.
+   Every way out places focus itself, synchronously, as it closes the dialog: the Page
+   Map's own Close button hands the user back to its invoker, and keyboard departure and
+   record actions land them where they go. The `close` event places nothing.
 
    The dialog is a list with a search above it. Up and Down walk its rows, Down or Enter
    in the search enters the list at the first match, and a row's Enter is its own press.
@@ -113,7 +113,6 @@ export function createPageMapDialog({
 }) {
   const { targetFor } = inventory;
   let entries = [];
-  let closeOwnsFocus = false;
   let from = null;
   let target = null;
   let trackedOffers = new Set();
@@ -128,7 +127,7 @@ export function createPageMapDialog({
     // A location without a presented annotation lands on its exact authored target.
     // Commands that open a Thread or Ask retain their own navigation capability.
     if (!destination && targetFor(entry)?.isConnected)
-      focusDestination(targetFor(entry));
+      focusDestination(targetFor(entry), "move");
     inventory.activate(item);
   }
 
@@ -171,12 +170,11 @@ export function createPageMapDialog({
             contributionSource(offered).registration.control(key, "map", true),
           )
           .find((candidate) => candidate?.checkVisibility());
-        (revealed ?? control).focus({ preventScroll: true });
+        focusDestination(revealed ?? control, "move");
       });
       return;
     }
     const returnTo = from;
-    closeOwnsFocus = true;
     dialog.close();
     handBack(returnTo);
     contributionSource(offered).registration.activate(record.key, {
@@ -392,10 +390,11 @@ export function createPageMapDialog({
             ),
         )
       : group?.querySelector(".lf-page-map-action");
-    (
+    focusDestination(
       destination ??
-      (coarsePointer.matches ? (mapRows()[0] ?? dialogClose) : dialogSearch)
-    ).focus({ preventScroll: true });
+        (coarsePointer.matches ? (mapRows()[0] ?? dialogClose) : dialogSearch),
+      "move",
+    );
     paintKeys();
   }
 
@@ -405,7 +404,6 @@ export function createPageMapDialog({
   // its disclosure can use the registration's surface reading to return here.
   function leavePageMap() {
     if (!dialog.open) return;
-    closeOwnsFocus = true;
     dialog.close();
   }
 
@@ -436,22 +434,22 @@ export function createPageMapDialog({
       letGo();
     });
     dialog.addEventListener("close", () => {
-      const returnTo = from;
-      const focusOwned = closeOwnsFocus;
-      closeOwnsFocus = false;
       if (dialog.open) return;
       from = null;
       target = null;
       paintKeys();
-      if (focusOwned) return;
+    });
+    dialogClose.onclick = () => {
+      const returnTo = from;
+      const invoker = pageMapInvoker();
+      dialog.close();
       handBack(
         returnTo,
-        pageMapInvoker(),
+        invoker,
         annotationFocus?.(null),
         bannerControlDoor(versionBtn),
       );
-    });
-    dialogClose.onclick = () => dialog.close();
+    };
     root.append(dialog);
     dialogSearch.updateComplete.then(declareSearchKeys);
   }
@@ -471,7 +469,7 @@ export function createPageMapDialog({
           description: "Go from the search to the first entry",
           title: "to the entries",
           when: hasRows,
-          run: () => mapRows()[0].focus(),
+          run: () => focusDestination(mapRows()[0], "move", { scroll: true }),
         },
         {
           id: "map.search.open",

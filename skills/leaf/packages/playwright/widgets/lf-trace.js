@@ -52,6 +52,7 @@ import {
   restorePlace,
   keepsHidden,
   el,
+  focusDestination,
   focused,
   holdFocus,
   keeps,
@@ -1463,7 +1464,7 @@ customElements.define(
           pin = offer("button", "lf-trace-marker");
           // Vis claims pointer defaults for its gestures. The embedded native
           // control still owns focus, including tooltip blur/re-arm behavior.
-          pin.addEventListener("pointerdown", () => pin.focus({ preventScroll: true }));
+          pin.addEventListener("pointerdown", () => focusDestination(pin, "press"));
           pin.addEventListener("focus", () => {
             if (pin.matches(":focus-visible"))
               this.#rail?.focus(moment.number, { zoom: false, animation: false });
@@ -1746,7 +1747,7 @@ customElements.define(
               },
             ]);
           canvas.addEventListener("pointerdown", () =>
-            canvas.focus({ preventScroll: true }),
+            focusDestination(canvas, "press"),
           );
           canvas.append(img, status);
           figure.append(canvas);

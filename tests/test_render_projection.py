@@ -3227,30 +3227,31 @@ def test_media_the_revision_never_mentioned_keeps_its_address(browser, serve):
     }, f"the revision re-addressed a picture it never mentioned: {standing}"
 
 
-def test_a_word_the_revision_adds_to_a_surviving_element_is_said(browser, serve):
-    """An attribute written in place is dressed like one that arrived.
-
-    A metric says its delta through an attribute rendered as real text. When a revision
-    adds that attribute to an element the patch keeps, the element is dressed again, so
-    the number is readable and pointable rather than an attribute nobody rendered.
-    """
+def test_a_word_the_revision_adds_to_a_surviving_element_is_said(
+    browser, serve, declared_reading_package
+):
+    """A newly authored label is readable and pointable on a surviving node."""
     first = leaf_page(
         "Said first",
-        '<h1 id="sd-title">Said</h1>\n'
-        '<div class="layout-tiles" id="sd-metrics"><lf-metric id="sd-metric" value="42">'
-        "checks complete</lf-metric></div>",
+        '<h1 id="sd-title">Said</h1>'
+        '<lf-reading id="sd-reading"><p>Checks complete.</p></lf-reading>',
     )
     second = first.replace("Said first", "Said second").replace(
-        'value="42"', 'value="45" delta="+3"'
+        'id="sd-reading"', 'id="sd-reading" label="Release checks"'
     )
-    page = open_page(browser, live_url(serve(first)))
-    expect(page.locator('#sd-metric [data-lf-said="value"]')).to_have_text("42")
+    page = open_page(
+        browser,
+        live_url(serve(first, packages=(*EXAMPLE_PACKAGES, declared_reading_package))),
+    )
+    page.evaluate("window.__sample = document.getElementById('sd-reading')")
 
     (serve.page_dir / "index.html").write_text(second)
     told(page)
     expect(page).to_have_title("Said second")
-    expect(page.locator('#sd-metric [data-lf-said="value"]')).to_have_text("45")
-    expect(page.locator('#sd-metric [data-lf-said="delta"]')).to_have_text("+3")
+    expect(page.locator('#sd-reading [data-lf-said="label"]')).to_have_text(
+        "Release checks"
+    )
+    assert page.evaluate("window.__sample === document.getElementById('sd-reading')")
 
 
 def test_a_revision_reaches_a_paragraph_a_page_module_moved(browser, serve):
@@ -5729,13 +5730,13 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     expect(report_reading).to_be_visible()
     page.keyboard.press("Escape")
     assert task.evaluate("el => getComputedStyle(el).outlineStyle") == "none"
-    # The marker is paint, so the word beside it (x-paints) has to move with the
-    # attribute or a user listening is told what the page said a poll ago.
+    # The visible status line follows the reported attribute, so a user listening
+    # hears the current state too.
     assert "review" in task.aria_snapshot()
     expect(page.locator(".lf-queue")).to_have_text("Questions: 0")
 
     # A second report supersedes the first — absolute values fold — and the
-    # fraction chip recounts across the tree.
+    # progress fraction recounts across the tree.
     sent = CliRunner().invoke(
         cli_model.cli,
         ["page", "report", str(d), "t-parser", "status", "value=done"],

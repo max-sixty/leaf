@@ -1248,18 +1248,20 @@ flowchart TD
               session. A watcher is the background integration that receives feedback
               between turns.
             </p>
-            <lf-chronology id="updates-timeline">
-              <lf-chronology-entry id="updates-sent" at="0s" kind="observation">
-                <strong>Sent</strong> You comment on the lede. The page shows your
-                comment at once, marked Sent.
-              </lf-chronology-entry>
-              <lf-chronology-entry id="updates-picked" at="1s" kind="observation">
+            <ol id="updates-timeline">
+              <li id="updates-sent">
+                <time>0s</time> <small>observation</small> <strong>Sent</strong> You
+                comment on the lede. The page shows your comment at once, marked Sent.
+              </li>
+              <li id="updates-picked">
+                <time>1s</time> <small>observation</small>
                 <strong>Picked up</strong> Leaf's hook puts your comment in the agent's
                 turn and confirms receipt. Your comment reads Picked up, and until the
                 agent writes its own words the banner reads
                 <em>Claude working — picked up your comment</em>.
-              </lf-chronology-entry>
-              <lf-chronology-entry id="updates-reply" at="5s" kind="intervention">
+              </li>
+              <li id="updates-reply">
+                <time>5s</time> <small>intervention</small>
                 <strong>The work is named</strong> Before doing the work, the agent
                 replies in your thread with what it will do,
                 <code
@@ -1267,18 +1269,20 @@ flowchart TD
                   the lede to two sentences."</code
                 >, which also puts that line in the banner, and your comment reads
                 Working.
-              </lf-chronology-entry>
-              <lf-chronology-entry id="updates-phase" at="1m" kind="intervention">
+              </li>
+              <li id="updates-phase">
+                <time>1m</time> <small>intervention</small>
                 <strong>Each new phase gets a new line</strong> When the work moves from
                 editing to checking, the agent starts the same move again:
                 <em>Claude working — checking the page at phone width</em>.
-              </lf-chronology-entry>
-              <lf-chronology-entry id="updates-done" at="2m" kind="observation">
-                <strong>Answered</strong> The revision goes live, the agent's reply
-                reports it, and a waiting status names what the agent wants back:
+              </li>
+              <li id="updates-done">
+                <time>2m</time> <small>observation</small> <strong>Answered</strong> The
+                revision goes live, the agent's reply reports it, and a waiting status
+                names what the agent wants back:
                 <em>Claude awaits — does the shorter lede keep enough?</em>
-              </lf-chronology-entry>
-            </lf-chronology>
+              </li>
+            </ol>
           </section>
 
           <section id="updates-map">
@@ -1782,17 +1786,20 @@ flowchart TD
               <lf-sample id="spec-options-frame" label="lf-options">
                 <lf-options id="spec-options">
                   <lf-option id="so-rewrite"
-                    ><lf-chip>effort: high</lf-chip><lf-chip>risk: med</lf-chip
+                    ><small class="tag">effort: high</small
+                    ><small class="tag">risk: med</small
                     ><strong>Rewrite the importer</strong> A clean slate on the new
                     schema; the old importer keeps running until parity.</lf-option
                   >
                   <lf-option id="so-shim"
-                    ><lf-chip>effort: low</lf-chip><lf-chip>risk: high</lf-chip
+                    ><small class="tag">effort: low</small
+                    ><small class="tag">risk: high</small
                     ><strong>Shim the old schema</strong> Fastest to ship; every future
                     field pays the translation tax.</lf-option
                   >
                   <lf-option id="so-stage"
-                    ><lf-chip>effort: med</lf-chip><lf-chip>risk: low</lf-chip
+                    ><small class="tag">effort: med</small
+                    ><small class="tag">risk: low</small
                     ><strong>Migrate in stages</strong> New fields land on the new
                     schema while reads fall back, table by table.
                     <em>My take: this keeps the rollback boundary small.</em></lf-option
@@ -2718,8 +2725,9 @@ flowchart TD
               least 9rem wide, placing as many cells in each row as fit. Cells in the
               same row have equal heights. A page can set its own columns when it needs
               a particular grouping, such as four tiles in two rows of two. A row of
-              headline numbers can use a <code>layout-tiles</code> block of
-              <code>lf-metric</code> elements.
+              headline numbers can use a <code>layout-tiles</code> block of native
+              <code>dl</code> elements with labels in <code>dt</code> and values in
+              <code>dd</code>.
             </p>
           </section>
 

@@ -53,8 +53,8 @@
  *
  * It cannot live in runtime/chrome.css, which is adopted and so cascades after all of
  * them: the same declarations there beat every component's own rule, and .lf-ref drew
- * ink at 14px where it asked for muted at 11.5px while .lf-worktree-head and
- * .lf-swipe-progress drew sans where they asked for mono. Nothing catches that, because
+ * ink at 14px where it asked for muted at 11.5px while a widget
+ * asking for mono drew sans. Nothing catches that, because
  * no test and no browser gate reads a rule that never applied.
  *
  * The rest of the face is stated too, at no weight at all. A page's own rules select no
@@ -631,7 +631,7 @@ button.lf-thread-notice:is(:focus-visible, .lf-focus-visible) { outline: var(--f
 /* The outline chip: the kernel's chip geometry (the chip tokens in theme.css's :root)
    with a hairline edge on the card, the compact label the chrome and the thread
    surfaces share, stated here and nowhere else. It is not the default package's
-   lf-chip, whose face is the filled .tag, so it is named for the edge it adds. It
+   a label, whose face is the filled .tag, so it is named for the edge it adds. It
    stands in this file because a thread seated in a declared widget tree is out of
    every document selector's reach, and drew the platform's button instead: on the
    dark scheme its ButtonFace grey put the muted word at 1.86:1.

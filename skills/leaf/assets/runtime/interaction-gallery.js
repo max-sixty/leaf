@@ -2,24 +2,10 @@
  * surfaces in the product gallery. It owns only the illustrative pointer, timing
  * controls, and ephemeral orchestration of each surface's canonical transition.
  * Document-global chrome runs in a same-origin frame so it remains inside the sample;
- * a package-specific sequence comes from that package's widget module. No sequence
- * dispatches a gesture or writes to the page's event log. The product gallery opts in
- * with data-interaction-gallery, so ordinary Leaf pages pay no runtime or behavior cost
- * for this developer surface.
- *
- * A package sequence lets the gallery replay a package widget's production motion
- * without moving that package into the default layer. The figure carries the contained
- * page's markup in `template[data-sample]` and names the widget module with
- * `data-interaction-module`; that module exports `interactionGalleryScenario` with
- * `reset(root)` and `play(context)`. `reset` receives the contained `Document` and
- * restores its authored starting state without animation. `play` receives a frozen
- * context: `root` (the same `Document`), `arrive()` (show the pointer and wait for the
- * opening beat), `press(target)`, `track(animation)` (join a returned `Animation` to
- * pause, resume, and replay), `until(read, message)` (wait for an observable result or
- * fail with `message`), and `finish()`. The scenario calls the same widget method that
- * handles projected state, so a renderer may return the `Animation` for its production
- * transition while still reaching complete state when the caller ignores it. The swipe
- * package's deck module is the worked example. */
+ * each sequence invokes the surface's canonical transition without dispatching a
+ * gesture or writing to the event log. The product gallery opts in with
+ * data-interaction-gallery, so ordinary Leaf pages pay no runtime or behavior cost
+ * for this developer surface. */
 
 import { afterScript, nextFrame } from "./rendering.js";
 import { onMotionPreferenceChange, reducedMotion } from "./motion.js";
@@ -107,33 +93,6 @@ class Demo {
     this.frameApi = frameApi;
     this.frameApi.resetThreads();
     this.frameElement.toggleAttribute("data-interaction-ready", true);
-    const modulePath = this.figure.dataset.interactionModule;
-    if (modulePath) {
-      const loaded = await import(modulePath);
-      const scenario = loaded.interactionGalleryScenario;
-      if (!scenario?.reset || !scenario?.play)
-        throw new Error(
-          `${modulePath} does not export an interaction gallery scenario`,
-        );
-      this.scenario = {
-        reset: () => scenario.reset(this.subjectRoot()),
-        play: (_, generation) =>
-          scenario.play(
-            Object.freeze({
-              root: this.subjectRoot(),
-              arrive: () => this.arrive(generation),
-              press: async (target) => {
-                await this.movePointer(target, generation);
-                await this.wait(360, generation);
-                await this.press(generation);
-              },
-              track: (animation) => this.track(animation, generation),
-              until: (read, message) => this.waitFor(read, message, generation),
-              finish: () => this.finish(generation),
-            }),
-          ),
-      };
-    }
     if (!this.scenario)
       throw new Error(`interaction gallery has no scenario for ${this.name}`);
     this.loadState = "ready";
@@ -299,10 +258,6 @@ class Demo {
 
   query(selector) {
     return this.frameElement.contentDocument.querySelector(selector);
-  }
-
-  subjectRoot() {
-    return this.frameElement.contentDocument;
   }
 
   pointAt(target) {

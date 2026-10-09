@@ -1419,9 +1419,6 @@ def test_route_corner_hint_overrides_the_rows_face_in_ask_and_widget(browser, se
     expect(chip).to_have_count(1)
 
 
-SWIPE_GALLERY = next(path for path in CORPUS_SOURCES if path.stem == "swipe-gallery")
-
-
 TARGETING_GALLERY = next(
     path for path in CORPUS_SOURCES if path.stem == "targeting-gallery"
 )
@@ -2280,15 +2277,6 @@ CONTROL_STABILITY_PAGE = leaf_page(
   <lf-option id="stable-choice-a" for="control-target">Keep A</lf-option>
   <lf-option id="stable-choice-b" for="control-target">Keep B</lf-option>
 </lf-options></lf-ask>
-<lf-ask id="stable-swipe-decision"><h2>Which proof should stay?</h2>
-<lf-swipe-deck id="stable-swipe">
-  <lf-swipe-pile id="stable-swipe-queue" verdict="unseen">
-    <lf-swipe-card id="stable-swipe-a"><strong>Keep the first proof</strong></lf-swipe-card>
-    <lf-swipe-card id="stable-swipe-b"><strong>Keep the second proof</strong></lf-swipe-card>
-  </lf-swipe-pile>
-  <lf-swipe-pile id="stable-swipe-pass" verdict="pass"></lf-swipe-pile>
-  <lf-swipe-pile id="stable-swipe-keep" verdict="keep"></lf-swipe-pile>
-</lf-swipe-deck></lf-ask>
 <lf-tabs id="stable-tabs">
   <lf-tab id="stable-tab-a" label="First">First panel.</lf-tab>
   <lf-tab id="stable-tab-b" label="Second">Second panel.</lf-tab>
@@ -2386,12 +2374,6 @@ CONTROL_ARCHETYPES = (
     {
         "name": "option-pick",
         "target": "#stable-choice-a .lf-pick",
-    },
-    {
-        # Classifying the penultimate card removes the decorative backing card and
-        # grows a verdict pile. The two controls keep their places within their row.
-        "name": "swipe-verdict",
-        "target": "#stable-swipe .lf-swipe-keep",
     },
     {
         "name": "tab",
@@ -6783,17 +6765,7 @@ def test_a_walk_down_the_queue_stops_clear_of_the_shortcut_bar_text(browser, ser
 
 
 def test_a_run_with_nothing_to_break_on_stays_inside_the_box_holding_it(browser, serve):
-    """Text that cannot wrap does not stop at the edge of its box; it paints straight on
-    over whatever the layout put beside it, and nothing about the boxes says so — every
-    rect is exactly where it should be. A twelve-character metric value ran 287px out of a
-    138px card, and a phone's 372px column is narrower than half the paths this product's
-    prose is made of.
-
-    Told it may break a word, the browser will also break one that was never meant to come
-    apart: the tree's module spaces its badges by margin and writes no whitespace between
-    them, so a line is one word to the breaker, and it split a two-character badge down the
-    middle and drew half the chip on each line. Read at a phone's width, where the column
-    has the least to give and each of the three is at its worst."""
+    """Native values and prose paths wrap within their allocated boxes at phone width."""
     page = open_page(browser, serve(UNBREAKABLE_PAGE))
     resized(page, 420, 900)
     inside = """(id) => {
@@ -6811,9 +6783,6 @@ def test_a_run_with_nothing_to_break_on_stays_inside_the_box_holding_it(browser,
     assert page.evaluate(inside, "p-token") <= 0, (
         "a path in prose paints outside the column"
     )
-    torn = """() => [...document.querySelectorAll('.lf-tree-badge')]
-                      .map((b) => b.getClientRects().length)"""
-    assert page.evaluate(torn) == [1, 1], "a badge is one chip, and it was drawn as two"
 
 
 def test_a_scroll_box_inside_a_widgets_shadow_tree_takes_the_keyboard(browser, serve):
@@ -8236,7 +8205,6 @@ RING_CASES = (
         (),
         {"corpus": (("#comparison-policy > lf-option > .lf-pick", "options-pick"),)},
     ),
-    ("a swipe card", (), {"swipe-gallery": (("#swipe-keyboard-card", "swipe-card"),)}),
     (
         "a contents link",
         (),
@@ -8310,9 +8278,7 @@ RING_CASES = (
 RING_EXAMPLES = tuple(
     dict.fromkeys(name for _scope, _keys, cases in RING_CASES for name in cases)
 )
-RING_EXAMPLE_FILES = {
-    example.stem: example for example in (*EXAMPLES, FEATURE_GALLERY, SWIPE_GALLERY)
-}
+RING_EXAMPLE_FILES = {example.stem: example for example in (*EXAMPLES, FEATURE_GALLERY)}
 # Rings whose carrier is semantic state elsewhere in the page rather than the focused
 # control or one of its ancestors. Mark the exact carrier before reading the composed
 # paint so an unrelated ring with the same name cannot credit the sample.

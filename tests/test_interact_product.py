@@ -435,8 +435,8 @@ def test_registry_example_ids_are_independent_between_entries(page_dir):
     registry["lf-diff"]["x-example"] = (
         '<lf-diff id="shared"><pre>one changed line</pre></lf-diff>'
     )
-    registry["lf-tree"]["x-example"] = (
-        '<lf-tree id="shared"><pre>one/file.py</pre></lf-tree>'
+    registry["lf-code"]["x-example"] = (
+        '<lf-code id="shared"><pre>one/file.py</pre></lf-code>'
     )
 
     assert (
@@ -573,7 +573,7 @@ def test_the_feature_gallery_eyebrows_index_literal_code_names():
     ]
     entries = [entry for eyebrow in eyebrow_entries for entry in eyebrow]
     assert entries
-    assert all(re.fullmatch(r"lf-[a-z0-9-]+", entry) for entry in entries), entries
+    assert all(re.fullmatch(r"[a-z][a-z0-9-]*", entry) for entry in entries), entries
     assert all(len(eyebrow) == len(set(eyebrow)) for eyebrow in eyebrow_entries), (
         "a feature eyebrow repeats a code name"
     )

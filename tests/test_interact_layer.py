@@ -5423,8 +5423,7 @@ def instruction_page(tmp_path: Path):
         {
             "x-content": "members",
             "x-instructions": "Choose the owner's inputs before composing it.",
-            "x-example": '<lf-instruction-owner id="owner"><lf-instruction-example id="example"></lf-instruction-example></lf-instruction-owner>',
-            "x-required-members": {"lf-instruction-member": {"one-each": "kind"}},
+            "x-example": '<lf-instruction-owner id="owner"><lf-instruction-member id="input" kind="first"></lf-instruction-member><lf-instruction-example id="example"></lf-instruction-example></lf-instruction-owner>',
             "x-data": {
                 "records": {"contract": "instruction-records", "source": "source"}
             },

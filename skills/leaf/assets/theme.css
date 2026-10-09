@@ -40,7 +40,7 @@
  * Where the fact belongs to the registry rather than to the rule that draws the box,
  * delivery paints it into the served document (revision_delivery.py, `mark_declared`;
  * the runtime's `markDeclared` in a message) and the selector reads the paint. The
- * lists that ask whether a suggestion slot or a variant holds block content invert
+ * lists that ask whether a suggestion slot holds block content invert
  * HTML's phrasing content,
  * which answers "block" for every custom element, so they exclude `[data-lf-inline]`
  * rather than the tags that declare `x-inline`. The affordance rules that draw a choose
@@ -227,7 +227,7 @@
   /* The user's turn needs a deeper green under a white pin glyph in both schemes. */
   --pin-on-user: light-dark(#2f7d45, #2d8047);
   --r: 6px;
-  /* The compact label every layer draws a small fact in: .tag here, lf-chip and the
+  /* The compact label every layer draws a small fact in: .tag here and the
      widgets' own badges in packages, and the runtime's outline chip. Its geometry is
      these tokens and --t-6, so a band of chips from different layers stands at one
      height and one inset; each wearer states only its ground, ink, and where it sits.
@@ -1155,7 +1155,7 @@ dd { margin: 0 0 8px 0; }
  * without it, and stating it there would be a declaration that could never be
  * wrong and never do anything. */
 .eyebrow, .tag, figcaption, caption, th:not([scope="row"]), .facts dt,
-.lf-error, .lf-chips span {
+.lf-error {
   font-family: var(--sans); font-variant-numeric: tabular-nums; }
 
 /* The compact face a small label rides in, set in the chip tokens (:root) that every
@@ -1171,16 +1171,8 @@ dd { margin: 0 0 8px 0; }
   box-sizing: border-box; max-width: 100%; overflow-wrap: break-word;
   border-radius: var(--chip-r); background: var(--chip); color: var(--ink-2); }
 
-/* A row of chips a widget writes, and the chips in it, in the face above. lf-milestone
- * and lf-task both write one, from two packages. */
-.lf-chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 2px 0 6px; }
-.lf-chips span {
-  display: inline-block; font-size: var(--t-6); line-height: var(--chip-lh);
-  padding: var(--chip-pad);
-  box-sizing: border-box; max-width: 100%; overflow-wrap: break-word;
-  border-radius: var(--chip-r); background: var(--chip); color: var(--ink-2); }
-/* The block something is about (§): an option row's `for`, which lf-options writes,
- * and an agent's section, which lf-agent does. It points; it never supplies the row's words, so it
+/* The block an option row is about (§): its `for`, which lf-options writes.
+ * It points; it never supplies the row's words, so it
  * reads as what it is — an id, written the way the thread panel writes an element
  * anchor — and rides at the line's end with the mark, out of the way of what the row
  * says.
@@ -1222,7 +1214,7 @@ dd { margin: 0 0 8px 0; }
 /* A panel is one titled region of a wide page: the checks, the log, the steps. Every region
    on a dashboard is drawn the same way, so the eye reads the page as a set of like things
    laid on a grid, where a mix of raised tiles, tinted fields, bare tables and bordered logs
-   read as a pile. The title is the tile label's voice (lf-metric), small and set in
+   read as a pile. The title is the tile label's voice (a headline value), small and set in
    capitals, so a panel's name ranks below the page's headings and beside its numbers. */
 section.panel { background: var(--card); border: 1px solid var(--rule);
                 border-radius: var(--r); padding: 14px 18px 16px; margin: 18px 0;
@@ -1232,7 +1224,7 @@ section.panel > :is(h2, h3):first-child {
   text-transform: uppercase; color: var(--muted); }
 section.panel > :last-child { margin-bottom: 0; }
 /* A status a label or a callout carries, in the three tones every status on the page is
-   drawn in (lf-chip's `tone`, a metric's delta, a check's result). The tint is the whole
+   drawn in (a tag or a check's result). The tint is the whole
    of the marking and the ink its text, so a tone never needs a word of its own to be
    read, and never stands in for one. */
 .tag.ok, .callout.ok { --lf-tone-tint: var(--ok-tint); --lf-tone-ink: var(--ok-ink); }
@@ -1402,7 +1394,7 @@ lf-new { background: var(--add-tint); }
  * cannot derive the category, so the selector keeps the literal, and nothing checks
  * it: a name dropped from it blockizes any slot holding that element, with no test
  * reading a slot's form to say so. The browser tests exercise the marker half
- * through lf-compare's copy of the list.
+ * through an inline Gloss in a suggestion slot.
  *
  * The block form's room is above the slot rather than around it, so a run of changes
  * reads as a stack. That was once the only room the slots could ask for: while the
@@ -1741,7 +1733,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   --lf-block-frame: 1;
 }
 
-/* Board and swipe motion carry a compact card label without duplicating its live
+/* Board motion carries a compact card label without duplicating its live
  * controls. The motion owner sets position and travel; this face stays bounded. */
 .lf-motion-preview {
   box-sizing: border-box; max-width: 24rem; max-height: 3.5rem;

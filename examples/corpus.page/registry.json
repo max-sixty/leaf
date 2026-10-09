@@ -444,9 +444,6 @@
       "lf-atlas-task"
     ],
     "x-content": "markup",
-    "x-paints": [
-      "status"
-    ],
     "x-upgrade": true,
     "x-thread-seat": {
       "when": {

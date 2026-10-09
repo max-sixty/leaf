@@ -44,6 +44,8 @@ def test_public_work_roles_preserve_scope_remit_and_reports(browser, serve):
     initial = reading(page, "outer")
     assert initial["leaves"] == ["leaf", "other"]
     assert initial["stopped"] == ["other"]
+    expect(page.locator("#other > .work-state")).to_have_text("blocked")
+    expect(page.locator("#other > .lf-quiet")).to_have_count(0)
     assert initial["workers"] == [
         {"id": "worker", "state": "working", "remit": "area", "assignment": "leaf"}
     ]
@@ -132,6 +134,9 @@ customElements.define("lf-project-milestone", class extends HTMLElement {
 def test_atlas_report_waits_behind_a_stationary_updates_control(browser, serve):
     page = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
     page.locator("#w-1 > details > summary").click()
+    # A visible status already speaks the fact; x-paints would add it twice.
+    expect(page.locator("#ground-corpus > .atlas-task-state")).to_have_text("done")
+    expect(page.locator("#ground-corpus > .lf-quiet")).to_have_count(0)
     report = page.locator("#w-1 .atlas-worker-report")
     before = report.inner_text()
     report.scroll_into_view_if_needed()

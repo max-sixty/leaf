@@ -55,12 +55,15 @@ def test_diff_thread_controls_leave_line_numbers_readable(browser, serve, touch)
           const bounds = button.querySelector('.lf-diff-line-plus').getBoundingClientRect();
           return {right: bounds.right, number: ink.getBoundingClientRect().left,
                   height: button.parentElement.getBoundingClientRect().height,
+                  hitHeight: button.getBoundingClientRect().height,
+                  background: getComputedStyle(button).backgroundColor,
                   opacity: getComputedStyle(button).opacity};
         })""")
 
     before = geometry()
     for reading in before:
         assert reading["right"] <= reading["number"], reading
+        assert reading["hitHeight"] == reading["height"], reading
         assert reading["opacity"] == "0", reading
     native = page.locator("#native [data-gutter] > [data-line-index]").first
     assert before[0]["height"] == native.bounding_box()["height"]
@@ -71,6 +74,7 @@ def test_diff_thread_controls_leave_line_numbers_readable(browser, serve, touch)
     diff.locator("[data-content] > [data-line]").first.hover()
     after = geometry()
     assert after[0]["opacity"] == "1"
+    assert after[0]["background"] == "rgba(0, 0, 0, 0)"
     assert [{k: v for k, v in r.items() if k != "opacity"} for r in after] == [
         {k: v for k, v in r.items() if k != "opacity"} for r in before
     ]

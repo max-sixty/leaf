@@ -392,7 +392,7 @@ function commentButton(label, opened, className) {
   const file = className === "lf-diff-file-comment";
   const button = offer(
     "button",
-    `lf-btn lf-diff-comment ${className}${file ? " lf-icon-action" : ""}`,
+    `lf-diff-comment ${className}${file ? " lf-btn lf-icon-action" : ""}`,
   );
   button.type = "button";
   button.setAttribute("aria-label", `Comment on ${label}`);

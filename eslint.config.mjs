@@ -840,6 +840,12 @@ export default [
     rules: publicRuntimeBoundary,
   },
   {
+    // Build tools share private runtime declarations with the browser rather than
+    // duplicating them. The public facade boundary applies to page consumers.
+    files: ["build/**/*.mjs", "worker/*.mjs"],
+    rules: entryBoundary,
+  },
+  {
     // Compiler tests load their newly generated temporary output. Those paths
     // are build results, not authored browser imports hiding dependency edges.
     files: ["build/**/*.test.mjs"],

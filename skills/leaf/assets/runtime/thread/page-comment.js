@@ -74,7 +74,7 @@ export function createPageComment({
   const input = textField();
   input.name = "comment";
   const send = el("button", "lf-btn", "Send");
-  const composer = el("div", "lf-general");
+  const composer = el("div", "lf-general lf-comment-box");
   composer.append(input, send);
   card.append(composer);
 

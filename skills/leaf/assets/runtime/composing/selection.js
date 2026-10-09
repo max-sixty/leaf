@@ -692,6 +692,7 @@ export function createSelectionComposer({
       save: saveComposerDraft,
       drawing: {
         read: () => pendingDrawing,
+        target: () => drawingEdits.target(pendingAnchor),
         replace: (drawn) => drawingEdits.replace(pendingAnchor, drawn),
         undoStroke: () => drawingEdits.undoStroke(pendingAnchor),
         remove: () => drawingEdits.remove(pendingAnchor),

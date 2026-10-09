@@ -1,20 +1,26 @@
 /* Validation for the drawing payload shared by composers and the drawing controller.
  *
- * `strokes` are offsets from the target's top-left corner and may run past its edges.
- * `box` is the target's size the strokes were drawn at, and `says` is the page's words
- * the drawing stands over: together the reading for whoever cannot see the page.
- * `viewport` is the layout viewport's width and height, and `scheme` the color scheme,
- * the drawing was made in: with the comment's revision they are the window the user
- * saw, which `leaf page picture` draws again for the agent.
- * `strokesIn` scales the strokes to the target's current size.
+ * `strokes` are offsets in one local frame and may run past its edges. HTML uses
+ * CSS pixels; SVG uses viewport user units; images, canvases and video use intrinsic
+ * pixels. geometry.elementFrame projects all of them through composed affine transforms.
+ * `frame`, when present, identifies the native visual under the stroke inside the
+ * semantic comment target. Its bounded structural path counts authored element siblings,
+ * including a shadow-root step, and detaches on insertion/removal rather than guessing.
+ * Leaf apparatus never enters the path. An empty path names a native semantic target.
+ * Without `frame`, the semantic target itself supplies the local frame.
+ * `box` is that frame's size at the latest capture, and `says` the page's words the
+ * drawing stands over. `viewport` and `scheme` record the window for `leaf page picture`.
+ * Layout growth adds HTML pixels without stretching existing ink. Resizing an intrinsic
+ * visual scales its content and ink together. Scroll and transforms carry either frame.
  *
- * A draft's drawing also carries `at`, where the target's box stood in its anchor's
- * section when it was last drawn on, so the draft's ink can stand there once a revision
+ * A draft's drawing also carries `at`, the affine matrix from its local frame into
+ * its anchor's section when last drawn on, so the draft's ink can stand there once a revision
  * takes the target away. It is the draft's alone: `sentDrawing` leaves it out of the
  * comment.
  */
-export const DRAWING_FORMAT = "leaf-drawing/2";
+export const DRAWING_FORMAT = "leaf-drawing/3";
 export const MAX_DRAWING_STROKES = 32;
+export const MAX_DRAWING_FRAME_DEPTH = 32;
 export const MAX_DRAWING_POINTS = 256;
 export const DRAWING_COORDINATE_LIMIT = 33554432;
 export const MAX_DRAWING_SAYS_LENGTH = 500; // code points
@@ -39,6 +45,36 @@ const validSize = (box) =>
   box.length === 2 &&
   box.every((side) => bounded(side) && side > 0);
 
+const validTag = (tag) =>
+  typeof tag === "string" &&
+  tag.length <= 128 &&
+  /^[A-Za-z][A-Za-z0-9_.:-]*$/.test(tag);
+const validFrame = (frame) =>
+  frame &&
+  !Array.isArray(frame) &&
+  typeof frame === "object" &&
+  Object.keys(frame).every((key) => ["root", "path"].includes(key)) &&
+  validTag(frame.root) &&
+  Array.isArray(frame.path) &&
+  frame.path.length <= MAX_DRAWING_FRAME_DEPTH &&
+  frame.path.every(
+    (step) =>
+      step &&
+      !Array.isArray(step) &&
+      typeof step === "object" &&
+      Object.keys(step).every((key) =>
+        ["tag", "index", "siblings", "shadow"].includes(key),
+      ) &&
+      validTag(step.tag) &&
+      Number.isInteger(step.index) &&
+      step.index >= 0 &&
+      step.index <= 65535 &&
+      Number.isInteger(step.siblings) &&
+      step.siblings >= 1 &&
+      step.siblings <= 65536 &&
+      (step.shadow === undefined || typeof step.shadow === "boolean"),
+  );
+
 const validWords = (says) =>
   typeof says === "string" &&
   says !== "" &&
@@ -58,7 +94,16 @@ function wellFormed(drawing) {
   return Boolean(
     !Array.isArray(drawing) &&
     Object.keys(drawing).every((key) =>
-      ["format", "strokes", "box", "at", "says", "viewport", "scheme"].includes(key),
+      [
+        "format",
+        "strokes",
+        "box",
+        "at",
+        "frame",
+        "says",
+        "viewport",
+        "scheme",
+      ].includes(key),
     ) &&
     drawing.format === DRAWING_FORMAT &&
     Array.isArray(drawing.strokes) &&
@@ -66,9 +111,10 @@ function wellFormed(drawing) {
     drawing.strokes.length <= MAX_DRAWING_STROKES &&
     drawing.strokes.every(validStroke) &&
     (drawing.box === undefined || validSize(drawing.box)) &&
+    (drawing.frame === undefined || validFrame(drawing.frame)) &&
     (drawing.at === undefined ||
       (Array.isArray(drawing.at) &&
-        drawing.at.length === 2 &&
+        drawing.at.length === 6 &&
         drawing.at.every(bounded))) &&
     (drawing.says === undefined || validWords(drawing.says)) &&
     validSize(drawing.viewport) &&
@@ -80,19 +126,4 @@ function wellFormed(drawing) {
 export function sentDrawing(drawing) {
   const { at, ...sent } = drawing;
   return sent;
-}
-
-// The strokes at the target's current `size`: each axis scales by the target's side over
-// the side of the `box` they were drawn in, so a mark keeps its share of the element
-// whichever way the element was resized. A draft parked in its section, which has no box
-// (`drawing.js`), stands as drawn.
-export function strokesIn(drawing, size) {
-  if (!drawing.box) return drawing.strokes;
-  const across = size.width / drawing.box[0];
-  const down = size.height / drawing.box[1];
-  if (across === 1 && down === 1) return drawing.strokes;
-  const at = (value) => Number(value.toFixed(4));
-  return drawing.strokes.map((stroke) =>
-    stroke.map(([x, y]) => [at(x * across), at(y * down)]),
-  );
 }

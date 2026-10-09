@@ -56,6 +56,28 @@ def at_rest(page: Page) -> None:
     """The page as it loads."""
 
 
+def drawing_comment(page: Page) -> None:
+    """A freehand comment beside the page area its strokes describe."""
+    guide = page.locator("#bg-drawing-comments-guide")
+    guide.scroll_into_view_if_needed()
+    settle(page)
+    box = guide.bounding_box()
+    assert box is not None
+    page.keyboard.press("w")
+    page.mouse.move(box["x"] + 25, box["y"] + 15)
+    page.mouse.down()
+    page.mouse.move(box["x"] + 180, box["y"] + 32, steps=12)
+    page.mouse.move(box["x"] + 80, box["y"] + 48, steps=12)
+    page.mouse.up()
+    page.locator(".lf-composer-drawing").wait_for(state="visible")
+    settle(page)
+    context = page.locator(".lf-composer-drawing canvas")
+    if context.count():
+        page.locator(
+            '.lf-composer-drawing canvas[data-lf-drawing-context="ready"]'
+        ).wait_for(state="visible")
+
+
 def card_by_pointer(page: Page) -> None:
     """The first margin card, opened by a click on its marker."""
     page.locator(".lf-margin-marker").first.click()
@@ -475,6 +497,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
     drive.__name__.replace("_", "-"): drive
     for drive in (
         at_rest,
+        drawing_comment,
         card_by_pointer,
         card_by_keyboard,
         card_more_room,
@@ -591,6 +614,13 @@ class State:
 
 
 STATES = (
+    State("drawing-comment", "developer/feature-gallery", drawing_comment),
+    State(
+        "drawing-comment-dark",
+        "developer/feature-gallery",
+        drawing_comment,
+        scheme="dark",
+    ),
     State("progress-messages", "developer/feature-gallery", progress_messages),
     State(
         "progress-messages-expanded",

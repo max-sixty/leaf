@@ -80,7 +80,7 @@
               "drawing"
             ]
           },
-          "text": "The user drew on the page. `drawing.says`, when present, holds the page's words from the first to the last inside the ink's extents: the neighbourhood of the mark rather than the mark, so an arrow across a paragraph says the whole paragraph. It is absent where the extents hold no words, as over a picture or in a margin. `drawing.strokes` are offsets from the top-left corner of the element the comment is anchored on and `drawing.box` is its width and height, so a stroke's share of the box says which part of a picture it marks. Where the words and offsets leave unclear what the mark covers, `leaf page picture PAGE ID`, given the comment's `id`, shows what the user saw: it prints the path of a PNG of the comment's revision laid out in their window and color scheme (`drawing.viewport`, `drawing.scheme`), with the ink over it. Any `text` explains the mark. Otherwise it is an ordinary comment, answered the same way."
+          "text": "The user drew on the page. `drawing.says`, when present, holds the page's words from the first to the last inside the ink's extents: the neighbourhood of the mark rather than the mark, so an arrow across a paragraph says the whole paragraph. It is absent where the extents hold no words, as over a picture or in a margin. `drawing.strokes` are local offsets in one frame: HTML CSS pixels, SVG viewport units, or intrinsic image, canvas and video pixels. Optional `drawing.frame` identifies that visual inside the semantic comment target by a structural path; `drawing.box` is the frame's size. Prefer `leaf page picture PAGE ID`, given the comment's `id`, to see what the mark covers: it prints the path of a PNG of the comment's revision laid out in their window and color scheme (`drawing.viewport`, `drawing.scheme`), with the ink over it. Any `text` explains the mark. Otherwise it is an ordinary comment, answered the same way."
         },
         {
           "when": {
@@ -506,7 +506,7 @@
             "drawing": {
               "type": "object",
               "properties": {
-                "format": {"const": "leaf-drawing/2"},
+                "format": {"const": "leaf-drawing/3"},
                 "strokes": {
                   "type": "array",
                   "minItems": 1,
@@ -536,6 +536,26 @@
                     {"type": "number", "exclusiveMinimum": 0, "maximum": 33554432}
                   ],
                   "items": false
+                },
+                "frame": {
+                  "type": "object",
+                  "properties": {
+                    "root": {"type": "string", "maxLength": 128, "pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"},
+                    "path": {
+                      "type": "array", "maxItems": 32,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "tag": {"type": "string", "maxLength": 128, "pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"},
+                          "index": {"type": "integer", "minimum": 0, "maximum": 65535},
+                          "siblings": {"type": "integer", "minimum": 1, "maximum": 65536},
+                          "shadow": {"type": "boolean"}
+                        },
+                        "required": ["tag", "index", "siblings"], "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["root", "path"], "additionalProperties": false
                 },
                 "says": {"type": "string", "minLength": 1, "maxLength": 500},
                 "viewport": {

@@ -4253,7 +4253,7 @@ def _drawn_on(section):
         "revision": 1,
         "anchor": {"section": section},
         "drawing": {
-            "format": "leaf-drawing/2",
+            "format": "leaf-drawing/3",
             "strokes": [[[-20, -10], [200, 30], [420, 60]]],
             "box": [400, 40],
             "viewport": [1280, 720],

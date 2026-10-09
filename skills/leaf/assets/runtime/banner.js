@@ -77,6 +77,8 @@ export function setThreadCounts(open, unread) {
   paintThreadCounts();
 }
 const approveBtn = el("button", "lf-btn primary lf-signoff");
+// The queue arrives at the one approval control, including its overflow seat.
+export const approvalTarget = () => (signoff ? approveBtn : null);
 approveBtn.title = "Approve this work; the page stays open for follow-up";
 // The page's decision is not actionable until the page itself is present. Discussion chrome
 // stays live during replay, but approving hidden authored content would decide a version
@@ -271,6 +273,7 @@ let saidActionableWork;
 const QUEUE_WORDS = Object.freeze({
   ask: ["Ask", "Asks"],
   question: ["question", "questions"],
+  approval: ["approval", "approvals"],
   recovery: ["update to send again", "updates to send again"],
   answer: ["answer", "answers"],
   reply: ["reply", "replies"],

@@ -63,6 +63,7 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
+    page_comment,
     panel_settled,
     primed,
     refuse,
@@ -365,7 +366,7 @@ diff --git a/reading.py b/reading.py
 </pre></lf-diff>""",
         },
     )
-    for index in range(8):
+    for index in range(16):
         append_carried_log_record(
             serve.page_dir,
             {
@@ -414,14 +415,13 @@ def test_a_single_space_is_message_content_in_every_composer(browser, serve, box
         expect(page.locator(".lf-fab-input")).to_be_visible()
         page.keyboard.press("c")
         surface = page.locator(".lf-composer")
+    elif box == "general":
+        page_comment(page)
+        surface = page.locator(".lf-general")
     else:
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
-        surface = (
-            page.locator(".lf-general")
-            if box == "general"
-            else page.locator(".lf-threads > .lf-thread").first
-        )
+        surface = page.locator(".lf-threads > .lf-thread").first
 
     if box == "reply":
         surface.locator(".lf-thread-summary").click()
@@ -658,7 +658,9 @@ def test_page_round_trip(browser, serve):
     # drag is aimed at and takes the pointer. A user sees the card and dismisses it;
     # a test that skipped the dismissal would be dragging under a sheet, which is a
     # scene about the margin rather than the seam below.
-    page.keyboard.press("Escape")  # off the target the send landed on, and its card
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
+    page.keyboard.press("Escape")  # from the sent card to its passage
+    page.keyboard.press("Escape")  # off the passage, dismissing its card
     expect(page.locator(".lf-margin-thread")).to_be_hidden()
     # Drag the card between columns through the pointer path — the seam where
     # the vendored SortableJS meets the runtime, which is where drags break.
@@ -1547,7 +1549,8 @@ def test_a_comment_being_typed_reaches_the_pages_other_tabs(browser, serve, one_
     other's box live, and a send there empties it — the distinction the store's own
     vocabulary carries, an emptied box being a value and a settled draft a tombstone.
     The Send button is read with the value, since a mirrored draft the box cannot send
-    is words arriving dead."""
+    is words arriving dead. The other tab's general box stays in its shut card, which
+    holds the words all the same."""
     url = serve(LONG_PAGE, comments=1)
     first = open_page(browser, url, context=one_user)
     second = open_page(browser, url, context=one_user)
@@ -1556,7 +1559,7 @@ def test_a_comment_being_typed_reaches_the_pages_other_tabs(browser, serve, one_
         panel_settled(page)
 
     typed = "The page is missing the migration step."
-    write(first.locator(".lf-general leaf-text"), typed)
+    write(page_comment(first), typed)
     expect(second.locator(".lf-general leaf-text")).to_have_js_property("value", typed)
     expect(second.locator(".lf-general button")).to_have_attribute(
         "aria-disabled", "false"
@@ -1604,12 +1607,9 @@ def test_a_general_comment_appends_one_event_across_tabs(browser, serve, one_use
     url = serve(LONG_PAGE)
     first = open_page(browser, url, context=one_user)
     second = open_page(browser, url, context=one_user)
-    for page in (first, second):
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
     raw = "One general comment, however many tabs show its draft."
-    write(first.locator(".lf-general leaf-text"), raw)
-    expect(second.locator(".lf-general leaf-text")).to_have_js_property("value", raw)
+    write(page_comment(first), raw)
+    expect(page_comment(second)).to_have_js_property("value", raw)
 
     held = []
     first.route("**/api/event", lambda route: held.append(route))
@@ -1634,9 +1634,7 @@ def test_a_general_comment_appends_one_event_across_tabs(browser, serve, one_use
 def test_a_held_general_send_preserves_a_newer_exact_draft(browser, serve):
     """An earlier response settles only the general generation it posted."""
     page = open_page(browser, serve(LONG_PAGE))
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    box = page.locator(".lf-general leaf-text")
+    box = page_comment(page)
     old = "The general comment already in flight."
     newer = "  The newer general thought keeps its spaces.  "
     write(box, old)
@@ -1644,7 +1642,8 @@ def test_a_held_general_send_preserves_a_newer_exact_draft(browser, serve):
     page.route("**/api/event", lambda route: held.append(route))
     page.locator(".lf-general button").click()
     holding(page, held, 1, "the older general send")
-    write(box, newer)
+    # The send put the card away; the newer thought is written in it opened again.
+    write(page_comment(page), newer)
 
     held[0].continue_()
     page.unroute("**/api/event")
@@ -1713,7 +1712,7 @@ def test_a_reply_behind_a_refused_parent_is_withdrawn_rather_than_sent(
     page = open_page(browser, serve(LONG_PAGE))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    write(page.locator(".lf-general leaf-text"), "The parent the server will refuse.")
+    write(page_comment(page), "The parent the server will refuse.")
     page.locator(".lf-general button").click()
     holding(page, held, 1, "the parent send")
 
@@ -1747,12 +1746,16 @@ def test_a_reply_behind_a_refused_parent_is_withdrawn_rather_than_sent(
 def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
     held_events, serve
 ):
-    """A refusal leaves nothing standing and the words back where they were written."""
+    """A refusal leaves nothing standing and the words back where they were written.
+
+    The user has moved on to the pending thread in Threads by the time the refusal
+    lands, so the card's box does not take their keys back: the words wait in it, and
+    focus falls from the withdrawn thread to the list it stood in."""
     browser, held = held_events
     page = open_page(browser, serve(LONG_PAGE))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    box = page.locator(".lf-general leaf-text")
+    box = page_comment(page)
     words = "The comment the server will refuse."
     write(box, words)
     before = page.locator(".lf-threads > .lf-thread").count()
@@ -1779,6 +1782,7 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
     expect(page.locator('.lf-thread[data-id^="pending:"]')).to_have_count(0)
     expect(page.locator(".lf-threads > .lf-thread")).to_have_count(before)
     expect(page.locator(".lf-threads")).to_be_focused()
+    expect(box).not_to_be_focused()
     expect(box).to_have_js_property("value", words)
     expect(page.locator(".lf-notice")).to_contain_text("Couldn't send")
     assert stored_draft_text(page, "general") == words
@@ -1796,7 +1800,7 @@ def test_every_message_send_says_so_to_a_user_listening(held_events, serve, box)
 
     The message standing in the thread is the whole acknowledgement for a user
     looking at it, which is why no box writes a success notice for it. But neither the
-    seat nor the panel's list is a live region, so for a user listening to the page
+    seat nor the Threads list is a live region, so for a user listening to the page
     that send would pass in silence. `post` says it once, where a gesture is first known
     to be a message, which is what covers every box that sends one.
     """
@@ -1808,9 +1812,7 @@ def test_every_message_send_says_so_to_a_user_listening(held_events, serve, box)
         field = seat.locator("leaf-text")
         press = seat.get_by_role("button", name="Send", exact=True)
     else:
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
-        field = page.locator(".lf-general leaf-text")
+        field = page_comment(page)
         press = page.locator(".lf-general").get_by_role(
             "button", name="Send", exact=True
         )
@@ -2175,7 +2177,7 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
         f'.lf-margin-thread .lf-page-thread[data-thread="{sent["id"]}"]'
     )
     reply = thread.locator("leaf-text")
-    expect(page.locator("#p1")).to_be_focused()
+    expect(thread).to_be_focused()
     thread.get_by_role("textbox", name="Reply", exact=True).click()
     expect(reply).to_be_focused()
 
@@ -2346,13 +2348,10 @@ def test_failed_settlement_keeps_the_base_for_a_chained_nondurable_edit(
     url = serve(LONG_PAGE)
     shared = open_page(browser, url, context=one_user)
     local = open_page(browser, url, context=one_user)
-    for page in (shared, local):
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
     predecessor = "The durable predecessor that this local branch replaces."
     first = "The first nondurable comment on that branch."
     second = "The chained nondurable comment keeps the same base."
-    write(shared.locator(".lf-general leaf-text"), predecessor)
+    write(page_comment(shared), predecessor)
     expect(local.locator(".lf-general leaf-text")).to_have_js_property(
         "value", predecessor
     )
@@ -2381,11 +2380,11 @@ def test_failed_settlement_keeps_the_base_for_a_chained_nondurable_edit(
         [draft_key(local, "general"), first, second],
     )
 
-    write(local.locator(".lf-general leaf-text"), first)
+    write(page_comment(local), first)
     local.locator(".lf-general button").click()
     round_trip(local)
     expect(local.locator(".lf-general leaf-text")).to_have_js_property("value", "")
-    write(local.locator(".lf-general leaf-text"), second)
+    write(page_comment(local), second)
     expect(local.locator(".lf-general button")).to_have_attribute(
         "aria-disabled", "false"
     )
@@ -3099,10 +3098,8 @@ def test_an_unsent_draft_outlives_the_tab_it_was_typed_in(browser, serve, one_us
     one holding a half-written sentence is as likely to be shut as any other."""
     url = serve(LONG_PAGE)
     page = open_page(browser, url, context=one_user)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
     typed = "Half a thought, and then the tab went."
-    write(page.locator(".lf-general leaf-text"), typed)
+    write(page_comment(page), typed)
     page.close()
 
     again = open_page(browser, url, context=one_user)
@@ -5336,8 +5333,7 @@ def test_executable_revision_preserves_each_editor_identity(browser, serve, kind
     if kind == "authored":
         editor = page.locator("#authored-draft")
     elif kind == "general":
-        page.locator(".lf-threads-toggle").click()
-        editor = page.locator(".lf-general leaf-text")
+        editor = page_comment(page)
     elif kind == "first-message":
         editor = page.locator("#seat-root > .lf-thread-seat > .lf-say leaf-text")
     elif kind == "edit":
@@ -5440,7 +5436,7 @@ def test_executable_revision_routes_one_editor_among_visible_reply_mirrors(
     wait_for_revision(page, 2)
     current = page.evaluate(
         """async()=>{
-      const {focused}=await window.__lfRuntimeImport('/runtime/keyboard/scopes.js');
+      const {focused}=await window.__lfRuntimeImport('/runtime/focus.js');
       const el=focused();
       return {tag:el.tagName,value:el.value,caret:[el.selectionStart,el.selectionEnd,el.selectionDirection]};
     }"""
@@ -5970,18 +5966,16 @@ def test_resume_writing_is_a_touch_action_and_does_not_steal_hint_addresses(
         ),
     )
     page = open_page(browser, serve(source))
-    page.locator(".lf-threads-toggle").click()
-    general = page.locator(".lf-general leaf-text")
-    write(general, "A page-wide draft")
+    write(page_comment(page), "A page-wide draft")
     page.keyboard.press("Escape")
-    page.keyboard.press("Escape")
+    expect(page.locator(".lf-page-comment-card")).to_be_hidden()
     page.keyboard.press("g")
     expect(page.locator(".lf-go-to-hint[data-lf-hint-code]").first).to_be_visible()
     labels = page.locator(".lf-go-to-hint[data-lf-hint-code]").evaluate_all(
         "els => els.map(el => el.dataset.lfHintCode)"
     )
     assert labels and all("i" not in label for label in labels)
-    # With Threads shut, the page's draft resumes in the banner's page comment card.
+    # The page's draft resumes in the banner's page comment card.
     page.keyboard.press("i")
     card_box = page.locator(".lf-page-comment-card leaf-text")
     expect(card_box).to_be_focused()

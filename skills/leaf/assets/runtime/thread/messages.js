@@ -3,7 +3,8 @@
    Every surface uses the same message, header and body vocabulary. Generated
    metadata, prose, workflow and reaction placement have one owner. Each message
    retains its header and body together, sharing delivery, unread and fold state.
-   Its header declares its stationary text-reflow boundary. An
+   Its header declares its stationary text-reflow boundary and hosts the thread's
+   disclosure for progress completed by that reply. An
    immutable descriptor changes prose without reconnecting the validated authored
    fragment. A new message cues its own words once on first presentation, in every
    surface: one the user just sent, and any turn, whoever wrote it, joining a thread
@@ -155,6 +156,7 @@ export function messageReading(
   return Object.freeze({
     key: message.attempt ?? message.id,
     id: message.id,
+    version: message.edited?.id ?? message.id,
     seq: moved(message).seq,
     unread: message.unread,
     attempt: message.attempt ?? null,
@@ -192,6 +194,7 @@ export class MessageView {
   #authored = null;
   #dressed = false;
   #arrivalMotion = null;
+  #stopRead = null;
   #header = document.createElement("div");
 
   constructor(commands) {
@@ -199,7 +202,7 @@ export class MessageView {
     this.node = document.createElement("div");
   }
 
-  present(model, { arrived = false } = {}) {
+  present(model, { arrived = false, headerControls = nothing } = {}) {
     const prior = this.#model;
     this.#model = model;
     const panel = model.panel;
@@ -261,6 +264,7 @@ export class MessageView {
               : nothing
           }
         </span>
+        ${headerControls}
       `,
       this.#header,
     );
@@ -303,8 +307,7 @@ export class MessageView {
     }
     // Markdown is an opaque property part: tokenization never rewrites Lit markers.
     highlightBlocks(this.node);
-    this.#commands.read.observeBody(
-      this.node,
+    this.#stopRead = this.#commands.read.observeMessage(
       this.node.querySelector(":scope > .lf-msg-body"),
       model,
     );
@@ -345,7 +348,7 @@ export class MessageView {
   retire() {
     this.#arrivalMotion?.cancel();
     this.#reaction?.retire();
-    this.#commands.read.forgetBody(this.node);
+    this.#stopRead?.();
   }
 }
 

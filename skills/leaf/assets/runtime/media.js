@@ -18,7 +18,13 @@
 
 import { html, render } from "../vendor/browser-runtime.js";
 import { offlineInteractive, pageUrl, runtimeResource } from "./context.js";
-import { handBack, focusDestination } from "./focus.js";
+import {
+  handBack,
+  focusDestination,
+  closeLayer,
+  openLayer,
+  openerOf,
+} from "./focus.js";
 import { closeControl, offered } from "./widget-elements.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import { nativeLayers } from "./keyboard/layer-stack.js";
@@ -156,12 +162,13 @@ keys(
   { when: () => mediaViewer.open },
 );
 
-let origin = null;
+// The viewer hands the user back to the image they opened it from (focus.js,
+// `openLayer`) once the platform has closed it, by its button, Escape or a press outside.
 const open = (url, alt, from) => {
   const attempt = ++opening;
   inspector?.destroy();
   inspector = null;
-  origin = from;
+  openLayer(mediaViewer, from);
   presentViewer({ url, alt });
   render(html`<img src=${url} alt=${alt} />`, stage);
   keepsText(
@@ -248,10 +255,15 @@ mediaViewer.addEventListener("close", () => {
   ++opening;
   inspector?.destroy();
   inspector = null;
-  render(null, stage);
-  presentViewer(null);
-  if (origin) handBack(origin);
-  origin = null;
+  const origin = openerOf(mediaViewer);
+  openLayer(mediaViewer, null);
+  closeLayer(
+    () => {
+      render(null, stage);
+      presentViewer(null);
+    },
+    origin && (() => handBack(origin)),
+  );
 });
 document.addEventListener("click", (event) => {
   if (

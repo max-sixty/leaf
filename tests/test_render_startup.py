@@ -96,6 +96,7 @@ from render_harness import (
     nudge,
     open_page,
     open_versions,
+    page_comment,
     panel_settled,
     primed,
     refuse,
@@ -334,6 +335,104 @@ def test_a_website_example_names_its_limited_agent(browser, serve):
     expect(page.locator(".lf-status-button .lf-publication-install")).to_have_count(0)
     expect(status).to_have_attribute("title", " ".join(status.text_content().split()))
     expect(page.locator(".lf-banner .lf-dot")).to_have_class(re.compile(r"^lf-dot\s*$"))
+
+
+@pytest.mark.parametrize("outcome", ["presented", "abandoned", "offline"])
+def test_public_startup_reports_upgrade_separately_from_held_state(
+    browser, serve, outcome, request
+):
+    """Public telemetry names the independent browser and state milestones.
+
+    A local delivered document gets the public release marker at the HTTP boundary.
+    The real widget runtime upgrades while its first state read is held. A full
+    Resource Timing buffer must not lose that response, an unrelated page's state
+    must not stand in for it, and later polling or departure must not send again.
+    A refused request has a Resource Timing entry but no state response to report.
+    """
+    url = serve(SHORT_SUGGESTION)
+    page = browser.new_page()
+    request.addfinalizer(page.close)
+    reports = []
+    held = []
+
+    def public_document(route):
+        response = route.fetch()
+        route.fulfill(
+            response=response,
+            body=response.text().replace(
+                "data-lf-server=", f'data-lf-release="{"a" * 64}" data-lf-server=', 1
+            ),
+        )
+
+    def report(route):
+        reports.append(route.request.post_data_json)
+        route.fulfill(status=204)
+
+    page.route("**/versions/v1.html?*", public_document)
+    page.route("**/api/performance", report)
+    page.route("**/api/state", lambda route: held.append(route))
+    page.route("**/other/api/state", lambda route: route.fulfill(json={}))
+    page.add_init_script(
+        """performance.setResourceTimingBufferSize(1);
+        window.firstStateResponses = [];
+        new PerformanceObserver(list => {
+          for (const entry of list.getEntries())
+            if (new URL(entry.name).pathname === '/api/state')
+              window.firstStateResponses.push(entry.responseEnd);
+        }).observe({type: 'resource', buffered: true});"""
+    )
+    page.goto(url, wait_until="load")
+    page.wait_for_function("document.body.dataset.lfUpgraded === '1'")
+    assert held, "the positive control did not hold the first state read"
+    expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+    assert reports == []
+    assert page.evaluate("firstStateResponses") == []
+    upgraded_before_release = page.evaluate("Math.round(performance.now())")
+    page.evaluate("async () => await (await fetch('/other/api/state')).json()")
+
+    if outcome == "abandoned":
+        with page.expect_response("**/api/performance"):
+            page.evaluate("dispatchEvent(new PageTransitionEvent('pagehide'))")
+        assert len(reports) == 1
+        assert reports[0]["firstStateResponseMs"] is None
+        assert reports[0]["presentedMs"] is None
+
+    released_at = page.evaluate("Math.round(performance.now())")
+    if outcome != "abandoned":
+        with page.expect_response("**/api/performance"):
+            first = held.pop(0)
+            if outcome == "offline":
+                refuse(first)
+                expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+            else:
+                first.continue_()
+                wait_until_ready(page)
+    else:
+        held.pop(0).continue_()
+        wait_until_ready(page)
+    page.wait_for_function("firstStateResponses.length === 1")
+    with page.expect_request("**/api/state"):
+        page.evaluate("void fetch('/api/state').then(response => response.json())")
+    holding(page, held, 1, "the follow-up state read")
+    held.pop(0).continue_()
+    page.wait_for_function("firstStateResponses.length === 2")
+    page.evaluate("dispatchEvent(new PageTransitionEvent('pagehide'))")
+    assert len(reports) == 1
+    reading = reports[0]
+    assert reading["version"] == 2
+    assert reading["outcome"] == ("presented" if outcome == "offline" else outcome)
+    assert 0 <= reading["upgradedMs"] <= upgraded_before_release
+    if outcome == "presented":
+        first_response = page.evaluate("Math.round(firstStateResponses[0])")
+        assert reading["firstStateResponseMs"] == first_response
+        assert released_at <= first_response <= reading["presentedMs"]
+        assert page.evaluate(
+            """performance.getEntriesByType('resource').every(entry =>
+                new URL(entry.name).pathname !== '/api/state')"""
+        ), "the response remained in the global timeline; eviction was not tested"
+    elif outcome == "offline":
+        assert reading["firstStateResponseMs"] is None
+        assert reading["presentedMs"] >= reading["upgradedMs"]
 
 
 def test_a_website_example_shows_its_public_session_reference(browser, serve):
@@ -1803,7 +1902,10 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     expect(comments).to_be_enabled()
     comments.click()
     expect(body).not_to_have_attribute("data-lf-auxiliary-surface", "queue")
-    expect(page.locator(".lf-general leaf-text")).to_be_editable()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
+    # The page's box takes words while the first state answer is still held.
+    expect(page_comment(page)).to_be_editable()
+    page.keyboard.press("Escape")
 
     held.pop(0).continue_()
     wait_until_ready(page)
@@ -2332,8 +2434,8 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
     """The chrome and initial state read do not wait behind widget startup.
 
     That interval is real state, not a missing-registry fallback: the state answer waits
-    unapplied until upgrades have captured the authored page, general Threads accepts a
-    send but holds it until the layer identity arrives, and an anchored comment waits until
+    unapplied until upgrades have captured the authored page, the page comment card accepts
+    a send but holds it until the layer identity arrives, and an anchored comment waits until
     upgrades and the buffered replay have made the page's final words. The explicit gate
     proves each assertion runs on the intended side of the fetch rather than racing a timer.
     """
@@ -2406,8 +2508,10 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     expect(page.locator(".lf-empty")).to_have_text("Loading current threads…")
     expect(page.locator(".lf-thread")).to_have_count(0)
-    write(page.locator(".lf-general leaf-text"), "General comment during startup")
-    page.locator(".lf-general").get_by_role("button", name="Send").click()
+    write(page_comment(page), "General comment during startup")
+    page.locator(".lf-page-comment-card .lf-general").get_by_role(
+        "button", name="Send"
+    ).click()
     expect(page.locator(".lf-thread")).to_have_count(0)
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
 
@@ -2760,9 +2864,9 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
     old_route = older[0]
     old_state = old_route.fetch().json()
 
-    write(page.locator(".lf-general leaf-text"), "Newest **snapshot**")
+    write(page_comment(page), "Newest **snapshot**")
     with sending(page, "the newer comment"):
-        page.locator(".lf-general button").click()
+        page.locator(".lf-page-comment-card .lf-general button").click()
 
     old_route.fulfill(json=old_state)
     page.title()  # let the old response join the shared import before releasing it
@@ -2889,10 +2993,9 @@ def test_more_than_six_live_documents_share_an_origin_without_stalling(browser, 
     with browser.new_context() as context:
         pages = [open_page(browser, url, context=context) for _ in range(8)]
         last = pages[-1]
-        last.locator(".lf-threads-toggle").click()
-        write(last.locator(".lf-general leaf-text"), "All eight views are live.")
+        write(page_comment(last), "All eight views are live.")
         with sending(last, "the eighth view's comment"):
-            last.locator(".lf-general button").click()
+            last.locator(".lf-page-comment-card .lf-general button").click()
         assert any(
             event.get("text") == "All eight views are live."
             for event in events_model.read_events(serve.page_dir)
@@ -3871,7 +3974,6 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         },
     )
     told(page)
-    held_thread.get_by_role("button", name="1 new reply", exact=True).click()
     followup_workflow = held_thread.locator(
         f'.lf-msg.user[data-mid="{followup["id"]}"] > .lf-msg-head .lf-msg-sending'
     )
@@ -3905,7 +4007,6 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         },
     )
     told(page)
-    held_thread.get_by_role("button", name="1 new reply", exact=True).click()
     expect(page.locator(f'.lf-thread[data-id="{held}"] .lf-msg.agent')).to_have_count(1)
     expect(held_workflow).to_have_count(0)
     expect(workflows).to_have_count(1)

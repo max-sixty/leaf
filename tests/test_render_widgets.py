@@ -95,6 +95,7 @@ from render_harness import (
     margins_laid_out,
     open_page,
     opened_tab,
+    page_comment,
     pane_posture,
     panel_settled,
     plant_quiet_word,
@@ -609,18 +610,22 @@ def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
     assert stuck["shown"] == pytest.approx(stuck["strip"]["bottom"], abs=0.5), stuck
 
 
-def test_sticky_headers_stack_so_a_diff_in_a_page_tab_pins_under_the_strip(
-    browser, serve
-):
-    """A diff's file header in a page tab pins under the stuck tab strip rather than
-    over it: each sticky header has a stated height and adds it to `--lf-top` for what
-    it stands over. A landing on one of the diff's rows arrives below both headers, and
-    the part of a row under the diff's header reads as not on screen."""
+def _stacked_headers(browser, serve):
+    """A page tab strip over the root with a long pinned diff in its first tab, then a
+    short one whose code is wide enough to scroll sideways, and another long one after
+    the tabs."""
     path = "src/lib.rs"
     rows = "".join(f"+    let value_{i} = {i};\n" for i in range(200))
     patch = (
         f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
         f"@@ -1 +1,201 @@\n fn main() {{\n{rows}"
+    )
+    wide = "+    let wide = " + " + ".join(f"term_{i}" for i in range(60)) + ";\n"
+    short = (
+        "diff --git a/src/wide.rs b/src/wide.rs\n--- a/src/wide.rs\n+++ b/src/wide.rs\n"
+        "@@ -1 +1,11 @@\n fn wide() {\n"
+        + wide
+        + "".join(f"+    let short_{i} = {i};\n" for i in range(9))
     )
     page = open_page(
         browser,
@@ -628,15 +633,31 @@ def test_sticky_headers_stack_so_a_diff_in_a_page_tab_pins_under_the_strip(
             leaf_page(
                 "Stacked headers",
                 '<h1>Stacked</h1><lf-tabs id="root-tabs">'
-                '<lf-tab id="diff-tab" label="Diff"><lf-diff id="patch"><pre>'
+                '<lf-tab id="diff-tab" label="Diff"><lf-diff id="patch" review><pre>'
                 + patch
+                + '</pre></lf-diff><lf-diff id="wide"><pre>'
+                + short
                 + '</pre></lf-diff></lf-tab><lf-tab id="notes-tab" label="Notes">'
-                "<p>Notes.</p></lf-tab></lf-tabs>",
+                "<p>Notes.</p></lf-tab></lf-tabs>"
+                '<lf-diff id="after-tabs" review><pre>' + patch + "</pre></lf-diff>",
             )
         ),
     )
     resized(page, 1280, 720)
-    page.wait_for_function("() => document.querySelector('lf-diff.lf-rendered')")
+    page.wait_for_function(
+        "() => document.querySelectorAll('lf-diff.lf-rendered').length === 3"
+    )
+    return page
+
+
+def test_sticky_headers_stack_so_a_diff_in_a_page_tab_pins_under_the_strip(
+    browser, serve
+):
+    """A diff's file header in a page tab pins under the stuck tab strip rather than
+    over it: each sticky header has a stated height and adds it to `--lf-top` for what
+    it stands over. A landing on one of the diff's rows arrives below both headers, and
+    the part of a row under the diff's header reads as not on screen."""
+    page = _stacked_headers(browser, serve)
     read = page.evaluate(
         """async () => {
         const geometry = await window.__lfRuntimeImport('/runtime/geometry.js');
@@ -667,6 +688,67 @@ def test_sticky_headers_stack_so_a_diff_in_a_page_tab_pins_under_the_strip(
     assert landed["row"] > landed["head"], landed
     assert read["row"]["top"] < read["head"]["bottom"] < read["row"]["bottom"], read
     assert read["shown"] == pytest.approx(read["head"]["bottom"], abs=0.5), read
+
+
+def test_focus_in_a_stuck_header_leaves_the_page_where_it_is(browser, serve):
+    """A control in a stuck sticky header stands inside the root's landing band, so the
+    browser scrolled toward it on every focus and the header never came out from under
+    the band: the page crept 17px a focus under a diff's file header and 12px under its
+    file action, and was centred, hundreds of pixels a key, under a page tab strip.
+    Each header says where its controls stand (`--lf-head-inset`), so focusing one where
+    it sticks scrolls nothing: in a page tab, where the strip stands over it, and after
+    the tabs, where the root's band still counts the strip. Focus moving on from the
+    file header into its code, a tab stop since it scrolls sideways, clears the
+    header."""
+    page = _stacked_headers(browser, serve)
+    focus_in = """async (id) => {
+        const page = document.scrollingElement;
+        const diff = document.getElementById(id);
+        const row = [...diff.shadowRoot.querySelectorAll('[data-line]')][150];
+        row.scrollIntoView({block: 'start', behavior: 'instant'});
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const controls = {
+            file: diff.shadowRoot.querySelector('.lf-diff-file > details > summary'),
+            action: diff.shadowRoot.querySelector('.lf-diff-file-actions button'),
+        };
+        if (id === 'patch')
+            controls.tab = document.querySelector(
+                '#root-tabs > .lf-tabstrip [aria-selected="true"]');
+        const moved = {};
+        for (const [name, control] of Object.entries(controls)) {
+            const before = page.scrollTop;
+            control.focus();
+            await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+            moved[name] = page.scrollTop - before;
+        }
+        return moved;
+    }"""
+    assert page.evaluate(focus_in, "patch") == {"file": 0, "action": 0, "tab": 0}
+    assert page.evaluate(focus_in, "after-tabs") == {"file": 0, "action": 0}
+    # Tab from a stuck file header into its code, scrolled partly past above it.
+    page.evaluate(
+        """async () => {
+        const root = document.getElementById('wide').shadowRoot;
+        const code = root.querySelector('.lf-text-scroller');
+        document.scrollingElement.scrollTop += code.getBoundingClientRect().top - 60;
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        root.querySelector('.lf-diff-file > details > summary').focus({preventScroll: true});
+    }"""
+    )
+    page.keyboard.press("Tab")
+    rendered(page)
+    code = page.evaluate(
+        """() => {
+        const root = document.getElementById('wide').shadowRoot;
+        const head = root.querySelector('.lf-diff-file > details > summary');
+        const focused = root.activeElement;
+        return {scroller: focused?.classList.contains('lf-text-scroller'),
+                top: focused?.getBoundingClientRect().top,
+                head: head.getBoundingClientRect().bottom};
+    }"""
+    )
+    assert code["scroller"], code
+    assert code["top"] >= code["head"], code
 
 
 LONG_DIFF_PATH = "src/deeply/nested/module/file.rs"
@@ -1197,6 +1279,93 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     rendered(page)
     top = page.evaluate("document.getElementById('queue').getBoundingClientRect().top")
     assert 0 <= top < 200, top
+
+
+def test_a_side_list_workspace_scrolls_its_list_and_its_item_apart(browser, serve):
+    """A side list that is a workspace's body fills the window, and its list and its open
+    item each scroll on their own, as a mail client's do: the page does not scroll,
+    reading keys in the item move the item and not the list, and walking down a long
+    list keeps the selected row in view and leaves the item where it stands. Where the
+    list stacks over the item, as a large root font makes it in a narrow workspace, the
+    item takes the room below the list rather than standing over it."""
+    tickets = "".join(
+        f'<lf-tab id="t-{n}" label="Ticket {n}" summary="sev {n % 3}">'
+        + "".join(
+            f'<p id="p-{n}-{line}">Line {line} of what went wrong with ticket {n}.</p>'
+            for line in range(40)
+        )
+        + "</lf-tab>"
+        for n in range(30)
+    )
+    source = leaf_page(
+        "a long queue",
+        f'<header><h1>Queue</h1></header><lf-tabs id="queue" list="side">{tickets}'
+        "</lf-tabs>",
+        layout="workspace",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1280, 720)
+    state = """() => {
+      const strip = document.querySelector('#queue > .lf-tabstrip');
+      const item = document.querySelector('#queue > lf-tab:not([hidden])');
+      const selected = strip.querySelector('[aria-selected="true"]').getBoundingClientRect();
+      const room = strip.getBoundingClientRect();
+      return {page: document.scrollingElement.scrollHeight - innerHeight,
+              list: [strip.scrollTop, strip.scrollHeight - strip.clientHeight],
+              item: [item.scrollTop, item.scrollHeight - item.clientHeight],
+              itemTop: item.getBoundingClientRect().top,
+              stripBottom: room.bottom,
+              selectedShown: selected.top >= room.top - 1 && selected.bottom <= room.bottom + 1};
+    }"""
+    before = page.evaluate(state)
+    assert before["page"] <= 0, before
+    assert before["list"][1] > 0 and before["item"][1] > 0, before
+
+    page.locator("#p-0-2").click()
+    page.keyboard.press("d")
+    page.wait_for_function("() => document.querySelector('#t-0').scrollTop > 0")
+    read = page.evaluate(state)
+    assert read["list"][0] == 0 and read["page"] <= 0, read
+    # Reading on while the window is too narrow to fill, where the page carries the
+    # item, moves the place the item keeps when the workspace fills the window again.
+    top_line = """() => {
+      const item = document.querySelector('#t-0');
+      const top = Math.max(item.getBoundingClientRect().top, 60);
+      return [...item.querySelectorAll('p')]
+        .findIndex(p => p.getBoundingClientRect().bottom > top + 2);
+    }"""
+    resized(page, 700, 720)
+    rendered(page)
+    narrow = page.evaluate(top_line)
+    page.keyboard.press("d")
+    page.wait_for_function(f"() => ({top_line})() > {narrow + 4}")
+    read_on = page.evaluate(top_line)
+    resized(page, 1280, 720)
+    rendered(page)
+    widened = page.evaluate(top_line)
+    assert abs(widened - read_on) <= 2, (narrow, read_on, widened)
+
+    page.get_by_role("tab", name="Ticket 0").focus()
+    for _ in range(20):
+        page.keyboard.press("ArrowDown")
+    expect(page.get_by_role("tab", name="Ticket 20")).to_have_attribute(
+        "aria-selected", "true"
+    )
+    walked = page.evaluate(state)
+    assert walked["list"][0] > 0 and walked["selectedShown"], walked
+    assert walked["itemTop"] == before["itemTop"] and walked["page"] <= 0, walked
+
+    page.evaluate("document.documentElement.style.fontSize = '20px'")
+    resized(page, 730, 600)
+    page.wait_for_function(
+        """() => {
+          const strip = document.querySelector('#queue > .lf-tabstrip').getBoundingClientRect();
+          const item = document.querySelector('#queue > lf-tab:not([hidden])').getBoundingClientRect();
+          return strip.right > item.left + 1 && item.top >= strip.bottom - 1;
+        }"""
+    )
+    stacked = page.evaluate(state)
+    assert stacked["page"] <= 0 and stacked["item"][1] > 0, stacked
 
 
 def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, serve):
@@ -8233,8 +8402,7 @@ def test_a_reduced_motion_swipe_moves_without_an_exit_animation(browser, serve):
 def test_composer_grows_caps_and_shrinks_with_its_text(browser, serve):
     """The comment box fits its content, scrolls at its cap, and shrinks back."""
     page = open_page(browser, serve(LONG_PAGE))
-    page.locator(".lf-threads-toggle").click()
-    box = page.locator(".lf-general leaf-text")
+    box = page_comment(page)
 
     def state():
         return box.evaluate("""ta => ({ h: Math.round(ta.getBoundingClientRect().height),
@@ -8243,18 +8411,20 @@ def test_composer_grows_caps_and_shrinks_with_its_text(browser, serve):
     empty = state()
     box.type("A comment long enough to wrap onto a second line and then a third.")
     grown = state()
-    write(box, "x " * 900)  # far past the ceiling
+    write(box, "x " * 4000)  # far past the ceiling
     capped = state()
-    expect(page.locator(".lf-threads")).to_be_visible()
+    card_bottom = page.locator(".lf-page-comment-card").evaluate(
+        "card => card.getBoundingClientRect().bottom"
+    )
     write(box, "short again")
     shrunk = state()
 
     assert grown["h"] > empty["h"], "the box must grow with its content"
     assert not grown["scrollable"], "a box that fits its text must not be scrollable"
-    # The panel foot yields room to the thread list, so its available share can
-    # cap the editor before the viewport's 50vh ceiling does.
-    assert grown["h"] < capped["h"] <= page.viewport_size["height"] / 2, (
-        f"the box must grow within the panel's available share, got {capped['h']}px"
+    # The card takes the room beneath the banner, and the editor caps inside it.
+    assert capped["h"] > grown["h"], "the box must grow toward the card's room"
+    assert card_bottom <= page.viewport_size["height"] + 0.5, (
+        f"the capped box carried the card out of the window, to {card_bottom}px"
     )
     assert capped["scrollable"], (
         "past the ceiling the scrollbar is real and belongs there"

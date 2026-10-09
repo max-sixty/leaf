@@ -393,8 +393,8 @@ def card_body(page, says):
     while they read the comment, and where nothing presses.
 
     Low on the card *as the user sees it*: the list scrolls, so the last card's own
-    bottom can sit below the scroller and behind the panel's foot. A point read off the
-    card's rect alone lands on the general box there, which hovers no card at all. A
+    bottom can sit below the scroller. A point read off the card's rect alone lands
+    outside the list there, which hovers no card at all. A
     card below the list's fold, as every card after an open one is, is scrolled to
     first, as the user's hand would. Read once the panel has finished sliding in, which
     is where the user's hand finds it."""

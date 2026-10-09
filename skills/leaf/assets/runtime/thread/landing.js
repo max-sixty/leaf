@@ -28,14 +28,22 @@
    “comment on the thread” going in and “back to thread” coming out name one element. It
    answers for every arrival — a keyboard command, a Tab, a pointer — because a box's way
    out is the thread it belongs to whichever of them put the user in it, and the
-   panel's own general box hands back to the Threads list. A page-owned first-message seat
+   panel's own find box hands back to the Threads list. A page-owned first-message seat
    has no standing place of its own; a widget control that explicitly enters its box
-   supplies the caller-owned return target through `landInThread`. A send from a
-   thread's box leaves it the same way, onto the thread, except in the margin card,
-   whose thread stands for the element it is about (`landSent`). */
+   supplies the caller-owned return target through `landInThread`. Sending leaves
+   focus on the conversation's card or title on every surface (`landSent`). Returning
+   to the page is a separate navigation gesture. */
 import { landingBand, seenRect, shownBox, shownWindow } from "../geometry.js";
-import { documentFocused, focused } from "../keyboard/scopes.js";
-import { focusDestination, onStanding, takesLetters, whenLeft } from "../focus.js";
+import { documentFocused } from "../keyboard/scopes.js";
+import {
+  focusDestination,
+  focused,
+  onPress,
+  onStanding,
+  pressing,
+  takesLetters,
+  whenLeft,
+} from "../focus.js";
 import { under } from "../shadow.js";
 import { scrollBehavior } from "../motion.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
@@ -155,7 +163,7 @@ function backFromBox() {
   return route?.target?.isConnected ? route : null;
 }
 // Whether the box the user is typing in has somewhere to hand them back: the
-// thread it belongs to, or the panel's list where it is the chrome's own box.
+// thread it belongs to, or the panel's list from the panel's own find box.
 const boxHandsBack = () =>
   Boolean(backFromBox()) || Boolean(documentFocused()?.closest?.(".lf-thread-panel"));
 // The box, or the reply's composition row around it, which takes its Send control too.
@@ -187,9 +195,9 @@ pageScope("text entry", {
       keys: ["Escape"],
       description: "Leave the box, keeping what is typed",
       title: () => backFromBox()?.line ?? "back to list",
-      // The thread the box belongs to, or the panel's list where it is the chrome's
-      // own box. A page text box that is neither leaves the row dead and the page's rung
-      // standing, which is the honest answer: nothing there to go back to.
+      // The thread the box belongs to, or the panel's list from its own find box. A
+      // page text box that is neither leaves the row dead and the page's rung standing,
+      // which is the honest answer: nothing there to go back to.
       when: leavesBox,
       run: () => {
         const back = backFromBox();
@@ -340,12 +348,12 @@ const arrivingAtTitle = () => Boolean(focused()?.matches?.(".lf-thread-summary")
 // A walk's press at either end moves no focus, so it lands its thread itself.
 export const landWalkedThread = (thread, threadsBox) =>
   land(thread, undefined, threadsBox, arrivingAtTitle());
-// The primary pointer owns the provisional landing until that same gesture ends. A
-// cancellation means the browser took it for something else — commonly a touch scroll —
-// so release the hold without undoing the gesture by landing the thread.
-// Mounted from leaf.js.
+// A press in the list owns the provisional landing until that same gesture ends
+// (focus.js, `onPress`). A cancellation means the browser took it for something else —
+// commonly a touch scroll — so release the hold without undoing the gesture by landing
+// the thread. Mounted from leaf.js.
 export function wireThreadLanding(threadsBox) {
-  let pressedPointer = null;
+  const pressedHere = () => pressing()?.path.includes(threadsBox) ?? false;
   let visibleTitle = null;
   const readVisibleTitle = () => {
     const title = focused();
@@ -381,33 +389,25 @@ export function wireThreadLanding(threadsBox) {
       readVisibleTitle();
     });
   });
-  const finishPress = (event, shouldLand) => {
-    if (event.pointerId !== pressedPointer?.id) return;
-    const pressedThread = pressedPointer.thread;
-    pressedPointer = null;
-    if (!shouldLand) return;
-    const thread = standing() ?? pressedThread;
-    if (thread && !reachedForWords(thread)) {
-      if (standing() !== thread) focusThread(thread, "move");
-      // The press's click may reflow the list and takes its hold from this geometry.
-      land(thread, "instant", threadsBox);
-    }
-  };
-  addEventListener("pointerup", (event) => finishPress(event, true), true);
-  addEventListener("pointercancel", (event) => finishPress(event, false), true);
-  threadsBox.addEventListener("pointerdown", (event) => {
-    if (event.isPrimary)
-      pressedPointer = {
-        id: event.pointerId,
-        thread: event.target.closest?.(".lf-thread") ?? null,
-      };
+  onPress((start, path) => {
+    if (!path.includes(threadsBox)) return null;
+    const pressedThread = start.target.closest?.(".lf-thread") ?? null;
+    return (end, completed) => {
+      if (!completed) return;
+      const thread = standing() ?? pressedThread;
+      if (thread && !reachedForWords(thread)) {
+        if (standing() !== thread) focusThread(thread, "move");
+        // The press's click may reflow the list and takes its hold from this geometry.
+        land(thread, "instant", threadsBox);
+      }
+    };
   });
   // A press held in the list lands when the hand comes up (`finishPress`), and a return
   // puts the user back in a place the list already showed them: neither lands here.
   onStanding((node, cause) => {
     if (!node || !under(node, threadsBox)) return;
     nextRender(readVisibleTitle);
-    if (pressedPointer !== null || cause === "return") return;
+    if (pressedHere() || cause === "return") return;
     const thread = standing();
     // Native focus and reply entry reveal their own writing area. Re-landing the
     // thread here would turn that focus move into a second navigation gesture.
@@ -545,12 +545,7 @@ export function accompanyThread(ids, threadsBox) {
   });
 }
 
-export function createThreadLanding({
-  setPanel,
-  revealThread,
-  threadsBox,
-  cardTarget,
-}) {
+export function createThreadLanding({ setPanel, revealThread, threadsBox }) {
   const landIn = (destination) => {
     const prepared = prepareLanding(destination);
     if (!prepared) return false;
@@ -582,16 +577,9 @@ export function createThreadLanding({
     return true;
   };
   const landInThread = (box, route = null) => landIn({ box, route });
-  // Where a sent reply or first comment leaves the user: out of the box, standing on the
-  // thread, or, for a thread in the margin card, on the element the thread is about, with
-  // the card still up (`cardTarget`, the card's own step out). A user who sends is
-  // usually done with the thread until the agent answers, so they move on from there
-  // without Escaping out of the box first.
-  const landSent = (thread) => {
-    const target = cardTarget?.(thread);
-    if (target) focusDestination(target, "return");
-    else standOnThread(thread);
-  };
+  // Sending ends text entry while keeping the user in the conversation. Every surface
+  // uses its thread's focus stop; leaving the card belongs to navigation, not Send.
+  const landSent = standOnThread;
   const showThread = (
     id,
     {

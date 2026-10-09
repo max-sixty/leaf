@@ -5,6 +5,7 @@ import re
 import threading
 from copy import deepcopy
 from datetime import datetime, timedelta
+from itertools import pairwise
 
 import pytest
 from click.testing import CliRunner
@@ -112,6 +113,7 @@ from render_harness import (
     leaf_page,
     open_page,
     opened_tab,
+    page_comment,
     page_registry,
     pane_posture,
     panel_settled,
@@ -1701,16 +1703,34 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
 
 
 def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
-    """A focused review is a wide page, not prose followed by a narrow widget.
+    """A focused review is a workspace, not prose followed by a narrow widget.
 
-    The case picker never taxes the evidence width, the disposition is available before
-    the pixels, and a tall mobile pair keeps its authored focus width side by side in an
-    evidence stage as tall as the pair, which the page scrolls through. Capture facts
-    follow the comparison rather than delaying it.
+    The case picker never taxes the evidence width, and the disposition is available
+    before the pixels. The review fills the window, and Fit shrinks a tall mobile pair,
+    side by side, to fit the evidence pane, so the reader sees all of it and nothing
+    scrolls; in a window too short to fit it at a readable scale the pair takes its
+    width and the pane scrolls it. Capture facts follow the comparison rather than
+    delaying it.
     """
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
-    resized(page, 1366, 768)
+    resized(page, 1440, 900)
     widget = page.locator("#visual-review-run")
+    contained = widget.evaluate(
+        """node => {
+          const body = node.querySelector('.lf-vr-cases');
+          const frames = [...node.querySelectorAll(
+            '.lf-vr-case:not([hidden]) .lf-shotframe')];
+          return {bodyBottom: body.getBoundingClientRect().bottom,
+                  framesBottom: Math.max(...frames.map(
+                    frame => frame.getBoundingClientRect().bottom)),
+                  image: frames[0].querySelector('img').getBoundingClientRect().width,
+                  page: document.scrollingElement.scrollHeight - innerHeight};
+        }"""
+    )
+    assert contained["framesBottom"] <= contained["bodyBottom"] + 0.5, contained
+    assert 0.7 * 350 < contained["image"] < 350, contained
+    assert contained["page"] <= 0, contained
+    resized(page, 1366, 768)
     gallery_scope = widget.get_by_role("radiogroup", name="Scope")
     expect(gallery_scope).to_be_visible()
     expect(widget).to_have_attribute("data-inspection-scope", "focus")
@@ -1740,6 +1760,9 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     assert case_image_width == pytest.approx(350, abs=1), geometry
     assert widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host").evaluate(
         "node => node.scrollHeight <= node.clientHeight + 1"
+    )
+    assert widget.locator(".lf-vr-cases").evaluate(
+        "node => node.scrollHeight > node.clientHeight"
     )
     assert geometry["support"]["top"] >= geometry["evidence"]["bottom"]
     case = widget.locator(".lf-vr-case:not([hidden])")
@@ -1844,29 +1867,65 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     )
 
 
+def test_a_visual_review_inside_a_section_of_a_workspace_flows(browser, serve):
+    """Only a review the workspace gives a height fills it. In a section of the body it is
+    not told it has one (`--lf-full-height` does not inherit), so it takes its content's
+    height with its pair at the stage's width, the body scrolls it, and it settles:
+    sized from its own pane, it grew a little on each pass."""
+    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
+    resized(page, 1440, 900)
+    widget = page.locator("#visual-review-run")
+    expect(widget.locator(".lf-vr-case:not([hidden]) lf-shot")).to_be_visible()
+    widget.evaluate(
+        """review => {
+          const section = document.createElement('section');
+          const intro = document.createElement('p');
+          intro.textContent = 'An intro paragraph before the review.';
+          review.before(section);
+          section.append(intro, review);
+        }"""
+    )
+    reading = """review => ({
+      image: review.querySelector('.lf-vr-case:not([hidden]) .lf-shotframe img')
+        .getBoundingClientRect().width,
+      paneScrolls: getComputedStyle(review.querySelector('.lf-vr-cases')).overflowY,
+    })"""
+    rendered(page)
+    first = widget.evaluate(reading)
+    page.wait_for_timeout(500)
+    rendered(page)
+    assert widget.evaluate(reading) == first == {"image": 350, "paneScrolls": "visible"}
+
+
 def test_visual_review_fits_frames_using_the_authored_spacing(browser, serve):
-    """Fitting and the painted frame tracks agree when spacing is authored in rem."""
+    """Fitting and the painted frame tracks agree when spacing is authored in rem: the
+    frames stand a rem apart, and where the page scrolls the review, in a window too
+    short for the workspace to fill, the pair takes the stage's whole width."""
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     widget = page.locator("#visual-review-run")
     widget.locator(".lf-vr-shot-host").evaluate_all(
         "nodes => nodes.forEach(node => node.style.setProperty('--sp-2', '1rem'))"
     )
-    resized(page, 760, 800)
-    expect(widget).to_have_attribute("data-compare-layout", "side")
-    geometry = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host").evaluate(
-        """host => {
-          const shot = host.querySelector('lf-shot');
-          const frames = [...shot.querySelectorAll('.lf-shotframe')]
-            .map(frame => frame.getBoundingClientRect());
-          return {available: host.clientWidth, width: shot.getBoundingClientRect().width,
-                  gap: frames[1].left - frames[0].right,
-                  rem: parseFloat(getComputedStyle(document.documentElement).fontSize),
-                  overflow: host.scrollWidth - host.clientWidth};
-        }"""
-    )
-    assert geometry["gap"] == pytest.approx(geometry["rem"], abs=0.1), geometry
+    for height in (800, 470):
+        resized(page, 760, height)
+        expect(widget).to_have_attribute("data-compare-layout", "side")
+        geometry = widget.locator(
+            ".lf-vr-case:not([hidden]) .lf-vr-shot-host"
+        ).evaluate(
+            """host => {
+              const shot = host.querySelector('lf-shot');
+              const frames = [...shot.querySelectorAll('.lf-shotframe')]
+                .map(frame => frame.getBoundingClientRect());
+              return {available: host.clientWidth,
+                      width: shot.getBoundingClientRect().width,
+                      gap: frames[1].left - frames[0].right,
+                      rem: parseFloat(getComputedStyle(document.documentElement).fontSize),
+                      overflow: host.scrollWidth - host.clientWidth};
+            }"""
+        )
+        assert geometry["gap"] == pytest.approx(geometry["rem"], abs=0.1), geometry
+        assert geometry["overflow"] == 0, geometry
     assert geometry["width"] == pytest.approx(geometry["available"], abs=0.1), geometry
-    assert geometry["overflow"] == 0, geometry
 
 
 def test_visual_review_discloses_focus_without_distorting_unsupported_browsers(
@@ -1997,7 +2056,10 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     expect(card).to_have_css("opacity", "1")
     rendered(page)
     assert card.bounding_box()["x"] == pytest.approx(before["x"], abs=1)
+    expect(card.locator(".lf-page-thread")).to_be_focused()
     page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(card).to_be_hidden()
     page.locator(".lf-margin-marker").click()
     expect(card).to_have_css("opacity", "1")
     rendered(page)
@@ -2343,9 +2405,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
         "stamping the displayed revision replaced its main"
     )
 
-    write(
-        page.locator(".lf-general leaf-text"), "This comment belongs to the live draft."
-    )
+    write(page_comment(page), "This comment belongs to the live draft.")
     with sending(page, "the comment on the live draft"):
         page.locator(".lf-general button").click()
     assert events_model.read_events(serve.page_dir)[-1]["revision"] == 2
@@ -3670,8 +3730,8 @@ def test_a_live_revision_reapplies_the_authored_thread_seat_predicate(browser, s
         told(page)
         return page.evaluate(
             """async () => {
-              const {openAsks} = await window.__lfRuntimeImport('/runtime/application.js');
-              return openAsks().map(ask => ask.sourceId);
+              const {readAsks} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+              return readAsks().user.map(ask => ask.sourceId);
             }"""
         )
 
@@ -4366,12 +4426,12 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
     """Unsent words hold an arriving version, but clearing them releases it.
 
     The chip is news during the hold, not a required confirmation: after the user
-    leaves the text box, the ordinary poll activates the already-published version.
+    puts the page comment card away, the ordinary poll activates the already-published
+    version.
     """
     version_url = serve(LIVE_V1)
     page = open_page(browser, live_url(version_url))
-    page.locator(".lf-threads-toggle").click()
-    general = page.locator(".lf-general leaf-text")
+    general = page_comment(page)
     write(general, "Do not replace the page under these words.")
 
     (serve.page_dir / "index.html").write_text(LIVE_V2)
@@ -4379,9 +4439,9 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
     expect(page).to_have_title("Live first")
     expect_banner_control_offered(page.locator(".lf-latest-chip"))
 
-    # Leaving the text box releases the hold. The live address and durable panel
+    # Leaving the text box releases the hold. The live address and the card's durable
     # draft survive the arriving document without a confirmation press.
-    general.press("Tab")
+    page.keyboard.press("Escape")
     expect(general).not_to_be_focused()
     told(page)
     expect(page).to_have_title("Live second")
@@ -4397,8 +4457,7 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
     )
 
     # Keep editing after the first release, then ask v3 to honor the hold again.
-    general.focus()
-    expect(general).to_be_focused()
+    page_comment(page)
     (serve.page_dir / "index.html").write_text(LIVE_V3)
     told(page)
     expect(page).to_have_title("Live second")
@@ -4836,8 +4895,7 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
     """A request started by the old realm cannot apply a later response in the new one."""
     version_url = serve(LIVE_V1)
     page = open_page(browser, live_url(version_url))
-    page.locator(".lf-threads-toggle").click()
-    general = page.locator(".lf-general leaf-text")
+    general = page_comment(page)
     write(general, "Do not replace the page under these words.")
 
     # Let the page learn that the second revision exists before holding a read. The
@@ -4877,10 +4935,11 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
         # The chip's own read remains independent of the background read held above. It
         # moves the page to the second revision, then the third revision is written
         # before the held request is released.
-        banner_control(page, ".lf-latest-chip").click()
+        # Opening More to reach the chip puts the card away, keeping its words.
+        chip = banner_control(page, ".lf-latest-chip")
+        chip.click()
         expect(page).to_have_title("Live second")
-        general.focus()
-        expect(general).to_be_focused()
+        page_comment(page)
         (serve.page_dir / "index.html").write_text(LIVE_V3)
 
         # The premise of the whole reading arrangement, stated rather than inferred: a read the
@@ -9032,6 +9091,90 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     expect(page.locator("#ledger-cargo").get_by_role("textbox")).to_have_js_property(
         "value", provided
     )
+
+
+@pytest.mark.parametrize(
+    ("markup", "path", "leaf_id"),
+    [
+        (
+            COMMAND_HUB_PAGE,
+            [
+                "One clean shadow week",
+                "Replace the XML parser",
+                "Declarations and entities",
+                "CDATA edge cases",
+            ],
+            "parser-cdata",
+        ),
+        (
+            REPORT_PAGE,
+            ["Tasks", "Rebuild the feeders", "Fit squirrel baffles"],
+            "t-parser",
+        ),
+    ],
+)
+def test_task_hierarchy_is_accessible_through_reports_and_revisions(
+    browser, serve, markup, path, leaf_id
+):
+    """The listening reader gets the same parents as the visible task nesting.
+
+    Read Chrome's native accessibility tree: Playwright's DOM-based name calculator
+    does not yet read ariaLabelledByElements, although Chrome exposes those names to
+    assistive technology. A report repaints row metadata; a revision changes titles.
+    Neither may flatten the groups or retain the previous title as their name.
+    """
+    page = open_page(browser, live_url(serve(markup)))
+    session = page.context.new_cdp_session(page)
+
+    def hierarchy(expected):
+        nodes = session.send("Accessibility.getFullAXTree")["nodes"]
+        by_id = {node["nodeId"]: node for node in nodes}
+        groups = {
+            node.get("name", {}).get("value"): node
+            for node in nodes
+            if node.get("role", {}).get("value") == "group"
+        }
+        assert all(name in groups for name in expected), groups.keys()
+        for parent, child in pairwise(expected):
+            ancestor = by_id[groups[child]["parentId"]]
+            while ancestor.get("role", {}).get("value") != "group":
+                ancestor = by_id[ancestor["parentId"]]
+            assert ancestor["nodeId"] == groups[parent]["nodeId"]
+        return groups
+
+    hierarchy(path)
+    sent = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "report", str(serve.page_dir), leaf_id, "status", "value=done"],
+    )
+    assert sent.exit_code == 0, sent.output
+    told(page)
+    leaf = page.locator(f"#{leaf_id}")
+    expect(leaf).to_have_attribute("status", "done")
+    hierarchy(path)
+    assert "done" in leaf.aria_snapshot()
+
+    # Naming references the title node, so a revision's replacement title is what
+    # the group says. The command root also reads its current label after patching.
+    changed = markup.replace(path[-1], "Verify the final corpus")
+    changed_path = [*path[:-1], "Verify the final corpus"]
+    if markup == COMMAND_HUB_PAGE:
+        changed = changed.replace(path[0], "Ready for the shadow week")
+        changed_path[0] = "Ready for the shadow week"
+    stamp_page(serve.page_dir, changed, "Clarify the plan's current titles")
+    wait_for_revision(page, 2)
+    groups = hierarchy(changed_path)
+    assert path[-1] not in groups
+    if markup == COMMAND_HUB_PAGE:
+        assert path[0] not in groups
+        # The richer projection remains a native control inside its goal group.
+        crew = page.locator("#goal-parser > .lf-task-meta").get_by_role(
+            "button", name="1 worker"
+        )
+        crew.click()
+        expect(crew).to_have_attribute("aria-expanded", "true")
+        expect(page.locator("#w-1")).to_be_visible()
+        hierarchy(changed_path)
 
 
 def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, serve):

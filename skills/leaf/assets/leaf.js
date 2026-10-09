@@ -178,7 +178,6 @@ import {
   bottomStatusEl,
 } from "./runtime/keyboard/shortcut-bar.js";
 import {
-  focused,
   paintKeys,
   reflectFirstScopes,
   reflectKeys,
@@ -199,6 +198,7 @@ import {
   focusDestination,
   releaseFocus,
   tabStops,
+  focused,
 } from "./runtime/focus.js";
 import { announce, liveEl, notice } from "./runtime/notifications.js";
 import { mediaViewer } from "./runtime/media.js";
@@ -394,7 +394,6 @@ landing = createThreadLanding({
   threadsBox,
   setPanel: (...args) => threadPanelController.setPanel(...args),
   revealThread: narrowing.revealThread,
-  cardTarget: (thread) => app?.overlay?.cardTarget(thread),
 });
 declareThreadKeys(landing.landIn, narrowing);
 const anchorControls = createAnchorControls({
@@ -433,6 +432,7 @@ const inputs = createCompositionInputs({
 });
 
 app = mountApplication({
+  arriveAtQueueItem: (item) => queueWalk.arriveAtItem(item),
   panel,
   firstUnreadBtn: panelElements.firstUnreadBtn,
   accompaniedThread: (...args) => landing.accompaniedThread(...args),
@@ -562,18 +562,16 @@ pageMapDialog = createPageMapDialog({
 
 // Ask view is constructed below by its owner factory; all accesses above are inert closures.
 asks = createAskView({
-  panelIsOpen,
   focusForNavigation,
   presentedControl: app.overlay?.presentedControl,
-  setPanel: (...args) => threadPanelController.setPanel(...args),
   prepareTrip: anchorTravel.prepareTrip,
   arrive: anchorTravel.arrive,
-  refreshThread: () => app.refreshThread(),
-  revealThread: (id) => narrowing.revealThread(id),
+  openPageThread: app.threadDestinations.openPageThread,
   announce,
   repaint,
 });
 const queueWalk = createQueueWalk({
+  actions: app.queueActions,
   arriveAtAsk: asks.arriveAtAsk,
   arriveAtThread: navigation.arriveAtThread,
   threadHere: () => app.threadDestinations.threadHere(),
@@ -582,11 +580,9 @@ const queueWalk = createQueueWalk({
   arrive: anchorTravel.arrive,
   readableDestination: anchorTravel.readableDestination,
   announce,
-  post: (event) => app.post(event),
 });
 const queue = createQueuePanel({
-  arriveAtItem: queueWalk.arriveAtItem,
-  endTask: queueWalk.endTask,
+  actions: app.queueActions,
   next: queueWalk.next,
   announce,
 });
@@ -610,12 +606,9 @@ panelKeys = createThreadPanelKeys({
 });
 pageComment = createPageComment({
   wireInput: inputs.wireInput,
-  createPageComment: app.createPageComment,
+  createPageComment: (command) => app.threadActions.create(command)?.delivery ?? null,
   designModeActive: designMode.active,
   panelIsOpen,
-  setPanel: (...args) => threadPanelController.setPanel(...args),
-  panelBox: panelElements.generalInput,
-  panelSend: panelElements.generalSend,
   showThread: landing.showThread,
   threadsToggle: toggleBtn,
 });
@@ -637,7 +630,8 @@ selectionComposer = createSelectionComposer({
   endFabFocus: (...args) => responseSurface.endFabFocus(...args),
   landFabFocus: (...args) => responseSurface.landFabFocus(...args),
   showFab: (...args) => responseSurface.showFab(...args),
-  createComment: app.createComment,
+  letGoOfFab: () => responseSurface.letGoOfFab(),
+  createComment: (command) => app.threadActions.create(command)?.delivery ?? null,
   landSent: landing.landSent,
   refreshThread: app.refreshThread,
   wireInput: inputs.wireInput,
@@ -773,7 +767,6 @@ threadPanelController = createThreadPanelController({
     pageComment.close();
     app.overlay?.closePreview(...args);
   },
-  syncGeneral: pageComment.sync,
 });
 // The sample host binds to this child's owners, rather than importing another
 // window's runtime. This capability is ready before the child presents.

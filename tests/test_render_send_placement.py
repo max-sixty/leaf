@@ -393,9 +393,10 @@ def sent(browser, serve, name, shots):
             else rect["top"] - block["bottom"]
         )
         if gap < 0:
+            # Typing never scrolls the page to make room, so a box that outgrew the
+            # room shown on its side slid over the block only as far as the window's
+            # edge required.
             limits = (block, rect, phone_room)
-            required = block["bottom"] - block["top"] + rect["bottom"] - rect["top"]
-            assert required + phone_room["gap"] > phone_room["height"], limits
             edge = "top" if side == "above" else "bottom"
             assert rect[edge] == pytest.approx(phone_room[edge], abs=0.75), limits
         else:
@@ -574,7 +575,11 @@ def test_a_multiline_passage_attaches_to_its_first_words_through_focus_reflow_an
     expect(card).to_have_css("opacity", "1")
     after = attached(".lf-margin-preview")
     assert after["left"] == pytest.approx(before["left"], abs=1)
+    expect(card.locator(".lf-page-thread")).to_be_focused()
+    # Leave the card for its passage, then dismiss it before reopening.
     page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(card).to_be_hidden()
     page.locator(".lf-margin-marker").click()
     expect(card).to_have_css("opacity", "1")
     attached(".lf-margin-preview")
@@ -611,7 +616,10 @@ def test_a_right_edge_passage_reopens_a_usable_card_without_moving_typing(
     assert after["left"] == pytest.approx(before["left"], abs=1)
     page.keyboard.press("Enter")
     expect(page.locator(".lf-margin-preview")).to_have_css("opacity", "1")
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
     page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
     page.locator(".lf-margin-marker").click()
     rendered(page)
     card = page.evaluate(RECT, ".lf-margin-preview")
@@ -780,8 +788,10 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
             )
         select(page, (box["x"] + 2, box["y"] + 10), (box["x"] + 150, box["y"] + 10))
         page.locator(".lf-fab-input").click()
+    # Short enough to fit the room shown beside the passage: typing never scrolls a
+    # region to make more, so a longer draft would slide over the passage instead.
     field = page.locator(".lf-fab-input")
-    words = "Keep these words while the page leaves. " * 6
+    words = "Keep these words while the page leaves. " * 2
     write(field, words)
     expect(field).to_have_js_property("value", words)
     rendered(page)
@@ -1059,7 +1069,10 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
         rendered(page)
         surface = page.locator(".lf-margin-preview:visible")
         if consumer == "reopened":
+            expect(surface.locator(".lf-page-thread")).to_be_focused()
             page.keyboard.press("Escape")
+            page.keyboard.press("Escape")
+            expect(page.locator(".lf-margin-preview")).to_be_hidden()
             page.locator(".lf-margin-marker").click()
             rendered(page)
     else:

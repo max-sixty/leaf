@@ -20,7 +20,7 @@ import { buttonCommand, commandScope, projectCommandScope } from "./scopes.js";
 import { coveringAuxiliarySurface } from "./register.js";
 import { keyBadgePlacement } from "./key-badge-placement.js";
 import { chipSeats } from "./chip-seats.js";
-import { renderedParent, under } from "../shadow.js";
+import { renderedParent, renderedUnder } from "../shadow.js";
 import { el } from "../widget-elements.js";
 import { keepsText } from "../keeps.js";
 import { repaint } from "../repaint.js";
@@ -150,7 +150,9 @@ export function createCommandHints({ presentedControl }) {
     ].every(([atX, atY]) => {
       const stack = root.elementsFromPoint(atX, atY);
       const at = stack.indexOf(bindingBadge);
-      return at >= 0 && stack.slice(0, at).every((over) => under(over, control));
+      return (
+        at >= 0 && stack.slice(0, at).every((over) => renderedUnder(over, control))
+      );
     });
   }
   // Restore the widget's original words and inline properties when the hint leaves.
@@ -227,7 +229,7 @@ export function createCommandHints({ presentedControl }) {
     // claim to label. What a surface standing over the page hides is shownRect's to say,
     // which the placement below reads.
     const covering = coveringAuxiliarySurface();
-    const covered = (control) => covering && !under(control, covering);
+    const covered = (control) => covering && !renderedUnder(control, covering);
     const placement = keyBadgePlacement();
     const bindingBadgeClaims = new Map();
     for (const { bindingBadge } of visualRoutes)

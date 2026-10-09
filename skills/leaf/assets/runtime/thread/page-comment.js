@@ -1,38 +1,38 @@
-/* Comment on the page: the one owner of where a page thread is started.
+/* Comment on the page: the one place a page thread is started.
 
-   A comment on the page has two boxes: Threads' general box, and the page comment card
-   the banner's Comment on the page control hangs from its own foot, its top edge on the
-   banner's and its right edge on the control's where that fits the window, moving
-   only far enough to remain inside the window otherwise. The editor takes the room
-   beneath the banner, and the card scrolls if its minimum controls exhaust it.
-   They are one destination: while Threads
-   is open its box stands right there, so the control, `c` with nothing to comment on,
-   and Resume writing go to that box; otherwise all three open the card. Both boxes are
-   wired here, with one hint, one draft (`general`), and one send, so the two never
-   differ in what they say or post. In Design mode both comment on the design.
+   The banner's Comment on the page control hangs the page comment card from its own
+   foot, its top edge on the banner's and its right edge on the control's where that fits
+   the window, moving only far enough to remain inside the window otherwise. The editor
+   takes the room beneath the banner, and the card scrolls if its minimum controls
+   exhaust it. The control, `c` with nothing to comment on, and Resume writing all open
+   it, and it holds the page's one general box, with its draft (`general`). Threads has
+   no box of its own: it is where a thread lives once started, not where one starts, and
+   the card hangs over it when it is open. In Design mode the box comments on the design.
 
-   The card is for starting a thread and nothing after. A send puts it away and flashes
-   Threads, where the new thread now lives, without opening the panel; the Threads count
-   rising is the rest of that answer. A refused send opens the card again on the words
-   the refusal handed back. Threads' own box keeps the user in it after a send, and its
-   thread is revealed in the list.
+   The card starts page threads; their conversations live in Threads. A send leaves
+   focus on the open card and flashes Threads without opening the panel; its count
+   rises for the new thread, and an open panel reveals the thread in its list. `c`
+   enters the card's box again. A refused send returns to the editor only while the
+   user still stands on the card. The box keeps the room its words took until the user
+   writes in it again or puts the card away: a send leaves Send under the press, and words
+   a refusal hands back return to the room they left, so neither moves the card's controls
+   without the user's gesture. A revision arriving while the user writes in the card
+   opens it again through its Resume writing route (drafts.js).
 
    The card is an auto popover, so a press outside puts it away. Escape is its own row in
    the register, so the shortcut line says whether the words stay. Either way focus goes
    back to where the card was opened from: the control, or, for a key such as `c` that
    opens it from the page, the control too, since the key runs the control's press
    (keyboard/dispatch.js). On a phone the control stands behind More in its words, and
-   the card spans the window under the banner. */
+   the card spans the window under the banner. The box stands and takes words from the
+   first paint: the offline banner says a comment will not send, not that there is
+   nowhere to write it. */
 import { el } from "../widget-elements.js";
 import { iconElement } from "../icons.js";
 import { textField } from "../composing/text-field.js";
-import {
-  loadDraft,
-  mirrorDraft,
-  saveDraft,
-  sendMessage,
-  tellDraft,
-} from "../drafts.js";
+import { focusDestination } from "../focus.js";
+import { retainUserIntent } from "../user-intent.js";
+import { loadDraft, mirrorDraft, saveDraft, sendMessage } from "../drafts.js";
 import { FLASH_MS, backgroundFlash } from "../motion.js";
 import { keys } from "../keyboard/scopes.js";
 import { commandShortcut } from "../keyboard/control-keys.js";
@@ -44,7 +44,6 @@ import {
   dismissBannerControls,
   registerBannerControl,
 } from "../banner-toolbar.js";
-import { focusDestination } from "../focus.js";
 
 const NAME = "Comment on the page";
 
@@ -53,9 +52,6 @@ export function createPageComment({
   createPageComment,
   designModeActive,
   panelIsOpen,
-  setPanel,
-  panelBox,
-  panelSend,
   showThread,
   threadsToggle,
 }) {
@@ -73,11 +69,12 @@ export function createPageComment({
   card.setAttribute("popover", "auto");
   card.setAttribute("role", "dialog");
   card.setAttribute("aria-label", NAME);
+  card.tabIndex = -1;
 
   const input = textField();
   input.name = "comment";
   const send = el("button", "lf-btn", "Send");
-  const composer = el("div", "lf-page-composer");
+  const composer = el("div", "lf-general");
   composer.append(input, send);
   card.append(composer);
 
@@ -99,10 +96,6 @@ export function createPageComment({
     keeps(control, "aria-expanded", String(event.newState === "open")),
   );
 
-  const openPanelBox = () => {
-    setPanel(true);
-    focusDestination(panelBox, "move");
-  };
   // The control's press is the same `open` as `c`, or a second press putting the card
   // away; opened with the control as its source, the card does not count a press on the
   // control as one outside it.
@@ -117,7 +110,7 @@ export function createPageComment({
     seat: { desk: "row", phone: "menu" },
   });
 
-  function showCard() {
+  function open() {
     // More comes down first, whichever route opens the card, so the card is never More's
     // child that closing More would take with it.
     dismissBannerControls();
@@ -133,38 +126,20 @@ export function createPageComment({
     // after the press belong in the box, not to the control or the page's keys.
     focusDestination(input, "move");
   }
-  // With Threads open, Comment on the page is the panel's own box.
-  function open() {
-    if (panelIsOpen()) openPanelBox();
-    else showCard();
-  }
 
-  // Each box sends the same event and differs only in where its sender is left.
-  const wireBox = (box, sendBtn, sent) =>
-    wireInput(box, {
-      hint,
-      accessibleName: hint,
-      sends: "send",
-      sendBtn,
-      // localStorage tells other tabs and skips this document, and the page's draft has
-      // two views here, so they take the same bus directly, as reply boxes do
-      // (replies.js).
-      save: (text) => {
-        saveDraft("general", text);
-        tellDraft("general", text);
-      },
-      send: async (_text, raw, owns) => {
-        let flight = null;
-        const handle = await sendMessage("general", owns, (attempt) => {
-          const event = { attempt, text: raw };
-          if (designModeActive()) event.about = "design";
-          return (flight = createPageComment(event));
-        });
-        if (handle) sent(handle, flight);
-      },
-    });
+  // The room a sent draft took: the field's until the user writes again, and its
+  // attachments' above the field until the card goes (chrome.css, `.lf-general`).
+  const release = (...names) => {
+    for (const name of names)
+      if (composer.style.getPropertyValue(name)) composer.style.removeProperty(name);
+  };
+  input.addEventListener("input", () => release("--lf-held-field", "--lf-held-grow"));
+  card.addEventListener("toggle", (event) => {
+    if (event.newState === "closed")
+      release("--lf-held-field", "--lf-held-grow", "--lf-held-gap");
+  });
 
-  const syncs = [];
+  let sync = () => {};
   const stops = [];
   function mount(chromeRoot) {
     chromeRoot.append(card);
@@ -176,37 +151,46 @@ export function createPageComment({
     // Not a `control` on the `c` row: that row answers for every destination, and a
     // control it named would make it wait on this one.
     control.title = `${NAME} (${commandShortcut("comment.create")})`;
-    for (const box of [panelBox, input]) box.value = loadDraft("general") ?? "";
-    syncs.push(
-      // The message renderer cues the send; revealing its thread only lands it.
-      wireBox(panelBox, panelSend, (handle) =>
-        showThread(handle.id, { focus: false, flash: false }),
-      ),
-      wireBox(input, send, (_handle, flight) => {
-        card.hidePopover();
-        backgroundFlash(threadsToggle, FLASH_MS);
-        // A refusal can come long after the send, while delivery retries. The card opens
-        // again on the words only where the user still stands where the send left them;
-        // anywhere else it would take their keys, and the words wait in the draft for
-        // the control, `c` or Resume writing.
-        void Promise.resolve(flight).then((accepted) => {
-          const still = [control, document.body, null].includes(document.activeElement);
-          if (!accepted && still && !panelIsOpen()) showCard();
+    input.value = loadDraft("general") ?? "";
+    sync = wireInput(input, {
+      hint,
+      accessibleName: hint,
+      sends: "send",
+      sendBtn: send,
+      save: (text) => saveDraft("general", text),
+      send: async (_text, raw, owns) => {
+        const top = composer.getBoundingClientRect().top;
+        const field = input.closest(".lf-compose-field")?.getBoundingClientRect();
+        if (field?.height) {
+          composer.style.setProperty("--lf-held-gap", `${field.top - top}px`);
+          composer.style.setProperty("--lf-held-field", `${field.height}px`);
+          composer.style.setProperty("--lf-held-grow", "0");
+        }
+        let flight = null;
+        const handle = await sendMessage("general", owns, (attempt) => {
+          const event = { attempt, text: raw };
+          if (designModeActive()) event.about = "design";
+          return (flight = createPageComment(event));
         });
-      }),
-    );
-    for (const sync of syncs) sync();
+        if (!handle) return;
+        focusDestination(card, "return");
+        const mayRestore = retainUserIntent({ source: card, available: cardIsOpen });
+        // Open, Threads shows the thread where it lands, as it does an anchored comment's
+        // (composing/selection.js); the user stays on the card.
+        if (panelIsOpen()) void showThread(handle.id, { focus: false, flash: false });
+        backgroundFlash(threadsToggle, FLASH_MS);
+        // Delivery may refuse long after Send. Restore text entry only while the user
+        // still stands on the card; a later gesture owns its focus and disclosure.
+        void Promise.resolve(flight).then((accepted) => {
+          if (!accepted && document.activeElement === card && mayRestore())
+            mayRestore.handoff(open);
+        });
+      },
+    });
+    sync();
     stops.push(
-      mirrorDraft(panelBox, syncs[0], "general"),
-      mirrorDraft(input, syncs[1], "general", {
-        resume: () =>
-          panelIsOpen()
-            ? { where: panelBox, input: () => panelBox, open: () => setPanel(true) }
-            : {
-                where: input,
-                input: () => input,
-                open: showCard,
-              },
+      mirrorDraft(input, sync, "general", {
+        resume: () => ({ where: input, input: () => input, open }),
       }),
     );
   }
@@ -215,12 +199,10 @@ export function createPageComment({
     control,
     open,
     close: () => cardIsOpen() && card.hidePopover(),
-    // The box Comment on the page writes in now, which carries `c`'s hint.
-    box: () => (panelIsOpen() ? panelBox : input),
-    // Both boxes restate their hint and Send state (Design mode, a restored draft).
-    sync: () => {
-      for (const sync of syncs) sync();
-    },
+    // The box `c` names when there is nothing else to comment on.
+    box: input,
+    // The box restates its hint and Send state when Design mode changes.
+    sync: () => sync(),
     mount,
     dispose: () => {
       for (const stop of stops) stop();

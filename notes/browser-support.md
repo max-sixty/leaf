@@ -21,7 +21,52 @@ gesture are functional failures and need a fix or an explicit support decision.
 An unsupported API alone does not justify blocking the whole browser: record
 what fails and what still works.
 
+## Supported APIs checked
+
+### Task group names
+
+- **Owner:** `lf-task.js` in the Command Hub package. `ariaLabelledByElements`
+  names each task group from its own visible title without adding identifiers or
+  copying the title into a second label.
+- **Compatibility checked 2026-10-08:** Chrome/Edge 135+, Firefox 136+, and
+  Safari/iOS Safari 16.4+, according to
+  [MDN's compatibility data](https://github.com/mdn/browser-compat-data/blob/main/api/Element.json).
+  The property is defined by
+  [WAI-ARIA's element-reference reflection](https://w3c.github.io/aria/#dom-ariamixin-arialabelledbyelements).
+- **Observed:** Chrome 155's native accessibility tree exposes the task names
+  and nested group ancestry, including after reports and title revisions.
+  Playwright's DOM-based `aria_snapshot` omits names supplied by this property;
+  `test_task_hierarchy_is_accessible_through_reports_and_revisions` therefore
+  reads Chrome's native accessibility tree. This is a test-tool limitation,
+  rather than an observed browser support gap.
+
 ## Known gaps
+
+### Frame margin trimming
+
+- **Disposition: shared CSS retained.** Leaf trims a frame's content edges through
+  bare wrappers, skips generated apparatus, and stops at a declared row boundary.
+  Native `margin-trim` cannot replace that mechanism across the checked engines.
+- **Owner:** frame-edge rules in
+  [`theme.css`](../skills/leaf/assets/theme.css), with readings in
+  [`framing.js`](../skills/leaf/scripts/leaf/render-checks/framing.js).
+- **Observed, 2026-10-08:** installed Chrome 155 and Playwright WebKit 26.6 accept
+  `margin-trim: block`; Playwright Chromium 153.0.8010.12 and Firefox 155 do not.
+  Chrome 155 trims block-flow margins but leaves flex and grid item margins intact.
+  A zero-height generated child in flow can also prevent it from trimming the
+  authored paragraph at the frame's edge. Leaf's shared rules keep the same edge
+  policy in those cases. The [CSS Box draft](https://drafts.csswg.org/css-box-4/#margin-trim)
+  defines native trimming for block containers.
+- **Recheck:** the installed Chrome reading is available through:
+
+  ```sh
+  uv run leaf-dev probe developer/feature-gallery \
+    --js '({browser:navigator.userAgent, marginTrim:CSS.supports("margin-trim", "block")})'
+  ```
+
+  The browser tests `test_frame_edges_pass_through_whatever_stands_at_them` and
+  `test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it` hold the required
+  wrapper and row behavior. Parser support alone does not establish it.
 
 ### State-preserving content reordering (review #22)
 

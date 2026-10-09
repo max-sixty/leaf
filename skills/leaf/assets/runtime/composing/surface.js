@@ -68,14 +68,7 @@ import {
   targetSegments,
   targetRange,
 } from "../resolved-target.js";
-import {
-  composer,
-  composerOpen,
-  fab,
-  fabBar,
-  fabInput,
-  fabOptions,
-} from "./selection.js";
+import { composerOpen, fab, fabBar, fabInput } from "./selection.js";
 
 import {
   closeCommandReference,
@@ -114,12 +107,15 @@ import {
   drawn,
   handBack,
   holdFocus,
+  layerLanding,
   letGo,
   takesLetters,
   focusDestination,
+  focused,
+  closeLayer,
 } from "../focus.js";
-import { commandScope, focused, projectCommandScope } from "../keyboard/scopes.js";
-import { shadowHost, under } from "../shadow.js";
+import { commandScope, projectCommandScope } from "../keyboard/scopes.js";
+import { shadowHost, under, upFrom } from "../shadow.js";
 import { nativeLayers } from "../keyboard/layer-stack.js";
 import { heldAsk } from "../standing-target.js";
 
@@ -234,8 +230,7 @@ export function createResponseSurface({
     // judged, not the editor moved into it, which measures no width until the outlet
     // renders it; a boxless outlet is judged by the box that lays out what it holds.
     let seat = outlet;
-    while (seat && !(seat.getBoundingClientRect().width > 0))
-      seat = seat.parentElement ?? seat.getRootNode().host;
+    while (seat && !(seat.getBoundingClientRect().width > 0)) seat = upFrom(seat);
     if (seat && underOccluder(seat)) return false;
     // Admit the actual editor after its native move: an empty or display:contents
     // outlet has no visibility of its own. A rejected nomination leaves the previous
@@ -320,7 +315,7 @@ export function createResponseSurface({
     fabAnchor?.quote ? null : standingPoint(target, fabPoint);
   const placement =
     createPlacement?.({
-      nodes: { bar: fabBar, input: fabInput, composer, options: fabOptions },
+      bar: fabBar,
       response: {
         get anchor() {
           return fabAnchor;
@@ -342,7 +337,7 @@ export function createResponseSurface({
       panelIsOpen,
       threadsBox,
       positioned: answerFabPosition,
-      dismiss: () => showFab(null, { returnFocus: "page" }),
+      dismiss: () => letGoOfFab(),
       standsIn,
       scrollToElement,
       scrollToRange,
@@ -354,16 +349,35 @@ export function createResponseSurface({
   // A quoted selection clears to the page; a removed subject has no parent to land on.
   const returnPlaces = (anchor) =>
     anchor && !anchor.quote ? [visualActionAnchor(anchor), anchorTargetAt(anchor)] : [];
-  function showFab(
-    anchor,
-    { returnFocus = "target", place = true, point = undefined } = {},
-  ) {
+  // Putting the bar away is closing a layer (focus.js, `closeLayer`): `showFab(null)`
+  // moves no focus, and the closer names where a user who stood in the bar lands, read
+  // before it goes. `putAwayFab` hands them back to the bar's subject; `letGoOfFab` lets
+  // them go onto the page, from the bar or from that subject. Either goes to Threads
+  // instead where the bar stood in a panel it no longer fits beside.
+  function landingFromBar(toPage) {
+    const leavingBar = fabBar.contains(fabFocused());
+    const toPanel = leavingBar && panelIsOpen() && !(placement?.fits() ?? true);
+    const places = leavingBar || toPage ? returnPlaces(fabAnchor) : [];
+    return layerLanding(() => {
+      if (toPanel) focusDestination(threadsBox, "return");
+      // The shared return tests each representative: a hidden or rebuilt proxy cannot
+      // skip a subject that still takes focus. If none remains, it lands on the page.
+      else if (leavingBar && !toPage) handBack(...places);
+      else if (leavingBar || (toPage && places.includes(document.activeElement)))
+        letGo();
+    });
+  }
+  function putAwayFab() {
+    const land = landingFromBar(false);
+    closeLayer(() => showFab(null), land);
+  }
+  function letGoOfFab() {
+    const land = landingFromBar(true);
+    closeLayer(() => showFab(null), land);
+  }
+  function showFab(anchor, { place = true, point = undefined } = {}) {
     const previous = fabAnchor;
     const previousFloating = usesPlacement;
-    const leavingBar = !anchor && fabBar.contains(fabFocused());
-    const returnToPanel = leavingBar && panelIsOpen() && !(placement?.fits() ?? true);
-    const returnTargets =
-      leavingBar || (!anchor && returnFocus === "page") ? returnPlaces(previous) : [];
     const keptInline = Boolean(
       fabInlineOutlet?.isConnected &&
       anchor &&
@@ -441,23 +455,12 @@ export function createResponseSurface({
       dismissThreadView();
     if (!sameAnchor(previous, fabAnchor)) refreshThread();
     repaint(); // the c row names this anchor, so the line is one more rendering of it
-    if (!fabAnchor && returnFocus !== "none") {
-      if (returnToPanel) focusDestination(threadsBox, "return");
-      // The shared return tests each representative: a hidden or rebuilt proxy cannot
-      // skip a subject that still takes focus. If none remains, it lands on the page.
-      else if (leavingBar && returnFocus === "target") handBack(...returnTargets);
-      else if (
-        leavingBar ||
-        (returnFocus === "page" && returnTargets.includes(document.activeElement))
-      )
-        letGo();
-    }
   }
   let dismissedSelectionKeyup = false;
   function dismissFab() {
     dismissedSelectionKeyup = Boolean(pageSelection() || fabAnchor?.quote);
     pageSelection()?.removeAllRanges();
-    showFab(null);
+    putAwayFab();
   }
   function refreshFab() {
     if (!fabAnchor || !usesPlacement) return;
@@ -474,7 +477,7 @@ export function createResponseSurface({
   // placement that finds room stands it again.
   function standFab() {
     if (!anchorStands(fabAnchor)) {
-      showFab(null, { returnFocus: "page" });
+      letGoOfFab();
       return false;
     }
     if (!placement || placement.place()) return true;
@@ -606,7 +609,7 @@ export function createResponseSurface({
   function updateFab() {
     if (!anchoringIsReady()) {
       offerSelection(null);
-      showFab(null);
+      putAwayFab();
       return;
     }
     const sel = pageSelection();
@@ -634,7 +637,7 @@ export function createResponseSurface({
       // and the native context menu. An explicit Comment press uses the same field and
       // focuses it through focusFabComment below.
       openComment(anchor, "", { focus: false });
-    } else if (fabAnchor?.quote && !fabHoldsCapturedPassage()) showFab(null);
+    } else if (fabAnchor?.quote && !fabHoldsCapturedPassage()) putAwayFab();
   }
   // Where the pointer stopped is not the question; where the selection is, is. The guard
   // exists so a mouseup inside the runtime's layer — a click in the panel, the composer —
@@ -892,7 +895,7 @@ export function createResponseSurface({
       !reactionContextContains(target)
     ) {
       if (composerOpen) hideComposer();
-      showFab(null, { returnFocus: "page" });
+      letGoOfFab();
       // The armed react press goes with the bar it was armed on.
       setReact(false);
     }
@@ -1055,7 +1058,7 @@ export function createResponseSurface({
           // A drag that crossed out before it covered anything has no passage to offer and
           // no words to put back. The browser's own selection stays where it is — the user
           // can still copy it — and the response surface says nothing about it.
-          showFab(null);
+          putAwayFab();
           return;
         }
         if (ev.button === 0) snapSelection();
@@ -1254,14 +1257,9 @@ export function createResponseSurface({
         box: fabInput,
         go: () => commentOnTarget(here),
       };
-    // The banner's Comment on the page goes to the same box: the card it hangs from
-    // itself, or Threads' general box while Threads is open
+    // The banner's Comment on the page goes to the same box: the card it hangs
     // (thread/page-comment.js).
-    return {
-      ...commenting("page"),
-      box: pageComment.box(),
-      go: pageComment.open,
-    };
+    return { ...commenting("page"), box: pageComment.box, go: pageComment.open };
   }
 
   // The destination's box is the identity chrome uses to place a contextual binding badge,
@@ -1275,11 +1273,11 @@ export function createResponseSurface({
   // c goes where commenting happens: a live selection gets the composer (what the floating
   // button does), an element click's pending 💬 gets that, an open thread the user is
   // standing in gets its own reply box, the item they are standing in gets the box
-  // belonging to it, and otherwise the page's general box: the card under the banner's
-  // Comment on the page, or Threads' own box while Threads is open. c names and focuses
-  // the box directly; g T independently names the list. Never the panel's
-  // collapse: c doubled as the toggle once, so with the panel standing open the key that
-  // promised “comment” answered “close”. Backing out is whatever the box is standing in.
+  // belonging to it, and otherwise the page's general box, in the card under the banner's
+  // Comment on the page. c names and focuses the box directly; g T independently names
+  // the list. Never the panel's collapse: c doubled as the toggle once, so with the panel
+  // standing open the key that promised “comment” answered “close”. Backing out is
+  // whatever the box is standing in.
   //
   // Standing outranks the page; a live selection or a newly captured target outranks
   // standing. The draft stored on an earlier target supplies words, not that priority.
@@ -1369,6 +1367,8 @@ export function createResponseSurface({
     landFabFocus,
     anchorStands,
     showFab,
+    putAwayFab,
+    letGoOfFab,
     dismissFab,
     refreshFab,
     anchorTargetAt,

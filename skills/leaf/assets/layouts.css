@@ -4,6 +4,16 @@
  * resets what the base and widgets set on the boxes it arranges, and a page adjusts a
  * Layout with ordinary rules or writes its own; nothing reads a Layout back. The layer
  * merge appends this file after every package (layer.py, composed_sheets). */
+/* `--lf-full-height: 1` says a box was given a definite height for its children to fill.
+ * It does not inherit, so a style query, which asks the queried box's parent, holds only
+ * for a child of a box that says so: the workspace's `main` says it of its body, and a
+ * widget that fills the height it was given says it again for its own parts
+ * (`--lf-full-height: inherit`), as a playground does for its panes. A widget deeper in
+ * the body, in a section or a tab, is not told, and takes its content's height. */
+@property --lf-full-height {
+  syntax: "*";
+  inherits: false;
+}
 @layer lf-layouts {
   /* The pane role's grammar (theme.css, where its look and the rest of its contract
    * are): which row each child stands in, and a body held to the pane's width with no
@@ -118,6 +128,7 @@
     main.layout-column[data-lf-margin~="sidebar"] > aside.sidebar:nth-child(1 of aside.sidebar) {
       float: left; clear: left; position: sticky;
       top: calc(var(--lf-top-outer) + var(--sp-4)); --lf-top: 0px;
+      --lf-landing-room: 0px;
       width: calc(var(--sidebar) - var(--sp-4));
       max-height: calc(var(--lf-view-height) - 2 * var(--sp-4));
       overflow-y: auto;
@@ -368,9 +379,11 @@
    * bar: its header and footer take their content's height, the body takes the rest,
    * arranged as the body itself says: a page's grid of panes, a pane, or a widget that
    * composes its own regions. Each pane's body scrolls on its own, a widget's generated
-   * panes included, and `--lf-full-height` on main tells a widget the body has a definite
-   * height to fill (a style query). Where the window is too small to hold the regions, the
-   * workspace flows and the page scrolls.
+   * panes included, and `--lf-full-height` on main tells a widget that is the body it has
+   * a definite height to fill (a style query). A widget that fills it fits what it shows
+   * to that height, so the reader moves through the workspace rather than scrolling it.
+   * Where the window is too small to hold the regions, the workspace flows and the page
+   * scrolls.
    *
    * A pane is any element in the pane role (`data-lf-reading-role="pane"`, theme.css),
    * which delivery paints into the served document from the element's declaration, so
@@ -447,13 +460,15 @@
       min-block-size: 0;
       margin-block: 0;
     }
-    /* A page's grid of panes shares the body's height among its rows. Only that grid:
-     * a Layout sets the size of the box it arranges, and a widget that is the body lays
+    /* A page's grid of panes shares the body's height among its rows, so it gives each
+     * pane in it a definite height and says so (`--lf-full-height`). Only that grid: a
+     * Layout sets the size of the box it arranges, and a widget that is the body lays
      * out its own tracks, so a row rule written on every body held a side list's row to
      * the window and drew its rows over one another. */
     main.layout-workspace
       > :not(header, footer):has(> [data-lf-reading-role="pane"]:not([data-lf-generated])) {
       grid-auto-rows: minmax(0, 1fr);
+      --lf-full-height: 1;
     }
     /* The body takes the window's height to pass on to its panes. A pane it does not
      * pass the height to, one inside a section of the body, takes its content's height
@@ -470,30 +485,28 @@
       --lf-top: 0px;
     }
     /* A pane is already a grid of header, body and footer (theme.css), whose body row
-     * takes what a definite height leaves and its content's height otherwise; here it
-     * may shrink below its content, and scrolls. That holds for a pane something gives a
-     * height: an authored pane the workspace sizes, which is the body itself or a cell of
-     * it, and a generated pane at any depth, which its widget sizes. An authored pane
-     * inside a section of the body, or inside another pane's body, is content there and
-     * scrolls with what holds it. */
-    main.layout-workspace > [data-lf-reading-role="pane"],
-    main.layout-workspace > :not(header, footer) > [data-lf-reading-role="pane"],
-    main.layout-workspace [data-lf-reading-role="pane"][data-lf-generated] {
-      min-block-size: 0;
-    }
-    :is(main.layout-workspace > [data-lf-reading-role="pane"],
-      main.layout-workspace > :not(header, footer) > [data-lf-reading-role="pane"],
-      main.layout-workspace [data-lf-reading-role="pane"][data-lf-generated])
-      > :not(header, footer) {
-      min-block-size: 0;
-      overflow: auto;
-      /* A sticking box stops at its scroller's padding edge, so the body's own top
-       * inset is taken back to put the stop at the scrollport's top: the body's own
-       * start (`--lf-top-start`, theme.css). */
-      --lf-top-start: calc(-1 * var(--lf-pane-top, 0px));
-      --lf-top: var(--lf-top-start);
-      overscroll-behavior: contain;
-      scrollbar-gutter: stable;
+     * takes what a definite height leaves and its content's height otherwise. A pane told
+     * it has a definite height, by the box holding it (`--lf-full-height`: main for a
+     * pane that is the body, the body for a cell of its grid of panes, a widget for a
+     * pane it generates), may shrink below its content and scrolls its body. An authored
+     * pane inside a section of the body, or inside another pane's body, is not told, so
+     * it is content there and scrolls with what holds it. */
+    @container style(--lf-full-height: 1) {
+      [data-lf-reading-role="pane"] {
+        min-block-size: 0;
+        --lf-full-height: inherit;
+      }
+      [data-lf-reading-role="pane"] > :not(header, footer) {
+        min-block-size: 0;
+        overflow: auto;
+        /* A sticking box stops at its scroller's padding edge, so the body's own top
+         * inset is taken back to put the stop at the scrollport's top: the body's own
+         * start (`--lf-top-start`, theme.css). */
+        --lf-top-start: calc(-1 * var(--lf-pane-top, 0px));
+        --lf-top: var(--lf-top-start);
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
+      }
     }
   }
 }

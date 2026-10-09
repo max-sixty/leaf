@@ -227,6 +227,21 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    with it, the top of its ring cut off under the pane's header rule. At no weight, like
    the ring. */
 :where(:focus) { scroll-margin-block: var(--focus-ring-room); }
+/* A control in a sticky header stands where the header sticks, which a scroller's
+   landing band can count as covered: the root's band starts `--lf-landing-room` below
+   the banner, where a header sticks. The browser then scrolls toward the control on
+   every focus, and a stuck header never comes out from under the band, so each Tab
+   crept the page by the difference, and one standing wholly inside the band, a page
+   tab strip, was centred, 403px a key. A header says how far below the slot it sticks
+   against (`--lf-top`) its controls stand when stuck (`--lf-head-inset`), and the
+   margin takes the band's room back from that, so a focused control where its header
+   sticks is shown, and one revealed from elsewhere lands exactly there.
+   `--lf-landing-room` is the scroller's own: 12px on the root (theme.css), none where
+   a box that scrolls restarts the slot (state.css), and a list that pads its edge for the
+   ring says so (chrome.css). */
+:where(:focus) {
+  scroll-margin-top: calc(var(--lf-head-inset, calc(var(--focus-ring-room)
+    + var(--lf-landing-room, 0px))) - var(--lf-landing-room, 0px)); }
 [data-lf-offer]:where(:not([data-lf-offer=""])) { cursor: pointer; }
 [data-lf-offer]:where(:not([data-lf-offer=""])):hover:where(:not([aria-disabled="true"], :disabled)) {
   box-shadow: inset 0 0 0 100px color-mix(in srgb, var(--ink) 7%, transparent); }
@@ -371,6 +386,39 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-msg-head b { flex: 0 1 auto; min-width: 0; overflow: hidden;
           text-overflow: ellipsis; font-size: var(--lf-msg-name-size);
           font-weight: 600; color: var(--ink); }
+/* A checkpoint is agent-written reading context, followed by the retained originals
+   it covers. One disclosure beside that context controls the entire range. */
+.lf-thread-checkpoint { margin-block: 16px; }
+.lf-thread-checkpoint[hidden] { display: none; }
+/* The bracket joins the disclosure to exactly the messages it will hide. */
+.lf-thread-checkpoint[data-expanded="true"] { position: relative; }
+.lf-thread-checkpoint[data-expanded="true"]::before { content: ""; position: absolute;
+  inset-block: 4px; inset-inline-start: -10px; width: 6px;
+  border: 1px solid var(--muted-2); border-inline-end: 0; pointer-events: none; }
+.lf-summary-checkpoint { padding-block: 4px; }
+/* Keep the context label readable when the disclosure needs another line. */
+.lf-summary-header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.lf-summary-label { min-width: 0; overflow-wrap: anywhere; color: var(--muted); font: 500 11px/1.3 var(--sans); }
+.lf-summary-text { color: var(--ink-2); font-size: var(--t-5); line-height: 1.5;
+  overflow-wrap: anywhere; user-select: text; }
+.lf-summary-text > :first-child { margin-top: 0; }
+.lf-summary-text > :last-child { margin-bottom: 0; }
+.lf-summary-expand { min-height: var(--aim-floor); max-inline-size: 100%; flex-shrink: 0; border: 0;
+  padding: 4px 0; background: transparent; color: var(--accent); font: 600 11px/1.4 var(--sans);
+  cursor: pointer; }
+/* Progress belongs to the completing reply's metadata, with no summary row.
+   Flex wrapping keeps its complete label and hit target at narrow widths. */
+.lf-msg-head:has(> .lf-summary-expand) { flex-wrap: wrap; overflow: visible;
+  white-space: normal; row-gap: 0; }
+.lf-msg-head > .lf-summary-expand { padding-block: 0; }
+.lf-summary-expand:hover { text-decoration: underline; text-underline-offset: 3px; }
+.lf-summary-required { margin-top: 6px; color: var(--turn-ink); font: 600 11px/1.4 var(--sans); }
+.lf-summary-originals { min-width: 0; padding-inline-start: 12px; }
+.lf-summary-originals[hidden] { display: none; }
+.lf-summary-originals > .lf-msg { margin-block: 16px; }
+.lf-summary-expand:is(:focus-visible, .lf-focus-visible) {
+  outline: var(--focus-ring); --lf-focus-ring: summary-fold;
+  outline-offset: calc(-1 * var(--focus-ring-w)); }
 /* Held news and header words spend separate retained allocations. A receipt may
    change inside its metadata box, but cannot grow underneath the notice. */
 .lf-msg-head > .lf-held-header-item {

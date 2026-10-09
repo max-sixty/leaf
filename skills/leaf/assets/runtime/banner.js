@@ -29,8 +29,9 @@ import { watchProjection } from "./projection-watch.js";
 import { createBannerApprovalFace } from "./banner-approval.js";
 import { createBannerStatusView } from "./banner-status-view.js";
 import { declareBanner } from "./geometry.js";
-import { agentName, readApplication, watchSemantic } from "./semantic-state.js";
+import { agentName, watchSemantic } from "./semantic-state.js";
 import { taskNoun } from "./queues.js";
+import { readQueues } from "./queue-api.js";
 
 export const banner = el("header", "lf-ui lf-banner");
 banner.id = "lf-banner";
@@ -290,7 +291,7 @@ function queueKinds(items) {
   });
 }
 function queueWords() {
-  const { onYou, onAgent } = readApplication().effective.queues;
+  const { onYou, onAgent } = readQueues();
   const agent = agentName();
   const named = (items, whom) =>
     items.length ? `Waiting on ${whom}: ${queueKinds(items).join(", ")}.` : "";

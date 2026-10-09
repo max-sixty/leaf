@@ -55,9 +55,9 @@ import {
 import { followingItsEnd } from "./bounds.js";
 import { moveScrollerBy, pageScroller, scrollToEnd } from "./scrolling.js";
 import { renderedParent, under, upFrom } from "./shadow.js";
-import { recentPlaceInput, retainUserIntent } from "./user-intent.js";
+import { retainUserIntent } from "./user-intent.js";
+import { recentPlaceInput, focused } from "./focus.js";
 import { reveal } from "./widget-elements.js";
-import { focused } from "./keyboard/scopes.js";
 import { scrollIntoReadingBand } from "./landing-scroll.js";
 import { union } from "./rect.js";
 

@@ -41,7 +41,7 @@
    `agent` for the agent's own, `widget` for an Ask's, `reply` for a question's, and
    `done` for any other task on the user, which only their Done ends. `taskNoun` is what
    an item is called, read from it: an Ask, a question, otherwise its kind.
-   `endsByDone` is whether the user ends it with Done (`queue-walk.js`, `endTask`).
+   `endsByDone` is whether the user ends it with Done (`queue-api.js`, `done`).
 
    Experimental: the queues, the walk over them and the panel listing them are new, and
    their shape is expected to change a lot (notes/what-needs-you/). Change them freely.
@@ -50,6 +50,10 @@ import { awaitsUser } from "./thread/model.js";
 import { atWork } from "./thread/workflow.js";
 
 export const endsByDone = (item) => item.ends === "done";
+export const queueOffers = (item, ready, onYou) => ({
+  open: ready,
+  done: ready && onYou && item.kind === "task" && endsByDone(item),
+});
 
 const NOUNS = Object.freeze({ widget: "ask", reply: "question" });
 export const taskNoun = (item) =>

@@ -1298,11 +1298,24 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
 
 
 def test_trace_zoom_and_pan_stay_within_the_fitted_recording(browser, serve):
-    """Repeated buttons, wheel zoom and drags cannot lose a short recording."""
+    """An overview refits; zoom, pan and repeated controls keep the reader's range."""
     url = serve(ROOT / "examples/developer/playwright-trace-gallery.html")
-    user = open_page(browser, url)
+    context = browser.new_context(viewport={"width": 480, "height": 900})
+    user = open_page(browser, url, context=context)
     widget = user.locator("lf-trace")
     rail = widget.locator(".vis-panel.vis-center")
+
+    def moment_positions():
+        return widget.locator(".lf-trace-marker").evaluate_all(
+            "nodes => nodes.map(node => node.getBoundingClientRect().left)"
+        )
+
+    resized(user, 1120, 900)
+    first_overview = moment_positions()
+    assert len(first_overview) == 3
+    resized(user, 1200, 900)
+    resized(user, 1120, 900)
+    assert moment_positions() == pytest.approx(first_overview, abs=0.5)
 
     def visible_ticks():
         return widget.locator(".vis-text.vis-minor:not(.vis-measure)").evaluate_all(
@@ -1345,6 +1358,10 @@ def test_trace_zoom_and_pan_stay_within_the_fitted_recording(browser, serve):
             panned |= visible_ticks() != before_pan
             expect(widget.locator(".lf-trace-position")).to_have_text(selection)
         assert panned, "Detail dragging must pan without selecting another capture"
+        panned_ticks = visible_ticks()
+        resized(user, 1120 if width == 1440 else 480, 900)
+        resized(user, width, 900)
+        assert visible_ticks() == panned_ticks
 
         for _ in range(16):
             widget.get_by_role("button", name="Zoom out", exact=True).click()

@@ -2771,7 +2771,9 @@ def test_color_cues_fade_to_the_live_surface(request, serve, engine, target):
         expect(box).to_be_focused()
         write(box, "Review both choices.")
         page.keyboard.press("Enter")
-        expect(page.locator(".lf-page-comment-card")).not_to_be_visible()
+        card = page.locator(".lf-page-comment-card")
+        expect(card).to_be_visible()
+        expect(card).to_be_focused()
         cue_target = page.locator(".lf-threads-toggle")
     colours = cue_target.evaluate(
         """async node => {
@@ -14112,8 +14114,10 @@ def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser,
     with sending(page, "the composer shortcut"):
         page.keyboard.press("Enter")
     expect(composer).to_be_hidden()
-    # The send left the user on the element the new thread's card is about, and letting
-    # go of it takes the card down.
+    # The send left the user on the new thread's card. Leave it for its passage, then
+    # let go of both before opening the draft below.
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
+    page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
@@ -15876,13 +15880,15 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     expect(field).to_be_focused()
     page.keyboard.type("Sent with quick shortcuts off")
     page.keyboard.press("ControlOrMeta+Enter")
-    expect(field).to_be_hidden()
+    expect(page.locator(".lf-page-comment-card")).to_be_focused()
+    expect(field).to_be_visible()
     told(page)
     assert any(
         event.get("text") == "Sent with quick shortcuts off"
         for event in events_model.read_events(serve.page_dir)
     )
     page.keyboard.press("Escape")
+    expect(field).to_be_hidden()
     rendered(page)
 
     sample.focus()

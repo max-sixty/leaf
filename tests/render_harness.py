@@ -2106,19 +2106,6 @@ def regions_side_by_side(regions: str, columns: str = "1fr 1fr") -> str:
 </style>"""
 
 
-def beside_a_pane(markup: str, regions: str = "split") -> tuple[str, str]:
-    """`markup` and a short pane side by side as a workspace's body, and the page's
-    stylesheet placing them. A workspace fills the window only where panes stand side by
-    side (layouts.css), so a test of how a held pane scrolls gives it a neighbour."""
-    neighbour = (
-        '<lf-pane id="neighbour" label="Beside it"><div><p>A short region.</p></div>'
-        "</lf-pane>"
-    )
-    return f'<div id="{regions}">{markup}{neighbour}</div>', regions_side_by_side(
-        regions, "3fr 1fr"
-    )
-
-
 def pane_posture(page, pane, posture):
     """Wait until a pane is `bounded` (its body scrolls) or in `flow` (it does not).
 

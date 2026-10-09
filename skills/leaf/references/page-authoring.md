@@ -113,10 +113,10 @@ from these:
 - **Controls beside evidence** is a playground, which declares how its controls
   operate its preview.
 - **A screen the reader moves through rather than scrolls**, like a mail client or a
-  dashboard, such as a queue worked one item at a time, a visual review, or a run's log
-  beside the chart it explains, is a workspace (below). A document read top to bottom
-  beside a panel kept in view, such as a postmortem beside its timeline, is instead a
-  `layout-sidebar` page whose `aside` sticks ("A wide page", below).
+  dashboard, such as a queue worked one item at a time or a run's log beside the chart
+  it explains, is a workspace (below). A document read top to bottom beside a panel
+  kept in view, such as a postmortem beside its timeline, is instead a `layout-sidebar`
+  page whose `aside` sticks ("A wide page", below).
 - **Several views of one artifact** are one `lf-tabs` set: page tabs for
   project-scale views that share one history, Threads panel, Ask inventory, and
   revision sequence, and a tabbed section for local alternatives within the
@@ -298,9 +298,7 @@ pane's body scrolls on its own, and a widget that fills the body, such as a play
 stage, grows to the window's height. The `lf-pane` entry says what a pane holds. Let the
 Layout allocate the height: page-specific positioning should not be needed to keep a
 pane or footer reachable. Where the window is too small to hold the regions, they take
-their natural height and the page scrolls. So does a body that is one region, such as
-one pane, a tab queue or a visual review: with nothing beside it to keep in view, it
-takes its content's height rather than scroll inside a box shorter than the window.
+their natural height and the page scrolls.
 
 Keep a region's decision visible with its supporting content. `page check
 --render` reports panes or bodies that overflow their regions and the window

@@ -98,53 +98,30 @@ export function arrangedBoxes(open) {
   });
 }
 
-// How a workspace holds the page's own regions: for each body of a
-// `main.layout-workspace` that the page lays out itself, with two or more cells and a
-// pane the page wrote, whether the Layout fills the window (`--lf-full-height`,
-// layouts.css), how many of its cells are panes, how many cells it has, and the most of
-// its panes, and of its cells, that stand side by side, meaning how many share some
-// stretch of the page's height. One is a column; a grid with two stacked on the left of
-// a tall third is two.
+// How a workspace holds the page's own panes: for each body of a `main.layout-workspace`
+// that has panes the page wrote as its cells, whether the Layout fills the window
+// (`--lf-full-height`, layouts.css) and the most of those panes that stand side by side, meaning
+// how many share some stretch of the page's height. One is a column of panes; a grid with
+// two stacked on the left of a tall third is two.
 export function heldPanes() {
   const main = document.querySelector("main.layout-workspace");
   if (!main) return [];
   const held =
     getComputedStyle(main).getPropertyValue("--lf-full-height").trim() === "1";
-  const shown = (el) => {
-    const r = el.getBoundingClientRect();
-    return r.width > 0 && r.height > 0 ? r : null;
-  };
-  const beside = (rects) =>
-    Math.max(
-      0,
+  return [...main.children].flatMap((body) => {
+    if (body.matches("header, footer")) return [];
+    const rects = [...body.children]
+      .filter((el) => el.matches(AUTHORED_PANE))
+      .map((pane) => pane.getBoundingClientRect())
+      .filter((r) => r.width > 0 && r.height > 0);
+    if (rects.length < 2) return [];
+    const beside = Math.max(
       ...rects.map(
         (r) => rects.filter((o) => o.top < r.bottom - 1 && r.top < o.bottom - 1).length,
       ),
     );
-  return [...main.children].flatMap((body) => {
-    // A widget that is the body lays out its own parts, which are not the page's cells.
-    if (
-      body.matches("header, footer") ||
-      body.localName.includes("-") ||
-      !body.querySelector(AUTHORED_PANE)
-    )
-      return [];
-    const cells = [...body.children].map(shown).filter(Boolean);
-    if (cells.length < 2) return [];
-    const panes = [...body.children]
-      .filter((el) => el.matches(AUTHORED_PANE))
-      .map(shown)
-      .filter(Boolean);
     return [
-      {
-        at: element(body),
-        place: place(body),
-        held,
-        panes: panes.length,
-        beside: beside(panes),
-        cells: cells.length,
-        cellsBeside: beside(cells),
-      },
+      { at: element(body), place: place(body), held, panes: rects.length, beside },
     ];
   });
 }

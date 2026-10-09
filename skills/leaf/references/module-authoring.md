@@ -191,27 +191,25 @@ the served document as `data-lf-reading-role`, which the kernel's theme and the
 workspace Layout lay out as a pane from the first paint, so every package's pane takes
 the same rules; its module registers the pane's body as described below.
 
-Whether a pane's body scrolls is the workspace Layout's (`layouts.css`). Where panes
-stand side by side in the workspace's body and the window is large enough, the
-workspace is full-height: it fills the window, and the Layout gives its body a definite
-height, so a pane that is a direct cell of the body may shrink below its content and
-scrolls its body; a pane inside a section of the body, or inside another pane's body,
-flows with what holds it, and elsewhere every pane, a lone one that is the body
-included, takes its content's height. Nothing in a module measures a minimum or chooses a
-posture. While the workspace is full-height, the Layout sets `--lf-full-height: 1` on
-`main`, and a widget that should grow to fill the height it is given, such as a
-playground's stage, keys its rules on `@container style(--lf-full-height: 1)`. A behavior
+Whether a pane's body scrolls is the workspace Layout's (`layouts.css`). Where the
+window is large enough, the workspace is full-height: it fills the window, and the
+Layout gives its body a definite height, so a pane that is the body or a direct cell of
+it may shrink below its content and scrolls its body; a pane inside a section of the
+body, or inside another pane's body, flows with what holds it, and elsewhere every pane
+takes its content's height. Nothing in a module measures a minimum or chooses a
+posture. `--lf-full-height: 1` on a box says its children are given a definite height to
+fill, and it does not inherit: while the workspace is full-height, the Layout sets it on
+`main` for the body and on a grid of panes for its cells. A widget given that height
+keys its rules on `@container style(--lf-full-height: 1)`, which asks the widget's
+parent, fits what it shows to the height, so the reader moves through the workspace
+rather than scrolling it, and sets `--lf-full-height: inherit` on each box that passes
+the height on to its parts, as a playground does down to its panes. A widget deeper in
+the body, in a section or a tab, is not told, and takes its content's height. A behavior
 module that composes regions out of boxes it generates, such as a playground's controls
 beside its preview, takes the pane rules by marking those boxes
 `data-lf-reading-role="pane"` and `data-lf-generated`, with the pane grammar of one
-header, one body, and one footer. Generated panes standing side by side in one box
-directly inside the widget make the workspace full-height as a page's grid does, where
-the widget fills the body: it is the body, or a box directly in the body, such as an
-Ask's answer. A widget deeper in the body, such as one in a tab of a side-list queue,
-flows with the region holding it, and one generated pane alone, such as a visual
-review's evidence, flows with the page. A generated pane scrolls its body wherever it stands in
-a full-height workspace, since its widget sizes it, and its widget draws the frame around
-it: the workspace joins only the panes a page wrote into its hairline grid. The
+header, one body, and one footer. A generated pane scrolls its body where its widget
+passes the height on to it, and its widget draws the frame around it: the workspace joins only the panes a page wrote into its hairline grid. The
 attributes are the module's to write and never an author's, since `page check` refuses `data-lf-` markup. Keep the
 package theme to placement inside that grammar, such as track sizes and chrome; a
 package copy of the full-height rules is a second posture decision that drifts from the

@@ -779,7 +779,7 @@
   },
   "lf-pane": {
     "description": "A reading region with an optional header and footer, independently scrollable inside a full-height workspace.",
-    "x-instructions": "For independent scrolling, place the pane as a cell of a workspace’s grid of panes standing side by side. A pane that is the workspace’s whole body takes its content’s height and the page scrolls; a pane inside another box takes its content’s height and scrolls with that box. Wrap multiple body blocks in one div or section. Use label to name the region accessibly and its header for the visible heading. Put action widgets in the direct footer when they should remain reachable as the body scrolls.",
+    "x-instructions": "For independent scrolling, place the pane as a full-height workspace’s body or a direct cell; elsewhere the page scrolls. Wrap multiple body blocks in one div or section. Use label to name the region accessibly and its header for the visible heading. Put action widgets in the direct footer when they should remain reachable as the body scrolls.",
     "x-name": "label",
     "type": "object",
     "properties": {

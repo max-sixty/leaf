@@ -1921,9 +1921,8 @@ flowchart TD
                 <tr id="layouts-workspace">
                   <td><code>layout-workspace</code></td>
                   <td>
-                    The window's whole width, for a screen the reader moves through.
-                    Panes side by side share the window's height and scroll separately,
-                    as a run's log beside its chart or a playground's controls beside
+                    The window's full height, divided into panes that scroll separately.
+                    A queue beside the item it opens, or a playground's controls beside
                     its preview.
                   </td>
                 </tr>
@@ -2419,15 +2418,13 @@ flowchart TD
           <section id="workspace">
             <h2>Workspace</h2>
             <p id="workspace-what">
-              <code>layout-workspace</code> is a screen the reader moves through. It
-              takes the window's whole width, and a single-row <code>header</code> holds
-              the title and status tags. The body below contains an
-              <code>lf-pane</code>, a component that arranges its own regions, or a grid
-              of panes defined by the page's CSS. Where panes stand side by side, the
-              workspace fits between Leaf's top banner and bottom bar, and each pane
-              scrolls its content beneath its own <code>header</code>, with its footer's
-              actions in view. A body that is one region, such as a single pane or a
-              visual review, takes its content's height and the page scrolls.
+              <code>layout-workspace</code> fits the page between Leaf's top banner and
+              bottom bar. A single-row <code>header</code> holds the title and status
+              tags. The body takes the remaining height and contains an
+              <code>lf-pane</code>, a component that arranges its own panes, or a grid
+              of panes defined by the page's CSS. Each pane scrolls its content beneath
+              its own <code>header</code>. A pane's footer stays visible, keeping its
+              actions within reach.
             </p>
             <p id="workspace-queue">
               An <code>lf-tabs list="side"</code> in the workspace body displays a list
@@ -2435,8 +2432,8 @@ flowchart TD
               content appears beside that list.
             </p>
             <p id="workspace-small">
-              Panes side by side fill the window's height when the window is at least
-              720px wide and 480px tall. In a smaller window, panes expand to fit their
+              The workspace fills the window's height when the window is at least 720px
+              wide and 480px tall. In a smaller window, panes expand to fit their
               content and the whole page scrolls.
             </p>
 

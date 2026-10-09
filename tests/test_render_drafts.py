@@ -50,7 +50,6 @@ from render_harness import (
     CutOff,
     _traffic,
     _until,
-    beside_a_pane,
     compare_with,
     consume_browser_errors,
     draft_control,
@@ -118,13 +117,12 @@ def test_a_visible_focused_element_is_the_reading_place_until_the_reader_scrolls
         "checkbox": '<label><input type="checkbox">Working choice</label>',
         "button": '<button type="button">Working action</button>',
     }[control]
-    regions, head = beside_a_pane(
+    source = leaf_page(
+        "Editing in a reading region",
         f'<lf-pane id="editor-pane" label="Working text"><div>{before}'
         f"{field_markup}"
-        f"{after}</div></lf-pane>"
-    )
-    source = leaf_page(
-        "Editing in a reading region", regions, head=head, layout="workspace"
+        f"{after}</div></lf-pane>",
+        layout="workspace",
     )
     page = open_page(browser, serve(source))
     resized(page, 1366, 768)
@@ -899,23 +897,16 @@ def test_opening_a_visible_line_in_a_long_draft_preserves_the_reading_position(
     )
     text = "\n".join(f"Line {i}: {words}" for i in range(60))
     draft = f'<lf-draft id="long-draft"><pre>{text}</pre></lf-draft>'
-    regions, head = beside_a_pane(
-        f'<lf-pane id="reading" label="Notes">{draft}</lf-pane>'
-    )
     body = (
-        "<header><h1>Release notes</h1></header>" + regions
+        "<header><h1>Release notes</h1></header>"
+        f'<lf-pane id="reading" label="Notes">{draft}</lf-pane>'
         if in_pane
         else f"<h1>Release notes</h1>{draft}<p>Following words.</p>"
     )
     page = open_page(
         browser,
         serve(
-            leaf_page(
-                "Long draft",
-                body,
-                head=head if in_pane else "",
-                layout="workspace" if in_pane else "column",
-            )
+            leaf_page("Long draft", body, layout="workspace" if in_pane else "column")
         ),
     )
     resized(page, 800, 900)

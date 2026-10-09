@@ -12,7 +12,6 @@ from leaf.schema import ELEMENT_ID
 from leaf.structure import SourceDocument
 from render_harness import (
     SHELL_BOX,
-    beside_a_pane,
     leaf_page,
 )
 
@@ -703,14 +702,11 @@ LONG_LINE_DIFF_PAGE = leaf_page(
 
 # The same review as the body of a workspace pane, where the pane's body is the box that
 # scrolls the rows rather than the window under the banner.
-PANE_DIFF_REGIONS, PANE_DIFF_HEAD = beside_a_pane(
-    '<lf-pane id="patch-pane" label="Patch"><header><h2>Patch</h2></header>'
-    '<lf-diff id="patch" source="review-patch" review><pre></pre></lf-diff></lf-pane>'
-)
 PANE_DIFF_PAGE = leaf_page(
     "pane patch",
-    "<header><h1 id='t'>Review</h1></header>" + PANE_DIFF_REGIONS,
-    head=PANE_DIFF_HEAD,
+    "<header><h1 id='t'>Review</h1></header>"
+    '<lf-pane id="patch-pane" label="Patch"><header><h2>Patch</h2></header>'
+    '<lf-diff id="patch" source="review-patch" review><pre></pre></lf-diff></lf-pane>',
     layout="workspace",
 )
 

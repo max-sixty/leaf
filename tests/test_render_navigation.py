@@ -76,7 +76,6 @@ from render_harness import (
     ROOT,
     accessible_details,
     active_digit_bindings,
-    beside_a_pane,
     command_reference_rows,
     comment_note,
     consume_browser_errors,
@@ -157,15 +156,12 @@ def test_reading_keys_chain_at_a_document_bound_but_stop_at_a_task_boundary(
         + "<p>Run log line.</p>" * 100
         + '</div><div style="height:1500px"></div>'
     )
-    regions, head = beside_a_pane(
-        '<lf-pane id="task" label="Task"><div>' + content + "</div></lf-pane>"
-    )
     for workspace in (False, True):
         source = (
             leaf_page(
                 "A bounded task",
-                "<header><h1>Task</h1></header>" + regions,
-                head=head,
+                '<header><h1>Task</h1></header><lf-pane id="task" label="Task">'
+                "<div>" + content + "</div></lf-pane>",
                 layout="workspace",
             )
             if workspace

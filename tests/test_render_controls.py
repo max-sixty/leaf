@@ -1045,7 +1045,7 @@ def test_restoring_question_focus_can_execute_its_command_in_the_same_turn(
         """async () => {
           const {focusDestination} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const {executeCommand} = await window.__lfRuntimeImport('/runtime/keyboard/dispatch.js');
-          focusDestination(document.getElementById('question'));
+          focusDestination(document.getElementById('question'), 'move');
           const executed = executeCommand('probe.action-10');
           return {executed, held: document.activeElement.id,
             output: document.querySelector('#probe output').textContent};

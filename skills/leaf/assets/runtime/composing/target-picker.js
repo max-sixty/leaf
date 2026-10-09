@@ -21,7 +21,7 @@ import { focused } from "../keyboard/scopes.js";
 import { repaint } from "../repaint.js";
 import { anchorFor } from "../anchor-names.js";
 import { paintSet } from "../target-paint-geometry.js";
-import { handBack, releaseFocus } from "../focus.js";
+import { handBack, releaseFocus, focusDestination } from "../focus.js";
 import {
   createHintSession,
   HINT_KEYS,
@@ -250,7 +250,7 @@ export function createTargetPicker({
       // the whole reading's count before editing, so narrowing never resizes the field.
       const maximum = pageText().raw.length;
       reserve(pageSearchStatus, [noMatches, searchCount(maximum, maximum)]);
-      pageSearchInput.focus({ preventScroll: true });
+      focusDestination(pageSearchInput, "move");
       presentSearchStatus();
       announce("Search the page.");
     } else {

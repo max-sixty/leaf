@@ -287,12 +287,19 @@ the properties that change on a descendant layout box.
 
 ## Focus, motion, and travel
 
-A module that puts the user somewhere calls `focusDestination(element)` rather than
-`element.focus()`, wherever that place is not already a control. It lends the element the
-tab stop a control has for exactly as long as it holds it, so the browser's own Tab order
-continues from there and no `tabindex` is left on the page behind the user. What needs
-it is a widget's own Escape step landing them back in the thing it took them out of: the
-patch a file filter belongs to, the exhibit a box was about.
+A module that puts the user somewhere calls `focusDestination(element, cause)` rather
+than `element.focus()`, which the lint refuses. The cause says what moved them, and
+every reader of where the user stands acts on it: `"move"` for a route taking them
+somewhere, such as a walk to the next row or a box opened to type in; `"return"` for
+putting them back, such as a widget's own Escape step landing them in the thing it took
+them out of, or a re-render handing them to the control that replaced the one they
+stood on; `"step"` for a widget's own Tab loop; and `"press"` for landing on a control
+to press it on the user's behalf. A return marked as a move reads as
+the user arriving, and releases news or opens options they never went to. The call
+lends an element that is not a control the tab stop a control has for exactly as long
+as it holds it, so the browser's own Tab order continues from there and no `tabindex` is
+left on the page behind the user. It keeps the page still unless `{ scroll: true }` asks
+the browser to bring the element into view.
 
 A module that moves, hides, or replaces nodes the user may be standing in, as a reorder or
 a re-render does, calls `holdFocus(scope)` before the change and the function it returns

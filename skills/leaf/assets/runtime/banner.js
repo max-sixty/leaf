@@ -372,6 +372,7 @@ if (SHARE_ROOT) {
   const panel = el("div", "lf-share-panel");
   const label = el("label", "", "Share link");
   const link = offer("input", "lf-share-link");
+  link.id = "lf-share-link";
   link.type = "url";
   link.readOnly = true;
   link.addEventListener("focus", () => link.select());

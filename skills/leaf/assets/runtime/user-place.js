@@ -48,9 +48,8 @@
    inside it would be read as reflow and undone. */
 import { cancelRender, nextFrame, nextRender } from "./rendering.js";
 import { headerInset, visibleBand } from "./geometry.js";
-import { focused } from "./keyboard/scopes.js";
 import { pointerAt } from "./pointer.js";
-import { recentPlaceInput } from "./user-intent.js";
+import { recentPlaceInput, focused } from "./focus.js";
 
 // The candidates in the order they may hold the place, each once: an inherited
 // reference, named items in input order, then the visible ones from the lead downward and

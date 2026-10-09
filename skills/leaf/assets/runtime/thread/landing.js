@@ -34,8 +34,16 @@
    focus on the conversation's card or title on every surface (`landSent`). Returning
    to the page is a separate navigation gesture. */
 import { landingBand, seenRect, shownBox, shownWindow } from "../geometry.js";
-import { documentFocused, focused } from "../keyboard/scopes.js";
-import { focusDestination, onStanding, takesLetters, whenLeft } from "../focus.js";
+import { documentFocused } from "../keyboard/scopes.js";
+import {
+  focusDestination,
+  focused,
+  onPress,
+  onStanding,
+  pressing,
+  takesLetters,
+  whenLeft,
+} from "../focus.js";
 import { under } from "../shadow.js";
 import { scrollBehavior } from "../motion.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
@@ -340,12 +348,12 @@ const arrivingAtTitle = () => Boolean(focused()?.matches?.(".lf-thread-summary")
 // A walk's press at either end moves no focus, so it lands its thread itself.
 export const landWalkedThread = (thread, threadsBox) =>
   land(thread, undefined, threadsBox, arrivingAtTitle());
-// The primary pointer owns the provisional landing until that same gesture ends. A
-// cancellation means the browser took it for something else — commonly a touch scroll —
-// so release the hold without undoing the gesture by landing the thread.
-// Mounted from leaf.js.
+// A press in the list owns the provisional landing until that same gesture ends
+// (focus.js, `onPress`). A cancellation means the browser took it for something else —
+// commonly a touch scroll — so release the hold without undoing the gesture by landing
+// the thread. Mounted from leaf.js.
 export function wireThreadLanding(threadsBox) {
-  let pressedPointer = null;
+  const pressedHere = () => pressing()?.path.includes(threadsBox) ?? false;
   let visibleTitle = null;
   const readVisibleTitle = () => {
     const title = focused();
@@ -381,33 +389,25 @@ export function wireThreadLanding(threadsBox) {
       readVisibleTitle();
     });
   });
-  const finishPress = (event, shouldLand) => {
-    if (event.pointerId !== pressedPointer?.id) return;
-    const pressedThread = pressedPointer.thread;
-    pressedPointer = null;
-    if (!shouldLand) return;
-    const thread = standing() ?? pressedThread;
-    if (thread && !reachedForWords(thread)) {
-      if (standing() !== thread) focusThread(thread, "move");
-      // The press's click may reflow the list and takes its hold from this geometry.
-      land(thread, "instant", threadsBox);
-    }
-  };
-  addEventListener("pointerup", (event) => finishPress(event, true), true);
-  addEventListener("pointercancel", (event) => finishPress(event, false), true);
-  threadsBox.addEventListener("pointerdown", (event) => {
-    if (event.isPrimary)
-      pressedPointer = {
-        id: event.pointerId,
-        thread: event.target.closest?.(".lf-thread") ?? null,
-      };
+  onPress((start, path) => {
+    if (!path.includes(threadsBox)) return null;
+    const pressedThread = start.target.closest?.(".lf-thread") ?? null;
+    return (end, completed) => {
+      if (!completed) return;
+      const thread = standing() ?? pressedThread;
+      if (thread && !reachedForWords(thread)) {
+        if (standing() !== thread) focusThread(thread, "move");
+        // The press's click may reflow the list and takes its hold from this geometry.
+        land(thread, "instant", threadsBox);
+      }
+    };
   });
   // A press held in the list lands when the hand comes up (`finishPress`), and a return
   // puts the user back in a place the list already showed them: neither lands here.
   onStanding((node, cause) => {
     if (!node || !under(node, threadsBox)) return;
     nextRender(readVisibleTitle);
-    if (pressedPointer !== null || cause === "return") return;
+    if (pressedHere() || cause === "return") return;
     const thread = standing();
     // Native focus and reply entry reveal their own writing area. Re-landing the
     // thread here would turn that focus move into a second navigation gesture.

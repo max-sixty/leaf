@@ -128,8 +128,10 @@ import {
   handBack,
   holdFocus,
   letGo,
+  onPress,
   onStanding,
   pressLed,
+  focused,
 } from "/runtime/focus.js";
 import { TEXT_FIELD } from "/runtime/control-selectors.js";
 import { closeControl, el, offer } from "/runtime/widget-elements.js";
@@ -144,7 +146,7 @@ import {
   registerReadingRegion,
 } from "/runtime/reading-regions.js";
 
-import { focused, keys, paintKeys } from "/runtime/keyboard/scopes.js";
+import { keys, paintKeys } from "/runtime/keyboard/scopes.js";
 import { pageRung, pageScope } from "/runtime/keyboard/register.js";
 import { declareOffFlowSurface } from "/runtime/off-flow.js";
 import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
@@ -587,7 +589,10 @@ export function createMarginProjection({
       renderAnnotations.refresh();
     });
   }
+  // A card's focus waits for its placement; a newer input the user gave meanwhile, or
+  // focus they took elsewhere, keeps them where they went.
   function deferThreadPreviewFocus(positioned, focus) {
+    const mayFocus = retainUserIntent();
     const pending = { key: previewEntry?.key, holding: document.activeElement };
     previewFocusPending = pending;
     void positioned?.then((placed) => {
@@ -597,7 +602,7 @@ export function createMarginProjection({
         document.activeElement === document.body &&
         (!pending.holding?.isConnected || !pending.holding?.checkVisibility());
       if (placed && (document.activeElement === pending.holding || holdingGone))
-        focus();
+        mayFocus.handoff(focus);
     });
   }
 
@@ -2363,9 +2368,8 @@ export function createMarginProjection({
   // A press away is judged where it starts and acted on where it ends, both outside,
   // as the platform's light dismissal is: the press's own handlers read the scene
   // first, so Threads pressed with the card up still carries its thread into the panel.
-  const pressedAway = (event) => {
+  const pressedAway = (path) => {
     if (!previewOpen()) return false;
-    const path = event.composedPath();
     // A pointer mode reinterprets a press on the page as a stroke or an interface
     // comment, so there a press stands nowhere but in the card itself.
     const stands = pointerModeActive()
@@ -2374,15 +2378,12 @@ export function createMarginProjection({
     if (stands.some((node) => node && path.includes(node))) return false;
     return !path.some(inRetainedContext);
   };
-  let pressStartedAway = false;
-  function pressAway(event) {
-    pressStartedAway = pressedAway(event);
-  }
-  function pressEnded(event) {
-    const away = pressStartedAway && pressedAway(event);
-    pressStartedAway = false;
-    if (away) closePreview();
-  }
+  const pressAway = (start, path) =>
+    pressedAway(path)
+      ? (end, completed) => {
+          if (completed && pressedAway(end.composedPath())) closePreview();
+        }
+      : null;
 
   const marginEntryChoices = (target) => clusterMarginEntries(marginEntryHost(target));
   const unfoldedMarginEntries = () =>
@@ -2521,8 +2522,7 @@ export function createMarginProjection({
     });
     // Ahead of the document, where a mode claims its presses before anyone else hears
     // them: whatever a press becomes, it is still the user's attention moving.
-    addEventListener("pointerdown", pressAway, { capture: true });
-    addEventListener("pointerup", pressEnded, { capture: true });
+    onPress(pressAway);
     document.addEventListener(
       "pointerdown",
       (event) => {

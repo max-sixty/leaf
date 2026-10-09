@@ -22,7 +22,7 @@
    title gesture policy, outgoing fold paint and local draft repaint. Surfaces receive
    whole-thread geometry readings rather than descendant nodes. */
 import { nextRender, sizeObserver } from "../rendering.js";
-import { holdFocus, focusDestination } from "../focus.js";
+import { holdFocus, focusDestination, focused } from "../focus.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
@@ -30,7 +30,7 @@ import { anchorLabel, MessageView, messageReading } from "./messages.js";
 import { reactionReading } from "./reaction-model.js";
 import { offer, reachedForWords, measure, reserve } from "../widget-elements.js";
 import { keeps, keepsHidden, layoutPx } from "../keeps.js";
-import { keys, focused } from "../keyboard/scopes.js";
+import { keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { wireReply, replyIsEditing, replyAvailable, dismissReply } from "./replies.js";
 import { settleThread, foldOut, finishFold, isFolding } from "./folding.js";

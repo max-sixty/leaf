@@ -1,4 +1,11 @@
-"""Agent-facing projected page state."""
+"""Agent-facing projected page state and the current Questions and Tasks lists.
+
+The reading uses one transaction and canonical queue selection. Questions
+are everything currently on the user, including recovery; Tasks are everything on
+the agent, including owed answers and work in hand. Empty Questions means this page
+records no current need for the user. `source` states whether a document is live and
+whether an invalid source save leaves the last valid version active.
+"""
 
 import json
 from pathlib import Path
@@ -278,7 +285,7 @@ def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> 
 
 def task_item(task: dict) -> dict:
     """One open task as an item on the queue of its `owner`."""
-    return {
+    item = {
         "kind": "task",
         "id": task["id"],
         "owner": task["owner"],
@@ -291,6 +298,9 @@ def task_item(task: dict) -> dict:
         "ends": task["ends"],
         "ask": task["ask"],
     }
+    if task["ends"] == "approval":
+        item["approval"] = task["approval"]
+    return item
 
 
 def queues(threads: list[dict], workflows: list[dict], tasks: list[dict]) -> dict:
@@ -465,7 +475,7 @@ def _write_page_state(
                 item["message"] for item in served_threads[thread["id"]]["unread"]
             ]
             thread["attention"] = served_threads[thread["id"]]["attention"]
-        # The active version's Ask tasks, then every other task on the page.
+        # The active version's Ask and approval tasks, then every other page task.
         state["tasks"] = (
             browser["views"][str(active["revision"])]["document"]["tasks"]
             + browser["tasks"]

@@ -32,7 +32,7 @@ const isOneOf = (names) => `^(?:${names.map(modulePath).map(escaped).join("|")})
 // and return values; the keyboard dispatcher resolves a key against the register and
 // the focused scope. If one of them reached a painter or an application service, every
 // caller would acquire that owner's initialization graph. image-difference.js reaches
-// nothing because `leaf-dev stills` loads it into a blank page on its own.
+// no runtime owners because `leaf-dev stills` serves it and its vendor in a blank page.
 const exactClosures = {
   "queued-work.js": [],
   "control-selectors.js": [],

@@ -127,12 +127,11 @@ export function createPageComment({
     focusDestination(input, "move");
   }
 
-  // The room the box's words took when they were sent, held until the user writes again
-  // or the card goes.
-  const field = () => input.closest(".lf-compose-field");
+  // The room the box's words and attachments took when they were sent, held until the
+  // user writes again or the card goes.
   const releaseRoom = () => {
-    if (field()?.style.getPropertyValue("--lf-held-room"))
-      field().style.removeProperty("--lf-held-room");
+    if (composer.style.getPropertyValue("--lf-held-room"))
+      composer.style.removeProperty("--lf-held-room");
   };
   input.addEventListener("input", releaseRoom);
   card.addEventListener("toggle", (event) => {
@@ -159,8 +158,8 @@ export function createPageComment({
       sendBtn: send,
       save: (text) => saveDraft("general", text),
       send: async (_text, raw, owns) => {
-        const room = field()?.getBoundingClientRect().height;
-        if (room) field().style.setProperty("--lf-held-room", `${room}px`);
+        const room = composer.getBoundingClientRect().height;
+        if (room) composer.style.setProperty("--lf-held-room", `${room}px`);
         let flight = null;
         const handle = await sendMessage("general", owns, (attempt) => {
           const event = { attempt, text: raw };

@@ -2182,6 +2182,30 @@ def test_a_sent_page_comment_keeps_its_room_without_stranding_send(browser, serv
         "the card scrolled before its empty editor gave back its room"
     )
 
+    # An attachment's room is held too: a refusal that hands back the words and the
+    # image leaves Send where the send left it.
+    resized(page, 1200, 900)
+    box = page_comment(page)
+    refused = "\n".join(f"Refused line {n}" for n in range(4))
+    write(box, refused)
+    paste_image(box, (example_media() / "051bee487bfb5d13.png").read_bytes())
+    expect(card.locator(".lf-composer-media img")).to_be_visible()
+    before = send.bounding_box()
+    page.route(
+        "**/api/event",
+        lambda route: route.fulfill(
+            status=400,
+            json={"ok": False, "final": True, "error": "refused before append"},
+        ),
+    )
+    send.click()
+    expect(card.locator(".lf-composer-media img")).to_be_visible()
+    expect(box).to_have_js_property("value", refused)
+    rendered(page)
+    assert send.bounding_box() == before, "the refusal moved Send without a gesture"
+    page.unroute("**/api/event")
+    assert all("400" in error for error in take_browser_errors(page))
+
 
 def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
     """A send is the one gesture that produces a thread, so it gets the same answer a

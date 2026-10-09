@@ -1258,8 +1258,12 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
      there. */
   .lf-thread-panel-foot { display: flex; flex-direction: column; flex: none; }
   /* Every composer gives its field the row; its submit action lives inside that field. */
+  /* `--lf-held-room` keeps a sent draft's room, its attachments' included, until the
+     user writes again (page-comment.js). It is the composer's basis rather than a floor,
+     so the editor still shrinks before the card scrolls when the window has less room;
+     the field fills what the attachments leave, keeping Send at the foot. */
   .lf-general {
-    display: flex; gap: 6px; flex: 1; min-height: 0;
+    display: flex; gap: 6px; flex: 1 1 var(--lf-held-room, 0%); min-height: 0;
     flex-direction: column; flex-wrap: nowrap; align-items: stretch; }
   .lf-thread-action { border: none; background: none; color: var(--muted); cursor: pointer; }
   .lf-thread-action:hover { color: var(--ok); }
@@ -1271,11 +1275,7 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   .lf-thread-action:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
     --lf-focus-ring: thread-action; outline-offset: 2px; }
   .lf-general > .lf-composer-media { flex: none; }
-  /* `--lf-held-room` keeps a sent draft's room until the user writes again
-     (page-comment.js). It is the field's basis rather than a floor, so the editor still
-     shrinks before the card scrolls when the window has less room for it. */
-  .lf-general > .lf-compose-field {
-    min-height: var(--lf-compose-h); flex-basis: var(--lf-held-room, auto);
+  .lf-general > .lf-compose-field { min-height: var(--lf-compose-h);
     grid-template-rows: minmax(var(--lf-compose-h), 1fr); }
   .lf-general > .lf-compose-field > leaf-text { max-height: none; }
   .lf-system { color: var(--ok); margin: 8px 0; }

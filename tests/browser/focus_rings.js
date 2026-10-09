@@ -550,8 +550,9 @@
           };
           // Ending the walk at the first z-index left the grip's ring reported under a
           // thread's sticky title, whose z-index lifts it inside the list and no further,
-          // while every pixel of the ring's run was the ring's. The context it goes on
-          // from is hoisted, so a static holder above it answers through `clears`.
+          // while every pixel of the ring's run was the ring's. The context paints as one
+          // unit, so its own rank answers for everything in it; a static holder above a
+          // static context answers through `clears`, as above a positioned box.
           const forms = (n) => {
             const s = getComputedStyle(n);
             return (
@@ -566,7 +567,7 @@
           };
           let under = false;
           let hoisted = false;
-          for (let a = over; a && control >= 0; ) {
+          for (let a = over; a && control >= 0;) {
             if (holds(a, el)) break;
             const acs = getComputedStyle(a);
             const ranked = inside.indexOf(a);
@@ -580,10 +581,10 @@
               while (context && !holds(context, el) && !forms(context))
                 context = above(context);
               a = context;
-              hoisted = true;
+              hoisted = false;
               continue;
             }
-            if (acs.position !== "static") hoisted = true;
+            if (acs.position !== "static" || forms(a)) hoisted = true;
             a = above(a);
           }
           // Nothing beneath a box the control paints over is over the ring either, so this

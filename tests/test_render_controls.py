@@ -8,7 +8,6 @@ from urllib.parse import urlsplit
 
 import pytest
 from browser_sources import browser_function
-from PIL import Image
 from interact_support import (
     append_carried_log_record,
     append_command,
@@ -26,6 +25,7 @@ from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID, SERVICE_FILE
+from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -7793,7 +7793,9 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
           return [b.right + parseFloat(cs.outlineOffset) + parseFloat(cs.outlineWidth) / 2,
                   (b.top + b.bottom) / 2];
         }""")
-        shot = page.screenshot(clip={"x": x - 0.5, "y": y - 0.5, "width": 1, "height": 1})
+        shot = page.screenshot(
+            clip={"x": x - 0.5, "y": y - 0.5, "width": 1, "height": 1}
+        )
         red, green, blue = Image.open(io.BytesIO(shot)).convert("RGB").getpixel((0, 0))
         painted = red > 200 and green < 80 and blue < 80
         covers = standing_ring(page)["covers"]
@@ -7878,6 +7880,33 @@ def test_the_ring_reading_sees_a_neighbour_lifted_out_of_the_flow_it_was_ranked_
     assert any("top edge is under" in c for c in covers), (
         f"a band lifted inside a stacking context read as {covers}, so a z-index that "
         "orders a box only inside its context hid a cover the page paints"
+    )
+
+    # The same context standing before the control in the tree and overlapping it: it
+    # paints as one unit in the control's layer, before the control, so the ring stands
+    # over the band, as the page's pixels say. The context's own rank answers for it.
+    page.evaluate(
+        """() => {
+          const context = document.querySelector('#ring-holder > div:last-child > div');
+          Object.assign(context.style, {height: '100vh', marginBottom: '-100vh'});
+          const holder = document.getElementById('ring-holder');
+          holder.prepend(context);
+          document.querySelector('#ring-holder > div:last-child').remove();
+        }"""
+    )
+    x, y = page.evaluate("""() => {
+      const b = document.activeElement.getBoundingClientRect();
+      return [b.left + b.width / 2, b.top - 3];
+    }""")
+    shot = page.screenshot(clip={"x": x - 0.5, "y": y - 0.5, "width": 1, "height": 1})
+    red, green, blue = Image.open(io.BytesIO(shot)).convert("RGB").getpixel((0, 0))
+    assert not (red > 200 and green < 80 and blue < 80), (
+        "the page paints the band over the ring here, so this case holds nothing"
+    )
+    covers = standing_ring(page)["covers"]
+    assert covers == [], (
+        f"a band inside a context the control paints over read as {covers}, so the "
+        "walk hoisted the context past the rank that answers for it"
     )
 
 

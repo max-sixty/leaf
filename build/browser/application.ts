@@ -28,7 +28,11 @@ import {
   isMessageEvent,
 } from "../../skills/leaf/assets/runtime/pending/model.js";
 import { PENDING } from "../../skills/leaf/assets/runtime/thread/identity.js";
-import { queueOffers, selectDone, selectQueues } from "../../skills/leaf/assets/runtime/queues.js";
+import {
+  queueOffers,
+  selectDone,
+  selectQueues,
+} from "../../skills/leaf/assets/runtime/queues.js";
 
 // The pure model's input types are inferred from its existing implementation. They
 // remain one contract while those folds move to compiled source independently.
@@ -245,7 +249,9 @@ interface WireTask {
   outcome: { id?: string; ts: string | null; detail?: string | null } | null;
   /** How the task ends (`tasks.py`): the agent's own, an Ask's widget, a question's
    * reply, or the user's Done. */
-  ends: "agent" | "widget" | "reply" | "done";
+  ends: "agent" | "widget" | "reply" | "done" | "approval";
+  /** The exact stamped version whose banner approval ends this task. */
+  approval?: { version: number };
   /** The Ask a task on the user stands for: the widget that answers it, and whether a
    * thread in that widget's seat holds it with the agent meanwhile. */
   ask: {
@@ -452,6 +458,11 @@ function localTasks(
       .filter(({ event }) => event.kind === "undo")
       .map(({ event }) => event.undoes as string),
   );
+  const approving = new Set(
+    local
+      .filter(({ event }) => event.kind === "done")
+      .map(({ event }) => event.version as number),
+  );
   const served = [...(view?.document.tasks ?? []), ...(state?.browser.tasks ?? [])];
   const ended = [
     ...(view?.document.ended_tasks ?? []),
@@ -465,18 +476,19 @@ function localTasks(
       .filter(reopened)
       .map((task) => ({ ...task, state: "open" as const, outcome: null })),
   ];
+  const locallyEnded = (task: WireTask) =>
+    ending.has(task.id) ||
+    (task.ends === "approval" && approving.has(task.approval!.version));
   return {
-    open: open.filter((task) => !ending.has(task.id)),
+    open: open.filter((task) => !locallyEnded(task)),
     ended: [
       ...ended.filter((task) => !reopened(task)),
-      ...open
-        .filter((task) => ending.has(task.id))
-        .map((task) => ({
-          ...task,
-          state: "done" as const,
-          running: null,
-          outcome: { ts: null, detail: null },
-        })),
+      ...open.filter(locallyEnded).map((task) => ({
+        ...task,
+        state: "done" as const,
+        running: null,
+        outcome: { ts: null, detail: null },
+      })),
     ],
   };
 }
@@ -793,7 +805,11 @@ export function createSemanticApplication({
     const workflows = [
       ...(state ? state.workflows : []),
       ...messages.map((entry) => localWorkflow(entry, false)),
-      ...refused.map((entry) => localWorkflow(entry, true)),
+      // A refused message or widget move has a destination to send again.
+      // Other gestures restore their own control or task when speculation ends.
+      ...refused
+        .filter((entry) => entry.message || entry.event.widget)
+        .map((entry) => localWorkflow(entry, true)),
     ];
     const threads = readThreadRecords(
       obligated,
@@ -804,7 +820,10 @@ export function createSemanticApplication({
     );
     const selectedQueues = selectQueues({ threads, workflows, tasks: tasks.open });
     const workflowById = new Map(workflows.map((workflow) => [workflow.id, workflow]));
-    const contextual = <T extends { id: string; kind: string }>(items: T[], onYou = false) =>
+    const contextual = <T extends { id: string; kind: string }>(
+      items: T[],
+      onYou = false,
+    ) =>
       items.map((item) => ({
         ...item,
         workflow: workflowById.get(item.id) ?? null,

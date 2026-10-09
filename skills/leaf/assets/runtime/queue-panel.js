@@ -85,6 +85,7 @@ import { walkPositionLabel } from "./walk-position.js";
 const WORDS = Object.freeze({
   ask: "Ask",
   question: "Thread",
+  approval: "Approval",
   recovery: "Resend",
   answer: "Answer",
   reply: "Reply",

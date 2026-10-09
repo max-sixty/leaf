@@ -120,9 +120,12 @@ def progress_messages(page: Page) -> None:
         "tab", name="Threads", exact=True
     ).click()
     page.locator('#bg-panel-presets [data-view="updates"]').click()
-    page.frame_locator("#bg-panel-sample iframe").locator(
+    frame = page.frame_locator("#bg-panel-sample iframe")
+    frame.locator(
         '.lf-thread[data-id="bg-progress-question"] .lf-summary-expand'
     ).wait_for(state="visible")
+    # Capture the reading after the sample's initial unread-news notice has left.
+    frame.locator(".lf-notice.show").wait_for(state="hidden")
     page.locator("#bg-panel-sample").scroll_into_view_if_needed()
 
 

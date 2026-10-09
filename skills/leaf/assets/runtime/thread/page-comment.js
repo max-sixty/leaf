@@ -13,7 +13,10 @@
    focus on the open card and flashes Threads without opening the panel; its count
    rises for the new thread, and an open panel reveals the thread in its list. `c`
    enters the card's box again. A refused send returns to the editor only while the
-   user still stands on the card. A revision arriving while the user writes in the card
+   user still stands on the card. The box keeps the room its words took until the user
+   writes in it again or puts the card away: a send leaves Send under the press, and words
+   a refusal hands back return to the room they left, so neither moves the card's controls
+   without the user's gesture. A revision arriving while the user writes in the card
    opens it again through its Resume writing route (drafts.js).
 
    The card is an auto popover, so a press outside puts it away. Escape is its own row in
@@ -124,6 +127,18 @@ export function createPageComment({
     focusDestination(input, "move");
   }
 
+  // The room the box's words took when they were sent, held until the user writes again
+  // or the card goes.
+  const field = () => input.closest(".lf-compose-field");
+  const releaseRoom = () => {
+    if (field()?.style.getPropertyValue("--lf-held-room"))
+      field().style.removeProperty("--lf-held-room");
+  };
+  input.addEventListener("input", releaseRoom);
+  card.addEventListener("toggle", (event) => {
+    if (event.newState === "closed") releaseRoom();
+  });
+
   let sync = () => {};
   const stops = [];
   function mount(chromeRoot) {
@@ -144,6 +159,8 @@ export function createPageComment({
       sendBtn: send,
       save: (text) => saveDraft("general", text),
       send: async (_text, raw, owns) => {
+        const room = field()?.getBoundingClientRect().height;
+        if (room) field().style.setProperty("--lf-held-room", `${room}px`);
         let flight = null;
         const handle = await sendMessage("general", owns, (attempt) => {
           const event = { attempt, text: raw };

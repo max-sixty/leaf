@@ -1271,7 +1271,10 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   .lf-thread-action:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
     --lf-focus-ring: thread-action; outline-offset: 2px; }
   .lf-general > .lf-composer-media { flex: none; }
-  .lf-general > .lf-compose-field { min-height: var(--lf-compose-h);
+  /* `--lf-held-room` keeps a sent draft's room until the user writes again
+     (page-comment.js). */
+  .lf-general > .lf-compose-field {
+    min-height: max(var(--lf-compose-h), var(--lf-held-room, 0px));
     grid-template-rows: minmax(var(--lf-compose-h), 1fr); }
   .lf-general > .lf-compose-field > leaf-text { max-height: none; }
   .lf-system { color: var(--ok); margin: 8px 0; }

@@ -60,10 +60,12 @@ from render_harness import (
     CutOff,
     admit_before_presenting_comment,
     any_owner_entry,
+    consume_browser_errors,
     example_media,
     expect_asks_answered,
     hold_pending_thread_presentation,
     holding,
+    judge_watches,
     leaf_page,
     nudge,
     open_page,
@@ -974,6 +976,88 @@ def test_an_idle_card_shows_an_answer_folding_the_progress_at_its_end(
     expect(thread.locator(".lf-thread-checkpoint")).to_have_count(1)
     expect(thread.locator(".lf-thread-news")).to_have_count(0)
     assert opening.bounding_box() == standing, "the fold moved what stood above it"
+
+
+def answer_folding_progress(page_dir, root):
+    """The agent's answer to `root`, which folds the progress before it."""
+    return thread_model.post_reply(
+        page_dir,
+        root,
+        "Recorded the release on the board.",
+        "",
+        for_event=root,
+        attempt=STREAM_ATTEMPT,
+        identity={"agent": "Codex", "session": "codex-thread"},
+    )
+
+
+def open_card_with_progress(browser, serve, request):
+    """An idle open card whose thread ends with the agent's progress."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Record the release", {"section": "h-how"})
+    claim_for_codex(serve.page_dir, request)
+    thread_model.post_reply(
+        serve.page_dir,
+        root,
+        "Checking the board for the release entry",
+        "",
+        for_event=root,
+        ephemeral=True,
+        identity={"agent": "Codex", "session": "codex-thread"},
+    )
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-thread[data-id="{root}"]')
+    progress = thread.locator(".lf-msg.agent .lf-msg-text")
+    expect(progress).to_have_text("Checking the board for the release entry")
+    return page, root, thread, progress
+
+
+def test_a_selection_in_the_progress_keeps_its_fold_held(browser, serve, request):
+    """A reader who has selected words in the agent's progress stands on it, as one
+    focused there does, so the answer that would fold it away waits behind its notice
+    and the selection stays."""
+    page, root, thread, progress = open_card_with_progress(browser, serve, request)
+    progress.evaluate(
+        """node => { const range = document.createRange(); range.selectNodeContents(node);
+        const selection = getSelection(); selection.removeAllRanges();
+        selection.addRange(range); }"""
+    )
+    answer_folding_progress(serve.page_dir, root)
+    told(page)
+    expect(thread.locator(".lf-thread-news")).to_have_text("1 new reply")
+    assert page.evaluate("getSelection().toString()") == (
+        "Checking the board for the release entry"
+    )
+
+
+@pytest.mark.watch_shifts
+def test_a_fold_at_the_foot_admits_no_change_above_it(browser, serve, request):
+    """The fold an answer makes of the progress at a thread's end may move only what
+    stood from that progress down: the thread's opening message moving as the fold
+    lands is still a shift without input."""
+    page, root, thread, _ = open_card_with_progress(browser, serve, request)
+    page.evaluate(
+        """root => {
+          const card = document.querySelector(`.lf-thread[data-id="${root}"]`);
+          const watch = new MutationObserver(() => {
+            const fold = card.querySelector('.lf-thread-checkpoint');
+            if (!fold) return;
+            watch.disconnect();
+            const block = document.createElement('div');
+            block.style.height = '60px';
+            card.querySelector('.lf-msg').before(block);
+          });
+          watch.observe(card, {childList: true, subtree: true});
+        }""",
+        root,
+    )
+    answer_folding_progress(serve.page_dir, root)
+    told(page)
+    expect(thread.locator(".lf-thread-checkpoint")).to_have_count(1)
+    judge_watches()
+    consume_browser_errors(page, "moved without input")
 
 
 def assert_arrival_returns_to_own_fill(page, destination):

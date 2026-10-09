@@ -270,6 +270,33 @@ function landLabelPress() {
 // element a press on a label holds them on.
 export const focused = () => heldByLabel() ?? deepFocus();
 
+// The selection the user drew in the tree `node` stands in, where the browser keeps it.
+const selectionOf = (node) => {
+  const root = node.getRootNode();
+  return (root instanceof ShadowRoot && root.getSelection?.()) || getSelection();
+};
+
+// The node the user stands on: the focused node, or, with focus resting on the body,
+// the end of a selection they drew, a caret a click left included, since a selection
+// names where a reader is as surely as focus does.
+export function standingNode() {
+  const at = focused();
+  if (at && at !== document.body) return at;
+  const selection = getSelection();
+  return selection?.rangeCount ? selection.focusNode : null;
+}
+
+// Whether the user stands on `node` or on something in it: where they stand
+// (`standingNode`) is inside it, or a selection they drew reaches into it. A change
+// that puts `node` away would take that place from them.
+export function standsOn(node) {
+  if (!node) return false;
+  const at = standingNode();
+  if (at && (at === node || node.contains(at))) return true;
+  const selection = selectionOf(node);
+  return Boolean(selection?.rangeCount && selection.getRangeAt(0).intersectsNode(node));
+}
+
 // Holding the user's place across a change to the tree they stand in. Moving a node
 // blurs whatever it holds to the body in the same call, and hiding one does the same a
 // frame later, on no frame an owner can count; the node keeps its value and selection,

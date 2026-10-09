@@ -207,6 +207,7 @@ class AgentProfile:
         self.acknowledged: list[float] = []
         self.visible_reply_s: float | None = None
         self.visible_reply_by: str | None = None
+        self.visible_message_s: float | None = None
         self.activities: list[tuple[float, str, str]] = []
         self.ask_count = 0
         self.reference: str | None = None
@@ -216,6 +217,10 @@ class AgentProfile:
         """Time the reply to the page's reading of when and how it showed it."""
         self.visible_reply_s = (shown["at"] - self.visible_reply_started_ms) / 1000
         self.visible_reply_by = shown["by"]
+        if shown["message"] is not None:
+            self.visible_message_s = (
+                shown["message"] - self.visible_reply_started_ms
+            ) / 1000
 
     def acknowledge(self) -> None:
         self.acknowledged.append(time.monotonic() - self.started)
@@ -384,6 +389,8 @@ def agent_profile(profile: AgentProfile, steps: dict) -> dict:
         "sinceSendMs": {
             "acknowledged": [ms(at) for at in profile.acknowledged],
             "responseVisible": ms(profile.visible_reply_s),
+            # The reply's own message in view, which a visible row precedes.
+            "responseMessageVisible": ms(profile.visible_message_s),
         },
         "responseShownBy": profile.visible_reply_by,
         "activity": [

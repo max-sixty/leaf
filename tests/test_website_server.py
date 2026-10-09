@@ -4331,7 +4331,7 @@ def test_the_agent_response_clock_waits_until_the_reply_is_on_screen(browser):
         "reply => window.__leafVerifier.replyShownAt(reply)", arg=reply
     )
     shown = page.evaluate("window.__leafVerifier.replyShownAt", reply)
-    assert shown["by"] == "message"
+    assert shown["by"] == "message" and shown["message"] == shown["at"]
     assert before <= shown["at"] <= page.evaluate("Date.now()")
 
 

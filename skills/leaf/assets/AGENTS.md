@@ -119,8 +119,9 @@ cards may move by that growth. A reply still streaming at the transcript's end i
 that growth arriving: it may change at its foot in place as its words come and as its
 answer completes it. So is an answer that folds the progress run standing at the
 transcript's end into Previous updates, unless the reader stands on a message it puts
-away: what stood from that run down may move, and nothing above it. The declaration permits no other changes to existing messages or
-independent movement of following content.
+away, by focus or by a selection reaching into it: what stood from that run down may
+move, and nothing above it. The declaration permits no other changes to existing
+messages or independent movement of following content.
 News grows where the reader isn't looking: above the screen, where scroll anchoring
 takes the growth into what they scrolled past, or below it. A short thread's reply
 box follows its last message; a long panel thread pins the

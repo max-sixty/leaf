@@ -24,7 +24,7 @@
    title gesture policy, outgoing fold paint and local draft repaint. Surfaces receive
    whole-thread geometry readings rather than descendant nodes. */
 import { nextRender, sizeObserver } from "../rendering.js";
-import { holdFocus, focusDestination, focused } from "../focus.js";
+import { holdFocus, focusDestination, focused, standsOn } from "../focus.js";
 import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
 import { anchorLabel, MessageView, messageReading } from "./messages.js";
@@ -509,11 +509,9 @@ export class ThreadView {
     const pinned = replyPinned(this.#reply?.node);
     // An answer's own fold of the progress run at the thread's end changes only the
     // thread's foot, as the answer's arrival does, unless the user stands on a message
-    // the fold would put away.
-    const standing = focused();
+    // the fold would put away, by focus or by a selection reaching into it.
     const foot =
-      footFold &&
-      !folds.messages.some((key) => this.#messageNode(key)?.contains(standing));
+      footFold && !folds.messages.some((key) => standsOn(this.#messageNode(key)));
     const idleAppend =
       this.#model?.surface === "panel" &&
       this.node.open &&

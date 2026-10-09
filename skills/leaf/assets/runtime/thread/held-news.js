@@ -41,8 +41,10 @@
    in place, so it streams into an idle open card and a held one counts it once as a
    new reply. So is an answer folding the progress before it into Previous updates
    where that progress is the run at the thread's end, as the agent's acknowledgement
-   is, unless the user stands on a message the fold puts away. Changes to other existing messages, reactions, folds and settlement use the
-   same hold as a seat in page flow, and a notice calls a changed message an edit.
+   is, unless the user stands on a message the fold puts away, by focus or by a
+   selection reaching into it (`standsOn`, focus.js). Changes to other existing
+   messages, reactions, folds and settlement use the same hold as a seat in page flow,
+   and a notice calls a changed message an edit.
    A closed card holds nothing, since its title row draws at one size whatever it says.
    A reply pinned to its scrollport lets a turn joining the thread's end grow up into
    the room scrolled past (thread-list.js, `followThreadEnd`), though nothing that
@@ -83,8 +85,8 @@
    come (2026-10-09: holding them as an edit left the agent's opening an empty bubble
    behind "1 new reply" until the user pressed it), and an answer folding the progress
    run at the thread's end (2026-10-09: since #1926 the agent's first move is a progress
-   acknowledgement, so holding the fold held nearly every answer). Its existing reading and active
-   editor remain protected. Rejected: filling the list (#1480), which makes the
+   acknowledgement, so holding the fold held nearly every answer). Everything above that
+   run, the message the user stands on and an active editor remain protected. Rejected: filling the list (#1480), which makes the
    open card as tall as the panel and leaves later cards below the fold; and letting a
    list that cannot scroll push its contents down, which needs the shift watch to stop
    checking such lists. Arrival is read from where the user stands (the user's decision,
@@ -109,7 +111,7 @@ import { allThreads } from "./state.js";
 import { THREAD } from "./selectors.js";
 import { closestAcross } from "../passages.js";
 import { readApplication } from "../semantic-state.js";
-import { onStanding, focused } from "../focus.js";
+import { onStanding, focused, standingNode } from "../focus.js";
 import { readingIsContinuous } from "../reading-continuity.js";
 
 // Whether this page's ledger holds a gesture of the user's on `thread`: one of its
@@ -797,7 +799,7 @@ export class HeldArrivals {
   // release would take the card, and the reply they may be writing, away; it shows
   // when they press its marker, or the next time its datum leaves the window.
   #lapse(which) {
-    const standing = closestAcross(focused(), THREAD)?.dataset.thread;
+    const standing = closestAcross(standingNode(), THREAD)?.dataset.thread;
     return this.#release((held) => which(held) && held.id !== standing);
   }
 

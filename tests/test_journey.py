@@ -75,7 +75,7 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(end):
         def evaluate(self, script, arg=None):
             assert script == "window.__leafVerifier.replyShownAt"
             shown.append(arg["id"])
-            return {"at": 1_000_000 + 9_500, "by": "row"}
+            return {"at": 1_000_000 + 9_500, "by": "row", "message": 1_000_000 + 9_520}
 
     url = "http://127.0.0.1:1/?t=token"
     user_end = (
@@ -123,6 +123,7 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(end):
     if end == "browser":
         assert reading["sinceSendMs"]["responseVisible"] == 9500
         assert reading["responseShownBy"] == "row"
+        assert reading["sinceSendMs"]["responseMessageVisible"] == 9520
         assert shown == ["r1"]
     else:
         assert "sinceSendMs" not in reading and shown == []

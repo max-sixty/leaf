@@ -26,6 +26,8 @@ import { threadKey } from "./model.js";
 import { closestAcross } from "../passages.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
 import { THREAD, SAY_ROW } from "./selectors.js";
+import { offer } from "../widget-elements.js";
+import { TEXT_FIELD } from "../control-selectors.js";
 
 const REPLY_COMPOSITION = Symbol("reply composition");
 const compositions = new Map(); // context -> native session, with its current owner
@@ -265,4 +267,16 @@ export async function restoreReplyEditing(editing, land) {
     if (compositions.get(context) === session && !available(session.owner))
       compositions.delete(context);
   }
+}
+
+// Native editor construction has one home; cards and package fragments share its
+// draft, input, delivery and recovery lifetime rather than constructing another one.
+export function createReplyView(key, commands, { onChange = () => {} } = {}) {
+  const row = offer("div", "lf-thread-reply");
+  const input = offer(TEXT_FIELD);
+  input.name = "reply";
+  const send = offer("button", "lf-btn lf-thread-send", "Send");
+  row.append(input, send);
+  const lifetime = wireReply(key, row, input, send, { ...commands, onChange });
+  return { node: row, input, dispose: lifetime.dispose };
 }

@@ -164,6 +164,9 @@ def build() -> str:
             )
             + f">{script['body']}</script>"
             for script in parsed.inline_scripts
+            # Scripts inside main already travel with its body. Hoisting them
+            # as well duplicates identities and the samples' event sources.
+            if script["early_head"]
         )
         for i in ["corpus-" + stem] + parsed.all_ids:
             if i in owner:

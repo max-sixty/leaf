@@ -1178,6 +1178,7 @@ test("the publisher carries the server's Ask reading, page asks before thread as
     thread: null,
   };
   assert.deepEqual(app.read().effective.asks, {
+    phase: "ready",
     all: [
       record,
       {
@@ -1288,7 +1289,8 @@ test("a Done this tab sends ends its task at once, and its undo puts the task ba
     (candidate) => candidate.ends === "done",
   );
   const onYou = (app) => app.read().effective.queues.onYou.map(({ id }) => id);
-  const done = (app) => app.read().effective.done.map(({ id, state }) => [id, state]);
+  const done = (app) =>
+    app.read().effective.queues.done.map(({ id, state }) => [id, state]);
 
   const app = setup();
   const open = state(2);

@@ -689,7 +689,7 @@ const shadowHostOf = (node) =>
   node?.nodeType === Node.DOCUMENT_FRAGMENT_NODE ? (node.host ?? null) : null;
 // Whether `node` stands in `scope`, across every shadow tree between them.
 const within = (scope, node) => {
-  for (let at = node; at; at = at.parentNode ?? shadowHostOf(at))
+  for (let at = node; at; at = at.assignedSlot ?? at.parentNode ?? shadowHostOf(at))
     if (at === scope) return true;
   return false;
 };
@@ -707,12 +707,13 @@ export function holdFocus(scope, { key = null } = {}) {
   if (!key) return restore;
   let item = node;
   while (item && !item.matches?.(`[${key}]`))
-    item = item.parentNode ?? shadowHostOf(item);
+    item = item.assignedSlot ?? item.parentNode ?? shadowHostOf(item);
   if (!item || item === scope || !within(scope, item)) return restore;
   // The items are read in the tree the held one stands in, which is the scope's own or a
   // shadow tree inside it.
   const tree = item.getRootNode() === scope.getRootNode() ? scope : item.getRootNode();
-  const items = () => [...tree.querySelectorAll(`[${key}]`)];
+  const items = () =>
+    [...tree.querySelectorAll(`[${key}]`)].filter((item) => within(scope, item));
   // A key marking several nodes of one place counts once, where it first stands.
   const keys = [...new Set(items().map((each) => each.getAttribute(key)))];
   const at = keys.indexOf(item.getAttribute(key));
@@ -720,8 +721,11 @@ export function holdFocus(scope, { key = null } = {}) {
   // In an item, the control like the one the user stood on, as Remove for Remove, read
   // in the item's own tree, or the item itself where it holds none.
   let control = node;
-  while (control.getRootNode() !== item.getRootNode())
-    control = shadowHostOf(control.getRootNode());
+  while (control.getRootNode() !== item.getRootNode()) {
+    const host = shadowHostOf(control.getRootNode());
+    if (!host) break; // Slotted document controls already name their native kind.
+    control = host;
+  }
   const like =
     control.localName +
     [...control.classList].map((name) => `.${CSS.escape(name)}`).join("");
@@ -744,11 +748,21 @@ export function holdFocus(scope, { key = null } = {}) {
     // The drawn item keyed so, where a hidden copy of it stands too. One key may mark
     // several nodes of one place, as a diff line's text and its gutter's Comment: the one
     // like the control the user stood on, or holding one, comes first.
+    const matching = (root) => {
+      if (root.matches(like) && drawn(root)) return root;
+      const assigned =
+        root.localName === "slot" ? root.assignedElements({ flatten: true }) : [];
+      for (const child of assigned.length ? assigned : root.children) {
+        const found = matching(child);
+        if (found) return found;
+      }
+      return null;
+    };
     const find = (value) => {
       const found = keyed(value).filter(drawn);
       return (
         (like && found.find((each) => each.matches(like))) ??
-        (like && found.map((each) => each.querySelector(like)).find(Boolean)) ??
+        (like && found.map(matching).find(Boolean)) ??
         found[0] ??
         null
       );
@@ -767,11 +781,13 @@ export function holdFocus(scope, { key = null } = {}) {
 const heldIn = (scope) => {
   const held = heldByLabel();
   if (held) return within(scope, held) ? held : null;
-  const standing = scope.getRootNode().activeElement;
-  if (standing && standing !== document.body && scope.contains(standing))
-    return deepFocus(standing);
+  const standing = deepFocus(
+    scope.getRootNode().activeElement ?? scope.ownerDocument.activeElement,
+  );
+  if (standing && standing !== document.body && within(scope, standing))
+    return standing;
   const lost = dropped();
-  return lost && scope.contains(lost) ? lost : null;
+  return lost && within(scope, lost) ? lost : null;
 };
 
 // Whether the user stands in `scope`, across every shadow tree between them.

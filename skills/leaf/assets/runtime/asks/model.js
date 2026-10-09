@@ -10,22 +10,18 @@ import { readApplication } from "../semantic-state.js";
 import { registry } from "../registry.js";
 import { watchProjection } from "../projection-watch.js";
 
-const reading = () => readApplication().effective.asks;
+export const readAsks = () => readApplication().effective.asks;
 
 export const askEntry = (ask) => registry[ask?.sourceTag]?.["x-awaits"];
-export const allAsks = () => reading().all;
-export const openAsks = () => reading().user;
-export const unansweredAsks = () => reading().unanswered;
 // Approval is irreversible, so its gate never reads an unknown as an empty list: with
 // no admitted reading nothing says which Asks still stand, and this answers null.
 export function approvalBlockingAsks() {
-  const application = readApplication();
-  if (application.phase !== "ready") return null;
-  return application.effective.asks.unanswered;
+  const reading = readAsks();
+  return reading.phase === "ready" ? reading.unanswered : null;
 }
 
 export function watchAsks(owner, callback) {
   if (typeof callback !== "function")
     throw new TypeError("An Ask watcher needs a callback");
-  return watchProjection(owner, () => callback(openAsks()));
+  return watchProjection(owner, () => callback(readAsks()));
 }

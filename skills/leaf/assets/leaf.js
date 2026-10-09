@@ -432,6 +432,7 @@ const inputs = createCompositionInputs({
 });
 
 app = mountApplication({
+  arriveAtQueueItem: (item) => queueWalk.arriveAtItem(item),
   panel,
   firstUnreadBtn: panelElements.firstUnreadBtn,
   accompaniedThread: (...args) => landing.accompaniedThread(...args),
@@ -561,18 +562,16 @@ pageMapDialog = createPageMapDialog({
 
 // Ask view is constructed below by its owner factory; all accesses above are inert closures.
 asks = createAskView({
-  panelIsOpen,
   focusForNavigation,
   presentedControl: app.overlay?.presentedControl,
-  setPanel: (...args) => threadPanelController.setPanel(...args),
   prepareTrip: anchorTravel.prepareTrip,
   arrive: anchorTravel.arrive,
-  refreshThread: () => app.refreshThread(),
-  revealThread: (id) => narrowing.revealThread(id),
+  openPageThread: app.threadDestinations.openPageThread,
   announce,
   repaint,
 });
 const queueWalk = createQueueWalk({
+  actions: app.queueActions,
   arriveAtAsk: asks.arriveAtAsk,
   arriveAtThread: navigation.arriveAtThread,
   threadHere: () => app.threadDestinations.threadHere(),
@@ -581,11 +580,9 @@ const queueWalk = createQueueWalk({
   arrive: anchorTravel.arrive,
   readableDestination: anchorTravel.readableDestination,
   announce,
-  post: (event) => app.post(event),
 });
 const queue = createQueuePanel({
-  arriveAtItem: queueWalk.arriveAtItem,
-  endTask: queueWalk.endTask,
+  actions: app.queueActions,
   next: queueWalk.next,
   announce,
 });
@@ -609,7 +606,7 @@ panelKeys = createThreadPanelKeys({
 });
 pageComment = createPageComment({
   wireInput: inputs.wireInput,
-  createPageComment: app.createPageComment,
+  createPageComment: (command) => app.threadActions.create(command)?.delivery ?? null,
   designModeActive: designMode.active,
   panelIsOpen,
   showThread: landing.showThread,
@@ -634,7 +631,7 @@ selectionComposer = createSelectionComposer({
   landFabFocus: (...args) => responseSurface.landFabFocus(...args),
   showFab: (...args) => responseSurface.showFab(...args),
   letGoOfFab: () => responseSurface.letGoOfFab(),
-  createComment: app.createComment,
+  createComment: (command) => app.threadActions.create(command)?.delivery ?? null,
   landSent: landing.landSent,
   refreshThread: app.refreshThread,
   wireInput: inputs.wireInput,

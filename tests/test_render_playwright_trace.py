@@ -85,23 +85,32 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     )
     expect(raster).to_have_attribute("width", "390")
     assert raster.bounding_box()["width"] <= 390
-    # Sources are visible and have their own arrow-key route: choosing an API
-    # stream must change the evidence, rather than stepping the page timeline.
-    sources = widget.get_by_role("radiogroup", name="Recorded page or API stream")
+    # A recording overview contains context calls and both browser pages.
+    # Only actual pages are filters; context calls never become a fake page.
+    sources = widget.get_by_role("radiogroup", name="Recording scope")
     expect(sources).to_be_visible()
+    overview = widget.get_by_role("radio", name="All pages", exact=True)
     page_source = widget.get_by_role("radio", name="Page 1", exact=True)
     second_page_source = widget.get_by_role("radio", name="Page 2", exact=True)
-    api_source = widget.get_by_role("radio", name="API calls", exact=True)
+    expect(overview).to_have_attribute("aria-checked", "true")
+    expect(widget.get_by_role("radio")).to_have_count(3)
+    timeline = widget.locator(".lf-trace-timeline")
+    timeline.focus()
+    timeline.press("Home")
+    context_call = min(record["actions"], key=lambda action: action["startTime"])
+    assert context_call["pageId"] is None
+    expect(widget.locator(".lf-trace-action")).to_have_text(context_call["title"])
+    expect(widget.locator(".lf-trace-missing-image")).to_be_visible()
+    overview.focus()
+    overview.press("ArrowRight")
+    expect(page_source).to_be_focused()
     expect(page_source).to_have_attribute("aria-checked", "true")
-    user.keyboard.press("Tab")
-    page_source.focus()
     page_source.press("ArrowRight")
     expect(second_page_source).to_be_focused()
-    second_page_source.press("ArrowRight")
-    expect(api_source).to_be_focused()
-    expect(api_source).to_have_attribute("aria-checked", "true")
-    expect(widget.locator(".lf-trace-action")).to_have_text("BrowserContext.newPage")
-    expect(widget.locator(".lf-trace-missing-image")).to_be_visible()
+    expect(second_page_source).to_have_attribute("aria-checked", "true")
+    expect(
+        widget.locator(".lf-trace-node").filter(has_text="Another recorded page")
+    ).to_have_count(1)
     page_source.click()
     expect(page_source).to_have_attribute("aria-checked", "true")
     expect(raster).to_have_attribute("width", "390")
@@ -201,8 +210,9 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     )
     assert comment["anchor"]["visual"] == target
     user.keyboard.press("Escape")
-    widget.get_by_role("button", name="Next", exact=True).click()
+    second_page_source.click()
     user.keyboard.press("t")
+    expect(page_source).to_have_attribute("aria-checked", "true")
     expect(widget.locator(f'[data-lf-datum="{target}"]')).to_be_visible()
     expect(widget.locator(".lf-trace-phase")).to_have_text(
         f"After · {(phase['timestamp'] - origin) / 1000:.3f} s"
@@ -574,6 +584,7 @@ def test_trace_initial_selection_opens_evidence_and_keeps_earlier_empty_stops(
     data_model.cmd_data_set(directory, "navigation-trace", record)
     user = open_page(browser, url)
     widget = user.locator("#journey")
+    expect(widget.get_by_role("radiogroup", name="Recording scope")).to_be_hidden()
     expect(widget.locator(".lf-trace-position")).to_have_text(
         f"{((after['timestamp']) - record['streams'][0]['monotonicTime']) / 1000:.3f} s"
     )
@@ -620,6 +631,77 @@ def test_trace_initial_selection_opens_evidence_and_keeps_earlier_empty_stops(
         abs(widget.locator(".lf-trace-images").bounding_box()["height"] - before_height)
         <= 1
     )
+
+    # Context operations remain reachable before the page has pixels.
+    timeline = widget.get_by_role("group", name="Recording timeline", exact=True)
+    timeline.focus()
+    timeline.press("Home")
+    first_call = min(record["actions"], key=lambda candidate: candidate["startTime"])
+    assert first_call["pageId"] is None
+    expect(widget.locator(".lf-trace-action")).to_have_text(first_call["title"])
+    expect(widget.locator(".lf-trace-phase")).to_contain_text("Start")
+    expect(widget.locator(".lf-trace-missing-image")).to_be_visible()
+    # A trace with no browser page still exposes its real driver-call stops.
+    user.close()
+    data_model.cmd_data_set(
+        directory,
+        "navigation-trace",
+        record | {"pages": [], "actions": [first_call], "images": []},
+    )
+    user = open_page(browser, url)
+    widget = user.locator("#journey")
+    expect(widget.get_by_role("radiogroup", name="Recording scope")).to_be_hidden()
+    expect(widget.locator(".lf-trace-action")).to_have_text(first_call["title"])
+    expect(widget.locator(".lf-trace-phase")).to_contain_text("Start")
+    widget.get_by_role("button", name="Next", exact=True).click()
+    expect(widget.locator(".lf-trace-phase")).to_have_text(
+        f"Completion · {(first_call['endTime'] - record['streams'][0]['monotonicTime']) / 1000:.3f} s"
+    )
+    expect(widget.locator(".lf-trace-missing-image")).to_be_visible()
+
+    # Separate native streams own separate clocks and retained selections.
+    # Their times must never be merged into one enormous recording range.
+    second_stream = record["streams"][0] | {
+        "id": "second-stream",
+        "monotonicTime": 100000,
+    }
+    second_call = first_call | {
+        "id": "second-call",
+        "stream": second_stream["id"],
+        "startTime": 100015,
+        "endTime": 100030,
+    }
+    user.close()
+    data_model.cmd_data_set(
+        directory,
+        "navigation-trace",
+        record
+        | {
+            "streams": [record["streams"][0], second_stream],
+            "pages": [],
+            "actions": [first_call, second_call],
+            "images": [],
+        },
+    )
+    user = open_page(browser, url)
+    widget = user.locator("#journey")
+    expect(widget.get_by_role("radiogroup", name="Recording scope")).to_be_visible()
+    expect(widget.get_by_role("radio")).to_have_count(2)
+    first_scope = widget.get_by_role("radio", name="Stream 1", exact=True)
+    second_scope = widget.get_by_role("radio", name="Stream 2", exact=True)
+    expect(first_scope).to_have_attribute("aria-checked", "true")
+    widget.get_by_role("button", name="Next", exact=True).click()
+    first_position = widget.locator(".lf-trace-position").inner_text()
+    first_scope.focus()
+    first_scope.press("ArrowRight")
+    expect(second_scope).to_be_focused()
+    expect(widget.locator(".lf-trace-position")).to_have_text("0.015 s")
+    widget.get_by_role("button", name="Next", exact=True).click()
+    expect(widget.locator(".lf-trace-position")).to_have_text("0.030 s")
+    first_scope.click()
+    expect(widget.locator(".lf-trace-position")).to_have_text(first_position)
+    second_scope.click()
+    expect(widget.locator(".lf-trace-position")).to_have_text("0.030 s")
 
 
 def test_trace_bookmarks_jump_to_exact_evidence_in_page_flow(browser, serve):
@@ -716,7 +798,9 @@ def test_trace_transport_scrubs_plays_and_freezes_review_evidence(browser, serve
         for phase in action["phases"].values()
         if phase["pageId"] == record["pages"][0]["id"]
     ]
-    duration = max(checkpoints) - min(checkpoints)
+    duration = max(checkpoints) - min(
+        action["startTime"] for action in record["actions"]
+    )
     url = serve(source)
     for touch in (False, True):
         context = browser.new_context(
@@ -761,7 +845,7 @@ def test_trace_transport_scrubs_plays_and_freezes_review_evidence(browser, serve
         user.clock.pause_at(1)
         play.tap() if touch else play.click()
         expect(pause).to_be_visible()
-        user.clock.run_for(round(duration / 2))
+        user.clock.run_for(round(duration * 0.75))
         expect(position).not_to_have_text(beginning)
         expect(
             widget.locator(
@@ -785,7 +869,7 @@ def test_trace_transport_scrubs_plays_and_freezes_review_evidence(browser, serve
         user.clock.pause_at(user.evaluate("Date.now() / 1000") + 1)
         play.tap() if touch else play.click()
         expect(pause).to_be_visible()
-        user.clock.run_for(round(duration / 2))
+        user.clock.run_for(round(duration * 0.75))
         widget.get_by_role("button", name="Next", exact=True).click()
         expect(play).to_be_visible()
         user.clock.resume()
@@ -794,10 +878,13 @@ def test_trace_transport_scrubs_plays_and_freezes_review_evidence(browser, serve
         timeline.press("Home")
         widget.get_by_role("button", name="Whole recording", exact=True).click()
         timeline.scroll_into_view_if_needed()
-        handle = widget.locator(".vis-custom-time.selection").bounding_box()
+        handle = widget.locator(".vis-custom-time.selection > div").bounding_box()
         rail = widget.locator(".vis-panel.vis-center").bounding_box()
         before_scrub = position.inner_text()
-        start = {"x": handle["x"] + 1, "y": handle["y"] + 10}
+        start = {
+            "x": handle["x"] + handle["width"] / 2,
+            "y": handle["y"] + handle["height"] / 2,
+        }
         finish = {"x": rail["x"] + rail["width"] * 0.75, "y": start["y"]}
         if touch:
             cdp = context.new_cdp_session(user)
@@ -868,6 +955,12 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
 
     source = ROOT / "examples/developer/playwright-trace-gallery.html"
     record = json.loads(source.with_suffix(".data.json").read_text())["release-journey"]
+    # A second recorded tab has no captured calls yet. It still distinguishes
+    # the overview from the first page for the inspection restoration journey.
+    first_page = record["pages"][0]
+    record["pages"].append(
+        first_page | {"id": first_page["id"] + "-second", "pageId": "page@second"}
+    )
     # Native traces can have a saved tree before any screenshot. Keep this real
     # recording's clocks and media, but leave that checkpoint without its PNG.
     first = next(action for action in record["actions"] if action["phases"])
@@ -1053,9 +1146,38 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
         tree_phase = widget.locator(".lf-trace-phase").get_attribute("data-lf-datum")
         user.evaluate("""() => {
           inspectionTargets = [];
-          watchInspection = true;
+          watchInspection = false;
           sampleInspection();
         }""")
+        # Real-time playback can skip a short checkpoint between frames. Visit
+        # both saved trees explicitly so their layout comparison always runs.
+        frames = widget.get_by_role("checkbox", name="Show intermediate frames")
+        frames.uncheck()
+        navigate_at(timeline, 0)
+        for phase in ("before", "after"):
+            target = f"trace-{archive}-phase-{first['id']}-{phase}"
+            # The overview also contains browser setup calls. Walk the native
+            # points until this saved tree, rather than assuming page-only indices.
+            while (
+                widget.locator(".lf-trace-phase").get_attribute("data-lf-datum")
+                != target
+            ):
+                expect(
+                    widget.get_by_role("button", name="Next", exact=True)
+                ).to_be_enabled()
+                timeline.press("ArrowRight")
+                rendered(user)
+            expect(widget.locator(".lf-trace-phase")).to_have_attribute(
+                "data-lf-datum", target
+            )
+            expect(tree.locator(".lf-trace-node")).to_have_count(
+                len(first["phases"][phase]["tree"]["nodes"])
+            )
+            user.evaluate("sampleInspection()")
+        timeline.press("End")
+        frames.check()
+        rendered(user)
+        user.evaluate("() => {watchInspection = true; sampleInspection()}")
         # Keep the inspected viewport while pressing the visible sticky Play
         # control; locator activation can scroll before it delivers input.
         box = play.bounding_box()
@@ -1102,11 +1224,13 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
             )
             > 1
             for action in {sample["action"] for sample in expanded}
-        ), "Expanded replay must replace differently sized trees for the same action"
+        ), (
+            "Expanded inspection must replace differently sized trees for the same action"
+        )
         summary.click()
         rendered(user)
 
-        # Rendering empty time, returning from API calls and resizing the page
+        # Rendering empty time, returning from the overview and resizing the page
         # cannot redefine the inspection. Fit is an explicit user action.
         timeline.focus()
         timeline.press("Home")
@@ -1128,8 +1252,8 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
         ticks = widget.locator(
             ".vis-text.vis-minor:not(.vis-measure)"
         ).all_text_contents()
-        widget.get_by_role("radio", name="API calls", exact=True).click()
         widget.get_by_role("radio", name="Page 1", exact=True).click()
+        widget.get_by_role("radio", name="All pages", exact=True).click()
         rendered(user)
         assert user.evaluate("inspectionView()") == pytest.approx(before, abs=0.003)
         assert (
@@ -1185,6 +1309,7 @@ def test_trace_zoom_and_pan_stay_within_the_fitted_recording(browser, serve):
             ".vis-text.vis-minor:not(.vis-measure)"
         ).all_text_contents()
         assert len(overview) > 1
+        assert min(overview) == 0, "The whole recording starts at zero"
         overview_span = max(overview) - min(overview)
         widget.get_by_role("button", name="Zoom in", exact=True).click()
         rendered(user)
@@ -1225,15 +1350,18 @@ def test_trace_zoom_and_pan_stay_within_the_fitted_recording(browser, serve):
         widget.get_by_role("button", name="Whole recording", exact=True).click()
         rendered(user)
 
+        # Zoom can change tick spacing without changing which seconds are
+        # labelled, particularly on a narrow ruler starting exactly at zero.
+        tick = widget.locator(".vis-text.vis-minor:not(.vis-measure)").nth(1)
+        overview_tick_style = tick.get_attribute("style")
+        overview_tick_width = tick.bounding_box()["width"]
         box = rail.bounding_box()
         x = box["x"] + box["width"] / 2
         y = box["y"] + box["height"] - 10
         user.mouse.move(x, y)
         user.keyboard.down("Control")
         user.mouse.wheel(0, -500)
-        expect(
-            widget.locator(".vis-text.vis-minor:not(.vis-measure)")
-        ).not_to_have_text(overview_labels)
+        expect(tick).not_to_have_attribute("style", overview_tick_style)
         user.keyboard.up("Control")
         rendered(user)
         # An oversized reverse gesture must stop at the whole recording.
@@ -1245,6 +1373,7 @@ def test_trace_zoom_and_pan_stay_within_the_fitted_recording(browser, serve):
         )
         user.keyboard.up("Control")
         rendered(user)
+        assert abs(tick.bounding_box()["width"] - overview_tick_width) < 1
         assert visible_ticks() == overview
 
         for direction in (-1, 1):
@@ -1267,6 +1396,10 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
     """Long and coincident labels disclose in page flow without enlarging the time axis."""
     source = ROOT / "examples/developer/playwright-trace-gallery.html"
     record = json.loads(source.with_suffix(".data.json").read_text())["release-journey"]
+    first_page = record["pages"][0]
+    record["pages"].append(
+        first_page | {"id": first_page["id"] + "-second", "pageId": "page@second"}
+    )
     archive = record["archive"]["sha256"]
     page = record["pages"][0]
     checkpoints = [
@@ -1301,7 +1434,7 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
         f'<lf-trace-bookmark label="{escape(label, quote=True)}" target="{target}"></lf-trace-bookmark>'
         for label, target in zip(labels, targets, strict=True)
     )
-    members += f'<lf-trace-bookmark label="API stream completion" target="{api_target}"></lf-trace-bookmark>'
+    members += f'<lf-trace-bookmark label="Recording setup complete" target="{api_target}"></lf-trace-bookmark>'
     media = {
         image["url"]: (example_media() / Path(image["url"]).name).read_bytes()
         for image in record["images"]
@@ -1319,13 +1452,16 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
     user = open_page(browser, url)
     resized(user, 1440, 900)
     widget = user.locator("#journey")
+    widget.get_by_role("radio", name="Page 1", exact=True).click()
     summary = widget.locator(".lf-trace-moments-heading")
     expect(summary).to_have_text("Moments (20)")
     lane = widget.locator(".lf-trace-markers")
 
     def bounded_marks():
         rendered(user)
-        assert lane.locator(".vis-timeline").bounding_box()["height"] <= 202
+        # The ruler, dedicated 44px scrub row, and space for three moment rows
+        # stay bounded despite twenty moments (244px plus rounding tolerance).
+        assert lane.locator(".vis-timeline").bounding_box()["height"] <= 246
         boxes = widget.locator(".lf-trace-marker").evaluate_all(
             "nodes => nodes.map(node => {const box = node.getBoundingClientRect(); return {x: box.x, y: box.y, width: box.width, height: box.height};}).filter(box => box.width && box.height)"
         )
@@ -1352,7 +1488,7 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
     expect(widget.locator(".lf-trace-bookmark:visible")).to_have_count(20)
     expect(
         widget.locator(".lf-trace-bookmark:visible .lf-trace-moment-number")
-    ).to_have_text([str(number) for number in range(1, 21)])
+    ).to_have_text([str(number) for number in range(2, 22)])
     native_times = dict(checkpoints) | {frame_target: last_frame["timestamp"]}
     authored_times = [native_times[target] for target in targets]
     assert authored_times != sorted(authored_times), (
@@ -1368,7 +1504,7 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
         int(label)
         for label in widget.locator(".lf-trace-marker span").all_text_contents()
     ]
-    assert sorted(represented) == list(range(1, 21))
+    assert sorted(represented) == list(range(2, 22))
     widget.locator(".lf-trace-bookmarks").get_by_role("button", name=labels[-1]).click()
     expect(
         widget.locator(
@@ -1376,25 +1512,35 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
         )
     ).to_have_attribute("data-lf-datum", frame_target)
     # Page selection is the scope of both the axis pins and their labels.
-    expect(
-        widget.get_by_role("radiogroup", name="Recorded page or API stream")
-    ).to_be_visible()
+    expect(widget.get_by_role("radiogroup", name="Recording scope")).to_be_visible()
     before_scope = widget.locator(".lf-trace-position").inner_text()
     before_origin = widget.locator(".lf-trace-body").evaluate(
         "e => e.getBoundingClientRect().top + scrollY"
     )
-    widget.get_by_role("radio", name=re.compile("API calls")).click()
-    expect(summary).to_have_text("Moments (1)")
-    expect(widget.locator(".lf-trace-image-tools")).to_be_hidden()
-    expect(widget.locator(".lf-trace-bookmark:visible")).to_have_count(1)
+    widget.get_by_role("radio", name="All pages", exact=True).click()
+    expect(summary).to_have_text("Moments (21)")
+    expect(widget.locator(".lf-trace-bookmark:visible")).to_have_count(21)
     expect(
         widget.locator(".lf-trace-bookmark:visible .lf-trace-moment-number")
-    ).to_have_text("21")
-    expect(widget.locator(".lf-trace-marker")).to_have_text("21")
+    ).to_have_text([str(number) for number in range(1, 22)])
+    # An exact target already included in the overview does not narrow it.
+    widget.locator(".lf-trace-bookmarks").get_by_role("button", name=labels[-1]).click()
+    expect(widget.get_by_role("radio", name="All pages", exact=True)).to_have_attribute(
+        "aria-checked", "true"
+    )
+    expect(widget.locator(f'[data-lf-datum="{frame_target}"]')).to_be_visible()
+
     widget.locator(".lf-trace-bookmarks").get_by_role(
-        "button", name="API stream completion"
+        "button", name="Recording setup complete"
     ).click()
     expect(widget.locator(f'[data-lf-datum="{api_target}"]')).to_be_visible()
+    expect(widget.get_by_role("radio", name="All pages", exact=True)).to_have_attribute(
+        "aria-checked", "true"
+    )
+    expect(
+        widget.get_by_role("button", name="Zoom image in", exact=True)
+    ).to_be_disabled()
+    expect(widget.locator(".lf-trace-missing-image")).to_be_visible()
     widget.get_by_role("radio", name="Page 1", exact=True).click()
     expect(widget.locator(".lf-trace-position")).to_have_text(before_scope)
     assert (
@@ -1406,13 +1552,18 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
     expect(summary).to_have_text("Moments (20)")
     resized(user, 390, 844)
     bounded_marks()
-    # Vis virtualizes off-window items; resizing retains the focused native
-    # button while the complete list remains reachable in document flow.
-    focused_pin = widget.locator(".lf-trace-marker").last
-    focused_pin.focus()
-    expect(focused_pin).to_be_focused()
+    # Walk every native moment by keyboard before resizing. Alignment changes
+    # must retain the exact focused control, not send keyboard users to the body.
+    widget.get_by_role("group", name="Recording timeline", exact=True).focus()
+    for _ in range(20):
+        user.keyboard.press("Tab")
+        rendered(user)
+        expect(widget.locator(".lf-trace-marker:focus-visible")).to_have_count(1)
+    focused_pin_id = widget.locator(".lf-trace-marker:focus-visible").get_attribute(
+        "id"
+    )
     resized(user, 320, 844)
-    expect(widget.locator(".lf-trace-marker:focus")).to_have_count(1)
+    expect(widget.locator(f"#{focused_pin_id}:focus-visible")).to_have_count(1)
     bounded_marks()
     body = widget.locator(".lf-trace-body")
     assert body.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
@@ -1420,6 +1571,7 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
         viewport={"width": 390, "height": 844}, has_touch=True
     )
     phone = open_page(browser, url, context=context)
+    phone.get_by_role("radio", name="Page 1", exact=True).tap()
     phone.locator(".lf-trace-bookmarks").get_by_role("button", name=labels[-1]).tap()
     expect(
         phone.locator(".lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img")
@@ -1428,7 +1580,7 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
     first_target = min(targets, key=native_times.__getitem__)
     expect(phone.locator(f'[data-lf-datum="{first_target}"]')).to_be_visible()
     expect(phone.locator(".lf-trace-selection")).to_contain_text(
-        f"Moment 1 · {labels[targets.index(first_target)]}"
+        f"Moment 2 · {labels[targets.index(first_target)]}"
     )
     expect(phone.locator(".lf-trace-bookmark-list")).to_be_visible()
     assert phone.evaluate("document.documentElement.scrollWidth <= innerWidth")
@@ -1437,7 +1589,7 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
 def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
     browser, serve
 ):
-    """Equal-time moments remain separate; clock zero stays an empty rail prefix."""
+    """Equal-time and zero-boundary moments stay independently reachable."""
     source = ROOT / "examples/developer/playwright-trace-gallery.html"
     native = json.loads(source.with_suffix(".data.json").read_text())["release-journey"]
     archive = native["archive"]["sha256"]
@@ -1481,8 +1633,8 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
     resized(user, 1440, 900)
     widget = user.locator("#journey")
     timeline = widget.locator(".lf-trace-timeline")
-    # Vis keeps an offscreen tick before its fitted window. The visible zero
-    # stays the recording origin, while padding keeps boundary buttons reachable.
+    # Vis keeps an offscreen tick before its window. The visible zero sits at
+    # the left boundary, with no navigable time before the recording.
     zero = widget.locator(".vis-text.vis-minor:not(.vis-measure)").filter(
         has_text=re.compile(r"^0 s$")
     )
@@ -1490,6 +1642,7 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
     zero_box = zero.bounding_box()
     axis_box = widget.locator(".vis-panel.vis-center").bounding_box()
     assert axis_box["x"] <= zero_box["x"] < axis_box["x"] + axis_box["width"]
+    assert zero_box["x"] - axis_box["x"] < 6
     timeline_control = widget.get_by_role(
         "group", name="Recording timeline", exact=True
     )
@@ -1615,6 +1768,76 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
     )
     for index in range(3):
         expect(quoted.locator(".lf-trace-bookmark").nth(index)).to_be_disabled()
+
+    # A real recording may begin with a bookmarked call at zero, followed by
+    # another in the first millisecond. Neither its number nor the scrub handle
+    # may disappear beyond the zero boundary, including after a narrow resize.
+    user.close()
+    setup = min(native["actions"], key=lambda action: action["startTime"])
+    start = setup["startTime"]
+    nearby = setup | {
+        "id": setup["id"] + "-nearby",
+        "startTime": start + 1,
+        "endTime": start + 2,
+    }
+    middle = setup | {
+        "id": setup["id"] + "-middle",
+        "startTime": (start + setup["endTime"]) / 2,
+        "endTime": None,
+    }
+    boundary_record = native | {
+        "streams": [stream | {"monotonicTime": start} for stream in native["streams"]],
+        "pages": [],
+        "actions": [setup, nearby, middle],
+        "images": [],
+    }
+    boundary_targets = [
+        f"trace-{archive}-phase-{action['id']}-start"
+        for action in (setup, nearby, middle)
+    ]
+    boundary_members = "".join(
+        f'<lf-trace-bookmark label="Boundary {index}" target="{target}"></lf-trace-bookmark>'
+        for index, target in enumerate(boundary_targets)
+    )
+    boundary_url = serve(
+        leaf_page(
+            "Recording boundary",
+            f'<h1>Recording boundary</h1><lf-trace id="boundary" source="boundary-trace">{boundary_members}</lf-trace>',
+            layout="wide",
+        ),
+        packages=("playwright",),
+    )
+    data_model.cmd_data_set(serve.page_dir, "boundary-trace", boundary_record)
+    user = open_page(browser, boundary_url)
+    widget = user.locator("#boundary")
+    for width in (1440, 390, 1440):
+        resized(user, width, 900)
+        widget.get_by_role("button", name="Whole recording", exact=True).click()
+        rendered(user)
+        rail_box = widget.locator(".vis-panel.vis-center").bounding_box()
+        for index, target in enumerate(boundary_targets[:2]):
+            pin = widget.locator(
+                f'.lf-trace-marker[aria-label^="Moment {index + 1} ·"]'
+            )
+            box = pin.bounding_box()
+            assert box["width"] == pytest.approx(44)
+            assert box["x"] >= rail_box["x"]
+            assert box["x"] + box["width"] <= rail_box["x"] + rail_box["width"]
+            pin.click()
+            expect(widget.locator(f'[data-lf-datum="{target}"]')).to_be_visible()
+            handle = widget.locator(".vis-custom-time > div").bounding_box()
+            assert handle["width"] == pytest.approx(44)
+            assert handle["x"] >= rail_box["x"] - 0.01
+            assert handle["x"] + handle["width"] <= rail_box["x"] + rail_box["width"]
+            zero = (
+                widget.locator(".vis-text.vis-minor:not(.vis-measure)")
+                .filter(has_text=re.compile(r"^0 s$"))
+                .bounding_box()
+            )
+            # Vis rounds its axis height to integer pixels; the text's line
+            # box can retain a fractional pixel beyond that border.
+            assert handle["y"] >= zero["y"] + zero["height"] - 1
+            assert handle["y"] + handle["height"] <= box["y"]
 
 
 def test_hidden_recording_prepares_when_shown_without_blocking_page(browser, serve):

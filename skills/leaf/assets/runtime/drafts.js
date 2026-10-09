@@ -565,7 +565,7 @@ export function createWritingResume({ revealReply, arriveEditor }) {
       notice("That writing place is unavailable on this version");
       return;
     }
-    intent.handoff(() => focusDestination(input, place.selection));
+    intent.handoff(() => focusDestination(input, "move", { caret: place.selection }));
   };
   return {
     id: "writing.resume",
@@ -624,7 +624,7 @@ export function restoreDraftEditing(editing, input) {
     focused() !== input
   )
     return false;
-  focusDestination(input, editing.selection);
+  focusDestination(input, "return", { caret: editing.selection });
   [input.scrollLeft, input.scrollTop] = editing.scroll;
   return true;
 }

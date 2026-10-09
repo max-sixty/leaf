@@ -84,6 +84,7 @@ import {
   sizeObserver,
   tabStore,
   watchAsks,
+  focusDestination,
 } from "/runtime/widget-api.js";
 
 // The page's navigation strip, where one stands: the first tab set in main, drawn as
@@ -233,7 +234,7 @@ customElements.define(
         const next = order[to(at, order.length)];
         // The strip is always on screen; focus scrolling a stuck tab back to its place
         // in flow would move the view being left before the switch records it.
-        next.focus({ preventScroll: true });
+        focusDestination(next, "move");
         next.click();
         beginWalk("tab", "Tab", () =>
           listWalkPosition([...this.#buttons.values()], document.activeElement),

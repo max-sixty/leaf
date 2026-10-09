@@ -26,6 +26,7 @@ import {
 import { offlineInteractive, runtimeModule, runtimeResource } from "./context.js";
 import { loadDeclaredMarkdown, formatDeclaredMarkdown } from "./markdown.js";
 import { initialOrigin, initialSource } from "./initial-render.js";
+import { registeredTags, widgetImports } from "./widget-imports.js";
 
 /* Registry loading and the one initial widget-upgrade lifecycle.
 
@@ -134,10 +135,6 @@ const widgetUrl = (tag) =>
   offlineInteractive
     ? runtimeModule(`/widgets/${tag}.js`)
     : runtimeResource(`/widgets/${tag}.js`);
-const presentTags = (scope, holds) =>
-  tagsDeclaring(holds).filter(
-    (tag) => scope.matches?.(tag) || scope.querySelector(tag),
-  );
 
 async function loadWidgetDependencies(scope) {
   // Before the modules import, because a widget's first render asks for these rules and
@@ -148,17 +145,17 @@ async function loadWidgetDependencies(scope) {
   // same call. The theme is read once for the tab however many scopes ask.
   await Promise.all([
     loadDeclaredMarkdown(scope),
-    ...(presentTags(scope, (entry) => entry["x-shadow"]).length
+    ...(registeredTags(scope, registry).some((tag) => registry[tag]["x-shadow"])
       ? [loadShadowRules()]
       : []),
   ]);
 }
 
 async function importWidgetModules(scope) {
+  const required = widgetImports(scope, registry);
   await Promise.all(
-    presentTags(scope, (entry) => entry["x-initial"]).map((tag) => {
+    required.initializers.map(({ tag, path }) => {
       if (document.documentElement.lfInitial.has(tag)) return;
-      const path = registry[tag]["x-initial"];
       if (!initializers.has(path))
         initializers.set(
           path,
@@ -168,7 +165,7 @@ async function importWidgetModules(scope) {
     }),
   );
   await Promise.all(
-    presentTags(scope, (entry) => entry["x-upgrade"]).map((tag) => {
+    required.modules.map((tag) => {
       if (!modules.has(tag)) modules.set(tag, import(widgetUrl(tag)));
       return modules.get(tag);
     }),

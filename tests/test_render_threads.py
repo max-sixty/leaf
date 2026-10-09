@@ -85,33 +85,60 @@ pytestmark = pytest.mark.nightly
 OPEN_TITLE = ".lf-threads > .lf-thread:not([hidden])[open] > .lf-thread-summary"
 
 
-def test_panel_thread_actions_share_the_first_message_header(browser, serve):
+@pytest.mark.parametrize("touch", [False, True])
+@pytest.mark.parametrize("surface", ["panel", "margin"])
+def test_thread_actions_share_consistently_sized_message_headers(
+    browser, serve, touch, surface
+):
     """Independent thread actions take the first header's spare inline room.
 
-    Keeping a message's header inside it must not give Resolve an otherwise empty
-    row above it. The message body keeps the conversation's full reading width.
+    Controls must not give the opening message a different metadata-to-body gap
+    from later user and agent messages. Every header holds the input's target floor,
+    and each body keeps the conversation's full reading width.
     """
     url = serve(PANEL_PAGE)
-    root = panel_comment(serve.page_dir, "testing")
+    root = panel_comment(serve.page_dir, "testing", {"section": "lede"})
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": root,
+            "revision": 1,
+            "text": "Another thought on the same passage.",
+        },
+    )
     append_agent_reply(serve.page_dir, root, "Testing received successfully.")
-    page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    card = page.locator(f'.lf-thread[data-id="{root}"]')
-    focus_panel_thread(card)
+    context = browser.new_context(has_touch=touch, is_mobile=touch)
+    page = open_page(browser, url, context=context)
+    if surface == "panel":
+        page.locator(".lf-threads-toggle").click()
+        panel_settled(page)
+        card = page.locator(f'.lf-thread[data-id="{root}"]')
+        focus_panel_thread(card)
+    else:
+        page.locator(".lf-margin-marker").first.click()
+        card = page.locator(".lf-margin-preview .lf-page-thread")
+        expect(card).to_be_visible()
     for width in (1440, 390):
         resized(page, width, 900)
         rendered(page)
         geometry = card.evaluate(
             """card => {
               const box = selector => card.querySelector(selector).getBoundingClientRect();
-              const title = box('.lf-thread-summary');
+              const title = (card.querySelector('.lf-thread-head') ??
+                card.querySelector('.lf-thread-summary'))?.getBoundingClientRect();
               const head = box('.lf-msg-head');
               const action = box('.lf-resolve');
               const body = box('.lf-msg-body');
               const center = box => box.top + box.height / 2;
               return {
-                headerGap: head.top - title.bottom,
+                headerGap: title ? head.top - title.bottom : null,
+                messageGaps: [...card.querySelectorAll('.lf-msg')].map(message => {
+                  const name = message.querySelector('.lf-msg-head b').getBoundingClientRect();
+                  const body = message.querySelector('.lf-msg-body').getBoundingClientRect();
+                  return body.top - name.bottom;
+                }),
                 centers: [center(head), center(action)],
                 headRight: head.right, actionLeft: action.left,
                 bodyLeft: body.left, headLeft: head.left,
@@ -120,7 +147,12 @@ def test_panel_thread_actions_share_the_first_message_header(browser, serve):
             }"""
         )
         assert abs(geometry["centers"][0] - geometry["centers"][1]) < 1, geometry
-        assert 0 <= geometry["headerGap"] <= 12, geometry
+        if geometry["headerGap"] is not None:
+            assert 0 <= geometry["headerGap"] <= 12, geometry
+        assert len(geometry["messageGaps"]) == 3, geometry
+        assert max(geometry["messageGaps"]) - min(geometry["messageGaps"]) < 0.01, (
+            geometry
+        )
         assert geometry["headRight"] <= geometry["actionLeft"], geometry
         assert geometry["bodyLeft"] == geometry["headLeft"], geometry
         assert geometry["bodyRight"] >= geometry["actionRight"], geometry
@@ -10937,11 +10969,12 @@ def test_a_scaled_floating_draft_keeps_its_room_when_its_passage_scrolls_away(
 
 
 @pytest.mark.parametrize("surface", ["composer", "composer-widget", "composer-panel"])
-def test_pending_message_headers_match_their_bodies(browser, serve, surface):
-    """Delivery follows complete messages, including in a shadow-root thread.
+def test_pending_messages_stay_readable_through_admission(browser, serve, surface):
+    """Delivery receipts distinguish sends without fading their readable content.
 
     Hold both user messages before admission, then admit each separately. Headers
-    and bodies must share each message's delivery paint through both transitions.
+    and bodies stay fully opaque in ordinary and shadow-root threads while each
+    message's busy state follows its own admission.
     """
     page, _box, send, _after, reply = pressed_send_surface(browser, serve, surface)
     held = []
@@ -10991,16 +11024,35 @@ def test_pending_message_headers_match_their_bodies(browser, serve, surface):
               return {
                 headers: [...root.querySelectorAll('.lf-msg-head')].map(opacity),
                 bodies: [...root.querySelectorAll('.lf-msg-body')].map(opacity),
+                pending: [...root.querySelectorAll('.lf-msg')].map(node =>
+                  node.getAttribute('aria-busy') === 'true'),
+                pendingCursors: [...root.querySelectorAll('.lf-msg[aria-busy="true"] .lf-msg-body')]
+                  .map(node => getComputedStyle(node).cursor),
               };
             }"""
         )
 
-    assert reading() == {"headers": [0.5, 0.5], "bodies": [0.5, 0.5]}
+    assert reading() == {
+        "headers": [1, 1],
+        "bodies": [1, 1],
+        "pending": [True, True],
+        "pendingCursors": ["progress", "progress"],
+    }
     held.pop().continue_()
     holding(page, held, 1, "the reply following its admitted root")
     rendered(page)
-    assert reading() == {"headers": [1, 0.5], "bodies": [1, 0.5]}
+    assert reading() == {
+        "headers": [1, 1],
+        "bodies": [1, 1],
+        "pending": [False, True],
+        "pendingCursors": ["progress"],
+    }
     held.pop().continue_()
     page.unroute("**/api/event", hold)
     round_trip(page)
-    assert reading() == {"headers": [1, 1], "bodies": [1, 1]}
+    assert reading() == {
+        "headers": [1, 1],
+        "bodies": [1, 1],
+        "pending": [False, False],
+        "pendingCursors": [],
+    }

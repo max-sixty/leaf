@@ -138,17 +138,11 @@
   outline-offset: calc(-1 * var(--focus-ring-w));
   border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
   color: var(--ink); box-shadow: 0 8px 24px var(--shade); }
-/* Existing controls delay delivery feedback so a quick answer causes no busy flash.
-   New messages already show the gesture's result and start unconfirmed: they are
-   dim from insertion until admission (marks.css). Accessibility's
-   aria-busy describes both waits, but does not give them the same visual timing.
-   Neither treatment changes geometry or obscures the message's workflow. */
-[aria-busy="true"] {
+/* Delay action-control feedback so a quick answer causes no busy flash.
+   aria-busy also marks reading content (messages, drafts, and uploading editors):
+   their text stays readable, and their receipt or progress cursor carries the wait. */
+:is(button, [role="button"])[aria-busy="true"] {
   animation: lf-runtime-4f3c2a8d-working 140ms linear 200ms both;
-}
-[aria-busy="true"],
-[aria-busy="true"] :is(button, [role="button"]) {
-  cursor: progress;
 }
 /* Holding ⌥ changes what a click means, and nothing on the page said so — the sequence's
    whole cost is that it is invisible. Two things say it, and the division matters:
@@ -1485,6 +1479,11 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
     gap: 12px; margin-bottom: 8px; }
   .lf-command-reference-title { font-weight: 600; }
   .lf-command-reference-close { flex: none; }
+  .lf-command-reference-preference { display: grid; grid-template-columns: auto 1fr;
+    align-items: center; column-gap: 8px; row-gap: 2px; margin: 4px 0 12px; flex: none; }
+  .lf-command-reference-preference input { margin: 0; }
+  .lf-command-reference-preference small { grid-column: 2; color: var(--muted);
+    font-size: var(--t-6); }
   .lf-command-reference-search { width: 100%; box-sizing: border-box; font: inherit; padding: 7px 9px;
     border: 1px solid var(--border-2); border-radius: var(--r); background: var(--paper);
     color: var(--ink); }

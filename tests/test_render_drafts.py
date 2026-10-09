@@ -1073,7 +1073,7 @@ def test_a_draft_forwards_edit_save_and_cancel_without_consuming_native_digits(
         question.evaluate(
             """async element => {
               const {focusDestination} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-              focusDestination(element);
+              focusDestination(element, 'move');
             }"""
         )
         expect(question).to_be_focused()
@@ -1320,60 +1320,28 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     page.keyboard.press("Escape")
 
 
-def test_a_draft_wait_only_paints_after_the_shared_busy_delay(browser, serve):
-    """The layer leaves a short send unpainted, then makes a long wait visible."""
+def test_a_sending_draft_keeps_its_edited_reading_legible(browser, serve):
+    """A busy draft is readable content, including while its Save waits on delivery."""
     page = open_page(browser, serve(JOURNEY_V1))
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     draft = page.locator("#draft-ops")
     draft.locator(".lf-draft-body").dblclick()
-    write(draft.locator("leaf-text"), "A send held long enough to need progress paint.")
-
-    # Sample on the CSS animation's own clock rather than racing wall time across a
-    # Playwright round trip, from just before the user's press on Save until well past
-    # the delay. The host is the surface without a margin entry that owns aria-busy.
-    page.evaluate(
-        """() => {
-          const el = document.getElementById('draft-ops');
-          const out = [];
-          let stop = false;
-          const tick = () => {
-            const painted = Number(getComputedStyle(el).opacity);
-            const busy = el.getAnimations().find(
-              animation => animation.animationName === 'lf-runtime-4f3c2a8d-working'
-            );
-            out.push([
-              busy ? Number(busy.currentTime) : null,
-              busy ? busy.playState : null,
-              painted,
-            ]);
-            if (!stop) requestAnimationFrame(tick);
-          };
-          requestAnimationFrame(tick);
-          window.__lfBusyFrames = new Promise(resolve => setTimeout(() => {
-            stop = true;
-            resolve(out);
-          }, 700));
-        }"""
-    )
+    words = "Keep the edited words readable while their delivery is pending."
+    write(draft.locator("leaf-text"), words)
     draft_control(page, "save", "draft-ops").click()
-    frames = page.evaluate("() => window.__lfBusyFrames")
     holding(page, held, 1, "the draft edit")
-
-    early = [
-        opacity
-        for elapsed, _state, opacity in frames
-        if elapsed is None or elapsed < 150
-    ]
-    late = [opacity for _elapsed, state, opacity in frames if state == "finished"]
-    assert early and set(early) == {1}, f"a short draft wait painted busy: {early}"
-    assert late and set(late) == {0.5}, f"a long draft wait stayed unpainted: {late}"
     expect(draft).to_have_attribute("aria-busy", "true")
+    expect(draft.locator(".lf-draft-body")).to_have_text(words)
+    expect(draft).to_have_css("opacity", "1")
+    expect(draft).to_have_css("cursor", "progress")
+    assert draft.evaluate("node => node.getAnimations().length") == 0
 
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
     expect(draft).not_to_have_attribute("aria-busy", "true")
+    expect(draft.locator(".lf-draft-body")).to_have_text(words)
 
 
 def test_a_refused_draft_keeps_text_and_offers_retry_without_a_details_pane(

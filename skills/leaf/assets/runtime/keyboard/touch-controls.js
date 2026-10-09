@@ -27,6 +27,7 @@ import { repaint } from "../repaint.js";
 import { live, word } from "./bindings.js";
 import { invokePress, standing } from "./dispatch.js";
 import { touchPresses } from "./register.js";
+import { focusDestination } from "../focus.js";
 
 coarsePointer.addEventListener("change", repaint);
 
@@ -53,7 +54,10 @@ function place(press, seat) {
       const held = bannerStanding();
       dismissBannerControls();
       if (current.row.retainStanding) restoreBannerStanding(held);
-      else bannerControlDoor(button)?.focus({ preventScroll: true });
+      else {
+        const door = bannerControlDoor(button);
+        if (door) focusDestination(door, "return");
+      }
     }
     if (live(current.row)) invokePress(current);
   });

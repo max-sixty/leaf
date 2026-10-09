@@ -3409,7 +3409,10 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
 
     selected = page.locator('#views [aria-selected="true"]')
     selected.focus()
-    focus = selected.evaluate(
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
+    expect(selected).to_be_focused()
+    focus = selected.locator(".lf-tab-name").evaluate(
         """element => {
           const style = getComputedStyle(element);
           return {width: parseFloat(style.outlineWidth), style: style.outlineStyle};

@@ -9,6 +9,7 @@ import {
   foldProjection,
   foldedValue,
   foldWidgetStates,
+  isProjectionEntry,
 } from "../../skills/leaf/assets/runtime/projection/model.js";
 import {
   stateDefinition,
@@ -34,11 +35,21 @@ import {
   selectQueues,
 } from "../../skills/leaf/assets/runtime/queues.js";
 
-// The pure model's input types are inferred from its existing implementation. They
-// remain one contract while those folds move to compiled source independently.
-type AuthoredMap = Parameters<typeof foldWidgetStates>[0];
-type Thread = Parameters<typeof discussed>[0];
-type Event = Thread["root"];
+import type {
+  AuthoredMap,
+  Thread,
+  Event,
+  Command,
+  LocalMessage,
+  Message,
+  WidgetEvent,
+  LocalAction,
+  ActionSpec,
+  PendingProjection,
+  ProjectionEntry,
+  Coverage,
+  ContentVersion,
+} from "./domain.ts";
 
 /* The lifecycle of one unresolved gesture, from the turn that makes it to the
  * publication that retires it.
@@ -105,12 +116,12 @@ const UNPRESENTED = new Set<GestureState>(["sending:logged", "accepted:logged"])
 /** One unresolved gesture. `admitted` is the log's event for it, known from the
  * POST's answer or from a reading, whichever came first. */
 interface LedgerEntry {
-  event: Event;
+  event: Command;
   localId: string;
   order: number;
-  projection: any;
-  thread: any;
-  message: any;
+  projection: PendingProjection | null;
+  thread: LocalMessage | null;
+  message: LocalMessage | null;
   undoTarget: string | null;
   namedParent?: string;
   state: GestureState;
@@ -129,18 +140,9 @@ function advance(
   return { ...entry, state, admitted: entry.admitted ?? admitted };
 }
 
-interface ActionSpec {
-  unit: string;
-  record?:
-    | { kind: "body" }
-    | { kind: "attribute" | "value"; attr: string }
-    | { kind: "position"; within: string };
-  writer: "user" | "agent";
-}
-
 interface WireProjection {
   entries: {
-    event: Event;
+    event: WidgetEvent;
     coordinate: [string, string, string];
     restated: string[];
     absorbed: boolean;
@@ -164,12 +166,6 @@ interface WireAsk {
   thread: string | null;
 }
 
-/** One exact agent content version, as a Thread's `unread` names it. */
-interface ContentVersion {
-  message: string;
-  version: string;
-}
-
 interface WireAsks {
   all: WireAsk[];
   user: WireAsk[];
@@ -178,7 +174,7 @@ interface WireAsks {
 
 /** One served workflow, as `served_state.browser.served_workflows` serializes it;
  * `AuthoritativeState.workflows` lists them strongest first. */
-interface WireWorkflow {
+export interface WireWorkflow {
   id: string;
   seq: number;
   revision: number | null;
@@ -220,11 +216,18 @@ interface WireWorkflow {
   dropped: boolean;
 }
 
+/** Published workflows include local sends, before the server can classify quietness. */
+export type Workflow = Omit<WireWorkflow, "quiet" | "dropped" | "stage"> & {
+  stage: WireWorkflow["stage"] | "sending";
+  quiet?: boolean;
+  dropped?: boolean;
+};
+
 /** One task, as `served_state.browser` serves it (`tasks.page_tasks`): `tasks` holds
  * the open ones on either side and `ended_tasks` the ones that ended, with their
  * outcome. A task on the user that an Ask or a thread's question holds has no title of
  * its own. */
-interface WireTask {
+type WireTask = {
   id: string;
   owner: "agent" | "user";
   subject: { kind: "thread" | "widget"; id: string } | { kind: "page" };
@@ -247,11 +250,6 @@ interface WireTask {
   agent: string | null;
   session: string | null;
   outcome: { id?: string; ts: string | null; detail?: string | null } | null;
-  /** How the task ends (`tasks.py`): the agent's own, an Ask's widget, a question's
-   * reply, or the user's Done. */
-  ends: "agent" | "widget" | "reply" | "done" | "approval";
-  /** The exact stamped version whose banner approval ends this task. */
-  approval?: { version: number };
   /** The Ask a task on the user stands for: the widget that answers it, and whether a
    * thread in that widget's seat holds it with the agent meanwhile. */
   ask: {
@@ -260,7 +258,12 @@ interface WireTask {
     widget_tag: string;
     held_by_seat: boolean;
   } | null;
-}
+} & (
+  // The agent's own, an Ask's widget, a question's reply, or the user's Done.
+  | { ends: "agent" | "widget" | "reply" | "done"; approval?: never }
+  // The exact stamped version whose banner approval ends this task (`tasks.py`).
+  | { ends: "approval"; approval: { version: number } }
+);
 
 /** The public Ask record packages read. */
 export interface AskRecord {
@@ -296,7 +299,7 @@ export interface WidgetDescriptor {
   document:
     | { kind: "page"; revision: number }
     | { kind: "thread"; thread?: string; message?: string };
-  declaration: Record<string, unknown>;
+  declaration: SemanticDocument["registry"][string];
   parent: { id: string; tag: string } | null;
   ancestors: readonly { id: string; tag: string }[];
   quoted: boolean;
@@ -306,7 +309,7 @@ export interface AuthoritativeState {
   taken: number;
   layer: { generation: string };
   active: { revision: number; version?: number | null; label?: string | null };
-  versions?: { revision: number; version: number; label: string }[];
+  versions?: { revision: number; version: number; url: string }[];
   events: Event[];
   workflows: WireWorkflow[];
   browser: {
@@ -323,7 +326,7 @@ export interface AuthoritativeState {
           ended_tasks?: WireTask[];
         };
         undo?: { event: Event }[];
-        coverage: object[];
+        coverage: Coverage[];
         updates?: object[];
         published_at?: string | null;
       }
@@ -383,7 +386,7 @@ function normalizedProjection(
         unit: wire.coordinate[1],
         value:
           wire.spec.record?.kind === "attribute"
-            ? (wire.value as string[]).join(" ")
+            ? foldedValue(e, wire.spec.record)
             : wire.value,
       });
     }
@@ -398,13 +401,13 @@ function normalizedProjection(
 // thread history to its frozen document. Widget ids are unique across both, so
 // filtering again by the event's authored revision would incorrectly discard carried
 // decisions from an earlier revision.
-const appliesTo = (descriptor: WidgetDescriptor, event: Event) =>
+const appliesTo = (descriptor: WidgetDescriptor, event: WidgetEvent | LocalAction) =>
   event.widget === descriptor.id;
 
-const NO_ASKS = {
-  all: [] as AskRecord[],
-  user: [] as AskRecord[],
-  unanswered: [] as AskRecord[],
+const NO_ASKS: Record<"all" | "user" | "unanswered", AskRecord[]> = {
+  all: [],
+  user: [],
+  unanswered: [],
 };
 
 const askRecord = (ask: WireAsk): AskRecord => ({
@@ -449,19 +452,13 @@ function localTasks(
   local: readonly LedgerEntry[],
 ) {
   const ending = new Set(
-    local
-      .filter(({ event }) => event.kind === "task_end")
-      .map(({ event }) => event.task as string),
+    local.flatMap(({ event }) => (event.kind === "task_end" ? [event.task] : [])),
   );
   const undoing = new Set(
-    local
-      .filter(({ event }) => event.kind === "undo")
-      .map(({ event }) => event.undoes as string),
+    local.flatMap(({ event }) => (event.kind === "undo" ? [event.undoes] : [])),
   );
   const approving = new Set(
-    local
-      .filter(({ event }) => event.kind === "done")
-      .map(({ event }) => event.version as number),
+    local.flatMap(({ event }) => (event.kind === "done" ? [event.version] : [])),
   );
   const served = [...(view?.document.tasks ?? []), ...(state?.browser.tasks ?? [])];
   const ended = [
@@ -478,7 +475,7 @@ function localTasks(
   ];
   const locallyEnded = (task: WireTask) =>
     ending.has(task.id) ||
-    (task.ends === "approval" && approving.has(task.approval!.version));
+    (task.ends === "approval" && approving.has(task.approval.version));
   return {
     open: open.filter((task) => !locallyEnded(task)),
     ended: [
@@ -509,7 +506,7 @@ function widgetReading(
     ? root.document.authored.get(descriptor.id)?.state
     : undefined;
   const declaration = descriptor.declaration;
-  const actionSpecs = (declaration["x-state"] ?? {}) as Record<string, ActionSpec>;
+  const actionSpecs = declaration["x-state"] ?? {};
   const projection = root.effective.projection;
   const classified = [...projection.classified.values()]
     .filter(
@@ -520,7 +517,7 @@ function widgetReading(
     appliesTo(descriptor, e),
   );
   const durableUndo = (root.effective.view?.undo ?? [])
-    .map((candidate: { event: Event }) => candidate.event)
+    .map((candidate) => candidate.event)
     .filter(
       (event: Event) =>
         event.kind === "action" &&
@@ -557,11 +554,7 @@ function widgetReading(
       ]),
   );
 
-  const provenanceEntries = (current?.entries ?? []) as unknown as {
-    e: Event;
-    unit: string;
-    value: unknown;
-  }[];
+  const provenanceEntries = current?.entries ?? [];
   const provenance = Object.fromEntries(
     provenanceEntries.map(({ e, unit, value }) => [
       `${e.action}:${unit}`,
@@ -569,7 +562,7 @@ function widgetReading(
     ]),
   );
   const holdingThread = root.effective.thread.all.find(
-    (thread: any) =>
+    (thread) =>
       !thread.resolved && !thread.root.pending && thread.root.holds === descriptor.id,
   );
   return {
@@ -669,13 +662,15 @@ export function createSemanticApplication({
         )
       );
     };
-    const localProjections = local
-      .filter((entry) => entry.projection && compatiblePending(entry.projection))
-      .map((entry) =>
-        entry.projection.kind === "undo"
-          ? { ...entry.projection, targetId: namedTarget(entry.undoTarget) }
-          : entry.projection,
-      );
+    const localProjections = local.flatMap((entry) => {
+      const projection = entry.projection;
+      if (!projection || !compatiblePending(projection)) return [];
+      return [
+        projection.kind === "undo"
+          ? { ...projection, targetId: namedTarget(entry.undoTarget) }
+          : projection,
+      ];
+    });
     // The shown revision's server view, resolved here once for every reader of this
     // document's page state. Its basis is transport identity, which the adoption
     // boundary has already matched to the log reading; left in, a read that only moved
@@ -701,17 +696,15 @@ export function createSemanticApplication({
     const folded = ready
       ? foldThreads(
           state?.browser.thread.threads ?? [],
-          messages.map((entry) => entry.message),
-          local.filter((entry) => entry.thread?.token).map((entry) => entry.thread),
-          local
-            .filter(
-              ({ event }) => event.kind === "resolve" || event.kind === "unresolve",
-            )
-            .map((entry) => ({ ...entry.event, localParent: entry.namedParent })),
+          messages.flatMap((entry) => (entry.message ? [entry.message] : [])),
+          local.flatMap((entry) => (entry.thread?.token ? [entry.thread] : [])),
+          local.flatMap(({ event, namedParent }) =>
+            event.kind === "resolve" || event.kind === "unresolve"
+              ? [{ ...event, ...(namedParent ? { localParent: namedParent } : {}) }]
+              : [],
+          ),
           new Set(
-            local
-              .filter(({ event }) => event.kind === "undo")
-              .map(({ event }) => event.undoes),
+            local.flatMap(({ event }) => (event.kind === "undo" ? [event.undoes] : [])),
           ),
         )
       : [];
@@ -732,15 +725,17 @@ export function createSemanticApplication({
     // the log names it. A parent no thread holds is a comment of this tab's that the
     // log refused, and its pending id named its thread.
     const named = threadNames(folded);
-    const threadOf = (message: any): string =>
+    const threadOf = (message: Message): string =>
       message.kind === "reply"
         ? (named.get(message.parent)?.id ?? message.parent)
         : message.id;
     // The thread a local gesture stands in: its message's, or the thread whose
     // markup froze the widget it moved; a page widget's stands in none.
-    const threadOfEntry = (entry: any): string | null => {
+    const threadOfEntry = (entry: LedgerEntry): string | null => {
       if (entry.message) return threadOf(entry.message);
-      const held = document.descriptors.get(entry.event.widget)?.document;
+      const held = entry.event.widget
+        ? document.descriptors.get(entry.event.widget)?.document
+        : null;
       return held?.kind === "thread" ? (held.thread ?? null) : null;
     };
     const recovery = new Map<string, string>();
@@ -748,7 +743,7 @@ export function createSemanticApplication({
       const thread = threadOfEntry(entry);
       if (thread) recovery.set(thread, `rejected:${entry.event.attempt}`);
     }
-    const obligated = folded.map((thread: any) => {
+    const obligated = folded.map((thread): Thread => {
       if (owed.has(thread.id))
         return thread.attention?.reason === "ask"
           ? thread
@@ -767,17 +762,21 @@ export function createSemanticApplication({
     // A send this tab has not delivered, in the served workflow's shape. A message
     // holds its thread as every thread input does; a widget move owes no answer until
     // the server has read it, so it holds none.
-    const localWorkflow = (entry: any, rejected: boolean) => {
+    const localWorkflow = (entry: LedgerEntry, rejected: boolean): Workflow | null => {
       const message = entry.message;
       const thread = threadOfEntry(entry);
+      const subject: Workflow["subject"] | null = message
+        ? { kind: "thread", id: threadOf(message) }
+        : entry.event.kind === "action"
+          ? { kind: "widget", id: entry.event.widget }
+          : null;
+      if (!subject) return null;
       return {
         id: `${rejected ? "rejected" : "pending"}:${entry.event.attempt}`,
         revision: entry.event.revision ?? document.revision,
         seq: entry.order,
         input: message?.id ?? entry.localId,
-        subject: message
-          ? { kind: "thread", id: thread }
-          : { kind: "widget", id: entry.event.widget },
+        subject,
         thread,
         holds_thread: Boolean(message),
         // The server's list, where the local fold keys a coordinate by its JSON.
@@ -802,14 +801,12 @@ export function createSemanticApplication({
         started_by: [],
       };
     };
-    const workflows = [
+    const workflows: Workflow[] = [
       ...(state ? state.workflows : []),
-      ...messages.map((entry) => localWorkflow(entry, false)),
+      ...messages.flatMap((entry) => localWorkflow(entry, false) ?? []),
       // A refused message or widget move has a destination to send again.
       // Other gestures restore their own control or task when speculation ends.
-      ...refused
-        .filter((entry) => entry.message || entry.event.widget)
-        .map((entry) => localWorkflow(entry, true)),
+      ...refused.flatMap((entry) => localWorkflow(entry, true) ?? []),
     ];
     const threads = readThreadRecords(
       obligated,
@@ -960,9 +957,11 @@ export function createSemanticApplication({
     });
     return { unresolved, left };
   };
-  const byAttempt = (receipts: Event[]) =>
+  const byAttempt = (receipts: readonly Event[]) =>
     new Map<string, Event | null>(
-      receipts.map((receipt) => [receipt.attempt, receipt]),
+      receipts.flatMap((receipt) =>
+        receipt.attempt ? [[receipt.attempt, receipt] as const] : [],
+      ),
     );
 
   return Object.freeze({
@@ -1123,7 +1122,7 @@ export function createSemanticApplication({
       return true;
     },
     enqueue(
-      event: Event,
+      event: Command,
       timestamp: string,
       plainText: string = event.text ?? event.token ?? "",
     ) {
@@ -1137,24 +1136,37 @@ export function createSemanticApplication({
         event.kind === "undo"
           ? before.unresolved.find((item) => item.localId === event.undoes)
           : null;
+      const localTarget = undoTarget?.projection;
       const target =
-        undoTarget?.projection ??
-        before.effective.projection.classified.get(event.undoes);
-      const widget = before.document.authored.get(event.widget);
+        event.kind === "undo"
+          ? ((localTarget?.kind !== "undo" ? localTarget : null) ??
+            before.effective.projection.classified.get(event.undoes))
+          : null;
+      const widget =
+        event.kind === "action" ? before.document.authored.get(event.widget) : null;
       const spec =
-        widget && before.document.registry[widget.tag]?.["x-state"]?.[event.action];
+        event.kind === "action" && widget
+          ? before.document.registry[widget.tag]?.["x-state"]?.[event.action]
+          : null;
       const unit =
-        spec && (spec.unit === "widget" ? event.widget : event.detail[spec.unit]);
+        event.kind === "action" && spec
+          ? spec.unit === "widget"
+            ? event.widget
+            : event.detail[spec.unit]
+          : null;
       const localOrder = ++order;
-      const projection =
-        event.kind === "undo" && target?.e.kind === "action"
+      const projection: PendingProjection | null =
+        event.kind === "undo" &&
+        target &&
+        isProjectionEntry(target) &&
+        target.e.kind === "action"
           ? {
               kind: "undo",
               target,
               coordinate: target.coordinate,
               localOrder,
             }
-          : event.kind === "action" && spec && typeof unit === "string"
+          : event.kind === "action" && widget && spec && typeof unit === "string"
             ? {
                 unit,
                 spec,
@@ -1164,7 +1176,6 @@ export function createSemanticApplication({
                   ...event,
                   id: localId,
                   meaning: {
-                    ...event.meaning,
                     state: stateDefinition(
                       widget.tag,
                       before.document.registry[widget.tag],
@@ -1251,11 +1262,15 @@ export function createSemanticApplication({
         entry(parentAttempt)?.admitted?.id ??
         receipts.find((receipt) => receipt.attempt === parentAttempt)?.id;
       if (named)
-        update(attempt, (item) => ({
-          ...item,
-          namedParent: parent,
-          event: { ...item.event, parent: named },
-        }));
+        update(attempt, (item) =>
+          item.event.parent
+            ? {
+                ...item,
+                namedParent: parent,
+                event: { ...item.event, parent: named },
+              }
+            : item,
+        );
     },
     nameUndo(attempt: string, receipts: Event[]) {
       const item = entry(attempt);
@@ -1264,7 +1279,11 @@ export function createSemanticApplication({
         entry(item.undoTarget)?.admitted?.id ??
         receipts.find((receipt) => receipt.attempt === item.undoTarget)?.id;
       if (!named) return false;
-      update(attempt, (item) => ({ ...item, event: { ...item.event, undoes: named } }));
+      update(attempt, (item) =>
+        item.event.kind === "undo"
+          ? { ...item, event: { ...item.event, undoes: named } }
+          : item,
+      );
       return true;
     },
   });

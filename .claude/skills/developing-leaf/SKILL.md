@@ -381,8 +381,11 @@ Score an instruction change when an agent could read it more than one way, so wh
 it will do under the new text is uncertain: a new or reworded rule, a goal that
 competes with another, a cut that may have carried a behavior. A change whose reading
 is plain needs no score, such as deleting the description of an input that can no
-longer arrive or correcting a fact. Run the cases that bear on it on both the merge
-base and the working tree:
+longer arrive or correcting a fact. Prefer personal-skill evals for general agent
+behavior (`/improving-instructions`, "Validate with evals") and the standard Leaf
+evals for consuming its shipped workflows. An internal maintainer case is justified
+only for a Leaf-specific development contract that neither can exercise. For cases
+in Leaf's suite, run both the merge base and the working tree:
 
 ```bash
 npm ci --prefix evals
@@ -402,8 +405,7 @@ the behavior. What the suite holds then scores later edits, whether fixes or cut
 against the behaviors earlier edits had to produce. Keep a case small: one prompt
 carrying only the context the behavior needs, and a few assertions. Explore whatever
 scenarios the change needs, then retain only cases that cover distinct failures or
-necessary controls. Internal maintainer evals stay small and
-sparse; exploratory variants and their evidence stay in the run directory. Remove
+necessary controls. Exploratory variants and their evidence stay in the run directory. Remove
 contexts another retained case already covers. The leading comment records the
 case's origin and whether it distinguished the instructions.
 

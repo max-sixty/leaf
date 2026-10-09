@@ -2466,12 +2466,12 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
 @pytest.mark.watch_shifts
 @pytest.mark.parametrize("width", [1200, 390], ids=["desktop", "narrow"])
 def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve, width):
-    """Growing inline news waits without moving the user's simultaneous places.
+    """Live news keeps the user's simultaneous reading, editing, and pointer places.
 
     The following passage and editor are visible below the reply's insertion point.
-    Status paints immediately, a reply paints its fixed-row notice, and the revision
-    paints its offer while composition holds the current document. Opening the tall
-    reply proves this was growth the user would have seen without the hold.
+    Status paints immediately and a tall reply waits behind its fixed-row notice.
+    An unrelated source revision arrives while retaining the editor and restoring the
+    page's reading position. Opening the reply proves the notice held genuine growth.
     """
     source = SEATED_QUESTION_PAGE.replace(
         "</main>",
@@ -2557,9 +2557,8 @@ def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve, wi
         ).replace('<h1 id="h">', '<p id="new-context">New context.</p><h1 id="h">')
     )
     told(page)
-    expect_banner_control_offered(page.locator(".lf-latest-chip"))
-    expect(page).to_have_title("seated question")
-    expect(page.locator("#new-context")).to_have_count(0)
+    expect(page).to_have_title("Jobs updated")
+    expect(page.locator("#new-context")).to_have_count(1)
     rendered(page)
     kept()
 
@@ -2956,12 +2955,8 @@ def test_a_prose_revision_takes_only_the_words_it_rewrote(browser, serve):
     A native selection and the element a page was handed belong to nodes rather than
     markup. The selection still reads what it read over the same text node, the
     element is still the element, and the picker says the page moved. Focus follows
-    the user's route through More to the new-page control.
-
-    A standing selection is a composition, so the page waits rather than moving under
-    the user mid-sentence. This is the user releasing that hold themselves, which
-    is the one way the case can be reached and the way it is met in practice: they see
-    a new page is available and ask for it while their selection stands.
+    the user's route through the page. An unrelated rewrite arrives automatically
+    because the selected passage's complete authored scope remains unchanged.
     """
     first = leaf_page(
         "Prose first",
@@ -2996,11 +2991,6 @@ def test_a_prose_revision_takes_only_the_words_it_rewrote(browser, serve):
 
     (serve.page_dir / "index.html").write_text(second)
     told(page)
-    expect(page).to_have_title("Prose first")
-    chip = page.locator(".lf-latest-chip")
-    expect_banner_control_offered(chip)
-    banner_control(page, ".lf-latest-chip").click()
-
     expect(page).to_have_title("Prose second")
     expect(page.locator("#pr-edited")).to_have_text(
         "The cutover finished on the second attempt."
@@ -3017,9 +3007,7 @@ def test_a_prose_revision_takes_only_the_words_it_rewrote(browser, serve):
         "sameNode": True,
         "sameElement": True,
     }, f"the revision took something the user was holding: {standing}"
-    # The retained selection still names a commentable passage after the user
-    # leaves the menu; the menu gesture itself need not keep a composer open.
-    page.keyboard.press("Escape")
+    # The retained selection still names a commentable passage after the revision.
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_contain_text("account")
     banner_control(page, ".lf-version").click()
@@ -3619,6 +3607,185 @@ def test_a_revision_retires_every_declared_identity_it_removes(browser, serve):
         }"""
     )
     assert not {"gone-ask", "gone-options", "gone-yes"} & set(descriptors)
+
+
+@pytest.mark.parametrize("subject", ["paragraph", "diff", "selection"])
+def test_a_live_revision_updates_the_closed_questions_door(browser, serve, subject):
+    """Unrelated questions arrive while an anchored comment keeps its native editor."""
+    reading = (
+        '<p id="reading">Work under discussion.</p>'
+        if subject != "diff"
+        else '<lf-diff id="reading"><pre>'
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        "@@ -1 +1 @@\n-before()\n+after()\n</pre></lf-diff>"
+    )
+    first = leaf_page("Questions arriving", '<h1 id="h">Decisions</h1>' + reading)
+    questions = "".join(
+        f'<lf-ask id="question-{i}"><h2>Decision {i}?</h2>'
+        f'<lf-options id="options-{i}" choose>'
+        f'<lf-option id="yes-{i}">Yes</lf-option></lf-options></lf-ask>'
+        for i in range(3)
+    )
+    second = first.replace(reading, questions + reading)
+    page = open_page(browser, live_url(serve(first, packages=("diff",))))
+    door = page.locator(".lf-queue")
+    expect(door).to_have_text("Questions: 0")
+    target = (
+        page.locator("#reading")
+        if subject != "diff"
+        else page.locator("#reading [data-line]").last
+    )
+    if subject == "selection":
+        target.click(click_count=3)
+    else:
+        target.click(modifiers=["Alt"])
+    editor = page.locator(".lf-fab-input")
+    if subject != "selection":
+        expect(editor).to_be_focused()
+    editor.evaluate("node => { window.heldComposer = node; }")
+
+    # An empty but open composer was sufficient to hold the original report.
+    (serve.page_dir / "index.html").write_text(second)
+    expect(page.locator("lf-ask")).to_have_count(3)
+    expect(door).to_have_text("Questions: 3")
+    expect(door).to_have_attribute("aria-label", "Questions: 3 waiting on you")
+    if subject == "selection":
+        assert (
+            page.evaluate("getSelection().toString().trim()")
+            == "Work under discussion."
+        )
+    else:
+        expect(editor).to_be_focused()
+    expect(editor).to_be_in_viewport()
+    assert editor.evaluate("node => node === window.heldComposer")
+
+    write(editor, "Keep this comment while questions change.")
+    editor.evaluate("node => node.setSelectionRange(5, 9)")
+    (serve.page_dir / "index.html").write_text(first)
+    expect(page.locator("lf-ask")).to_have_count(0)
+    expect(door).to_have_text("Questions: 0")
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property(
+        "value", "Keep this comment while questions change."
+    )
+    assert editor.evaluate("node => node === window.heldComposer")
+    assert editor.evaluate("node => [node.selectionStart, node.selectionEnd]") == [5, 9]
+
+
+def test_a_live_revision_holds_a_changed_comment_anchor_scope(browser, serve):
+    """A retained paragraph is insufficient if the quote becomes ambiguous."""
+    paragraph = "<p>Work under discussion.</p>"
+    first = leaf_page(
+        "Comment scope",
+        '<h1 id="h">Decisions</h1><section id="subject">' + paragraph + "</section>",
+    )
+    second = first.replace("</section>", paragraph + "</section>").replace(
+        "</main>",
+        '<lf-ask id="question"><h2>Decision?</h2>'
+        '<lf-options id="options" choose><lf-option id="yes">Yes</lf-option>'
+        "</lf-options></lf-ask></main>",
+    )
+    page = open_page(browser, live_url(serve(first)))
+    page.locator("#subject p").click(click_count=3)
+    editor = page.locator(".lf-fab-input")
+    write(editor, "This occurrence matters.")
+
+    (serve.page_dir / "index.html").write_text(second)
+    expect_banner_control_offered(page.locator(".lf-latest-chip"))
+    expect(page.locator("#subject p")).to_have_count(1)
+    expect(page.locator(".lf-queue")).to_have_text("Questions: 0")
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", "This occurrence matters.")
+
+    editor.press("Escape")
+    expect(page.locator("#subject p")).to_have_count(2)
+    expect(page.locator(".lf-queue")).to_have_text("Questions: 1")
+
+
+def test_a_live_revision_preserves_a_reply_after_native_tab(browser, serve):
+    """Thread editing follows its log identity, independently of page-source changes."""
+    first = leaf_page(
+        "Reply continuity",
+        '<h1 id="h">Review</h1><p id="subject">Work under discussion.</p>',
+    )
+    question = (
+        '<lf-ask id="question"><h2>Decision?</h2><lf-options id="options" choose>'
+        '<lf-option id="yes">Yes</lf-option></lf-options></lf-ask>'
+    )
+    second = first.replace("</main>", question + "</main>")
+    url = serve(first)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Please review this.",
+            "anchor": {"section": "subject"},
+        },
+    )
+    page = open_page(browser, live_url(url))
+    page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-thread-summary").first.click()
+    editor = page.get_by_role("textbox", name="Reply", exact=True)
+    words = "Keep my reply while questions arrive."
+    write(editor, words)
+    editor.evaluate(
+        "node => { window.heldReply = node; node.setSelectionRange(5, 9); }"
+    )
+    editor.press("Tab")
+    send = page.locator(".lf-thread-send").filter(visible=True)
+    expect(send).to_be_focused()
+
+    (serve.page_dir / "index.html").write_text(second)
+    expect(page.locator(".lf-queue")).to_have_text("Questions: 1")
+    expect(send).to_be_focused()
+
+    third = second.replace('<p id="subject">Work under discussion.</p>', "")
+    (serve.page_dir / "index.html").write_text(third)
+    expect(page.locator("#subject")).to_have_count(0)
+    expect(send).to_be_focused()
+    assert editor.evaluate("node => node === window.heldReply")
+    expect(editor).to_have_js_property("value", words)
+    assert editor.evaluate("node => [node.selectionStart, node.selectionEnd]") == [5, 9]
+
+    # A fresh document cannot claim native retention and still waits for composition.
+    (serve.page_dir / "index.html").write_text(executable_revision(third, "reload"))
+    expect_banner_control_offered(page.locator(".lf-latest-chip"))
+    assert editor.evaluate("node => node === window.heldReply")
+    send.press("Shift+Tab")
+    expect(editor).to_be_focused()
+    editor.press("Escape")
+    page.wait_for_function("window.heldReply === undefined")
+    expect(page.locator(".lf-queue")).to_have_text("Questions: 1")
+
+
+def test_a_live_revision_preserves_an_unchanged_authored_editor(browser, serve):
+    """The patch's native-node proof covers ordinary content controls too."""
+    first = leaf_page(
+        "Editor continuity",
+        '<h1 id="h">Review</h1><label for="note">Review note</label>'
+        '<textarea id="note"></textarea><p id="news">Original account.</p>',
+    )
+    page = open_page(browser, live_url(serve(first)))
+    editor = page.locator("#note")
+    write(editor, "Keep my words.")
+    editor.evaluate("node => { window.heldNote = node; node.setSelectionRange(2, 7); }")
+    second = first.replace("Original account.", "A revised account.")
+    (serve.page_dir / "index.html").write_text(second)
+    expect(page.locator("#news")).to_have_text("A revised account.")
+    expect(editor).to_be_focused()
+    expect(editor).to_have_value("Keep my words.")
+    assert editor.evaluate("node => node === window.heldNote")
+    assert editor.evaluate("node => [node.selectionStart, node.selectionEnd]") == [2, 7]
+
+    third = second.replace('id="note"', 'id="note" placeholder="New instruction"')
+    (serve.page_dir / "index.html").write_text(third)
+    expect_banner_control_offered(page.locator(".lf-latest-chip"))
+    expect(editor).not_to_have_attribute("placeholder", "New instruction")
+    expect(editor).to_have_value("Keep my words.")
+    editor.press("Tab")
+    expect(editor).to_have_attribute("placeholder", "New instruction")
 
 
 def test_a_live_revision_reorders_the_page_and_ask_inventory_together(browser, serve):
@@ -5045,7 +5212,10 @@ customElements.define('page-counter', class extends HTMLElement {
 
 def test_an_old_document_state_request_cannot_update_the_new_revision(browser, serve):
     """A request started by the old realm cannot apply a later response in the new one."""
-    version_url = serve(LIVE_V1)
+
+    # A new executable identity requires the fresh-document path. An in-place patch
+    # can retain the page-comment editor and no longer waits for this draft.
+    version_url = serve(executable_revision(LIVE_V1, "one"))
     page = open_page(browser, live_url(version_url))
     general = page_comment(page)
     write(general, "Do not replace the page under these words.")
@@ -5053,7 +5223,7 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
     # Let the page learn that the second revision exists before holding a read. The
     # standing draft keeps the first revision shown and leaves the direct activation
     # route available through the latest-version chip.
-    (serve.page_dir / "index.html").write_text(LIVE_V2)
+    (serve.page_dir / "index.html").write_text(executable_revision(LIVE_V2, "two"))
     told(page)
     expect(page).to_have_title("Live first")
     expect_banner_control_offered(page.locator(".lf-latest-chip"))
@@ -5092,7 +5262,9 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
         chip.click()
         expect(page).to_have_title("Live second")
         page_comment(page)
-        (serve.page_dir / "index.html").write_text(LIVE_V3)
+        (serve.page_dir / "index.html").write_text(
+            executable_revision(LIVE_V3, "three")
+        )
 
         # The premise of the whole reading arrangement, stated rather than inferred: a read the
         # page took while it still stood on the first revision. Held after the press it
@@ -5127,8 +5299,8 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
         page.unroute("**/api/state*")
 
 
-def test_a_widget_textarea_holds_an_arriving_live_version(browser, serve):
-    """Composition reads the control inside a widget's shadow tree, not its host."""
+def test_a_generated_shadow_editor_follows_an_arriving_live_version(browser, serve):
+    """A retained generated shadow control follows unrelated authored changes."""
     version_url = serve(LIVE_V1)
     page = open_page(browser, live_url(version_url))
     page.evaluate(
@@ -5146,20 +5318,13 @@ def test_a_widget_textarea_holds_an_arriving_live_version(browser, serve):
 
     (serve.page_dir / "index.html").write_text(LIVE_V2)
     told(page)
-    expect(page).to_have_title("Live first")
-    expect_banner_control_offered(page.locator(".lf-latest-chip"))
+    expect(page).to_have_title("Live second")
     assert (
         page.evaluate(
             "() => document.querySelector('#shadow-editor').shadowRoot.activeElement?.tagName"
         )
         == "TEXTAREA"
     )
-
-    page.evaluate(
-        "() => document.querySelector('#shadow-editor').shadowRoot.activeElement.blur()"
-    )
-    wait_for_revision(page, 2)
-    expect(page).to_have_title("Live second")
 
 
 def test_a_pending_navigation_prevents_another_live_activation(browser, serve):

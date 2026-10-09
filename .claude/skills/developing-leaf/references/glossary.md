@@ -1,26 +1,16 @@
 # Leaf glossary
 
-This is the canonical vocabulary for the page a user sees and operates. Use these
-names in element declarations, JavaScript, CSS, visible copy, tests, examples, and
-references. When an existing name disagrees with this glossary, change the name; do
-not add an alias.
+The canonical names for the page a user sees and operates. Use them in element
+declarations, JavaScript, CSS, visible copy, tests, examples, and references. Where an
+existing name disagrees, rename it rather than adding an alias. Events, comments,
+threads, replies, Asks, and activity are named by their protocol references, not here.
 
-This reference does not define the protocol between the page and its agent. Events,
-comments, threads, replies, Asks, activity, and their lifecycles are owned by
-their protocol references.
-
-## How to use the vocabulary
-
-A term earns its own entry when current Leaf behavior supplies a stable identity
-criterion. Add a short example only when the definition would otherwise remain
-abstract.
-
-Name the narrowest established kind. Where the web platform or UI design already names
-the thing (a drawer, a focus ring, a sticky header, a full-height layout), use that name,
-since it is the one a user, a page author, and a newcomer to the code already know. Coin
-a word only for a concept with no standard name, and let its entry say which standard
-term comes closest and why it does not fit. Qualify a noun when another web or Leaf
-concept uses the same word.
+A term gets an entry once current behavior gives it a stable identity. Name the
+narrowest established kind, and where the web platform or UI design already names the
+thing (a drawer, a focus ring, a sticky header, a full-height layout), use that name.
+Coin a word only where no standard name fits, and record under "Coined terms" which
+standard term comes closest and why it doesn't fit. Qualify a noun that another web or
+Leaf concept also uses.
 
 ## Reader-facing words
 
@@ -48,48 +38,44 @@ session currently holds the page, on both the banner and neighboring-page rows.
 
 | Term | Identity criterion |
 |---|---|
-| **Page instance** | One durable page directory, including its source, revisions, selected layer, data, media, and event history |
-| **Package** | One composable source directory containing declarations and their payload |
+| **Page instance** | One durable page directory: its source, revisions, selected layer, data, media, and event history |
+| **Package** | One composable source directory of declarations and their payload |
 | **Leaf layer** | One checked, vendored composition of packages |
 | **User session** | One browser tab's temporary interaction with a page instance |
 
-Core Leaf owns revision activation, scoped serving, executable and inert-input
-boundaries, target identity, event admission, comments, and export. A
-package owns reusable declarations, widgets, browser modules, styles, data contracts,
-and instructions. A page instance owns its content, page-local modules, styles, assets, and
-declarations, semantic target choices, drafts, and package selection. A user session
-owns focus, scroll, selection, and disposable exploration state; durable user choices
-enter the page instance through Leaf's event path.
+Core Leaf owns revision activation, scoped serving, the executable and inert-input
+boundaries, target identity, event admission, comments, and export. A package owns
+reusable declarations, widgets, browser modules, styles, data contracts, and instructions.
+A page instance owns its content, page-local modules, styles, assets, and declarations,
+its semantic target choices, drafts, and package selection. A user session owns focus,
+scroll, selection, and disposable exploration state; a durable user choice enters the
+page instance through Leaf's event path. Moving code into a package changes who reuses
+and maintains it, not what it can reach: it runs in the page document beside every
+other script.
 
-Use a package when the source is reusable, the Leaf layer for the checked composition
-vendored into one or more page instances, and the page instance for the durable authored
-artifact. Packaging code changes its reuse and maintenance owner; it does not isolate
-that code from other executable code in the page document.
-
-Do not use *instance* alone for an authored occurrence; use *Leaf element*.
+For an authored occurrence say *Leaf element*, never *instance* alone.
 
 ## Declarations and elements
 
 | Term | Identity criterion |
 |---|---|
-| **Leaf element type** | One registered `lf-*` tag identity |
+| **Leaf element type** | One registered `lf-*` tag |
 | **Element declaration** | The registry record for one Leaf element type |
 | **Leaf element** | One authored occurrence of a Leaf element type |
-| **Compound owner** | A Leaf element whose body owns declared direct members |
-| **Compound member** | A Leaf element whose declaration admits one or more direct owner types |
+| **Compound owner** | A Leaf element whose body holds declared direct members |
+| **Compound member** | A Leaf element whose declaration names the owner types that may hold it directly |
 | **Structural element** | A Leaf element with a declared role in reading structure |
-| **Addressable element** | An authored, identified element eligible as a user target |
+| **Addressable element** | An authored, identified element a user can target |
 
-An element declaration keeps independent dimensions independent:
+An element declaration keeps independent dimensions in separate keys:
 
-- `x-content` is its **body grammar**: `markup`, `members`, `data`, or `empty`.
-- `x-owners` lists the compound owner types that may contain it directly.
-- `x-reading-role` declares an authored reading-structure role.
-- Other `x-*` keys declare capabilities, not element families.
+- `x-content`, what its body holds: `markup`, `members`, `data`, or `empty`.
+- `x-owners`, the compound owner types that may hold it directly.
+- `x-reading-role`, an authored reading-structure role.
+- Every other `x-*` key declares a capability, not an element family.
 
-Do not use *widget entry* for an element declaration, *item* for an addressable
-element, or *holder* for a compound owner. *Item* remains ordinary English for a list
-item.
+Don't say *widget entry* for an element declaration, *item* for an addressable element
+(it stays ordinary English for a list item), or *holder* for a compound owner.
 
 ## Authored reading structure
 
@@ -140,44 +126,34 @@ stands over one edge of one scroller, and nothing about it is modal.
 
 ## Page Map and the margin
 
-**Page Map** is the feature spanning one inventory and its two projections:
-
-| Term | Identity criterion |
-|---|---|
-| **Page inventory** | The complete logical collection of Page Map destinations and actions |
-| **Margin projection** | The compact page-side projection of the inventory |
-| **Page Map dialog** | The searchable modal projection of the inventory |
-
-The margin projection has a separate registration and layout hierarchy:
+**Page Map** is the page inventory, every destination and action on the page, shown
+two ways: the compact **margin projection** beside the page, and the searchable modal
+**Page Map dialog**. The margin projection has its own terms:
 
 | Term | Identity criterion |
 |---|---|
 | **Rail** | The right-hand strip beside `main` where margin rows stand beside their targets. It claims nothing: it stands wherever the room the page leaves right of the centred `main` holds it, and only `data-rail="right"` on `body` makes the shell give it up |
 | **Margin resident** | Something the page's margin holds: the rail, the contents map, a column's first sidebar, its sidenotes. One measurement (`settleResidency`) admits them in that order where the room beside `main` holds them, moving the column over by `--lf-shift`, and writes `data-lf-margin` on `main` |
+| **Margin row** | One target-anchored row whose placement is `rail`, `pin`, or `withheld` |
 | **Pin** | A margin row standing over the page inside its target's top-right corner, where no rail stands: the page declared none, the room beside `main` does not hold one, the target sits in a pane that scrolls on its own, the target reaches past the rail's inner edge, or a hanging note stands level with it. It is an overlay: it covers what lies under it, and nothing reserves room for it or moves when it comes, goes, or changes place |
 | **Folded pin** | A pin whose face, a contributed primary and one more control, found no room for both and stands as its options' toggle alone (`data-lf-folded`), seated at that size, wearing the marker face of the kind its primary contribution declares. Placement folds it; the gesture that opens any options opens it, as does the keyboard standing at its target, spreading its actions leftward over whatever stands beside it, the toggle staying under the press |
-| **Margin row** | One target-anchored geometry participant whose placement is `rail`, `pin`, or `withheld` |
-| **Margin lane** | The layer holding the margin rows of one scroller: the root lane for the document, one lane per bounded reading region, clipped to what that region shows |
-| **Contributed control** | A margin entry a package puts in a target's cluster, such as a suggestion's Accept and Reject |
+| **Margin lane** | The layer holding the margin rows of one scroller: the root lane for the document, and one lane per bounded reading region, clipped to what that region shows |
 | **Margin cluster** | The visible group attached to one target |
 | **Margin contribution** | One provider's registered bundle of margin content |
 | **Margin entry** | One ranked action, disclosure, or status in a contribution |
+| **Contributed control** | A margin entry a package puts in a target's cluster, such as a suggestion's Accept and Reject |
 
-*Withheld* means the row's target shows no part of itself in its region: a closed
-`details`, an inactive tab, or a pane scrolled past it. A withheld row is out of the tab
-order; it does not imply that time alone will make the entry appear.
+A row is *withheld* while its target shows no part of itself in its region: inside a
+closed `details`, in an inactive tab, or in a pane scrolled past it. A withheld row is
+out of the tab order, and the term says nothing about whether the entry will appear
+later.
 
 ## Contents outline
 
-**Contents outline** is generated page navigation derived from authored headings.
-
-| Term | Identity criterion |
-|---|---|
-| **Contents spine** | The roomy margin presentation that distributes heading destinations over the document's height |
-
-`lf-toc` requests the contents outline. In ordinary flow it exposes every included
-heading label; when the margin has room, it may present the proportional contents
-spine instead.
+`lf-toc` requests the **contents outline**, navigation generated from the page's
+headings. In ordinary flow it lists every included heading; where the margin has room
+it may show the **contents spine** instead, which spreads the heading destinations over
+the document's height.
 
 ## Keyboard interactions
 
@@ -206,28 +182,26 @@ spine instead.
 | **Key badge** | A keycap-shaped carrier for a binding or transient hint code |
 | **Binding badge** | A key badge showing a command's currently resolved binding |
 
-Reserve *mode* for Design mode and Draw mode, which persist until explicit exit. `g`
-opens a sequence, `s` opens a picker, and `o` is a toggle: it changes what the page
-shows, not what input means. A scope is the command-resolution mechanism
-that these interactions may make applicable. Commands have stable dotted ids; bindings
-are canonical normalized chords matched against keyboard events.
+Only Design mode and Draw mode are *modes*, lasting until an explicit exit. `g` opens a
+sequence, `s` opens a picker, and `o` is a toggle that changes what the page shows, not
+what input means. Commands have stable dotted ids; bindings are canonical normalized
+chords matched against keyboard events.
 
-*Binding* and *shortcut* name two things. A binding is one chord a scope's row declares
-for a command; code, the register, and package authors use it. A shortcut is the whole
-key sequence a user presses to reach the command, a sequence prefix included (`g d`),
-and it is the only word user-visible text uses. *Keyboard route* is wider than either:
-any keyboard path to an action, Tab to a native control included. A row's `routes` are
-its extra keyed meanings, each with its own id and binding; a route is never another
-name for a binding or a shortcut.
+A *binding* is one chord a scope's row declares for a command, the word code, the
+register, and package authors use. A *shortcut* is the whole key sequence a user
+presses to reach the command, prefix included (`g d`), and the only word user-visible
+text uses. A *keyboard route* is any keyboard path to an action, Tab to a native
+control included. A row's `routes` are its extra keyed meanings, each with its own id
+and binding, never another name for a binding or a shortcut.
 
-The keyboard help presentations are:
+The keyboard help comes in three presentations:
 
-- **Shortcut bar**: the always-visible compact projection of commands applicable in
-  the current keyboard context, drawn in the bottom bar.
-- **Expanded shortcut bar**: the phase More's first press opens, showing the rest of
-  the current commands in up to two rows; not another surface.
-- **Command reference**: the searchable complete catalog of commands. It includes
-  pointer- and platform-triggered commands with no keyboard binding.
+- **Shortcut bar**: the always-visible compact list of commands that apply in the
+  current keyboard context, drawn in the bottom bar.
+- **Expanded shortcut bar**: what More's first press opens, the rest of the current
+  commands in up to two rows; not another surface.
+- **Command reference**: the searchable complete catalog of commands, including
+  pointer- and platform-triggered ones with no keyboard binding.
 
 ## Coined terms
 

@@ -74,15 +74,13 @@ the test without changing that behavior.
 
 Two test-owned failures recur:
 
-- **A read or press before the page said it was ready**, which a re-run hides.
-  State the ordering (`tests/AGENTS.md`, **State races are arrangements, not
-  probabilities** and **A state the page passes through is not a state to poll
-  for**); don't repeat the gesture until it happens to hold.
+- **A read or press before the page said it was ready**, which a re-run hides. State the
+  ordering (`tests/AGENTS.md`, **State races are arrangements, not probabilities** and **Transient states**); don't repeat the
+  gesture until it happens to hold.
 - **A reading that has been widened before.** When the fix that presents itself
   is one more member of an accepted set, allowlist, or tolerance, read the line's
   history (`git log -L`); a set that keeps growing describes the suite's own
-  noise, and the fix is against the test (`tests/AGENTS.md`, **A test cannot
-  assert over noise it makes itself**).
+  noise, and the fix is against the test (`tests/AGENTS.md`, **Test-made noise**).
 
 ## Fix every failure in a red run
 

@@ -1,7 +1,8 @@
 /* Core Thread destinations and held identity.
 
-   The open Threads panel wins; otherwise the current exact outlet wins, then an
-   available page preview, then a deliberately revealed widget seat, then Threads.
+   A registered primary reader supplies its retained destination first. Without
+   that destination, the open Threads panel wins; otherwise the exact outlet wins,
+   then a page preview, then a deliberately revealed widget seat, then Threads.
    A compact preview keeps held widget arrivals held until its own release gesture.
    The optional preview supplies physical
    opening, placement proof, current focus node and target accompaniment; it owns

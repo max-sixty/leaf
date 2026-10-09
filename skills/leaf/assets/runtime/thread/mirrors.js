@@ -1,8 +1,8 @@
-/* Package-owned mirrors of complete Thread conversations.
+/* Package-owned primary readers and optional mirrors of Thread conversations.
 
-   A mirror is an optional view of the shared Thread reading, never a placement of
-   the original Thread. Each owner reconciles its own outlets and async preparation;
-   neither can hold the core panel, margin, or read presentation. A later reading or
+   An optional mirror is a view of the shared Thread reading, never a placement of
+   the original Thread. Optional consumers reconcile their outlets and async
+   preparation independently of the core panel, margin, and read presentation. A later reading or
    unregister aborts its predecessor before any DOM from that predecessor commits. */
 import { reportPageError } from "../layer-client.js";
 import { under, renderedUnder, shadowHost } from "../shadow.js";

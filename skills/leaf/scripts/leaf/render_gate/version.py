@@ -6,6 +6,7 @@ from leaf.render_checks import RENDER_VIEWPORT, SERVED_TIMEOUT_MS
 
 from .readings import (
     arrangement_changes,
+    framing_advice,
     margin_changes,
     open_widgets,
     overflowing_region_advice,
@@ -87,9 +88,11 @@ def _render_version_attempt(
     page again (none of the three is CSS), a settled holder whose mark or still-showing
     slot words disagree with the log's decision (read once: the palettes carry no
     geometry between them), and an SVG paint token that does not resolve to valid paint
-    in that scheme. Once per version, on the settled desktop page in the light scheme, it
-    reads more: as advice, whether a widget declaring x-height drew at a height its
-    first paint did not hold; and then, resizing that loaded page through every width
+    in that scheme. At each viewport and scheme it also reads, as advice, whether a
+    child's margin enlarges an authored box's inset or edge trim misaligns a flex or
+    grid row. Once per version, on the settled desktop page in the light scheme, it
+    reads whether a widget declaring x-height drew at a height its first paint did
+    not hold; and then, resizing that loaded page through every width
     from 360px to 1920px, the sideways readings again: a version holds at each of them,
     not only at the two it renders. There it also reads whether a workspace whose panes
     stand side by side at the desktop viewport stacks them while the Layout still fills
@@ -120,6 +123,8 @@ def _render_version_attempt(
     advice = []
     changes = []
     arrangement = []
+    framing = {}
+    checked_schemes = {}
 
     def once(page, registry):
         desktop = RENDER_VIEWPORTS[0]
@@ -146,8 +151,16 @@ def _render_version_attempt(
 
     def render(viewport, scheme, then=None):
         viewport_label = _viewport_label(viewport)
+        checked_schemes.setdefault(viewport_label, set()).add(scheme)
+
+        def advise(page, registry):
+            for finding in framing_advice(page):
+                framing.setdefault((finding, viewport_label), set()).add(scheme)
+            if then is not None:
+                then(page, registry)
+
         found, found_notices, complete = _render_scheme(
-            browser, url, scheme, viewport, served_timeout_ms, opened_pages, then=then
+            browser, url, scheme, viewport, served_timeout_ms, opened_pages, then=advise
         )
         failures.extend((finding, viewport_label) for finding in found)
         notices.extend((notice, viewport_label) for notice in found_notices)
@@ -170,9 +183,20 @@ def _render_version_attempt(
                 page.close()
         raise
     rendered = [*RENDER_VIEWPORTS, *margins]
+    framed = [
+        (
+            (
+                finding
+                if schemes == checked_schemes[viewport]
+                else f"[{next(iter(schemes))}] {finding}"
+            ),
+            viewport,
+        )
+        for (finding, viewport), schemes in framing.items()
+    ]
     reading = RenderReading(
         _findings_with_viewports(failures, rendered) + swept,
-        advice,
+        _findings_with_viewports(framed, rendered) + advice,
         changes,
         arrangement,
     )

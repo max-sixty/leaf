@@ -2159,8 +2159,8 @@ def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
     click on a page mark does: an open panel scrolls the new thread into its scrollport.
     On a list long enough to scroll, the old rebuild appended the comment below the
     fold and put the scroll back where it was — the user's own words landed out of
-    sight, silently. Both routes to the send put the card away and leave the user on
-    the control it hangs from, with the panel still open."""
+    sight, silently. Both routes to the send leave the user on the open card, `c`
+    writing in it again, with the panel still open."""
     page = open_page(browser, serve(LONG_PAGE, comments=30))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -2169,7 +2169,6 @@ def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
         "        return t.scrollTop === 0 && t.scrollHeight > t.clientHeight; }"
     ), "this list starts revealed or doesn't scroll, so it proves nothing"
 
-    control = page.locator(".lf-banner-actions > .lf-page-comment")
     box = page_comment(page)
     write(box, "Where did my words go?")
     with sending(page, "the first comment"):
@@ -2180,8 +2179,8 @@ def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
     assert page.evaluate("() => document.querySelector('.lf-threads').scrollTop") > 0, (
         "the new thread was in view without scrolling, so the reveal proved nothing"
     )
-    expect(page.locator(".lf-page-comment-card")).to_be_hidden()
-    expect(control).to_be_focused()
+    card = page.locator(".lf-page-comment-card")
+    expect(card).to_be_focused()
     expect(box).to_have_js_property("value", "")
 
     page.keyboard.press("c")
@@ -2191,7 +2190,7 @@ def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
         page.keyboard.press("ControlOrMeta+Enter")  # the other route, same destination
     second = events_model.read_events(serve.page_dir)[-1]
     in_threads_scrollport(page, f'.lf-thread[data-id="{second["id"]}"]')
-    expect(control).to_be_focused()
+    expect(card).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
 
 
@@ -8992,7 +8991,7 @@ def test_a_page_comment_sent_beside_open_threads_lands_in_view(browser, serve, s
     card = page.locator(f'.lf-thread[data-id="{sent["id"]}"]')
     landed = card.locator(":scope > .lf-thread-summary").evaluate(IN_LANDING_BAND)
     assert landed["inside"], f"the new thread was left outside the band: {landed}"
-    expect(page.locator(".lf-banner-actions > .lf-page-comment")).to_be_focused()
+    expect(page.locator(".lf-page-comment-card")).to_be_focused()
 
 
 @pytest.mark.parametrize("how", ["r", "button"])

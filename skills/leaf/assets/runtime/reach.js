@@ -245,8 +245,7 @@ function sweep(root) {
 // they met. A text box holds nothing. A sticking box reads the slot for its own `top`,
 // so it keeps that (state.css): a restart there would stick the box itself at 0, behind
 // the banner, and a sticking box that scrolls headers restarts the slot for them itself
-// (a column's sidebar, layouts.css). Its landing band restarts all the same. Read with
-// the declaration, so a box that stops scrolling at another width stops restarting the
+// (a column's sidebar, layouts.css). Read with the declaration, so a box that stops scrolling at another width stops restarting the
 // slot, or its headers would pin behind the banner.
 //
 // A box that sticks at its scroller's top is marked too, for the focus margin of the

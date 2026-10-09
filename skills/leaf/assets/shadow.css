@@ -244,7 +244,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     + var(--lf-landing-room, 0px))) - var(--lf-landing-room, 0px)); }
 [data-lf-offer]:where(:not([data-lf-offer=""])) { cursor: pointer; }
 [data-lf-offer]:where(:not([data-lf-offer=""])):hover:where(:not([aria-disabled="true"], :disabled)) {
-  box-shadow: inset 0 0 0 100px color-mix(in srgb, var(--ink) 7%, transparent); }
+  box-shadow: var(--offer-hover-shadow); }
 [data-lf-offer]:where(:not([data-lf-offer=""])):is([aria-disabled="true"], :disabled) {
   cursor: default; opacity: .55; }
 [data-lf-offer]:where(:not([data-lf-offer=""])):is(:focus-visible, .lf-focus-visible) {

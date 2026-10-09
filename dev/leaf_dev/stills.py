@@ -64,6 +64,11 @@ def tab_by_keyboard(page: Page) -> None:
     page.locator(".lf-tab-btn").first.focus()
 
 
+def tab_by_pointer(page: Page) -> None:
+    """The pointer's preview of an unselected tab beside the selected one."""
+    page.locator(".lf-tab-btn").nth(1).hover()
+
+
 def drawing_comment(page: Page) -> None:
     """A freehand comment beside the page area its strokes describe."""
     guide = page.locator("#bg-drawing-comments-guide")
@@ -543,6 +548,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
     for drive in (
         at_rest,
         tab_by_keyboard,
+        tab_by_pointer,
         drawing_comment,
         card_by_pointer,
         card_by_keyboard,
@@ -774,6 +780,7 @@ STATES = (
     ),
     State("gallery-tabs", "developer/feature-gallery", at_rest),
     State("gallery-tab-focus", "developer/feature-gallery", tab_by_keyboard),
+    State("gallery-tab-hover", "developer/feature-gallery", tab_by_pointer),
     State("frame-edges", "developer/feature-gallery", frame_edges),
     State("gallery-metrics", "developer/feature-gallery", gallery_metrics),
     State("gallery-plans", "developer/feature-gallery", gallery_plans),

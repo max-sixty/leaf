@@ -1211,7 +1211,9 @@
                min-width: var(--aim-floor); flex: none;
                display: inline-flex; align-items: center; justify-content: center;
                color: var(--muted); cursor: pointer; }
-.lf-tabstrip .lf-tab-btn:hover { color: var(--ink-2); }
+.lf-tabstrip .lf-tab-btn:hover { color: var(--ink-2); box-shadow: none; }
+.lf-tabstrip .lf-tab-btn:not([aria-selected="true"]):hover > .lf-tab-name {
+               box-shadow: var(--offer-hover-shadow); }
 /* Focus follows the name, as in the ARIA tabs example: selection and keyboard focus
  * remain separate marks on one compact face. The containing tab keeps its larger aim
  * floor; neither mark changes layout. The gap fits inside that target's padding. */

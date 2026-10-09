@@ -796,6 +796,73 @@ def test_visual_review_reports_an_image_failure_after_its_peer_has_loaded(
     consume_browser_errors(page, "focus needs two decoded images")
 
 
+@pytest.mark.parametrize("width,touch", [(320, True), (390, True), (1440, False)])
+def test_visual_review_case_navigation_keeps_equal_stable_step_targets(
+    browser, serve, width, touch
+):
+    """Case labels, focus and disabled states cannot resize the paired navigation."""
+    context = browser.new_context(
+        viewport={"width": width, "height": 844},
+        is_mobile=touch,
+        has_touch=touch,
+    )
+    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY), context=context)
+    widget = page.locator("#visual-review-run")
+    nav = widget.get_by_role("navigation", name="Visual review cases")
+    previous = nav.get_by_role("button", name="Previous", exact=True)
+    next_button = nav.get_by_role("button", name="Next", exact=True)
+    selected = nav.locator(".lf-vr-case-select")
+    reading = """node => {
+      const nav = node.getBoundingClientRect();
+      return ['.lf-vr-previous', '.lf-vr-case-select', '.lf-vr-next'].map(selector => {
+        const box = node.querySelector(selector).getBoundingClientRect();
+        return {left: box.left - nav.left, top: box.top - nav.top,
+                width: box.width, height: box.height};
+      });
+    }"""
+    baseline = nav.evaluate(reading)
+    assert baseline[0]["width"] == baseline[2]["width"], baseline
+    assert baseline[1]["width"] > 0, baseline
+    if touch:
+        assert all(box["width"] >= 44 and box["height"] >= 44 for box in baseline)
+    assert page.evaluate(
+        "document.documentElement.scrollWidth <= document.documentElement.clientWidth"
+    )
+    record = json.loads(
+        data_model.source_file(serve.page_dir, "gallery-visual-run").read_text()
+    )
+    for index in range(3):
+        next_button.click()
+        expect(selected).to_have_js_property(
+            "value", record["cases"][(index + 1) % 3]["id"]
+        )
+        assert nav.evaluate(reading) == baseline
+    previous.focus()
+    page.keyboard.press("Shift+Tab")
+    expect(nav.get_by_role("combobox")).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(previous).to_be_focused()
+    assert nav.evaluate(reading) == baseline
+    page.keyboard.press("Tab")
+    expect(next_button).to_be_focused()
+    assert nav.evaluate(reading) == baseline
+    # One remaining case disables both step controls and gives the picker a much
+    # longer label. The navigation owns their allocation throughout the refresh.
+    single = record | {
+        "cases": [record["cases"][0] | {"title": "A very long visual case title " * 8}]
+    }
+    data_model.cmd_data_set(serve.page_dir, "gallery-visual-run", single)
+    told(page)
+    expect(previous).to_be_disabled()
+    expect(next_button).to_be_disabled()
+    assert nav.evaluate(reading) == baseline
+    data_model.cmd_data_set(serve.page_dir, "gallery-visual-run", record)
+    told(page)
+    expect(previous).to_be_enabled()
+    expect(next_button).to_be_enabled()
+    assert nav.evaluate(reading) == baseline
+
+
 def test_visual_review_leads_with_evidence_and_walks_only_remaining_cases(
     browser, serve
 ):

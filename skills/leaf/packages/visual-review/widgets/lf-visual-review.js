@@ -179,7 +179,7 @@ customElements.define(
       this.#queue.addEventListener("change", () => this.#select(this.#queue.value));
       const next = offer("button", "lf-btn lf-vr-next", "Next");
       next.type = "button";
-      this.#queueHost.append(previous, this.#queue, next);
+      this.#queueHost.append(this.#queue, previous, next);
       const queue = make("header", "lf-vr-queue");
       queue.append(this.#queueHost);
 

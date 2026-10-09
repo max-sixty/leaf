@@ -77,7 +77,9 @@
 
 .lf-vr-queue-region {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  /* Paired steps share one allocation; case text yields to both controls. */
+  --lf-vr-step-width: max(4.5rem, var(--aim-floor));
+  grid-template-columns: minmax(0, 1fr) repeat(2, var(--lf-vr-step-width));
   gap: var(--sp-2);
 }
 
@@ -98,7 +100,11 @@
 
 .lf-vr-previous,
 .lf-vr-next {
-  min-width: 5.5rem;
+  padding-inline: var(--sp-2);
+}
+
+.lf-vr-case-select::part(display-input) {
+  text-overflow: ellipsis;
 }
 
 .lf-vr-inspector {
@@ -634,18 +640,25 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .lf-vr-previous,
-  .lf-vr-next {
-    min-width: 0;
-    padding-inline: var(--sp-2);
-  }
-
   .lf-vr-inspector {
     gap: var(--sp-2);
   }
 
   .lf-vr-opacity-control {
     margin-top: 2px;
+  }
+}
+
+/* Keep the chooser's value and its native popup readable when three controls
+   cannot share a row. The two steps still receive the same track. */
+@container (max-width: 18rem) {
+  .lf-vr-queue-region {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .lf-vr-case-select {
+    grid-column: 1 / -1;
+    grid-row: 1;
   }
 }
 

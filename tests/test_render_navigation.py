@@ -2109,6 +2109,129 @@ def test_the_pr_walkthrough_exercises_an_inline_diff_thread(browser, serve):
     assert page.evaluate("() => document.activeElement === document.body")
 
 
+@pytest.mark.parametrize("from_below", [False, True], ids=["down", "up"])
+@pytest.mark.parametrize("width", [1440, 390], ids=["beside", "above-or-below"])
+def test_an_offscreen_thread_card_arrives_with_its_anchor(
+    browser, serve, from_below, width
+):
+    """A distant card arrives with its anchor and retraces the same attachment on return."""
+    context = "".join(f"<p>Reading context {i}.</p>" for i in range(40))
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Thread arrival",
+                f"<h1>Thread arrival</h1>{context}"
+                '<p id="destination">The distant passage to review.</p>'
+                f"{context}",
+            ),
+            anchored=[("destination", "The distant passage")],
+        ),
+    )
+    resized(page, width, 900)
+    page.evaluate(
+        """below => {
+          scrollTo({top: below ? document.scrollingElement.scrollHeight : 0,
+            behavior: 'instant'});
+          window.arrivalFrames = [];
+          window.sampleArrival = true;
+          const sample = () => {
+            const card = document.querySelector('.lf-margin-preview');
+            if (card?.checkVisibility()) {
+              const box = card.getBoundingClientRect();
+              const target = document.querySelector('#destination').getBoundingClientRect();
+              window.arrivalFrames.push({top: box.top, bottom: box.bottom,
+                height: box.height, targetTop: target.top, targetBottom: target.bottom,
+                head: document.querySelector('.lf-banner').getBoundingClientRect().bottom,
+                foot: innerHeight});
+            }
+            if (window.sampleArrival) requestAnimationFrame(sample);
+          };
+          requestAnimationFrame(sample);
+        }""",
+        from_below,
+    )
+    page.keyboard.press("t")
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
+    scroll_settled(page)
+    frames = page.evaluate(
+        "() => { window.sampleArrival = false; return arrivalFrames; }"
+    )
+    distant = [
+        frame
+        for frame in frames
+        if frame["targetBottom"] < frame["head"] - frame["height"]
+        or frame["targetTop"] > frame["foot"] + frame["height"]
+    ]
+    assert distant, "the journey must observe the card before its passage approaches"
+    assert all(
+        frame["bottom"] <= frame["head"] + 1 or frame["top"] >= frame["foot"] - 1
+        for frame in distant
+    ), f"the card appeared ahead of its distant anchor: {distant[:3]}"
+    expect(page.locator("#destination")).to_be_in_viewport()
+    expect(page.locator(".lf-margin-preview")).to_be_in_viewport()
+
+    # Retrace representative offscreen, edge-adjacent and central positions. The
+    # investigation's dense sweep is unnecessary in the recurring suite: these
+    # stops exercise both page attachment and viewport pinning on each placement.
+    target_top = page.locator("#destination").evaluate(
+        "node => node.getBoundingClientRect().top + scrollY"
+    )
+    positions = [target_top - top for top in [-300, 100, 450, 800, 1200]]
+    outward = []
+    for returning, stops in [(False, positions), (True, reversed(positions))]:
+        for position in stops:
+            page.evaluate("top => scrollTo({top, behavior: 'instant'})", position)
+            rendered(page)
+            reading = page.locator(".lf-margin-preview").evaluate(
+                """node => {
+                  const box = node.getBoundingClientRect();
+                  return {box: [box.x, box.y, box.width, box.height],
+                    plane: node.dataset.lfPlane, scroll: scrollY};
+                }"""
+            )
+            if returning:
+                previous = outward.pop()
+                assert reading["scroll"] == previous["scroll"]
+                assert reading["box"] == pytest.approx(previous["box"], abs=0.5)
+                assert reading["plane"] == previous["plane"]
+            else:
+                outward.append(reading)
+        if not returning:
+            assert {reading["plane"] for reading in outward} == {"page", "window"}
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
+
+
+def test_thread_navigation_lands_after_resizing_an_open_reply(browser, serve):
+    """A fixed card cannot reveal itself by scrolling its already-visible passage away."""
+    page = open_page(browser, live_url(serve(FEATURE_GALLERY)))
+    resized(page, 1280, 720)
+    card = page.locator(".lf-margin-preview")
+    thread = card.get_by_role("group", name="Thread, Is lunch provided", exact=False)
+    page.keyboard.press("t")
+    expect(thread).to_be_focused()
+    scroll_settled(page)
+    page.keyboard.press("t")
+    expect(
+        card.get_by_role("group", name="Thread, Workshop room photo")
+    ).to_be_focused()
+    scroll_settled(page)
+    page.keyboard.press("Enter")
+    expect(page.get_by_role("textbox", name="Reply", exact=True)).to_be_focused()
+    resized(page, 390, 844)
+    scroll_settled(page)
+    page.keyboard.press("Escape")
+    page.keyboard.press("Shift+t")
+    expect(thread).to_be_focused()
+    scroll_settled(page)
+    expect(thread).to_be_in_viewport(ratio=1)
+    page.keyboard.press("c")
+    reply = page.get_by_role("textbox", name="Reply", exact=True)
+    expect(reply).to_be_focused()
+    scroll_settled(page)
+    expect(reply).to_be_in_viewport(ratio=1)
+
+
 def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
     """A contextual thread has one side, and leaves and returns with its anchor."""
     page = open_page(browser, live_url(serve(FEATURE_GALLERY)))

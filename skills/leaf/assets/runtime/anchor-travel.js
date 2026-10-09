@@ -53,6 +53,7 @@ import { scrollBehavior } from "./motion.js";
 import { onReadingInput, scrollersOf } from "./reading-regions.js";
 import { prepareEntry } from "./history.js";
 import { pageScroller } from "./scrolling.js";
+import { nearestScrollBy } from "./rect.js";
 import { scrollIntoReadingBand } from "./landing-scroll.js";
 import { renderedParent } from "./shadow.js";
 import { PRESSABLE, reveal } from "./widget-elements.js";
@@ -462,25 +463,13 @@ export function createAnchorTravel({
     );
   }
 
-  // Native nearest alignment: a destination spanning both edges stays; one larger
-  // than the viewport lands its nearer edge rather than hiding its opening words.
-  function nearestBy(start, end, low, high) {
-    if (start < low && end > high) return 0;
-    const oversized = end - start > high - low;
-    if (start < low) return oversized ? end - high : start - low;
-    if (end > high) return oversized ? start - low : end - high;
-    return 0;
-  }
-
   // Prepare only scrollports inside the owning reading region. Snapping the owning
   // region (or the document) into view first consumes the distance the glide should
   // travel, so a far destination appears to teleport before a tiny alignment move.
   // Elements and passages share this placement, including horizontal inspection.
+  // Nearest landings use those same scrollers: a card fixed over the document cannot
+  // reveal itself by scrolling the document that its anchor positioning reads.
   function scrollRevealedPlace(where, alignment, behavior, block) {
-    if (block === "nearest" && where instanceof Element) {
-      where.scrollIntoView({ block, inline: "nearest", behavior });
-      return;
-    }
     const holder = placeHolder(alignment);
     if (!holder) return;
     const targetScroller = scrollingBoxFor(holder);
@@ -498,9 +487,9 @@ export function createAnchorTravel({
       if (!band) continue;
       const { left, right, top, bottom } = band;
       const destination = where.getBoundingClientRect();
-      const byX = nearestBy(destination.left, destination.right, left, right);
+      const byX = nearestScrollBy(destination.left, destination.right, left, right);
       const byY = inside
-        ? nearestBy(destination.top, destination.bottom, top, bottom)
+        ? nearestScrollBy(destination.top, destination.bottom, top, bottom)
         : 0;
       if (byX || byY)
         box.scrollBy({

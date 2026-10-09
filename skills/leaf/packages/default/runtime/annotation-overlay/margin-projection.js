@@ -158,7 +158,7 @@ import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
 import { repaint } from "/runtime/repaint.js";
 import { chromeRoot, chromeForeground } from "/runtime/chrome.js";
 import { versionBtn } from "/runtime/version-picker.js";
-import { motion, scrollBehavior } from "/runtime/motion.js";
+import { motion } from "/runtime/motion.js";
 import { askHolding, declareSide, placeOf } from "/runtime/standing-target.js";
 import { readAsks } from "/runtime/asks/model.js";
 import { closestAcross, inChrome } from "/runtime/passages.js";
@@ -1900,10 +1900,6 @@ export function createMarginProjection({
     transferThreadCard(button);
     buildThreadCard(entry, threadItem, origin);
     keepsHidden(preview, false);
-    previewList.firstElementChild?.scrollIntoView({
-      behavior: scrollBehavior(),
-      block: "nearest",
-    });
     const positioned = placedThreadPreview();
     refreshHighlight();
     for (const row of markerRows())

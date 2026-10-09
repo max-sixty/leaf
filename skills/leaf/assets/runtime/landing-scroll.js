@@ -13,15 +13,7 @@
 import { landingBand, shownBox, scrollAxes } from "./geometry.js";
 import { scrollersOf } from "./reading-regions.js";
 import { moveScrollerBy, reachable } from "./scrolling.js";
-
-const nearestBy = ({ top, bottom }, band) =>
-  top < band.top && bottom > band.bottom
-    ? 0
-    : top < band.top
-      ? top - band.top
-      : bottom > band.bottom
-        ? Math.min(bottom - band.bottom, top - band.top)
-        : 0;
+import { nearestScrollBy } from "./rect.js";
 
 const scrollMargin = (where, side = "Top") =>
   where instanceof Range
@@ -41,12 +33,11 @@ function placementBy(where, block, box) {
         : Math.max((room - rect.height) / 2, margin);
   const movement =
     block === "nearest" && !(where instanceof Range)
-      ? nearestBy(
-          {
-            top: rect.top - margin,
-            bottom: rect.bottom + scrollMargin(where, "Bottom"),
-          },
-          band,
+      ? nearestScrollBy(
+          rect.top - margin,
+          rect.bottom + scrollMargin(where, "Bottom"),
+          band.top,
+          band.bottom,
         )
       : rect.top - band.top - place;
   return movement;
@@ -75,7 +66,10 @@ export function scrollIntoReadingBand(where, holder, block, behavior) {
     bottom -= moved;
     const band = landingBand(outer);
     if (!band) return;
-    ({ local, moved } = verticalTravel(outer, nearestBy({ top, bottom }, band)));
+    ({ local, moved } = verticalTravel(
+      outer,
+      nearestScrollBy(top, bottom, band.top, band.bottom),
+    ));
     if (Math.abs(moved) >= 1) moveScrollerBy(outer, local, behavior);
   }
 }

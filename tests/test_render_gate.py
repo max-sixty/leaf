@@ -3481,7 +3481,7 @@ def into_the_page(page):
     for _ in range(12):
         page.keyboard.press("Tab")
         if page.evaluate("""async () => {
-            const {focused} = await window.__lfRuntimeImport('/runtime/keyboard/scopes.js');
+            const {focused} = await window.__lfRuntimeImport('/runtime/focus.js');
             const {takesLetters} = await window.__lfRuntimeImport('/runtime/focus.js');
             const {closestAcross} = await window.__lfRuntimeImport('/runtime/passages.js');
             const at = focused();

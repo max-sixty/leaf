@@ -4,7 +4,7 @@
    Changes in one script publish once. Immediate updates settle subscribed renderers
    synchronously before focus or control lookup, without selecting a layout here. */
 import { afterScript } from "./rendering.js";
-import { focused, watchCommandAvailability } from "./keyboard/scopes.js";
+import { watchCommandAvailability } from "./keyboard/scopes.js";
 import {
   normalizeReading,
   contributionCommand,
@@ -14,7 +14,7 @@ import {
   contributionContains,
   forgetContributionControls,
 } from "./contribution-controls.js";
-import { focusDestination } from "./focus.js";
+import { focusDestination, focused } from "./focus.js";
 const text = (value) => String(value ?? "").trim();
 // A registration publishes its data once per update. Both projections use those
 // same records; only this registry resolves their live activation capability.

@@ -5442,7 +5442,7 @@ def test_executable_revision_routes_one_editor_among_visible_reply_mirrors(
     wait_for_revision(page, 2)
     current = page.evaluate(
         """async()=>{
-      const {focused}=await window.__lfRuntimeImport('/runtime/keyboard/scopes.js');
+      const {focused}=await window.__lfRuntimeImport('/runtime/focus.js');
       const el=focused();
       return {tag:el.tagName,value:el.value,caret:[el.selectionStart,el.selectionEnd,el.selectionDirection]};
     }"""

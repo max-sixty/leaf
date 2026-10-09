@@ -44,12 +44,11 @@ export {
 // Holding the user's place in a scroller whose contents a widget re-renders.
 export { placeKeeper } from "./user-place.js";
 export { inUi, uiInside, upFrom } from "./shadow.js";
-// Putting the user on an element that may be no tab stop of its own, which is what a
-// widget landing them anywhere but a control needs: the lend leaves when they move off.
-// Holding the user's place, caret included, across a move or re-render of the node they
-// stand on. TEXT_FIELD is the tag of the box a widget offers for the user to write
+// Putting the user on an element, saying what moved them there; holding their place,
+// caret included, across a move or re-render of the node they stand on; and where they
+// stand. TEXT_FIELD is the tag of the box a widget offers for the user to write
 // Markdown in; TEXT_BOX matches it and any native textarea.
-export { focusDestination, holdFocus } from "./focus.js";
+export { focusDestination, focused, holdFocus } from "./focus.js";
 export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // Making an element's children a list, moving only what is out of place and keeping the
 // user standing in a node it moves.
@@ -79,7 +78,6 @@ export { HOLDS_WORD } from "./held-word.js";
 export { PRESS, labelOf, submitBindings, submitLabel } from "./keyboard/bindings.js";
 export {
   commandScope,
-  focused,
   keys as commands,
   paintKeys,
   saying,
@@ -190,7 +188,8 @@ export {
 } from "./target-references.js";
 export { projectData } from "./application.js";
 export { copyCodeBlock } from "./code-copy.js";
-export { onUserInput, retainUserIntent } from "./user-intent.js";
+export { retainUserIntent } from "./user-intent.js";
+export { onUserInput } from "./focus.js";
 export { keepView, openingView, tabStore } from "./storage.js";
 export {
   ensureSyntaxLanguage,

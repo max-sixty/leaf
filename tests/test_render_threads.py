@@ -156,7 +156,6 @@ def test_thread_actions_share_consistently_sized_message_headers(
         assert geometry["headRight"] <= geometry["actionLeft"], geometry
         assert geometry["bodyLeft"] == geometry["headLeft"], geometry
         assert geometry["bodyRight"] >= geometry["actionRight"], geometry
-    context.close()
 
 
 @pytest.mark.watch_shifts

@@ -85,6 +85,105 @@
     "holds_thread": true
   },
   "readings": {
+    "approval": {
+      "basis": {
+        "through_seq": 1
+      },
+      "views": {
+        "1": {
+          "basis": {
+            "revision": 1,
+            "through_seq": 1
+          },
+          "document": {
+            "revision": 1,
+            "projection": {
+              "entries": [],
+              "actions": [],
+              "reports": [],
+              "desired": []
+            },
+            "asks": {
+              "all": [],
+              "user": [],
+              "unanswered": []
+            },
+            "tasks": [
+              {
+                "id": "approval:v1",
+                "owner": "user",
+                "subject": {
+                  "kind": "page"
+                },
+                "thread": null,
+                "title": "Approve v1?",
+                "state": "open",
+                "seq": null,
+                "ts": null,
+                "agent": null,
+                "session": null,
+                "revision": 1,
+                "running": null,
+                "outcome": null,
+                "ends": "approval",
+                "ask": null,
+                "approval": {
+                  "version": 1
+                }
+              }
+            ],
+            "ended_tasks": []
+          },
+          "updates": [],
+          "undo": [],
+          "coverage": [],
+          "published_at": "2026-09-19T12:00:00+00:00"
+        }
+      },
+      "thread": {
+        "projection": {
+          "entries": [],
+          "actions": [],
+          "reports": [],
+          "desired": []
+        },
+        "asks": {
+          "all": [],
+          "user": [],
+          "unanswered": []
+        },
+        "threads": [],
+        "done": []
+      },
+      "activity": {
+        "kind": "away",
+        "held": true,
+        "dropped": false,
+        "detail": "",
+        "observed": "",
+        "observed_kind": null,
+        "counts": {
+          "active": 0,
+          "handling": 0,
+          "handling_comments": 0,
+          "queued": 0,
+          "picked_up": 0,
+          "pending": 0,
+          "overdue": 0,
+          "total": 0
+        },
+        "ts": null,
+        "next_transition_at": null,
+        "obligations": []
+      },
+      "workflows": [],
+      "tasks": [],
+      "ended_tasks": [],
+      "receipts": [],
+      "version_notes": {
+        "1": "Ready"
+      }
+    },
     "frozen move owes nothing": {
       "threads": [
         {

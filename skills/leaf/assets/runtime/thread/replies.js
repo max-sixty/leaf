@@ -177,6 +177,7 @@ export function wireReply(
   send,
   { actions, wireInput, landSent, onChange },
 ) {
+  row.classList.add("lf-comment-box");
   const draftCtx = replyContext(key);
   const composition = {
     context: draftCtx,

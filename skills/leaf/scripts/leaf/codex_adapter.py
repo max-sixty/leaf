@@ -52,18 +52,15 @@ from .codex import (
     app_server_handshake,
     app_server_request,
     append_batch,
-    archive_record,
     check_app_server_endpoint,
-    delivery_record_state,
     delivery_records,
     delivery_stream_reply_target,
-    finish_codex_batch,
     offer_delivery,
     private_app_server,
+    read_task_delivery,
     retire_gone_task_records,
     retry_delay,
     start_app_server_delivery,
-    write_record,
 )
 from .codex_state import (
     delivery_lock_path,
@@ -73,7 +70,6 @@ from .codex_state import (
 )
 from .delivery import stream_reply_target
 from .detached import Handshake, starting_detached
-from .event_log import read_cursor
 from .harness import CodexHarness, Harness, session_harness
 from .leases import (
     adapter_is_live,
@@ -90,7 +86,6 @@ from .service import (
 )
 from .session import Watch, read_watch_pass
 from .state import (
-    EVENTS_FILE,
     ensure_session,
     flocked,
     session_record,
@@ -283,20 +278,17 @@ class TaskConnection:
 
     def _start_delivery(self, socket, payload: dict) -> bool:
         """Check provider status, then start once with a durable uncertain boundary."""
-        with flocked(delivery_lock_path(self.thread_id)):
-            path = codex.record_path(self.thread_id, payload["id"])
-            record = codex.read_record(path)
-            if record is None or record["state"] in {"accepted", "abandoned"}:
-                return True
-            uncertain = (record.get("transport") or {}).get("phase") == "starting"
+        record = read_task_delivery(self.thread_id, payload["id"])
+        if record is None or isinstance(record, codex.ReceiptOutcome):
+            return True
+        uncertain = isinstance(record, codex.StartingOffer)
         thread, expected = self._resume_task(socket, exclude_turns=not uncertain)
         if uncertain:
             hydrated = self._resume(thread, expected)
             self._reconcile_history(socket, hydrated)
-            return delivery_record_state(self.thread_id, payload["id"]) in {
-                "accepted",
-                "abandoned",
-            }
+            return isinstance(
+                read_task_delivery(self.thread_id, payload["id"]), codex.ReceiptOutcome
+            )
         status = thread.get("status") or {}
         if status.get("type") == "active" or self.running is not None:
             return False
@@ -307,12 +299,8 @@ class TaskConnection:
         # The status request folds callbacks, so its receipt may have accepted
         # and archived this offer. Re-read at the intent transition rather than
         # restoring the stale offering object captured before that request.
-        with flocked(delivery_lock_path(self.thread_id)):
-            record = codex.read_record(path)
-            if record is None or record["state"] in {"accepted", "abandoned"}:
-                return True
-            record["transport"] = {"phase": "starting", "turn": None}
-            write_record(path, record)
+        if not codex.begin_delivery_start(self.thread_id, payload["id"]):
+            return True
         buffered: list[dict] = []
         requested = False
 
@@ -332,11 +320,7 @@ class TaskConnection:
             admitted = start_app_server_delivery(send, self.thread_id, payload)
         except BaseException as error:
             if not requested or isinstance(error, codex.AppServerRequestRejected):
-                with flocked(delivery_lock_path(self.thread_id)):
-                    refused = codex.read_record(path)
-                    if refused is not None and refused["state"] == "offering":
-                        refused["transport"] = {"phase": "app-server", "turn": None}
-                        write_record(path, refused)
+                codex.release_delivery_start(self.thread_id, payload["id"])
             for message in buffered:
                 self._read(message)
             raise
@@ -365,8 +349,7 @@ class TaskConnection:
             pending = {
                 path.stem
                 for path, record in delivery_records(self.thread_id)
-                if record["state"] == "offering"
-                and (record.get("transport") or {}).get("phase") == "starting"
+                if isinstance(record, codex.StartingOffer)
             }
         # Receipts may already have archived an accepted delivery while its
         # provider turn was still running. A successful exact reply is the
@@ -380,9 +363,9 @@ class TaskConnection:
             *(directory / "history").glob("*.json"),
         ):
             record = codex.read_record(path)
-            if record is None or record.get("state") not in {"accepted", "abandoned"}:
+            if not isinstance(record, codex.ReceiptOutcome):
                 continue
-            if (record.get("transport") or {}).get("turn") in hydrated:
+            if isinstance(record, codex.Opened) and record.turn in hydrated:
                 continue
             target = delivery_stream_reply_target(self.thread_id, path.stem)
             if target is not None and codex.reply_target_answered(target) is False:
@@ -529,8 +512,10 @@ class TaskConnection:
         adopting = (
             delivery_id is not None
             and turn_id not in self.turns
-            and delivery_record_state(self.thread_id, delivery_id)
-            in {"offering", "abandoned"}
+            and isinstance(
+                read_task_delivery(self.thread_id, delivery_id),
+                (codex.Offering, codex.Abandoned),
+            )
         )
         if method != "turn/completed":
             # Background output can outlive its turn. A start or exact offered
@@ -730,61 +715,6 @@ def capture_batch(session_id: str, reading) -> bool:
     return captured is not None
 
 
-def _page_acknowledged(batch: dict) -> bool:
-    page_dir = Path(batch["page"])
-    if not (page_dir / EVENTS_FILE).is_file():
-        return True
-    return read_cursor(page_dir) >= max(event["seq"] for event in batch["events"])
-
-
-def _sync_receipts(path: Path, record: dict) -> None:
-    """Persist page receipts before archiving completed delivery records."""
-    if record["state"] == "abandoned":
-        archive_record(path, record)
-        return
-    changed = False
-    for batch in record["batches"]:
-        if not batch["receipted"] and _page_acknowledged(batch):
-            batch["receipted"] = True
-            changed = True
-    if changed:
-        write_record(path, record)
-    else:
-        archive_record(path, record)
-
-
-def _recover_receipt(session_id: str) -> bool:
-    """Reconcile one accepted batch while its session still owns the page."""
-    settled = codex.settle_answered_deliveries(session_id)
-    lock = delivery_lock_path(session_id)
-    with flocked(lock):
-        records = delivery_records(session_id)
-        for path, record in records:
-            _sync_receipts(path, record)
-        pending = min(
-            (
-                (path, index, dict(batch), record.get("transport"), record["state"])
-                for path, record in delivery_records(session_id)
-                if record["state"] in {"accepted", "abandoned"}
-                for index, batch in enumerate(record["batches"])
-                if not batch["receipted"]
-            ),
-            key=lambda pending: (
-                pending[2]["page"],
-                min(event["seq"] for event in pending[2]["events"]),
-            ),
-            default=None,
-        )
-    if pending is None:
-        return settled
-    path, batch_index, batch, transport, state = pending
-    if state == "abandoned":
-        codex.finish_abandoned_batch(path, batch_index, batch)
-    else:
-        finish_codex_batch(path, batch_index, batch, transport)
-    return True
-
-
 def _offer_queued_delivery(
     codex_path: str,
     session_id: str,
@@ -824,39 +754,29 @@ def _offer_queued_delivery(
             (
                 (path, record)
                 for path, record in records
-                if record["state"] in {"collecting", "offering"}
+                if isinstance(record, (codex.Collecting, codex.Offering))
             ),
             None,
         )
         prepared = None
         if unoffered is not None:
             path, record = unoffered
-            if active_hook_turn is not None and record.get("transport") == {
-                "phase": "hook",
-                "turn": active_hook_turn,
-            }:
+            if isinstance(record, codex.HookOffer) and record.turn == active_hook_turn:
                 # A reserved Stop offer proves this specific delivery can enter
                 # the running turn even without earlier between-step capability.
                 return False
-            prepared = offer_delivery(path, record, turn_replies=connection is not None)
-            if (record.get("transport") or {}).get("phase") != "starting":
-                record["transport"] = {
-                    "phase": "queue" if connection is None else "app-server",
-                    "turn": None,
-                }
-            write_record(prepared.record_path, record)
+            prepared = offer_delivery(
+                path,
+                record,
+                transport="app-server" if connection is not None else "queue",
+            )
     if prepared is None:
         return False
-    target = stream_reply_target(prepared.payload)
-    if (
-        connection is None
-        and (record.get("transport") or {}).get("phase") == "starting"
-    ):
-        raise AppServerDeliveryUncertain(
-            "the observed App Server delivery is awaiting reconciliation"
-        )
     if connection is not None:
         return connection.start_delivery(prepared.payload)
+    # The embedded client reserves its reply seat independently of adapter intent.
+    # Read it outside the delivery lock: capture takes a page transaction first.
+    target = stream_reply_target(prepared.payload)
     if target is not None and delivery_reply_reserved(
         session_id, prepared.payload["id"], target
     ):
@@ -922,7 +842,7 @@ def run_adapter(
         failures = 0
         while True:
             try:
-                recovered = _recover_receipt(harness.session)
+                recovered = codex.recover_codex_receipt(harness.session)
                 if not recovered:
                     with flocked(start_lock):
                         if not owned_pages(harness.session):

@@ -55,9 +55,9 @@ import {
 import { followingItsEnd } from "./bounds.js";
 import { moveScrollerBy, pageScroller, scrollToEnd } from "./scrolling.js";
 import { renderedParent, under, upFrom } from "./shadow.js";
-import { recentPlaceInput, retainUserIntent } from "./user-intent.js";
+import { retainUserIntent } from "./user-intent.js";
+import { recentPlaceInput, focused } from "./focus.js";
 import { reveal } from "./widget-elements.js";
-import { focused } from "./keyboard/scopes.js";
 import { scrollIntoReadingBand } from "./landing-scroll.js";
 import { union } from "./rect.js";
 
@@ -336,6 +336,16 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
       box,
       rangeOf(segments).getBoundingClientRect().top - boxTop - view.quoteTop,
     );
+    return;
+  }
+  // Repeated passage words may have no unique anchor. In that case the live
+  // focused control is still a precise place in this document; a section's
+  // opening is only a fallback for a reading with no such destination.
+  if (
+    standing &&
+    under(standing, region?.body ?? document.querySelector("body > main"))
+  ) {
+    scrollIntoReadingBand(standing, standing, "nearest", "instant");
     return;
   }
   const section = targetElement(resolveAnchor({ section: view.section }, text));

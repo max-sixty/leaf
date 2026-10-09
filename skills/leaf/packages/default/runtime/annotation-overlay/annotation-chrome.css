@@ -233,8 +233,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-thread .lf-thread-transcript { grid-row: 2; }
   .lf-margin-thread .lf-reply-space { grid-row: 3; }
   .lf-margin-thread .lf-thread-reply { grid-row: 4; }
+  /* The card accompanies a live page: scrolling continues there at either edge,
+     including when all turns fit and the transcript has no scroll travel. */
   .lf-margin-thread .lf-thread-transcript { min-height: 1lh; overflow-y: auto;
-    overscroll-behavior: contain;
     scroll-padding-block: var(--focus-ring-room); }
   /* The field stands at the card's inset; words stand one inset inside it. */
   .lf-margin-thread .lf-page-thread { padding: 0; background: var(--paper); }
@@ -261,10 +262,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* The card's actions stand over the top of its transcript, where each message's head
      sticks while that message is read, so the row always names who wrote the words
      beneath it and a scrolled card never labels an agent's words with the user's name.
-     A head's lead centres its name on the actions, as the root's metadata row in the
-     Threads list does, and reaches into the gap before its message, so the card grows
-     by nothing; the root's head is that row's height. A head stops where the actions
-     start (`--lf-margin-controls-width`, thread-card.js); a percentage cap, unlike
+     Every head uses the shared message row's height and alignment, so the actions
+     neither change the opening message's gap nor cover the next line. A head stops
+     where the actions start (`--lf-margin-controls-width`, thread-card.js); a percentage cap, unlike
      padding, adds nothing to the card's width. A head covers only its own message, so
      the words under it take its height as their `--lf-top` and `scroll-margin`
      (theme.css, at `--lf-top`): a reveal lands them below it and the runtime's reading
@@ -287,15 +287,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-thread .lf-thread-transcript .lf-msg-head { position: sticky;
     inset-block-start: 0; z-index: 1; background-color: var(--lf-msg-ground);
     max-inline-size: calc(100% - var(--lf-margin-controls-width, 0px));
-    min-height: auto; padding-inline-end: 0;
-    overflow: hidden; white-space: nowrap;
-    --lf-card-head-lead: calc((var(--lf-comment-head)
-      - var(--lf-msg-name-size) * var(--lf-ui-lh)) / 2);
-    padding-block-start: var(--lf-card-head-lead);
-    margin-block-start: calc(-1 * var(--lf-card-head-lead)); }
-  .lf-margin-thread .lf-thread-transcript > .lf-msg:first-child > .lf-msg-head {
-    box-sizing: border-box; min-height: var(--lf-comment-head);
-    margin-block-start: 0; padding-block-end: var(--lf-card-head-lead); }
+    padding-inline-end: 0; overflow: hidden; white-space: nowrap; }
   @media (forced-colors: active) {
     .lf-margin-preview { border: 1px solid CanvasText; box-shadow: none; }
   }

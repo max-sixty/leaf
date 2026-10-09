@@ -72,12 +72,12 @@ import {
 } from "./drafts.js";
 import { heldThreadId, replyDestination } from "./thread/focus.js";
 import { restoreReplyEditing } from "./thread/replies.js";
-import { focusDestination, onStanding } from "./focus.js";
+import { focusDestination, onStanding, focused } from "./focus.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { patchTree } from "./dom-children.js";
 import { labelOf, PRESS } from "./keyboard/bindings.js";
 import { commandShortcut } from "./keyboard/control-keys.js";
-import { focused, keys, paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
+import { keys, paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
 import { repaint } from "./repaint.js";
 import { notice } from "./notifications.js";
 import {
@@ -1326,7 +1326,8 @@ export function createVersionController({
             : null;
         })
       : draftEditingDestination(draftEditing);
-    if (!replyThread && input) mayRestore.handoff(() => focusDestination(input));
+    if (!replyThread && input)
+      mayRestore.handoff(() => focusDestination(input, "return"));
     if (mayRestore()) restoreDraftEditing(draftEditing, input);
   }
 

@@ -180,7 +180,7 @@ export function createDrawers({
       // Every drawer list ends above the bottom bar, which stands over the drawer in
       // both postures.
       underBand: true,
-      focus: () =>
+      landing: () =>
         panel.querySelector(".lf-drawer-list button, .lf-drawer-list a[href]") ?? panel,
       arrival: "presentation",
       show({ phase }) {

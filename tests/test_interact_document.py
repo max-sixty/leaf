@@ -225,8 +225,6 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     assert artifact.registry == read_page_registry(page_dir).registry
     assert artifact.implementations["lf-options"]["path"] == "/widgets/lf-options.js"
     assert "/vendor/browser-runtime.LICENSES.txt" in artifact.resources
-    assert "/vendor/browser-runtime.js.map" not in artifact.resources
-    assert "/vendor/browser-runtime.manifest.json" not in artifact.resources
     assert artifact_model.read_artifact(page_dir, first.revision) is artifact
     unchanged = revisioning_model.activate_source(page_dir)
     assert not unchanged.created and unchanged.revision == first.revision

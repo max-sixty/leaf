@@ -32,7 +32,7 @@ const shortcutIn = (scope, row) =>
 export function commandShortcut(id) {
   for (const scope of pageScopes())
     for (const row of scope?.rows ?? [])
-      if (row.id === id) return shortcutIn(scope, row);
+      if (row.id === id && bindings(row).length) return shortcutIn(scope, row);
   return "";
 }
 

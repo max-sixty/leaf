@@ -12,12 +12,13 @@ enter development branches. Installers follow that branch and copy ready files;
 package authors continue to use native JavaScript without a build.
 
 - `browser/` is the TypeScript browser framework, its Node tests, and `build.mjs`,
-  which compiles it and `lit.js`. `browser/shipped.mjs` refuses a module an
+  which compiles each of its modules to one JavaScript module, line for line, and
+  vendors Lit and Signals for it. `browser/shipped.mjs` refuses a module an
   export cannot load and writes each bundle's license notices; every build here passes its
-  output through it. Its output is committed readable and unminified, so branches
-  that change different parts of the framework merge it cleanly and
-  `check:browser` confirms the merge equals a rebuild; `runtime-bundle.mjs`
-  minifies it for delivery. `browser/generated/` holds the build's manifest.
+  output through it. Branches that change the framework therefore conflict in its
+  output only where their TypeScript conflicts, and `check:browser` confirms a merge
+  equals a rebuild. `runtime-bundle.mjs` compiles the framework into the kernel for
+  delivery.
 - `initial.mjs` builds each package's synchronous initial drawing from its
   `initial.js` into the one bundle its registry declares with `x-initial`;
   `build:browser` and `check:browser` include these outputs.

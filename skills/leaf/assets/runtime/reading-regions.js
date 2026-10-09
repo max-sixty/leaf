@@ -42,7 +42,7 @@ import { shownRect, skipped } from "./geometry.js";
 import { pageScroller } from "./scrolling.js";
 import { reachReadingScroller } from "./reach.js";
 import { under, upFrom } from "./shadow.js";
-import { deepFocus, onStanding } from "./focus.js";
+import { deepFocus, onStanding, pressing } from "./focus.js";
 
 const regions = new Map();
 const transitionWatchers = new Set();
@@ -169,8 +169,8 @@ export const readingRegionFor = (node) => {
 let recentRegionId = null;
 let pageRegionId = null;
 // Chrome can focus body between pointerdown on unfocusable words and pointerup.
-// That focus belongs to the same press; pointerdown has already named its place.
-let pressing = false;
+// That focus belongs to the same press (focus.js, `pressing`); pointerdown has already
+// named its place.
 const readingInputReaders = new Set();
 export const onReadingInput = (read) => readingInputReaders.add(read);
 const readingInput = (node) => {
@@ -184,7 +184,7 @@ const actedAt = (at, arriving) => {
     if (under(region.host, pageRoot())) pageRegionId = region.id;
   } else if (
     (at === document.body || under(at, pageRoot())) &&
-    !(arriving && at === document.body && pressing)
+    !(arriving && at === document.body && pressing())
   )
     recentRegionId = pageRegionId = null;
 };
@@ -193,12 +193,8 @@ for (const type of ["pointerdown", "wheel", "touchstart", "click"])
     type,
     (event) => {
       const at = event.composedPath()[0];
-      if (type === "click") {
-        if (event.isTrusted && event.button === 0) readingInput(at);
-      } else {
-        if (type === "pointerdown") pressing = true;
-        actedAt(at, false);
-      }
+      if (type !== "click") actedAt(at, false);
+      else if (event.isTrusted && event.button === 0) readingInput(at);
     },
     { capture: true, passive: true },
   );
@@ -207,8 +203,6 @@ onStanding((node, cause) => {
   if (node) actedAt(node, true);
   if (node && cause === "step") readingInput(node);
 });
-for (const type of ["pointerup", "pointercancel"])
-  addEventListener(type, () => (pressing = false), { capture: true });
 export const recentReadingRegion = () => readingRegion(recentRegionId);
 // A region hidden from layout — a closed panel's list, a pane in a tab not shown — is not
 // where the user reads. One scrolled out of the window still is.

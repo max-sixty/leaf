@@ -31,7 +31,7 @@
    layers the browser is holding, because that is the one fact about the scene that its
    own DOM cannot be asked for in order. */
 
-import { releaseFocus, holdFocus, returningFocus } from "../focus.js";
+import { releaseFocus, holdFocus, nativeLayerSteps } from "../focus.js";
 import { under } from "../shadow.js";
 
 const entries = [];
@@ -146,7 +146,7 @@ export function transitionNativeAncestor(root, transition) {
     (layer) => layer.root !== root && under(layer.root, root),
   );
   const held = holdFocus(root);
-  returningFocus(() => {
+  nativeLayerSteps(() => {
     for (const layer of descendants.toReversed())
       if (layer.kind === "modal") layer.root.close();
       else layer.root.hidePopover();

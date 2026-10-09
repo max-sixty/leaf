@@ -32,7 +32,8 @@ Three things shape a page, and none of them reads another:
 
 Where one has to answer another, the owner sets a token saying what the box is, or
 which style it stands under, and the reader keys on that token with a style query:
-`--lf-full-height` (the body has a definite height to fill), `--lf-wide-page` (the page
+`--lf-full-height` (this box's children have a definite height to fill; it does not
+inherit, so each box that passes the height on says so again), `--lf-wide-page` (the page
 spans the window, so the theme sets its title a size up), `--lf-resident` (what stands
 in the column's margin), and `--lf-density` (the working setting, for what a width alone
 cannot decide). A width needs no token, since a size query on the reader's own container
@@ -506,7 +507,8 @@ visible change").
 ## Working on the runtime
 
 `build/browser/build.mjs` compiles the TypeScript foundation into
-`vendor/browser-runtime.js` and writes `vendor/lit.js`, the page's one copy of Lit
+`vendor/browser-runtime.js` and the modules beside it in `vendor/browser-runtime/`,
+which import the runtime's own modules, and writes `vendor/lit.js`, the page's one copy of Lit
 (`build/AGENTS.md` owns the commands). What a module decides on its own is
 tested under `tests/runtime/` (`npm run test:runtime`; `tests/AGENTS.md` says
 which readings may go there).

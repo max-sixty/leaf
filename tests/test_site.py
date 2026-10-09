@@ -1618,7 +1618,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
             """async () => {
                 const {focusDestination} = await window.__lfRuntimeImport('/runtime/focus.js');
                 document.querySelector('[data-interaction-toggle]').click();
-                focusDestination(document.querySelector('#bg-interactions-title'));
+                focusDestination(document.querySelector('#bg-interactions-title'), 'move');
                 return document.activeElement?.id;
             }"""
         )

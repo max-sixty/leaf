@@ -137,10 +137,6 @@ const GLYPH = {
 // Read off `answers` rather than chosen here, so the list cannot claim more than the
 // dispatcher does — a fourth name would have to be taught to both.
 const MODIFIERS = ["Mod", "Alt", "Shift"];
-// The same modifiers as the platform's own keydowns: what `ev.key` says when a modifier
-// goes down alone, ahead of the key it modifies. The dispatcher's sequence asks this to tell
-// half a press from a key of its own.
-export const MODIFIER_KEYS = ["Shift", "Alt", "Control", "Meta"];
 // One reading of a binding's syntax, for the three questions asked of it: how it is
 // spelled, whether a press answers it, and whether a text box's letters cover it. Three
 // hand-agreed splits is one representation too few — the moment one of them had to state
@@ -227,9 +223,21 @@ export const contextualRoute = (route, command) => ({
   [ROUTED_COMMAND]: command,
 });
 export const routedCommand = (route) => route?.[ROUTED_COMMAND] ?? null;
-// Bindings are routes to commands, not their identity. A contextual projection may add a
-// route without mutating this intrinsic set; dispatch still reads one spelling here.
-export const bindings = declaredBindings;
+// A preference removes character-only routes, including Shift variants, without
+// withdrawing their commands or native activation. Declaration checks stay unfiltered.
+export const quickShortcuts = () => document.documentElement.lfKeyboard.quick;
+export const setQuickShortcuts = (on) =>
+  document.documentElement.lfKeyboard.setQuick(on);
+export const bindingEnabled = (binding) => {
+  const { key, mods } = parsed(binding);
+  return (
+    quickShortcuts() ||
+    key.length !== 1 ||
+    key === " " ||
+    mods.some((mod) => mod !== "Shift")
+  );
+};
+export const bindings = (row) => declaredBindings(row).filter(bindingEnabled);
 // The command identities under one row. Equivalent bindings keep the row's identity
 // and share its implementation; distinct results are routes and expose only those exact
 // identities. Dispatch and every command-facing projection consume this split.

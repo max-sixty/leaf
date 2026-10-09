@@ -22,7 +22,7 @@
    title gesture policy, outgoing fold paint and local draft repaint. Surfaces receive
    whole-thread geometry readings rather than descendant nodes. */
 import { nextRender, sizeObserver } from "../rendering.js";
-import { holdFocus } from "../focus.js";
+import { holdFocus, focusDestination, focused } from "../focus.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
@@ -30,7 +30,7 @@ import { anchorLabel, MessageView, messageReading } from "./messages.js";
 import { reactionReading } from "./reaction-model.js";
 import { offer, reachedForWords, measure, reserve } from "../widget-elements.js";
 import { keeps, keepsHidden, layoutPx } from "../keeps.js";
-import { keys, focused } from "../keyboard/scopes.js";
+import { keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { wireReply, replyIsEditing, replyAvailable, dismissReply } from "./replies.js";
 import { settleThread, foldOut, finishFold, isFolding } from "./folding.js";
@@ -526,7 +526,7 @@ export class ThreadView {
           settlement: Object.freeze({ ...prior.settlement, pending: false }),
         });
         if (this.node.contains(focused()))
-          this.#commands.listRoot.focus({ preventScroll: true });
+          focusDestination(this.#commands.listRoot, "return");
       }
     }
     if (this.#heldNews)
@@ -806,7 +806,7 @@ export class ThreadView {
     // Handing it on is the card's own act, which the list holding the card defers to.
     restoreFocus?.(
       panel
-        ? handedOn && (() => (handedOn.focus({ preventScroll: true }), true))
+        ? handedOn && (() => (focusDestination(handedOn, "return"), true))
         : () =>
             this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node),
     );
@@ -991,11 +991,10 @@ export class ThreadView {
     if (expanded) this.#expandedSummaries.add(id);
     else this.#expandedSummaries.delete(id);
     this.repaint();
-    this.node
-      .querySelector(
-        `.lf-thread-checkpoint[data-summary-id="${CSS.escape(id)}"] .lf-summary-expand`,
-      )
-      ?.focus({ preventScroll: true });
+    const toggle = this.node.querySelector(
+      `.lf-thread-checkpoint[data-summary-id="${CSS.escape(id)}"] .lf-summary-expand`,
+    );
+    if (toggle) focusDestination(toggle, "return");
   }
 
   // The panel's resolved title keeps its state label as the reopening action.
@@ -1178,15 +1177,18 @@ export class ThreadView {
           const destination = kept[at] ?? kept[at - 1] ?? this.#commands.listRoot;
           if (destination.matches?.(".lf-thread")) {
             this.#commands.listRoot.revealNavigation(destination.dataset.id);
-            focusThread(destination, { preventScroll: true });
-          } else destination.focus({ preventScroll: true });
+            // The user goes on to the next thread, which the list lands in view.
+            focusThread(destination, "move");
+          } else focusDestination(destination, "move");
           mayRestore = travel.retainPanelLanding(destination);
           return true;
         },
         reverse: (may = mayRestore) => {
           if (may() && mayLand.available()) {
             const card = shownCard();
-            if (card) focusThread(card, { preventScroll: true });
+            // The undo takes the user to the thread it reopened, an arrival that shows
+            // what the thread holds, its reopening included.
+            if (card) focusThread(card, "move");
           }
         },
       };

@@ -5682,7 +5682,7 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
 def test_projection_subscriptions_follow_their_owner_and_cancel_queued_reads(
     browser, serve
 ):
-    """Retiring a queued read cannot revive it or its clock subscription."""
+    """Refresh acquires clock work; retiring a read cannot revive that subscription."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
     result = page.evaluate(
         """async () => {
@@ -5709,12 +5709,22 @@ def test_projection_subscriptions_follow_their_owner_and_cancel_queued_reads(
           clock += 1;
           await tickClock(message => { throw new Error(message); });
           let calls = 0;
+          let trackClock = false;
           const stop = watchProjection(owner, () => {
             calls += 1;
-            clockValue(() => clock);
+            if (trackClock) clockValue(() => clock);
           });
           await Promise.resolve();
           const initial = calls;
+          clock += 1;
+          await tickClock(message => { throw new Error(message); });
+          const untracked = calls;
+          trackClock = true;
+          stop.refresh();
+          const subscribed = calls;
+          clock += 1;
+          await tickClock(message => { throw new Error(message); });
+          const clocked = calls;
           await changed(() => { owner.remove(); document.body.append(owner); });
           const moved = calls;
           await changed(() => owner.remove());
@@ -5733,23 +5743,28 @@ def test_projection_subscriptions_follow_their_owner_and_cancel_queued_reads(
           clock += 1;
           await tickClock(message => { throw new Error(message); });
           owner.remove();
-          return {cancelled, initial, moved, detached, resumed, refreshed, stopped: calls};
+          return {cancelled, initial, untracked, subscribed, clocked,
+            moved, detached, resumed, refreshed, stopped: calls};
         }"""
     )
     assert result == {
         "cancelled": 0,
         "initial": 1,
-        "moved": 1,
-        "detached": 1,
-        "resumed": 2,
-        "refreshed": 3,
-        "stopped": 3,
+        "untracked": 1,
+        "subscribed": 2,
+        "clocked": 3,
+        "moved": 3,
+        "detached": 3,
+        "resumed": 4,
+        "refreshed": 5,
+        "stopped": 5,
     }
 
 
 def test_data_subscriptions_follow_their_owner_and_stop_permanently(browser, serve):
     """Detachment releases data/clock work; reattachment restores the newest reading.
 
+    Refresh can acquire a clock dependency absent from the initial paint.
     A move in one mutation batch retains the original subscription. Removing an owner
     with an in-flight render also releases its presentation, so readiness can settle
     without waiting for a renderer whose owner is absent.
@@ -5773,14 +5788,24 @@ def test_data_subscriptions_follow_their_owner_and_stop_permanently(browser, ser
           });
           const deliveries = [];
           let clock = 0;
+          let trackClock = false;
           let release;
           const stop = watchData(widget, 'rows', snapshot => {
-            clockValue(() => clock);
+            if (trackClock) clockValue(() => clock);
             deliveries.push(snapshot?.revision ?? null);
             if (snapshot?.revision === 'held-owner')
               return new Promise(resolve => { release = resolve; });
           });
           const initial = deliveries.length;
+          clock += 1;
+          await tickClock(message => { throw new Error(message); });
+          const untracked = deliveries.length;
+          trackClock = true;
+          stop.refresh();
+          const subscribed = deliveries.length;
+          clock += 1;
+          await tickClock(message => { throw new Error(message); });
+          const clocked = deliveries.length;
           await changed(() => document.body.append(widget));
           const moved = deliveries.length;
           await changed(() => widget.remove());
@@ -5817,21 +5842,25 @@ def test_data_subscriptions_follow_their_owner_and_stop_permanently(browser, ser
           await changed(() => home.append(widget));
           clock += 1;
           await tickClock(message => { throw new Error(message); });
-          return {initial, moved, detached, resumed, held, absent, restored, refreshed, stagingKept,
+          return {initial, untracked, subscribed, clocked,
+            moved, detached, resumed, held, absent, restored, refreshed, stagingKept,
             stopped: deliveries.length};
         }"""
     )
     assert result == {
         "initial": 1,
-        "moved": 1,
-        "detached": 1,
-        "resumed": 2,
+        "untracked": 1,
+        "subscribed": 2,
+        "clocked": 3,
+        "moved": 3,
+        "detached": 3,
+        "resumed": 4,
         "held": "held-owner",
-        "absent": 4,
+        "absent": 6,
         "restored": "newest-owner",
         "refreshed": "newest-owner",
         "stagingKept": True,
-        "stopped": 6,
+        "stopped": 8,
     }
 
 

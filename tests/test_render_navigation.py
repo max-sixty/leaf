@@ -8618,9 +8618,9 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
         re.compile(r" · ⏎ activate$")
     )
     first_row = commands.first.locator("xpath=ancestor::tr")
-    expect(search).to_have_attribute(
-        "aria-activedescendant", first_row.get_attribute("id")
-    )
+    assert search.evaluate(
+        "input => input.ariaActiveDescendantElement?.id"
+    ) == first_row.get_attribute("id")
     page.keyboard.press("ArrowUp")
     expect(commands.first).to_have_attribute("data-lf-selected", "true")
     expect(page.locator(".lf-walk-position")).to_have_attribute("data-lf-boundary", "")
@@ -8632,9 +8632,9 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     expect(search).to_be_focused()
     expect(commands.last).to_have_attribute("data-lf-selected", "true")
     last_row = commands.last.locator("xpath=ancestor::tr")
-    expect(search).to_have_attribute(
-        "aria-activedescendant", last_row.get_attribute("id")
-    )
+    assert search.evaluate(
+        "input => input.ariaActiveDescendantElement?.id"
+    ) == last_row.get_attribute("id")
     page.keyboard.press("ArrowDown")
     expect(commands.last).to_have_attribute("data-lf-selected", "true")
 
@@ -8956,7 +8956,9 @@ def test_the_reference_keeps_local_search_state_on_one_lit_surface(browser, serv
     expect(result).to_have_attribute("tabindex", "0")
     row = result.locator("xpath=ancestor::tr")
     expect(row).to_have_attribute("aria-selected", "true")
-    expect(search).to_have_attribute("aria-activedescendant", row.get_attribute("id"))
+    assert search.evaluate(
+        "input => input.ariaActiveDescendantElement?.id"
+    ) == row.get_attribute("id")
     assert page.evaluate(
         """() =>
           window.__commandReferenceSearch === document.querySelector(
@@ -8971,7 +8973,7 @@ def test_the_reference_keeps_local_search_state_on_one_lit_surface(browser, serv
 
     search.fill("no command has these words")
     expect(reference.locator(".lf-command-reference-empty")).to_be_visible()
-    expect(search).not_to_have_attribute("aria-activedescendant", re.compile(r".+"))
+    assert search.evaluate("input => input.ariaActiveDescendantElement") is None
     search.fill("resolve it")
     expect(result).to_have_attribute("data-lf-selected", "false")
     assert page.evaluate(
@@ -9955,14 +9957,14 @@ def test_reference_accepts_native_popover_dismissal_across_modal_entry(browser, 
     page.keyboard.press("?")
     expect(reference).to_be_visible()
 
-    search = reference.locator(".lf-command-reference-search")
+    search = reference.get_by_role("combobox", name="Search commands")
     search.fill("thread")
     page.keyboard.press("ArrowDown")
     search.evaluate(
         "node => { node.setSelectionRange(1, 3); window.heldReferenceSearch = node; }"
     )
     held_search = search.evaluate(
-        "node => [node.value, node.selectionStart, node.selectionEnd, node.getAttribute('aria-activedescendant')]"
+        "node => [node.value, node.selectionStart, node.selectionEnd, node.ariaActiveDescendantElement?.id]"
     )
     resized(page, 400, 800)
     panel_settled(page)
@@ -9971,12 +9973,12 @@ def test_reference_accepts_native_popover_dismissal_across_modal_entry(browser, 
     assert search.evaluate("node => node === window.heldReferenceSearch")
     assert (
         search.evaluate(
-            "node => [node.value, node.selectionStart, node.selectionEnd, node.getAttribute('aria-activedescendant')]"
+            "node => [node.value, node.selectionStart, node.selectionEnd, node.ariaActiveDescendantElement?.id]"
         )
         == held_search
     )
     assert search.evaluate(
-        "node => { const box = node.getBoundingClientRect(); return document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2) === node; }"
+        "node => { const box = node.getBoundingClientRect(); return node.getRootNode().elementFromPoint(box.x + box.width / 2, box.y + box.height / 2) === node; }"
     )
     # Every Escape from here lands the user while the panel covers the page, which is
     # inert under it, so the panel is what can take them. The platform also hands a

@@ -8200,7 +8200,11 @@ RING_CASES = (
     # The same walk with the panel shut lands in the margin's thread view, on the
     # thread itself rather than a control inside it.
     ("an inline thread", ("t",), {"ship-review": ((None, "page-thread"),)}),
-    ("passage search", ("/",), {"corpus": ((".lf-page-search-box", "target-search"),)}),
+    (
+        "passage search",
+        ("/",),
+        {"corpus": ((".lf-page-search-box input:visible", "text-entry"),)},
+    ),
     # Item hints, and the anchored bar the user answers a chosen item on. Both open the
     # same mode, and both step back and then forward through it, which lands on the last
     # item the window is showing whatever a page's count is: the browse wraps, so one step
@@ -8275,7 +8279,7 @@ RING_CASES = (
         ("?", "?"),
         {
             "corpus": (
-                (".lf-command-reference-search", "help-search"),
+                (".lf-command-reference-search input:visible", "text-entry"),
                 (".lf-command-reference-command", "help-command"),
             )
         },

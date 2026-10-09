@@ -852,6 +852,22 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     search.fill("words absent from this page")
     expect(status).to_have_text("No matches")
     assert search.bounding_box() == pytest.approx(search_box, abs=0.5)
+    # The query and its count share the search's only frame, with no padded card
+    # between the field boundary and the search surface.
+    frame = search.evaluate("""input => {
+      const field = input.getRootNode().querySelector('[part~="base"]') ?? input;
+      const box = field.getBoundingClientRect();
+      const surface = document.querySelector('.lf-page-search').getBoundingClientRect();
+      const status = document.querySelector('.lf-page-search-status').getBoundingClientRect();
+      return {
+        edges: [box.left - surface.left, box.right - surface.right,
+                box.top - surface.top, box.bottom - surface.bottom],
+        statusInside: status.left >= box.left && status.right <= box.right &&
+          status.top >= box.top && status.bottom <= box.bottom,
+      };
+    }""")
+    assert frame["edges"] == pytest.approx([0, 0, 0, 0], abs=0.5), frame
+    assert frame["statusInside"], frame
     search.fill("")
     expect(status).to_be_empty()
     assert search.bounding_box() == pytest.approx(search_box, abs=0.5)

@@ -636,6 +636,7 @@ selectionComposer = createSelectionComposer({
   endFabFocus: (...args) => responseSurface.endFabFocus(...args),
   landFabFocus: (...args) => responseSurface.landFabFocus(...args),
   showFab: (...args) => responseSurface.showFab(...args),
+  letGoOfFab: () => responseSurface.letGoOfFab(),
   createComment: app.createComment,
   landSent: landing.landSent,
   refreshThread: app.refreshThread,

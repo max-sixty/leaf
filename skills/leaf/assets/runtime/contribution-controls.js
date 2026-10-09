@@ -302,6 +302,12 @@ export function presentContributionHost(
   records.set(control, record);
   keeps(control, "data-lf-margin-entry-key", record.key);
   keeps(control, "data-lf-margin-entry-owner", record.owner || null);
+  // The entry's whole identity, which a hold across a projection keys on.
+  keeps(
+    control,
+    "data-lf-margin-entry-identity",
+    JSON.stringify([record.owner, record.key]),
+  );
   keeps(control, "data-lf-behavior", record.behavior);
   keeps(control, "data-lf-tone", record.tone);
   keeps(control, "data-lf-rank", record.rank);

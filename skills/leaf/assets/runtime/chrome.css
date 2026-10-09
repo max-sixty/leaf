@@ -976,7 +976,9 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   .lf-threads { overflow-y: auto; overscroll-behavior: contain; z-index: 0;
     padding: var(--focus-ring-room) var(--lf-list-inset); --lf-block-frame: 1;
     scroll-padding: var(--focus-ring-room) 0;
-    --lf-top-start: calc(-1 * var(--focus-ring-room)); --lf-top: var(--lf-top-start); }
+    --lf-top-start: calc(-1 * var(--focus-ring-room)); --lf-top: var(--lf-top-start);
+    --lf-landing-room-start: var(--focus-ring-room);
+    --lf-landing-room: var(--lf-landing-room-start); }
   /* The list holds focus itself only while it shows no thread (thread-list-view.js):
      an empty list, or the last one folding away as it resolves. That folding card is
      positioned, so it paints after the scrollport and an outline on the list itself
@@ -1028,7 +1030,8 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
      unisolated, so what a row raises still stands over the rows after it. */
   .lf-threads > .lf-thread-compact { --lf-top-outer: var(--lf-top); }
   .lf-threads > .lf-thread-compact > .lf-thread-summary {
-    position: sticky; top: var(--lf-top); z-index: var(--lf-thread-title-z); }
+    position: sticky; top: var(--lf-top); z-index: var(--lf-thread-title-z);
+    --lf-head-inset: 0px; }
   .lf-threads > .lf-thread-compact > :not(.lf-thread-summary) {
     --lf-top: calc(var(--lf-top-outer) + var(--lf-thread-title-h)); }
   :is(.lf-threads > .lf-thread-compact > :not(.lf-thread-summary),
@@ -1113,32 +1116,6 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   .lf-thread-compact > .lf-thread-content > .lf-thread-transcript
     > .lf-thread-checkpoint:nth-child(1 of .lf-msg, .lf-thread-checkpoint) .lf-summary-header {
     min-height: max(28px, var(--aim-floor)); align-items: center; }
-  /* A checkpoint is agent-written reading context, followed by the retained originals
-     it covers. One disclosure beside that context controls the entire range. */
-  .lf-thread-checkpoint { margin-block: 16px; }
-  /* The bracket joins the disclosure to exactly the messages it will hide. */
-  .lf-thread-checkpoint[data-expanded="true"] { position: relative; }
-  .lf-thread-checkpoint[data-expanded="true"]::before { content: ""; position: absolute;
-    inset-block: 4px; inset-inline-start: -10px; width: 6px;
-    border: 1px solid var(--muted-2); border-inline-end: 0; pointer-events: none; }
-  .lf-summary-checkpoint { padding-block: 4px; }
-  /* Keep the context label readable when the disclosure needs another line. */
-  .lf-summary-header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
-  .lf-summary-label { min-width: 0; overflow-wrap: anywhere; color: var(--muted); font: 500 11px/1.3 var(--sans); }
-  .lf-summary-text { color: var(--ink-2); font-size: var(--t-5); line-height: 1.5;
-    overflow-wrap: anywhere; user-select: text; }
-  .lf-summary-text > :first-child { margin-top: 0; }
-  .lf-summary-text > :last-child { margin-bottom: 0; }
-  .lf-summary-expand { min-height: var(--aim-floor); max-inline-size: 100%; flex-shrink: 0; border: 0;
-    padding: 4px 0; background: transparent; color: var(--accent); font: 600 11px/1.4 var(--sans);
-    cursor: pointer; }
-  .lf-summary-required { margin-top: 6px; color: var(--turn-ink); font: 600 11px/1.4 var(--sans); }
-  .lf-summary-originals { min-width: 0; padding-inline-start: 12px; }
-  .lf-summary-originals[hidden] { display: none; }
-  .lf-summary-originals > .lf-msg { margin-block: 16px; }
-  .lf-summary-expand:is(:focus-visible, .lf-focus-visible) {
-    outline: var(--focus-ring); --lf-focus-ring: summary-fold;
-    outline-offset: calc(-1 * var(--focus-ring-w)); }
   /* The reply box stands on the inset the quote and messages share, the column the
      find box and the page composer also stand on. Standing wider so its draft began
      at the sent messages' text
@@ -1312,7 +1289,10 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
     --lf-comment-body-gap: 4px;
     --lf-comment-foot-gap: var(--sp-3);
     --lf-comment-frame-top: calc(1px + var(--lf-comment-inset) + var(--lf-comment-head) + var(--lf-comment-body-gap));
-    --lf-comment-frame-bottom: calc(var(--lf-comment-foot-gap) + var(--lf-compose-h) + var(--lf-comment-inset) + 1px);
+    /* The card's reply row at rest, which the editor's frame reserves beneath the words,
+       so a box that fills the window becomes a card of the same height. */
+    --lf-comment-reply-row: calc(var(--lf-comment-foot-gap) + var(--lf-compose-h) + 2px);
+    --lf-comment-frame-bottom: calc(var(--lf-comment-reply-row) + var(--lf-comment-inset) + 1px);
   }
   :is(.lf-fab-bar, .lf-margin-preview, .lf-response-control) { --lf-response-height: 32px; }
   /* The editor and its sent message share text metrics. The borderless message uses

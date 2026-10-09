@@ -8,9 +8,9 @@ The suite drives Leaf's Pi extension (`hooks/pi.ts`) with a stand-in for Pi
 It installs this working tree's payload as a Pi package into a throwaway Pi home
 (`pi_home`), whose only login is the host's Codex login, and runs Pi in RPC mode.
 The journey is then the terminal: it types the user's turns on Pi's stdin, presses
-Escape as Pi's own terminal does (`clear_queue`, then `abort`), and the user selects
-passages of the page in Chrome to comment on them. It reads the page's log and claim
-in process, and stops at the first check that fails.
+Escape as Pi's own terminal does (`clear_queue`, then `abort`), and after the
+release ask posts the user's comments to the served page as a tab would. It reads the
+page's log and claim in process, and stops at the first check that fails.
 
 The steps, in order:
 

@@ -18,14 +18,14 @@ from leaf.service import page_claim
 from leaf.thread import successful_replies
 
 from leaf_dev import ROOT
-from leaf_dev.arms import run_leaf
+from leaf_dev.arms import PageClient, run_leaf
 
 REQUEST = (
     "I wrote a Leaf page at ./page. Serve it so I can review it in my browser, "
     "and handle the comments I leave on it."
 )
 
-# Each step's comment, on the passage its user selects to comment on.
+# Each step's comment, on the section it is posted on.
 COMMENTS = {
     "mid-turn": ("triage-why", "Is the migration the only blocker, or the first?"),
     "restart": ("triage-lede", "Anything else I should check before we ship?"),
@@ -79,6 +79,32 @@ def prepare(arm: Path, state: Path, page: Path) -> None:
         arm, state, "page", "stamp", str(page),
         "--text", "Release triage for review.", check=True,
     )  # fmt: skip
+
+
+def attempt(step: str) -> str:
+    """The retry key a step's comment is posted under, as long as the log requires."""
+    return f"journey-step-{step}"
+
+
+def post(url: str, step: str) -> str:
+    """Post step `step`'s comment (`COMMENTS`) to the page served at its keyed `url`,
+    on its section, as the page's tab posts one; return its admitted id."""
+    section, text = COMMENTS[step]
+    client = PageClient(url)
+    client.post(
+        {
+            "kind": "comment",
+            "revision": client.state()["active"]["revision"],
+            "attempt": attempt(step),
+            "text": text,
+            "anchor": {"section": section},
+        }
+    )
+    return next(
+        event["id"]
+        for event in client.state()["events"]
+        if event.get("attempt") == attempt(step)
+    )
 
 
 def require(condition: bool, message: str) -> None:

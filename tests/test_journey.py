@@ -19,12 +19,12 @@ def at(seconds: float) -> str:
     return f"2026-10-08T09:00:{seconds:06.3f}+00:00"
 
 
-def test_a_steps_comments_are_timed_from_the_log_and_the_page():
-    """Each step keeps the comments it sent, timed on the page server's clock from
-    their admission and on the page's from their send, with the turn split from the
-    session's records from the opened pickup on. A permission prompt the user
-    answered marks its step's comments, and the release ask's, so a reading held up
-    by one is told apart from those that were not."""
+def test_a_steps_comments_are_timed_from_the_log():
+    """Each step keeps the comments it posted, timed from the page's log on the
+    server's clock from their admission, with the turn split from the session's
+    records from the opened pickup on. A permission prompt the user answered marks
+    its step's comments, and the release ask's, so a reading held up by one is told
+    apart from those that were not."""
     events = [
         {"kind": "comment", "id": "c1", "ts": at(0)},
         {
@@ -44,14 +44,6 @@ def test_a_steps_comments_are_timed_from_the_log_and_the_page():
             "ts": at(9),
         },
     ]
-    shown = []
-
-    class Page:
-        def evaluate(self, script, arg=None):
-            assert script == "window.__leafVerifier.replyShownAt"
-            shown.append(arg)
-            return {"at": 1_000_000 + 9_500, "by": "row"}
-
     records = [
         {"type": "user", "message": {"content": []}, "received_at": at(0.5)},
         {
@@ -72,7 +64,7 @@ def test_a_steps_comments_are_timed_from_the_log_and_the_page():
     terminal = journey.Terminal()
     terminal.trace = records
     session = journey.Session(
-        None, Page(), [], "", "", {}, {}, None, records=terminal.records
+        None, None, [], "", "", {}, {}, None, records=terminal.records
     )
     user = journey.User(session, "v", lambda: events, terminal)
     user.release_reading = {
@@ -85,12 +77,7 @@ def test_a_steps_comments_are_timed_from_the_log_and_the_page():
     }
     terminal.approved.append("Do you want to make this edit to index.html?")
     user.passed("release", time.monotonic())
-    profile = journey.AgentProfile()
-    profile.ask_count = 1
-    profile.visible_reply_started_ms = 1_000_000
-    profile.acknowledged = [0.04]
-    profile.event_ids = ["c1"]
-    user.ids["mid-turn"], user.profiles["mid-turn"] = "c1", profile
+    user.ids["mid-turn"] = "c1"
     user.sent = ["mid-turn"]
     terminal.approved.append("Do you want to proceed?")
     user.passed("mid-turn", time.monotonic() - 6)
@@ -109,9 +96,6 @@ def test_a_steps_comments_are_timed_from_the_log_and_the_page():
     assert reading["approved"] == ["Do you want to proceed?"]
     assert reading["sinceAdmissionMs"]["pickedUp"] == 1000
     assert reading["sinceAdmissionMs"]["replied"] == 9000
-    assert reading["sinceSendMs"]["responseVisible"] == 9500
-    assert reading["responseShownBy"] == "row"
-    assert shown == [{"thread": "c1", "id": "r1", "ts": at(9)}]
     # The record before the pickup is no delivery; the work after it is.
     assert [phase["phase"] for phase in reading["turn"]] == [
         "delivery",

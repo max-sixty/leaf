@@ -4,15 +4,11 @@
  * because the agent journey may navigate before Python reads them. __leafVerifier is
  * the website-specific Playwright boundary exposed to the Python orchestrator.
  *
- * A reply shows the user one of three ways, in the Threads panel or on a card at its
- * passage, and the page records each as it happens, whatever the journey is doing,
- * counting only what is in view by the same measure for all three: the reply's own
- * message; a thread's row, open or folded, dating its latest message activity at or
- * after the reply, since a folded thread draws no messages; or a news notice, on a
- * thread holding the reply back so as not to move what the user reads, changing once
- * the page's applied state holds the reply. Each compares like clocks: the row's date
- * with the reply's, both the server's, and the notice's change with the reply's
- * arrival, both the page's.
+ * The journey's release ask is answered in its open thread, which shows the user the
+ * reply one of two ways, and the page records each as it happens, whatever the journey
+ * is doing, counting only what is in view: the reply's own message, or a news notice,
+ * on a thread holding the reply back so as not to move what the user reads, changing
+ * once the page's applied state holds the reply. Both times are the page's own.
  */
 (() => {
   const startedKey = "leaf-visible-reply-started";
@@ -25,14 +21,12 @@
     return script;
   }
 
-  // `messages`: when each message id came into view; `rows`: when each thread's row in
-  // view first dated its latest activity at each instant; `notices`: each change of
-  // what a thread's notice in view says, its going included; `applied`: when the
-  // page's applied state first held each event.
+  // `messages`: when each message id came into view; `notices`: each change of what a
+  // thread's notice in view says, its going included; `applied`: when the page's
+  // applied state first held each event.
   function shown() {
     return {
       messages: {},
-      rows: {},
       notices: {},
       applied: {},
       ...JSON.parse(sessionStorage.getItem(shownKey) ?? "{}"),
@@ -54,8 +48,7 @@
     let dirty = false;
     const inView = new Set();
     const observed = new WeakSet();
-    const selector =
-      ".lf-msg.agent[data-mid], .lf-thread[data-id] > .lf-thread-summary, .lf-thread-news";
+    const selector = ".lf-msg.agent[data-mid], .lf-thread-news";
     const note = (table, key, now) => {
       if (table[key] !== undefined) return;
       table[key] = now;
@@ -78,12 +71,6 @@
         if (node.matches(".lf-msg.agent[data-mid]")) {
           if (node.querySelector(".lf-msg-text")?.textContent.trim())
             note(found.messages, node.dataset.mid, now);
-        } else if (node.matches(".lf-thread-summary")) {
-          const thread = node.parentElement?.dataset.id;
-          const latest = node
-            .querySelector(".lf-thread-recency")
-            ?.getAttribute("datetime");
-          if (thread && latest) note((found.rows[thread] ??= {}), latest, now);
         } else {
           const thread = node.closest(".lf-thread[data-id]")?.dataset.id;
           if (thread) said[thread] = node.textContent.trim();
@@ -146,13 +133,11 @@
     watchApplied();
   }
 
-  // When the page first showed the user reply `id`, admitted at `ts` in `thread`, and
-  // by which sign: its `message`, its thread's `row`, or its thread's `notice`.
-  function replyShown({ thread, id, ts }) {
+  // When the page first showed the user reply `id` in `thread`, and by which sign:
+  // its `message` or its thread's `notice`.
+  function replyShown({ thread, id }) {
     const found = shown();
     const signs = [["message", found.messages[id]]];
-    for (const [latest, at] of Object.entries(found.rows[thread] ?? {}))
-      if (Date.parse(latest) >= Date.parse(ts)) signs.push(["row", at]);
     const applied = found.applied[id];
     if (applied !== undefined)
       for (const [said, at] of found.notices[thread] ?? [])
@@ -227,10 +212,6 @@
           inPanel: Boolean(node.closest(".lf-threads")),
           open: node.hasAttribute("open"),
           visible: node.checkVisibility(),
-          latest:
-            node
-              .querySelector(":scope > .lf-thread-summary .lf-thread-recency")
-              ?.getAttribute("datetime") ?? null,
           news: node.querySelector(".lf-thread-news")?.textContent.trim() ?? null,
         })),
         shown: shown(),

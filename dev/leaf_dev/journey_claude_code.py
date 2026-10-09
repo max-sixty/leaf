@@ -10,9 +10,9 @@ in its terminal interface, with this working tree's payload as its plugin
 the host's login. `--hooks-module` turns the plugin's `hooks_module` option on, so
 Leaf's hooks module keeps the watch in place of `hooks.json`'s background Stop hook.
 The journey is then the user: it types into the session through a tmux pane,
-presses Escape, answers its permission prompts, and selects passages of the page in
-Chrome to comment on them. It reads the page's log and claim in process, and stops at
-the first check that fails.
+presses Escape, answers its permission prompts, and after the release ask posts its
+comments to the served page as a tab would. It reads the page's log and claim in
+process, and stops at the first check that fails.
 
 The session runs in Claude Code's default permission mode, as a user's does. Every
 tool is allowed, but Claude Code still asks before a command it reads as touching a

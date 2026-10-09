@@ -278,9 +278,10 @@ login.
 
 On a harness the journey runs a session of it with this working tree as its plugin,
 under a throwaway home holding the host's login, and goes on as the user at its
-terminal: it types turns, presses Escape, kills the adapter, and selects passages to
-comment on through Threads. Between steps it checks every comment so far is answered
-once and picked up, and the page's claim names the session with its turn closed. The
+terminal: it types turns, presses Escape, kills the adapter, and posts each later
+step's comment to the page as a tab would, timing it from the page's log. Between
+steps it checks every comment so far is answered once and entered the session's
+context, and the page's claim names the session with its turn closed. The
 suite stands in for each harness, and only this run shows what the harness itself
 does. Run it on the harness a change touches; each target also checks what its
 harness promises:

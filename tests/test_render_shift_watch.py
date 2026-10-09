@@ -622,6 +622,71 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
         )
 
 
+@pytest.mark.parametrize("overflow", ["visible", "auto"])
+def test_boxless_overflow_does_not_hide_carried_reading(browser, overflow):
+    """Overflow on a display:contents wrapper cannot clip its visible descendants."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0">'
+            f'<div id="wrapper" style="display:contents;overflow:{overflow};padding:10%">'
+            '<div id="above" style="height:40px"></div>'
+            '<button id="target">Reading control</button></div></body>'
+        )
+    )
+    paint(page)
+    assert (
+        page.locator("#wrapper").evaluate("node => node.getClientRects().length") == 0
+    )
+    assert page.locator("#target").bounding_box()["y"] == 40
+    page.locator("#above").evaluate("node => node.style.height = '80px'")
+    judge_watches()
+    assert page.locator("#target").bounding_box()["y"] == 80
+    errors = consume_browser_errors(page, "moved without input")
+    assert any("button#target moved without input" in error for error in errors), errors
+
+
+@pytest.mark.parametrize("bounded", [False, True])
+@pytest.mark.parametrize("position", ["static", "sticky"])
+def test_append_uses_an_actual_scrollport_past_boxless_overflow(
+    browser, bounded, position
+):
+    """A boxless ancestor cannot own append growth; an actual outer scrollport can."""
+    page = browser.new_page()
+    contents = (
+        '<div data-lf-runtime style="display:contents;overflow:auto;padding:10%;'
+        f'position:{position};bottom:0">'
+        '<div id="source" data-lf-reflow="append">'
+        '<p style="height:40px;margin:0">Earlier message.</p></div>'
+        '<button id="target">Reply</button></div>'
+    )
+    if bounded:
+        contents = (
+            '<div data-lf-runtime style="width:360px;height:300px;overflow:auto">'
+            + contents
+            + "</div>"
+        )
+    page.goto(
+        "data:text/html," + quote('<!doctype html><body style="margin:0">' + contents)
+    )
+    paint(page)
+    assert page.locator("#target").bounding_box()["y"] == 40
+    page.evaluate("""() => {
+      const message = document.createElement('p');
+      message.style.cssText = 'height:400px;margin:0';
+      message.textContent = 'The new message.';
+      document.getElementById('source').append(message);
+    }""")
+    judge_watches()
+    assert page.locator("#target").bounding_box()["y"] == 440
+    if not bounded:
+        errors = consume_browser_errors(page, "moved without input")
+        assert any("button#target moved without input" in error for error in errors), (
+            errors
+        )
+
+
 def test_append_reflow_preserves_nested_text_reflow(browser):
     """A stationary old header may still repack inside its own declared boundary."""
     page = browser.new_page()
@@ -3023,6 +3088,21 @@ def test_an_unchanged_frame_misses_no_restyle(browser, call):
             page,
             "missed a change to #text in p#unheard (opacity) and to 1 other node:",
         )
+
+
+def test_unavailable_computed_padding_keeps_an_unchanged_reading(browser):
+    """A native media source has no computed padding, even while connected."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html," + quote('<!doctype html><audio><source id="source"></audio>')
+    )
+    assert page.locator("#source").evaluate("""node => {
+      const style = getComputedStyle(node);
+      return [style.paddingTop, style.paddingBottom];
+    }""") == ["", ""]
+    paint(page)
+    page.evaluate(FRAMES, 4)
+    judge_watches()
 
 
 def test_the_verdict_checks_a_change_the_test_ends_on(browser):

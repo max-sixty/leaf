@@ -114,6 +114,9 @@
     ["left", "top", "right", "bottom"].some(
       (edge) => Math.abs(to[edge] - from[edge]) >= 1,
     );
+  // Native media sources and nodes detached during a reading can have no computed
+  // length. Keep that absence stable; NaN would disagree with itself every frame.
+  const pixels = (value) => (/^-?[\d.]+px$/.test(value) ? parseFloat(value) : null);
   const settled = () =>
     document.querySelector("script[data-lf-entry]")?.lfRenderingSettled?.() ?? true;
   // An animation that can move a box: one of its keyframes sets a geometric property.
@@ -758,6 +761,10 @@
         paintedElement instanceof Element &&
         exposed(element) &&
         paintedElement.checkVisibility({ checkOpacity: true });
+      // Boxless elements retain computed CSS but cannot own clipping,
+      // scrollports, or positioned geometry for their descendants.
+      const hasBox = !range && node.getClientRects().length > 0;
+      const position = hasBox ? style.position : "static";
       const clipping = clippingAxes(style);
       const axes =
         node instanceof Element &&
@@ -783,31 +790,22 @@
         anchor: range ? null : anchorOf(node, style, anchors),
         anchorX:
           !range &&
-          ["fixed", "absolute"].includes(style.position) &&
+          ["fixed", "absolute"].includes(position) &&
           ["left", "right"].some((side) => anchoredInset(node, style, side, "left")),
         anchorY:
           !range &&
-          ["fixed", "absolute"].includes(style.position) &&
+          ["fixed", "absolute"].includes(position) &&
           ["top", "bottom"].some((side) => anchoredInset(node, style, side, "top")),
         insetX: range ? null : `${node.style.left}|${node.style.right}`,
         insetY: range ? null : `${node.style.top}|${node.style.bottom}`,
-        position: range ? "static" : style.position,
-        stickyTop:
-          !range && style.position === "sticky" && /^-?[\d.]+px$/.test(style.top)
-            ? parseFloat(style.top)
-            : null,
-        stickyBottom:
-          !range && style.position === "sticky" && /^-?[\d.]+px$/.test(style.bottom)
-            ? parseFloat(style.bottom)
-            : null,
+        position,
+        stickyTop: position === "sticky" ? pixels(style.top) : null,
+        stickyBottom: position === "sticky" ? pixels(style.bottom) : null,
         scrollXx: axes?.x.x ?? 1,
         scrollXy: axes?.x.y ?? 0,
         scrollYx: axes?.y.x ?? 0,
         scrollYy: axes?.y.y ?? 1,
-        block:
-          !range && ["fixed", "absolute"].includes(style.position)
-            ? node.offsetParent
-            : null,
+        block: ["fixed", "absolute"].includes(position) ? node.offsetParent : null,
         clipLeft: range
           ? null
           : node === document.scrollingElement
@@ -830,11 +828,11 @@
             : rect.top + (node.clientTop + node.clientHeight) * scaleY,
         visibility: style.visibility,
         opacity: style.opacity,
-        clipsX: clipping.x,
-        clipsY: clipping.y,
-        scrollportY: !range && ["auto", "scroll", "hidden"].includes(style.overflowY),
-        paddingTop: range ? null : parseFloat(style.paddingTop),
-        paddingBottom: range ? null : parseFloat(style.paddingBottom),
+        clipsX: hasBox && clipping.x,
+        clipsY: hasBox && clipping.y,
+        scrollportY: hasBox && ["auto", "scroll", "hidden"].includes(style.overflowY),
+        paddingTop: range ? null : pixels(style.paddingTop),
+        paddingBottom: range ? null : pixels(style.paddingBottom),
         reflow: range ? null : node.getAttribute("data-lf-reflow"),
         appendChildren,
         runtime: !range && node.matches(".lf-chrome, [data-lf-runtime]"),

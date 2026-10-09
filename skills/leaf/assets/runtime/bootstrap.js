@@ -151,30 +151,61 @@
     document.addEventListener("lf-held-keys", take);
   }
 
-  // A small public-site profile distinguishes server delay, browser paint, and Leaf
-  // presentation. It starts here so failed module graphs report too.
+  // A small public-site profile separates browser upgrade from the first state
+  // response and authoritative presentation. Failed module graphs report too.
   function observePublicStartup() {
     if (!release) return;
     let sent = false;
+    let upgradedMs = null;
+    let firstStateResponseMs = null;
     let presentedMs = null;
     let fault = null;
     const rounded = (value) =>
       Number.isFinite(value) && value >= 0 ? Math.round(value) : null;
+    const pageRoot = new URL(`${script.dataset.lfPageRoot}/`, location.origin);
+    const stateUrl = new URL("api/state", pageRoot);
+    const readStateResponses = (entries) => {
+      for (const entry of entries) {
+        const url = new URL(entry.name);
+        if (
+          url.origin !== stateUrl.origin ||
+          url.pathname !== stateUrl.pathname ||
+          entry.responseStart <= 0 ||
+          entry.responseEnd <= 0
+        )
+          continue;
+        const ended = rounded(entry.responseEnd);
+        firstStateResponseMs =
+          firstStateResponseMs === null ? ended : Math.min(firstStateResponseMs, ended);
+      }
+    };
+    // Observe completions as they arrive: the global resource timeline can fill
+    // before state answers, and reading it only at presentation would lose this fact.
+    const resources = new PerformanceObserver((list) => {
+      readStateResponses(list.getEntries());
+    });
+    resources.observe({ type: "resource", buffered: true });
+    const readMilestones = () => {
+      if (upgradedMs === null && document.body?.hasAttribute("data-lf-upgraded"))
+        upgradedMs = rounded(performance.now());
+      if (presentedMs === null && document.body?.hasAttribute("data-lf-presented"))
+        presentedMs = rounded(performance.now());
+    };
     const report = (outcome) => {
       if (sent) return;
       sent = true;
+      readMilestones();
       observer.disconnect();
+      readStateResponses(resources.takeRecords());
+      resources.disconnect();
       const navigation = performance.getEntriesByType("navigation")[0];
       const paint = performance
         .getEntriesByName("first-contentful-paint", "paint")
         .at(0);
       navigator.sendBeacon(
-        new URL(
-          "api/performance",
-          new URL(`${script.dataset.lfPageRoot}/`, location.origin),
-        ),
+        new URL("api/performance", pageRoot),
         JSON.stringify({
-          version: 1,
+          version: 2,
           loadId: crypto.randomUUID(),
           release,
           layer,
@@ -186,21 +217,23 @@
           ),
           firstByteMs: rounded(navigation?.responseStart),
           firstContentfulPaintMs: rounded(paint?.startTime),
+          upgradedMs,
+          firstStateResponseMs,
           presentedMs,
         }),
       );
     };
     const observer = new MutationObserver(() => {
-      if (!document.body?.hasAttribute("data-lf-presented")) return;
+      readMilestones();
+      if (presentedMs === null) return;
       observer.disconnect();
-      presentedMs = Math.round(performance.now());
       const afterLoad = () => setTimeout(() => report("presented"));
       if (document.readyState === "complete") afterLoad();
       else window.addEventListener("load", afterLoad, { once: true });
     });
     observer.observe(document, {
       attributes: true,
-      attributeFilter: ["data-lf-presented"],
+      attributeFilter: ["data-lf-upgraded", "data-lf-presented"],
       childList: true,
       subtree: true,
     });

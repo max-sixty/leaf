@@ -37,7 +37,7 @@ import { THREAD } from "../thread/selectors.js";
 import { focused, keys, paintKeys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
 import { PRESS } from "../keyboard/bindings.js";
-import { onStanding, takesLetters } from "../focus.js";
+import { onStanding, takesLetters, focusDestination } from "../focus.js";
 import { repaint } from "../repaint.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { bindQueuedWork } from "../queued-work.js";
@@ -308,7 +308,7 @@ export function createSelectionComposer({
       suggestCheck.checked = false;
       syncSuggestMode();
       notice("Remove pasted images before suggesting replacement text");
-      composerInput.focus({ preventScroll: true });
+      focusDestination(composerInput, "return");
       return;
     }
     // Entering suggestion mode seeds the box with the passage to edit in place.
@@ -316,7 +316,7 @@ export function createSelectionComposer({
       syncComposer.load((seededQuote = pendingAnchor.quote));
     syncSuggestMode();
     saveComposerDraft();
-    composerInput.focus({ preventScroll: true });
+    focusDestination(composerInput, "return");
   }
 
   let responseOptionsOpen = false;
@@ -347,7 +347,7 @@ export function createSelectionComposer({
           ? choices.length - 1
           : 0
         : (at + (backward ? -1 : 1) + choices.length) % choices.length;
-    choices[next].focus({ preventScroll: true });
+    focusDestination(choices[next], "move");
     beginWalk("response-option", "Response", () =>
       listWalkPosition(responseOptionButtons(), focused()),
     );
@@ -365,7 +365,7 @@ export function createSelectionComposer({
         focus === "reaction"
           ? options.find((control) => control.classList.contains("lf-react"))
           : options[0];
-      destination?.focus({ preventScroll: true });
+      if (destination) focusDestination(destination, "move");
       paintKeys();
     });
   };
@@ -385,9 +385,8 @@ export function createSelectionComposer({
     if (place && fabAnchorAt()) showFab(fabAnchorAt());
     if (next && focus) focusResponseOption(focus);
     else if (!next && returnFocus) {
-      [fabInput, fab]
-        .find((control) => control.checkVisibility())
-        ?.focus({ preventScroll: true });
+      const back = [fabInput, fab].find((control) => control.checkVisibility());
+      if (back) focusDestination(back, "return");
     }
     paintKeys();
     return next;

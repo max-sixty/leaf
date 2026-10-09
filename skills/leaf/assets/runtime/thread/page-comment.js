@@ -103,7 +103,7 @@ export function createPageComment({
 
   const openPanelBox = () => {
     setPanel(true);
-    panelBox.focus({ preventScroll: true });
+    focusDestination(panelBox, "move");
   };
   // The control's press is the same `open` as `c`, or a second press putting the card
   // away; opened with the control as its source, the card does not count a press on the
@@ -127,12 +127,13 @@ export function createPageComment({
       // Opened from the control's own place, so Escape hands the user to the control
       // whether a press or a key opened it: the door where the control stands, More's on
       // a phone.
-      bannerControlDoor(control)?.focus({ preventScroll: true });
+      const door = bannerControlDoor(control);
+      if (door) focusDestination(door, "move");
       card.showPopover({ source: control });
     }
     // At once rather than at `toggle`, which comes a task later: the words typed right
     // after the press belong in the box, not to the control or the page's keys.
-    input.focus({ preventScroll: true });
+    focusDestination(input, "move");
   }
   // With Threads open, Comment on the page is the panel's own box.
   function open() {
@@ -184,7 +185,7 @@ export function createPageComment({
         showThread(handle.id, { focus: false, flash: false }),
       ),
       wireBox(input, send, (_handle, flight) => {
-        focusDestination(card);
+        focusDestination(card, "return");
         const mayRestore = retainUserIntent({ source: card, available: cardIsOpen });
         backgroundFlash(threadsToggle, FLASH_MS);
         // Delivery may refuse long after Send. Restore text entry only while the user

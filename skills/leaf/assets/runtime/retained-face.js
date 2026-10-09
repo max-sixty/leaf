@@ -15,8 +15,11 @@
    focus leaves the list, focus moves to the nearest row that survives after it, then
    before it, and otherwise to the caller's fallback, so the user is never left on a
    node the list removed. This is continuity across a repaint: it does not reveal an
-   off-screen replacement after the user has scrolled elsewhere in the list. */
+   off-screen replacement after the user has scrolled elsewhere in the list. A move it
+   carries across a repaint is a `return`; a landing a list asks for on opening is a
+   `move` (focus.js, `focusDestination`). */
 import { LitElement } from "../vendor/browser-runtime.js";
+import { focusDestination } from "./focus.js";
 
 export class RetainedFace extends LitElement {
   static properties = { model: { attribute: false } };
@@ -78,6 +81,7 @@ export class RowFocus {
   #key;
   #keys;
   #pending = undefined; // a row key, null for the fallback, undefined for no move
+  #cause = "return";
 
   // `rows` selects the list's focusable rows, `key` is the attribute naming a row, and
   // `keys(model)` lists a reading's row keys in order.
@@ -98,6 +102,7 @@ export class RowFocus {
     if (kept.includes(held)) return;
     const before = this.#keys(prior);
     const at = before.indexOf(held);
+    this.#cause = "return";
     this.#pending =
       before.slice(at + 1).find((key) => kept.includes(key)) ??
       before
@@ -110,7 +115,9 @@ export class RowFocus {
   // Land on a row once the update that draws it has painted, unless a move is already
   // owed.
   land(key) {
-    if (this.#pending === undefined) this.#pending = key;
+    if (this.#pending !== undefined) return;
+    this.#pending = key;
+    this.#cause = "move";
   }
 
   drop() {
@@ -128,6 +135,7 @@ export class RowFocus {
         : [...this.#list.querySelectorAll(this.#rows)].find(
             (row) => row.getAttribute(this.#key) === key,
           );
-    (destination ?? fallback)?.focus({ preventScroll: true });
+    const place = destination ?? fallback;
+    if (place) focusDestination(place, this.#cause);
   }
 }

@@ -79,7 +79,7 @@ export function createThreadPanelController({
     // user presses the marks and passages its threads are about while it is open. It
     // takes the covering boundary only where it leaves less than a usable page.
     beside: true,
-    focus: () => threadsBox,
+    landing: () => threadsBox,
     show: ({ phase }) => paintPanel(true, phase),
     hide: () => paintPanel(false),
   });

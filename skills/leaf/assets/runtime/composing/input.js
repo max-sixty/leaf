@@ -9,6 +9,7 @@ import { drawingThumbnail } from "./drawing-ink.js";
 import { LitElement, html } from "../../vendor/browser-runtime.js";
 import "./text-field.js";
 import { followBoxGrowth, readBoxPlace } from "../thread/reply-landing.js";
+import { focusDestination } from "../focus.js";
 // One helper wires every durable composition surface: the general box, each per-thread
 // reply, the compact anchored composer, and composition boxes contributed by widgets.
 // `wireInput` gives every such text field one input contract: persist each edit, keep the
@@ -241,7 +242,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       renderMedia();
       draftChanged();
       rememberWriting(ta);
-      ta.focus({ preventScroll: true });
+      focusDestination(ta, "return");
     };
     // ⌘Z and ⌘⇧Z walk the whole draft in the order it changed. The words have the field's
     // own history, and each change to what the shelf holds beside them takes a step in
@@ -303,11 +304,11 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
           // them to the words.
           undoStroke: () => {
             drawing.undoStroke();
-            if (!drawing.read()) ta.focus({ preventScroll: true });
+            if (!drawing.read()) focusDestination(ta, "return");
           },
           removeDrawing: () => {
             drawing.remove();
-            ta.focus({ preventScroll: true });
+            focusDestination(ta, "return");
           },
         },
       );
@@ -535,7 +536,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     ta.addEventListener("compositionstart", () => (composing = true));
     ta.addEventListener("compositionend", () => (composing = false));
     const pressed = (sender) => {
-      if (focused() !== ta) ta.focus({ preventScroll: true });
+      if (focused() !== ta) focusDestination(ta, "return");
       submit(sender);
     };
     for (const [button, sender] of [

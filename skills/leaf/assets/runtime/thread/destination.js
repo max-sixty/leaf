@@ -91,7 +91,7 @@ export function createThreadDestinations({
             !mayPresent() ||
             (focus !== false &&
               !intent.handoff(() => {
-                focusDestination(current);
+                focusDestination(current, "move");
                 current.scrollIntoView({ block: "nearest" });
               }))
           )
@@ -126,7 +126,7 @@ export function createThreadDestinations({
             !mayPresent() ||
             (focus !== false &&
               !intent.handoff(() => {
-                focusDestination(current);
+                focusDestination(current, "move");
                 current.scrollIntoView({
                   behavior: scrollBehavior(),
                   block: "nearest",

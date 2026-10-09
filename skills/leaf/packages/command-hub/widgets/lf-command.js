@@ -52,6 +52,7 @@ import {
   shortAgo,
   watchUpdates,
   watchOwner,
+  focusDestination,
   worksInside,
 } from "/runtime/widget-api.js";
 import {
@@ -327,7 +328,7 @@ function projectionFocus(plan) {
 function showView(box) {
   const title = box?.querySelector(":scope > h2");
   if (!title) return;
-  title.focus({ preventScroll: true });
+  focusDestination(title, "move");
   box.scrollIntoView({ block: "nearest" });
 }
 

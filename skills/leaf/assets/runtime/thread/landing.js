@@ -35,7 +35,7 @@
    to the page is a separate navigation gesture. */
 import { landingBand, seenRect, shownBox, shownWindow } from "../geometry.js";
 import { documentFocused, focused } from "../keyboard/scopes.js";
-import { handingBack, onStanding, takesLetters, whenLeft } from "../focus.js";
+import { focusDestination, onStanding, takesLetters, whenLeft } from "../focus.js";
 import { under } from "../shadow.js";
 import { scrollBehavior } from "../motion.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
@@ -200,7 +200,8 @@ pageScope("text entry", {
         document.activeElement.blur();
         const target = back?.target ?? panelList;
         if (!target) return;
-        if (!target.matches?.(THREAD)) return target.focus();
+        if (!target.matches?.(THREAD))
+          return focusDestination(target, "return", { scroll: true });
         standOnThread(target);
       },
     },
@@ -209,10 +210,12 @@ pageScope("text entry", {
 
 // Coming back out of a thread's box onto the thread, by Escape or by a send, is no
 // arrival. A thread too tall to show whole is already on screen around the box, and
-// landing its title would take the user away from the turn they were answering.
+// landing its title would take the user away from the turn they were answering, so it
+// is a `return` the list leaves where it is. One that fits is a `move`, which the list
+// lands whole in view (`onStanding` below) as the browser's own scroll brings its title.
 export function standOnThread(thread) {
-  if (fitsWhole(thread)) return focusThread(thread);
-  handingBack(() => focusThread(thread, { preventScroll: true }));
+  if (fitsWhole(thread)) return focusThread(thread, "move", { scroll: true });
+  focusThread(thread, "return");
 }
 
 // A thread's own keys, live wherever the user stands in one: the card, the message a
@@ -385,7 +388,7 @@ export function wireThreadLanding(threadsBox) {
     if (!shouldLand) return;
     const thread = standing() ?? pressedThread;
     if (thread && !reachedForWords(thread)) {
-      if (standing() !== thread) focusThread(thread, { preventScroll: true });
+      if (standing() !== thread) focusThread(thread, "move");
       // The press's click may reflow the list and takes its hold from this geometry.
       land(thread, "instant", threadsBox);
     }
@@ -479,8 +482,8 @@ async function showThreadNow(id, focus, flash, revealThread, threadsBox, mayArri
     const destination =
       node === thread ? threadFocusDestination(thread, { focus }) : node;
     mayArrive.handoff(() => {
-      if (destination === thread) focusThread(thread, { preventScroll: true });
-      else destination.focus({ preventScroll: true });
+      if (destination === thread) focusThread(thread, "move");
+      else focusDestination(destination, "move");
     });
   }
   const directThread = node === thread && thread.contains(focused());
@@ -555,7 +558,7 @@ export function createThreadLanding({ setPanel, revealThread, threadsBox }) {
     // view it is already as shown as it can be: a thread standing in for the control
     // its render took away jumped to its head, 700px past where the user had pressed.
     bringBackSurfaceOf(box);
-    box.focus({ preventScroll: true });
+    focusDestination(box, "move");
     const shown = shownBox(box);
     const visible = seenRect(box, new Map());
     const room = shownWindow();

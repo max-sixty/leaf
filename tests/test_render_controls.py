@@ -2565,6 +2565,51 @@ def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
     expect(button).to_be_disabled()
 
 
+@pytest.mark.parametrize("width", [1200, 390])
+def test_required_approval_is_a_question_until_approved(browser, serve, width):
+    """Sign-off belongs to Questions and leads to the real approval control,
+    including its phone overflow seat. A task's Done cannot substitute for it."""
+    html = LONG_PAGE.replace(
+        "<title>long</title>",
+        '<title>long</title><meta name="lf-review" content="sign-off">',
+    )
+    page = open_page(browser, serve(html))
+    page.set_viewport_size({"width": width, "height": 900})
+    questions = page.get_by_role(
+        "button", name="Questions: 1 waiting on you", exact=True, include_hidden=True
+    )
+    expect(questions).to_be_attached()
+    page.keyboard.press("q")
+    approval = page.locator(".lf-signoff")
+    expect(approval).to_be_visible()
+    expect(approval).to_be_focused()
+    approval.click()
+    round_trip(page)
+    expect(
+        page.get_by_role(
+            "button",
+            name="Questions: 0 waiting on you",
+            exact=True,
+            include_hidden=True,
+        )
+    ).to_be_attached()
+    page.keyboard.press("z")
+    round_trip(page)
+    expect(questions).to_be_attached()
+    page.keyboard.press("Escape")
+    if width < 600:
+        page.locator(".lf-banner-more").click()
+    questions.click()
+    row = page.locator("button[data-lf-row]").filter(has_text="Approve v1?")
+    expect(row).to_be_visible()
+    expect(
+        page.get_by_role("button", name="Done: Approve v1?", exact=True)
+    ).to_have_count(0)
+    row.click()
+    expect(approval).to_be_visible()
+    expect(approval).to_be_focused()
+
+
 def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serve):
     """Sign-off was one press with no second step, and the heaviest press on the page.
 

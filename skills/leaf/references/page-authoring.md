@@ -474,7 +474,8 @@ whitespace. Verbatim source quotations keep their exact text; logs and transcrip
 stay literal and uncolored when they are not source code.
 
 The runtime injects the status banner, thread panel, Versions menu, keyboard
-shortcuts, live-leaves drawer, and Questions panel, which lists the page's open Asks.
+shortcuts, live-leaves drawer, and Questions panel. `conversation-loop.md`,
+"Questions and Tasks", owns what belongs in those lists and how to inspect them.
 Readers can turn off **Quick keyboard shortcuts** under **More → Keyboard shortcuts**.
 This preference persists across pages on the same origin and removes Leaf's character
 shortcuts and their hints; commands and ordinary control navigation remain available.

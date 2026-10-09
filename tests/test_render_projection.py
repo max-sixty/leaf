@@ -3730,8 +3730,8 @@ def test_a_live_revision_reapplies_the_authored_thread_seat_predicate(browser, s
         told(page)
         return page.evaluate(
             """async () => {
-              const {openAsks} = await window.__lfRuntimeImport('/runtime/application.js');
-              return openAsks().map(ask => ask.sourceId);
+              const {readAsks} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+              return readAsks().user.map(ask => ask.sourceId);
             }"""
         )
 

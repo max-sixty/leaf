@@ -44,6 +44,7 @@ from leaf.delivery import read_delivery, stream_reply_target
 from leaf.harness import EmbeddedHarness
 from leaf.hosting import LeafHTTPServer
 from leaf.http import PageEndpoint, scope_page_urls
+from leaf.layer import foreign_runtime
 from leaf.leases import release_lease, take_lease, waiter_lease_path
 from leaf.page_memory import Slot, memo
 from leaf.registry.storage import layer_metadata
@@ -254,10 +255,15 @@ class _Binding(Slot):
 
 def page_binding(page_dir: Path) -> tuple[dict, dict | None]:
     """Read immutable delivery metadata once while this process keeps the page
-    (`leaf.page_memory`)."""
-    return memo(page_dir, _Binding).get(
-        None, lambda: (layer_metadata(page_dir), preview_metadata(page_dir))
-    )
+    (`leaf.page_memory`), refusing a page another Leaf's runtime vendored."""
+
+    def bind() -> tuple[dict, dict | None]:
+        identity = layer_metadata(page_dir)
+        if refusal := foreign_runtime(page_dir, identity):
+            raise RuntimeError(refusal)
+        return identity, preview_metadata(page_dir)
+
+    return memo(page_dir, _Binding).get(None, bind)
 
 
 def site_metadata(page_root: str, page: dict) -> str:

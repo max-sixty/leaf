@@ -67,6 +67,7 @@ export function createThreadPresentation({
 }) {
   const panels = new Set();
   let mounted = false;
+  let primary = null;
 
   const presenter = applicationPresenter({
     region: "thread",
@@ -155,58 +156,80 @@ export function createThreadPresentation({
       readTargets();
       surfaces = renderSurfaces(collection, anchorPlacement, surfaceView);
       void surfaces.completion.catch(() => {});
-      prepared = Promise.all(
-        livePanels.map(({ controller, view }) =>
-          phase === "ready"
-            ? controller.renderThreads(collection, view)
-            : controller.renderThreadListUnavailable(
-                phase === "offline"
-                  ? "Current threads are unavailable while the server is offline."
-                  : "Loading current threads…",
-                view,
-              ),
-        ),
-      );
-      void prepared.catch(() => {});
-      renderSeats(listed, inlineView);
-      // Capture every core message and approval age before yielding to a package.
-      // Their shared clock refreshes this whole presentation, including its outlets.
-      // Register the cohort's commit before yielding: its synchronous writes belong
-      // to this requested reading, while preparation and continuity remain separate.
-      await Promise.race([
-        Promise.all([surfaces.completion, prepared]),
-        cancelled.then(() => null),
-      ]).then((result) => {
-        if (!result) return;
-        const [, candidates] = result;
+      const primaryPreparation = primary?.owner.isConnected
+        ? primary.prepare(collection, cancelled)
+        : null;
+      const paintPrepared = (primaryCandidate) => {
         if (!current()) return;
-        for (const candidate of candidates) candidate?.commit();
-        // Preparation may materialize or retire targets without another publication.
-        // Preserve immediate semantic paint, then refresh the same directory and its
-        // retained decoration before any nominated surface actually moves.
-        readTargets();
-        surfaces.commit();
-        commitThreadSeats(batch);
-        surfaceView.composition.finishPlacement();
-        renderAnnotations();
-        pageGeometry.pageShifted();
-        finishListRecovery(candidates);
-        read.present();
-        // Continuity may reveal a route needing this very presenter. Its work starts
-        // after the cohort commits, and never joins the ticket it is completing.
-        void continueReplies(restoreReply).catch((error) =>
-          reportPageError(`Reply continuation failed: ${error?.message ?? error}`),
+        prepared = Promise.all(
+          livePanels.map(({ controller, view }) =>
+            phase === "ready"
+              ? controller.renderThreads(collection, view)
+              : controller.renderThreadListUnavailable(
+                  phase === "offline"
+                    ? "Current threads are unavailable while the server is offline."
+                    : "Loading current threads…",
+                  view,
+                ),
+          ),
         );
-      });
+        void prepared.catch(() => {});
+        renderSeats(listed, inlineView);
+        // Capture every core message and approval age before yielding to a package.
+        // Their shared clock refreshes this whole presentation, including its outlets.
+        // Register the cohort's commit before yielding: its synchronous writes belong
+        // to this requested reading, while preparation and continuity remain separate.
+        return Promise.race([
+          Promise.all([
+            surfaces.completion,
+            prepared.then((candidates) => {
+              if (current() && primaryCandidate?.current())
+                return primaryCandidate.paint().then(() => candidates);
+              return candidates;
+            }),
+          ]),
+          cancelled.then(() => null),
+        ]).then((result) => {
+          if (!result) return;
+          const [, candidates] = result;
+          if (!current()) return;
+          for (const candidate of candidates) candidate?.commit();
+          // Preparation may materialize or retire targets without another publication.
+          // Preserve immediate semantic paint, then refresh the same directory and its
+          // retained decoration before any nominated surface actually moves.
+          readTargets();
+          surfaces.commit();
+          commitThreadSeats(batch);
+          surfaceView.composition.finishPlacement();
+          renderAnnotations();
+          pageGeometry.pageShifted();
+          finishListRecovery(candidates);
+          read.present();
+          // Continuity may reveal a route needing this very presenter. Its work starts
+          // after the cohort commits, and never joins the ticket it is completing.
+          void continueReplies(restoreReply).catch((error) =>
+            reportPageError(`Reply continuation failed: ${error?.message ?? error}`),
+          );
+        });
+      };
+      await (primaryPreparation?.then
+        ? primaryPreparation.then(paintPrepared)
+        : paintPrepared(primaryPreparation));
     } catch (error) {
       surfaces?.cancel();
       if (!current()) throw error;
       read.abort();
       if (error instanceof RetainedThreadListError) throw error;
+      primary?.cancel();
       // A synchronous sibling failure may leave the panel's widget preparation in
       // flight. Invalidate its private generation before restoring the whole reading.
       await Promise.all(
-        livePanels.map(({ controller }) => controller.restoreThreadList()),
+        livePanels.map(async ({ controller, view }) => {
+          if (!primary) return controller.restoreThreadList();
+          controller.cancel();
+          const fallback = await controller.renderThreads(readThreads(), view);
+          if (current()) fallback?.commit();
+        }),
       );
       if (!current()) return;
       retainThreadSeats(batch);
@@ -294,6 +317,21 @@ export function createThreadPresentation({
     };
   }
 
+  function registerPrimary(reader) {
+    if (primary) throw new Error("The page already has a primary Thread presentation");
+    primary = reader;
+    void present();
+    return () => {
+      if (primary !== reader) return;
+      primary = null;
+      reader.unregister();
+      void present();
+    };
+  }
+  function primaryOwnsMessage(message) {
+    return primary?.ownsMessage(message) ?? false;
+  }
+
   function mount() {
     mounted = true;
     for (const panel of panels) attach(panel);
@@ -303,5 +341,7 @@ export function createThreadPresentation({
     mount,
     present,
     registerPanel,
+    registerPrimary,
+    primaryOwnsMessage,
   };
 }

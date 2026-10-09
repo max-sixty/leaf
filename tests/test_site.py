@@ -138,7 +138,7 @@ def published_pages():
 def site(tmp_path_factory):
     """One build for the module: it vendors a layer and checks every published page."""
     out = tmp_path_factory.mktemp("published") / "site"
-    site_build.build(out)
+    site_build.build(out, site_build.checkout_leaf())
     return out
 
 
@@ -1154,7 +1154,7 @@ def test_an_invalid_product_document_stops_the_build(tmp_path, monkeypatch):
     monkeypatch.setattr(site_build, "DOCS", staged_docs)
 
     with pytest.raises(SystemExit) as stopped:
-        site_build.build(tmp_path / "invalid-site")
+        site_build.build(tmp_path / "invalid-site", site_build.checkout_leaf())
     assert "<base>" in str(stopped.value)
 
 

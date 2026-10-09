@@ -1494,9 +1494,13 @@ def test_server_round_trip(server, page_dir):
     )
     assert "> § feeder-board · grip  — about the design" in transcript.output
     drawing = {
-        "format": "leaf-drawing/2",
+        "format": "leaf-drawing/3",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
         "box": [640.5, 96],
+        "frame": {
+            "root": "figure",
+            "path": [{"tag": "svg", "index": 0, "siblings": 1}],
+        },
         "says": "to reap every process … before exporting",
         "viewport": [1280, 720],
         "scheme": "dark",
@@ -1594,7 +1598,7 @@ def test_server_round_trip(server, page_dir):
             "text": "x",
             "anchor": {"section": "feeder-board"},
             "drawing": {
-                "format": "leaf-drawing/2",
+                "format": "leaf-drawing/3",
                 "strokes": [[[10, 60]]],
             },
         },
@@ -1604,7 +1608,7 @@ def test_server_round_trip(server, page_dir):
             "text": "x",
             "anchor": {"section": "feeder-board"},
             "drawing": {
-                "format": "leaf-drawing/2",
+                "format": "leaf-drawing/3",
                 "strokes": [[[10], [50, 20]]],
             },
         },
@@ -1614,7 +1618,7 @@ def test_server_round_trip(server, page_dir):
             "text": "x",
             "anchor": {"section": "feeder-board"},
             "drawing": {
-                "format": "leaf-drawing/2",
+                "format": "leaf-drawing/3",
                 "strokes": [[[10, 60], [33554433, 20]]],
             },
         },
@@ -1631,6 +1635,15 @@ def test_server_round_trip(server, page_dir):
             "text": "x",
             "anchor": {"section": "feeder-board", "part": "Move"},
             "drawing": drawing,
+        },
+        {
+            "kind": "comment",
+            "revision": 2,
+            "anchor": {"section": "feeder-board"},
+            "drawing": {
+                **drawing,
+                "frame": {"root": "figure", "path": [{"tag": "svg", "index": 0}]},
+            },
         },
         {
             "kind": "comment",

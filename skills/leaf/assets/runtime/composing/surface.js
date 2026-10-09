@@ -316,6 +316,7 @@ export function createResponseSurface({
   const placement =
     createPlacement?.({
       bar: fabBar,
+      input: fabInput,
       response: {
         get anchor() {
           return fabAnchor;

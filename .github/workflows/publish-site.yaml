@@ -31,10 +31,12 @@ on:
       - 'dev/leaf_dev/review_scenario.py'
       - 'dev/leaf_dev/site.py'
       - 'dev/leaf_dev/cli.py'
+      - 'dev/leaf_dev/distribution.py'
       - 'dev/leaf_dev/verify_site.py'
       - 'dev/leaf_dev/verify_site_browser.js'
       - 'worker/**'
       - 'build/runtime-bundle.mjs'
+      - 'build/browser/build.mjs'
       - 'package.json'
       - 'package-lock.json'
       - 'Dockerfile.website'
@@ -43,7 +45,8 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+  # A new main push replaces an earlier publish even when it is stuck before a runner starts.
+  cancel-in-progress: true
 
 jobs:
   deploy-site:

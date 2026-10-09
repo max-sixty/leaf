@@ -564,9 +564,9 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   .lf-banner-menu:popover-open { display: flex; }
   /* A secondary control keeps its own paint and states its own words in its fixed menu
      seat; what the menu decides is that it reads as a row rather than as a chip. It
-     does not state display: whether a control is drawn at all belongs to the control,
-     and a rule here stating it for the whole menu would put a control the page has
-     taken away — the map above 900, a chip with no news — into the list as a blank. */
+     does not state display: the toolbar owns the menu's seats. An open menu retains
+     retired rows as hidden seats, and its next opening draws only current controls;
+     a rule here stating display would keep absent controls in that new reading. */
   .lf-banner-menu .lf-btn { width: 100%; text-align: left; }
   .lf-banner-menu .lf-btn:where(:not(.primary)) { border-color: transparent;
     background: none; }
@@ -1404,7 +1404,7 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
      cuts that. */
   .lf-drawings { pointer-events: none; }
   .lf-drawing-mark { position: absolute; display: block; overflow: visible;
-    pointer-events: none; }
+    max-width: none; pointer-events: none; }
   .lf-drawing-mark path { fill: none; stroke: var(--mark-ink); stroke-width: 3px;
     stroke-linecap: round; stroke-linejoin: round; }
   .lf-drawing-mark:is(.lf-drawing-active, .lf-drawing-pending, .lf-drawing-parked) path {
@@ -1415,8 +1415,6 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   .lf-composer { display: none; }
   .lf-fab-bar .lf-composer > :not(.lf-compose-field, .lf-composer-media) {
     display: none !important; }
-  .lf-fab-bar .lf-composer-media { flex: none; max-width: 148px; padding: 0; }
-  .lf-fab-bar .lf-composer-media-open { width: 42px; height: 34px; }
   /* A suggestion renders verbatim — its characters are what the next version
      carries (see msgNode) — so this is where they keep their own line breaks. */
   .lf-live { position: fixed; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }

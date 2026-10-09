@@ -167,7 +167,8 @@ kind of task goes in `/developing-leaf`.
 ### The install runs this tree
 
 Consumer installers follow the CI-built `prepared` Git branch. The browser kernel
-is compiled there; development branches keep its source modules. Installation,
+is compiled there; development branches keep its source modules. The leaf.page
+container runs the same preparation, which `leaf-dev site` builds beside the site. Installation,
 page authoring, custom packages, and export require no browser build or npm command.
 `dev/leaf_dev/distribution.py` owns preparation and publication.
 

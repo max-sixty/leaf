@@ -205,11 +205,10 @@ def test_reading_keys_follow_a_submitted_comment_s_inner_viewport(browser, serve
         page.keyboard.insert_text(words)
         page.keyboard.press("ControlOrMeta+Enter")
         holding(page, pending, 1, "the submitted comment")
-        body = page.locator(".lf-margin-preview .lf-msg-body").first
+        message = page.locator(".lf-margin-preview .lf-msg").first
+        body = message.locator(".lf-msg-body > .lf-msg-text")
         expect(body).to_contain_text("Line 29:")
-        expect(body.locator("..")).to_have_attribute(
-            "data-event", re.compile("pending:.*")
-        )
+        expect(message).to_have_attribute("data-event", re.compile("pending:.*"))
         rendered(page)
         before = body.evaluate("body => body.scrollTop")
         assert before > 0, "The submitted comment must start at its last lines"
@@ -220,24 +219,22 @@ def test_reading_keys_follow_a_submitted_comment_s_inner_viewport(browser, serve
         expect(body).to_be_focused()
         page.keyboard.press("u")
         page.wait_for_function(
-            "before => document.querySelector('.lf-margin-preview .lf-msg-body').scrollTop < before",
+            "before => document.querySelector('.lf-margin-preview .lf-msg-text').scrollTop < before",
             arg=before,
         )
-        scroll_settled(page, ".lf-margin-preview .lf-msg-body")
+        scroll_settled(page, ".lf-margin-preview .lf-msg-text")
         after = body.evaluate("body => body.scrollTop")
         assert after < before
         pending.pop().continue_()
-        expect(body.locator("..")).not_to_have_attribute(
-            "data-event", re.compile("pending:.*")
-        )
+        expect(message).not_to_have_attribute("data-event", re.compile("pending:.*"))
         rendered(page)
         assert abs(body.evaluate("body => body.scrollTop") - after) <= 1
         page.keyboard.press("d")
         page.wait_for_function(
-            "after => document.querySelector('.lf-margin-preview .lf-msg-body').scrollTop > after",
+            "after => document.querySelector('.lf-margin-preview .lf-msg-text').scrollTop > after",
             arg=after,
         )
-        scroll_settled(page, ".lf-margin-preview .lf-msg-body")
+        scroll_settled(page, ".lf-margin-preview .lf-msg-text")
         page.locator(".lf-margin-preview").get_by_role(
             "button", name="Dismiss thread view"
         ).click()

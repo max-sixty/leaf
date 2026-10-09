@@ -770,8 +770,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 guide or in the space around it to anchor the comment here: a stroke in
                 empty space belongs to the nearest element on screen. Every further
                 stroke joins the same drawing, wherever it starts. Send the drawing
-                alone or add words first. The comment box shows the drawing beside Undo
-                last stroke and Remove drawing; in the box, <kbd>⌘Z</kbd> and
+                alone or add words first. The comment box pictures the page beneath the
+                drawing beside Undo last stroke and Remove drawing. Resize the window:
+                text reflow keeps the ink’s size, while a diagram carries its drawing in
+                the diagram’s own coordinates. In the box, <kbd>⌘Z</kbd> and
                 <kbd>⌘⇧Z</kbd> undo and redo strokes and words in the order you made
                 them. <kbd>Escape</kbd> puts the box away and leaves the drawing on the
                 page, dashed, and the next stroke brings the box back;
@@ -1022,6 +1024,66 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               the same editor. Leave this page visible beside another window while
               composing and focus that window: new replies still wait behind the notice.
             </p>
+            <section id="bg-thread-api">
+              <p class="eyebrow bg-feature-elements">lf-conversation-workspace</p>
+              <h3>Package conversation readers</h3>
+              <p id="bg-thread-api-guide">
+                Switch between Conversation, Shelf, and Feed. Answer the channel Ask
+                inside its message, write a reply, and change layouts before sending:
+                the same draft follows the conversation. Start a conversation and mark
+                the proofreading task Done. The package's queues and Leaf's Questions
+                panel show the same outcomes. First unread and question navigation
+                arrive in this reader.
+              </p>
+              <script id="bg-thread-api-history" type="application/json">
+                [
+                  {
+                    "id": "api-question",
+                    "kind": "comment",
+                    "author": "agent",
+                    "text": "Which channel should the announcement use?",
+                    "markup": "<lf-ask id=\"channel-ask\"><h3>Announcement channel</h3><lf-options id=\"channel-options\" choose><lf-option id=\"channel-email\">Email</lf-option><lf-option id=\"channel-chat\">Chat</lf-option></lf-options></lf-ask>"
+                  },
+                  {
+                    "id": "api-opening",
+                    "kind": "comment",
+                    "author": "user",
+                    "text": "Keep the announcement concise."
+                  },
+                  {
+                    "id": "api-answer",
+                    "kind": "reply",
+                    "author": "agent",
+                    "parent": "api-opening",
+                    "text": "The draft now has one paragraph."
+                  },
+                  {
+                    "id": "api-proofread",
+                    "kind": "task",
+                    "author": "agent",
+                    "owner": "user",
+                    "subject": { "kind": "page" },
+                    "title": "Proofread the announcement"
+                  }
+                ]
+              </script>
+              <lf-sample
+                id="bg-thread-api-sample"
+                label="package conversation reader"
+                window
+              >
+                <template
+                  id="bg-thread-api-page"
+                  data-sample
+                  data-sample-events="bg-thread-api-history"
+                >
+                  <h1>Announcement review</h1>
+                  <lf-conversation-workspace
+                    id="conversation-workspace"
+                  ></lf-conversation-workspace>
+                </template>
+              </lf-sample>
+            </section>
             <p id="bg-thread-notices">
               <strong>New information.</strong> Have the agent add a message after the
               page opens: its status-line notice also reaches the live region without

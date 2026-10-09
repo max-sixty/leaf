@@ -1,7 +1,7 @@
 {
   "producer": {
-    "commit": "37c9f9be7087",
-    "committed": "2026-10-08T16:56:58-07:00",
+    "commit": "ca821c5a07bd",
+    "committed": "2026-10-08T17:15:06-07:00",
     "dirty": false
   },
   "runtime_paths": [

@@ -54,7 +54,7 @@ import {
 } from "./passages.js";
 import { registry, tagsDeclaring } from "./registry.js";
 import { PRESSABLE } from "./widget-elements.js";
-import { PRESSES } from "./control-selectors.js";
+import { PRESSES, WORKS } from "./control-selectors.js";
 import { excerptWords } from "./contribution-model.js";
 
 // Anchors are durable coordinates, so every route that can mint one begins only after
@@ -240,6 +240,24 @@ export function visualAt(target, { unclaimed = true } = {}) {
   return seat ? { element, id: seat.id, part: visualPartAt(element, target) } : null;
 }
 
+// One candidate reading serves Design interception, direct aim and the picker.
+// A press keeps its picture; content-holding regions leave pictures independent.
+// The visual reader already gives generated drawings back to their declared provider.
+const designCandidates = () =>
+  [...tagsDeclaring(() => true), WORKS, "[data-lf-offer]", genericVisualSelector].join(
+    ",",
+  );
+export function designPressAt(target) {
+  const at = target?.nodeType === 1 ? target : target?.parentElement;
+  const hit = at && closestAcross(at, designCandidates());
+  if (!hit || !hit.matches(genericVisualSelector)) return hit;
+  return (
+    closestAcross(hit, `${PRESSES},${PRESSABLE}`) ||
+    visualAt(at, { unclaimed: false })?.element ||
+    hit
+  );
+}
+
 export const ADDRESSABLE = '[id]:not(.lf-ui):not([id^="lf-"])';
 
 // Generated visual descendants are not authored addressables even when their renderer minted
@@ -371,12 +389,13 @@ const captionOf = (element) => {
   return caption ? elementReading(caption) : "";
 };
 // A form control's caption is its <label>.
-const ownName = (element) =>
-  addressableName(element) ||
-  captionOf(element) ||
+const accessibleName = (element) =>
   element.getAttribute("aria-label")?.trim() ||
   (element.labels?.[0] ? elementReading(element.labels[0]) : "") ||
+  element.alt?.trim() ||
   "";
+const ownName = (element) =>
+  addressableName(element) || captionOf(element) || accessibleName(element);
 const saysItself = (element) =>
   element.matches(TEXT_BLOCK) ||
   (registry[element.localName]?.["x-word"] === "module" && element.lfSays?.()) ||
@@ -507,17 +526,19 @@ export function anchorForRange(range) {
 // surface or the item a margin entry represents. Content aim names semantic data and
 // visual parts instead. Both direct presses and the picker use this one target reading;
 // choosing a route must never change a control's part coordinate.
-const DESIGN_CONTROLS = PRESSES;
-// Controls have accessible names even when they are chrome with no passage words.
-// innerText reads their currently rendered face; textContent also reads hidden feedback.
+// Press faces may name themselves by visible words; content-holding regions use
+// their declared names. A native editor never derives identity from its mutable value.
 const controlName = (control) =>
-  ownName(control) ||
-  control.innerText?.trim().replace(/\s+/g, " ") ||
-  addressableWord(control);
+  control.isContentEditable
+    ? accessibleName(control)
+    : ownName(control) ||
+      (control.matches(PRESSES)
+        ? control.innerText?.trim().replace(/\s+/g, " ") || addressableWord(control)
+        : "");
 // A native label is a route into its control, not a second control identity.
 const controlIdentity = (control) => control.control ?? control;
 const namedParts = (owner, name) =>
-  [...new Set(pageQueryAll(DESIGN_CONTROLS).map(controlIdentity))].filter(
+  [...new Set(pageQueryAll(WORKS).map(controlIdentity))].filter(
     (control) =>
       control !== owner &&
       under(control, owner) &&
@@ -533,9 +554,7 @@ function controlContext(control, contexts) {
     contexts.set(
       block,
       quoteFrom(
-        textNodesUnder(block).filter(
-          ({ node }) => !closestAcross(node, DESIGN_CONTROLS),
-        ),
+        textNodesUnder(block).filter(({ node }) => !closestAcross(node, WORKS)),
       ),
     );
   return [contexts.get(block), elementReading(control)].filter(Boolean).join(" ");
@@ -544,7 +563,10 @@ function controlContext(control, contexts) {
 // words or native box to pretend its options are part of the visible label.
 function controlPassages(face, control) {
   const words = textNodesUnder(face);
-  if (face === control) return [words];
+  const barriers =
+    face === control
+      ? pageQueryAll(WORKS).filter((other) => other !== control && under(other, face))
+      : [control];
   const passages = [];
   let run = [];
   const finish = () => {
@@ -552,11 +574,19 @@ function controlPassages(face, control) {
     run = [];
   };
   for (const word of words) {
-    if (under(word.node, control)) {
+    if (
+      face === control
+        ? closestAcross(word.node, WORKS) !== control
+        : under(word.node, control)
+    ) {
       finish();
       continue;
     }
-    if (run.length && rangeOf([...run, word]).intersectsNode(control)) finish();
+    if (
+      run.length &&
+      barriers.some((barrier) => rangeOf([...run, word]).intersectsNode(barrier))
+    )
+      finish();
     run.push(word);
   }
   finish();
@@ -584,9 +614,17 @@ function designTargetAt(
   const { owners, contexts } = reading;
   let at = node?.nodeType === 1 ? node : node?.parentElement;
   if (!at) return null;
-  const pressed = closestAcross(at, DESIGN_CONTROLS);
-  const control = pressed && controlIdentity(pressed);
-  if (pressed?.control) at = control;
+  const pressed = designPressAt(at);
+  const control =
+    pressed?.matches(`${WORKS},${genericVisualSelector}`) && controlIdentity(pressed);
+  const visual = visualAt(at, { unclaimed: false });
+  const declared = declaredVisualSelector();
+  if (declared && visual?.element.matches(declared)) at = visual.element;
+  else if (
+    pressed?.control ||
+    (visual && control?.matches(PRESSES) && under(visual.element, control))
+  )
+    at = control;
   const surface = leafSurface(at);
   const margin = closestAcross(at, ".lf-margin-entry, [data-lf-margin-for]");
   const marginTarget = marginTargetAt?.(at);
@@ -636,6 +674,9 @@ function designTargetAt(
     controlElement: partElement,
     controlFaces: faces,
   };
+  // A picture's name describes a face; it is not a quotation of its pixels.
+  if (partElement.matches(genericVisualSelector) && !claimsVisualGesture(partElement))
+    return named;
   // Inventory reads names and faces only. Capture the chosen control's passage once,
   // when direct aim or a picker choice actually needs its durable coordinate.
   return {
@@ -711,7 +752,7 @@ export function aimTargets(options = {}) {
   const candidates = [
     ...pageQueryAll(ADDRESSABLE).filter(isAddressable),
     ...pageQueryAll(DATUM),
-    ...(options.design ? pageQueryAll(DESIGN_CONTROLS) : []),
+    ...(options.design ? pageQueryAll(designCandidates()) : []),
     ...pageQueryAll(declaredVisualSelector()).flatMap((visual) =>
       visualParts(visual).map((part) => part.element),
     ),
@@ -849,7 +890,7 @@ export function resolveAnchor(anchor, text = "") {
       element: section,
       surface: wholeVisualSurface(section),
     });
-    // A named part describes a control; it is not a durable control id. Without
+    // A named part describes a control, region or picture, not a durable id. Without
     // captured words, only its owner is known. A later revision leaving one control
     // never promotes an earlier ambiguous gesture into an exact one.
     return anchor.part ? { ...target, exact: false, status: "fallback" } : target;
@@ -859,9 +900,9 @@ export function resolveAnchor(anchor, text = "") {
   if (!segments.length) return null;
   // An exact named-control quote identifies its actual readable face, so both the
   // editor and sent thread clear that face. Ordinary prose still clears its block.
-  const face = anchor.part && closestAcross(segments[0].node, DESIGN_CONTROLS);
+  const face = anchor.part && closestAcross(segments[0].node, WORKS);
   const controlFace =
-    face && segments.every(({ node }) => closestAcross(node, DESIGN_CONTROLS) === face);
+    face && segments.every(({ node }) => closestAcross(node, WORKS) === face);
   return resolvedPassage({
     place: controlFace ? face : (segments[0].block ?? addressableAt(segments[0].node)),
     segments,

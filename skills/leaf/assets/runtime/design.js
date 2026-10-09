@@ -5,15 +5,15 @@ import { bannerFoot, shownBox } from "./geometry.js";
 import { layoutPx } from "./keeps.js";
 import { paintSet } from "./target-paint-geometry.js";
 import { el } from "./widget-elements.js";
-import { WORKS } from "./control-selectors.js";
 import { tabStore } from "./storage.js";
 import {
   isAddressable,
   ADDRESSABLE,
   aimTargetAt,
   aimTargets,
+  designPressAt,
 } from "./anchor-resolution.js";
-import { closestAcross, inChrome, leafSurface } from "./passages.js";
+import { inChrome, leafSurface } from "./passages.js";
 import { tagsDeclaring } from "./registry.js";
 import { designName, DESIGN_MODE_KEY } from "./design-readings.js";
 import { pageCommand, pageRung, pageScope } from "./keyboard/register.js";
@@ -309,9 +309,6 @@ export function createDesignMode({
 
   const targetOptions = { design: true, marginTargetAt };
   const designTarget = (node) => aimTargetAt(node, targetOptions);
-  // Asked at use: widget-elements.js's selector reaches this module back through the
-  // geometry helpers, so it is not readable as this module evaluates.
-  const controls = () => `${WORKS},[data-lf-offer]`;
 
   // Which presses the mode takes at the press, ahead of the page: everything on the page
   // but prose, and whatever in the chrome the agent made. A widget, a control, a picture —
@@ -320,12 +317,10 @@ export function createDesignMode({
   // composer can open; it never gives the activation back to the page. Prose is left to the
   // browser, so a drag still selects, and the click that ends a plain press on it reaches
   // the handler in the entry module rather than being taken here.
-  const PRESSED = () =>
-    [...tagsDeclaring(() => true), controls(), "svg", "img", "figure"].join(",");
   function designPress(target) {
     const at = target?.nodeType === 1 ? target : target?.parentElement;
     if (!designModeOn || !at) return false;
-    return Boolean(leafSurface(at) ? designTarget(at) : closestAcross(at, PRESSED()));
+    return Boolean(leafSurface(at) ? designTarget(at) : designPressAt(at));
   }
 
   // The one way a design target becomes the composer's anchor: the element by id, and the

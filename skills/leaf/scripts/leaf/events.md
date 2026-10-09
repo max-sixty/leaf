@@ -36,8 +36,11 @@ projected data names `datum` (the rendering key local to its section) and, when 
 projection names an external input, `source` and `source_revision`. `identity` names a
 subject the emitter knows persists across source replacements, independently of the
 `datum` key used to reconcile its rendering. `source_revision` records the value seen.
-`visual` names a declared part of a picture and `part` the control a design comment
-landed on. A browser selection whose complete fenced context cannot identify its
+`visual` names a declared part of a picture; `part` describes the control, region
+or picture a design comment landed on. It is an accessible name, not an element
+identity: an authored id or a file-readable visible quotation establishes an exact
+location; otherwise the containing section remains a descriptive fallback. Native
+editing values never become automatic part names or file-readable quotations. A browser selection whose complete fenced context cannot identify its
 selected occurrence carries `detached: true`. It retains the observed words without
 claiming a location, including after a revision leaves only one identical occurrence.
 The native Range may still place its live editor; that mechanical geometry is not part

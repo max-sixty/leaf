@@ -1590,7 +1590,7 @@ def test_a_quote_may_not_run_across_a_widgets_parts(page_dir):
         "x",
     )
     assert across.exit_code != 0
-    assert "across a widget's parts" in across.output
+    assert "across separate reading regions" in across.output
     assert (
         comment(page_dir, "--quote", "Before the diagram.", "--text", "x").exit_code
         == 0

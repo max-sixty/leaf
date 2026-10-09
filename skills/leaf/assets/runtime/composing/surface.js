@@ -53,6 +53,7 @@ import {
   visualAt,
 } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
+import { WORKS } from "../control-selectors.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import {
   BANNER_CONTROL_RANK,
@@ -88,6 +89,7 @@ import {
 
 import {
   elementById,
+  closestAcross,
   inChrome,
   pageRange,
   pageText,
@@ -1134,6 +1136,9 @@ export function createResponseSurface({
         if (design) openOnDesign(design);
         return;
       }
+      // A painted owner may contain working controls or editing regions. Their
+      // native click keeps its meaning even when an annotation covers the owner.
+      if (closestAcross(target, WORKS)) return;
       // The record rather than this event's own coordinates, for the reason the record is
       // kept from a pointer event at all (pointer.js): `click` is a legacy mouse event and
       // carries the pointer's place rounded to a whole pixel, while markAt measures against

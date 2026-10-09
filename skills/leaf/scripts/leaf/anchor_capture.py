@@ -38,7 +38,7 @@ def resolve_quote(passages, anchor: dict) -> int | None:
     """Resolve a stored quote by exact context, or a sole surviving occurrence.
 
     This is the file side of `passages.js.findQuote`: document order never
-    disambiguates repeated words, and an opaque passage fence cannot be crossed.
+    disambiguates repeated words, and a passage-cell fence cannot be crossed.
     An observation already detached at capture cannot become exact by losing siblings.
     """
     if anchor.get("detached"):
@@ -152,10 +152,9 @@ def capture_anchor(
     if not hits:
         if occurrences(text, wanted, lo_bound, hi_bound):
             raise ValueError(
-                f"{wanted!r} runs across a widget's parts, and a widget writes words of "
-                "its own between them — a column's heading, a milestone's chips, a "
-                "diagram in place of its source. Quote within one part, or name the "
-                "widget as the section to point at the whole of it."
+                f"{wanted!r} runs across separate reading regions. Widgets can generate "
+                "intervening words, and native editing fields hold mutable values. "
+                "Quote within one region, or name its section to point at the whole of it."
             )
         was = _removed_by(document, registry, wanted, section, decided or {}, rewritten)
         if was:

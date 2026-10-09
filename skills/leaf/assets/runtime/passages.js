@@ -38,6 +38,10 @@
    reads or it is no change to the reading, by the walk's own rules (`contextAt`), so
    the runtime repainting its chrome does not cost the page a walk.
 
+   Native editing hosts and readonly islands inside them are passage cells. Context
+   outside a field never borrows its mutable value; an actual native selection inside
+   remains readable. File and browser readings share these ownership fences.
+
    The walk carries its context down (`enter`): each element states once whether it
    starts chrome, silence, generated words, a block or a passage cell, rather than each
    text node climbing to ask. `pageText` indexes back from its string by segment
@@ -376,14 +380,21 @@ const unmodelled = (el) => {
   const attr = el.getAttribute("data-lf-said");
   return !(attr && registry[el.parentElement?.localName]?.["x-says"]?.[attr]);
 };
-// Automatic control capture can promise a file-readable coordinate only for words
-// represented by authored content or a registry-declared generated reading.
+// Automatic control capture uses authored or registry-declared words, never the
+// mutable value of a native editing host. A user's actual Range remains readable.
 export const fileModelsPassage = (segments) =>
-  segments.every(({ gen }) => !gen || !unmodelled(gen));
+  segments.every(
+    ({ node, gen }) =>
+      !node.parentElement.isContentEditable && (!gen || !unmodelled(gen)),
+  );
 // A cell candidate: an opaque widget or one of its original direct children, which
 // always fence, or an unmodelled generated element, which fences once a word of the
 // page's reading is its own (`readPage`).
 const opaque = (el) => passageFences.has(el);
+// Editing values and readonly islands inside them are separate passage cells.
+// Capture and resolution both stop context at those native ownership boundaries.
+const editingBoundary = (el) =>
+  Boolean(el.isContentEditable) !== Boolean(el.parentElement?.isContentEditable);
 // One element's rules applied to the context over it. `inFrame` is false only for a
 // point query's ancestors above the reading's frame, where chrome and the generated
 // marks are somebody else's (`frameOf`). An element that starts nothing — most spans,
@@ -391,7 +402,8 @@ const opaque = (el) => passageFences.has(el);
 function enter(ctx, el, retired, inFrame = true) {
   const marked = el.hasAttributes() && el.matches(MARKS);
   const block = BLOCK_TAGS.has(el.localName);
-  const cell = opaque(el) || (marked && el.matches(GEN) && unmodelled(el));
+  const editing = editingBoundary(el);
+  const cell = opaque(el) || editing || (marked && el.matches(GEN) && unmodelled(el));
   const silent = !ctx.silenced && silences(el, retired);
   if (!marked && !block && !cell && !silent) return ctx;
   const chrome = (marked && inFrame ? chromeMark(el) : null) ?? ctx.chrome;
@@ -403,7 +415,7 @@ function enter(ctx, el, retired, inFrame = true) {
     gen: marked && el.matches(GEN) ? el : ctx.gen,
     block: block ? el : ctx.block,
     island: marked && el.matches(ISLAND) ? el : ctx.island,
-    cells: cell ? { el, up: ctx.cells } : ctx.cells,
+    cells: cell ? { el, editing, up: ctx.cells } : ctx.cells,
   };
 }
 // The tree-local facts start over inside a declared shadow root, as `closest` does.
@@ -991,6 +1003,7 @@ const READING_MARKERS = [
   PAGE_PAINT_ATTRIBUTE.retired,
   "slot",
   "name",
+  "contenteditable",
 ];
 const WATCH_READING = {
   subtree: true,
@@ -1154,7 +1167,7 @@ function readPage() {
   // host, which is the opaque root it always was.
   const cellOf = (chain) => {
     for (let at = chain; at; at = at.up)
-      if (opaque(at.el) || dynamicWords.has(at.el)) return at.el;
+      if (opaque(at.el) || at.editing || dynamicWords.has(at.el)) return at.el;
     return null;
   };
 
@@ -1240,6 +1253,9 @@ function confirmRest(raw, at, words) {
   }
   return i;
 }
+const withinCell = (text, from, to) =>
+  !text.fences.some((fence) => from < fence && fence < to);
+
 export function findQuote(text, quote, anchor, within) {
   const { raw } = text;
   const words = quote.trim().split(/\s+/).filter(Boolean);
@@ -1270,7 +1286,7 @@ export function findQuote(text, quote, anchor, within) {
   const exact = [];
   for (const at of raw.matchAll(pattern)) {
     const stop = confirmRest(raw, at.index + at[0].length, rest);
-    if (stop === -1) continue;
+    if (stop === -1 || !withinCell(text, at.index, stop)) continue;
     if (
       within &&
       !(
@@ -1312,7 +1328,7 @@ export function findText(text, query) {
   for (const match of text.raw.matchAll(pattern)) {
     const from = match.index;
     const to = from + match[0].length;
-    if (text.fences.some((fence) => from < fence && fence < to)) continue;
+    if (!withinCell(text, from, to)) continue;
     out.push(spanOf(text, from, to));
   }
   return out;

@@ -48,6 +48,9 @@ from .structure import VOID_TAGS, SourceDocument
 # fenced. A quote never spans a fence, which turns "the page has words here that the file
 # doesn't" from an anchor that silently detaches in the user's browser into a refusal
 # at the moment it is written, addressed to the one party who can still fix it.
+# Native editing values and readonly islands within them are independent passage
+# cells too. Context outside a field never borrows its mutable value; a selected
+# passage inside it remains readable. Browser and file resolution share those fences.
 #
 # Retirement drops and rewriting substitutes rather than fencing, because that is what
 # each leaves on the screen. A fence says the reading doesn't know what stands there, and
@@ -336,7 +339,7 @@ class _PassageParser:
         self.bearing = (
             set()
         )  # ids still showing something: text under them, or a surviving child
-        self.stack = []  # [{"tag", "id", "ids", "skip", "shows", "sub", "opaque", "fenced", "retired_by", "tb", "block", "tail"}]
+        self.stack = []  # [{"tag", "id", "ids", "skip", "shows", "sub", "opaque", "editable", "fenced", "retired_by", "tb", "block", "tail"}]
         self._uid = 0
         self._block = None  # the block the last character came from
         self._space = False  # a separator waiting for a character to follow it
@@ -451,6 +454,14 @@ class _PassageParser:
         # An upgrade is opaque unless it preserves its own words and ordered nested
         # upgraded boundaries. Descendants keep their own contracts.
         opaque = bool(entry.get("x-upgrade") and not entry.get("x-verbatim"))
+        editable = bool(parent and parent["editable"])
+        if "contenteditable" in attrs_d:
+            value = (attrs_d["contenteditable"] or "").lower()
+            if value in {"", "true", "plaintext-only"}:
+                editable = True
+            elif value == "false":
+                editable = False
+        editing_boundary = editable != bool(parent and parent["editable"])
         # A slot a decision retired: its words left the page with the outcome the
         # registry names, and everything under it goes too. Looked up by the parent's
         # own id — the same child-of-suggestion shape as the browser's selector.
@@ -511,9 +522,10 @@ class _PassageParser:
             "sub": sub,
             "retired_by": retired_by,
             "opaque": opaque,
+            "editable": editable,
             "upgrade": bool(entry.get("x-upgrade")),
             "verbatim": provenance,
-            "fenced": opaque or bool(parent and parent["opaque"]),
+            "fenced": opaque or bool(parent and parent["opaque"]) or editing_boundary,
             "tb": tb,
             # …and where there is none, the element is its own text node's parent, which
             # is what the runtime falls back to. Fresh per element, so `a<em>b</em>c`

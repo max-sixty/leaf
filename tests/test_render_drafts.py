@@ -366,7 +366,7 @@ diff --git a/reading.py b/reading.py
 </pre></lf-diff>""",
         },
     )
-    for index in range(8):
+    for index in range(16):
         append_carried_log_record(
             serve.page_dir,
             {

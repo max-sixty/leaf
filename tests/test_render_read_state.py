@@ -531,7 +531,7 @@ def test_visible_message_waits_for_whole_document_presentation(browser, serve):
     # A long user opening pins the reply row, so the incoming answer can paint
     # immediately while the whole-document presentation proof is held below.
     root = panel_comment(
-        serve.page_dir, "\n\n".join(["Please report the result with its context."] * 20)
+        serve.page_dir, "\n\n".join(["Please report the result with its context."] * 30)
     )
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()

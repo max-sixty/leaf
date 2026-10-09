@@ -90,6 +90,12 @@ through a contract that expresses its different uses. A bug can reveal a
 missing primitive, a misplaced boundary, or an unstated rule shared by several
 packages.
 
+Keep one canonical API per capability. Consumers own selections and transformations
+of its returned data; sharing an implementation does not justify exposing those as
+new APIs. Add a separate API only for an orthogonal capability or guarantee that
+composing the existing API cannot provide; extend the canonical API when its
+existing responsibility is incomplete.
+
 Every change and every review must assess whether the immediate problem is a
 symptom of an underlying problem. Follow its causes until the next boundary is
 right as designed; the wrong boundary below it is where the fix belongs. If the

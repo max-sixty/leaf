@@ -300,6 +300,9 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-outline-chip:is(button, [role="button"]), .lf-thread-notice:is(button), .lf-react, .lf-react-trigger,
 .lf-margin-entry, .lf-thread-action, .lf-command-reference-command, .lf-quote {
   min-height: var(--aim-floor); }
+/* A native summary retains its list marker and centers its content within the
+   target floor. Extra hit area surrounds the label rather than trailing it. */
+summary { align-content: center; }
 /* --entry-floor under every field, beside --aim-floor under every aim. iOS Safari zooms
    the page onto a text field set under 16px as the field takes focus, and leaves the page
    zoomed once it is done: tapping the comment field jumped the view, then left the user
@@ -403,20 +406,20 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   overflow-wrap: anywhere; user-select: text; }
 .lf-summary-text > :first-child { margin-top: 0; }
 .lf-summary-text > :last-child { margin-bottom: 0; }
-.lf-summary-expand { min-height: var(--aim-floor); max-inline-size: 100%; flex-shrink: 0; border: 0;
+.lf-thread-disclosure { min-height: var(--aim-floor); max-inline-size: 100%; flex-shrink: 0; border: 0;
   padding: 4px 0; background: transparent; color: var(--accent); font: 600 11px/1.4 var(--sans);
   cursor: pointer; }
 /* Progress belongs to the completing reply's metadata, with no summary row.
    Flex wrapping keeps its complete label and hit target at narrow widths. */
 .lf-msg-head:has(> .lf-summary-expand) { flex-wrap: wrap; overflow: visible;
   white-space: normal; row-gap: 0; }
-.lf-msg-head > .lf-summary-expand { padding-block: 0; }
-.lf-summary-expand:hover { text-decoration: underline; text-underline-offset: 3px; }
+.lf-msg-head > .lf-thread-disclosure { padding-block: 0; }
+.lf-thread-disclosure:hover { text-decoration: underline; text-underline-offset: 3px; }
 .lf-summary-required { margin-top: 6px; color: var(--turn-ink); font: 600 11px/1.4 var(--sans); }
 .lf-summary-originals { min-width: 0; padding-inline-start: 12px; }
 .lf-summary-originals[hidden] { display: none; }
 .lf-summary-originals > .lf-msg { margin-block: 16px; }
-.lf-summary-expand:is(:focus-visible, .lf-focus-visible) {
+.lf-thread-disclosure:is(:focus-visible, .lf-focus-visible) {
   outline: var(--focus-ring); --lf-focus-ring: summary-fold;
   outline-offset: calc(-1 * var(--focus-ring-w)); }
 /* Held news and header words spend separate retained allocations. A receipt may

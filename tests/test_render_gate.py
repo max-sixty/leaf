@@ -3754,6 +3754,56 @@ def test_a_still_page_comes_back_from_every_journey_as_it_was(browser, serve, so
     )
 
 
+def test_working_prose_density_yields_to_component_spacing(browser, serve):
+    """Density supplies prose defaults without defeating a component's own rhythm."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Working prose and component rhythm",
+                """<style>@layer lf-base {
+.component-line { margin: 0; }
+.component-cell { padding: 3px; }
+}</style>
+<section class="density-working">
+  <p>First paragraph.</p>
+  <h2 id="prose-heading">Ordinary heading</h2>
+  <p id="prose-paragraph">Ordinary paragraph.</p>
+  <div style="display:grid;gap:8px">
+    <h2 class="component-line">Component title</h2>
+    <h3 class="component-line">Component subject</h3>
+    <h4 class="component-line">Component detail</h4>
+    <p class="component-line">Component status</p>
+    <ul class="component-line"><li class="component-line">Component item</li></ul>
+    <table><tr><th class="component-cell">Label</th>
+      <td class="component-cell">Value</td></tr></table>
+  </div>
+  <p>Last paragraph.</p>
+</section>""",
+            )
+        ),
+    )
+    reading = page.evaluate(
+        """() => {
+          const margin = node => {
+            const s = getComputedStyle(node);
+            return [parseFloat(s.marginBlockStart), parseFloat(s.marginBlockEnd)];
+          };
+          return {
+            heading: margin(document.querySelector('#prose-heading')),
+            paragraph: margin(document.querySelector('#prose-paragraph')),
+            components: [...document.querySelectorAll('.component-line')].map(margin),
+            cells: [...document.querySelectorAll('.component-cell')]
+              .map(node => getComputedStyle(node).paddingBlock),
+          };
+        }"""
+    )
+    assert reading["heading"] == [18, 6], reading
+    assert reading["paragraph"] == [6, 6], reading
+    assert all(margin == [0, 0] for margin in reading["components"]), reading
+    assert reading["cells"] == ["3px", "3px"], reading
+
+
 def test_frame_edges_pass_through_whatever_stands_at_them(browser, serve):
     """A frame trims the margin at its edge through every first or last child: a bare
     section, a boxless one, and a padded grid section alike, with nothing declared on

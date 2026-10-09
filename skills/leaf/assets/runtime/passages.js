@@ -41,6 +41,8 @@
    Native editing hosts and readonly islands inside them are passage cells. Context
    outside a field never borrows its mutable value; an actual native selection inside
    remains readable. File and browser readings share these ownership fences.
+   Native textarea children initialize its value; they are never visible document
+   words or surrounding quote context, before or after that value is edited.
 
    The walk carries its context down (`enter`): each element states once whether it
    starts chrome, silence, generated words, a block or a passage cell, rather than each
@@ -364,10 +366,10 @@ const BLOCK_TAGS = new Set(TEXT_BLOCK.split(","));
 const chromeMark = (el) => (el.matches(UI_MARKS) ? !el.matches(SAID) : null);
 // What no label can speak through, however it is marked: an inline script, the
 // stylesheet a rendered diagram carries inside its <svg>, and a slot the user's
-// decision took off the page. Chrome is the rest of what the anchor pass skips and
+// decision took off the page, or a native field's default-value markup. Chrome is the rest of what the anchor pass skips and
 // the one part a label yields — it is a look, and a look cannot make a word the
 // runtime's. `retired` is `retiredSlots()`, read once per walk.
-const SILENT_TAGS = new Set(["script", "style"]);
+const SILENT_TAGS = new Set(["script", "style", "textarea"]);
 const silences = (el, retired) =>
   SILENT_TAGS.has(el.localName) ||
   (retired !== "" &&

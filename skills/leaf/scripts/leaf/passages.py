@@ -51,6 +51,8 @@ from .structure import VOID_TAGS, SourceDocument
 # Native editing values and readonly islands within them are independent passage
 # cells too. Context outside a field never borrows its mutable value; a selected
 # passage inside it remains readable. Browser and file resolution share those fences.
+# A textarea's child text initializes its native value, rather than supplying visible
+# document words. Neither reading uses that default as a passage or surrounding context.
 #
 # Retirement drops and rewriting substitutes rather than fencing, because that is what
 # each leaves on the screen. A fence says the reading doesn't know what stands there, and
@@ -280,10 +282,10 @@ TEXT_BLOCK_TAGS = {
     "figcaption",
     "summary",
 }
-# Text no anchor can reach. script/style are the anchor pass's own skip list; head is
-# outside the tree it searches at all, the runtime rooting a section-less anchor at
-# document.body — without it a page's <title> would be quotable and land nowhere.
-UNQUOTABLE_TAGS = {"script", "style", "head"}
+# Text no anchor can reach: executable/style content and native field defaults.
+# head is outside the browser's tree altogether, which starts at document.body —
+# without it a page's <title> would be quotable and land nowhere.
+UNQUOTABLE_TAGS = {"script", "style", "head", "textarea"}
 
 
 class _PassageParser:

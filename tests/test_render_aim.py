@@ -5958,3 +5958,89 @@ def test_releasing_a_claimed_stop_keeps_another_owners_focus_value(browser, serv
       return {value:el.getAttribute('tabindex'),borrowed:el.hasAttribute('data-lf-lent-reach-stop')};
     }""")
     assert transferred == {"value": "5", "borrowed": False}
+
+
+def test_native_textarea_defaults_never_supply_design_passage_context(browser, serve):
+    markup = leaf_page(
+        "Native values",
+        '<h1>Review fields</h1><section id="fields">'
+        '<p id="guidance">Stable surrounding field guidance.</p>'
+        "<textarea>Original draft words.</textarea>"
+        '<textarea aria-label="Notes">Other draft words.</textarea>'
+        "<button>Publish draft</button><p>Further stable guidance.</p></section>",
+    )
+    page = open_page(browser, live_url(serve(markup)))
+    fields = page.locator("textarea")
+
+    def capture():
+        return page.evaluate("""async()=>{
+          const A=await import('/runtime/anchor-resolution.js');
+          const P=await import('/runtime/passages.js');
+          return {
+            fields:[...document.querySelectorAll('textarea')].map(el=>{
+              const target=A.aimTargetAt(el,{design:true});
+              return {anchor:target.anchor,label:target.label,
+                exact:A.resolveAnchor(target.anchor,P.pageText()).exact,
+                says:P.textNodesUnder(el).map(s=>s.node.data).join('')};
+            }),
+            button:A.aimTargetAt(document.querySelector('#fields button'),{design:true}).anchor,
+            words:P.pageText().raw,
+          };
+        }""")
+
+    before = capture()
+    fields.nth(0).fill("Changed live value.")
+    fields.nth(1).fill("Changed named value.")
+    after = capture()
+    assert before == after
+    assert [field["anchor"] for field in after["fields"]] == [
+        {"section": "fields", "part": "textarea"},
+        {"section": "fields", "part": "Notes"},
+    ]
+    assert not any(field["exact"] for field in after["fields"])
+    assert all(field["says"] == "" for field in after["fields"])
+    for words in (
+        "Original draft words.",
+        "Other draft words.",
+        "Changed live value.",
+        "Changed named value.",
+    ):
+        assert words not in after["words"]
+        assert all(words not in field["label"] for field in after["fields"])
+    passages = passages_model.page_passages(structure_model.SourceDocument(markup))
+    for quote in ("Original draft words.", "Other draft words."):
+        assert (
+            anchor_capture_model.resolve_quote(
+                passages, {"section": "fields", "quote": quote}
+            )
+            is None
+        )
+    assert anchor_capture_model.resolve_quote(passages, after["button"]) is not None
+    assert (
+        anchor_capture_model.resolve_quote(
+            passages,
+            {"section": "guidance", "quote": "Stable surrounding field guidance."},
+        )
+        is not None
+    )
+    page.locator("h1").click()
+    page.keyboard.press("l")
+    fields.nth(0).click()
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    write(field, "Clarify this field.")
+    with sending(page, "the anonymous native field"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    event = next(
+        e
+        for e in reversed(events_model.read_events(serve.page_dir))
+        if e["kind"] == "comment"
+    )
+    assert event["anchor"] == after["fields"][0]["anchor"]
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    fields.nth(0).click()
+    expect(fields.nth(0)).to_be_focused()
+    fields.nth(0).press("End")
+    fields.nth(0).press_sequentially(" still editable")
+    expect(fields.nth(0)).to_have_value("Changed live value. still editable")

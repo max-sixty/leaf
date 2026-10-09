@@ -1607,13 +1607,11 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
         if view == "updates":
             card = frame.locator(f'.lf-thread[data-id="{thread}"]')
             checkpoint = card.locator(".lf-thread-checkpoint")
-            expect(checkpoint.locator(".lf-summary-label")).to_have_text(
-                "Previous updates"
-            )
+            expect(checkpoint.locator(".lf-summary-label")).to_have_count(0)
             expect(checkpoint.locator(".lf-summary-text")).to_have_count(0)
             earlier = checkpoint.locator(".lf-summary-originals")
             expect(earlier).to_be_hidden()
-            expand = checkpoint.get_by_role("button", name="Show 2 earlier messages")
+            expand = card.get_by_role("button", name="Show 2 progress messages")
             expand.focus()
             page.keyboard.press("Enter")
             expect(earlier).to_be_visible()
@@ -1621,9 +1619,7 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
             expect(earlier).to_contain_text(
                 "Checking the break and closing discussion."
             )
-            collapse = checkpoint.get_by_role(
-                "button", name="Collapse 2 earlier messages"
-            )
+            collapse = card.get_by_role("button", name="Hide 2 progress messages")
             expect(collapse).to_be_focused()
             page.keyboard.press("Enter")
             expect(earlier).to_be_hidden()

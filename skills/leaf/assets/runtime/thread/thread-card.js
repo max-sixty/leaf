@@ -662,6 +662,15 @@ export class ThreadView {
       };
     });
     const boundaries = panel ? unreadBoundaries(rangeState) : new Map();
+    // Automatic progress folds name the reply that completed them. Its header owns
+    // their disclosure, even when a user's intervening reply split the originals.
+    const progressByReply = new Map();
+    for (const range of rangeState) {
+      if (range.kind !== "summary" || !range.summary.trigger || range.forced) continue;
+      const trigger = range.summary.trigger;
+      if (!progressByReply.has(trigger)) progressByReply.set(trigger, []);
+      progressByReply.get(trigger).push(range);
+    }
     const messages = model.messages.map((message) => {
       let view = this.#messages.get(message.key);
       if (!view)
@@ -671,6 +680,9 @@ export class ThreadView {
         );
       view.present(message, {
         arrived: Boolean(prior),
+        headerControls: progressByReply.has(message.id)
+          ? this.#summaryToggle(progressByReply.get(message.id), true)
+          : nothing,
       });
       return { key: message.key, node: view.node };
     });
@@ -787,7 +799,9 @@ export class ThreadView {
           model.resolved && !replySlot && !model.folding && !marginControls && !panel
             ? html`<div class="lf-page-thread-resolved lf-ui">
                 <span
-                  >${model.resolvedBy ? html`<span>${model.resolvedBy}</span>` : nothing}</span
+                  >${
+                    model.resolvedBy ? html`<span>${model.resolvedBy}</span>` : nothing
+                  }</span
                 >
                 ${news}${settlement}
               </div>`
@@ -934,46 +948,43 @@ export class ThreadView {
   }
 
   #summaryRange(range, markerFor) {
-    const count = range.messages.length;
     const id = range.summary.id;
+    const progress = Boolean(range.summary.trigger);
     const originalsId = `lf-summary-originals-${this.#viewId}-${id}`;
     return html`<section
       class="lf-thread-checkpoint"
       data-summary-id=${id}
       data-expanded=${String(range.expanded)}
+      ?hidden=${progress && !range.expanded}
     >
-      <div class="lf-summary-checkpoint">
-        <div class="lf-summary-header">
-          <div class="lf-summary-label">${range.summary.label}</div>
-          ${
-            range.forced
-              ? nothing
-              : html`<button
-                  type="button"
-                  class="lf-summary-expand"
-                  aria-expanded=${String(range.expanded)}
-                  aria-controls=${originalsId}
-                  @click=${() => this.#setSummaryExpanded(id, !range.expanded)}
-                >
-                  ${range.expanded ? "Collapse" : "Show"} ${count} earlier
-                  message${count === 1 ? "" : "s"}
-                </button>`
-          }
-        </div>
-        ${
-          range.summary.text
-            ? html`<div
-                class="lf-summary-text"
-                .innerHTML=${renderMarkdown(range.summary.text)}
-              ></div>`
-            : nothing
-        }
-        ${
-          range.forced
-            ? html`<div class="lf-summary-required">${range.requiredText}</div>`
-            : nothing
-        }
-      </div>
+      ${
+        progress
+          ? nothing
+          : html` <div class="lf-summary-checkpoint">
+              <div class="lf-summary-header">
+                <div class="lf-summary-label">${range.summary.label}</div>
+                ${range.forced ? nothing : this.#summaryToggle([range])}
+              </div>
+              ${
+                range.summary.text
+                  ? html`<div
+                      class="lf-summary-text"
+                      .innerHTML=${renderMarkdown(range.summary.text)}
+                    ></div>`
+                  : nothing
+              }
+              ${
+                range.forced
+                  ? html`<div class="lf-summary-required">${range.requiredText}</div>`
+                  : nothing
+              }
+            </div>`
+      }
+      ${
+        progress && range.forced
+          ? html`<div class="lf-summary-required">${range.requiredText}</div>`
+          : nothing
+      }
       <div id=${originalsId} class="lf-summary-originals" ?hidden=${!range.expanded}>
         ${repeat(
           range.messages,
@@ -987,12 +998,33 @@ export class ThreadView {
     </section>`;
   }
 
-  #setSummaryExpanded(id, expanded) {
-    if (expanded) this.#expandedSummaries.add(id);
-    else this.#expandedSummaries.delete(id);
+  #summaryToggle(ranges, progress = false) {
+    const ids = ranges.map((range) => range.summary.id);
+    const expanded = ranges.every((range) => range.expanded);
+    const count = ranges.reduce((total, range) => total + range.messages.length, 0);
+    return html`<button
+      type="button"
+      class="lf-summary-expand"
+      data-summary-toggle=${ids[0]}
+      aria-expanded=${String(expanded)}
+      aria-controls=${ids
+        .map((id) => `lf-summary-originals-${this.#viewId}-${id}`)
+        .join(" ")}
+      @click=${() => this.#setSummaryExpanded(ids, !expanded)}
+    >
+      ${expanded ? (progress ? "Hide" : "Collapse") : "Show"} ${count}
+      ${progress ? "progress" : "earlier"} message${count === 1 ? "" : "s"}
+    </button>`;
+  }
+
+  #setSummaryExpanded(ids, expanded) {
+    for (const id of ids) {
+      if (expanded) this.#expandedSummaries.add(id);
+      else this.#expandedSummaries.delete(id);
+    }
     this.repaint();
     const toggle = this.node.querySelector(
-      `.lf-thread-checkpoint[data-summary-id="${CSS.escape(id)}"] .lf-summary-expand`,
+      `.lf-summary-expand[data-summary-toggle="${CSS.escape(ids[0])}"]`,
     );
     if (toggle) focusDestination(toggle, "return");
   }

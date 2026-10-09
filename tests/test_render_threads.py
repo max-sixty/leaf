@@ -1028,8 +1028,9 @@ def test_previous_updates_can_fold_without_summary_prose(browser, serve, width):
 
 
 @pytest.mark.parametrize("surface", ["panel", "inline"])
+@pytest.mark.parametrize("interleaved", [False, True])
 def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
-    browser, serve, surface
+    browser, serve, surface, interleaved
 ):
     """The answer and its fold arrive together; originals remain a keyboard route."""
     url = serve(SEATED_QUESTION_PAGE)
@@ -1042,6 +1043,26 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
         for_event=root,
         ephemeral=True,
     )
+    owed = root
+    if interleaved:
+        intervening = append_command(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "user",
+                "parent": root,
+                "text": "Check the mount too.",
+            },
+        )
+        owed = intervening["id"]
+        thread_model.post_reply(
+            serve.page_dir,
+            owed,
+            "Checking the mount.",
+            None,
+            for_event=owed,
+            ephemeral=True,
+        )
 
     def show(page):
         if surface == "panel":
@@ -1053,6 +1074,8 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
         return page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
 
     page = open_page(browser, url)
+    if surface == "inline":
+        resized(page, 390, 844)
     card = show(page)
     identity = "data-mid" if surface == "panel" else "data-event"
     original = card.locator(f'.lf-msg[{identity}="{progress["id"]}"]')
@@ -1064,10 +1087,10 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
 
     answer = thread_model.post_reply(
         serve.page_dir,
-        root,
+        owed,
         "The schedule works.",
         None,
-        for_event=root,
+        for_event=owed,
     )
     told(page)
     notice = card.get_by_role("button", name="1 new reply", exact=True)
@@ -1084,16 +1107,45 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     notice.click()
     expect(card.locator(f'.lf-msg[{identity}="{answer["id"]}"]')).to_be_visible()
     checkpoint = card.locator(".lf-thread-checkpoint")
-    expect(checkpoint.locator(".lf-summary-label")).to_have_text("Previous updates")
+    expect(checkpoint.locator(".lf-summary-label")).to_have_count(0)
     expect(checkpoint.locator(".lf-summary-text")).to_have_count(0)
     expect(original).to_be_visible()
 
     # A fresh reading starts folded, independent of the live reader's protected focus.
     fresh = open_page(browser, url)
+    if surface == "inline":
+        resized(fresh, 390, 844)
     fresh_card = show(fresh)
     fresh_original = fresh_card.locator(f'.lf-msg[{identity}="{progress["id"]}"]')
     expect(fresh_original).to_be_hidden()
-    expand = fresh_card.get_by_role("button", name="Show 1 earlier message", exact=True)
+    count = 2 if interleaved else 1
+    noun = "messages" if interleaved else "message"
+    expand = fresh_card.get_by_role(
+        "button", name=f"Show {count} progress {noun}", exact=True
+    )
+    answer_header = fresh_card.locator(
+        f'.lf-msg[{identity}="{answer["id"]}"] > .lf-msg-head'
+    )
+    expect(answer_header.get_by_role("button")).to_have_count(1)
+    expect(expand).to_have_attribute("aria-expanded", "false")
+    expect(fresh_card.locator(".lf-summary-label")).to_have_count(0)
+    time_box = answer_header.locator("time").bounding_box()
+    control_box = expand.bounding_box()
+    if surface == "panel":
+        assert (
+            control_box["y"] <= time_box["y"] < control_box["y"] + control_box["height"]
+        )
+    else:
+        header_box = answer_header.bounding_box()
+        assert header_box["x"] <= control_box["x"]
+        assert (
+            control_box["x"] + control_box["width"]
+            <= header_box["x"] + header_box["width"]
+        )
+    if interleaved:
+        expect(
+            fresh_card.get_by_text("Check the mount too.", exact=True)
+        ).to_be_visible()
     expand.focus()
     fresh.keyboard.press("Shift+Tab")
     fresh.keyboard.press("Tab")
@@ -1102,11 +1154,17 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     fresh.keyboard.press("Enter")
     expect(fresh_original).to_be_visible()
     expect(fresh_original).to_contain_text("Checking the camera.")
+    if interleaved:
+        expect(
+            fresh_card.get_by_text("Checking the mount.", exact=True)
+        ).to_be_visible()
     collapse = fresh_card.get_by_role(
-        "button", name="Collapse 1 earlier message", exact=True
+        "button", name=f"Hide {count} progress {noun}", exact=True
     )
     collapse.press("Enter")
     expect(fresh_original).to_be_hidden()
+    if interleaved:
+        expect(fresh_card.get_by_text("Checking the mount.", exact=True)).to_be_hidden()
 
 
 def test_a_summary_gathering_the_message_the_user_is_on_keeps_them_on_it(

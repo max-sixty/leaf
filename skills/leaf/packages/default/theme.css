@@ -1821,7 +1821,6 @@
   :scope:is(lf-shot) .lf-shotcap[data-lf-state="before"]::after { content: " · top"; }
   :scope:is(lf-shot) .lf-shotcap[data-lf-state="after"]::after { content: " · bottom"; }
   :scope:is(lf-shot) > input.lf-shotflip { display: none; }
-  :scope:is(lf-shot) .lf-shot-open { display: none; }
   :scope:is(lf-shot) > .lf-shotrail { height: auto;
     grid-template-rows: var(--lf-shot-rail-row-size); }
   :scope:is(lf-shot) .lf-shotdelta { grid-row: 1; }

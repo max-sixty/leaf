@@ -264,6 +264,17 @@ def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, 
     assert paragraphs.count() >= 2
     first, second = paragraphs.nth(0).bounding_box(), paragraphs.nth(1).bounding_box()
     assert second["y"] > first["y"] + first["height"]
+    spacing = card.evaluate("""el => {
+      const description = el.querySelector('.pr-description');
+      const body = description.querySelector(':scope > div');
+      return {
+        heading: getComputedStyle(description.querySelector('h4')).marginBlockStart,
+        observed: getComputedStyle(el.querySelector('.pr-observed')).marginBlockStart,
+        first: getComputedStyle(body.firstElementChild).marginBlockStart,
+        last: getComputedStyle(body.lastElementChild).marginBlockEnd,
+      };
+    }""")
+    assert spacing == dict.fromkeys(("heading", "observed", "first", "last"), "0px")
     expect(description.locator("strong")).to_have_text("Retries")
     expect(description.locator("code")).to_have_text("Vec<T>")
     expect(description.get_by_role("link", name="retry notes")).to_have_attribute(
@@ -6155,7 +6166,7 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
           const owner = document.getElementById('ag-wren');
           window.__proofClock = 0;
           window.__proofReads = [];
-          api.watchUpdates(owner, updates => {
+          window.__proofWatching = api.watchUpdates(owner, updates => {
             clockValue(() => window.__proofClock);
             window.__proofReads.push(updates.map(update => update.text));
           });
@@ -6204,6 +6215,8 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
         # A same-epoch reopen has no semantic notification. The next clock paint
         # must still check proof rather than bypassing its readiness guard.
         reads = page.evaluate("window.__proofReads.length")
+        page.evaluate("window.__proofWatching.refresh()")
+        assert page.evaluate("window.__proofReads.length") == reads
         page.evaluate("window.__proofTick()")
         assert page.evaluate("window.__proofReads.length") == reads
     second = CliRunner().invoke(

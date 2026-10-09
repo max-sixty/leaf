@@ -339,6 +339,10 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
     anywhere. The corpus's own anchor sweep does not cover it, because that sweep
     writes its own anchors. This is what reads the shipped one.
 
+    A log can explicitly detach a thread after a revision, as the gallery's
+    retained quotation demonstrates. Its old words must remain readable without
+    a page mark. An anchor still standing in the log must resolve and paint.
+
     A log can also carry a widget, and that is the second thing read here. Markup
     in a message renders in the panel and nowhere else, so no authored page can
     stand in for it — which is exactly how it stayed unrendered: every example's
@@ -414,6 +418,15 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
             for thread in listed
             if not thread["resolved"] and thread["anchor"]
         ]
+        # Explicit log detachment is a current-state fact, distinct from an
+        # attached anchor that stopped resolving because the example rotted.
+        retained = {
+            thread["id"]: f"“{thread['detached_from']['quote']}”"
+            for thread in listed
+            if thread["anchor"] is None
+            and thread["detached_from"]
+            and thread["detached_from"].get("quote")
+        }
         # The thread node first, because it arrives whether or not the quote found a
         # home — a stranded one renders wearing `detached`. Waiting on the mark here
         # instead spends the whole timeout on exactly the failure this gate is for
@@ -490,10 +503,14 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                     f"wash reads {painted[:120]!r}"
                 )
         detached = page.eval_on_selector_all(
-            ".lf-thread .lf-quote.detached", "els => els.map(e => e.textContent)"
+            ".lf-thread .lf-quote.detached",
+            "els => Object.fromEntries(els.map(e => "
+            "[e.closest('.lf-thread').dataset.id, "
+            "e.querySelector('.lf-quote-label').textContent]))",
         )
-        assert detached == [], (
-            f"{example.stem} ships an anchor that resolves to nothing: {detached}. "
+        assert detached == retained, (
+            f"{example.stem} has unexpected retained quotations: {detached}; "
+            f"expected only the log's explicit detachments: {retained}. "
             "The passage it quotes has been rewritten; recapture it with "
             "`leaf thread open --quote` against the current file."
         )

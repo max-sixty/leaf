@@ -122,12 +122,10 @@ customElements.define(
         this.#frames.push(frame);
         this.append(frame);
 
-        const open = document.createElement("a");
-        open.className = "lf-media-open lf-shot-open";
+        const open = offer("a", "lf-media-open lf-shot-open", `Open ${state}`);
         open.dataset.lfShotOpen = state;
         open.href = img.src;
         open.dataset.lfMediaUrl = img.src;
-        open.textContent = `Open ${state}`;
         this.#openers.set(state, open);
         rail.append(open);
       }

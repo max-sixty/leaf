@@ -18,16 +18,15 @@ customElements.define(
       if (!once(this)) return;
       this.reading = new HeldReading(
         () => [...this.children],
-        () => this.show(this.snapshot),
+        () => this.watching.refresh(),
       );
       watchOwner(this, { disconnect: () => this.reading.dispose() });
-      watchData(this, "worktrees", (snapshot) => this.show(snapshot));
+      this.watching = watchData(this, "worktrees", (snapshot) => this.show(snapshot));
     }
     showUpdates() {
       this.reading.show();
     }
     show(snapshot) {
-      this.snapshot = snapshot;
       const next = JSON.stringify(snapshot ?? null);
       const shown = this.reading.hold(next);
       const view = JSON.parse(shown);

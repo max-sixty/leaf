@@ -45,11 +45,11 @@ customElements.define(
       }
       this.reading = new HeldReading(
         () => [this.querySelector(".atlas-worker-body")],
-        () => this.paint(),
+        () => this.watching.refresh(),
       );
       watchOwner(this, { disconnect: () => this.reading.dispose() });
       this.#controller.subscribe(() => {});
-      watchUpdates(this, () => this.paint());
+      this.watching = watchUpdates(this, () => this.paint());
     }
     renderState(state) {
       keeps(this, "state", state.state.value);
@@ -77,7 +77,7 @@ customElements.define(
             ? html` Last heard
                 <time datetime=${reading.heard} title=${reading.heard}
                   >${ago(reading.heard)}</time
-                >.`
+                >`
             : ""
         }`,
         this.querySelector(".atlas-worker-report"),

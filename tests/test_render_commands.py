@@ -589,10 +589,14 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
         )
         floor = 44 if touch else 24
         assert min(link_bounds[index]["width"], link_bounds[index]["height"]) >= floor
+        link.hover()
+        assert link.bounding_box() == link_bounds[index]
+        link.focus()
+        assert link.bounding_box() == link_bounds[index]
+        assert shot.bounding_box() == before
         if touch:
             link.tap()
         else:
-            link.focus()
             link.press("Enter")
         expect(viewer).to_be_visible()
         expect(viewer.locator(".lf-media-viewer-original")).to_have_attribute(

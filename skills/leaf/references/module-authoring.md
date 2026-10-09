@@ -724,6 +724,10 @@ owner. They coalesce reads at the script's microtask checkpoint, pause while the
 is absent, and read the latest projection when it returns, even when unchanged.
 Moving the owner within one mutation batch retains its subscription. Their returned
 cleanup permanently retires the subscription, including queued reads and clock paints.
+Its `refresh()` reruns the same clock-tracked reading synchronously while the owner
+is connected, retaining the watcher's readiness proof. Use it when a mechanical
+change, such as revealing held news or entering print, needs to repaint; calling
+the renderer directly would leave its new time readings outside the subscription.
 
 ## Page history
 
@@ -759,6 +763,9 @@ Register once for the element. Leaf pauses the subscription when its owner leave
 delivers the newest snapshot when it returns, even if its revision is unchanged.
 Moving the owner within one DOM mutation batch retains the subscription. The returned
 cleanup function ends it permanently when the module explicitly stops watching.
+Its `refresh()` repaints the last delivered snapshot through the same clock
+tracking. It neither delivers a pending source reading nor revives an absent or
+retired subscription.
 The callback must state the whole rendering and remain idempotent.
 
 Use `watchOwner(element, {connect, disconnect})` for other resources that follow the

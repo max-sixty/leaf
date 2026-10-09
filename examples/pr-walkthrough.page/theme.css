@@ -1,7 +1,9 @@
 lf-pr-brief { display: block; margin-block: var(--sp-4); }
 .pr-brief { display: grid; gap: var(--sp-3); }
-.pr-brief > header > :is(h3, p) { margin: 0; }
+.pr-brief > header > :is(h3, p), .pr-description > h4, .pr-observed { margin: 0; }
 .pr-brief dl { margin: 0; }
+.pr-description > div > :first-child { margin-top: 0; }
+.pr-description > div > :last-child { margin-bottom: 0; }
 .pr-description { padding-inline-start: var(--sp-3); border-inline-start: 2px solid var(--rule); }
 .pr-checks { width: 100%; }
 .pr-observed { color: var(--muted); font: var(--t-6) / 1.4 var(--sans); }

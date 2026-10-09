@@ -5724,13 +5724,16 @@ def test_projection_subscriptions_follow_their_owner_and_cancel_queued_reads(
           await changed(() => document.body.append(owner));
           await Promise.resolve();
           const resumed = calls;
+          stop.refresh();
+          const refreshed = calls;
           stop();
+          stop.refresh();
           await changed(() => owner.remove());
           await changed(() => document.body.append(owner));
           clock += 1;
           await tickClock(message => { throw new Error(message); });
           owner.remove();
-          return {cancelled, initial, moved, detached, resumed, stopped: calls};
+          return {cancelled, initial, moved, detached, resumed, refreshed, stopped: calls};
         }"""
     )
     assert result == {
@@ -5739,7 +5742,8 @@ def test_projection_subscriptions_follow_their_owner_and_cancel_queued_reads(
         "moved": 1,
         "detached": 1,
         "resumed": 2,
-        "stopped": 2,
+        "refreshed": 3,
+        "stopped": 3,
     }
 
 
@@ -5788,7 +5792,10 @@ def test_data_subscriptions_follow_their_owner_and_stop_permanently(browser, ser
           const next = structuredClone(runtime.data);
           next.version = 'held-owner-version';
           next.sources.deployments.revision = 'held-owner';
+          const beforeStaging = deliveries.at(-1);
           acceptData(next, runtime.state.taken);
+          stop.refresh();
+          const stagingKept = deliveries.at(-1) === beforeStaging;
           const pending = notifyDataSubscribers();
           const held = deliveries.at(-1);
           await changed(() => widget.remove());
@@ -5802,12 +5809,15 @@ def test_data_subscriptions_follow_their_owner_and_stop_permanently(browser, ser
           const absent = deliveries.length;
           await changed(() => home.append(widget));
           const restored = deliveries.at(-1);
+          stop.refresh();
+          const refreshed = deliveries.at(-1);
           stop();
+          stop.refresh();
           await changed(() => widget.remove());
           await changed(() => home.append(widget));
           clock += 1;
           await tickClock(message => { throw new Error(message); });
-          return {initial, moved, detached, resumed, held, absent, restored,
+          return {initial, moved, detached, resumed, held, absent, restored, refreshed, stagingKept,
             stopped: deliveries.length};
         }"""
     )
@@ -5817,9 +5827,11 @@ def test_data_subscriptions_follow_their_owner_and_stop_permanently(browser, ser
         "detached": 1,
         "resumed": 2,
         "held": "held-owner",
-        "absent": 3,
+        "absent": 4,
         "restored": "newest-owner",
-        "stopped": 4,
+        "refreshed": "newest-owner",
+        "stagingKept": True,
+        "stopped": 6,
     }
 
 

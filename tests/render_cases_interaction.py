@@ -1101,14 +1101,10 @@ STANDING_PAGE = leaf_page(
   <lf-new><p>Access logs are kept for 90 days.</p></lf-new>
 </lf-suggestion>
 <lf-ask id="ab-triage-decision"><h2>Which edge cases survive?</h2>
-<lf-swipe-deck id="ab-triage">
-  <lf-swipe-pile id="ab-queue" verdict="unseen">
-    <lf-swipe-card id="ab-expiry"><strong>Buffer expiry writes</strong></lf-swipe-card>
-    <lf-swipe-card id="ab-capacity"><strong>Partition capacity</strong></lf-swipe-card>
-  </lf-swipe-pile>
-  <lf-swipe-pile id="ab-pass" verdict="pass"></lf-swipe-pile>
-  <lf-swipe-pile id="ab-keep" verdict="keep"></lf-swipe-pile>
-</lf-swipe-deck></lf-ask>
+<lf-options id="ab-triage" choose multiple>
+  <lf-option id="ab-expiry"><strong>Buffer expiry writes</strong></lf-option>
+  <lf-option id="ab-capacity"><strong>Partition capacity</strong></lf-option>
+</lf-options></lf-ask>
 <lf-ask id="ab-card-decision"><h2>How should the cutover note look?</h2>
 <lf-playground id="ab-card" submit-label="Use these settings">
   <lf-playground-control name="radius" label="Corner radius" kind="range" value="12" min="0" max="24" step="1" unit="px"></lf-playground-control>
@@ -1159,8 +1155,8 @@ STANDING_ACTIONS = [
     ("ab-email", "edit", {"value": "The words as the user rewrote them."}),
     ("ab-sug-410", "decide", {"outcome": "accept"}),
     ("ab-sug-logs", "decide", {"outcome": "reject"}),
-    ("ab-triage", "swipe", {"unit": "ab-expiry", "value": "ab-pass", "rank": "i"}),
-    ("ab-triage", "swipe", {"unit": "ab-capacity", "value": "ab-keep", "rank": "i"}),
+    ("ab-triage", "choose", {"value": ["ab-capacity"]}),
+    ("ab-triage", "answer", {}),
     ("ab-patch", "review", {"file": "ab/bracket.py", "reviewed": True}),
     (
         "ab-visual",

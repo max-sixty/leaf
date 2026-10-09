@@ -84,7 +84,6 @@ An element declaration keeps independent dimensions independent:
 
 - `x-content` is its **body grammar**: `markup`, `members`, `data`, or `empty`.
 - `x-owners` lists the compound owner types that may contain it directly.
-- `x-required-members` lists the member types a complete compound owner requires.
 - `x-reading-role` declares an authored reading-structure role.
 - Other `x-*` keys declare capabilities, not element families.
 

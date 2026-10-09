@@ -563,25 +563,25 @@ Declare ordinary local bindings in `keys` and explicitly forwardable aliases in
 the enclosing Ask's opening and its associated margin controls and threads. A route can
 declare its own `contextKeys`; an ordinary key on another route is never forwarded.
 Numbers are widget choices, not an Ask allocation: options own their stable numeric
-assignments, and a swipe deck declares Pass as `1` and Keep as `2`. The page owns `q`
+assignments, and a classifier declares Pass as `1` and Keep as `2`. The page owns `q`
 and `Shift+q` navigation between Asks. Do not assign numbers based on currently available
 actions: disabling `1` must not turn `2` into a different action.
 
 ```javascript
-const actions = commandScope("In a swipe deck", [
+const actions = commandScope("In a classifier", [
   {
-    id: "swipe.pass",
+    id: "classify.pass",
     title: "Pass",
     keys: ["ArrowLeft"],
     contextKeys: ["1"],
     decision: true,
     control: passButton,
     bindingBadge: passHint,
-    when: canSwipe,
-    run: () => swipe("pass"),
+    when: canClassify,
+    run: () => classify("pass"),
   },
 ]);
-commands(deck, actions);
+commands(classifier, actions);
 ```
 
 For a native button, `control` and `run` declare one activation path: Leaf invokes

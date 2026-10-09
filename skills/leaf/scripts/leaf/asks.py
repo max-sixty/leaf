@@ -162,7 +162,7 @@ def part_of_ask(record: dict, entry: dict) -> bool:
     Ask's answer: the authored instance originates an x-awaits Ask.
 
     The rule for when a move becomes an answer obligation. While the Ask stands
-    unanswered every move on its widget is the user still composing the answer — a swipe
+    unanswered every move on its widget is the user still composing the answer — a move
     before the queue empties, a pick or an added option before a group's Done —
     and once its `answered` condition holds every standing move there is owed as
     part of it. Which verb happens to finish the answer does not decide it."""

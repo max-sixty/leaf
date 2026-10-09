@@ -2,6 +2,8 @@
 
    Every surface uses the same message, header and body vocabulary. Generated
    metadata, prose, workflow and reaction placement have one owner. Each message
+   projects pasted attachments separately from its words using the draft's media
+   reading, so a retained text viewport never clips an attachment. Each message
    retains its header and body together, sharing delivery, unread and fold state.
    Its header declares its stationary text-reflow boundary and hosts the thread's
    disclosure for progress completed by that reply. An
@@ -22,6 +24,7 @@ import {
 import { reportPageError } from "../layer-client.js";
 import { isReaction, moved } from "./model.js";
 import { tokenEntry } from "../registry.js";
+import { readPastedMedia, writePastedMedia } from "../media.js";
 import {
   rememberAuthoredParents,
   stageAuthoredStates,
@@ -70,14 +73,17 @@ function proseReading(message) {
     reading.text !== text ||
     reading.markdown !== markdown
   ) {
-    const html = renderMarkdown(text);
+    const pasted = readPastedMedia(text);
+    const html = renderMarkdown(pasted.text);
+    const mediaHtml = renderMarkdown(writePastedMedia("", pasted.paths));
     reading = Object.freeze({
       id: message.id,
       edited,
       text,
       markdown,
       html,
-      plainText: renderedWords(html),
+      mediaHtml,
+      plainText: renderedWords(html + mediaHtml),
     });
     renderedProse.set(key, reading);
   }
@@ -174,6 +180,7 @@ export function messageReading(
       kind,
       text: message.text ?? "",
       html: prose?.html ?? "",
+      mediaHtml: prose?.mediaHtml ?? "",
       plainText: prose?.plainText ?? message.text ?? "",
       drawing: Boolean(message.drawing),
       token: message.token ?? null,
@@ -335,7 +342,12 @@ export class MessageView {
       </div>`;
     if (body.kind === "suggestion")
       return html`<div class="lf-msg-text" .textContent=${body.text}></div>`;
-    return html`<div class="lf-msg-text" .innerHTML=${body.html}></div>`;
+    return html`<div class="lf-msg-text" .innerHTML=${body.html}></div>
+      ${
+        body.mediaHtml
+          ? html`<div class="lf-msg-media" .innerHTML=${body.mediaHtml}></div>`
+          : nothing
+      }`;
   }
 
   commit() {

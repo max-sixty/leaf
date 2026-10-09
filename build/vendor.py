@@ -199,7 +199,27 @@ def build_codemirror(work: Path) -> list[Path]:
     live-preview decorations; nothing here styles a document. The language comes
     without `markdown()`, whose HTML-block support would carry the HTML, CSS and
     JavaScript grammars into the bundle for syntax a comment never highlights.
+
+    The view's wrapping estimates must refresh when the content width changes.
+    CodeMirror 6.43.13 overwrites its previous width before comparing the two,
+    leaving the height oracle at the old measure. An expanding composer can then
+    exhaust the measurement loop as each newly rendered line corrects that guess.
+    Compare against the oracle's measured line length, with its five-column floor,
+    so sub-character resizes accumulate until they warrant another measurement.
+    Refuse a changed upstream seam so an upgrade rechecks this adaptation.
     """
+    view = work / "node_modules/@codemirror/view"
+    shutil.copytree(NODE_MODULES / "@codemirror/view", view)
+    source_path = view / "dist/index.js"
+    source = source_path.read_text(encoding="utf-8")
+    original = "Math.abs(contentWidth - this.contentDOMWidth) > oracle.charWidth"
+    replacement = (
+        "Math.abs(Math.max(5, contentWidth / oracle.charWidth) - oracle.lineLength) > 1"
+    )
+    if source.count(original) != 1:
+        raise ValueError(f"CodeMirror wrapping measurement seam changed: {original}")
+    source = source.replace(original, replacement)
+    source_path.write_text(source, encoding="utf-8")
     out = ASSETS / "vendor/codemirror.esm.js"
     (work / "entry.mjs").write_text(
         (
@@ -221,6 +241,7 @@ def build_codemirror(work: Path) -> list[Path]:
         "--format=esm",
         "--minify",
         "--legal-comments=inline",
+        f"--alias:@codemirror/view={source_path}",
         f"--outfile={out}",
         cwd=work,
     )

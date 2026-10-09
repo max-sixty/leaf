@@ -1,7 +1,7 @@
 {
   "producer": {
-    "commit": "20c281685215",
-    "committed": "2026-10-09T15:15:23-07:00",
+    "commit": "16e887e0015f",
+    "committed": "2026-10-09T15:56:33-07:00",
     "dirty": false
   },
   "runtime_paths": [
@@ -129,6 +129,7 @@
     "page-paint.js",
     "page-sheets.js",
     "passages.js",
+    "pending/dispatch.js",
     "pending/model.js",
     "pending/state.js",
     "pointed-place.js",

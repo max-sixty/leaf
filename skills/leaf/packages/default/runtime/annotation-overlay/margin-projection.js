@@ -50,8 +50,8 @@
    for focus and presses. Keyboard arrival at a commented element puts the card up
    beside it; standing elsewhere on the page, letting go (`declareRelease`), or pressing
    outside the card, its target, and its cluster takes it down (`followStanding`). Escape from inside the
-   card lands on its target, and so does a send from it (`cardTarget`), with the card
-   still up showing what was sent. With Threads open the list's one expanded thread plays the
+   card lands on its target. Sending keeps focus on the card showing what was sent.
+   With Threads open the list's one expanded thread plays the
    card's part: the same arrival expands the target's thread there (`accompanyThread`).
    Core Thread destinations read this target accompaniment. The side this owner
    declares to standing-target.js gives the page target a card or cluster stands for.
@@ -2621,9 +2621,6 @@ export function createMarginProjection({
     closePreview,
     inlineThreadView,
     keyboardRung,
-    // The element a thread in the card is about, where a send from it leaves the user
-    // with the card still up: the same step Escape takes out of the card.
-    cardTarget: stepsOut,
     optionsRung,
     openInlineThread,
     threadPreview: {

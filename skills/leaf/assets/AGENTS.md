@@ -82,6 +82,10 @@ stylesheet's, a Layout's or the page's, which the runtime reads rather than deci
 The Questions panel is experimental and expected to change a lot: it replaced the Asks
 drawer to try one place for both queues (`runtime/queue-panel.js`).
 
+The current Threads panel is unsatisfactory and being reconsidered. Defer
+refinements to its existing layout and interaction design; carry those findings
+into the design reconsideration instead of polishing a surface that may go away.
+
 Widgets in ordinary document flow grow with their content by default. Internal
 vertical scrolling needs a task that benefits from keeping a region in view while
 its contents move, or a live stream whose newest entry the reader follows; being

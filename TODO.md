@@ -14,6 +14,9 @@
   to start, find, and continue conversations about the whole page.
 - **Build coherent UI without repeated patches.** Improve the layout and
   interaction mechanisms so each new case does not require another fix.
+- **Reduce the burden of tests.** Tests now take long enough to meaningfully
+  slow development. Reduce their runtime and the work needed to run them while
+  preserving useful coverage.
 
 Priority runs from **Now** to **Next** to **Etc**. Themes group related work within
 each priority; bullets are outcomes, not implementation plans. Linked notes hold the
@@ -165,8 +168,8 @@ has tried; settle that before building it.
   available, such as a banner control under a coarse pointer, a reaction row on the
   sent card, or a control that keeps the field's measure
   (`skills/leaf/assets/runtime/composing/selection.js`).
-- **Give the thread panel's touch grip its own space.** Reserve room for the grip
-  and collapse inactive reply controls if more thread cards should fit.
+- **Reconsider thread navigation.** Decide how the Threads panel should change
+  before refining it (`skills/leaf/assets/AGENTS.md`, "Space and scrolling").
 
 ### Layout
 

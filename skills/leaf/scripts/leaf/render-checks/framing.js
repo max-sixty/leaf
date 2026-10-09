@@ -8,12 +8,13 @@ const declared = (el) =>
 const frames = (style) =>
   ["1", "trim"].includes(style.getPropertyValue("--lf-block-frame").trim());
 
-// A declared markup container keeps the page's own boxes; other widgets own their
-// implementation children. Generated apparatus stays module-owned in either case,
+// Markup and member containers keep the page's authored boxes; other widgets own
+// their implementation children. Generated apparatus stays module-owned in either case,
 // including across a shadow host. The host's outer box remains the page's to style.
 const moduleOwnsChildren = (parent) => {
   for (let node = parent; node && node.localName !== "main"; node = upFrom(node))
-    if (declared(node)) return declarationFor(node, "x-content") !== "markup";
+    if (declared(node))
+      return !["markup", "members"].includes(declarationFor(node, "x-content"));
   return false;
 };
 const pageOwnsFrame = (el) => {
@@ -257,8 +258,8 @@ export function splitEdges() {
 // The page's own elements are the document tree under `main`, the authored content root.
 // A widget's own children are its module's to arrange, whether the layer declares it or
 // the page defines it, and so is everything inside one whose content is not the page's
-// markup; inside a markup container, such as a tab's panel, the page's elements are the
-// page's again. The developer gallery's section asks for the runtime's replay controls
+// markup or members; inside those containers, the page's elements are the page's again.
+// The developer gallery's section asks for the runtime's replay controls
 // (`data-interaction-gallery`), so its row is furniture the page requested. An inline box's children are
 // its run of words, where the question is not which block comes first or next, so a code
 // block's highlighting or the mark ending a link's words is not this.

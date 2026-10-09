@@ -272,7 +272,25 @@ def test_the_render_gate_reports_trapped_margins_as_advice(browser, serve):
 
 
 def test_framing_advice_leaves_chrome_findings_to_leaf(browser, serve):
-    page = open_page(browser, serve(leaf_page("Chrome ownership", "<h1>Audit</h1>")))
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Chrome ownership",
+                """<style>
+#member-frame { padding:16px;border:0;--lf-block-frame:0; }
+</style><h1>Audit</h1>
+<lf-board id="board"><lf-column id="column" label="Cards">
+  <lf-card id="member-frame">
+    <h2 style="margin-block:32px 0">Member title</h2>
+    <section id="member-inset" style="padding:16px">
+      <h2 style="margin-block:32px 0">Member content</h2>Words
+    </section>
+  </lf-card>
+</lf-column></lf-board>""",
+            )
+        ),
+    )
     page.locator(".lf-chrome").evaluate(
         """chrome => {
           const box = document.createElement('section');
@@ -288,7 +306,7 @@ def test_framing_advice_leaves_chrome_findings_to_leaf(browser, serve):
           generated.className = 'lf-ui';
           generated.innerHTML = '<section id="generated-inset" style="padding:16px">'
             + '<h2 style="margin-block:32px 0">Generated title</h2>Words</section>';
-          main.append(generated);
+          document.getElementById('member-frame').append(generated);
           customElements.define('module-frame', class extends HTMLElement {});
           const host = document.createElement('module-frame');
           host.attachShadow({ mode: 'open' }).innerHTML =
@@ -307,7 +325,9 @@ def test_framing_advice_leaves_chrome_findings_to_leaf(browser, serve):
           main.append(markup);
         }"""
     )
-    page.add_style_tag(content="#markup-frame::before { content: none; }")
+    page.add_style_tag(
+        content="#markup-frame::before, #member-frame::before { content: none; }"
+    )
     traps = {
         box["id"]: box
         for box in render_checks_model.evaluate_probe(page, "trappedMargins")
@@ -317,10 +337,17 @@ def test_framing_advice_leaves_chrome_findings_to_leaf(browser, serve):
         assert not traps[ident]["authored"]
     assert traps["markup-frame"]["authored"]
     assert traps["authored-inset"]["authored"]
+    assert traps["member-frame"]["authored"]
+    assert traps["member-inset"]["authored"]
     advice = render_gate_readings.framing_advice(page)
-    assert len(advice) == 2, advice
-    assert advice[0].startswith("<lf-card id=markup-frame> draws 16px")
-    assert advice[1].startswith("<section id=authored-inset> draws 16px")
+    assert len(advice) == 4, advice
+    for ident, tag in (
+        ("markup-frame", "lf-card"),
+        ("authored-inset", "section"),
+        ("member-frame", "lf-card"),
+        ("member-inset", "section"),
+    ):
+        assert any(line.startswith(f"<{tag} id={ident}> draws 16px") for line in advice)
 
 
 def test_the_render_gate_reports_a_defect_specific_to_the_compact_viewport(

@@ -22,7 +22,7 @@
    title gesture policy, outgoing fold paint and local draft repaint. Surfaces receive
    whole-thread geometry readings rather than descendant nodes. */
 import { nextRender, sizeObserver } from "../rendering.js";
-import { holdFocus } from "../focus.js";
+import { holdFocus, focusDestination, focused } from "../focus.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
@@ -30,7 +30,7 @@ import { anchorLabel, MessageView, messageReading } from "./messages.js";
 import { reactionReading } from "./reaction-model.js";
 import { offer, reachedForWords, measure, reserve } from "../widget-elements.js";
 import { keeps, keepsHidden, layoutPx } from "../keeps.js";
-import { keys, focused } from "../keyboard/scopes.js";
+import { keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { wireReply, replyIsEditing, replyAvailable, dismissReply } from "./replies.js";
 import { settleThread, foldOut, finishFold, isFolding } from "./folding.js";
@@ -261,13 +261,17 @@ function readBoundary(kind) {
 
 let nextViewId = 0;
 // The margin card's controls stand over its transcript, so each message's head keeps
-// their width clear and its words end before them.
+// their width clear and its words end before them. Applying that allocation can wrap
+// a header and resize the controls' ancestors. Write it in the next rendering pass:
+// ResizeObserver cannot deliver those shallower boxes again in the controls' delivery.
 const marginControlsSizes = sizeObserver((entries) => {
-  for (const { target, borderBoxSize } of entries)
-    target.parentElement?.style.setProperty(
-      "--lf-margin-controls-width",
-      `${borderBoxSize[0].inlineSize}px`,
-    );
+  nextRender(() => {
+    for (const { target, borderBoxSize } of entries)
+      target.parentElement?.style.setProperty(
+        "--lf-margin-controls-width",
+        layoutPx(borderBoxSize[0].inlineSize),
+      );
+  });
 });
 
 // A panel card's reply row is pinned over the turns above it at the list's foot, so the
@@ -459,6 +463,7 @@ export class ThreadView {
       tailStart: node.getBoundingClientRect().bottom,
       end: this.node.getBoundingClientRect().bottom,
       box: this.#reply?.node.getBoundingClientRect().top,
+      pinned: replyPinned(this.#reply?.node),
     };
   }
 
@@ -474,11 +479,23 @@ export class ThreadView {
   }
 
   // HeldNews compares readings; this owner decides whether their changed regions
-  // would move visible words. A pinned reply can absorb growth at the thread's end,
-  // but cannot absorb changes above it or settlement replacing the reply itself.
-  newsMoves({ news, changed, folds }) {
+  // would move visible words. An idle open panel card permits a suffix append to move
+  // its reply row and later cards. Existing-message changes and active compositions
+  // retain the hold. A pinned reply can absorb growth at the thread's end, but cannot
+  // absorb changes above it or settlement replacing the reply itself.
+  newsMoves({ news, changed, folds, appendedAtEnd }) {
     const pinned = replyPinned(this.#reply?.node);
-    const followed = pinned && !news.settled ? this.#foot : null;
+    const idleAppend =
+      this.#model?.surface === "panel" &&
+      this.node.open &&
+      !replyIsEditing(this.#model.key) &&
+      appendedAtEnd &&
+      !news.settled &&
+      !news.summaries &&
+      !changed.size &&
+      !folds.messages.length &&
+      !folds.summaries.length;
+    const followed = (pinned && !news.settled) || idleAppend ? this.#foot : null;
     return (
       [
         ...[...changed].map((message) => this.#messageNode(message)),
@@ -526,7 +543,7 @@ export class ThreadView {
           settlement: Object.freeze({ ...prior.settlement, pending: false }),
         });
         if (this.node.contains(focused()))
-          this.#commands.listRoot.focus({ preventScroll: true });
+          focusDestination(this.#commands.listRoot, "return");
       }
     }
     if (this.#heldNews)
@@ -662,6 +679,15 @@ export class ThreadView {
       };
     });
     const boundaries = panel ? unreadBoundaries(rangeState) : new Map();
+    // Automatic progress folds name the reply that completed them. Its header owns
+    // their disclosure, even when a user's intervening reply split the originals.
+    const progressByReply = new Map();
+    for (const range of rangeState) {
+      if (range.kind !== "summary" || !range.summary.trigger || range.forced) continue;
+      const trigger = range.summary.trigger;
+      if (!progressByReply.has(trigger)) progressByReply.set(trigger, []);
+      progressByReply.get(trigger).push(range);
+    }
     const messages = model.messages.map((message) => {
       let view = this.#messages.get(message.key);
       if (!view)
@@ -671,6 +697,9 @@ export class ThreadView {
         );
       view.present(message, {
         arrived: Boolean(prior),
+        headerControls: progressByReply.has(message.id)
+          ? this.#summaryToggle(progressByReply.get(message.id), true)
+          : nothing,
       });
       return { key: message.key, node: view.node };
     });
@@ -728,7 +757,12 @@ export class ThreadView {
             </header>`
           : nothing
       }
-      <div class="lf-thread-transcript">${transcript}</div>
+      <div
+        class="lf-thread-transcript"
+        data-lf-reflow=${model.surface === "panel" ? "append" : nothing}
+      >
+        ${transcript}
+      </div>
       ${
         threadActions
           ? marginControls
@@ -787,7 +821,9 @@ export class ThreadView {
           model.resolved && !replySlot && !model.folding && !marginControls && !panel
             ? html`<div class="lf-page-thread-resolved lf-ui">
                 <span
-                  >${model.resolvedBy ? html`<span>${model.resolvedBy}</span>` : nothing}</span
+                  >${
+                    model.resolvedBy ? html`<span>${model.resolvedBy}</span>` : nothing
+                  }</span
                 >
                 ${news}${settlement}
               </div>`
@@ -806,7 +842,7 @@ export class ThreadView {
     // Handing it on is the card's own act, which the list holding the card defers to.
     restoreFocus?.(
       panel
-        ? handedOn && (() => (handedOn.focus({ preventScroll: true }), true))
+        ? handedOn && (() => (focusDestination(handedOn, "return"), true))
         : () =>
             this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node),
     );
@@ -934,46 +970,43 @@ export class ThreadView {
   }
 
   #summaryRange(range, markerFor) {
-    const count = range.messages.length;
     const id = range.summary.id;
+    const progress = Boolean(range.summary.trigger);
     const originalsId = `lf-summary-originals-${this.#viewId}-${id}`;
     return html`<section
       class="lf-thread-checkpoint"
       data-summary-id=${id}
       data-expanded=${String(range.expanded)}
+      ?hidden=${progress && !range.expanded}
     >
-      <div class="lf-summary-checkpoint">
-        <div class="lf-summary-header">
-          <div class="lf-summary-label">${range.summary.label}</div>
-          ${
-            range.forced
-              ? nothing
-              : html`<button
-                  type="button"
-                  class="lf-summary-expand"
-                  aria-expanded=${String(range.expanded)}
-                  aria-controls=${originalsId}
-                  @click=${() => this.#setSummaryExpanded(id, !range.expanded)}
-                >
-                  ${range.expanded ? "Collapse" : "Show"} ${count} earlier
-                  message${count === 1 ? "" : "s"}
-                </button>`
-          }
-        </div>
-        ${
-          range.summary.text
-            ? html`<div
-                class="lf-summary-text"
-                .innerHTML=${renderMarkdown(range.summary.text)}
-              ></div>`
-            : nothing
-        }
-        ${
-          range.forced
-            ? html`<div class="lf-summary-required">${range.requiredText}</div>`
-            : nothing
-        }
-      </div>
+      ${
+        progress
+          ? nothing
+          : html` <div class="lf-summary-checkpoint">
+              <div class="lf-summary-header">
+                <div class="lf-summary-label">${range.summary.label}</div>
+                ${range.forced ? nothing : this.#summaryToggle([range])}
+              </div>
+              ${
+                range.summary.text
+                  ? html`<div
+                      class="lf-summary-text"
+                      .innerHTML=${renderMarkdown(range.summary.text)}
+                    ></div>`
+                  : nothing
+              }
+              ${
+                range.forced
+                  ? html`<div class="lf-summary-required">${range.requiredText}</div>`
+                  : nothing
+              }
+            </div>`
+      }
+      ${
+        progress && range.forced
+          ? html`<div class="lf-summary-required">${range.requiredText}</div>`
+          : nothing
+      }
       <div id=${originalsId} class="lf-summary-originals" ?hidden=${!range.expanded}>
         ${repeat(
           range.messages,
@@ -987,15 +1020,38 @@ export class ThreadView {
     </section>`;
   }
 
-  #setSummaryExpanded(id, expanded) {
-    if (expanded) this.#expandedSummaries.add(id);
-    else this.#expandedSummaries.delete(id);
+  #summaryToggle(ranges, progress = false) {
+    const ids = ranges.map((range) => range.summary.id);
+    const expanded = ranges.every((range) => range.expanded);
+    const count = ranges.reduce((total, range) => total + range.messages.length, 0);
+    return html`<button
+      type="button"
+      class="lf-summary-expand"
+      data-summary-toggle=${ids[0]}
+      aria-expanded=${String(expanded)}
+      aria-controls=${ids
+        .map((id) => `lf-summary-originals-${this.#viewId}-${id}`)
+        .join(" ")}
+      @click=${() => this.#setSummaryExpanded(ids, !expanded)}
+    >
+      ${expanded ? (progress ? "Hide" : "Collapse") : "Show"} ${count}
+      ${progress ? "progress" : "earlier"} message${count === 1 ? "" : "s"}
+    </button>`;
+  }
+
+  #setSummaryExpanded(ids, expanded) {
+    for (const id of ids) {
+      if (expanded) this.#expandedSummaries.add(id);
+      else this.#expandedSummaries.delete(id);
+    }
     this.repaint();
-    this.node
-      .querySelector(
-        `.lf-thread-checkpoint[data-summary-id="${CSS.escape(id)}"] .lf-summary-expand`,
-      )
-      ?.focus({ preventScroll: true });
+    const toggle = this.node.querySelector(
+      `.lf-summary-expand[data-summary-toggle="${CSS.escape(ids[0])}"]`,
+    );
+    if (toggle) {
+      focusDestination(toggle, "return");
+      scrollThreadIntoView(this.node, toggle, "instant");
+    }
   }
 
   // The panel's resolved title keeps its state label as the reopening action.
@@ -1178,15 +1234,18 @@ export class ThreadView {
           const destination = kept[at] ?? kept[at - 1] ?? this.#commands.listRoot;
           if (destination.matches?.(".lf-thread")) {
             this.#commands.listRoot.revealNavigation(destination.dataset.id);
-            focusThread(destination, { preventScroll: true });
-          } else destination.focus({ preventScroll: true });
+            // The user goes on to the next thread, which the list lands in view.
+            focusThread(destination, "move");
+          } else focusDestination(destination, "move");
           mayRestore = travel.retainPanelLanding(destination);
           return true;
         },
         reverse: (may = mayRestore) => {
           if (may() && mayLand.available()) {
             const card = shownCard();
-            if (card) focusThread(card, { preventScroll: true });
+            // The undo takes the user to the thread it reopened, an arrival that shows
+            // what the thread holds, its reopening included.
+            if (card) focusThread(card, "move");
           }
         },
       };

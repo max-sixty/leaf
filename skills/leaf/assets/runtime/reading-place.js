@@ -55,9 +55,9 @@ import {
 import { followingItsEnd } from "./bounds.js";
 import { moveScrollerBy, pageScroller, scrollToEnd } from "./scrolling.js";
 import { renderedParent, under, upFrom } from "./shadow.js";
-import { recentPlaceInput, retainUserIntent } from "./user-intent.js";
+import { retainUserIntent } from "./user-intent.js";
+import { recentPlaceInput, focused } from "./focus.js";
 import { reveal } from "./widget-elements.js";
-import { focused } from "./keyboard/scopes.js";
 import { scrollIntoReadingBand } from "./landing-scroll.js";
 import { union } from "./rect.js";
 
@@ -309,15 +309,19 @@ function scrollerIdentity(scroller) {
 
 export function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
   if (!view || !currentIntent()) return;
+  const box = region ? effectiveScroller(region) : pageScroller;
   const standing = focusedPlace(view);
+  // A focus that remains visible after its region joins a different scroller can
+  // still be far from the passage's old reading band. Restore the landmark there;
+  // a focus with no saved landmark remains the only place to restore.
   if (
     standing &&
+    (rawOffsetFits(view, box) || (!view.quote && !view.section && !view.end)) &&
     under(standing, region?.body ?? document.querySelector("body > main"))
   ) {
     scrollIntoReadingBand(standing, standing, "nearest", "instant");
     return;
   }
-  const box = region ? effectiveScroller(region) : pageScroller;
   if (view.end) {
     scrollToEnd(box);
     return;
@@ -332,6 +336,16 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
       box,
       rangeOf(segments).getBoundingClientRect().top - boxTop - view.quoteTop,
     );
+    return;
+  }
+  // Repeated passage words may have no unique anchor. In that case the live
+  // focused control is still a precise place in this document; a section's
+  // opening is only a fallback for a reading with no such destination.
+  if (
+    standing &&
+    under(standing, region?.body ?? document.querySelector("body > main"))
+  ) {
+    scrollIntoReadingBand(standing, standing, "nearest", "instant");
     return;
   }
   const section = targetElement(resolveAnchor({ section: view.section }, text));

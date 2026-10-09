@@ -9,7 +9,7 @@ from interact_support import append_carried_log_record, element_declaration
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import server as server_model
-from leaf.render_checks import one_frame, rendered
+from leaf.render_checks import one_frame, rendered, wait_until_ready
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -2771,7 +2771,9 @@ def test_color_cues_fade_to_the_live_surface(request, serve, engine, target):
         expect(box).to_be_focused()
         write(box, "Review both choices.")
         page.keyboard.press("Enter")
-        expect(page.locator(".lf-page-comment-card")).not_to_be_visible()
+        card = page.locator(".lf-page-comment-card")
+        expect(card).to_be_visible()
+        expect(card).to_be_focused()
         cue_target = page.locator(".lf-threads-toggle")
     colours = cue_target.evaluate(
         """async node => {
@@ -3677,7 +3679,8 @@ def test_q_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
 def test_the_questions_panel_lists_both_queues_and_what_is_done(browser, serve):
     """The Questions panel lists the queues the `q` walk and the banner's counts read,
     the user's first and then the agent's, and folds what is done at the foot: here a
-    task the agent ended. A row arrives where `q` would, and a reply the user sends moves its
+    task the agent ended. The prose question is an agent opening comment, which
+    asks implicitly. A row arrives where `q` would, and a reply the user sends moves its
     thread from the user's list to the agent's in the turn it is sent."""
     url = serve(QUEUE_PAGE)
     d = serve.page_dir
@@ -3690,15 +3693,7 @@ def test_the_questions_panel_lists_both_queues_and_what_is_done(browser, serve):
             d, {"author": author, "revision": 1, **agent, **event}
         )
 
-    asked = said("user", kind="comment", text="Weekly?", anchor={"section": "cadence"})
-    said(
-        "agent",
-        kind="reply",
-        parent=asked["id"],
-        responds=asked["id"],
-        text="Weekly or daily?",
-        awaits=True,
-    )
+    asked = said("agent", kind="comment", text="Weekly?", anchor={"section": "cadence"})
     owed = said(
         "user", kind="comment", text="Tighten this.", anchor={"section": "notes"}
     )
@@ -8172,6 +8167,58 @@ def test_the_g_chord_opens_an_empty_page_map(browser, serve):
     expect(sheet.locator(".lf-page-map-action")).to_have_count(0)
 
 
+@pytest.mark.parametrize("route", ["Escape", "Close"])
+@pytest.mark.parametrize("nested", [False, True])
+def test_page_map_cancellation_returns_to_its_opener_without_moving_the_reading(
+    browser, serve, route, nested
+):
+    content = (
+        '<div style="height:900px"></div><button id="reading-control">Reading control</button>'
+        '<div style="height:900px"></div>'
+    )
+    if nested:
+        content = (
+            f'<div id="reading" style="height:350px;overflow:auto">{content}</div>'
+        )
+    page = open_page(browser, serve(leaf_page("Map return", content)))
+    page.locator("#reading-control").focus()
+    page.locator("#reading-control").scroll_into_view_if_needed()
+    reading = """() => ({page: document.scrollingElement.scrollTop,
+      nested: document.querySelector('#reading')?.scrollTop ?? 0})"""
+    before = page.evaluate(reading)
+    page.locator(".lf-page-map-toggle").evaluate("node => node.click()")
+    sheet = page.get_by_role("dialog", name="Page Map", exact=True)
+    expect(sheet).to_be_visible()
+    if route == "Escape":
+        page.keyboard.press("Escape")
+    else:
+        sheet.get_by_role("button", name="Close Page Map").click()
+    expect(sheet).to_be_hidden()
+    expect(page.locator("#reading-control")).to_be_focused()
+    assert page.evaluate(reading) == before
+
+
+@pytest.mark.parametrize("route", ["Escape", "Close"])
+def test_page_map_cancellation_without_an_opener_keeps_the_scrolled_reading(
+    browser, serve, route
+):
+    page = open_page(browser, serve(LONG_PAGE))
+    page.evaluate("() => document.getElementById('p40').scrollIntoView()")
+    page_at_rest(page)
+    before = page.evaluate("() => document.scrollingElement.scrollTop")
+    page.locator(".lf-page-map-toggle").evaluate("node => node.click()")
+    sheet = page.get_by_role("dialog", name="Page Map", exact=True)
+    expect(sheet).to_be_visible()
+    if route == "Escape":
+        page.keyboard.press("Escape")
+    else:
+        sheet.get_by_role("button", name="Close Page Map").click()
+    expect(sheet).to_be_hidden()
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == before
+    page.keyboard.press("Tab")
+    assert not page.evaluate(STANDING)["isFirstStop"]
+
+
 def test_generated_hints_refresh_to_the_visible_scene_after_scroll(browser, serve):
     """Scroll changes the map at rest without letting an old letter act elsewhere."""
     page = open_page(
@@ -9082,7 +9129,7 @@ def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
     page.keyboard.press("?")
     page.keyboard.press("?")
     edit = page.locator('.lf-command-reference-command[data-lf-command="draft.edit"]')
-    expect(edit).to_have_text("Edit…")
+    expect(edit).to_have_text("Edit")
     edit.click()
     expect(page.locator("#note leaf-text")).to_be_focused()
 
@@ -9091,9 +9138,7 @@ def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
     expect(save).to_be_focused()
     page.keyboard.press("?")
     assert active_digit_bindings(page) == "1–2"
-    expect(save).to_have_attribute(
-        "aria-keyshortcuts", "Enter Meta+Enter Control+Enter Escape 1"
-    )
+    expect(save).to_have_attribute("aria-keyshortcuts", "Meta+Enter Control+Enter 1")
     page.keyboard.press("?")
     cancel = page.locator(
         '.lf-command-reference-command[data-lf-command="draft.cancel"]'
@@ -14093,7 +14138,7 @@ def test_typing_in_a_selected_comment_wins_over_page_shortcuts(browser, serve):
 
 
 def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser, serve):
-    """Every durable editor inserts a newline with Shift+Enter and submits with Enter."""
+    """The composer sends with Enter; the draft saves with its advertised Mod+Enter."""
     html = TARGETS_PAGE.replace(
         "</main>", '<lf-draft id="plan"><pre>Ship it.</pre></lf-draft></main>'
     )
@@ -14121,8 +14166,10 @@ def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser,
     with sending(page, "the composer shortcut"):
         page.keyboard.press("Enter")
     expect(composer).to_be_hidden()
-    # The send left the user on the element the new thread's card is about, and letting
-    # go of it takes the card down.
+    # The send left the user on the new thread's card. Leave it for its passage, then
+    # let go of both before opening the draft below.
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
+    page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
@@ -14134,8 +14181,11 @@ def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser,
     expect(editor).to_have_js_property(
         "value", "Save through the visible control.\nKeep the second line."
     )
+    expect(editor).to_have_attribute(
+        "aria-keyshortcuts", "Meta+Enter Control+Enter Escape"
+    )
     with sending(page, "the draft shortcut"):
-        page.keyboard.press("Enter")
+        page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator("#plan .lf-draft-body")).to_contain_text(
         "Keep the second line."
     )
@@ -15841,6 +15891,138 @@ def test_an_ask_in_a_reply_is_where_the_user_stands_once_answered(browser, serve
     page.keyboard.press("1")
     round_trip(page)
     expect(page.locator("#cache-disk")).not_to_have_attribute("chosen", "")
+
+
+def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, serve):
+    """One persistent policy covers page keys, contextual digits and their hints."""
+    page = open_page(browser, serve(FEATURE_GALLERY))
+    reference = page.locator(".lf-command-reference")
+    setting = page.get_by_role("checkbox", name="Quick keyboard shortcuts", exact=True)
+    note = page.locator("#bg-shortcut-note")
+    button = page.locator("#bg-shortcut-focus-note")
+    sample = page.locator("#bg-local-shortcuts")
+
+    def settings():
+        page.locator(".lf-banner-more").click()
+        page.get_by_role("button", name="Keyboard shortcuts", exact=True).click()
+        expect(reference).to_be_visible()
+
+    sample.focus()
+    expect(button).to_have_attribute("aria-keyshortcuts", "1")
+    page.keyboard.press("1")
+    expect(note).to_be_focused()
+    page.keyboard.type("c ? 1 T")
+    expect(note).to_have_value("c ? 1 T")
+    settings()
+    expect(setting).to_be_checked()
+    expect(setting).to_have_accessible_description(
+        "Use letters, numbers and symbols for Leaf actions."
+    )
+    # The preference itself is reachable by Tab and native Space.
+    page.get_by_role("combobox", name="Search commands").press("Shift+Tab")
+    expect(setting).to_be_focused()
+    setting.press("Space")
+    expect(setting).not_to_be_checked()
+    comment = reference.locator('tr[data-lf-command="comment.create"]')
+    expect(comment.locator("kbd")).to_have_count(0)
+    # Turning a binding off leaves its command actionable in the reference.
+    page.get_by_role("combobox", name="Search commands").fill("Comment on the page")
+    comment.get_by_role("button", name="Comment on the page", exact=True).click()
+    field = page.get_by_role("textbox", name="Comment on the page", exact=True)
+    expect(field).to_be_focused()
+    page.keyboard.type("Sent with quick shortcuts off")
+    page.keyboard.press("ControlOrMeta+Enter")
+    expect(page.locator(".lf-page-comment-card")).to_be_focused()
+    expect(field).to_be_visible()
+    told(page)
+    assert any(
+        event.get("text") == "Sent with quick shortcuts off"
+        for event in events_model.read_events(serve.page_dir)
+    )
+    page.keyboard.press("Escape")
+    expect(field).to_be_hidden()
+    rendered(page)
+
+    sample.focus()
+    expect(button).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
+    for key in ("1", "c", "?", "Shift+t", "g", "Shift+t"):
+        page.keyboard.press(key)
+    rendered(page)
+    expect(sample).to_be_focused()
+    expect(reference).to_be_hidden()
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("go to")
+    expect(button).not_to_have_attribute("title", re.compile(r"\(1\)"))
+    settings()
+    page.get_by_role("combobox", name="Search commands").fill("Select element")
+    reference.locator('tr[data-lf-command="target.picker.open"]').get_by_role(
+        "button"
+    ).click()
+    rendered(page)
+    expect(page.locator(".lf-target-picker-hint")).to_have_count(0)
+    expect(page.locator(".lf-live")).not_to_contain_text("type one of")
+    page.keyboard.press("a")
+    expect(page.locator(".lf-fab-input")).to_be_hidden()
+    page.keyboard.press("Tab")
+    expect(page.locator(".lf-live")).to_contain_text("Press Enter to choose")
+    expect(page.locator(".lf-live")).not_to_contain_text("Hint ")
+    native_target = page.locator('[data-lf-hint-native="Enter"]')
+    expect(native_target).to_be_visible()
+    expect(native_target).not_to_have_attribute("data-lf-hint-code")
+    expect(native_target.locator("kbd")).to_have_text("⏎")
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(native_target).to_have_count(0)
+    page.keyboard.press("Escape")
+    rendered(page)
+    street = page.locator("#bg-choice-street")
+    trail = page.locator("#bg-choice-trail")
+    street.locator(".lf-pick").focus()
+    expect(page.locator("#bg-choice")).not_to_have_attribute(
+        "aria-keyshortcuts", re.compile(r"(?:^| )1(?: |$)")
+    )
+    page.keyboard.press("1")
+    rendered(page)
+    expect(street).not_to_have_attribute("chosen", "")
+    street.locator(".lf-pick").focus()
+    page.keyboard.press("ArrowDown")
+    expect(trail.locator(".lf-pick")).to_be_focused()
+    page.keyboard.press("Space")
+    expect(trail).to_have_attribute("chosen", "")
+    button.focus()
+    button.press("Enter")
+    expect(note).to_be_focused()
+    note.press("End")
+    page.keyboard.type(" native")
+    expect(note).to_have_value("c ? 1 T native")
+
+    page.reload()
+    wait_until_ready(page)
+    sample.focus()
+    page.keyboard.press("1")
+    rendered(page)
+    expect(sample).to_be_focused()
+    settings()
+    expect(setting).not_to_be_checked()
+    setting.check()
+    page.keyboard.press("Escape")
+    street.locator(".lf-pick").focus()
+    expect(page.locator("#bg-choice")).to_have_attribute(
+        "aria-keyshortcuts", re.compile(r"(?:^| )1(?: |$)")
+    )
+    page.keyboard.press("1")
+    expect(street).to_have_attribute("chosen", "")
+    sample.focus()
+    expect(button).to_have_attribute("aria-keyshortcuts", "1")
+    page.keyboard.press("1")
+    expect(note).to_be_focused()
+
+    settings()
+    page.get_by_role("combobox", name="Search commands").fill("Select element")
+    reference.locator('tr[data-lf-command="target.picker.open"]').get_by_role(
+        "button"
+    ).click()
+    expect(page.locator(".lf-target-picker-hint").first).to_be_visible()
+    page.keyboard.press("Escape")
 
 
 def test_the_reference_keeps_its_count_line_whole_above_the_results(browser, serve):

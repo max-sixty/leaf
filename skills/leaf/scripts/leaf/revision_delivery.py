@@ -805,6 +805,17 @@ def compose_document(
     )
     head_start, head_end = document.wrapper_tags["head"]
     insertions = [(head_end, head)]
+    if delivery.runtime is not None:
+        # A classic parser checkpoint waits for every preceding stylesheet, including
+        # the author's head overrides. The initial observer then receives styled body
+        # nodes before their first paint, rather than seating residents on CSS load's
+        # later task. It shares the same residency computation used after upgrade.
+        insertions.append(
+            (
+                document.wrapper_tags["body"][1],
+                "<script data-lf-runtime>document.documentElement.lfInitial.residency()</script>",
+            )
+        )
     root = dict(delivery.html_attributes)
     if (review := review_mode(document)) is not None:
         root["data-lf-review"] = review

@@ -472,14 +472,20 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     assert "thread_title event is invalid" in unnamed.output
     assert events_model.read_events(page_dir) == before
 
-    for command in (
-        ["thread", "reply", str(page_dir), root, "--text", "x", "--title", "a\nb"],
-        ["thread", "edit", str(page_dir), root, "--text", "y", "--title", " "],
+    for command, rejected_kind in (
+        (
+            ["thread", "reply", str(page_dir), root, "--text", "x", "--title", "a\nb"],
+            "reply",
+        ),
+        (
+            ["thread", "edit", str(page_dir), root, "--text", "y", "--title", " "],
+            "thread_title",
+        ),
     ):
         refused = runner.invoke(cli_model.cli, command)
         assert refused.exit_code != 0
-        assert "thread_title event is invalid" in refused.output
-    assert events_model.read_events(page_dir) == before
+        assert f"{rejected_kind} event is invalid" in refused.output
+        assert events_model.read_events(page_dir) == before
 
     # A reply's --title names only a thread nothing has named, so a name the harness
     # gave the thread while the agent worked stands; edit renames one.
@@ -4948,7 +4954,6 @@ def test_pr_review_package_composes_its_data_brief(tmp_path, monkeypatch):
     assert initialized.exit_code == 0, initialized.output
     registry = json.loads((page / "registry.json").read_text())
     widget = registry["lf-pull-request"]
-    call_diff = registry["lf-call-diff"]
     assert registry["$layer"]["packages"] == ["pr-review"]
     assert widget["x-data"] == {
         "request": {
@@ -4958,13 +4963,54 @@ def test_pr_review_package_composes_its_data_brief(tmp_path, monkeypatch):
     }
     assert "pull-request" in registry["$data"]["contracts"]
     assert (page / "widgets" / "lf-pull-request.js").is_file()
-    assert call_diff["x-data"] == {
-        "document": {
-            "contract": "text-document",
-            "source": "source",
-        }
-    }
-    assert (page / "widgets" / "lf-call-diff.js").is_file()
+    assert "lf-call-diff" not in registry
+    assert not (page / "widgets" / "lf-call-diff.js").exists()
+
+
+@pytest.mark.parametrize(
+    ("package", "markup"),
+    [
+        ("pr-review", '<lf-pull-request id="pr" source="pr-data"></lf-pull-request>'),
+        (
+            "diff",
+            (
+                '<lf-call-diff id="calls" source="calls-data" diff="patch"></lf-call-diff>'
+                '<lf-diff id="patch"><pre>diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n'
+                "@@ -1 +1 @@\n-old()\n+new()\n</pre></lf-diff>"
+            ),
+        ),
+    ],
+)
+def test_review_evidence_packages_export_independently(
+    tmp_path, monkeypatch, package, markup
+):
+    """Call navigation and PR metadata each export with their owning package alone."""
+    monkeypatch.chdir(tmp_path)
+    page = tmp_path / package
+    runner = CliRunner()
+    initialized = runner.invoke(
+        cli_model.cli, ["page", "init", "--package", package, str(page)]
+    )
+    assert initialized.exit_code == 0, initialized.output
+    (page / "index.html").write_text(
+        "<!doctype html><html><head><title>Review evidence</title></head><body>"
+        f'<main><h1 id="title">Review evidence</h1>{markup}</main></body></html>'
+    )
+    stamped = runner.invoke(
+        cli_model.cli, ["page", "stamp", str(page), "--text", "Review evidence"]
+    )
+    assert stamped.exit_code == 0, stamped.output
+    exported = runner.invoke(
+        cli_model.cli,
+        ["page", "export", str(page), "-o", str(tmp_path / "export.html")],
+    )
+    assert exported.exit_code == 0, exported.output
+    if package == "diff":
+        source = page / "index.html"
+        source.write_text(source.read_text().replace('diff="patch"', 'diff="title"'))
+        checked = runner.invoke(cli_model.cli, ["page", "check", str(page)])
+        assert checked.exit_code != 0
+        assert 'diff="title" must name a $diff.widgets widget' in checked.output
 
 
 def test_visual_review_package_composes_its_run_contract(tmp_path, monkeypatch):
@@ -5104,16 +5150,22 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     nothing binds a key behind its back. That is not a property a rendered page can be
     asked about — a listener nobody declared looks exactly like no listener at all until
     the press it eats goes missing — so it is pinned in the source, the way the
-    document-level class surface is.
+    document-level class surface is. The listeners are read from each parsed module
+    (tests/keydown_listeners.mjs), so one wrapped across lines or registered for several
+    types in a loop counts as written.
 
-    Four are allowed and each is named here. The dispatcher is the register's own. The aim
-    latch is not a binding at all: holding ⌥ arms nothing and answers no press, it paints
-    what a click would take, and its keyup half has no place in a table of presses. The
+    Each allowed one is named here. The dispatcher is the register's own. The aim latch
+    is not a binding at all: holding ⌥ arms nothing and answers no press, it paints what
+    a click would take, and its keyup half has no place in a table of presses. The
     prepaint bootstrap's hold answers no press either: it keeps keys pressed before the
-    page presents and hands them to the dispatcher's owner. Nor does user-intent.js's
-    place reading, which notes only that a key, not a pointer, came last. Another is how
-    every drift this register replaced began — a `keydown` beside a display list, the two
-    of them free to disagree about which keys the widget answers."""
+    page presents and hands them to the dispatcher's owner. focus.js reads every key as
+    an input, as the end of a label press, and as a Tab's step, and answers none. The
+    interaction log records keys and answers none. A covering surface's Tab loop keeps
+    the platform's own sequential navigation inside it. The code block's copy control
+    hands Tab back to its source, and the block's Enter moves to that control, which no
+    register row declares. Another is how every drift this register replaced began — a
+    `keydown` beside a display list, the two of them free to disagree about which keys the
+    widget answers."""
     layer = ROOT / "skills/leaf"
     sources = [
         layer / "assets/leaf.js",
@@ -5121,14 +5173,27 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
         *sorted((layer / "packages").glob("*/widgets/*.js")),
         *sorted((ROOT / "examples/packages").glob("*/widgets/*.js")),
     ]
-    listeners = [
-        f"{src.name}:{n}"
-        for src in sources
-        for n, line in enumerate(src.read_text().splitlines(), 1)
-        if 'addEventListener("keydown"' in line
-    ]
-    assert len(listeners) == 4, (
-        f"the runtime's keydown listeners changed: {listeners}. A key belongs in the "
+    listed = subprocess.run(
+        ["node", str(ROOT / "tests/keydown_listeners.mjs"), *map(str, sources)],
+        capture_output=True,
+        text=True,
+        check=True,
+        cwd=ROOT,
+    ).stdout.split()
+    by_file = {}
+    for line in listed:
+        name = line.split(":")[0]
+        by_file[name] = by_file.get(name, 0) + 1
+    assert by_file == {
+        "controller.js": 1,
+        "aim.js": 1,
+        "bootstrap.js": 1,
+        "focus.js": 3,
+        "interaction-log.js": 1,
+        "auxiliary-surfaces.js": 1,
+        "code-copy.js": 2,
+    }, (
+        f"the runtime's keydown listeners changed: {listed}. A key belongs in the "
         "register (keys(el, title, rows)), which is what lets a surface promise it."
     )
 

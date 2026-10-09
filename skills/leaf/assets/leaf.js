@@ -178,7 +178,6 @@ import {
   bottomStatusEl,
 } from "./runtime/keyboard/shortcut-bar.js";
 import {
-  focused,
   paintKeys,
   reflectFirstScopes,
   reflectKeys,
@@ -199,6 +198,7 @@ import {
   focusDestination,
   releaseFocus,
   tabStops,
+  focused,
 } from "./runtime/focus.js";
 import { announce, liveEl, notice } from "./runtime/notifications.js";
 import { mediaViewer } from "./runtime/media.js";
@@ -374,13 +374,18 @@ pageGeometry = createPageGeometry({
   activeActionAnchor: () => responseSurface.fabAnchorAt(),
   refreshActionBar: () => responseSurface.refreshFab(),
 });
+// A placement through the margin where it is mounted, which reveals a hidden row first,
+// with `focusDestination`'s arguments.
+const focusForNavigation = (node, cause, options) =>
+  app?.overlay?.focusForNavigation
+    ? app.overlay.focusForNavigation(node, cause, options)
+    : focusDestination(node, cause, options);
 const anchorTravel = createAnchorTravel({
   anchors: anchorPlacement,
   surfaces: auxiliarySurfaces,
   currentThreads: allThreads,
   refreshThread: () => app.refreshThread(),
-  focusForNavigation: (node, caret) =>
-    (app?.overlay?.focusForNavigation ?? focusDestination)(node, caret),
+  focusForNavigation,
   threadFocusTarget: (id, options) =>
     app.threadDestinations.threadFocusTarget(id, options),
   announce,
@@ -389,7 +394,6 @@ landing = createThreadLanding({
   threadsBox,
   setPanel: (...args) => threadPanelController.setPanel(...args),
   revealThread: narrowing.revealThread,
-  cardTarget: (thread) => app?.overlay?.cardTarget(thread),
 });
 declareThreadKeys(landing.landIn, narrowing);
 const anchorControls = createAnchorControls({
@@ -558,7 +562,7 @@ pageMapDialog = createPageMapDialog({
 // Ask view is constructed below by its owner factory; all accesses above are inert closures.
 asks = createAskView({
   panelIsOpen,
-  focusForNavigation: app.overlay?.focusForNavigation ?? focusDestination,
+  focusForNavigation,
   presentedControl: app.overlay?.presentedControl,
   setPanel: (...args) => threadPanelController.setPanel(...args),
   prepareTrip: anchorTravel.prepareTrip,
@@ -632,6 +636,7 @@ selectionComposer = createSelectionComposer({
   endFabFocus: (...args) => responseSurface.endFabFocus(...args),
   landFabFocus: (...args) => responseSurface.landFabFocus(...args),
   showFab: (...args) => responseSurface.showFab(...args),
+  letGoOfFab: () => responseSurface.letGoOfFab(),
   createComment: app.createComment,
   landSent: landing.landSent,
   refreshThread: app.refreshThread,
@@ -855,10 +860,10 @@ const standing = createStanding({
 const skipToChrome = offer("button", "lf-skip", "Skip to Leaf controls");
 skipToChrome.onclick = () => {
   for (const control of tabStops(banner)) {
-    control.focus({ preventScroll: true });
+    focusDestination(control, "move");
     if (control.matches(":focus")) return;
   }
-  focusDestination(banner);
+  focusDestination(banner, "move");
 };
 
 if (!offlineInteractive) {
@@ -1116,12 +1121,9 @@ async function startPage() {
     replayReady,
   ]);
   if (!upgraded) return;
+  // Initial layout and later residency share prepaint's synchronous computation.
+  openResidency({ onRead: annotationRenderer?.syncMarginResidency });
   if (!offlineInteractive) {
-    // Authored residents are read from the upgraded document (content-layout.js).
-    openResidency({
-      rail: overlaySelected,
-      onRead: annotationRenderer?.syncMarginResidency,
-    });
     layout.syncLayout();
     asks.buildBulkAnswers();
     asks.syncAsks();

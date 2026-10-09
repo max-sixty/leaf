@@ -18,8 +18,14 @@
 
 import { html, render } from "../vendor/browser-runtime.js";
 import { offlineInteractive, pageUrl, runtimeResource } from "./context.js";
-import { handBack } from "./focus.js";
-import { closeControl } from "./widget-elements.js";
+import {
+  handBack,
+  focusDestination,
+  closeLayer,
+  openLayer,
+  openerOf,
+} from "./focus.js";
+import { closeControl, offered } from "./widget-elements.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import { nativeLayers } from "./keyboard/layer-stack.js";
 import { keeps, keepsText } from "./keeps.js";
@@ -97,7 +103,7 @@ function presentViewer(model) {
       <div class="lf-media-viewer-head">
         <strong id="lf-media-viewer-title">Image preview</strong>
         <div class="lf-media-viewer-actions">
-          ${model ? html`<a href=${model.url} target="_blank" rel="noopener">Original</a>` : null}
+          ${model ? html`<a ${offered("lf-media-viewer-original", true)} href=${model.url} target="_blank" rel="noopener">Original</a>` : null}
           ${viewerZoom}${viewerClose}
         </div>
       </div>
@@ -156,12 +162,13 @@ keys(
   { when: () => mediaViewer.open },
 );
 
-let origin = null;
+// The viewer hands the user back to the image they opened it from (focus.js,
+// `openLayer`) once the platform has closed it, by its button, Escape or a press outside.
 const open = (url, alt, from) => {
   const attempt = ++opening;
   inspector?.destroy();
   inspector = null;
-  origin = from;
+  openLayer(mediaViewer, from);
   presentViewer({ url, alt });
   render(html`<img src=${url} alt=${alt} />`, stage);
   keepsText(
@@ -170,7 +177,7 @@ const open = (url, alt, from) => {
   );
   keepsText(viewerZoom, "100%");
   if (!mediaViewer.open) mediaViewer.showModal();
-  viewerClose.focus({ preventScroll: true });
+  focusDestination(viewerClose, "move");
   const image = stage.querySelector("img");
   Promise.all([imageTools(), image.decode()]).then(
     ([PhotoSwipe]) => {
@@ -248,10 +255,15 @@ mediaViewer.addEventListener("close", () => {
   ++opening;
   inspector?.destroy();
   inspector = null;
-  render(null, stage);
-  presentViewer(null);
-  if (origin) handBack(origin);
-  origin = null;
+  const origin = openerOf(mediaViewer);
+  openLayer(mediaViewer, null);
+  closeLayer(
+    () => {
+      render(null, stage);
+      presentViewer(null);
+    },
+    origin && (() => handBack(origin)),
+  );
 });
 document.addEventListener("click", (event) => {
   if (

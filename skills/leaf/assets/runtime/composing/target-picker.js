@@ -1,7 +1,7 @@
 /* This module owns the target picker and whole-page text search. Its transient hints,
  * search marks, and status are synchronous Lit projections over native controller state. */
 import { aimTargets, anchoringIsReady } from "../anchor-resolution.js";
-import { bindings } from "../keyboard/bindings.js";
+import { bindings, bindingEnabled } from "../keyboard/bindings.js";
 import { el, LAYOUT, reserve } from "../widget-elements.js";
 import { coarsePointer } from "../pointer.js";
 import { html, nothing, render } from "../../vendor/browser-runtime.js";
@@ -17,11 +17,17 @@ import {
   segmentBlock,
 } from "../passages.js";
 import { bannerFoot, shownBox, shownParts } from "../geometry.js";
-import { focused } from "../keyboard/scopes.js";
 import { repaint } from "../repaint.js";
 import { anchorFor } from "../anchor-names.js";
 import { paintSet } from "../target-paint-geometry.js";
-import { handBack, releaseFocus } from "../focus.js";
+import {
+  handBack,
+  releaseFocus,
+  focusDestination,
+  closeLayer,
+  openLayer,
+  openerOf,
+} from "../focus.js";
 import {
   createHintSession,
   HINT_KEYS,
@@ -117,7 +123,6 @@ export function createTargetPicker({
   let pageSearchOpen = false;
   let matches = [];
   let active = -1;
-  let opener = null;
   let searchReturnsToHints = false;
   let repeatedSearch = null;
   const matchNodeIds = new WeakMap();
@@ -215,10 +220,24 @@ export function createTargetPicker({
   // `withHints` opens the shared mode without a target map: a direct slash is page
   // search over the whole document, and reading a viewport-local map it would then hide
   // is work for nobody.
+  // The picker's opener is the control the user stood on as it opened (focus.js,
+  // `openLayer`); a close that restores hands them back to it as it closes.
   function setTargetPicker(on, restore = false, withHints = true) {
     if (on && (!anchoringIsReady() || (withHints && !canChoose()))) return;
-    if (on) opener = focused();
-    const returnTo = !on && restore ? opener : null;
+    if (on) {
+      openLayer(pageSearchSurface);
+      paintTargetPicker(on, withHints);
+      return;
+    }
+    // An opener of nowhere hands back nothing, and `handBack` lets the user go.
+    const landing = restore && pickerOpen;
+    const opener = openerOf(pageSearchSurface);
+    closeLayer(
+      () => paintTargetPicker(on, withHints),
+      landing && (() => handBack(opener)),
+    );
+  }
+  function paintTargetPicker(on, withHints) {
     pickerOpen = on;
     pageSearchOpen = false;
     searchReturnsToHints = false;
@@ -230,16 +249,14 @@ export function createTargetPicker({
       const found = hints.arm();
       announce(
         found.length
-          ? `Choose a target — press an element, type one of ${found.length} hints, press Tab to hear them, or slash to search the page.`
-          : "There is no visible target to choose. Press slash to search the page.",
+          ? `Choose a target — press an element${bindings(TARGET_HINT_TYPE).length ? `, type one of ${found.length} hints` : ""}, or press Tab to hear targets and Enter to choose.${bindings(PAGE_SEARCH).length ? " Press slash to search the page." : ""}`
+          : `There is no visible target to choose.${bindings(PAGE_SEARCH).length ? " Press slash to search the page." : ""}`,
       );
     } else {
       hints.disarm();
-      if (!on) opener = null;
     }
     armChanged();
     repaint();
-    if (returnTo) handBack(returnTo);
   }
 
   function setPageSearch(on) {
@@ -250,7 +267,7 @@ export function createTargetPicker({
       // the whole reading's count before editing, so narrowing never resizes the field.
       const maximum = pageText().raw.length;
       reserve(pageSearchStatus, [noMatches, searchCount(maximum, maximum)]);
-      pageSearchInput.focus({ preventScroll: true });
+      focusDestination(pageSearchInput, "move");
       presentSearchStatus();
       announce("Search the page.");
     } else {
@@ -261,7 +278,9 @@ export function createTargetPicker({
       // Search may have travelled to a match, so the map the user comes back to is read
       // again rather than being the one search covered.
       hints.invalidate();
-      announce("Choose a target — type a hint, or slash to search the page.");
+      announce(
+        `Choose a target — ${bindings(TARGET_HINT_TYPE).length ? "type a hint, or " : ""}press Tab to hear targets and Enter to choose.${bindings(PAGE_SEARCH).length ? " Press slash to search the page." : ""}`,
+      );
     }
     armChanged();
     repaint();
@@ -431,7 +450,7 @@ export function createTargetPicker({
     selectMatch(segments);
     announce(
       `Selected match: ${quote}. ${
-        coarsePointer.matches
+        coarsePointer.matches || !bindingEnabled("c")
           ? "Comment on selection on the banner comments on it."
           : "Press n for next, Shift+n for previous, or c to comment."
       }`,
@@ -646,6 +665,16 @@ export function createTargetPicker({
   const targetingClaims = (binding) =>
     allButCommandReference(binding) && !bindings(PAGE_SEARCH).includes(binding);
 
+  const TARGET_HINT_TYPE = {
+    id: "target.picker.hint.type",
+    keys: HINT_KEYS,
+    label: "a–z",
+    description: "Type the hint for a target",
+    title: "type hint",
+    when: () => hints.candidates().length > 0,
+    run: hints.type,
+  };
+
   const TARGET_PICKER_SCOPE = {
     title: "In the target picker",
     escape: "inner",
@@ -655,15 +684,7 @@ export function createTargetPicker({
     // keyboard projection.
     claims: targetingClaims,
     rows: [
-      {
-        id: "target.picker.hint.type",
-        keys: HINT_KEYS,
-        label: "a–z",
-        description: "Type the hint for a target",
-        title: "type hint",
-        when: () => hints.candidates().length > 0,
-        run: hints.type,
-      },
+      TARGET_HINT_TYPE,
       {
         id: "target.picker.hint.walk",
         keys: ["Tab", "Shift+Tab"],
@@ -756,7 +777,10 @@ export function createTargetPicker({
   pageCommand({
     id: "target.picker.open",
     keys: ["s"],
-    description: "Choose an element by pressing it or typing its hint, then comment",
+    description: () =>
+      bindings(TARGET_HINT_TYPE).length
+        ? "Choose an element by pressing it or typing its hint, then comment"
+        : "Choose an element by pressing it or browsing targets with Tab and Enter, then comment",
     title: "select element",
     touch: "Select element",
     // Once the field is open, its typing scope owns character keys. This gate also keeps

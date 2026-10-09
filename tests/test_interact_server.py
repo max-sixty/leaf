@@ -4215,7 +4215,7 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
                 if select.select([door], [], [], 0)[0]:
                     break
                 door.sendall(b"%x\r\n" % len(chunk) + chunk + b"\r\n")
-        except BrokenPipeError, ConnectionResetError, TimeoutError:
+        except (BrokenPipeError, ConnectionResetError, TimeoutError):
             # The door has stopped reading, so the rest of the body has nowhere to go.
             pass
         try:
@@ -4224,7 +4224,7 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
                 if not heard:
                     break
                 spoken += heard
-        except ConnectionResetError, TimeoutError:
+        except (ConnectionResetError, TimeoutError):
             pass
     finally:
         door.close()

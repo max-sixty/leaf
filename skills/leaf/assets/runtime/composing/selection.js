@@ -34,10 +34,16 @@ import {
 
 import { pageSelection, rangeAnchor } from "./capture.js";
 import { THREAD } from "../thread/selectors.js";
-import { focused, keys, paintKeys } from "../keyboard/scopes.js";
+import { keys, paintKeys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
 import { PRESS } from "../keyboard/bindings.js";
-import { onStanding, takesLetters } from "../focus.js";
+import {
+  onStanding,
+  takesLetters,
+  focusDestination,
+  focused,
+  closeLayer,
+} from "../focus.js";
 import { repaint } from "../repaint.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { bindQueuedWork } from "../queued-work.js";
@@ -150,6 +156,7 @@ export function createSelectionComposer({
   endFabFocus,
   landFabFocus,
   showFab,
+  letGoOfFab,
   createComment,
   landSent,
   refreshThread,
@@ -308,7 +315,7 @@ export function createSelectionComposer({
       suggestCheck.checked = false;
       syncSuggestMode();
       notice("Remove pasted images before suggesting replacement text");
-      composerInput.focus({ preventScroll: true });
+      focusDestination(composerInput, "return");
       return;
     }
     // Entering suggestion mode seeds the box with the passage to edit in place.
@@ -316,7 +323,7 @@ export function createSelectionComposer({
       syncComposer.load((seededQuote = pendingAnchor.quote));
     syncSuggestMode();
     saveComposerDraft();
-    composerInput.focus({ preventScroll: true });
+    focusDestination(composerInput, "return");
   }
 
   let responseOptionsOpen = false;
@@ -347,7 +354,7 @@ export function createSelectionComposer({
           ? choices.length - 1
           : 0
         : (at + (backward ? -1 : 1) + choices.length) % choices.length;
-    choices[next].focus({ preventScroll: true });
+    focusDestination(choices[next], "move");
     beginWalk("response-option", "Response", () =>
       listWalkPosition(responseOptionButtons(), focused()),
     );
@@ -358,6 +365,9 @@ export function createSelectionComposer({
   // The composer supplies a field instead of a primary margin entry, so it owns this layout
   // adapter rather than borrowing the margin's target aggregation and spill machinery.
   const focusResponseOption = (focus) => {
+    // The bar may place a frame or more later; a newer input meanwhile keeps the user
+    // where it put them.
+    const mayFocus = retainUserIntent();
     void fabPositioned().then((positioned) => {
       if (!positioned || !responseOptionsOpen) return;
       const options = responseOptionButtons();
@@ -365,15 +375,12 @@ export function createSelectionComposer({
         focus === "reaction"
           ? options.find((control) => control.classList.contains("lf-react"))
           : options[0];
-      destination?.focus({ preventScroll: true });
+      if (destination) mayFocus.handoff(() => focusDestination(destination, "move"));
       paintKeys();
     });
   };
 
-  function setResponseOptions(
-    open,
-    { focus = null, returnFocus = false, place = true } = {},
-  ) {
+  function setResponseOptions(open, { focus = null, place = true } = {}) {
     const next = Boolean(open && fabAnchorAt() && responseOptionsAvailable());
     if (next === responseOptionsOpen) {
       if (next && focus) focusResponseOption(focus);
@@ -384,11 +391,6 @@ export function createSelectionComposer({
     fabBar.classList.toggle("lf-response-open", next);
     if (place && fabAnchorAt()) showFab(fabAnchorAt());
     if (next && focus) focusResponseOption(focus);
-    else if (!next && returnFocus) {
-      [fabInput, fab]
-        .find((control) => control.checkVisibility())
-        ?.focus({ preventScroll: true });
-    }
     paintKeys();
     return next;
   }
@@ -623,7 +625,7 @@ export function createSelectionComposer({
     )
       transferDraft(composerCtx(pendingAnchor), ctx, text);
     detachComposer();
-    showFab(null, { returnFocus: "none" });
+    showFab(null);
   }
   // The composer going down because its draft is spent rather than because the user
   // dropped it: the words are somewhere else now, or on their way back.
@@ -632,7 +634,7 @@ export function createSelectionComposer({
     // Settlement may arrive after Escape has already started another keyboard gesture.
     // Move focus only when it still belongs to the field this settlement hid; showFab's
     // page return makes that distinction from a later focus elsewhere.
-    showFab(null, { returnFocus: "page" });
+    letGoOfFab();
   }
 
   // The response bar's Comment action returns to this same compact field on the anchor
@@ -737,8 +739,8 @@ export function createSelectionComposer({
           composerEpoch === epoch && loadDraft(ctx) === null && !pageSelection();
         const mayReveal = () => revealAvailable() && currentIntent();
         const shouldReveal = mayReveal();
-        // Land where any send leaves the user (`landSent`): on the thread, or on the
-        // element the margin card's thread is about, never in its reply box. A later
+        // Land where any send leaves the user (`landSent`): on the conversation's
+        // card or title, never back on its page target. A later
         // gesture may already have moved the user elsewhere while presentation was
         // settling.
         if (shouldReveal || panelIsOpen()) {
@@ -823,7 +825,15 @@ export function createSelectionComposer({
     keys: ["Escape"],
     description: "Close other responses",
     title: "close",
-    run: () => setResponseOptions(false, { returnFocus: true }),
+    // Closing the other responses hands the user back to the bar they opened them from.
+    run: () =>
+      closeLayer(
+        () => setResponseOptions(false),
+        () => {
+          const back = [fabInput, fab].find((control) => control.checkVisibility());
+          if (back) focusDestination(back, "return");
+        },
+      ),
   };
   const responseOptionRows = () => [
     RESPONSE_REACTION,

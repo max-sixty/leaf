@@ -3,7 +3,8 @@
    Every surface uses the same message, header and body vocabulary. Generated
    metadata, prose, workflow and reaction placement have one owner. Each message
    retains its header and body together, sharing delivery, unread and fold state.
-   Its header declares its stationary text-reflow boundary. An
+   Its header declares its stationary text-reflow boundary and hosts the thread's
+   disclosure for progress completed by that reply. An
    immutable descriptor changes prose without reconnecting the validated authored
    fragment. A new message cues its own words once on first presentation, in every
    surface: one the user just sent, and any turn, whoever wrote it, joining a thread
@@ -199,7 +200,7 @@ export class MessageView {
     this.node = document.createElement("div");
   }
 
-  present(model, { arrived = false } = {}) {
+  present(model, { arrived = false, headerControls = nothing } = {}) {
     const prior = this.#model;
     this.#model = model;
     const panel = model.panel;
@@ -261,6 +262,7 @@ export class MessageView {
               : nothing
           }
         </span>
+        ${headerControls}
       `,
       this.#header,
     );
@@ -312,8 +314,8 @@ export class MessageView {
       // One phase drives the message's ground and its sticky header. CSS resolves
       // the tint and resting colour at this message after insertion; Firefox's
       // Web Animations interpolates a var() colour keyframe discretely.
-      // The shared motion gate answers for restoration and reduced motion; opacity
-      // continues to describe delivery independently (marks.css).
+      // The shared motion gate answers for restoration and reduced motion; the
+      // delivery receipt and busy cursor remain independent of the arrival tint.
       this.#arrivalMotion = motion(
         this.node,
         [{ "--lf-msg-arrival": 1, offset: 0 }],

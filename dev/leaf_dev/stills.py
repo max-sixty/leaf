@@ -114,6 +114,36 @@ def threads_panel(page: Page) -> None:
     )
 
 
+def progress_messages(page: Page) -> None:
+    """The completed answer and the disclosure of its interim checks."""
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Threads", exact=True
+    ).click()
+    page.locator('#bg-panel-presets [data-view="updates"]').click()
+    frame = page.frame_locator("#bg-panel-sample iframe")
+    frame.locator(
+        '.lf-thread[data-id="bg-progress-question"] .lf-summary-expand'
+    ).wait_for(state="visible")
+    # Capture the reading after the sample's initial unread-news notice has left.
+    frame.locator(".lf-notice.show").wait_for(state="hidden")
+    page.locator("#bg-panel-sample").scroll_into_view_if_needed()
+
+
+def progress_messages_expanded(page: Page) -> None:
+    """Retained progress, opened from the answer's disclosure."""
+    progress_messages(page)
+    page.frame_locator("#bg-panel-sample iframe").locator(
+        '.lf-thread[data-id="bg-progress-question"] .lf-summary-expand'
+    ).click()
+
+
+def screenshot_comparison(page: Page) -> None:
+    """Reach the comparison rail's standalone endpoint controls."""
+    page.get_by_role("tab", name="Page & layout", exact=True).click()
+    # Anchor the unchanged guide, so a taller rail does not recenter the entire capture.
+    page.locator("#bg-shot-guide").scroll_into_view_if_needed()
+
+
 def image_preview(page: Page) -> None:
     """Inspect the gallery's pasted screenshot through the shared image viewer."""
     threads_panel(page)
@@ -250,6 +280,17 @@ def code_note(page: Page) -> None:
     )
 
 
+def frame_edges(page: Page) -> None:
+    """The drawn row's parallel paragraphs, with their declared margins intact."""
+    page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
+        "Page & layout", exact=True
+    ).click()
+    settle(page)
+    page.locator("#bg-frame-edges").evaluate(
+        "el => el.scrollIntoView({block: 'start'})"
+    )
+
+
 def theme_hierarchy(page: Page) -> None:
     """A neutral callout with open and closed support; exercise the closed row by key."""
     page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
@@ -270,6 +311,15 @@ def theme_hierarchy(page: Page) -> None:
     page.locator("#bg-theme-hierarchy").evaluate(
         "el => el.scrollIntoView({block: 'start'})"
     )
+
+
+def wide_schedule(page: Page) -> None:
+    """The gallery's explicitly allocated schedule, with its guide and caption."""
+    page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
+        "Page & layout", exact=True
+    ).click()
+    page.locator("#bg-margin-layer-figure").scroll_into_view_if_needed()
+    settle(page)
 
 
 def wide_passage(page: Page) -> None:
@@ -432,7 +482,10 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         card_reply_large,
         card_reply_resolved,
         threads_panel,
+        progress_messages,
+        progress_messages_expanded,
         image_preview,
+        screenshot_comparison,
         panel_by_keyboard,
         composer,
         composer_long,
@@ -445,6 +498,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         ask_by_keyboard,
         card_grabbed,
         code_note,
+        frame_edges,
         theme_hierarchy,
         wide_passage,
         multiline_passage,
@@ -503,8 +557,8 @@ def margin_gallery(page: Page) -> None:
     ).first.evaluate("group => group.scrollIntoView({block: 'start'})")
 
 
-def trace_sources(page: Page) -> None:
-    """The recording's source controls in view, with its initial checkpoint ready."""
+def trace_controls(page: Page) -> None:
+    """The recording's moments and playback controls, with its checkpoint ready."""
     page.wait_for_function(
         "() => !!document.querySelector('#release-trace .lf-trace-action')?.textContent"
     )
@@ -513,22 +567,16 @@ def trace_sources(page: Page) -> None:
     )
 
 
-def trace_source_by_keyboard(page: Page) -> None:
-    """The selected source focused, after tabbing away from its control and back."""
-    trace_sources(page)
+def trace_timeline_by_keyboard(page: Page) -> None:
+    """The timeline focused, after tabbing away from it and back."""
+    trace_controls(page)
     page.keyboard.press("Tab")
     trace = page.locator("#release-trace")
-    native = trace.get_by_role("combobox", name="Recorded page or API stream")
-    if native.count():
-        native.focus()
-    else:
-        source = trace.get_by_role("radio", name="Page 1", exact=True)
-        source.focus()
+    trace.get_by_role("group", name="Recording timeline", exact=True).focus()
     page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")
     page.wait_for_function(
-        "() => document.activeElement?.matches("
-        "'#release-trace select, #release-trace wa-radio')"
+        "() => document.activeElement?.matches('#release-trace .lf-trace-timeline')"
     )
 
 
@@ -543,6 +591,27 @@ class State:
 
 
 STATES = (
+    State("progress-messages", "developer/feature-gallery", progress_messages),
+    State(
+        "progress-messages-expanded",
+        "developer/feature-gallery",
+        progress_messages_expanded,
+    ),
+    State(
+        "progress-messages-touch",
+        "developer/feature-gallery",
+        progress_messages,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State("screenshot-comparison", "developer/feature-gallery", screenshot_comparison),
+    State(
+        "screenshot-comparison-phone",
+        "developer/feature-gallery",
+        screenshot_comparison,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("image-preview", "developer/feature-gallery", image_preview),
     State(
         "image-preview-dark", "developer/feature-gallery", image_preview, scheme="dark"
@@ -556,16 +625,16 @@ STATES = (
     ),
     State("targeting-menu", "code-comparison", targeting_menu),
     State("targeting-menu-dark", "code-comparison", targeting_menu, scheme="dark"),
-    State("trace-sources", "developer/playwright-trace-gallery", trace_sources),
+    State("trace-controls", "developer/playwright-trace-gallery", trace_controls),
     State(
-        "trace-source-keyboard",
+        "trace-timeline-keyboard",
         "developer/playwright-trace-gallery",
-        trace_source_by_keyboard,
+        trace_timeline_by_keyboard,
     ),
     State(
-        "trace-sources-phone",
+        "trace-controls-phone",
         "developer/playwright-trace-gallery",
-        trace_sources,
+        trace_controls,
         viewport=(390, 844),
         touch=True,
     ),
@@ -601,6 +670,7 @@ STATES = (
         touch=True,
     ),
     State("gallery-tabs", "developer/feature-gallery", at_rest),
+    State("frame-edges", "developer/feature-gallery", frame_edges),
     State("gallery-theme", "developer/feature-gallery", theme_hierarchy),
     State(
         "gallery-theme-dark",
@@ -625,6 +695,12 @@ STATES = (
     ),
     State("widget-inline-hints", "developer/feature-gallery", widget_inline_hints),
     State("gallery-wide-passage", "developer/feature-gallery", wide_passage),
+    State(
+        "gallery-wide-schedule",
+        "developer/feature-gallery",
+        wide_schedule,
+        viewport=(1726, 900),
+    ),
     State("gallery-multiline-passage", "developer/feature-gallery", multiline_passage),
     State("plan", "review-a-plan", at_rest),
     State("plan-dark", "review-a-plan", at_rest, scheme="dark"),

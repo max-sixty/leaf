@@ -3058,12 +3058,15 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     watcher = take_lease(waiter_lease_path(page_dir, "hosted-thread"))
     assert watcher is not None
     request.addfinalizer(watcher.close)
+    thread = page.locator(f'.lf-threads > [data-id="{comment["id"]}"]')
+    # An active editor holds the turn's update so this journey exercises the receipt
+    # beside held news; an idle panel thread now shows the update immediately.
+    thread.locator("leaf-text").focus()
     turn.begin()
     # Present the accepted turn before resolving it: coalescing these server writes
     # would never exercise a workflow receipt disappearing beside the news control.
     told(page)
     rendered(page)
-    thread = page.locator(f'.lf-threads > [data-id="{comment["id"]}"]')
     metadata = thread.locator(
         ".lf-thread-transcript > .lf-msg:first-child > .lf-msg-head"
     )
@@ -3186,7 +3189,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
         expect(thread.locator(".lf-msg.agent")).to_be_hidden()
         assert set(current_responses(page_dir, read_events(page_dir))) == {other["id"]}
     else:
-        # The short thread's reopened answer would move its writing box, so the
+        # The short thread's reopened answer would move its active editor, so the
         # reader explicitly opens the news before the visibility clock can see it. The
         # card stands as drawn, open, so the reopening is no news.
         expect(news).to_have_text("1 new reply")
@@ -3241,8 +3244,8 @@ def test_a_reply_that_cannot_be_written_still_closes_its_website_turn(
 ):
     """The page stops saying the agent is working, however the reply went.
 
-    `DeliveryReply` guards only the commit of a completed answer: setting the state
-    and releasing the binding open page transactions of their own, and the turn's own
+    `AppServerReplyStream` guards only the commit of a completed answer. Setting
+    its state and releasing the binding open their own page transactions; the turn's
     work may have left that page unopenable. The turn has ended either way, and until
     its Leaf turn closes the page tells its user the agent is working, with nothing
     but the claim's grace to correct it — and the move it was carrying goes without
@@ -3263,7 +3266,7 @@ def test_a_reply_that_cannot_be_written_still_closes_its_website_turn(
     def unopenable(*_args):
         raise OSError("the page could not be opened")
 
-    monkeypatch.setattr("leaf.thread.DeliveryReply._set_state", unopenable)
+    monkeypatch.setattr("leaf.codex.AppServerReplyStream._set_state", unopenable)
     with pytest.raises(OSError, match="could not be opened"):
         turn.commit({"id": "app-server-turn", "status": "completed", "items": []})
 
@@ -3305,22 +3308,33 @@ def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
     assert website_server.PageTransaction(page_dir).status["state"] == "waiting"
 
 
+@pytest.mark.parametrize("phase", ["queued", "opened", "failed"])
+@pytest.mark.parametrize("owed_move", [_page_pick, _message])
 def test_a_harness_receipt_does_not_answer_input_an_agent_turn_already_claimed(
     page_dir,
+    phase,
+    owed_move,
 ):
-    comment = append_event(
-        page_dir,
-        {"kind": "comment", "author": "user", "text": "edit the page"},
-    )
+    from leaf.delivery import record_pickup
+    from leaf.service import PageTransaction
+
+    move = owed_move(page_dir)
     harness = website_server.website_harness("hosted-thread", os.getpid())
     website_server.prepare_codex_delivery(page_dir, harness)
-    accept_in_turn("hosted-thread")
+    with PageTransaction(page_dir) as page:
+        record_pickup(
+            page,
+            [move],
+            phase=phase,
+            session="hosted-thread",
+            failure="delivery_failed" if phase == "failed" else None,
+        )
+    before = read_events(page_dir)
 
-    reply = website_server.write_failure_receipt(
-        page_dir, comment["id"], "startup_failed"
-    )
+    reply = website_server.write_failure_receipt(page_dir, move["id"], "startup_failed")
 
     assert reply is None
+    assert read_events(page_dir) == before
 
 
 def test_a_harness_receipt_survives_an_invalid_candidate_source(page_dir):

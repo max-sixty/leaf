@@ -73,7 +73,7 @@ class LeafGroup(click.Group):
             if isinstance(error.code, str):
                 raise click.ClickException(error.code) from error
             raise
-        except click.exceptions.Exit, click.Abort:
+        except (click.exceptions.Exit, click.Abort):
             raise
         except RuntimeError as error:
             from leaf.delivery import ReceiptRefused
@@ -942,9 +942,9 @@ def response_reply(
     """Answer the exact REFERENCE printed in a delivery's answer.ref.
 
     Text, frozen widgets, prose questions, titles and anchor moves share this command.
-    It validates saved page edits. An active provider reservation prepares full
-    content for that turn's completed final, which activates and commits it.
-    Without that reservation, this command activates edits and commits the reply.
+    It validates and activates saved page edits, then commits the reply immediately.
+    A provider's later final yields to the recorded answer; failure receipts are
+    refused while that provider still owns the answer.
     Repeating a committed reply's reference returns its earlier record;
     --attempt names retries of progress.
     """

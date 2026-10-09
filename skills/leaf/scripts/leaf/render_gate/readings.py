@@ -650,3 +650,41 @@ def unreserved_height_advice(page, declarations: dict) -> list[str]:
         + f', so what follows it moves when it is drawn: state data-height="{w["drawn"]}"'
         for w in evaluate_probe(page, "unreservedHeights", declarations)
     ]
+
+
+def framing_advice(page) -> list[str]:
+    """Report authored boxes whose visible inset includes a child's outer margin,
+    and rows whose edge trim separates their items.
+
+    Padding and margins can be intentional, so these measurements refuse nothing.
+    The shared probes also inspect Leaf's chrome and module implementations; their
+    findings belong to the suite rather than the author editing the page.
+    """
+
+    found = []
+    for box in evaluate_probe(page, "trappedMargins"):
+        if not box["authored"]:
+            continue
+        through = "".join(f" through <{tag}>" for tag in box["through"])
+        trim = (
+            "Restore the declared frame's content-edge trim"
+            if box["frameDeclared"]
+            else "Use --lf-block-frame: 1 for a drawn frame, or --lf-block-frame: trim "
+            "for a transparent grouping"
+        )
+        found.append(
+            f"{box['at']} draws {box['drawn']:g}px of inset and shows "
+            f"{box['drawn'] + box['margin']:g}px {box['edge']} its <{box['child']}>"
+            f"{through}: {box['margin']:g}px of child margin stays inside the box. "
+            f"{trim}; put spacing between selectable blocks in the parent's gap "
+            "or outside margins"
+        )
+    for row in evaluate_probe(page, "splitEdges"):
+        if not row["authored"]:
+            continue
+        found.append(
+            f"{row['at']} trims only one item at its {row['edge']} edge while "
+            f"another keeps {row['margin']:g}px of margin. Declare "
+            "--lf-holds-edge: 1 on this flex or grid row to keep its items aligned"
+        )
+    return list(dict.fromkeys(found))

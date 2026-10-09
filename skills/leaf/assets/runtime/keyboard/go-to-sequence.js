@@ -74,7 +74,7 @@ import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { el, PRESSABLE } from "../widget-elements.js";
 import { allButCommandReference, pageCommand, pageScope } from "./register.js";
 import { focusedThreadTarget } from "../thread/focus.js";
-import { letGo } from "../focus.js";
+import { letGo, focusDestination, focused } from "../focus.js";
 import { pageParts } from "../passages.js";
 import { addressableSays } from "../anchor-resolution.js";
 import { announce, notice } from "../notifications.js";
@@ -82,7 +82,7 @@ import { closestAcross, pageQueryAll } from "../passages.js";
 import { currentDrawer, othersBtn, queueBtn } from "../drawers.js";
 import { mapButton } from "../page-map-dialog.js";
 
-import { claimsEsc, focused, saying } from "./scopes.js";
+import { claimsEsc, saying } from "./scopes.js";
 import { repaint } from "../repaint.js";
 
 // The eye's copy of the go-to map. The layer is aria-hidden because the live region and
@@ -222,7 +222,7 @@ export function createGoToSequence({
   // remain one behavior.
   function press(control) {
     scrollToElement(control, undefined, "nearest");
-    control.focus({ preventScroll: true });
+    focusDestination(control, "press");
     control.click();
   }
 
@@ -243,13 +243,6 @@ export function createGoToSequence({
       list: pageTabs,
       go: press,
     },
-    // After Tab, because a tab a widget built answers both queries and the tab is the
-    // nearer meaning. The collapse above keeps whichever kind is read first.
-    {
-      kind: "Control",
-      list: pageControls,
-      go: press,
-    },
     {
       kind: "Link",
       list: pageLinks,
@@ -265,8 +258,15 @@ export function createGoToSequence({
       // the platform's own close route.
       go: (summary) => {
         scrollToElement(summary.parentElement, undefined, "nearest");
-        summary.focus({ preventScroll: true });
+        focusDestination(summary, "move");
       },
+    },
+    // Native and role-specific targets keep their meaning before the generic offered
+    // control reading. Collapse keeps the first kind for one activation surface.
+    {
+      kind: "Control",
+      list: pageControls,
+      go: press,
     },
   ];
   const TARGET_FILTERS = [

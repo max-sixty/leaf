@@ -68,14 +68,7 @@ import {
   targetSegments,
   targetRange,
 } from "../resolved-target.js";
-import {
-  composer,
-  composerOpen,
-  fab,
-  fabBar,
-  fabInput,
-  fabOptions,
-} from "./selection.js";
+import { composerOpen, fab, fabBar, fabInput } from "./selection.js";
 
 import {
   closeCommandReference,
@@ -322,7 +315,8 @@ export function createResponseSurface({
     fabAnchor?.quote ? null : standingPoint(target, fabPoint);
   const placement =
     createPlacement?.({
-      nodes: { bar: fabBar, input: fabInput, composer, options: fabOptions },
+      bar: fabBar,
+      input: fabInput,
       response: {
         get anchor() {
           return fabAnchor;

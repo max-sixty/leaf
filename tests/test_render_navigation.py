@@ -8381,8 +8381,10 @@ def test_only_controls_and_boxes_with_something_out_of_sight_take_a_tab_stop(
     controls = {"BUTTON", "INPUT"}
     dead = [s for s in stops if s["tag"] not in controls and not s["scrolls"]]
     assert dead == [], f"tab stops on boxes with nothing out of sight: {dead}"
+    # The preference checkbox and command search each keep their native stop.
     assert [s["tag"] for s in stops if s["tag"] in controls] == [
         "BUTTON",
+        "INPUT",
         "INPUT",
         "BUTTON",
     ]
@@ -8906,7 +8908,10 @@ def test_the_reference_keeps_its_top_and_search_still_when_filtering(
             ).to_have_count(1)
         if query == "no command has these words":
             expect(reference.locator(".lf-command-reference-empty")).to_be_visible()
-            assert reference.bounding_box()["height"] < initial_dialog["height"]
+            # At the shortest viewport both states can meet the same height limit.
+            assert reference.bounding_box()["height"] <= initial_dialog["height"]
+            if viewport[1] > 320:
+                assert reference.bounding_box()["height"] < initial_dialog["height"]
         expect(search).to_be_focused()
         dialog = reference.bounding_box()
         field = search.bounding_box()

@@ -6,7 +6,7 @@ from io import BytesIO
 
 import pytest
 from click.testing import CliRunner
-from interact_support import append_carried_log_record
+from interact_support import append_carried_log_record, wait_for
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
@@ -1535,9 +1535,14 @@ def test_a_sent_drawing_keeps_its_pasted_photo_outside_the_text_viewport(
     text = card.locator(".lf-msg-text").first
     assert text.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
     photo = card.get_by_role("button", name="View Pasted image", exact=True)
-    assert photo.evaluate("""node => {
-      const box = node.getBoundingClientRect();
-      return node.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
-    }""")
-    photo.click()
+    wait_for(
+        lambda: photo.evaluate("""node => {
+          const box = node.getBoundingClientRect();
+          return node.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
+        }"""),
+        bool,
+        failure="The pasted photo's center remains clipped after the card reveals",
+    )
+    box = photo.bounding_box()
+    page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     expect(page.get_by_role("dialog", name="Image preview", exact=True)).to_be_visible()

@@ -538,6 +538,140 @@ def test_control_reflow_stays_inside_its_runtime_region(browser, fault, protecte
         )
 
 
+@pytest.mark.parametrize(
+    "fault, protected",
+    [
+        ("", None),
+        ("sticky_tail", None),
+        ("sticky_extra", "button#reply"),
+        ("prepend", "p#old"),
+        ("old_growth", "button#reply"),
+        ("extra_carry", "button#later"),
+        ("moving_port", "button#reply"),
+        ("outside", "button#outside"),
+        ("outside_runtime", "button#reply"),
+        ("port_outside_runtime", "button#reply"),
+        ("enclosing_text", "button#reply"),
+    ],
+)
+def test_append_reflow_credits_only_its_measured_suffix_growth(
+    browser, fault, protected
+):
+    """An arrival may move its reply and later cards, preserving the transcript."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0;font:16px monospace">'
+            '<div id="port" data-lf-runtime style="width:360px;height:300px;'
+            'padding:5px;box-sizing:border-box;overflow:auto;overflow-anchor:none">'
+            '<section style="overflow:clip">'
+            '<div id="source" data-lf-reflow="append">'
+            '<p id="old" style="margin:0;height:40px">Already reading.</p></div>'
+            '<button id="reply" style="display:block;position:sticky;bottom:0">Reply</button></section>'
+            '<article><p style="margin:0">Another conversation.</p>'
+            '<button id="later">Later thread</button></article></div>'
+            '<button id="outside">Outside the panel</button></body>'
+        )
+    )
+    if fault in {"outside_runtime", "port_outside_runtime"}:
+        page.locator("#port").evaluate(
+            "node => node.removeAttribute('data-lf-runtime')"
+        )
+    if fault == "port_outside_runtime":
+        page.locator("#source").evaluate(
+            "node => node.setAttribute('data-lf-runtime', '')"
+        )
+    if fault == "enclosing_text":
+        page.locator("#port > section").evaluate(
+            "node => node.setAttribute('data-lf-reflow', 'text')"
+        )
+    paint(page)
+    before = page.locator("#old").bounding_box()
+    reply_before = page.locator("#reply").bounding_box()
+    page.evaluate(
+        """fault => {
+          const source = document.getElementById('source');
+          const next = document.createElement('p');
+          next.textContent = 'The newly appended reply.';
+          next.style.cssText = `margin:0;height:${fault.startsWith('sticky_') ? 400 : 40}px`;
+          if (fault === 'prepend') source.prepend(next);
+          else source.append(next);
+          if (fault === 'old_growth') document.getElementById('old').style.height = '60px';
+          if (fault === 'extra_carry') document.getElementById('later').style.marginTop = '7px';
+          if (fault === 'sticky_extra') document.getElementById('reply').style.bottom = '7px';
+          if (fault === 'moving_port') document.getElementById('port').style.marginTop = '7px';
+          if (fault === 'outside') document.getElementById('outside').style.marginTop = '7px';
+        }""",
+        fault,
+    )
+    judge_watches()
+    if not protected:
+        assert page.locator("#old").bounding_box() == before
+        if fault == "sticky_tail":
+            port = page.locator("#port").bounding_box()
+            assert page.locator("#reply").bounding_box()["y"] == (
+                port["y"] + port["height"] - 5 - reply_before["height"]
+            )
+        else:
+            assert page.locator("#reply").bounding_box()["y"] == reply_before["y"] + 40
+    else:
+        errors = consume_browser_errors(page, "moved without input")
+        assert any(f"{protected} moved without input" in error for error in errors), (
+            errors
+        )
+
+
+def test_append_reflow_preserves_nested_text_reflow(browser):
+    """A stationary old header may still repack inside its own declared boundary."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0;font:16px monospace">'
+            '<div data-lf-runtime style="width:360px;height:300px;overflow:auto">'
+            '<div id="source" data-lf-reflow="append">'
+            '<div style="height:40px"><div data-lf-reflow="text" '
+            'style="display:flex;width:360px;height:24px">'
+            '<span id="receipt">Waiting</span><span id="time">Today</span>'
+            '</div></div></div><button id="reply">Reply</button></div>'
+        )
+    )
+    paint(page)
+    before = page.locator("#time").bounding_box()
+    page.evaluate("""() => {
+      document.getElementById('receipt').textContent = 'Responded just now';
+      const next = document.createElement('p'); next.textContent = 'New reply';
+      next.style.cssText = 'margin:0;height:40px';
+      document.getElementById('source').append(next);
+    }""")
+    judge_watches()
+    assert page.locator("#time").bounding_box()["x"] > before["x"]
+
+
+def test_append_reflow_does_not_credit_typing_that_carries_its_editor(browser):
+    """The append permission does not weaken the independently retained typing pose."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0">'
+            '<div data-lf-runtime style="width:360px;height:300px;overflow:auto">'
+            '<div id="source" data-lf-reflow="append">'
+            '<p style="margin:0;height:40px">Already reading.</p></div>'
+            '<textarea id="field"></textarea></div>'
+            '<script>document.getElementById("field").addEventListener("beforeinput", () => {'
+            'const next = document.createElement("p"); next.textContent = "New reply";'
+            'next.style.cssText = "margin:0;height:40px";'
+            'document.getElementById("source").append(next); });</script>'
+        )
+    )
+    paint(page)
+    page.locator("#field").fill("a")
+    judge_watches()
+    consume_browser_errors(page, "typing in textarea#field moved textarea#field")
+
+
 CAPPED_METADATA = "".join(
     '<div data-lf-reflow="text" style="display:flex;width:360px;height:30px;align-items:baseline">'
     '<b>You</b><span class="lf-msg-meta" style="display:flex;gap:8px;margin-left:8px">'

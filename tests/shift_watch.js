@@ -9,7 +9,9 @@
 // Reading text is measured with Range fragments, including text inside a stationary
 // parent. Controls and declared regions keep their actual boxes. Runtime-declared
 // bounded reflow retains its historical ownership, stationary-boundary and clipping
-// proof. Layout coordinates remove scrolling; sticky descendants retain their
+// proof. An append region may carry following content inside its stationary
+// scrollport by its measured suffix growth; existing children retain their boxes.
+// Layout coordinates remove scrolling; sticky descendants retain their
 // mechanical scroller's ownership. Portals with one unique anchor, in their tree or
 // inside the `anchor-scope` that limits its name, and a direct native anchor inset,
 // inline or in their tree's own rules, retain that scroller too; nested CSS
@@ -765,6 +767,17 @@
           node.scrollHeight > node.clientHeight)
           ? scrollAxes(node)
           : null;
+      const last = placed.get(node)?.at(-1);
+      let appendChildren =
+        !range && node.getAttribute("data-lf-reflow") === "append"
+          ? [...node.children]
+          : null;
+      if (
+        appendChildren &&
+        last?.paint.appendChildren?.length === appendChildren.length &&
+        appendChildren.every((child, i) => child === last.paint.appendChildren[i])
+      )
+        appendChildren = last.paint.appendChildren;
       const paint = {
         parent: up(node),
         anchor: range ? null : anchorOf(node, style, anchors),
@@ -779,6 +792,14 @@
         insetX: range ? null : `${node.style.left}|${node.style.right}`,
         insetY: range ? null : `${node.style.top}|${node.style.bottom}`,
         position: range ? "static" : style.position,
+        stickyTop:
+          !range && style.position === "sticky" && /^-?[\d.]+px$/.test(style.top)
+            ? parseFloat(style.top)
+            : null,
+        stickyBottom:
+          !range && style.position === "sticky" && /^-?[\d.]+px$/.test(style.bottom)
+            ? parseFloat(style.bottom)
+            : null,
         scrollXx: axes?.x.x ?? 1,
         scrollXy: axes?.x.y ?? 0,
         scrollYx: axes?.y.x ?? 0,
@@ -811,14 +832,17 @@
         opacity: style.opacity,
         clipsX: clipping.x,
         clipsY: clipping.y,
+        scrollportY: !range && ["auto", "scroll", "hidden"].includes(style.overflowY),
+        paddingTop: range ? null : parseFloat(style.paddingTop),
+        paddingBottom: range ? null : parseFloat(style.paddingBottom),
         reflow: range ? null : node.getAttribute("data-lf-reflow"),
+        appendChildren,
         runtime: !range && node.matches(".lf-chrome, [data-lf-runtime]"),
         control: !range && node.matches(interactive),
         reading: Boolean(range) || readingMedia(element),
         shown,
       };
       const seen = placed.get(node) ?? [];
-      const last = seen.at(-1);
       const sameBox =
         last &&
         ["left", "top", "right", "bottom"].every(
@@ -1165,9 +1189,10 @@
     if (around.length !== 3) return false;
     const regions = new Set(
       around.flatMap(({ at }) =>
-        ancestryAt(element, at).filter(
-          (ancestor) => typeof paintAt(ancestor, at)?.reflow === "string",
-        ),
+        ancestryAt(element, at).filter((ancestor) => {
+          const mode = paintAt(ancestor, at)?.reflow;
+          return typeof mode === "string" && mode !== "append";
+        }),
       ),
     );
     if (!regions.size) return false;
@@ -1216,6 +1241,147 @@
       if (!inside(previousRect) || !inside(currentRect)) return false;
     }
     return true;
+  };
+  // Append declarations own a source, not all motion in a container. The retained
+  // prefix proves that growth came after the old children; unchanged old boxes keep
+  // a fold or a rewritten message from borrowing that growth. Only its normal-flow
+  // followers in the same stationary runtime scrollport may be carried by it.
+  const appendGrowth = (around) => {
+    if (around.length !== 3) return [];
+    const first = around[0].at,
+      last = around[2].at;
+    const stable = (node, screen = false) => {
+      const rects = around.map(({ at }) =>
+        screen ? boxAt(node, at) : layoutAt(node, at),
+      );
+      return rects.every(Boolean) && rects.every((rect) => !moved(rects[0], rect));
+    };
+    return around[0].nodes.flatMap((source) => {
+      const readings = around.map(({ at }) => paintAt(source, at));
+      if (!readings.every((paint) => paint?.reflow === "append")) return [];
+      const before = readings[0].appendChildren,
+        after = readings[2].appendChildren;
+      if (
+        !before.length ||
+        after.length <= before.length ||
+        !before.every(
+          (child, i) =>
+            readings.every((paint) => paint.appendChildren[i] === child) &&
+            stable(child),
+        )
+      )
+        return [];
+      const prior = layoutAt(source, first),
+        next = layoutAt(source, last);
+      if (
+        !prior ||
+        !next ||
+        next.bottom - prior.bottom < 1 ||
+        !around.every(({ at }) => {
+          const box = layoutAt(source, at);
+          return (
+            box &&
+            ["left", "right", "top"].every(
+              (edge) => Math.abs(box[edge] - prior[edge]) < 1,
+            )
+          );
+        })
+      )
+        return [];
+      const port = ancestryAt(source, first).find(
+        (owner) => owner !== source && paintAt(owner, first)?.scrollportY,
+      );
+      if (
+        !port ||
+        port === document.scrollingElement ||
+        !stable(port, true) ||
+        !around.every(
+          ({ at }) =>
+            ancestryAt(source, at).includes(port) &&
+            paintAt(port, at)?.scrollportY &&
+            ancestryAt(port, at).some((owner) => paintAt(owner, at)?.runtime) &&
+            ancestryAt(source, at)
+              .slice(1, ancestryAt(source, at).indexOf(port) + 1)
+              .every((owner) => !paintAt(owner, at)?.reflow),
+        )
+      )
+        return [];
+      return [{ source, port, bottom: prior.bottom, by: next.bottom - prior.bottom }];
+    });
+  };
+  const permittedAppend = (node, previousRect, currentRect, around, growth) => {
+    const first = around[0].at,
+      last = around[2].at;
+    const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
+    const ancestry = around.map(({ at }) => ancestryAt(element, at));
+    const before = layoutAt(node, first),
+      after = layoutAt(node, last);
+    if (!before || !after) return false;
+    const carries = growth.filter(
+      ({ source, port, bottom }) =>
+        ancestry.every(
+          (parents) => parents.includes(port) && !parents.includes(source),
+        ) && before.top >= bottom - 1,
+    );
+    let by = carries.reduce((sum, each) => sum + each.by, 0);
+    if (!by) return false;
+    // A following sticky row receives that carry only until its unchanged inset
+    // meets the scrollport's padded content edge. Its descendants keep that exact
+    // clamped carry, so extra motion remains an independent finding.
+    const sticky = ancestry[2].find(
+      (owner) => paintAt(owner, last)?.position === "sticky",
+    );
+    if (sticky) {
+      const binding = paintAt(sticky, first);
+      if (
+        !around.every(({ at }) => {
+          const paint = paintAt(sticky, at);
+          return (
+            paint?.position === "sticky" &&
+            paint.stickyTop === binding.stickyTop &&
+            paint.stickyBottom === binding.stickyBottom
+          );
+        })
+      )
+        return false;
+      const port = ancestryAt(sticky, last).find(
+        (owner) => owner !== sticky && paintAt(owner, last)?.scrollportY,
+      );
+      if (!carries.every((each) => each.port === port)) return false;
+      const prior = layoutAt(sticky, first),
+        paint = paintAt(sticky, last),
+        portPaint = paintAt(port, last),
+        portBox = boxAt(port, last),
+        portLayout = layoutAt(port, last);
+      const edge = (side, inset) =>
+        portLayout.top +
+        portPaint[side] -
+        portBox.top +
+        viewportScroll(port, last).top +
+        viewportScroll(port, last, { left: 0, top: inset }).top;
+      if (paint.stickyTop !== null)
+        by =
+          Math.max(
+            prior.top + by,
+            edge("clipTop", portPaint.paddingTop + paint.stickyTop),
+          ) - prior.top;
+      if (paint.stickyBottom !== null)
+        by =
+          Math.min(
+            prior.bottom + by,
+            edge("clipBottom", -portPaint.paddingBottom - paint.stickyBottom),
+          ) - prior.bottom;
+    }
+    // Compare each fragment in its retained layout coordinates. A carried container
+    // cannot excuse an extra move or repacking by one of its descendants.
+    const priorBox = boxAt(node, first),
+      nextBox = boxAt(node, last);
+    return ["left", "right", "top", "bottom"].every((edge) => {
+      const axis = edge === "left" || edge === "right" ? "left" : "top";
+      const prior = previousRect[edge] - priorBox[axis] + before[axis];
+      const next = currentRect[edge] - nextBox[axis] + after[axis];
+      return Math.abs(next - prior - (axis === "top" ? by : 0)) < 1;
+    });
   };
   const paintState = (node, rect, at) => {
     const own = paintAt(node, at);
@@ -1431,6 +1597,7 @@
   };
   const pendingMotion = [];
   const protectedMotion = (around) => {
+    const growth = appendGrowth(around);
     for (const node of new Set(around.flatMap(({ nodes }) => nodes))) {
       const readings = around.map(({ at }) => readingAt(node, at));
       if (!readings.every(Boolean)) continue;
@@ -1488,6 +1655,7 @@
             fromPaint.paintable &&
             toPaint.paintable &&
             (fromPaint.visible || toPaint.visible) &&
+            !permittedAppend(node, previousRect, currentRect, around, growth) &&
             !permittedReflow({ node, previousRect, currentRect }, around)
           )
             pendingMotion.push({

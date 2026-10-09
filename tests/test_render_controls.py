@@ -6846,9 +6846,9 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
         },
     )
     told(page)
-    page.locator('.lf-thread[data-id="c-diff"]').get_by_role(
-        "button", name="1 new reply", exact=True
-    ).click()
+    expect(page.locator('.lf-thread[data-id="c-diff"] .lf-thread-news')).to_have_count(
+        0
+    )
     page.wait_for_function(
         """() => {
         const d = document.querySelector('#rp-diff');

@@ -112,11 +112,21 @@ boundary and every enclosing declaration's guarantees; it never borrows an outer
 declaration or relaxes one, including across a shadow root. Both painted positions stay inside
 that boundary, and neighbours and ordinary page reading content stay put. Typing
 still cannot carry its field.
+An `append` region declares a transcript whose new children may grow its end within
+its stationary scrollport. Existing messages stay put; the idle reply row and later
+cards may move by that growth. The declaration permits no changes to existing
+messages or independent movement of following content.
 News grows where the reader isn't looking: above the screen, where scroll anchoring
 takes the growth into what they scrolled past, or below it. A short thread's reply
 box follows its last message; a long panel thread pins the
-box at its scroller's foot. News that would move a reply in flow waits behind the
-thread's existing notice; a pinned reply lets the transcript grow above it.
+box at its scroller's foot. An idle open panel thread shows appended replies
+immediately, allowing its reply row and later cards to move. An active composition
+keeps its editor still: news that would move it waits behind the thread's existing
+notice; a pinned reply lets the transcript grow above it. Only an already pinned
+reply follows incoming messages to the end; a short thread keeps the previous reading
+in place even when a new answer is taller than the panel.
+The open conversation remains the panel's reading anchor even when its title is
+scrolled above the visible band. An explicitly named later card takes precedence.
 These holds protect continuous reading. A hidden tab ends it; returning reveals
 the held reading and the first refreshed reading before protection resumes
 (`reading-continuity.js`, closed by `state-feed.js` after presentation). Keyboard
@@ -124,11 +134,12 @@ blur alone does not end reading: the page may remain visible beside another wind
 Returning uses the ordinary arrival tint and thread transitions, and keeps a native
 editor the user was composing in, including its focus and caret.
 Where news would move what the reader is reading, it waits behind a control of fixed size:
-in a seat in the page's flow or an open panel card, whatever the thread would draw
-differently (an agent's reply, a reaction from another tab, the thread resolved or
-reopened elsewhere) waits behind a notice in a row the thread already draws, as does a
-thread the agent starts in the seat, and a thread that would open a seat of its own, as
-on a diff line with no thread, waits in the margin behind its marker
+in a seat in the page's flow, whatever the thread would draw differently (an agent's
+reply, a reaction from another tab, the thread resolved or reopened elsewhere) waits
+behind a notice in a row the thread already draws. Open panel cards apply the same
+hold to changes in existing messages, reactions, folds, settlement and active
+compositions. A thread the agent starts in a seat also waits there; a thread that
+would open a seat of its own, as on a diff line with no thread, waits in the margin behind its marker
 (`thread/held-news.js`). It shows once a gesture of theirs takes them to it: opening
 the notice or the thread, walking to the thread or one of its Asks, or acting there. In
 the Threads panel, a card news takes out of the view, as another actor resolving its

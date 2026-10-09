@@ -261,13 +261,17 @@ function readBoundary(kind) {
 
 let nextViewId = 0;
 // The margin card's controls stand over its transcript, so each message's head keeps
-// their width clear and its words end before them.
+// their width clear and its words end before them. Applying that allocation can wrap
+// a header and resize the controls' ancestors. Write it in the next rendering pass:
+// ResizeObserver cannot deliver those shallower boxes again in the controls' delivery.
 const marginControlsSizes = sizeObserver((entries) => {
-  for (const { target, borderBoxSize } of entries)
-    target.parentElement?.style.setProperty(
-      "--lf-margin-controls-width",
-      `${borderBoxSize[0].inlineSize}px`,
-    );
+  nextRender(() => {
+    for (const { target, borderBoxSize } of entries)
+      target.parentElement?.style.setProperty(
+        "--lf-margin-controls-width",
+        layoutPx(borderBoxSize[0].inlineSize),
+      );
+  });
 });
 
 // A panel card's reply row is pinned over the turns above it at the list's foot, so the

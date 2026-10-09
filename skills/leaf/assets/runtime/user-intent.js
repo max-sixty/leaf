@@ -34,12 +34,15 @@ const displaced = (source, at) => {
 
 // Capture before the first asynchronous step. Pass this same predicate into nested
 // reveals; capturing again after a wait gives stale work a newer gesture's authority.
+// Document arrival names count zero: its work began before any module loaded,
+// so a reader already using that document owns it even before this call runs.
 export function retainUserIntent({
   source = focused(),
   available = () => true,
   fallback = null,
+  since = inputCount(),
 } = {}) {
-  const retained = inputCount();
+  const retained = since;
   const current = () => {
     const at = focused();
     const withinSource =

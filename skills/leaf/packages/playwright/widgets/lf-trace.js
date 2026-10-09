@@ -14,6 +14,7 @@
  * Vis Timeline owns collision stacking, pan and time zoom; Viewer.js owns image
  * inspection. Native buttons keep every moment independently keyboard reachable;
  * blank timeline space only pans, so a released drag never selects a capture.
+ * Incremental Vis item updates retain native controls and keyboard focus through resize.
  * One chronological collection gives the timeline, list and selected readout their
  * shared numbers. Pixel projection follows the displayed image under pan and zoom.
  * The ruler starts at the stream origin; Vis measures room for the final controls
@@ -71,10 +72,11 @@ import {
 
 // Reuse the default package’s selected WebAwesome controls, already shipped with Leaf.
 await import("../vendor/webawesome.esm.js");
-const [{ Timeline, css: timelineCss }, { Viewer, css: imageCss }] = await Promise.all([
-  import("../vendor/timeline.esm.js"),
-  import("../vendor/images.esm.js"),
-]);
+const [{ Timeline, DataSet, css: timelineCss }, { Viewer, css: imageCss }] =
+  await Promise.all([
+    import("../vendor/timeline.esm.js"),
+    import("../vendor/images.esm.js"),
+  ]);
 // Dependency styles apply only inside recording widgets. Keeping them in their
 // module makes the same presentation available in an offline export.
 if (!document.querySelector("#lf-trace-library-styles")) {
@@ -158,6 +160,7 @@ customElements.define(
     #chosenBookmark = null;
     #boundsByScope = new Map();
     #rail = null;
+    #railData = null;
     #railScope = null;
     #railViewScope = null;
     #railReady = false;
@@ -1273,6 +1276,7 @@ customElements.define(
         this.#rail.destroy();
       }
       this.#rail = null;
+      this.#railData = null;
       this.#railReady = false;
       this.#railFollow = false;
     }
@@ -1312,9 +1316,10 @@ customElements.define(
     #buildRail(available) {
       this.#railViewScope = this.#scope;
       const window = this.#scopeView().window;
+      this.#railData = new DataSet(this.#railItems(available));
       let rail;
       const ready = this.#waitRail((resolve) => {
-        this.#rail = rail = new Timeline(this.markers, this.#railItems(available), {
+        this.#rail = rail = new Timeline(this.markers, this.#railData, {
           rtl: getComputedStyle(this).direction === "rtl",
           autoResize: false,
           height: "100%",
@@ -1502,7 +1507,12 @@ customElements.define(
         .map((moment) => `${moment.number}:${moment.time}`)
         .join("|")}`;
       if (!created && signature !== this.#railSignature) {
-        this.#rail.setItems(this.#railItems(available));
+        const items = this.#railItems(available);
+        const ids = new Set(items.map((item) => item.id));
+        this.#railData.remove(this.#railData.getIds().filter((id) => !ids.has(id)));
+        // Replacing the dataset detaches every native button and drops focus.
+        // Updating existing items lets Vis restack and align their intact nodes.
+        this.#railData.update(items);
         this.#limitRail(this.#rail);
       }
       // Initial fit measures the library's final extent. Its completion pass

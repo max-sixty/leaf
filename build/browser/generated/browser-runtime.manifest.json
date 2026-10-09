@@ -23,7 +23,7 @@
   },
   "outputRoot": "skills/leaf/assets/vendor",
   "lockfile": "package-lock.json",
-  "lockfileSha256": "73a0e2933d57682e4752d5002a67f9f913465517321298f4839c0209ca632ed5",
+  "lockfileSha256": "ed00c6aa3f3981547deea655dd7ef9c0253e9b4c761698e4fe065175206c8b2e",
   "commands": {
     "install": "npm ci",
     "build": "npm run build:browser",
@@ -60,6 +60,7 @@
     "sortablejs": "1.15.7",
     "typescript": "7.0.2",
     "viewerjs": "1.15.2",
+    "vis-data": "8.0.5",
     "vis-timeline": "8.5.4"
   },
   "bundledDependencies": {

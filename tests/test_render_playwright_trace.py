@@ -1428,7 +1428,9 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
 
     def bounded_marks():
         rendered(user)
-        assert lane.locator(".vis-timeline").bounding_box()["height"] <= 202
+        # The ruler, dedicated 44px scrub row, and space for three moment rows
+        # stay bounded despite twenty moments (244px plus rounding tolerance).
+        assert lane.locator(".vis-timeline").bounding_box()["height"] <= 246
         boxes = widget.locator(".lf-trace-marker").evaluate_all(
             "nodes => nodes.map(node => {const box = node.getBoundingClientRect(); return {x: box.x, y: box.y, width: box.width, height: box.height};}).filter(box => box.width && box.height)"
         )
@@ -1519,13 +1521,18 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
     expect(summary).to_have_text("Moments (20)")
     resized(user, 390, 844)
     bounded_marks()
-    # Vis virtualizes off-window items; resizing retains the focused native
-    # button while the complete list remains reachable in document flow.
-    focused_pin = widget.locator(".lf-trace-marker").last
-    focused_pin.focus()
-    expect(focused_pin).to_be_focused()
+    # Walk every native moment by keyboard before resizing. Alignment changes
+    # must retain the exact focused control, not send keyboard users to the body.
+    widget.get_by_role("group", name="Recording timeline", exact=True).focus()
+    for _ in range(20):
+        user.keyboard.press("Tab")
+        rendered(user)
+        expect(widget.locator(".lf-trace-marker:focus-visible")).to_have_count(1)
+    focused_pin_id = widget.locator(".lf-trace-marker:focus-visible").get_attribute(
+        "id"
+    )
     resized(user, 320, 844)
-    expect(widget.locator(".lf-trace-marker:focus")).to_have_count(1)
+    expect(widget.locator(f"#{focused_pin_id}:focus-visible")).to_have_count(1)
     bounded_marks()
     body = widget.locator(".lf-trace-body")
     assert body.evaluate("node => node.scrollHeight <= node.clientHeight + 1")

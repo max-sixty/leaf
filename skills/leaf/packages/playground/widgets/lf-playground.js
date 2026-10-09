@@ -23,6 +23,7 @@ import {
   compoundReadingRegionId,
   dressSamples,
   failSoft,
+  focusDestination,
   layoutChanged,
   notice,
   once,
@@ -231,7 +232,7 @@ customElements.define(
                 standing = standing.contentDocument.activeElement;
               range.addEventListener(
                 "focus",
-                () => standing.focus({ preventScroll: true }),
+                () => focusDestination(standing, "return"),
                 { once: true },
               );
             } else event.preventDefault();

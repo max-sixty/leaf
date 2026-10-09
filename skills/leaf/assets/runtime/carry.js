@@ -91,7 +91,7 @@ export function restoreCarry(
   // input generation and adopts the synchronous transfer when still permitted.
   handoffFocus(() => {
     for (const [arrived, record] of positions)
-      if (record.focus) focusDestination(arrived, record.caret);
+      if (record.focus) focusDestination(arrived, "return", { caret: record.caret });
   });
   return () => {
     for (const [arrived, record] of positions) {

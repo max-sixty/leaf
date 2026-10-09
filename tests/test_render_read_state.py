@@ -24,6 +24,7 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
+    page_comment,
     panel_settled,
     resized,
     round_trip,
@@ -530,7 +531,7 @@ def test_visible_message_waits_for_whole_document_presentation(browser, serve):
     # A long user opening pins the reply row, so the incoming answer can paint
     # immediately while the whole-document presentation proof is held below.
     root = panel_comment(
-        serve.page_dir, "\n\n".join(["Please report the result with its context."] * 20)
+        serve.page_dir, "\n\n".join(["Please report the result with its context."] * 30)
     )
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
@@ -676,8 +677,7 @@ def test_threads_keep_the_scroll_pair_separate_from_first_unread(
     else:
         expect(page.locator(".lf-first-unread")).to_be_hidden()
 
-    editor = page.locator(".lf-general leaf-text")
-    editor.focus()
+    editor = page_comment(page)
     page.keyboard.press("u")
     page.keyboard.press("g")
     page.keyboard.press("u")

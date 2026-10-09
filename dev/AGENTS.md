@@ -108,7 +108,9 @@ CI, `worker/`'s npm scripts and `.config/wt.toml` run these. The images they
 write live in `max-sixty/leaf-assets`, so outside `.tmp/` they write only the pin
 in `leaf-assets.json` and the README's image URLs that name it.
 
-- `leaf-dev site` builds <https://leaf.page/> into `.tmp/site`; `--output` gives an
+- `leaf-dev site` builds <https://leaf.page/> into `.tmp/site`, its edge assets into
+  `.tmp/site-assets`, and the prepared installation that vendors its pages and that
+  the container image installs into `.tmp/site-install`; `--output` gives an
   independent build its own destination. Writes to one destination are serialized.
   `npm run dev --prefix worker` builds and serves it through `wrangler dev`, which
   chooses available HTTP and inspector ports.

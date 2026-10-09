@@ -68,9 +68,9 @@ from .delivery import (
 from .files import read_json
 from .harness import Harness
 from .leases import sessions_home
-from .schema import THREAD_ANSWER_KINDS
 from .service import (
     PageTransaction,
+    delivery_reply_attempt,
     owned_pages,
     restore_page_claim,
     unacknowledged,
@@ -902,7 +902,12 @@ def _reply_parts(turn: dict) -> tuple[list[str], list[str]]:
 
 
 class AppServerReplyStream:
-    """Project and commit one App Server turn's opening and final answer as its reply."""
+    """Project one App Server turn's provisional reply and commit its final answer.
+
+    The provider owns this lifecycle; `thread.post_response` owns admission of the
+    durable answer. Partial text survives interruption and disconnect without
+    becoming thread history.
+    """
 
     def __init__(
         self,
@@ -911,9 +916,13 @@ class AppServerReplyStream:
         delivery_id: str,
         target: dict,
     ):
-        from .thread import DeliveryReply
-
-        self.reply = DeliveryReply(session_id, turn_id, delivery_id, target)
+        self.session_id = session_id
+        self.turn_id = turn_id
+        self.target = dict(target)
+        self.delivery_id = delivery_id
+        self.attempt = delivery_reply_attempt(delivery_id)
+        self.text = ""
+        self._replace(None, "")
         self.last_update = 0.0
 
     def update(self, update: dict | None) -> bool:
@@ -927,7 +936,7 @@ class AppServerReplyStream:
         now = time.monotonic()
         if not message["complete"] and now - self.last_update < STREAM_UPDATE_INTERVAL:
             return False
-        published = self.reply.replace(
+        published = self._replace(
             message["item"],
             message["text"],
             settles=message["complete"]
@@ -939,17 +948,118 @@ class AppServerReplyStream:
 
     def restore(self, text: str) -> bool:
         """Restore a still-running reply after reconnecting."""
-        return self.reply.replace(None, text)
+        return self._replace(None, text)
+
+    def _replace(
+        self,
+        item_id: str | None,
+        text: str,
+        *,
+        settles: bool = False,
+    ) -> bool:
+        """Replace the visible text without appending thread history."""
+        self.text = text
+        try:
+            with PageTransaction(Path(self.target["page"])) as page:
+                claim = page.active_claim
+                if (
+                    claim is None
+                    or claim["id"] != self.session_id
+                    or claim.get("turn") != self.turn_id
+                    or claim.get("turn_closed") is not None
+                ):
+                    return False
+                page.set_stream_reply(
+                    self.session_id,
+                    self.turn_id,
+                    self.target["reply_to"],
+                    self.target["responds"],
+                    self.attempt,
+                    item_id,
+                    text,
+                    "active",
+                    settles=settles,
+                )
+                return True
+        except FileNotFoundError:
+            return False
 
     def finish(
-        self, state: str, completed_text: str | None = None
+        self,
+        state: str,
+        completed_text: str | None = None,
     ) -> BaseException | None:
-        """Finish the delivery from completed provider evidence only."""
-        return self.reply.finish(state, completed_text)
+        """Commit only a completed final, retaining rejected or partial text.
+
+        A completed answer retains its delivered response address even when that
+        move was settled during the turn. The reply reopens the thread.
+
+        A commit appends the reply, then clears its binding and draft in a
+        separate transaction. Every other way out releases the binding, including
+        when recording the draft's last state fails. An abandoned binding would
+        block the harness from recording that no answer is coming.
+        """
+        from .thread import release_delivery_reply
+
+        committed = False
+        try:
+            if state == "completed" and completed_text:
+                try:
+                    self._commit(completed_text)
+                    committed = True
+                    return None
+                except (OSError, RuntimeError, SystemExit, ValueError) as error:
+                    self._set_state("failed", completed_text)
+                    return error
+            self._set_state(
+                state if state != "completed" else "partial",
+                self.text,
+            )
+            return None
+        finally:
+            if not committed:
+                release_delivery_reply(self.session_id, self.delivery_id, self.target)
 
     def disconnect(self) -> None:
-        """Keep partial text visible but mark its provider connection lost."""
-        self.reply.disconnect()
+        """Keep partial text visible while its provider connection recovers."""
+        self._set_state("disconnected", self.text)
+
+    def _set_state(self, state: str, text: str) -> None:
+        try:
+            with PageTransaction(Path(self.target["page"])) as page:
+                page.set_stream_reply_state(
+                    self.session_id,
+                    self.turn_id,
+                    self.attempt,
+                    text,
+                    state,
+                )
+        except FileNotFoundError:
+            pass
+
+    def _commit(self, text: str) -> dict | None:
+        from .thread import post_response
+
+        page_dir = Path(self.target["page"])
+        try:
+            accepted = post_response(
+                self.target["ref"],
+                text,
+                reservation=self.attempt,
+                attempt=self.attempt,
+                identity={"session": self.session_id},
+                claimed_session=self.session_id,
+            )
+            with PageTransaction(page_dir) as page:
+                page.clear_delivery_reply_binding(
+                    self.session_id,
+                    self.target["responds"],
+                    self.attempt,
+                )
+                page.clear_stream_reply(self.session_id, self.turn_id)
+            return accepted
+        except FileNotFoundError:
+            return None
 
 
 @contextmanager
@@ -1304,7 +1414,7 @@ def read_record(path: Path) -> dict | None:
     if record["state"] in {"offering", "accepted"}:
         try:
             payload = read_json(delivery_path(path.stem))
-        except ValueError, OSError:
+        except (ValueError, OSError):
             return None
         if not readable_delivery(payload, path.stem):
             return None
@@ -1572,7 +1682,7 @@ def append_batch(
     # A record carries at most one thread reply, so the turn an App Server offer
     # starts has one reply to write with its messages.
     replies = sum(
-        event["answer"]["kind"] in THREAD_ANSWER_KINDS
+        event["answer"]["kind"] == "reply"
         for entry in record["batches"]
         for event in entry["events"]
         if "answer" in event
@@ -1581,7 +1691,7 @@ def append_batch(
     selected = []
     for event in fresh:
         response = responses.get(event["id"])
-        if response is not None and response["kind"] in THREAD_ANSWER_KINDS:
+        if response is not None and response["kind"] == "reply":
             if replies:
                 break
             replies += 1
@@ -1589,7 +1699,7 @@ def append_batch(
     if not selected:
         return None
 
-    data = batch_data(page_dir, transaction, selected)
+    data = batch_data(page_dir, transaction, selected, responses=responses)
     entry = {
         **data,
         "session": session_id,
@@ -1676,7 +1786,7 @@ def finish_codex_batch(
                 "page": Path(batch["page"]),
                 "events": tuple(event["id"] for event in batch["events"]),
             }
-    except FileNotFoundError, ReceiptRefused:
+    except (FileNotFoundError, ReceiptRefused):
         pass
     with flocked(delivery_lock_path(batch["session"])):
         record = read_record(path)
@@ -1693,10 +1803,19 @@ UNCONFIRMED_TEXT = (
 )
 
 
-def settle_answered_deliveries(session_id: str) -> bool:
-    """Retire unknown harness attempts already answered manually, even while offline."""
+def reply_target_answered(target: dict) -> bool | None:
+    """Read exact reply completion, or None when its page no longer exists."""
     from .thread import answered_by_reply
 
+    try:
+        with PageTransaction(Path(target["page"])) as page:
+            return answered_by_reply(page.events, target["responds"])
+    except FileNotFoundError:
+        return None
+
+
+def settle_answered_deliveries(session_id: str) -> bool:
+    """Retire unknown harness attempts already answered manually, even while offline."""
     with flocked(delivery_lock_path(session_id)):
         pending = [
             path.stem
@@ -1709,12 +1828,7 @@ def settle_answered_deliveries(session_id: str) -> bool:
         target = delivery_stream_reply_target(session_id, delivery_id)
         if target is None:
             continue
-        try:
-            with PageTransaction(Path(target["page"])) as page:
-                answered = answered_by_reply(page.events, target["responds"])
-        except FileNotFoundError:
-            continue
-        if answered:
+        if reply_target_answered(target):
             abandon_uncertain_delivery(
                 session_id, read_json(delivery_path(delivery_id))
             )
@@ -1783,7 +1897,7 @@ def finish_abandoned_batch(path: Path, batch_index: int, batch: dict) -> None:
                 session=session_id,
                 failure=UNCONFIRMED_DELIVERY,
             )
-    except FileNotFoundError, ReceiptRefused:
+    except (FileNotFoundError, ReceiptRefused):
         pass
     with flocked(delivery_lock_path(session_id)):
         record = read_record(path)

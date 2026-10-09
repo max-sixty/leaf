@@ -167,7 +167,8 @@ kind of task goes in `/developing-leaf`.
 ### The install runs this tree
 
 Consumer installers follow the CI-built `prepared` Git branch. The browser kernel
-is compiled there; development branches keep its source modules. Installation,
+is compiled there; development branches keep its source modules. The leaf.page
+container runs the same preparation, which `leaf-dev site` builds beside the site. Installation,
 page authoring, custom packages, and export require no browser build or npm command.
 `dev/leaf_dev/distribution.py` owns preparation and publication.
 
@@ -314,6 +315,12 @@ Before finishing a feature:
   format and phrasing to the agent. Where an agent could read the change more
   than one way, score it with `evals/` before and after (`/developing-leaf`,
   "Score an instruction change").
+
+Local compute is often the bottleneck because several sessions share one machine.
+Before widening a local test selection or increasing parallelism, check current
+CPU use, memory pressure, and other running test suites. Weigh the extra evidence
+against the cost to all sessions; on a busy host, favor focused checks and avoid
+redundant overlapping runs. The required landing gates still have to pass.
 
 Before handing over, run the tests that hold what the change touches; the broad
 selection, `uv run pytest tests`, and `npm run test:runtime` run at landing

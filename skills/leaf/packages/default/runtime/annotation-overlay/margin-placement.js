@@ -11,7 +11,7 @@
    then writes. Each fold answers from its arguments alone, so `tests/runtime/` runs them
    without a browser. */
 
-import { overlaps, overlapsAcross } from "/runtime/rect.js";
+import { clamp, overlaps, overlapsAcross } from "/runtime/rect.js";
 
 // A row stands in the rail when the page has one, the rail stands beside the box that
 // scrolls its target (the document, or a bounded block in its flow; never a pane), and
@@ -107,8 +107,9 @@ const inSeatingOrder = (rows) =>
 // Where every pin stands, in seating order, so a pin seated first is one the next keeps
 // off (`pinSpot`). A held pin keeps the rect it holds: unfolding its options widens it,
 // and a seat taken again at that width could move the control the user is pressing. It is
-// seated first, so no other pin takes its room. A pin with no `parts` to read around
-// stands at its home.
+// seated first, so no other pin takes its room. A held seat that no longer fits the
+// current bounds is seated again, so narrowing a window keeps its controls reachable.
+// A pin with no clear seat uses its home, shifted inside its bounds.
 //
 // A pin that finds no room for its resting face stands folded where it can fold: one
 // control, its options' toggle, seated as any pin is at that size, so it takes room the
@@ -151,39 +152,50 @@ export function seatRows(pins, { reach, gap }) {
         line: pin.line,
         gap,
       });
-    let rect = pin.held;
     let folded = Boolean(pin.folds && pin.folded);
+    const foldWidth = pin.folds && pin.folds.rect.right - pin.folds.rect.left;
+    const foldBounds = pin.folds && {
+      ...pin.bounds,
+      // Reserve the opened actions to the toggle's left. Where the whole group
+      // cannot fit, keep at least its toggle inside the right edge.
+      left: Math.min(
+        pin.bounds.left + pin.folds.open - foldWidth,
+        pin.bounds.right - foldWidth,
+      ),
+    };
+    const held = pin.held && {
+      ...pin.held,
+      left: folded ? pin.held.right - foldWidth : pin.held.left,
+    };
+    const heldBounds = folded ? foldBounds : pin.bounds;
+    let rect =
+      held &&
+      held.left >= heldBounds.left &&
+      held.right <= heldBounds.right &&
+      held.top >= heldBounds.top &&
+      held.bottom <= heldBounds.bottom
+        ? held
+        : null;
     if (!rect && own.length) {
       rect = spot(pin);
       folded = !rect && Boolean(pin.folds);
       if (folded) {
-        const { rect: home, open } = pin.folds;
-        const bounds = {
-          ...pin.bounds,
-          left: pin.bounds.left + open - (home.right - home.left),
-        };
-        // Bounds narrower than the opened pin keep at least the toggle inside them.
-        const left = Math.min(
-          Math.max(home.left, bounds.left),
-          pin.bounds.right - (home.right - home.left),
-        );
-        rect = spot(pin.folds, bounds) ?? {
-          ...home,
-          left,
-          right: left + home.right - home.left,
-        };
+        rect = spot(pin.folds, foldBounds) ?? boundedHome(pin.folds.rect, foldBounds);
       }
     }
-    rect ??= pin.rect;
-    if (pin.held && folded)
-      rect = {
-        ...rect,
-        left: rect.right - (pin.folds.rect.right - pin.folds.rect.left),
-      };
+    rect ??= boundedHome(pin.rect, pin.bounds);
     seats.set(pin.key, { rect, folded });
     seated.push(rect);
   }
   return seats;
+}
+
+function boundedHome(home, bounds) {
+  const width = home.right - home.left;
+  const height = home.bottom - home.top;
+  const left = clamp(home.left, bounds.left, bounds.right - width);
+  const top = clamp(home.top, bounds.top, bounds.bottom - height);
+  return { left, right: left + width, top, bottom: top + height };
 }
 
 // Where a pin stands. A pin has a seat: right after the end of a run of text, where a

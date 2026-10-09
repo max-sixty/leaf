@@ -60,6 +60,7 @@ from render_harness import (
     LONG_PAGE,
     consume_browser_errors,
     open_page,
+    page_comment,
     panel_settled,
     told,
     write,
@@ -1145,7 +1146,9 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
     )
     monkeypatch.setattr(verify_site, "ROOT", root)
     monkeypatch.setattr(verify_site, "BUILD_SITE", [sys.executable, str(build_site)])
-    monkeypatch.setattr(verify_site, "SERVE_SITE", [sys.executable, str(serve_site)])
+    monkeypatch.setattr(
+        verify_site, "serve_site", lambda install: [sys.executable, str(serve_site)]
+    )
     monkeypatch.setenv("CODEX_HOME", str(host_home))
     monkeypatch.setenv("LEAF_CODEX_APP_SERVER", "unix:///another-session.sock")
     with (
@@ -3043,8 +3046,8 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     told(page)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
+    box = page_comment(page)
     page.evaluate("window.__leafVerifier.startVisibleReplyClock")
-    box = page.locator(".lf-general leaf-text")
     write(box, "edit the page")
     box.press("ControlOrMeta+Enter")
     told(page)
@@ -3058,12 +3061,15 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     watcher = take_lease(waiter_lease_path(page_dir, "hosted-thread"))
     assert watcher is not None
     request.addfinalizer(watcher.close)
+    thread = page.locator(f'.lf-threads > [data-id="{comment["id"]}"]')
+    # An active editor holds the turn's update so this journey exercises the receipt
+    # beside held news; an idle panel thread now shows the update immediately.
+    thread.locator("leaf-text").focus()
     turn.begin()
     # Present the accepted turn before resolving it: coalescing these server writes
     # would never exercise a workflow receipt disappearing beside the news control.
     told(page)
     rendered(page)
-    thread = page.locator(f'.lf-threads > [data-id="{comment["id"]}"]')
     metadata = thread.locator(
         ".lf-thread-transcript > .lf-msg:first-child > .lf-msg-head"
     )
@@ -3150,6 +3156,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     assert news.bounding_box()["x"] == news_left
     assert held_header() == held
     if read_elsewhere:
+        box = page_comment(page)
         write(box, "A separate thread")
         box.press("ControlOrMeta+Enter")
         told(page)
@@ -3186,7 +3193,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
         expect(thread.locator(".lf-msg.agent")).to_be_hidden()
         assert set(current_responses(page_dir, read_events(page_dir))) == {other["id"]}
     else:
-        # The short thread's reopened answer would move its writing box, so the
+        # The short thread's reopened answer would move its active editor, so the
         # reader explicitly opens the news before the visibility clock can see it. The
         # card stands as drawn, open, so the reopening is no news.
         expect(news).to_have_text("1 new reply")
@@ -3241,8 +3248,8 @@ def test_a_reply_that_cannot_be_written_still_closes_its_website_turn(
 ):
     """The page stops saying the agent is working, however the reply went.
 
-    `DeliveryReply` guards only the commit of a completed answer: setting the state
-    and releasing the binding open page transactions of their own, and the turn's own
+    `AppServerReplyStream` guards only the commit of a completed answer. Setting
+    its state and releasing the binding open their own page transactions; the turn's
     work may have left that page unopenable. The turn has ended either way, and until
     its Leaf turn closes the page tells its user the agent is working, with nothing
     but the claim's grace to correct it — and the move it was carrying goes without
@@ -3263,7 +3270,7 @@ def test_a_reply_that_cannot_be_written_still_closes_its_website_turn(
     def unopenable(*_args):
         raise OSError("the page could not be opened")
 
-    monkeypatch.setattr("leaf.thread.DeliveryReply._set_state", unopenable)
+    monkeypatch.setattr("leaf.codex.AppServerReplyStream._set_state", unopenable)
     with pytest.raises(OSError, match="could not be opened"):
         turn.commit({"id": "app-server-turn", "status": "completed", "items": []})
 
@@ -3644,6 +3651,30 @@ def test_attention_is_recorded_for_each_page_on_a_shared_server(page_dir, tmp_pa
                 json.loads((site / "examples" / name / "viewed.json").read_text())["t"]
                 > 0
             )
+
+
+def test_the_website_refuses_a_page_another_leaf_vendored(page_dir, tmp_path):
+    """The container serves only pages its own Leaf's runtime vendored, as every page
+    server does; a site built by another Leaf breaks in the browser otherwise."""
+    site = tmp_path / "site"
+    published = site / "examples" / "decision"
+    published.parent.mkdir(parents=True)
+    shutil.copytree(page_dir, published)
+    registry_path = published / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["$layer"]["runtime"] = f"sha256:{'0' * 64}"
+    registry_path.write_text(json.dumps(registry))
+    write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
+    httpd = LeafHTTPServer(("127.0.0.1", 0), website_server.site_endpoint(site))
+    root = f"http://127.0.0.1:{httpd.server_address[1]}/examples/decision"
+    with (
+        running_http_server(httpd),
+        pytest.raises(urllib.error.HTTPError) as refused,
+    ):
+        get(f"{root}/api/state")
+    assert refused.value.code == 500
+    told = json.loads(refused.value.read())["error"]
+    assert "vendored from another Leaf's runtime" in told
 
 
 def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeypatch):
@@ -4126,7 +4157,9 @@ def test_the_preview_generator_bootstraps_a_new_catalog_entry(tmp_path, monkeypa
 
     assets = example_previews.bootstrap_assets(tmp_path / "assets")
     site = tmp_path / "site"
-    example_previews.site_build.build_examples(site, assets=assets)
+    example_previews.site_build.build_examples(
+        site, example_previews.site_build.checkout_leaf(), assets=assets
+    )
 
     assert (
         assets / "examples" / "example-ideas-to-implement.jpg"
@@ -4469,8 +4502,14 @@ class _FailedFirstTurn:
         self.last_response = None
 
     def locator(self, selector: str):
-        assert selector == ".lf-general leaf-text"
+        assert selector in {
+            ".lf-banner-actions > .lf-page-comment",
+            ".lf-page-comment-card leaf-text",
+        }
         return self
+
+    def click(self) -> None:
+        pass
 
     def focus(self) -> None:
         pass

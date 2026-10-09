@@ -269,7 +269,7 @@ idle a preview to quiet the loop; `idle` closes the page in the browser.
 ## Run the agent journey
 
 `uv run --project <root> leaf-dev journey TARGET` runs one user's journey in
-Chrome: on the triage board, it tells the agent through Threads that a release
+Chrome: on the triage board, it tells the agent in a page comment that a release
 passed its checks and asks it to record that, leaving how to the agent, then checks
 a reply shows and a reload presents a revision naming the release. It prints how long each step took, the agent's steps on the page
 server's clock, so the same journey benchmarks every harness. TARGET is `claude-code`

@@ -473,7 +473,13 @@ stay literal and uncolored when they are not source code.
 
 The runtime injects the status banner, thread panel, Versions menu, keyboard
 shortcuts, live-leaves drawer, and Questions panel, which lists the page's open Asks.
-Do not duplicate that chrome or keep a second list of the Asks in the page.
+Readers can turn off **Quick keyboard shortcuts** under **More → Keyboard shortcuts**.
+This preference persists across pages on the same origin and removes Leaf's character
+shortcuts and their hints; commands and ordinary control navigation remain available.
+A package can arrange conversations and obligations with the canonical APIs in
+`module-authoring.md`, "Owning the primary conversation presentation" and "Reading
+Asks and obligation queues". Leaf owns their state, rendering, and activation;
+page composition can choose their layout.
 
 Keep content within its allocated column, visual surface, or pane. The theme scrolls a `<pre>` or a table
 that runs wider than its container and fits an image or SVG to it, so none of them needs a

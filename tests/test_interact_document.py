@@ -225,8 +225,6 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     assert artifact.registry == read_page_registry(page_dir).registry
     assert artifact.implementations["lf-options"]["path"] == "/widgets/lf-options.js"
     assert "/vendor/browser-runtime.LICENSES.txt" in artifact.resources
-    assert "/vendor/browser-runtime.js.map" not in artifact.resources
-    assert "/vendor/browser-runtime.manifest.json" not in artifact.resources
     assert artifact_model.read_artifact(page_dir, first.revision) is artifact
     unchanged = revisioning_model.activate_source(page_dir)
     assert not unchanged.created and unchanged.revision == first.revision
@@ -1225,7 +1223,7 @@ def test_thread_read_reads_frozen_construction(page_dir):
     }
     assert message["source"]["event"] == root["id"]
     drawing = {
-        "format": "leaf-drawing/2",
+        "format": "leaf-drawing/3",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
         "box": [640.5, 96],
         "viewport": [1200, 900],

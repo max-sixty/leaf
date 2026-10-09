@@ -172,6 +172,15 @@
      document already keeps clear of both (html[data-lf-live], below). */
   --lf-view-height: calc(100dvh - var(--lf-banner-h) - var(--lf-bottom-bar-h));
   --lf-top: var(--lf-banner-h);
+  /* How far below where a sticky header sticks a scroller's landing band starts. On
+     the root that is what stands over the whole root under the banner (a page tab
+     strip, `--lf-root-headers`) and the room a landing leaves for the focus ring
+     (`--lf-landing-gap`), which the root's `scroll-padding-top` adds below. What a page
+     tab strip stands over sticks under it, so there the room is the gap alone (the
+     default package). A sticky header's controls take it back (shadow.css, at
+     `--lf-head-inset`), and a box that scrolls restarts it. */
+  --lf-landing-gap: 12px;
+  --lf-landing-room: calc(var(--lf-root-headers, 0px) + var(--lf-landing-gap));
   /* The page tab strip's stated height: its 8px head, a name's 38px face or the aim
      floor where that is taller, and its 1px rule. The default package draws the strip
      at it, and the root's `scroll-padding` adds it where a page tab strip stands over
@@ -545,9 +554,10 @@ html:not([data-lf-live]) {
  * the content is an inset the box did not state, and it is the whole of the marking on a
  * quotation, where 16px of bar ran past the exhibit at each end.
  *
- * `margin-trim` is the property for this and Chrome hasn't got it (151: `CSS.supports`
- * says no, and the declaration lays nothing out), so the trim is written here — and the
- * half worth thinking about is who writes it. A list of the boxes that frame what they
+ * Native `margin-trim` is not available in every served browser and does not share
+ * this contract for generated children and non-collapsing layout contexts
+ * (notes/browser-support.md, "Frame margin trimming"), so the trim is written here.
+ * A list of the boxes that frame what they
  * hold is the closed list the norms forbid: a layer's stylesheet can only name that
  * layer's own, so a project's card is outside it and the failure is a silent 13px rather
  * than an error. A box says so itself instead, in the same declaration where it draws the
@@ -586,7 +596,9 @@ html:not([data-lf-live]) {
  * the edge stops being right: its first item at the frame's edge would lose its margin
  * and the items beside it keep theirs, so the row no longer lines up. A stylesheet cannot
  * ask a box for its display, so such a box says so, --lf-holds-edge: 1, and the trim
- * stops at it. */
+ * stops at it. Direct frames and propagated edges share one rule per edge, so that
+ * boundary holds even when the row draws its own frame. The frame reset remains
+ * independent: a row still bounds its content when its children keep their margins. */
 @property --lf-frame-start {
   syntax: "<integer>";
   inherits: false;
@@ -603,23 +615,15 @@ html:not([data-lf-live]) {
   initial-value: 0;
 }
 @container style(--lf-block-frame: 1) or style(--lf-block-frame: trim) {
-  :nth-child(1 of :not(.lf-ui, [data-lf-gen])) {
-    margin-block-start: 0;
-    --lf-frame-start: 1;
-  }
-  :nth-last-child(1 of :not(.lf-ui, [data-lf-gen])) {
-    margin-block-end: 0;
-    --lf-frame-end: 1;
-  }
   * { --lf-block-frame: 0; }
 }
-@container style(--lf-frame-start: 1) and (not style(--lf-holds-edge: 1)) {
+@container (style(--lf-block-frame: 1) or style(--lf-block-frame: trim) or style(--lf-frame-start: 1)) and (not style(--lf-holds-edge: 1)) {
   :nth-child(1 of :not(.lf-ui, [data-lf-gen])) {
     margin-block-start: 0;
     --lf-frame-start: 1;
   }
 }
-@container style(--lf-frame-end: 1) and (not style(--lf-holds-edge: 1)) {
+@container (style(--lf-block-frame: 1) or style(--lf-block-frame: trim) or style(--lf-frame-end: 1)) and (not style(--lf-holds-edge: 1)) {
   :nth-last-child(1 of :not(.lf-ui, [data-lf-gen])) {
     margin-block-end: 0;
     --lf-frame-end: 1;
@@ -656,7 +660,7 @@ html { background: var(--paper); }
     overflow-y: scroll;
     /* A sticky header over the whole root, a page tab strip, adds its stated height as
      * `--lf-root-headers` (lf-tabs.js). */
-    scroll-padding-top: calc(var(--lf-banner-h) + var(--lf-root-headers, 0px) + 12px);
+    scroll-padding-top: calc(var(--lf-banner-h) + var(--lf-landing-room));
     scroll-padding-bottom: calc(var(--lf-bottom-bar-h) + max(12px, var(--focus-ring-room)));
     /* The bottom bar's room is the body's own end, where content growing above it only
      * lengthens the body: a box standing after the content would move with each growth. */
@@ -872,6 +876,10 @@ main {
 /* Where a box that scrolls starts the slot for what it holds, read by the restart above;
  * its own, so not inherited, which would start a scroller inside it there too. */
 @property --lf-top-start { syntax: "<length>"; inherits: false; initial-value: 0px; }
+/* Where a box that scrolls starts the landing room for what it holds: its own
+ * `scroll-padding-top` less where its slot starts, 0 unless it states one (a thread
+ * list keeps the ring's room). */
+@property --lf-landing-room-start { syntax: "<length>"; inherits: false; initial-value: 0px; }
 /* The same for a box sticking at its scroller's foot: what it stands over takes its
  * height and offset as `--lf-bottom`, and the runtime's reading of what is on screen
  * leaves that band out too (geometry.js, `footerInset`). A long open thread's reply
@@ -1430,8 +1438,8 @@ lf-suggestion:has(> :is(lf-old, lf-new) > :not(a, abbr, area, audio, b, bdi, bdo
  * survivor gives up its padding over the same span — a block slot's 10px is the sentence
  * the user is looking at stepping sideways, which is the jerk the fold is there to
  * remove, only smaller. Declared on the slot rather than on the decided state, because a
- * transition is read from the state the element is leaving; the reduced-motion guard at
- * the foot of this file takes it with everything else.
+ * transition is read from the state the element is leaving; the shared reduced-motion
+ * guard in shadow.css takes it with everything else.
  *
  * Padding alone. The tint going is paint, which a state change may do freely, and a
  * transitioned background is the thing the choose group's own comment above warns
@@ -1641,35 +1649,6 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
    answers paper itself. */
 .lf-error pre { margin: 8px 0 0; white-space: pre; }
 @media print { .lf-error pre { white-space: pre-wrap; } }
-
-/* Reduced motion: one global guard covers every animation and transition in the
- * theme and the injected layers (!important outranks inline styles, so
- * JS-driven transitions stop too). JS-driven motion goes through the runtime's
- * motion() and the live motion readings, which answer the same preference themselves.
- *
- * The two halves are not written alike, because a duration is a way of keeping
- * an animation and no way at all of keeping a transition. An animation is
- * declared and named, and `animationend` is how the layer knows one has run —
- * the thread list takes `grow` off a card that way — so the near-zero duration
- * keeps that event and spends no time on it. It runs once, since an endless
- * animation at that duration repeats on every frame, showing a different point
- * of its keyframes each time: a pulse becomes a flicker, and the page never
- * rests. A transition is declared by
- * nobody: `transition-property` is `all` until something says otherwise, so a
- * duration on every element makes a transition out of every property that
- * changes, on every element, and none of them is a transition this theme
- * wrote. Nothing listens for `transitionend`, so they were kept for no one and
- * were not free: a running transition's animated value is what the platform
- * reports for the property, so for the frames one of these took, every reading
- * of a box's style — the render gate's included — was told the value the
- * property was leaving rather than the one on screen. */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: .01ms !important;
-    animation-iteration-count: 1 !important;
-    transition: none !important;
-  }
-}
 
 /* A pane is one task region: an optional header, one body element, an optional footer,
  * with no generated wrappers. It is whatever element declares `x-reading-role: pane`,

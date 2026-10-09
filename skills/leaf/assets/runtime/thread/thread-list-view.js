@@ -14,7 +14,7 @@
    refusing a provisional thread preserves the conversation the user had selected.
 
    Focus given to the list goes on to that card's title, whatever gave it — `g T`, an
-   Escape from the panel's general box, a fold that took the focused card — so
+   Escape from the panel's find box, a fold that took the focused card — so
    every key answers for the thread the screen shows selected. The list keeps focus
    itself only while it shows no card, and its ring never outlines one, and no title
    holds focus closed: focus, selection and the open card never part.
@@ -25,12 +25,11 @@
    once shown, drawn resolved in the shape it stood in, until its going would move
    nothing the user sees. */
 import { html, repeat } from "../../vendor/browser-runtime.js";
-import { focused } from "../keyboard/scopes.js";
-import { holdFocus, onStanding } from "../focus.js";
+import { holdFocus, onStanding, focusDestination, focused } from "../focus.js";
 import { RetainedFace } from "../retained-face.js";
 import { ThreadView } from "./thread-card.js";
 import { draftHasContent } from "../drafts.js";
-import { focusThread } from "./focus.js";
+import { forwardToThread } from "./focus.js";
 import { passOn, retainUserIntent } from "../user-intent.js";
 import { layoutChanged } from "../widget-elements.js";
 import { isFolding } from "./folding.js";
@@ -202,7 +201,7 @@ class ThreadListView extends RetainedFace {
       const open = this.#expandedRow();
       if (!open) return;
       // Handed on with the cause that gave the list its focus (`chooseTitle`).
-      focusThread(open.node, { preventScroll: true });
+      forwardToThread(open.node);
       passOn(this, focused());
     });
   }
@@ -261,7 +260,7 @@ class ThreadListView extends RetainedFace {
       if (generation !== this.#generation) return false;
       const focus = this.#rollbackFocus;
       if (focus?.node.isConnected && focus.mayRestore())
-        focus.node.focus({ preventScroll: true });
+        focusDestination(focus.node, "return");
       this.#rollbackFocus = null;
       return this.committed;
     } finally {

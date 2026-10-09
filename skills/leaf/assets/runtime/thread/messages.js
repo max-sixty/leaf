@@ -2,8 +2,11 @@
 
    Every surface uses the same message, header and body vocabulary. Generated
    metadata, prose, workflow and reaction placement have one owner. Each message
+   projects pasted attachments separately from its words using the draft's media
+   reading, so a retained text viewport never clips an attachment. Each message
    retains its header and body together, sharing delivery, unread and fold state.
-   Its header declares its stationary text-reflow boundary. An
+   Its header declares its stationary text-reflow boundary and hosts the thread's
+   disclosure for progress completed by that reply. An
    immutable descriptor changes prose without reconnecting the validated authored
    fragment. A new message cues its own words once on first presentation, in every
    surface: one the user just sent, and any turn, whoever wrote it, joining a thread
@@ -21,6 +24,7 @@ import {
 import { reportPageError } from "../layer-client.js";
 import { isReaction, moved } from "./model.js";
 import { tokenEntry } from "../registry.js";
+import { readPastedMedia, writePastedMedia } from "../media.js";
 import {
   rememberAuthoredParents,
   stageAuthoredStates,
@@ -69,14 +73,17 @@ function proseReading(message) {
     reading.text !== text ||
     reading.markdown !== markdown
   ) {
-    const html = renderMarkdown(text);
+    const pasted = readPastedMedia(text);
+    const html = renderMarkdown(pasted.text);
+    const mediaHtml = renderMarkdown(writePastedMedia("", pasted.paths));
     reading = Object.freeze({
       id: message.id,
       edited,
       text,
       markdown,
       html,
-      plainText: renderedWords(html),
+      mediaHtml,
+      plainText: renderedWords(html + mediaHtml),
     });
     renderedProse.set(key, reading);
   }
@@ -155,6 +162,7 @@ export function messageReading(
   return Object.freeze({
     key: message.attempt ?? message.id,
     id: message.id,
+    version: message.edited?.id ?? message.id,
     seq: moved(message).seq,
     unread: message.unread,
     attempt: message.attempt ?? null,
@@ -172,6 +180,7 @@ export function messageReading(
       kind,
       text: message.text ?? "",
       html: prose?.html ?? "",
+      mediaHtml: prose?.mediaHtml ?? "",
       plainText: prose?.plainText ?? message.text ?? "",
       drawing: Boolean(message.drawing),
       token: message.token ?? null,
@@ -192,6 +201,7 @@ export class MessageView {
   #authored = null;
   #dressed = false;
   #arrivalMotion = null;
+  #stopRead = null;
   #header = document.createElement("div");
 
   constructor(commands) {
@@ -199,7 +209,7 @@ export class MessageView {
     this.node = document.createElement("div");
   }
 
-  present(model, { arrived = false } = {}) {
+  present(model, { arrived = false, headerControls = nothing } = {}) {
     const prior = this.#model;
     this.#model = model;
     const panel = model.panel;
@@ -261,6 +271,7 @@ export class MessageView {
               : nothing
           }
         </span>
+        ${headerControls}
       `,
       this.#header,
     );
@@ -303,8 +314,7 @@ export class MessageView {
     }
     // Markdown is an opaque property part: tokenization never rewrites Lit markers.
     highlightBlocks(this.node);
-    this.#commands.read.observeBody(
-      this.node,
+    this.#stopRead = this.#commands.read.observeMessage(
       this.node.querySelector(":scope > .lf-msg-body"),
       model,
     );
@@ -312,8 +322,8 @@ export class MessageView {
       // One phase drives the message's ground and its sticky header. CSS resolves
       // the tint and resting colour at this message after insertion; Firefox's
       // Web Animations interpolates a var() colour keyframe discretely.
-      // The shared motion gate answers for restoration and reduced motion; opacity
-      // continues to describe delivery independently (marks.css).
+      // The shared motion gate answers for restoration and reduced motion; the
+      // delivery receipt and busy cursor remain independent of the arrival tint.
       this.#arrivalMotion = motion(
         this.node,
         [{ "--lf-msg-arrival": 1, offset: 0 }],
@@ -332,7 +342,12 @@ export class MessageView {
       </div>`;
     if (body.kind === "suggestion")
       return html`<div class="lf-msg-text" .textContent=${body.text}></div>`;
-    return html`<div class="lf-msg-text" .innerHTML=${body.html}></div>`;
+    return html`<div class="lf-msg-text" .innerHTML=${body.html}></div>
+      ${
+        body.mediaHtml
+          ? html`<div class="lf-msg-media" .innerHTML=${body.mediaHtml}></div>`
+          : nothing
+      }`;
   }
 
   commit() {
@@ -345,7 +360,7 @@ export class MessageView {
   retire() {
     this.#arrivalMotion?.cancel();
     this.#reaction?.retire();
-    this.#commands.read.forgetBody(this.node);
+    this.#stopRead?.();
   }
 }
 

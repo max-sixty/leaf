@@ -9,7 +9,7 @@ from interact_support import append_carried_log_record, element_declaration
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import server as server_model
-from leaf.render_checks import one_frame, rendered
+from leaf.render_checks import one_frame, rendered, wait_until_ready
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -90,6 +90,7 @@ from render_harness import (
     open_page,
     open_versions,
     opened_tab,
+    page_comment,
     pane_posture,
     panel_settled,
     post_event,
@@ -2771,7 +2772,9 @@ def test_color_cues_fade_to_the_live_surface(request, serve, engine, target):
         expect(box).to_be_focused()
         write(box, "Review both choices.")
         page.keyboard.press("Enter")
-        expect(page.locator(".lf-page-comment-card")).not_to_be_visible()
+        card = page.locator(".lf-page-comment-card")
+        expect(card).to_be_visible()
+        expect(card).to_be_focused()
         cue_target = page.locator(".lf-threads-toggle")
     colours = cue_target.evaluate(
         """async node => {
@@ -5072,14 +5075,6 @@ def test_threads_answers_c_in_the_thread_it_expanded_for_a_target(browser, serve
 EXPANDED = ".lf-threads > .lf-thread:not([hidden])[open]"
 LIST_ROUTES = {
     "go to Threads": ["g", "Shift+t"],
-    # `c` opens the banner's page comment card while Threads is shut, so the panel's own
-    # box is entered directly once Threads is open.
-    "back out of the page box": [
-        "g",
-        "Shift+t",
-        "focus:.lf-general leaf-text",
-        "Escape",
-    ],
     "walk to a title": ["g", "Shift+t", "t"],
 }
 
@@ -5106,10 +5101,7 @@ def test_the_threads_list_hands_focus_to_the_thread_it_shows_open(
     )
     page.set_viewport_size({"width": width, "height": 900})
     for step in route:
-        if step.startswith("focus:"):
-            page.locator(step.removeprefix("focus:")).focus()
-        else:
-            page.keyboard.press(step)
+        page.keyboard.press(step)
         rendered(page)
 
     card = page.locator(EXPANDED)
@@ -5493,8 +5485,11 @@ def test_what_the_user_put_on_after_the_panel_comes_off_before_it(browser, serve
 def test_an_ask_navigation_keeps_its_intent_while_materializing_threads(
     browser, serve, intervene, from_drawer
 ):
-    """A newer user move owns focus even before the requested Ask has a live node."""
+    """A newer user move owns focus even before the requested Ask has a live node.
+
+    The move is into the panel the walk is opening, the box that narrows its list."""
     page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
+    find = page.get_by_role("searchbox", name="Find in threads")
     if from_drawer:
         resized(page, 390, 844)
         page.keyboard.press("g")
@@ -5519,12 +5514,12 @@ def test_an_ask_navigation_keeps_its_intent_while_materializing_threads(
         page.keyboard.press("Enter" if from_drawer else "q")
         page.wait_for_function("window.askMaterializationStarted === true")
         if intervene:
-            page.locator(".lf-general leaf-text").focus()
+            find.focus()
     finally:
         page.evaluate("releaseAskMaterialization()")
     rendered(page)
     if intervene:
-        expect(page.locator(".lf-general leaf-text")).to_be_focused()
+        expect(find).to_be_focused()
     else:
         expect(page.locator(".lf-thread lf-ask[data-lf-ask]")).to_be_focused()
 
@@ -8165,6 +8160,58 @@ def test_the_g_chord_opens_an_empty_page_map(browser, serve):
     expect(sheet.locator(".lf-page-map-action")).to_have_count(0)
 
 
+@pytest.mark.parametrize("route", ["Escape", "Close"])
+@pytest.mark.parametrize("nested", [False, True])
+def test_page_map_cancellation_returns_to_its_opener_without_moving_the_reading(
+    browser, serve, route, nested
+):
+    content = (
+        '<div style="height:900px"></div><button id="reading-control">Reading control</button>'
+        '<div style="height:900px"></div>'
+    )
+    if nested:
+        content = (
+            f'<div id="reading" style="height:350px;overflow:auto">{content}</div>'
+        )
+    page = open_page(browser, serve(leaf_page("Map return", content)))
+    page.locator("#reading-control").focus()
+    page.locator("#reading-control").scroll_into_view_if_needed()
+    reading = """() => ({page: document.scrollingElement.scrollTop,
+      nested: document.querySelector('#reading')?.scrollTop ?? 0})"""
+    before = page.evaluate(reading)
+    page.locator(".lf-page-map-toggle").evaluate("node => node.click()")
+    sheet = page.get_by_role("dialog", name="Page Map", exact=True)
+    expect(sheet).to_be_visible()
+    if route == "Escape":
+        page.keyboard.press("Escape")
+    else:
+        sheet.get_by_role("button", name="Close Page Map").click()
+    expect(sheet).to_be_hidden()
+    expect(page.locator("#reading-control")).to_be_focused()
+    assert page.evaluate(reading) == before
+
+
+@pytest.mark.parametrize("route", ["Escape", "Close"])
+def test_page_map_cancellation_without_an_opener_keeps_the_scrolled_reading(
+    browser, serve, route
+):
+    page = open_page(browser, serve(LONG_PAGE))
+    page.evaluate("() => document.getElementById('p40').scrollIntoView()")
+    page_at_rest(page)
+    before = page.evaluate("() => document.scrollingElement.scrollTop")
+    page.locator(".lf-page-map-toggle").evaluate("node => node.click()")
+    sheet = page.get_by_role("dialog", name="Page Map", exact=True)
+    expect(sheet).to_be_visible()
+    if route == "Escape":
+        page.keyboard.press("Escape")
+    else:
+        sheet.get_by_role("button", name="Close Page Map").click()
+    expect(sheet).to_be_hidden()
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == before
+    page.keyboard.press("Tab")
+    assert not page.evaluate(STANDING)["isFirstStop"]
+
+
 def test_generated_hints_refresh_to_the_visible_scene_after_scroll(browser, serve):
     """Scroll changes the map at rest without letting an old letter act elsewhere."""
     page = open_page(
@@ -8327,8 +8374,10 @@ def test_only_controls_and_boxes_with_something_out_of_sight_take_a_tab_stop(
     controls = {"BUTTON", "INPUT"}
     dead = [s for s in stops if s["tag"] not in controls and not s["scrolls"]]
     assert dead == [], f"tab stops on boxes with nothing out of sight: {dead}"
+    # The preference checkbox and command search each keep their native stop.
     assert [s["tag"] for s in stops if s["tag"] in controls] == [
         "BUTTON",
+        "INPUT",
         "INPUT",
         "BUTTON",
     ]
@@ -8852,7 +8901,10 @@ def test_the_reference_keeps_its_top_and_search_still_when_filtering(
             ).to_have_count(1)
         if query == "no command has these words":
             expect(reference.locator(".lf-command-reference-empty")).to_be_visible()
-            assert reference.bounding_box()["height"] < initial_dialog["height"]
+            # At the shortest viewport both states can meet the same height limit.
+            assert reference.bounding_box()["height"] <= initial_dialog["height"]
+            if viewport[1] > 320:
+                assert reference.bounding_box()["height"] < initial_dialog["height"]
         expect(search).to_be_focused()
         dialog = reference.bounding_box()
         field = search.bounding_box()
@@ -9075,7 +9127,7 @@ def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
     page.keyboard.press("?")
     page.keyboard.press("?")
     edit = page.locator('.lf-command-reference-command[data-lf-command="draft.edit"]')
-    expect(edit).to_have_text("Edit…")
+    expect(edit).to_have_text("Edit")
     edit.click()
     expect(page.locator("#note leaf-text")).to_be_focused()
 
@@ -9084,9 +9136,7 @@ def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
     expect(save).to_be_focused()
     page.keyboard.press("?")
     assert active_digit_bindings(page) == "1–2"
-    expect(save).to_have_attribute(
-        "aria-keyshortcuts", "Enter Meta+Enter Control+Enter Escape 1"
-    )
+    expect(save).to_have_attribute("aria-keyshortcuts", "Meta+Enter Control+Enter 1")
     page.keyboard.press("?")
     cancel = page.locator(
         '.lf-command-reference-command[data-lf-command="draft.cancel"]'
@@ -12035,10 +12085,10 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     expands the shortcut bar to a bounded set of current commands; `? command reference` then opens the
     complete searchable register.
 
-    The panel's general box is the causal contrast for the cap. A full page row crosses
-    into the panel and paints over the box; the bounded shortlist ends before it. The
-    overlap is tested before opening the reference so a searchable popup cannot make the
-    symptom disappear merely by covering both surfaces."""
+    The open panel is the causal contrast for the cap. A full page row crosses into the
+    panel and paints over its foot; the bounded shortlist ends before it. The overlap is
+    tested before opening the reference so a searchable popup cannot make the symptom
+    disappear merely by covering both surfaces."""
     page = open_page(browser, serve(NOTED_PAGE, comments=2))
     page.set_viewport_size({"width": 1200, "height": 800})
     page.locator(".lf-threads-toggle").click()
@@ -12057,11 +12107,11 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     assert not page.evaluate(
         """() => {
           const a = document.querySelector('.lf-shortcut-bar').getBoundingClientRect();
-          const b = document.querySelector('.lf-general').getBoundingClientRect();
+          const b = document.querySelector('.lf-thread-panel').getBoundingClientRect();
           return a.left < b.right && a.right > b.left &&
                  a.top < b.bottom && a.bottom > b.top;
         }"""
-    ), "the shortcut bar covers the general comment box"
+    ), "the shortcut bar crosses into the thread panel"
 
     # Moving into the box changes both contextual hints without introducing a second
     # shortlist: the same scope order the dispatcher uses supplies them, so what the line
@@ -12073,14 +12123,14 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     page.locator(".lf-threads").focus()
     expect(page.locator(f"{EXPANDED} > .lf-thread-summary")).to_be_focused()
     expect(visible_hints.nth(0)).not_to_contain_text("send")
-    page.locator(".lf-general leaf-text").focus()
+    page.locator(f"{EXPANDED} .lf-thread-reply leaf-text").focus()
     expect(visible_hints).to_have_count(2)
     expect(visible_hints.nth(0)).to_contain_text("send")
-    expect(visible_hints.nth(1)).to_contain_text("back to list")
+    expect(visible_hints.nth(1)).to_contain_text("back to thread")
 
     # The line shows only what works from where the user is. This text box owns `?`, so
     # More stands down with its key rather than standing bare; it returns, key and all,
-    # when the user steps back out to the list's open thread.
+    # when the user steps back out to the thread it was replying in.
     more_node = page.locator(".lf-shortcut-more")
     more_node.evaluate("button => window.__lfShortcutMore = button")
     expect(more_node).to_be_hidden()
@@ -13960,7 +14010,7 @@ def test_focus_paint_releases_every_text_box_crossed_before_a_frame(browser, ser
     page.get_by_role("searchbox", name="Find in threads").focus()
     shortcut_bar_text(page)
     assert general.get_attribute("placeholder") == "Comment on the page"
-    general.focus()
+    page_comment(page)
     shortcut_bar_text(page)
     assert re.search(r"⏎$", general.get_attribute("placeholder"))
     assert general.get_attribute("aria-label") == "Comment on the page"
@@ -14086,7 +14136,7 @@ def test_typing_in_a_selected_comment_wins_over_page_shortcuts(browser, serve):
 
 
 def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser, serve):
-    """Every durable editor inserts a newline with Shift+Enter and submits with Enter."""
+    """The composer sends with Enter; the draft saves with its advertised Mod+Enter."""
     html = TARGETS_PAGE.replace(
         "</main>", '<lf-draft id="plan"><pre>Ship it.</pre></lf-draft></main>'
     )
@@ -14114,8 +14164,10 @@ def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser,
     with sending(page, "the composer shortcut"):
         page.keyboard.press("Enter")
     expect(composer).to_be_hidden()
-    # The send left the user on the element the new thread's card is about, and letting
-    # go of it takes the card down.
+    # The send left the user on the new thread's card. Leave it for its passage, then
+    # let go of both before opening the draft below.
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
+    page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
@@ -14127,8 +14179,11 @@ def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser,
     expect(editor).to_have_js_property(
         "value", "Save through the visible control.\nKeep the second line."
     )
+    expect(editor).to_have_attribute(
+        "aria-keyshortcuts", "Meta+Enter Control+Enter Escape"
+    )
     with sending(page, "the draft shortcut"):
-        page.keyboard.press("Enter")
+        page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator("#plan .lf-draft-body")).to_contain_text(
         "Keep the second line."
     )
@@ -14207,9 +14262,7 @@ def test_touch_return_keeps_newlines_until_the_user_taps_submit(browser, serve):
     page = open_page(browser, serve(html), context=context)
     assert page.evaluate("() => matchMedia('(pointer: coarse)').matches")
 
-    page.locator(".lf-threads-toggle").click()
-    field = page.locator(".lf-general leaf-text")
-    field.focus()
+    field = page_comment(page)
     write(field, "First paragraph")
     field.press("Enter")
     field.type("Second paragraph")
@@ -14219,7 +14272,6 @@ def test_touch_return_keeps_newlines_until_the_user_taps_submit(browser, serve):
     with sending(page, "the touch comment"):
         field.locator("xpath=..").locator(".lf-compose-submit").click()
 
-    page.locator(".lf-thread-panel .lf-close-action").click()
     draft_control(page, "edit", "plan").click()
     editor = page.locator("#plan leaf-text")
     write(editor, "First paragraph")
@@ -14236,7 +14288,7 @@ def test_touch_return_keeps_newlines_until_the_user_taps_submit(browser, serve):
 
 def test_a_field_names_no_key_to_a_finger(browser, serve):
     """A touch screen hides the shortcut bar because its keys name presses the user
-    cannot make, and a text field's placeholder is the same advert: the Threads panel
+    cannot make, and a text field's placeholder is the same advert: the page's box
     said "Comment on the page c" and a thread's box "Reply c" to a phone. Whether a
     surface advertises keys is one reading (`advertisesKeys`), asked for the key that
     enters a box as well as the one that sends it."""
@@ -14245,13 +14297,16 @@ def test_a_field_names_no_key_to_a_finger(browser, serve):
     )
     page = open_page(browser, serve(INLINE_PAGE, comments=2), context=context)
     assert page.evaluate("() => matchMedia('(pointer: coarse)').matches")
-    page.locator(".lf-threads-toggle").click()
     general = page.locator(".lf-general leaf-text")
-    expect(general).to_be_visible()
     expect(general).to_have_attribute("placeholder", "Comment on the page")
-    general.focus()
-    expect(general).to_be_focused()
+    page_comment(page)
     expect(general).to_have_attribute("placeholder", "Comment on the page")
+    page.keyboard.press("Escape")
+    page.locator(".lf-threads-toggle").click()
+    reply = page.locator(".lf-thread[open] .lf-thread-reply leaf-text")
+    expect(reply).to_have_attribute("placeholder", "Reply")
+    reply.focus()
+    expect(reply).to_have_attribute("placeholder", "Reply")
     expect(page.locator(".lf-compose-placeholder")).to_have_count(0)
 
 
@@ -14965,8 +15020,8 @@ def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
     expect(line).to_contain_text("close threads")
     page.evaluate("() => document.activeElement?.blur()")
 
-    # A resolved thread has no box, so the press falls through to the general box rather
-    # than reaching for one that is not there. What matters is that the thread is not
+    # A resolved thread has no box, so the press falls through to the general box, in
+    # the page comment card, rather than reaching for one that is not there. What matters is that the thread is not
     # named, which is the phase above's answer and would be the wrong one here.
     page.locator(".lf-thread-filter-toggle").click()
     page.locator('[data-filter-value="resolved"]').click()
@@ -14975,7 +15030,7 @@ def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
     ).focus()
     expect(line).not_to_contain_text("comment on the thread")
     page.keyboard.press("c")
-    expect(page.locator(".lf-general leaf-text")).to_be_focused()
+    expect(page.locator(".lf-page-comment-card .lf-general leaf-text")).to_be_focused()
 
 
 def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):
@@ -15366,29 +15421,24 @@ def test_c_comments_and_g_t_navigates_to_threads(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     expect(page.locator(".lf-threads")).to_be_focused()
-    page.keyboard.press("c")  # panel context: Threads' own page comment box
-    expect(page.locator(".lf-general leaf-text")).to_be_focused()
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    # An empty list holds nothing to comment on, so `c` opens the same card over it,
+    # and Escape puts the card away onto its control with Threads still open.
     page.keyboard.press("c")
-    expect(page.locator(".lf-general leaf-text")).to_be_focused()
+    expect(page.locator(".lf-page-comment-card leaf-text")).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_have_class(re.compile("open"))
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads")).to_be_focused()
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-thread-panel")).to_be_hidden()
-    assert page.evaluate("() => document.activeElement === document.body")
+    expect(page.locator(".lf-page-comment-card")).to_be_hidden()
+    expect(page.locator(".lf-banner-actions > .lf-page-comment")).to_be_focused()
+    expect(page.locator(".lf-thread-panel")).to_have_class(re.compile("open"))
 
 
 def test_the_panels_own_c_answers_a_page_whose_log_has_not_arrived(browser, serve):
     """A page whose first poll cannot reach the server is a page the user still writes
-    on: the general box stands, its placeholder names the key that reaches it, and the
-    banner says only that a comment will not send yet. What it has not got is a thread
-    list, so narrowing by what awaits the user is dead. Find remains available as the
-    panel's empty search, and the scope used to take `c` down with the missing list.
-
-    The page's c enters the page comment card's box directly. g T independently
-    reaches the empty Threads list, where the panel's own search remains available.
+    on: `c` opens the page comment card, and the banner says only that a comment will
+    not send yet. What it has not got is a thread list, so narrowing by what awaits the
+    user is dead. Find remains available as the panel's empty search, and the panel's
+    scope used to take `c` down with the missing list, so `c` is pressed from the empty
+    list too.
 
     Offline rather than mid-load, because it is the state that stays: a loading page
     answers a moment later, and a page whose server has stopped is where a user sits."""
@@ -15413,6 +15463,8 @@ def test_the_panels_own_c_answers_a_page_whose_log_has_not_arrived(browser, serv
     line = page.locator(".lf-shortcut-bar")
     expect(line).not_to_contain_text("waiting on you")
     expect(line).to_contain_text("find")
+    page.keyboard.press("c")
+    expect(page.locator(".lf-page-comment-card leaf-text")).to_be_focused()
 
 
 # Where the user is standing, in the terms the next Tab is decided by: the document
@@ -15834,6 +15886,138 @@ def test_an_ask_in_a_reply_is_where_the_user_stands_once_answered(browser, serve
     page.keyboard.press("1")
     round_trip(page)
     expect(page.locator("#cache-disk")).not_to_have_attribute("chosen", "")
+
+
+def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, serve):
+    """One persistent policy covers page keys, contextual digits and their hints."""
+    page = open_page(browser, serve(FEATURE_GALLERY))
+    reference = page.locator(".lf-command-reference")
+    setting = page.get_by_role("checkbox", name="Quick keyboard shortcuts", exact=True)
+    note = page.locator("#bg-shortcut-note")
+    button = page.locator("#bg-shortcut-focus-note")
+    sample = page.locator("#bg-local-shortcuts")
+
+    def settings():
+        page.locator(".lf-banner-more").click()
+        page.get_by_role("button", name="Keyboard shortcuts", exact=True).click()
+        expect(reference).to_be_visible()
+
+    sample.focus()
+    expect(button).to_have_attribute("aria-keyshortcuts", "1")
+    page.keyboard.press("1")
+    expect(note).to_be_focused()
+    page.keyboard.type("c ? 1 T")
+    expect(note).to_have_value("c ? 1 T")
+    settings()
+    expect(setting).to_be_checked()
+    expect(setting).to_have_accessible_description(
+        "Use letters, numbers and symbols for Leaf actions."
+    )
+    # The preference itself is reachable by Tab and native Space.
+    page.get_by_role("combobox", name="Search commands").press("Shift+Tab")
+    expect(setting).to_be_focused()
+    setting.press("Space")
+    expect(setting).not_to_be_checked()
+    comment = reference.locator('tr[data-lf-command="comment.create"]')
+    expect(comment.locator("kbd")).to_have_count(0)
+    # Turning a binding off leaves its command actionable in the reference.
+    page.get_by_role("combobox", name="Search commands").fill("Comment on the page")
+    comment.get_by_role("button", name="Comment on the page", exact=True).click()
+    field = page.get_by_role("textbox", name="Comment on the page", exact=True)
+    expect(field).to_be_focused()
+    page.keyboard.type("Sent with quick shortcuts off")
+    page.keyboard.press("ControlOrMeta+Enter")
+    expect(page.locator(".lf-page-comment-card")).to_be_focused()
+    expect(field).to_be_visible()
+    told(page)
+    assert any(
+        event.get("text") == "Sent with quick shortcuts off"
+        for event in events_model.read_events(serve.page_dir)
+    )
+    page.keyboard.press("Escape")
+    expect(field).to_be_hidden()
+    rendered(page)
+
+    sample.focus()
+    expect(button).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
+    for key in ("1", "c", "?", "Shift+t", "g", "Shift+t"):
+        page.keyboard.press(key)
+    rendered(page)
+    expect(sample).to_be_focused()
+    expect(reference).to_be_hidden()
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("go to")
+    expect(button).not_to_have_attribute("title", re.compile(r"\(1\)"))
+    settings()
+    page.get_by_role("combobox", name="Search commands").fill("Select element")
+    reference.locator('tr[data-lf-command="target.picker.open"]').get_by_role(
+        "button"
+    ).click()
+    rendered(page)
+    expect(page.locator(".lf-target-picker-hint")).to_have_count(0)
+    expect(page.locator(".lf-live")).not_to_contain_text("type one of")
+    page.keyboard.press("a")
+    expect(page.locator(".lf-fab-input")).to_be_hidden()
+    page.keyboard.press("Tab")
+    expect(page.locator(".lf-live")).to_contain_text("Press Enter to choose")
+    expect(page.locator(".lf-live")).not_to_contain_text("Hint ")
+    native_target = page.locator('[data-lf-hint-native="Enter"]')
+    expect(native_target).to_be_visible()
+    expect(native_target).not_to_have_attribute("data-lf-hint-code")
+    expect(native_target.locator("kbd")).to_have_text("⏎")
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(native_target).to_have_count(0)
+    page.keyboard.press("Escape")
+    rendered(page)
+    street = page.locator("#bg-choice-street")
+    trail = page.locator("#bg-choice-trail")
+    street.locator(".lf-pick").focus()
+    expect(page.locator("#bg-choice")).not_to_have_attribute(
+        "aria-keyshortcuts", re.compile(r"(?:^| )1(?: |$)")
+    )
+    page.keyboard.press("1")
+    rendered(page)
+    expect(street).not_to_have_attribute("chosen", "")
+    street.locator(".lf-pick").focus()
+    page.keyboard.press("ArrowDown")
+    expect(trail.locator(".lf-pick")).to_be_focused()
+    page.keyboard.press("Space")
+    expect(trail).to_have_attribute("chosen", "")
+    button.focus()
+    button.press("Enter")
+    expect(note).to_be_focused()
+    note.press("End")
+    page.keyboard.type(" native")
+    expect(note).to_have_value("c ? 1 T native")
+
+    page.reload()
+    wait_until_ready(page)
+    sample.focus()
+    page.keyboard.press("1")
+    rendered(page)
+    expect(sample).to_be_focused()
+    settings()
+    expect(setting).not_to_be_checked()
+    setting.check()
+    page.keyboard.press("Escape")
+    street.locator(".lf-pick").focus()
+    expect(page.locator("#bg-choice")).to_have_attribute(
+        "aria-keyshortcuts", re.compile(r"(?:^| )1(?: |$)")
+    )
+    page.keyboard.press("1")
+    expect(street).to_have_attribute("chosen", "")
+    sample.focus()
+    expect(button).to_have_attribute("aria-keyshortcuts", "1")
+    page.keyboard.press("1")
+    expect(note).to_be_focused()
+
+    settings()
+    page.get_by_role("combobox", name="Search commands").fill("Select element")
+    reference.locator('tr[data-lf-command="target.picker.open"]').get_by_role(
+        "button"
+    ).click()
+    expect(page.locator(".lf-target-picker-hint").first).to_be_visible()
+    page.keyboard.press("Escape")
 
 
 def test_the_reference_keeps_its_count_line_whole_above_the_results(browser, serve):

@@ -108,13 +108,10 @@ export function documentPoint(left, top) {
   };
 }
 
-// One local scroll pixel's viewport displacement. Scroll offsets are in layout pixels;
-// a scaled or rotated scrollport carries its contents along transformed axes. Browser
-// matrices compose through the same rendered ancestry used by clipping, across slots
-// and shadow roots. Origins and translations do not change these direction vectors.
-export function scrollAxes(source) {
-  if (source === source.ownerDocument.scrollingElement)
-    return { x: { x: 1, y: 0 }, y: { x: 0, y: 1 } };
+// The composed affine basis of an element's own layout units in the viewport.
+// Translation and transform origins enter `elementFrame`; this basis also carries
+// local scroll distances through every transformed ancestor, including shadow hosts.
+export function elementAxes(source) {
   let matrix = new window.DOMMatrix();
   for (let node = source; node instanceof Element; node = renderedParent(node)) {
     const style = getComputedStyle(node);
@@ -152,6 +149,188 @@ export function scrollAxes(source) {
     matrix = local.multiply(matrix);
   }
   return { x: { x: matrix.a, y: matrix.b }, y: { x: matrix.c, y: matrix.d } };
+}
+
+// Resolve the browser's computed two-component <position> in the free space left
+// around replaced content. Only percentage units acquire a signed pixel basis here;
+// the browser still parses and evaluates CSS math, including min/max/clamp. A cover
+// fit can leave negative space, which a CSS containing block cannot represent.
+const nativePositions = new WeakMap();
+let positionProbe;
+function nativePosition(source, position, horizontal, vertical) {
+  const key = JSON.stringify([position, horizontal, vertical]);
+  const prior = nativePositions.get(source);
+  if (prior?.key === key) return prior.offset;
+  const components = [];
+  let depth = 0;
+  let start = 0;
+  for (let at = 0; at <= position.length; at++) {
+    const character = position[at];
+    if (character === "(") depth++;
+    if (character === ")") depth--;
+    if (at === position.length || (character === " " && !depth)) {
+      if (at > start) components.push(position.slice(start, at));
+      start = at + 1;
+    }
+  }
+  const pixels = (value, space) =>
+    value.replace(
+      /([-+]?(?:\d*\.)?\d+(?:e[-+]?\d+)?)%/gi,
+      (_unit, percent) => `${(Number(percent) * space) / 100}px`,
+    );
+  if (!positionProbe) {
+    const measure = document.createElement("div");
+    measure.className = "lf-ui";
+    measure.dataset.lfRuntime = "";
+    measure.inert = true;
+    measure.style.cssText =
+      "all:initial;position:fixed;visibility:hidden;contain:strict;width:0;height:0;left:0;top:0;pointer-events:none";
+    const point = document.createElement("div");
+    point.style.cssText = "all:initial;position:absolute;width:0;height:0";
+    measure.append(point);
+    positionProbe = { measure, point };
+  }
+  const { measure, point } = positionProbe;
+  point.style.left = pixels(components[0], horizontal);
+  point.style.top = pixels(components[1], vertical);
+  document.body.append(measure);
+  const resolved = getComputedStyle(point);
+  const offset = [Number.parseFloat(resolved.left), Number.parseFloat(resolved.top)];
+  measure.remove();
+  nativePositions.set(source, { key, offset });
+  return offset;
+}
+
+// Local content coordinates in the viewport. HTML uses its CSS border box; native
+// visuals use intrinsic pixels or SVG user units, so resizing scales their ink
+// with the picture. SVG's native user-space matrix carries viewBox camera pans as
+// well as scale; its viewport origin never rebases stored points. Text reflow adds pixels
+// to an HTML frame instead of stretching the points already held there.
+export function elementFrame(source) {
+  const box = shownBox(source);
+  if (!box?.width || !box?.height) return null;
+  if (source instanceof window.SVGGraphicsElement) {
+    const view = source instanceof window.SVGSVGElement && source.viewBox.baseVal;
+    const local =
+      source instanceof window.SVGSVGElement
+        ? view.width && view.height
+          ? view
+          : {
+              x: 0,
+              y: 0,
+              width: Number.parseFloat(getComputedStyle(source).width),
+              height: Number.parseFloat(getComputedStyle(source).height),
+            }
+        : source.getBBox();
+    const screen = source.getScreenCTM();
+    if (!screen) return null;
+    return {
+      box,
+      width: local.width,
+      height: local.height,
+      matrix: new window.DOMMatrix([
+        screen.a,
+        screen.b,
+        screen.c,
+        screen.d,
+        screen.e,
+        screen.f,
+      ]),
+    };
+  }
+  const layout = elementBorderFrame(source);
+  if (!layout) return null;
+  const { width, height, matrix } = layout;
+  const style = getComputedStyle(source);
+  // Replaced visual content has its own coordinate space. Layout resizing scales
+  // that content, unlike an ordinary HTML box whose extra lines add local pixels.
+  const native =
+    source instanceof window.HTMLImageElement
+      ? [source.naturalWidth, source.naturalHeight]
+      : source instanceof window.HTMLCanvasElement
+        ? [source.width, source.height]
+        : source instanceof window.HTMLVideoElement
+          ? [source.videoWidth, source.videoHeight]
+          : null;
+  if (native) {
+    if (!native[0] || !native[1]) return null;
+    const edge = (side) =>
+      Number.parseFloat(style[`border${side}Width`]) +
+      Number.parseFloat(style[`padding${side}`]);
+    const contentWidth = width - edge("Left") - edge("Right");
+    const contentHeight = height - edge("Top") - edge("Bottom");
+    let sx = contentWidth / native[0];
+    let sy = contentHeight / native[1];
+    if (style.objectFit !== "fill") {
+      const scale =
+        style.objectFit === "cover"
+          ? Math.max(sx, sy)
+          : style.objectFit === "none"
+            ? 1
+            : Math.min(sx, sy, style.objectFit === "scale-down" ? 1 : Infinity);
+      sx = sy = scale;
+    }
+    const [dx, dy] = nativePosition(
+      source,
+      style.objectPosition,
+      contentWidth - native[0] * sx,
+      contentHeight - native[1] * sy,
+    );
+    if (![sx, sy, dx, dy].every(Number.isFinite) || !sx || !sy) return null;
+    return {
+      box,
+      width: native[0],
+      height: native[1],
+      matrix: matrix.translate(edge("Left") + dx, edge("Top") + dy).scale(sx, sy),
+    };
+  }
+  return { box, width, height, matrix };
+}
+
+// The element's CSS border box, for consumers cloning its computed presentation.
+// Intrinsic content coordinates are a separate reading supplied by elementFrame.
+export function elementBorderFrame(source) {
+  const box = shownBox(source);
+  if (!box?.width || !box?.height) return null;
+  const style = getComputedStyle(source);
+  if (style.display === "contents")
+    return {
+      box,
+      width: box.width,
+      height: box.height,
+      matrix: new window.DOMMatrix().translate(box.left, box.top),
+    };
+  const borderSize = (side, edges, fallback) => {
+    const size = Number.parseFloat(style[side]);
+    if (!Number.isFinite(size)) return fallback;
+    return style.boxSizing === "border-box"
+      ? size
+      : size +
+          edges.reduce(
+            (sum, edge) =>
+              sum +
+              Number.parseFloat(style[`padding${edge}`]) +
+              Number.parseFloat(style[`border${edge}Width`]),
+            0,
+          );
+  };
+  const width = borderSize("width", ["Left", "Right"], source.offsetWidth);
+  const height = borderSize("height", ["Top", "Bottom"], source.offsetHeight);
+  const { x, y } = elementAxes(source);
+  const left =
+    box.left - Math.min(0, width * x.x, height * y.x, width * x.x + height * y.x);
+  const top =
+    box.top - Math.min(0, width * x.y, height * y.y, width * x.y + height * y.y);
+  const matrix = new window.DOMMatrix([x.x, x.y, y.x, y.y, left, top]);
+  return { box, width, height, matrix };
+}
+
+// One local scroll pixel's viewport displacement. The root's scroll is already
+// measured in viewport units, independently of transforms on its content.
+export function scrollAxes(source) {
+  return source === source.ownerDocument.scrollingElement
+    ? { x: { x: 1, y: 0 }, y: { x: 0, y: 1 } }
+    : elementAxes(source);
 }
 
 // Convert a viewport reveal movement into the scrollport's own layout offsets. A
@@ -332,18 +511,8 @@ export function landingInsets(scroller) {
 // the way down, which are not skipped and cheap to ask about — and it is drawn, so its
 // own style is not skipped either. A disclosure skips through a pseudo-element of its
 // own, so it is asked by its state rather than by its style.
-export function skipped(el) {
-  if (el.checkVisibility()) return false;
-  let child = el;
-  let box = renderedParent(el);
-  while (box && !box.checkVisibility()) {
-    child = box;
-    box = renderedParent(box);
-  }
-  if (!box) return false;
-  if (box.localName === "details") return !box.open && child.localName !== "summary";
-  return getComputedStyle(box).contentVisibility === "hidden";
-}
+export const skipped = (el) =>
+  document.documentElement.lfInitial.skipped(el, renderedParent);
 // The box an element shows as. An element that generates none of its own — a
 // display: contents wrapper — shows as what its contents paint, so its bounds are
 // theirs, and a range asks the platform for that union in one read. Its own rect is

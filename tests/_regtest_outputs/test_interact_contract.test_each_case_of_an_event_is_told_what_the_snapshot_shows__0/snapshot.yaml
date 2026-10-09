@@ -45,12 +45,12 @@
 #              page's words from the first to the last inside the ink's extents: the
 #              neighbourhood of the mark rather than the mark, so an arrow across a
 #              paragraph says the whole paragraph. It is absent where the extents hold
-#              no words, as over a picture or in a margin. `drawing.strokes` are
-#              offsets from the top-left corner of the element the comment is anchored
-#              on and `drawing.box` is its width and height, so a stroke's share of
-#              the box says which part of a picture it marks. Where the words and
-#              offsets leave unclear what the mark covers, `leaf page picture PAGE
-#              ID`, given the comment's `id`, shows what the user saw: it prints the
+#              no words, as over a picture or in a margin. `drawing.strokes` are local
+#              coordinates in one frame: HTML CSS pixels, SVG user units, or intrinsic
+#              image, canvas and video pixels. Optional `drawing.frame` identifies
+#              that visual inside the semantic comment target by a structural path;
+#              `drawing.box` is the frame's size. Prefer `leaf page picture PAGE ID`,
+#              given the comment's `id`, to see what the mark covers: it prints the
 #              path of a PNG of the comment's revision laid out in their window and
 #              color scheme (`drawing.viewport`, `drawing.scheme`), with the ink over
 #              it. Any `text` explains the mark. Otherwise it is an ordinary comment,
@@ -114,16 +114,15 @@
 #              asks the user something.
 #      clause 8, does not apply:
 #        when: {"properties": {"answer": {"properties": {"writer": {"const": "turn"}}}}}
-#        text: This reply belongs to your provider turn's final commitment. Before
-#              your first tool call, open with a short message to the user: the
-#              answer, or what you are about to do. Leaf streams it into the thread at
-#              once, and later working messages stay in Codex. Finish with the answer
-#              or what changed and where it appears. For widgets, a question awaiting
-#              the user, a title or relocation, prepare the complete reply with `leaf
-#              response reply <answer.ref>` and the rich options in
-#              `references/threads.md`; your completed final commits that prepared
-#              content, including its text. Without preparation, your opening and
-#              final text become the reply.
+#        text: Leaf streams your opening into the thread and commits your completed
+#              final unless an explicit successful reply already answered this input.
+#              Before your first tool call, open with a short message to the user: the
+#              answer, or what you are about to do. Later working messages stay in
+#              Codex. Finish with the answer or what changed and where it appears. For
+#              an explicit answer, including widgets, a question awaiting the user, a
+#              title or relocation, use `leaf response reply <answer.ref>` and the
+#              rich options in `references/threads.md`; it validates saved edits and
+#              commits immediately. Your later final yields to that recorded answer.
 #      clause 9, applies:
 #        (no `when`, so it always applies)
 #        text: Your reply renders as Markdown in a narrow column: give each point its
@@ -337,15 +336,15 @@ comment over App Server:
   told:
     - when: {"properties": {"answer": {"properties": {"writer": {"const": "turn"}}}}}
       text: >-
-        This reply belongs to your provider turn's final commitment. Before your
-        first tool call, open with a short message to the user: the answer, or what
-        you are about to do. Leaf streams it into the thread at once, and later
-        working messages stay in Codex. Finish with the answer or what changed and
-        where it appears. For widgets, a question awaiting the user, a title or
-        relocation, prepare the complete reply with `leaf response reply <answer.ref>`
-        and the rich options in `references/threads.md`; your completed final commits
-        that prepared content, including its text. Without preparation, your opening
-        and final text become the reply.
+        Leaf streams your opening into the thread and commits your completed final
+        unless an explicit successful reply already answered this input. Before
+        your first tool call, open with a short message to the user: the answer,
+        or what you are about to do. Later working messages stay in Codex. Finish
+        with the answer or what changed and where it appears. For an explicit answer,
+        including widgets, a question awaiting the user, a title or relocation,
+        use `leaf response reply <answer.ref>` and the rich options in `references/threads.md`;
+        it validates saved edits and commits immediately. Your later final yields
+        to that recorded answer.
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -355,7 +354,7 @@ comment with a drawing:
   event:
     kind: comment
     drawing:
-      format: leaf-drawing/2
+      format: leaf-drawing/3
       strokes: [[[0, 0], [9, 9]]]
       box: [640, 120]
       viewport: [1200, 900]
@@ -370,12 +369,12 @@ comment with a drawing:
         words from the first to the last inside the ink's extents: the neighbourhood
         of the mark rather than the mark, so an arrow across a paragraph says the
         whole paragraph. It is absent where the extents hold no words, as over a
-        picture or in a margin. `drawing.strokes` are offsets from the top-left
-        corner of the element the comment is anchored on and `drawing.box` is its
-        width and height, so a stroke's share of the box says which part of a picture
-        it marks. Where the words and offsets leave unclear what the mark covers,
-        `leaf page picture PAGE ID`, given the comment's `id`, shows what the user
-        saw: it prints the path of a PNG of the comment's revision laid out in their
+        picture or in a margin. `drawing.strokes` are local coordinates in one frame:
+        HTML CSS pixels, SVG user units, or intrinsic image, canvas and video pixels.
+        Optional `drawing.frame` identifies that visual inside the semantic comment
+        target by a structural path; `drawing.box` is the frame's size. Prefer `leaf
+        page picture PAGE ID`, given the comment's `id`, to see what the mark covers:
+        it prints the path of a PNG of the comment's revision laid out in their
         window and color scheme (`drawing.viewport`, `drawing.scheme`), with the
         ink over it. Any `text` explains the mark. Otherwise it is an ordinary comment,
         answered the same way.
@@ -859,15 +858,15 @@ pick inside a thread over App Server:
         The user already sees the action applied.
     - when: {"properties": {"answer": {"properties": {"writer": {"const": "turn"}}}}}
       text: >-
-        This reply belongs to your provider turn's final commitment. Before your
-        first tool call, open with a short message to the user: the answer, or what
-        you are about to do. Leaf streams it into the thread at once, and later
-        working messages stay in Codex. Finish with the answer or what changed and
-        where it appears. For widgets, a question awaiting the user, a title or
-        relocation, prepare the complete reply with `leaf response reply <answer.ref>`
-        and the rich options in `references/threads.md`; your completed final commits
-        that prepared content, including its text. Without preparation, your opening
-        and final text become the reply.
+        Leaf streams your opening into the thread and commits your completed final
+        unless an explicit successful reply already answered this input. Before
+        your first tool call, open with a short message to the user: the answer,
+        or what you are about to do. Later working messages stay in Codex. Finish
+        with the answer or what changed and where it appears. For an explicit answer,
+        including widgets, a question awaiting the user, a title or relocation,
+        use `leaf response reply <answer.ref>` and the rich options in `references/threads.md`;
+        it validates saved edits and commits immediately. Your later final yields
+        to that recorded answer.
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,

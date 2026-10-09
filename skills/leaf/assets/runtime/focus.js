@@ -8,7 +8,9 @@
    `press`, `step`, `move` and `drop`. A `focusin` listener on a node hears nothing of a
    move between two nodes of one shadow tree beneath it, which reaches it as no event,
    and each reader guessing for itself which moves were the runtime's own returns or
-   the keyboard's arrivals answered the same question several ways. The lint
+   the keyboard's arrivals answered the same question several ways. A layer waiting
+   one frame for its return target releases a hidden focused control immediately;
+   a newer input owns the page and cancels that pending return. The lint
    (`architecture/standing-listeners`) refuses `focusin` and `focusout` elsewhere, and
    `focus` and `blur` on the document or captured anywhere, except in the few files it
    names: those that ask about one element or its own subtree, and the interaction
@@ -16,12 +18,46 @@
    listener and having stages re-dispatch their moves to the document, which leaves
    every reader's own reading of the cause.
 
+   It is also the one place that moves them. Every focus the runtime and the packages
+   place goes through `focusDestination(node, cause)`, which says whether it is a route
+   or a return; the lint (`architecture/placements`) refuses a plain `focus()` elsewhere.
+   Each owner once marked its own returns with a flag its own listener read, and a plain
+   `focus()` that was a return published as the user's move to every other reader.
+   Rejected: keeping wrappers around a placement (`returningFocus`, `placeChrome`) that a
+   caller could forget, which is how those returns reached the readers as moves.
+
+   And it is the one reader of the user's inputs, so the one owner of whether they have
+   moved on since a hold began or a delayed move was scheduled. The two ask different
+   questions, so it keeps two counts:
+
+   - A hold (`holdFocus`, `holdStanding`, `handBack`'s retry) reads `placements`: has
+     focus been put anywhere since, by the user or by an owner, other than by a hold's
+     own restore or a closing layer's hand-back. Its question is whether the place it
+     holds is still the user's, and the user typing, pressing or scrolling in that place
+     is them working there: a hold that inputs voided would drop the user from the box
+     they are typing in whenever a render replaced it.
+   - Delayed work (`retainUserIntent`, user-intent.js) reads `inputCount`: has the user
+     pressed, typed, scrolled, touched or left the window since the gesture that started
+     it. Its question is whether that gesture is still their latest word, and any input
+     is a newer one, wherever focus stands; a move that only counted placements would
+     pull the user back to its destination after they had gone on typing elsewhere.
+
+   It also keeps the one reading of the press in progress (`pressing`, `onPress`), and
+   the press on a label that leaves the user standing on the control they stood on until
+   it lands (`focused`). Rejected: merging the two counts into one, which would void a
+   hold on every keystroke; and each owner keeping its own press tracker, which is how
+   holds came to read the in-between node a label press goes through.
+
+   And it owns the widget primitives built on these: closing a layer and handing the user
+   on as one act (`closeLayer`), holding a place in a keyed list (`holdFocus` with `key`),
+   and a group's one Tab stop (`rove`).
+
    The selector vocabulary lives in control-selectors.js, which imports nothing.
-   This module imports only that vocabulary and rendering.js: importing a gesture
-   owner would cycle through its focus dependency. The hand-back and the hold therefore
-   count placements off the events read here rather than from user-intent.js. */
+   This module imports only that vocabulary, rendering.js and keeps.js: importing a
+   gesture owner would cycle through its focus dependency. */
 import { nextRender } from "./rendering.js";
-import { TEXT_BOX, TAB_STOP } from "./control-selectors.js";
+import { keeps } from "./keeps.js";
+import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
 
 // The stops Tab walks inside `root` right now, in document order: the candidates above
 // that are in the order, enabled, and drawn. A modal's own Tab loop reads this.
@@ -34,8 +70,30 @@ export const tabStops = (root) =>
       node.checkVisibility(),
   );
 
-// Put the user on an element that may not be a tab stop: focus it, and where it will
-// not take focus, lend it the tab stop a control has for exactly as long as it holds it —
+// Put the user on an element, saying what moved them there. Every focus the runtime and
+// the packages place goes through here (the lint `architecture/placements` refuses a
+// plain `focus()` elsewhere), because the call is the only place that knows whether it
+// is the user going somewhere or the runtime handing them back, and every reader of
+// where they stand (`onStanding`) needs that word: a return that published as a move
+// released held news, opened a cluster's options and chose a card the user never went
+// to. The cause is one of:
+//
+// - `move`: a route taking the user somewhere, whether a key or a press began it;
+// - `step`: standing in for Tab or Shift+Tab, as a modal's own Tab loop does;
+// - `return`: putting the user back where they came from or handing them across, a
+//   closing layer's hand-back, a re-render carrying them to the node that replaced the
+//   one they stood on, a chrome placement moving the box they stand in;
+// - `press`: landing on a control to press it on the user's behalf, as a go-to that
+//   presses a control does: the readers take it as the platform's focus for a press,
+//   which asks for what it lands on and opens nothing on arrival.
+//
+// A focus that runs inside another placement, as a component's own focus handler
+// forwarding to its selected child does, is part of that placement and takes its cause.
+// A reader of where the user stands that moves them answers a reading, not the
+// placement that caused it, so its own placement names its own cause.
+//
+// The element may not be a tab stop: where it will not take focus, lend it the tab stop
+// a control has for exactly as long as it holds it —
 // the lend leaves when focus leaves it within the document, so a paragraph the Go-to
 // sequence landed on is a paragraph again once the user moves off it, and `tabindex`
 // never becomes a thing the runtime leaves behind on an author's element. An element
@@ -52,11 +110,58 @@ export const tabStops = (root) =>
 // reads the caret with `readCaret` before its element goes away and passes it here, so
 // that the focus and the place inside it land in one act rather than in two. Passing no
 // caret leaves the platform's, which is what a first arrival wants.
-export function focusDestination(destination, caret = null) {
-  destination.focus({ preventScroll: true });
-  if (!destination.matches(":focus")) lendStop(destination);
+//
+// The placement keeps the page still unless `scroll` asks the browser to bring the
+// element into view, as a list whose rows run past its box does for the row it lands on.
+const CAUSES = new Set(["move", "step", "return", "press"]);
+export function focusDestination(
+  destination,
+  cause,
+  { caret = null, scroll = false } = {},
+) {
+  if (!CAUSES.has(cause)) throw new TypeError(`focusDestination: no cause ${cause}`);
+  placed(cause, () => {
+    destination.focus({ preventScroll: !scroll });
+    if (!landedOn(destination) && lendable(destination)) lendStop(destination);
+  });
   if (caret && holdsCaret(destination)) destination.setSelectionRange(...caret);
 }
+// A node handing on the focus it is gaining, from inside its own `focus` handler, to a
+// node of its own, as the Threads list hands it to the title the user stood on: the
+// arrival is the one that gave the node its focus, so the node it lands on takes that
+// arrival's cause, whether a placement or the user's own Tab or press gave it.
+export function forwardFocus(destination) {
+  placed(placing ?? cause(destination), () =>
+    destination.focus({ preventScroll: true }),
+  );
+}
+// The cause of the placement running now, null outside one. The outermost placement
+// names it, since whatever focus runs inside it is part of the same act.
+let placing = null;
+const placed = (cause, move) => {
+  const was = placing;
+  placing ??= cause;
+  try {
+    return move();
+  } finally {
+    placing = was;
+  }
+};
+
+// Whether focus stands on `node`, or inside a shadow tree it hosts, as it does inside a
+// text field's editor: the field is where the user is. A light child of it is somewhere
+// else, so a container a placement lands on is landed on itself. The body is its
+// document's active element whenever nothing is focused, so only `:focus` says it holds
+// focus.
+const landedOn = (node) =>
+  node === document.body
+    ? node.matches(":focus")
+    : node.getRootNode().activeElement === node ||
+      Boolean(node.shadowRoot?.activeElement);
+
+// A stop is lent only to a drawn element that is no control of its own: a control that
+// would not take focus is disabled, inert or hidden, and a stop would not change that.
+const lendable = (node) => drawn(node) && !node.matches(TAB_STOP);
 
 // The elements wearing a stop lent here, which is no part of what their author wrote.
 const lent = new WeakSet();
@@ -93,7 +198,7 @@ function lendStop(destination) {
   lent.add(destination);
   destination.tabIndex = -1;
   destination.focus({ preventScroll: true });
-  if (!destination.matches(":focus")) {
+  if (!landedOn(destination)) {
     giveBack();
     return;
   }
@@ -120,6 +225,50 @@ export const deepFocus = (at = document.activeElement) => {
   while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
   return at;
 };
+
+// A press on a label can blur the element the user stood on to the body, or let a
+// containing thread take focus, before the platform focuses the label's control at its
+// click. Those in-between nodes are no new standing: until the press lands, the user
+// stands on the element they stood on, for every reader of where they stand, every hold
+// and every key. The press leaves DOM focus alone and keeps the platform's default, so a
+// drag still selects a label's words. `onLabelPress` hears the held element as the press
+// begins and null as it ends, for the paint that keeps its focus ring on.
+//
+// It lands at the label's click, whose default focuses the control, which a tap delivers
+// after its release, or at a release off the label, which no click on it follows, or at
+// a native menu, which swallows the release. A cancel, the window losing focus, a key
+// (which puts the user back on the held element) and a runtime placement each end it
+// too. A second contact meanwhile is no part of it.
+let labelPress = null;
+const labelPressReaders = new Set();
+export const onLabelPress = (read) => labelPressReaders.add(read);
+const heldByLabel = () => (labelPress?.held.isConnected ? labelPress.held : null);
+function finishLabelPress() {
+  const press = labelPress;
+  if (!press) return null;
+  labelPress = null;
+  for (const read of labelPressReaders) read(null);
+  return press;
+}
+// Standing is read once more a task after the press lands, when the control's focus at
+// the click has been read: a press that left the user on a node no reading told, or
+// nowhere, as a label whose control takes no focus does, is the user's own move.
+function landLabelPress() {
+  if (!finishLabelPress()) return;
+  setTimeout(() => {
+    if (labelPress) return;
+    const at = deepFocus();
+    if (at && at !== document.body) return reconcile(null, pressedPath);
+    if (!published || !drawn(published)) return;
+    placements += 1;
+    stood = null;
+    publish(null, cause(null));
+  });
+}
+
+// Where the user stands: the element holding focus, inside any open shadow tree, or the
+// element a press on a label holds them on.
+export const focused = () => heldByLabel() ?? deepFocus();
 
 // Holding the user's place across a change to the tree they stand in. Moving a node
 // blurs whatever it holds to the body in the same call, and hiding one does the same a
@@ -164,44 +313,15 @@ export const deepFocus = (at = document.activeElement) => {
 // A hold is a reading and nothing more, so one its caller never restores, such as a
 // batch's that commits, costs nothing: the one listener below counts placements for
 // every hold, and a hold compares the count it began at.
+//
+// Which placements are a newer word: every one but a hold's own restore and a closing
+// layer's own hand-back. A hold putting the user back in the place it held is not, so
+// holds nest. A layer handing focus back to its opener as it closes, as an auto popover
+// does when a re-render takes its strip away, is the layer's and not the user going
+// anywhere, so the hold still waiting on that re-render keeps its place. A closer that
+// names where the user goes (`handBack`, or any `return` placed here) has decided, and a
+// hold waiting gives way to it.
 let restoring = false;
-// Restoring the held place can focus a component whose own focus handler forwards to
-// its selected child. That whole synchronous handoff remains continuity, a `return` to
-// every reader of standing, so none that reveals a destination on arrival turns it into
-// a fresh navigation.
-// A layer handing focus back to its opener as it closes, as an auto popover does, is the
-// layer's own return rather than the user going anywhere: a hold still waiting on a
-// change keeps its place.
-export const returningFocus = (close) => land(close);
-// A chrome placement moving a box the user may be standing in: the focus it takes off
-// and hands straight back inside `move` is the layer's own, not the user going anywhere.
-// Stated here rather than beside the one placer, because what has to know is every
-// reader of where the user stands: the place handed back is the one published already,
-// so they hear nothing, and a placement that lands them elsewhere reads as a `return`.
-let placing = false;
-// A closer handing the user back (`handBack`) places them, so a hold waiting on a change
-// gives way to it, but the place is one they came from: no reader of standing takes it
-// for a move of theirs. A box closing onto the thread it was in, by Escape or a send,
-// hands back the same way (thread/landing.js, `standOnThread`).
-let handing = false;
-export const handingBack = (move) => {
-  const was = handing;
-  handing = true;
-  try {
-    return move();
-  } finally {
-    handing = was;
-  }
-};
-export function placeChrome(move) {
-  const was = placing;
-  placing = true;
-  try {
-    return move();
-  } finally {
-    placing = was;
-  }
-}
 let placements = 0;
 // Where the user last stood. A change that removes or hides the node they stand on puts
 // focus on the body and fires no `focusin`, so this still names that node afterwards.
@@ -220,18 +340,18 @@ let stood = null;
 // what moved them there; and the node the readers last heard they stood on, null where
 // that was nowhere. The causes:
 //
-// - `return`: the runtime putting them back or handing them across, a hold restoring
-//   its place (`holdFocus`, `holdStanding`), a layer handing focus back as it closes,
-//   whether its owner does (`returningFocus`, `handBack`, `handingBack`) or the
-//   platform does, as a dialog closed with Escape does, or a chrome placement
-//   (`placeChrome`);
+// - `return`: the runtime putting them back or handing them across: a placement that
+//   says so (`focusDestination`), a hold restoring its place (`holdFocus`,
+//   `holdStanding`), a closer handing them back (`handBack`), or the platform handing
+//   focus back from a layer it closed, as a dialog closed with Escape does;
 // - `press`: focus landing on the node the user's last press was on, or on a control
 //   holding it, before a key follows: the platform's own focus for the press, which asks
-//   for what it lands on;
+//   for what it lands on; or a placement landing on a control to press it on the user's
+//   behalf (`focusDestination`), which asks the same;
 // - `step`: sequential navigation, Tab or Shift+Tab, whether the browser moves them or
-//   a handler of that key does in its place, as a modal's Tab loop does;
-// - `move`: anything else, a key's own move other than Tab, or a route that took them
-//   somewhere, whether a key or a press began it (`pressLed` says which);
+//   a placement stands in for it, as a modal's Tab loop does;
+// - `move`: a placement taking them somewhere, or anything else, whether a key or a
+//   press began it (`pressLed` says which);
 // - `drop`: a change hid or removed the node they stood on, and focus fell to the body,
 //   read as `null`. The dropped place is still where they stand for every hold, and the
 //   one to put them back is the owner of the change, so a reader of where they stand
@@ -262,18 +382,33 @@ function publish(node, cause) {
   // reading, the owner putting them back there included, is told against it.
   if (cause === "drop") departed = true;
   else published = node;
-  for (const read of readers) {
-    // Each reader answers alone: one that throws is reported and the rest still hear.
-    try {
-      read(node, cause, left);
-    } catch (error) {
-      reportError(error);
+  if (node) placeInput = "focus";
+  // What a reader places is its own act: it names its own cause, and it is a newer word
+  // to a hold even inside a hold's restore.
+  const was = [placing, restoring];
+  [placing, restoring] = [null, false];
+  try {
+    for (const read of readers) {
+      // Each reader answers alone: one that throws is reported and the rest still hear.
+      try {
+        read(node, cause, left);
+      } catch (error) {
+        reportError(error);
+      }
+      if (readings !== reading) return;
     }
-    if (readings !== reading) return;
+  } finally {
+    [placing, restoring] = was;
   }
 }
 // The press the user last made, as the nodes under it, until a key follows it.
 let pressedPath = null;
+// Whether a node is what that press asked for: a node under it, or the control of a
+// label under it, which the platform focuses at the press's click.
+const pressedOn = (node) =>
+  Boolean(pressedPath) &&
+  (pressedPath.has(node) ||
+    [...pressedPath].some((at) => at?.localName === "label" && at.control === node));
 // Whether the user's latest input was a press rather than a key, so that a `move` is a
 // route a press began: what the platform's `:focus-visible` guesses from, read here
 // from the inputs themselves. No input yet reads as no press.
@@ -287,19 +422,29 @@ const leftClosedLayer = (left) => {
   return Boolean(layer) && !layer.matches("dialog[open], :popover-open");
 };
 const cause = (node, left = null) =>
-  restoring || placing || handing || leftClosedLayer(left)
+  placing ??
+  (leftClosedLayer(left)
     ? "return"
-    : pressedPath?.has(node)
+    : pressedOn(node)
       ? "press"
       : stepping
         ? "step"
-        : "move";
+        : "move");
 // One move fires once at the document and again at each stage it crosses into.
 const read = new WeakSet();
 function stand(event) {
   if (read.has(event)) return;
   read.add(event);
-  if (!restoring) placements += 1;
+  // What a closing layer does with focus is no standing (`closeLayer`).
+  if (closing) return;
+  // A node a press on a label goes through on its way to the control is no standing; a
+  // runtime placement during the press ends it.
+  if (heldByLabel()) {
+    if (placing === null) return;
+    finishLabelPress();
+  }
+  if (!restoring && !(placing === null && leftClosedLayer(event.relatedTarget)))
+    placements += 1;
   stood = deepFocus();
   publish(stood, cause(stood, event.relatedTarget));
 }
@@ -329,8 +474,11 @@ document.addEventListener(
     queueMicrotask(() => {
       const at = document.activeElement;
       if (at !== null && at !== document.body) return;
+      if (heldByLabel()) return;
       if (!drawn(left)) return publish(null, "drop");
-      placements += 1;
+      // A borrowed body stop leaving for nowhere is the release itself, not
+      // another placement after the caller began waiting for its return.
+      if (left !== document.body) placements += 1;
       if (stood === left) stood = null;
       publish(null, cause(null));
     });
@@ -349,6 +497,7 @@ const sequential = (event) =>
 // is told then, with the cause that input gave it, a Tab's step included, and a return
 // where it came out of a layer that closed.
 function reconcile(step, pressed) {
+  if (heldByLabel()) return;
   const at = deepFocus();
   if (!at || at === document.body || at === published) return;
   placements += 1;
@@ -369,6 +518,132 @@ addEventListener(
   },
   { capture: true, passive: true },
 );
+// The user's inputs, counted: a key, a press, a wheel, a touch, text entered, or the
+// window losing focus, as find-in-page takes it. Delayed work compares the count it
+// began at (user-intent.js), as a hand-back waiting a frame for its target does. A scroll is none of these: the runtime's own landings fire
+// it, and each of the user's ways of scrolling begins with one that is.
+let inputs = 0;
+export const inputCount = () => inputs;
+// Mechanical owners may stop motion at the input edge, before a command or drawing
+// handler consumes it. Observation adds no binding and never claims the event.
+const inputReaders = new Set();
+export function onUserInput(read) {
+  inputReaders.add(read);
+  return () => inputReaders.delete(read);
+}
+const input = (event) => {
+  inputs++;
+  for (const read of inputReaders) read(event);
+};
+for (const type of ["pointerdown", "keydown", "input", "wheel", "touchstart"])
+  addEventListener(type, input, { capture: true, passive: true });
+addEventListener("blur", (event) => {
+  if (event.target !== window) return;
+  input(event);
+  landLabelPress();
+  endPress(event, false);
+});
+
+// Which input last named a place to keep in a reflow: a pointer moving, pressing or
+// wheeling over an item, or the keyboard, whose arrivals name the item focus stands on.
+// It chooses which visible item holds a reflow, and supersedes no delayed move.
+let placeInput = "focus";
+for (const type of ["pointermove", "pointerdown", "wheel"])
+  addEventListener(type, () => (placeInput = "pointer"), {
+    capture: true,
+    passive: true,
+  });
+// A repeated click can choose the focused destination without moving focus.
+addEventListener(
+  "click",
+  (event) => {
+    if (event.isTrusted && event.button === 0)
+      placeInput = focused()?.contains(event.composedPath()[0]) ? "focus" : "pointer";
+  },
+  { capture: true, passive: true },
+);
+export const recentPlaceInput = () => placeInput;
+
+// The primary pointer's press, from its `pointerdown` until it ends: its pointer and the
+// nodes under its start, read after the event has gone, when the platform no longer
+// reports its path. `onPress(start, path)` hears each press begin and returns what
+// hears it end, as `end(event, completed)`. A release completes it. Every other end does
+// not: a cancel, which the browser sends when it took the press for something else,
+// commonly a touch scroll; a native menu the press opened, which swallows the release;
+// and the window losing it altogether. So a gesture judged where it starts and acted on
+// where it ends reads both from one press.
+let press = null;
+export const pressing = () => press;
+const pressReaders = new Set();
+export const onPress = (read) => pressReaders.add(read);
+addEventListener(
+  "pointerdown",
+  (event) => {
+    if (!event.isPrimary) return;
+    const path = event.composedPath();
+    const ends = [];
+    press = { pointerId: event.pointerId, path, ends };
+    for (const read of pressReaders) {
+      const end = read(event, path);
+      if (end) ends.push(end);
+    }
+    if (event.button !== 0 || labelPress) return;
+    const label = path.find((node) => node?.localName === "label" && node.control);
+    const held = label && deepFocus();
+    if (!held || held === document.body) return;
+    labelPress = { held, pointerId: event.pointerId, label };
+    for (const read of labelPressReaders) read(held);
+  },
+  { capture: true, passive: true },
+);
+function endPress(event, completed) {
+  if (!press) return;
+  const { ends } = press;
+  press = null;
+  for (const end of ends) end(event, completed);
+}
+for (const type of ["pointerup", "pointercancel"])
+  addEventListener(
+    type,
+    (event) => {
+      if (
+        event.pointerId === labelPress?.pointerId &&
+        (type === "pointercancel" || !event.composedPath().includes(labelPress.label))
+      )
+        landLabelPress();
+      if (event.pointerId === press?.pointerId) endPress(event, type === "pointerup");
+    },
+    { capture: true, passive: true },
+  );
+addEventListener(
+  "contextmenu",
+  (event) => {
+    landLabelPress();
+    endPress(event, false);
+  },
+  { capture: true, passive: true },
+);
+addEventListener("click", landLabelPress, { capture: true, passive: true });
+
+// A key ends a label press, since it changes the input the user works with: they go back
+// on the element the press held them on, before the key's dispatch and default run,
+// and the key's own route reads that element as its target (`recoveredLabelFocus`).
+const recoveredLabelKeys = new WeakMap();
+export const recoveredLabelFocus = (event) => recoveredLabelKeys.get(event);
+addEventListener(
+  "keydown",
+  (event) => {
+    placeInput = "focus";
+    if (!labelPress || event.isComposing || MODIFIER_KEYS.includes(event.key)) return;
+    const active = deepFocus();
+    const { held } = finishLabelPress();
+    if (active === held || !held.isConnected) return;
+    focusDestination(held, "return");
+    if (deepFocus() === held) recoveredLabelKeys.set(event, held);
+  },
+  true,
+);
+
 for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
   addEventListener(
     type,
@@ -386,7 +661,7 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
         });
       }
       const at = deepFocus();
-      if (at && at !== document.body) return;
+      if ((at && at !== document.body) || heldByLabel()) return;
       stood = null;
       publish(null, cause(null));
     },
@@ -403,29 +678,229 @@ const dropped = () => {
   if (at && at !== document.body) return null;
   return stood && !drawn(stood) ? stood : null;
 };
-export function holdFocus(scope) {
-  const standing = scope.getRootNode().activeElement;
-  if (standing && standing !== document.body && scope.contains(standing))
-    return holdOn(deepFocus(standing));
+// The host of a shadow root, and nothing for any other node: a document names a form
+// called `host` as `document.host`, so a climb reading `.host` off the document walks
+// back into the page and around again. shadow.js's `shadowHost` answers the same, but
+// this module is a runtime primitive, which may import no other owner (eslint's
+// `runtimePrimitives`), and shadow.js reaches the registry.
+// It asks the node type rather than `instanceof ShadowRoot`, as `shadowHost` does, since
+// a frame's runtime climbs its parent document's nodes.
+const shadowHostOf = (node) =>
+  node?.nodeType === Node.DOCUMENT_FRAGMENT_NODE ? (node.host ?? null) : null;
+// Whether `node` stands in `scope`, across every shadow tree between them.
+const within = (scope, node) => {
+  for (let at = node; at; at = at.assignedSlot ?? at.parentNode ?? shadowHostOf(at))
+    if (at === scope) return true;
+  return false;
+};
+//
+// A list of keyed items names its place by `key`, the attribute each item carries. The
+// hold then reads the item the user stands in and the order of every item at the hold,
+// and its restore, after the held node, tries the item now carrying the same key, then
+// the nearest item that survived after it, then before it, before the caller's own
+// stand-ins: the user is never left on the body because the row they stood on left the
+// list.
+export function holdFocus(scope, { key = null } = {}) {
+  const node = heldIn(scope);
+  if (!node) return null;
+  const restore = holdOn(node);
+  if (!key) return restore;
+  let item = node;
+  while (item && !item.matches?.(`[${key}]`))
+    item = item.assignedSlot ?? item.parentNode ?? shadowHostOf(item);
+  if (!item || item === scope || !within(scope, item)) return restore;
+  // The items are read in the tree the held one stands in, which is the scope's own or a
+  // shadow tree inside it.
+  const tree = item.getRootNode() === scope.getRootNode() ? scope : item.getRootNode();
+  const items = () =>
+    [...tree.querySelectorAll(`[${key}]`)].filter((item) => within(scope, item));
+  // A key marking several nodes of one place counts once, where it first stands.
+  const keys = [...new Set(items().map((each) => each.getAttribute(key)))];
+  const at = keys.indexOf(item.getAttribute(key));
+  const order = [keys[at], ...keys.slice(at + 1), ...keys.slice(0, at).reverse()];
+  // In an item, the control like the one the user stood on, as Remove for Remove, read
+  // in the item's own tree, or the item itself where it holds none.
+  let control = node;
+  while (control.getRootNode() !== item.getRootNode()) {
+    const host = shadowHostOf(control.getRootNode());
+    if (!host) break; // Slotted document controls already name their native kind.
+    control = host;
+  }
+  const like =
+    control.localName +
+    [...control.classList].map((name) => `.${CSS.escape(name)}`).join("");
+  const [same, ...rest] = order;
+  return (...standIns) => {
+    // The items now standing, by key, read once for the whole restore: a list whose keys
+    // all changed tries every held key against it.
+    let byKey = null;
+    const keyed = (value) => {
+      if (!byKey) {
+        byKey = new Map();
+        for (const each of items()) {
+          const at = each.getAttribute(key);
+          if (!byKey.has(at)) byKey.set(at, []);
+          byKey.get(at).push(each);
+        }
+      }
+      return byKey.get(value) ?? [];
+    };
+    // The drawn item keyed so, where a hidden copy of it stands too. One key may mark
+    // several nodes of one place, as a diff line's text and its gutter's Comment: the one
+    // like the control the user stood on, or holding one, comes first.
+    const matching = (root) => {
+      if (root.matches(like) && drawn(root)) return root;
+      const assigned =
+        root.localName === "slot" ? root.assignedElements({ flatten: true }) : [];
+      for (const child of assigned.length ? assigned : root.children) {
+        const found = matching(child);
+        if (found) return found;
+      }
+      return null;
+    };
+    const find = (value) => {
+      const found = keyed(value).filter(drawn);
+      return (
+        (like && found.find((each) => each.matches(like))) ??
+        (like && found.map(matching).find(Boolean)) ??
+        found[0] ??
+        null
+      );
+    };
+    // The item keyed the same is the same place, so the caret goes with the user; a
+    // neighbour is another place, which this hold lands on with no caret.
+    const neighbour = (value) => () => {
+      const place = find(value);
+      if (!place || !drawn(place)) return null;
+      focusDestination(place, "return");
+      return landedOn(place);
+    };
+    return restore(() => find(same), ...rest.map(neighbour), ...standIns);
+  };
+}
+const heldIn = (scope) => {
+  const held = heldByLabel();
+  if (held) return within(scope, held) ? held : null;
+  const standing = deepFocus(
+    scope.getRootNode().activeElement ?? scope.ownerDocument.activeElement,
+  );
+  if (standing && standing !== document.body && within(scope, standing))
+    return standing;
   const lost = dropped();
-  return lost && scope.contains(lost) ? holdOn(lost) : null;
+  return lost && within(scope, lost) ? lost : null;
+};
+
+// Whether the user stands in `scope`, across every shadow tree between them.
+export const standingIn = (scope) => {
+  const at = focused();
+  return Boolean(at) && at !== document.body && within(scope, at);
+};
+
+// The roving stop of a group: `stop` is the one item Tab reaches, and every other item
+// is reached by the group's own arrows. Null leaves the group no stop.
+export function rove(items, stop) {
+  for (const item of items) keeps(item, "tabindex", item === stop ? 0 : -1);
+}
+
+// Where a layer hands the user back when it closes: the control they stood on as it
+// opened, or the one its opener names, as a drawer's door. Recorded once at the opening
+// (`openLayer`) and read by the close (`openerOf`), so no layer keeps its own record.
+// The body is nowhere, so a layer opened from it hands back nothing and lets go.
+const openers = new WeakMap();
+export function openLayer(layer, opener = focused()) {
+  openers.set(layer, opener && opener !== document.body ? opener : null);
+}
+export const openerOf = (layer) => openers.get(layer) ?? null;
+
+// Closing a layer the user may stand in and handing them on, as one act. `close` hides
+// the layer and places nothing itself; whatever focus does while it runs, the platform's
+// own hand-back as a dialog or popover closes included, reaches no reader of where the
+// user stands and is no placement. `land`, where the closer names one, then puts the
+// user where the close takes them: `handBack(...)`, `letGo`, a route; that placement is
+// heard and counted as any is. Where `land` names none and the close left the user on
+// another node, as a platform hand-back does, readers hear it once as a `return`, which
+// is the layer's own and no newer word to a hold. One the close hid them under and no
+// landing put right is a drop, as any is. A native layer closed and shown again in one
+// act, as a modal posture change re-seats the auxiliary dialog and the layers above it
+// (layer-stack.js, `transitionNativeAncestor`), is such a close with no landing, after
+// which a hold put across it puts the user back.
+//
+// A close inside another, as a card closing while the page map that holds it closes,
+// is part of that act: it lands nobody and tells nobody. The outer close's landing
+// takes the user on, or where it names none, the first inner landing does.
+let closing = 0;
+let deferredLanding = null;
+let landingLayer = false;
+// A landing a closer builds away from its `closeLayer` call, as a surface's landing on
+// an entry, which several closes share. It runs only as a close's landing: called at any
+// other time it would be a layer return beside the close, which readers hear as a
+// second move and holds read as a newer word, so it throws. Lint lets `handBack` stand
+// only in a close's `land` argument or in a function this wraps (`layer-returns`).
+export function layerLanding(land) {
+  return (...args) => {
+    if (!landingLayer)
+      throw new Error("A layer's landing runs only as the layer closes");
+    return land(...args);
+  };
+}
+export function closeLayer(close, land = null) {
+  closing += 1;
+  let deferred = null;
+  // A close inside a landing is no landing of its own while it hides.
+  const landingAround = landingLayer;
+  landingLayer = false;
+  try {
+    close();
+  } finally {
+    landingLayer = landingAround;
+    closing -= 1;
+    // The outermost close takes what an inner one deferred, whether or not it threw,
+    // so no landing outlives the act it belonged to.
+    if (!closing) [deferred, deferredLanding] = [deferredLanding, null];
+  }
+  if (closing) {
+    if (land) deferredLanding ??= land;
+    return;
+  }
+  const landing = land || deferred;
+  if (landing) {
+    const outer = landingLayer;
+    landingLayer = true;
+    try {
+      landing();
+    } finally {
+      landingLayer = outer;
+    }
+  }
+  const at = deepFocus();
+  if (!at || at === document.body || at === published) return;
+  stood = at;
+  publish(at, "return");
 }
 
 // The same reading with no scope, for an owner that learns which place it holds from
 // the node: where the user stands, or the node a change dropped them from. `null` where
 // they stand on nothing, or on nothing a change took away.
 export function holdStanding() {
-  const at = deepFocus();
+  const at = focused();
   const node = at && at !== document.body ? at : dropped();
   return node ? { node, restore: holdOn(node) } : null;
 }
 
+// The node a hold carried the user to from the one it held, with the input count then:
+// the same place under a new node, so work waiting on the held node follows it there
+// while the user has done nothing since (user-intent.js).
+const carried = new WeakMap();
+export const carriedFrom = (node) => carried.get(node) ?? null;
 function holdOn(held) {
   const caret = readCaret(held);
   const began = placements;
   return (...standIns) => {
     if (placements !== began) return false;
     for (const standIn of [held, ...standIns]) {
+      // A reader of a restore before, or a function stand-in, that moved the user said
+      // a newer word, and no later stand-in lands over it.
+      if (placements !== began) return false;
       // A function runs as the owner's own act, so whatever it does with focus counts
       // as a placement to every other hold; only the move back to the held place does not.
       const place = typeof standIn === "function" ? standIn() : standIn;
@@ -441,18 +916,28 @@ function holdOn(held) {
           )
             return false;
           return land(() => {
-            focusDestination(destination, caret);
-            return destination.matches(":focus");
+            focusDestination(destination, "return", { caret });
+            return landedOn(destination);
           });
         });
       if (place === true) return true;
       if (!(place instanceof Element) || !drawn(place)) continue;
       if (place === held && deepFocus() === held) return true;
       const landed = land(() => {
-        focusDestination(place, caret);
-        return place.matches(":focus");
+        focusDestination(place, "return", { caret });
+        return landedOn(place);
       });
-      if (landed) return true;
+      if (landed) {
+        // Two holds in a row with no input between carry the same place on, so the
+        // record names the node the first one held.
+        const before = carriedFrom(held);
+        if (place !== held)
+          carried.set(
+            place,
+            before?.inputs === inputs ? before : { from: held, inputs },
+          );
+        return true;
+      }
     }
     return false;
   };
@@ -582,7 +1067,7 @@ export function declareCovering({ surface, landing }) {
 // workspace keeps still, and never the pane under the click. So the body borrows the stop
 // for the focus that moves the starting point to the top, and gives it back on the blur.
 export function releaseFocus() {
-  focusDestination(document.body);
+  focusDestination(document.body, "move");
   document.body.blur();
 }
 
@@ -602,6 +1087,7 @@ export function release() {
   released();
   if (letGoes === before) letGo();
 }
+// A landing on the page is the user going on to it, a `move`.
 export function letGo() {
   letGoes++;
   const covering = coveringSurface();
@@ -609,7 +1095,8 @@ export function letGo() {
     // `contains` stops at a shadow boundary and `document.activeElement` is the host of
     // the tree holding focus, so the two meet: a user standing inside a widget's shadow
     // tree reads as inside the surface holding that widget, which is what is being asked.
-    if (!covering.contains(document.activeElement)) focusDestination(coveringLanding());
+    if (!covering.contains(document.activeElement))
+      focusDestination(coveringLanding(), "move");
     return;
   }
   const block = readingBlock();
@@ -617,7 +1104,7 @@ export function letGo() {
     releaseFocus();
     return;
   }
-  focusDestination(block);
+  focusDestination(block, "move");
   block.blur();
 }
 
@@ -638,20 +1125,36 @@ export function letGo() {
 // two nodes of one shadow tree counts as well.
 export function handBack(...destinations) {
   const places = destinations.filter((node) => node && node !== document.body);
-  const landed = () =>
-    places.some((node) => {
-      if (!node.isConnected || !node.checkVisibility()) return false;
-      handingBack(() => focusDestination(node));
-      return node.matches(":focus");
+  // A reader of a landing that moved the user elsewhere said a newer word, and no
+  // later destination lands over it.
+  const landed = () => {
+    const at = placements;
+    return places.some((node) => {
+      if (placements !== at) return true;
+      if (!drawn(node)) return false;
+      focusDestination(node, "return");
+      return landedOn(node);
     });
+  };
   if (landed()) return;
   if (!places.some((node) => node.isConnected)) {
     letGo();
     return;
   }
+  // The close has already hidden its focused control. Give the next key the page
+  // while a connected return target has one frame to become focusable again.
+  const yielded = !drawn(deepFocus());
+  if (yielded) releaseFocus();
   const began = placements;
+  const pendingInput = inputs;
   nextRender(() => {
-    if (placements !== began || landed()) return;
+    if (
+      inputs !== pendingInput ||
+      placements !== began ||
+      (yielded && deepFocus() !== document.body) ||
+      landed()
+    )
+      return;
     letGo();
   });
 }

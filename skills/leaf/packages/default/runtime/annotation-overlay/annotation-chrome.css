@@ -177,9 +177,31 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-preview[data-lf-comment-frame] {
     width: min(var(--lf-comment-width), var(--lf-thread-width));
   }
+  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type {
+    display: flex; flex-direction: column; max-height: 100%;
+  }
+  /* Pictures keep their complete image in the transcript's ordinary reading flow.
+     Their extent can scroll there; the editor's cap still belongs only to its words. */
+  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type:has(.lf-msg-media) {
+    max-height: none;
+  }
+  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-head {
+    flex: none;
+  }
   .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body {
+    display: flex; flex-direction: column; min-height: 0;
     box-sizing: border-box; width: min(100%, calc(var(--lf-comment-message-width) - var(--lf-thread-text-inset)));
-    max-height: var(--lf-comment-message-height); overflow-y: auto; margin-top: var(--lf-comment-body-gap);
+    margin-top: var(--lf-comment-body-gap);
+  }
+  /* Only the submitted words inherit the editor's viewport. Message metadata,
+     such as the drawing reference, is added after Send and keeps its own room.
+     The viewport shrinks with its transcript track when the card loses room. */
+  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body > :not(.lf-msg-text) {
+    flex: none;
+  }
+  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text {
+    display: block; box-sizing: border-box; min-height: 0;
+    max-height: var(--lf-comment-message-height); overflow-y: auto;
     padding-block: var(--lf-comment-text-pad-block);
     padding-inline: 0 var(--lf-comment-text-pad-end);
   }
@@ -193,7 +215,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      (text-field.js, `endRoom`): on every line, after the last words only — the last
      paragraph of words, before any pasted images, or a suggestion's text — or, where
      the draft ended on a blank line, nowhere. */
-  .lf-margin-preview[data-lf-comment-frame="every-line"] .lf-msg:first-of-type > .lf-msg-body {
+  .lf-margin-preview[data-lf-comment-frame="every-line"] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text {
     padding-inline-end: calc(var(--lf-comment-text-pad-end) + var(--lf-comment-send-room)); }
   .lf-margin-preview[data-lf-comment-frame="last-line"] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text
     > p:is(:last-child, :has(+ p > .lf-message-media:only-child)):not(:has(> .lf-message-media:only-child))::after,
@@ -233,8 +255,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-thread .lf-thread-transcript { grid-row: 2; }
   .lf-margin-thread .lf-reply-space { grid-row: 3; }
   .lf-margin-thread .lf-thread-reply { grid-row: 4; }
+  /* The card accompanies a live page: scrolling continues there at either edge,
+     including when all turns fit and the transcript has no scroll travel. */
   .lf-margin-thread .lf-thread-transcript { min-height: 1lh; overflow-y: auto;
-    overscroll-behavior: contain;
     scroll-padding-block: var(--focus-ring-room); }
   /* The field stands at the card's inset; words stand one inset inside it. */
   .lf-margin-thread .lf-page-thread { padding: 0; background: var(--paper); }
@@ -247,7 +270,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-thread .lf-thread-reply { contain: inline-size;
     display: grid; grid-template-rows: auto minmax(0, max-content);
     box-sizing: border-box;
-    min-height: calc(var(--lf-compose-h) + var(--lf-comment-foot-gap) + 2px);
+    min-height: var(--lf-comment-reply-row);
     align-items: stretch; margin: 0;
     padding-block: var(--lf-comment-foot-gap) 0;
     background: inherit; }
@@ -261,10 +284,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* The card's actions stand over the top of its transcript, where each message's head
      sticks while that message is read, so the row always names who wrote the words
      beneath it and a scrolled card never labels an agent's words with the user's name.
-     A head's lead centres its name on the actions, as the root's metadata row in the
-     Threads list does, and reaches into the gap before its message, so the card grows
-     by nothing; the root's head is that row's height. A head stops where the actions
-     start (`--lf-margin-controls-width`, thread-card.js); a percentage cap, unlike
+     Every head uses the shared message row's height and alignment, so the actions
+     neither change the opening message's gap nor cover the next line. A head stops
+     where the actions start (`--lf-margin-controls-width`, thread-card.js); a percentage cap, unlike
      padding, adds nothing to the card's width. A head covers only its own message, so
      the words under it take its height as their `--lf-top` and `scroll-margin`
      (theme.css, at `--lf-top`): a reveal lands them below it and the runtime's reading
@@ -282,20 +304,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     inset-inline-end: 0; z-index: 2; display: flex; align-items: center; gap: 4px;
     min-height: var(--lf-comment-head); padding-inline-start: var(--sp-2);
     background: var(--paper); }
-  /* A sticky head and its words paint the message's one animated ground. */
+  /* A sticky head and its words paint the message's one animated ground.
+     Shared message rules own wrapping, including progress disclosures below the
+     capped metadata when the card's actions leave too little inline room. */
   .lf-margin-thread .lf-thread-transcript .lf-msg { --lf-msg-rest-ground: var(--paper); }
   .lf-margin-thread .lf-thread-transcript .lf-msg-head { position: sticky;
     inset-block-start: 0; z-index: 1; background-color: var(--lf-msg-ground);
     max-inline-size: calc(100% - var(--lf-margin-controls-width, 0px));
-    min-height: auto; padding-inline-end: 0;
-    overflow: hidden; white-space: nowrap;
-    --lf-card-head-lead: calc((var(--lf-comment-head)
-      - var(--lf-msg-name-size) * var(--lf-ui-lh)) / 2);
-    padding-block-start: var(--lf-card-head-lead);
-    margin-block-start: calc(-1 * var(--lf-card-head-lead)); }
-  .lf-margin-thread .lf-thread-transcript > .lf-msg:first-child > .lf-msg-head {
-    box-sizing: border-box; min-height: var(--lf-comment-head);
-    margin-block-start: 0; padding-block-end: var(--lf-card-head-lead); }
+    padding-inline-end: 0; }
   @media (forced-colors: active) {
     .lf-margin-preview { border: 1px solid CanvasText; box-shadow: none; }
   }

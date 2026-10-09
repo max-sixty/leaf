@@ -13,6 +13,8 @@ The machine facts a harness rests on live elsewhere: `machine` reads the
 processes running above this one, and `leases` holds the leases a watcher
 proves itself with."""
 
+from __future__ import annotations
+
 import itertools
 import json
 import os
@@ -827,7 +829,7 @@ def _registry_records(sessions: Path) -> list[dict]:
     for record_path in sessions.glob("*.json"):
         try:
             record = json.loads(record_path.read_text(encoding="utf-8"))
-        except OSError, ValueError:
+        except (OSError, ValueError):
             continue
         if isinstance(record, dict):
             records.append(record)
@@ -908,7 +910,7 @@ def message_claude_code_session(session_id: str, text: str) -> bool:
                 peer.settimeout(1)
                 peer.connect(address)
                 peer.sendall("".join(json.dumps(f) + "\n" for f in frames).encode())
-        except OSError, ValueError, KeyError, TypeError, StopIteration:
+        except (OSError, ValueError, KeyError, TypeError, StopIteration):
             continue
         return True
     return False

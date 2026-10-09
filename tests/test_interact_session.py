@@ -4552,7 +4552,7 @@ def test_an_interrupted_stream_reply_finishes_after_the_claim_advances(page_dir)
     assert "reply_bindings" not in stream_state
 
 
-def test_a_delivery_bound_final_is_the_only_plain_reply_writer(page_dir):
+def test_provider_reservation_refuses_unaddressed_competing_writes(page_dir):
     comment = append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "text": "Move this reply too"},
@@ -5277,7 +5277,7 @@ def test_an_unacknowledged_turn_keeps_the_seat_it_reserved(
 def test_a_reply_that_cannot_be_written_still_closes_its_turn(page_dir, monkeypatch):
     """The page stops saying the agent is working, however the reply went.
 
-    `DeliveryReply` guards only the commit of a completed answer: setting the
+    `AppServerReplyStream` guards only the commit of a completed answer: setting the
     state and releasing the binding open a page transaction of their own, and the
     turn's own work may have left that page unopenable. The turn has ended either
     way, and until its Leaf turn closes and its activity reading comes off, the
@@ -5307,7 +5307,7 @@ def test_a_reply_that_cannot_be_written_still_closes_its_turn(page_dir, monkeypa
         expected=cleanup_model.session_record("codex-thread"),
     )
     turn.open_reply()
-    monkeypatch.setattr(thread_model.DeliveryReply, "_set_state", _unopenable)
+    monkeypatch.setattr(codex_model.AppServerReplyStream, "_set_state", _unopenable)
 
     with pytest.raises(OSError, match="could not be opened"):
         turn.commit({"id": "leaf-turn", "status": "completed", "items": []})
@@ -5362,7 +5362,7 @@ def test_an_observed_turn_whose_reply_cannot_be_written_still_closes(
         }
     )
     assert observer.turns["leaf-turn"].reply_stream is not None
-    monkeypatch.setattr(thread_model.DeliveryReply, "_set_state", _unopenable)
+    monkeypatch.setattr(codex_model.AppServerReplyStream, "_set_state", _unopenable)
 
     with pytest.raises(OSError, match="could not be opened"):
         observer._read(
@@ -6040,7 +6040,7 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
         "meaning": {**page_pick["meaning"], "scope": "thread"},
     }
     drawing = {
-        "format": "leaf-drawing/2",
+        "format": "leaf-drawing/3",
         "strokes": [[[0, 0], [10, 10]]],
         "box": [640, 120],
         "viewport": [1200, 900],
@@ -6141,7 +6141,7 @@ def test_codex_delivery_carries_only_the_selected_events_handling(page_dir):
             "kind": "comment",
             "text": "later drawing",
             "drawing": {
-                "format": "leaf-drawing/2",
+                "format": "leaf-drawing/3",
                 "strokes": [[[0, 0], [1, 1]]],
                 "box": [640, 120],
                 "viewport": [1200, 900],
@@ -7641,7 +7641,7 @@ SETTLING_DECISION = {
     "revision": 1,
     "anchor": {"section": "plan-choice-decision"},
     "drawing": {
-        "format": "leaf-drawing/2",
+        "format": "leaf-drawing/3",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
         "box": [640.5, 96],
         "viewport": [1200, 900],
@@ -9799,8 +9799,18 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
 
     # Input pending as the turn ends is the other Stop hook's to hand to the turn
     # it continues; once that hook lets the turn end over it, the watch wakes.
+    # Date it before the watch's startup millisecond: input within that millisecond
+    # deliberately wakes immediately, regardless of which call ran first.
     append_carried_log_record(
-        claimed, {"kind": "comment", "author": "user", "text": "before"}
+        claimed,
+        {
+            "kind": "comment",
+            "author": "user",
+            "text": "before",
+            "ts": (datetime.now().astimezone() - timedelta(seconds=1)).isoformat(
+                timespec="milliseconds"
+            ),
+        },
     )
     outcome = []
     watch = watching(outcome)
@@ -14585,14 +14595,16 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     assert schema_model.ANSWER_ASK_INSTRUCTION in continued(answer)
     assert f"`leaf response reply <answer.ref>` for {asked['id']}" in continued(answer)
 
-    # Bound to the claimant's App Server turn, the same move is answered by that
-    # turn's final message, which is what the reason names instead: `leaf thread reply`
-    # refuses a bound event.
+    # A bound move can be answered by its provider final or an explicit addressed
+    # reply. The proactive thread writer still refuses an owed move.
     with service_model.PageTransaction(claimed) as page:
         page.bind_delivery_reply(session["id"], asked["id"], "a1")
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     reason = continued(capsys.readouterr().out)
-    assert f"your turn's final message for {asked['id']}" in reason
+    assert (
+        f"your turn's final message or `leaf response reply <answer.ref>` "
+        f"for {asked['id']}"
+    ) in reason
     assert "leaf thread reply <page>" not in reason
     with service_model.PageTransaction(claimed) as page:
         page.clear_delivery_reply_binding(session["id"], asked["id"], "a1")
@@ -20093,9 +20105,9 @@ def _reserved_author_response(page_dir):
     return comment, target, prepared.payload["id"], stream
 
 
-@pytest.mark.parametrize("rich", ["question", "markup", "failure"])
+@pytest.mark.parametrize("rich", ["question", "markup"])
 @pytest.mark.parametrize("author", ["codex-thread", "worker-1"])
-def test_provider_response_authors_full_content_and_commits_it_after_reconnect(
+def test_provider_response_commits_full_content_before_reconnect(
     page_dir, monkeypatch, rich, author
 ):
     comment, target, delivery_id, stream = _reserved_author_response(page_dir)
@@ -20115,26 +20127,20 @@ def test_provider_response_authors_full_content_and_commits_it_after_reconnect(
             "--section",
             "plan",
         ],
-        "failure": ["--failure", "unavailable", "--title", "Storage choice"],
     }[rich]
     authored = CliRunner().invoke(
         cli_model.cli,
         ["response", "reply", target["ref"], "--text", "Choose the store.", *flags],
     )
     assert authored.exit_code == 0, authored.output
-    assert json.loads(authored.output)["state"] == "prepared"
-    assert not any(
-        event["kind"] == "reply" for event in events_model.read_events(page_dir)
-    )
+    assert json.loads(authored.output)["kind"] == "reply"
     stream.disconnect()
-    # Rebinding the same attempt is the real reconnect operation, preserving the draft.
+    # Reconnecting cannot replace the answer already committed by the author.
     thread_model.reserve_delivery_reply("codex-thread", delivery_id, target)
     recovered = codex_model.AppServerReplyStream(
         "codex-thread", "author-turn", delivery_id, target
     )
     recovered.restore("Provider opening after reconnect")
-    displayed = files_model.read_json(page_dir / "status.json")["stream"]["reply"]
-    assert displayed["text"] == "Choose the store."
     assert recovered.finish("completed", "Provider completion text") is None
     [reply] = [
         event
@@ -20150,11 +20156,9 @@ def test_provider_response_authors_full_content_and_commits_it_after_reconnect(
     if rich == "question":
         assert reply["awaits"] is True
         assert reply["anchor"]["section"] == "plan"
-    elif rich == "markup":
+    else:
         assert reply["markup"] == markup
         assert reply["anchor"]["section"] == "plan"
-    else:
-        assert reply["failure"] == "unavailable"
     assert (reply["session"], reply["agent"]) == (author, "Worker")
     retried = CliRunner().invoke(
         cli_model.cli,
@@ -20171,46 +20175,6 @@ def test_provider_response_authors_full_content_and_commits_it_after_reconnect(
     )
 
 
-@pytest.mark.parametrize(
-    "old",
-    [
-        {"text": "Old content"},
-        {"format": "leaf-author-reply-v0", "content": {"text": "Old content"}},
-        {"format": service_model.AUTHOR_REPLY_FORMAT},
-        {
-            "format": service_model.AUTHOR_REPLY_FORMAT,
-            "content": {"text": "Old content"},
-            "attempt": "old-key",
-        },
-        {
-            "format": service_model.AUTHOR_REPLY_FORMAT,
-            "content": {},
-            "identity": {"session": "worker-1"},
-            "attempt": "old-key",
-        },
-    ],
-)
-def test_incompatible_prepared_author_state_is_absent(page_dir, old):
-    comment, target, delivery_id, stream = _reserved_author_response(page_dir)
-    status = files_model.read_json(page_dir / "status.json")
-    status["stream"]["reply_bindings"][comment["id"]]["author_reply"] = old
-    cleanup_model.write_json(page_dir / "status.json", status)
-    assert (
-        "author_reply"
-        not in service_model.read_status(page_dir)["stream"]["reply_bindings"][
-            comment["id"]
-        ]
-    )
-    assert thread_model.delivery_reply_reserved("codex-thread", delivery_id, target)
-    assert stream.finish("completed", "Current provider final") is None
-    [reply] = [
-        event
-        for event in events_model.read_events(page_dir)
-        if event["kind"] == "reply"
-    ]
-    assert reply["text"] == "Current provider final"
-
-
 @pytest.mark.parametrize("reacquired", [False, True])
 def test_history_recovery_and_author_retry_survive_owner_process_restart(
     page_dir, capsys, reacquired
@@ -20218,7 +20182,7 @@ def test_history_recovery_and_author_retry_survive_owner_process_restart(
     comment, target, delivery_id, _stream = _reserved_author_response(page_dir)
     identity = {"session": "worker-1", "agent": "Indexer"}
     thread_model.post_response(
-        target["ref"], "Worker prepared question?", awaits=True, identity=identity
+        target["ref"], "Worker question?", awaits=True, identity=identity
     )
     payload = delivery_model.read_delivery(delivery_id)
     before = cleanup_model.session_record("codex-thread")
@@ -20264,46 +20228,38 @@ def test_history_recovery_and_author_retry_survive_owner_process_restart(
         events_model.read_events(page_dir), comment["id"]
     )
     assert (answer["text"], answer["session"], answer["agent"], answer["awaits"]) == (
-        "Worker prepared question?",
+        "Worker question?",
         "worker-1",
         "Indexer",
         True,
     ), errors
     assert (
         thread_model.post_response(
-            target["ref"], "Worker prepared question?", awaits=True, identity=identity
+            target["ref"], "Worker question?", awaits=True, identity=identity
         )
         == answer
     )
 
 
-def test_failed_provider_discards_authored_content_without_answering(page_dir):
+@pytest.mark.parametrize("ending", ["interrupted", "completed"])
+def test_explicit_answer_survives_a_provider_ending_without_final_text(
+    page_dir, ending
+):
     comment, target, _delivery_id, stream = _reserved_author_response(page_dir)
-    thread_model.post_response(
+    answer = thread_model.post_response(
         target["ref"],
-        "My prepared question?",
+        "My question?",
         awaits=True,
         identity={"session": "codex-thread", "agent": "Codex"},
     )
-    assert stream.finish("interrupted") is None
-    assert not any(
-        event["kind"] == "reply" for event in events_model.read_events(page_dir)
-    )
-    assert comment["id"] in delivery_model.current_responses(
+    assert stream.finish(ending) is None
+    assert thread_model.successful_replies(
+        events_model.read_events(page_dir), comment["id"]
+    ) == [answer]
+    assert comment["id"] not in delivery_model.current_responses(
         page_dir, events_model.read_events(page_dir)
     )
-    status = files_model.read_json(page_dir / "status.json")["stream"]
-    assert "reply_bindings" not in status
-    assert (status["reply"]["text"], status["reply"]["state"]) == (
-        "My prepared question?",
-        "interrupted",
-    )
-    # The same emitted address survives the provider releasing its custody.
-    answer = thread_model.post_response(
-        target["ref"], "Recovered answer", identity={"session": "codex-thread"}
-    )
-    assert (answer["responds"], answer["text"]) == (comment["id"], "Recovered answer")
-    assert "awaits" not in answer
+    assert thread_model.post_response(target["ref"], "Retry") == answer
 
 
 def test_addressed_progress_is_one_atomic_message_and_work_start(page_dir):
@@ -20361,30 +20317,27 @@ def test_codex_ignores_obsolete_addressed_envelopes_and_recaptures_input(
     assert path.exists()  # another checkout's record is not ours to retire
 
 
-def test_prepared_rich_reply_rechecks_source_at_final_without_fallback(page_dir):
-    _comment, target, delivery_id, stream = _reserved_author_response(page_dir)
-    thread_model.post_response(
+def test_explicit_rich_reply_is_committed_before_later_invalid_source(page_dir):
+    comment, target, delivery_id, stream = _reserved_author_response(page_dir)
+    answer = thread_model.post_response(
         target["ref"],
-        "Prepared answer",
+        "Committed answer",
         section="plan",
         identity={"session": "codex-thread", "agent": "Codex"},
     )
     (page_dir / "index.html").write_text("<lf-unknown>Invalid</lf-unknown>")
-    error = stream.finish("completed", "Provider fallback text")
-    assert error is not None
-    assert not any(
-        event["kind"] == "reply" for event in events_model.read_events(page_dir)
-    )
+    assert stream.finish("completed", "Provider fallback text") is None
+    assert thread_model.successful_replies(
+        events_model.read_events(page_dir), comment["id"]
+    ) == [answer]
     assert not thread_model.delivery_reply_reserved("codex-thread", delivery_id, target)
-    displayed = files_model.read_json(page_dir / "status.json")["stream"]["reply"]
-    assert (displayed["text"], displayed["state"]) == ("Prepared answer", "failed")
 
 
-def test_prepared_content_stays_on_older_binding_after_new_displayed_reply(page_dir):
+def test_committed_answer_survives_a_newer_displayed_reply(page_dir):
     comment, target, _delivery_id, old = _reserved_author_response(page_dir)
     identity = {"session": "codex-thread", "agent": "Codex"}
     thread_model.post_response(
-        target["ref"], "Older prepared question?", awaits=True, identity=identity
+        target["ref"], "Older question?", awaits=True, identity=identity
     )
     newer = append_command(
         page_dir,
@@ -20408,7 +20361,7 @@ def test_prepared_content_stays_on_older_binding_after_new_displayed_reply(page_
     ]
     assert (reply["responds"], reply["text"], reply["awaits"]) == (
         comment["id"],
-        "Older prepared question?",
+        "Older question?",
         True,
     )
     status = files_model.read_json(page_dir / "status.json")["stream"]
@@ -20417,27 +20370,70 @@ def test_prepared_content_stays_on_older_binding_after_new_displayed_reply(page_
     assert comment["id"] not in status["reply_bindings"]
 
 
-def test_invalid_rich_preparation_does_not_replace_existing_author_content(page_dir):
-    _comment, target, _delivery_id, stream = _reserved_author_response(page_dir)
-    identity = {"session": "codex-thread", "agent": "Codex"}
-    thread_model.post_response(
-        target["ref"], "Valid question?", awaits=True, identity=identity
+def test_bound_thread_refusal_routes_rich_content_to_addressed_reply(page_dir):
+    comment, target, _delivery_id, stream = _reserved_author_response(page_dir)
+    markup = '<lf-options id="corrected-choice" choose><lf-option id="corrected-yes">Yes</lf-option></lf-options>'
+    runner = CliRunner()
+    refused = runner.invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            str(page_dir),
+            comment["id"],
+            "--text",
+            "Choose.",
+            "--markup",
+            markup,
+        ],
     )
-    with pytest.raises(SystemExit, match="markup"):
-        thread_model.post_response(
-            target["ref"],
-            "Invalid",
-            markup='<lf-unknown id="bad"></lf-unknown>',
-            identity=identity,
-        )
+    assert refused.exit_code != 0
+    assert "leaf response reply <answer.ref>" in refused.output
+    corrected = runner.invoke(
+        cli_model.cli,
+        ["response", "reply", target["ref"], "--text", "Choose.", "--markup", markup],
+    )
+    assert corrected.exit_code == 0, corrected.output
+    answer = json.loads(corrected.output)
+    assert answer["markup"] == markup
     assert stream.finish("completed", "Provider final") is None
-    [reply] = [
-        event
-        for event in events_model.read_events(page_dir)
-        if event["kind"] == "reply"
-    ]
-    assert reply["text"] == "Valid question?"
-    assert reply["awaits"] is True
+    assert thread_model.successful_replies(
+        events_model.read_events(page_dir), comment["id"]
+    ) == [answer]
+
+
+@pytest.mark.parametrize("invalid", ["source", "markup", "title"])
+def test_explicit_reply_refusal_reaches_its_author_before_commit(page_dir, invalid):
+    comment, target, _delivery_id, stream = _reserved_author_response(page_dir)
+    identity = {"session": "codex-thread", "agent": "Codex"}
+    source = (page_dir / "index.html").read_text()
+    before_revision = files_model.latest_revision(page_dir)
+    (page_dir / "index.html").write_text(
+        "<lf-unknown>Invalid</lf-unknown>"
+        if invalid == "source"
+        else source + "<!-- edited -->"
+    )
+    options = {
+        "source": {},
+        "markup": {"markup": '<lf-unknown id="bad"></lf-unknown>'},
+        "title": {"title": ""},
+    }[invalid]
+    before = events_model.read_events(page_dir)
+    with pytest.raises(SystemExit):
+        thread_model.post_response(
+            target["ref"], "Invalid", identity=identity, **options
+        )
+    assert events_model.read_events(page_dir) == before
+    assert files_model.latest_revision(page_dir) == before_revision
+    (page_dir / "index.html").write_text(source)
+    answer = thread_model.post_response(
+        target["ref"], "Corrected question?", awaits=True, identity=identity
+    )
+    assert stream.finish("completed", "Provider final") is None
+    assert thread_model.successful_replies(
+        events_model.read_events(page_dir), comment["id"]
+    ) == [answer]
+    assert answer["awaits"] is True
 
 
 def test_markup_obligation_cannot_be_discharged_by_reply_or_reply_failure(page_dir):
@@ -20510,7 +20506,7 @@ def test_retry_identity_cannot_take_current_provider_custody(
         if retry == "same"
         else "another-retry"
     )
-    with pytest.raises(SystemExit, match="finish the reply in your final message"):
+    with pytest.raises(SystemExit, match="leaf response reply"):
         thread_model.post_reply(
             page_dir,
             comment["id"],
@@ -20527,23 +20523,20 @@ def test_retry_identity_cannot_take_current_provider_custody(
             "reply",
             earlier,
             "--text",
-            "Prepared by author",
+            "Committed by author",
             "--attempt",
             attempt,
         ],
     )
     assert authored.exit_code == 0, authored.output
-    assert json.loads(authored.output)["state"] == "prepared"
-    assert not any(
-        event["kind"] == "reply" for event in events_model.read_events(page_dir)
-    )
+    assert json.loads(authored.output)["kind"] == "reply"
     assert stream.finish("completed", "Provider final") is None
     [answer] = [
         event
         for event in events_model.read_events(page_dir)
         if event["kind"] == "reply"
     ]
-    assert answer["text"] == "Prepared by author"
+    assert answer["text"] == "Committed by author"
     assert answer["attempt"] != thread_model.delivery_reply_attempt(
         prepared.payload["id"]
     )
@@ -20554,7 +20547,7 @@ def test_retry_identity_cannot_take_current_provider_custody(
             "reply",
             earlier,
             "--text",
-            "Prepared by author",
+            "Committed by author",
             "--attempt",
             attempt,
         ],
@@ -20563,22 +20556,26 @@ def test_retry_identity_cannot_take_current_provider_custody(
     assert json.loads(retried.output) == answer
 
 
-def test_prepared_failure_yields_to_user_settlement(page_dir):
+def test_failure_reply_is_refused_while_provider_still_owns_the_answer(page_dir):
     comment, target, delivery_id, stream = _reserved_author_response(page_dir)
-    thread_model.post_response(
-        target["ref"],
-        "No answer is coming.",
-        failure="unavailable",
-        identity={"session": "codex-thread", "agent": "Codex"},
+    with pytest.raises(SystemExit, match="leaf response reply"):
+        thread_model.post_response(
+            target["ref"],
+            "No answer is coming.",
+            failure="unavailable",
+            identity={"session": "codex-thread", "agent": "Codex"},
+        )
+    assert not thread_model.successful_replies(
+        events_model.read_events(page_dir), comment["id"]
     )
-    append_command(
-        page_dir, {"kind": "resolve", "author": "user", "parent": comment["id"]}
-    )
+    assert thread_model.delivery_reply_reserved("codex-thread", delivery_id, target)
     assert stream.finish("completed", "Provider final") is None
-    assert not any(
-        event["kind"] == "reply" for event in events_model.read_events(page_dir)
+    assert (
+        thread_model.successful_replies(
+            events_model.read_events(page_dir), comment["id"]
+        )[0]["text"]
+        == "Provider final"
     )
-    assert not thread_model.delivery_reply_reserved("codex-thread", delivery_id, target)
 
 
 @pytest.mark.parametrize("settled", [False, True])
@@ -20603,8 +20600,13 @@ def test_old_provider_final_yields_to_new_reservation_for_same_input(page_dir, s
             page_dir, {"kind": "resolve", "author": "user", "parent": comment["id"]}
         )
     assert old.finish("completed", "Old recovered final") is None
-    assert not any(
-        event["kind"] == "reply" for event in events_model.read_events(page_dir)
+    assert (
+        len(
+            thread_model.successful_replies(
+                events_model.read_events(page_dir), comment["id"]
+            )
+        )
+        == 1
     )
     assert thread_model.delivery_reply_reserved(
         "codex-thread", payload["id"], new_target

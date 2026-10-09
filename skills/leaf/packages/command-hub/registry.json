@@ -182,7 +182,7 @@
     },
     "additionalProperties": false,
     "x-content": "members",
-    "x-upgrade": false,
+    "x-upgrade": true,
     "x-example": "<lf-tasks id=\"aviary-plan\">\n  <lf-task id=\"t-feeders\" status=\"active\" owner=\"wren\">\n    <strong>Rebuild the feeders</strong> Two of four mounted.\n    <lf-task id=\"t-mounts\" status=\"done\" owner=\"wren\"><strong>Replace the mounts</strong></lf-task>\n    <lf-task id=\"t-baffles\" status=\"review\" owner=\"finch\" when=\"aug 4\">\n      <strong>Fit squirrel baffles</strong> Ready for review.\n      <lf-ask id=\"t-baffles-decision\"><h3>Are the baffles ready?</h3>\n        <lf-options id=\"t-baffles-review\" choose>\n          <lf-option id=\"t-baffles-approve\"><strong>Approve</strong></lf-option>\n          <lf-option id=\"t-baffles-revise\"><strong>Request changes</strong></lf-option>\n        </lf-options>\n      </lf-ask>\n    </lf-task>\n  </lf-task>\n  <lf-task id=\"t-bath\" status=\"blocked\">\n    <strong>Heat the bird bath</strong> Waiting on a transformer delivery.\n  </lf-task>\n</lf-tasks>"
   },
   "lf-command": {

@@ -21,17 +21,17 @@ vars:
     example and the diagnostic output below, and keep the code's behavior unchanged.
 
     <section id="api-design"><h2>One declared command, several places to use it</h2>
-    <pre><code>const decisions = commandScope("In a swipe deck", [
-      { id: "swipe.pass", keys: ["ArrowLeft", "1"], control: pass,
+    <pre><code>const decisions = commandScope("In a classifier", [
+      { id: "classify.pass", keys: ["ArrowLeft", "1"], control: pass,
         decision: "Pass", does: "Pass the active card",
-        line: "pass", when: canSwipe, run: () =&gt; pass.click() },
-      { id: "swipe.keep", keys: ["ArrowRight", "2"], control: keep,
+        line: "pass", when: canClassify, run: () =&gt; pass.click() },
+      { id: "classify.keep", keys: ["ArrowRight", "2"], control: keep,
         decision: "Keep", does: "Keep the active card",
-        line: "keep", when: canSwipe, run: () =&gt; keep.click() },
+        line: "keep", when: canClassify, run: () =&gt; keep.click() },
     ]);
     commands(deck, decisions);</code></pre>
     <p>Diagnostic output:</p>
-    <pre><code>Scope: In a swipe deck
+    <pre><code>Scope: In a classifier
     Active commands: 2
     Result: ready</code></pre>
     </section>

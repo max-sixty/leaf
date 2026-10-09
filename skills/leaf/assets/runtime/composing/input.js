@@ -5,7 +5,7 @@ import { advertisesKeys, submitBindings, submitLabel } from "../keyboard/binding
 import { readPastedMedia, scopedMediaUrl, writePastedMedia } from "../media.js";
 import { announce, notice } from "../notifications.js";
 import { iconElement } from "../icons.js";
-import { drawingThumbnail } from "./drawing-ink.js";
+import { drawingThumbnail } from "./drawing-context.js";
 import { LitElement, html } from "../../vendor/browser-runtime.js";
 import "./text-field.js";
 import { followBoxGrowth, readBoxPlace } from "../thread/reply-landing.js";
@@ -69,7 +69,7 @@ class PastedMediaShelf extends LitElement {
 
   picture(drawing) {
     if (drawing !== this.pictured.drawing)
-      this.pictured = { drawing, node: drawingThumbnail(drawing) };
+      this.pictured = { drawing, node: drawingThumbnail(drawing, this.model.target) };
     return this.pictured.node;
   }
 
@@ -293,6 +293,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       mediaShelf.present(
         Object.freeze({
           drawing: drawn,
+          target: drawn ? drawing.target() : null,
           media: pastedMedia.map((path, index) =>
             Object.freeze({ index, url: scopedMediaUrl(path) }),
           ),

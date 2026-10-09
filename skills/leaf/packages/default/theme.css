@@ -6,9 +6,6 @@
 
 /* ---------- element-widgets ---------- */
 
-
-
-
 /* lf-gloss: the prose stays prose, and its underline is the whole visible
  * affordance. The words keep the page's ink while the underline uses the accent —
  * this phrase goes nowhere — and the top-layer card uses the page's ordinary paper,
@@ -90,7 +87,7 @@
  * is worth quoting. There is one of those left. The
  * other went with the attribute it named: the theme wrote "effort" in front of
  * `effort` because it knew the name, and a decision's facets are the author's to
- * name, so they are markup (lf-chip) rather than an attribute rendered into text.
+ * name, so they are ordinary small labels rather than an attribute rendered into text.
  *
  * Every rule here names the attribute it styles, because data-lf-said is the wider
  * claim that these words are the page's — a widget's own label wears it bare
@@ -105,23 +102,14 @@
  * widget is a dozen chances to answer it differently.
  *
  * Figures come with the face, and this package is where that earns its keep: the
- * numbers a report moves between versions are all here — a task's done fraction, a
- * metric's value, a tree's badge — and in the sans's own figures each rewrite resizes
+ * numbers a report moves between versions are all here — a board's column label or
+ * a screenshot's measured delta — and in the sans's own figures each rewrite resizes
  * the chip the number is set in, and moves whatever stands after it. The integrated
  * theme's copy of this rule carries the measurement and the norm it answers. */
-.lf-tree-badge, .lf-shotcap, .lf-shotdelta, :scope:is(lf-metric),
+.lf-shotcap, .lf-shotdelta,
 :scope:is(lf-sample)::before, :scope:is(lf-sample) > [data-lf-said="label"], :scope:is(lf-column)::before,
-:scope:is(lf-column) > [data-lf-said="label"], :scope:is(lf-tab)::before,
-:scope:is(lf-chip) {
+:scope:is(lf-column) > [data-lf-said="label"], :scope:is(lf-tab)::before {
   font-family: var(--sans); font-variant-numeric: tabular-nums; }
-
-/* The kernel's chip face (.tag), in the chip tokens it is set in, so a band of chips
- * and an inline label stand the same height. */
-:scope:is(lf-chip) {
-  display: inline-block; font-size: var(--t-6); line-height: var(--chip-lh);
-  padding: var(--chip-pad);
-  box-sizing: border-box; max-width: 100%; overflow-wrap: break-word;
-  border-radius: var(--chip-r); background: var(--chip); color: var(--ink-2); }
 
 /* Titled alternatives carry an argument and keep the document's serif. Compact
  * answer rows and movable board cards are working surfaces: the sans, a shorter
@@ -157,7 +145,7 @@
  * anchor-positioned offset so the second chip cleared the first, an 11rem
  * reservation in the row-form title. Every one of those numbers was room held
  * for a fixed count of words the theme knew the length of. An author writes as
- * many lf-chip as the decision has facets, so there is no count to lay out for
+ * many labels as the decision has facets, so there is no count to lay out for
  * and no width to reserve: they wrap along the band like the words they are. */
 /* Whether a group stands as one control is a second axis, across the form it takes: the
  * cards and the rows alike become cells when the group is joined, and both come apart
@@ -244,7 +232,7 @@
 @container style(--lf-density: working) and (width >= 30rem) {
   :scope:is(lf-options):has(> lf-option > strong) > lf-option {
     & > strong { margin-inline-end: .35em; }
-    & > lf-chip { float: inline-end; margin: 0 0 0 6px; }
+    & > .tag { float: inline-end; margin: 0 0 0 6px; }
   }
 }
 /* A chip is an element, so nothing here renders it and nothing declares it words: it is
@@ -253,16 +241,7 @@
  * the band sits — and what a chip adds is the band: margins that space and wrap a row of
  * them. The shared chip face bounds and wraps the author's words against the card;
  * there is no length the theme can assume. */
-:scope:is(lf-chip) { margin: 0 6px 2px 0; }
-/* The tint is the author's, per chip. The theme knows the three semantic pairs and
- * nothing about which facet earns one — the pair this replaced tinted `risk` and not
- * `effort`, which was the theme holding an opinion about a word, and the opinion went
- * wrong the moment the author picked the facet. Same bargain lf-metric makes with
- * `direction`. Untoned is the default and should stay the common case: a band where
- * every chip is coloured points at nothing. */
-:scope:is(lf-chip)[tone="ok"]     { background: var(--ok-tint);     color: var(--ok-ink); }
-:scope:is(lf-chip)[tone="warn"]   { background: var(--warn-tint);   color: var(--warn-ink); }
-:scope:is(lf-chip)[tone="danger"] { background: var(--danger-tint); color: var(--danger-ink); }
+:scope:is(lf-option) > .tag { margin: 0 6px 2px 0; }
 /* The titled form. A titled option is a card arguing its own case, and the cards
  * stack into full-width rows, read down the page the way a decision record
  * reads — which is how pages stopped growing a comparison table and an "in
@@ -274,32 +253,11 @@
  * group like the column of the comparison table this form folds back in, and
  * stacks above the prose where it can't.
  *
- * lf-compare is the same shape without the decision and follows it — for block
- * content only, because an exhibition is looked across where a decision is read
- * down, so terse variants keep their side-by-side grid. Whether a variant holds
- * block content is the platform's closed set inverted, exactly as the suggestion
- * slots ask it: any child that is not phrasing content stacks the group, so a
- * widget from any layer is covered without being named — the enumeration this
- * replaces listed fifteen widgets and would have missed the sixteenth. Browser
- * tests exercise the terse comparison and inline-widget outcomes instead of
- * reflecting the selectors through a second list. The marker at the end is the
- * inversion's one wrong answer, an inline widget being a custom element like
- * any other: the registry says which widgets those are and
- * delivery paints it where a selector can reach it (data-lf-inline,
- * `mark_declared`), so a chip keeps the grid here by the same declaration that
- * keeps a suggestion inline in a sentence. It is in :where() for the reason the
- * suggestion slots' copy states: an attribute selector inside :not() would lift
- * this whole rule a specificity column and let a layout question outrank the
- * marks painted over it. */
-:scope:is(lf-options):has(> lf-option > strong),
-:scope:is(lf-compare):has(> lf-variant > :not(a, abbr, area, audio, b, bdi, bdo, br, button, canvas,
-    cite, code, data, datalist, del, dfn, em, embed, i, iframe, img, input, ins, kbd,
-    label, link, map, mark, math, meta, meter, noscript, object, output, picture,
-    progress, q, ruby, s, samp, script, select, slot, small, span, strong, sub, sup,
-svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
+ */
+:scope:is(lf-options):has(> lf-option > strong) {
   display: block;
-  & > :is(lf-option, lf-variant) { display: flow-root; margin: 0 0 var(--sp-2); }
-  & > :is(lf-option, lf-variant):last-child { margin-bottom: 0; }
+  & > lf-option { display: flow-root; margin: 0 0 var(--sp-2); }
+  & > lf-option:last-child { margin-bottom: 0; }
   /* The rail docks right where the row has the width to spare, and stacks above the prose
    * where it hasn't — asked of the row itself, because how much room it has is a fact
    * about the row and not about the window: the page gives 168px up to the margin
@@ -322,23 +280,23 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
    * container is the option. The gutter is written out because a custom property is
    * not allowed in a container condition; it is `--sp-3`, and the rail's own margin below
    * is where it is really stated. */
-  & > :is(lf-option, lf-variant) { container-type: inline-size; }
+  & > lf-option { container-type: inline-size; }
   /* The rail declares the frame its option already does, because the trim reaches one
   level and the rail is what stands in that level: a `dt`'s 6px between terms is the
   first term's too, and collapsing hands it to the option, whose padding then paints it
   — so the rail's first line sat 6px below the case docked beside it. Stated here
   rather than under the float, since where the rail stacks the same 6px reaches the
   option through the same collapse. */
-  & > :is(lf-option, lf-variant) > .facts { display: block; margin: 0 0 var(--sp-2);
+  & > lf-option > .facts { display: block; margin: 0 0 var(--sp-2);
     --lf-block-frame: 1; }
   @container (min-width: calc(9.5em + 16px + 20em)) {
-    & > :is(lf-option, lf-variant) > .facts { float: right; clear: right; width: 9.5em;
+    & > lf-option > .facts { float: right; clear: right; width: 9.5em;
       margin: 0 0 var(--sp-2) var(--sp-3); }
   }
-  & > :is(lf-option, lf-variant) > .facts dt { color: var(--muted);
+  & > lf-option > .facts dt { color: var(--muted);
     font-size: var(--t-6); text-transform: uppercase; letter-spacing: .05em;
     font-weight: 400; margin-top: 6px; padding: 0; }
-  & > :is(lf-option, lf-variant) > .facts dd { font-size: var(--t-5); margin: 0; }
+  & > lf-option > .facts dd { font-size: var(--t-5); margin: 0; }
 }
 /* With `choose`, the group takes the user's pick by click. What follows is a card
  * standing on its own — a card in a settled group, or any card on paper. A card in a
@@ -728,7 +686,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
     /* An ok chip is drawn in the same tint the pick fills its cell with, so on the chosen
      * cell a "recommended" chip lost its ground and read as loose green words. There
      * it stands on the card's ground instead, keeping its tone in its ink. */
-    & > lf-option[chosen] > lf-chip[tone="ok"] { background: var(--card); }
+    & > lf-option[chosen] > .tag.ok { background: var(--card); }
     /* The add form is the group's own child, so joining the group takes it inside the
      * border too, butted against the last cell by the hairline every child shares. It is
      * a cell rather than a footer: it creates the option the user writes when none of
@@ -1032,127 +990,6 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 @media print {
   :scope:is(lf-options)[settled] > lf-option { content-visibility: visible !important; }
 }
-
-/* lf-milestones / lf-milestone: a rail of status dots. The rail and dots are
- * CSS; the chip row (`when`, `tags`) is built by the lf-milestone upgrade. The rail's
- * inset is padding, so it stays inside the column the list keeps (`x-space`), as
- * lf-chronology's does. */
-:scope:is(lf-milestones) { display: block; margin: 14px 0; padding-inline-start: 8px; }
-/* Each row's border owns the rail width. A marker centres on that border from
- * the padding-box origin, independent of the marker's diameter or border. */
-:scope:is(lf-milestone, lf-chronology-entry) {
-  --lf-timeline-rule: 2px;
-  display: block; position: relative; padding: 0 0 16px 26px;
-  border-left: var(--lf-timeline-rule) solid var(--rule); --lf-block-frame: 1;
-}
-:scope:is(lf-milestone)::before, :scope:is(lf-chronology-entry)::after {
-  content: ""; position: absolute;
-  left: calc(var(--lf-timeline-rule) / -2); top: 0.5lh;
-  transform: translate(-50%, -50%); box-sizing: border-box;
-  width: 14px; height: 14px; border-radius: 50%;
-  background: var(--paper); border: 2px solid var(--muted);
-}
-:scope:is(lf-milestone):last-child { border-left-color: transparent; padding-bottom: 2px; }
-:scope:is(lf-milestone)[status="done"]::before   { background: var(--ok); border-color: var(--ok); }
-:scope:is(lf-milestone)[status="active"]::before { border-color: var(--accent);
-                                        box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
-:scope:is(lf-milestone)[status="blocked"]::before { background: var(--danger); border-color: var(--danger); }
-:scope:is(lf-milestone) > strong { display: block; margin: 0 0 2px; }
-/* Where the runtime runs, the chip row the module builds from `when` and `tags` (the
- * kernel's .lf-chips) has its room from the first paint: one row of chips under the
- * title, or at the top of a milestone that has none. Chips that wrap onto a second row
- * are not reserved. */
-@scope (html[data-lf-interactive] :scope) {
-  :scope:is(lf-milestone):is([when]:not([when=""]), [tags]:not([tags=""])):not(:has(> .lf-chips))
-  > strong:first-of-type::after{ content: ""; display: block;
-    height: calc(var(--t-6) * var(--chip-lh)); margin: 2px 0 6px; }
-}
-/* The row's top margin collapses through the milestone once it is the first child, so
- * the milestone wears it until then. */
-@scope (html[data-lf-interactive] :scope) {
-  :scope:is(lf-milestone):is([when]:not([when=""]), [tags]:not([tags=""])):not(
-  :has(> .lf-chips, > strong)){ margin-top: 2px;
-    padding-top: calc(var(--t-6) * var(--chip-lh) + 6px); }
-}
-:scope:is(lf-milestone)[status="done"] > strong { color: var(--muted); }
-/* The status word a user listening gets wears the runtime's .lf-ui .lf-quiet —
- * real text, clipped on screen where the dot already says it. Which attributes get
- * one is declared (x-paints) and the writing is the runtime's own pass, so
- * lf-chronology-entry's kind is spoken here too. It was left silent while these two spoke, on
- * the reading that saying it meant giving the chronology its first module and the
- * quoting fence an upgrade brings with it — which was true of the answer being
- * copied and not of the question. A declaration costs neither. */
-
-/* lf-chronology / lf-chronology-entry: a chronology on a rail. The dot is ::after, absolute,
- * colored by kind; the time label is the `at` attribute, said above the title. */
-:scope:is(lf-chronology) { display: block; margin: 14px 0; padding-inline-start: 8px; }
-:scope:is(lf-chronology-entry):last-child { border-left-color: transparent; padding-bottom: 2px; }
-/* A timestamp is the row's first line. Its marker uses the same font size and
- * inherited leading so 0.5lh names that line's centre before and after upgrade. */
-:scope:is(lf-chronology-entry)[at]:not([at=""])::after { font-size: var(--t-6); }
-:scope:is(lf-chronology-entry)[kind="observation"]::after    { background: var(--muted); }
-:scope:is(lf-chronology-entry)[kind="intervention"]::after  { background: var(--accent); border-color: var(--accent); }
-:scope:is(lf-chronology-entry)[kind="warning"]::after { background: var(--warn); border-color: var(--warn); }
-:scope:is(lf-chronology-entry)[kind="failure"]::after { background: var(--danger); border-color: var(--danger); }
-:scope:is(lf-chronology-entry)[at]:not([at=""])::before,
-:scope:is(lf-chronology-entry) > [data-lf-said="at"] { display: block; font-family: var(--mono);
-                       font-size: var(--t-6); color: var(--muted); margin-bottom: 1px; }
-:scope:is(lf-chronology-entry)[at]:not([at=""]):not(:has(> [data-lf-said="at"]))::before {
-  content: attr(at);
-}
-:scope:is(lf-chronology-entry) > [data-lf-said="at"]:empty { display: none; }
-:scope:is(lf-chronology-entry) > strong { margin-right: 6px; }
-
-/* lf-compare / lf-variant: labeled columns; exhibition, not decision.
- *
- * A cell takes its width from the group and its height from what it holds. Stretch is
- * the grid's own default and it draws empty boxes: out of 720px of column a one-sentence
- * variant beside a six-line one came out 278px tall, 190 of that blank under a single
- * line, which reads as a card whose words failed to arrive.
- *
- * That leaves a last row with room to spare — four terse variants come out three across
- * and one under them at a third of the row, seven as 3, 3 and 1. The two ways of filling
- * it both pay in cell width: a wrapped flex line grows its items, and a column count read
- * off the child count is a different width per count. An exhibition is read down its
- * columns as much as across its rows, and a card wider than its peers because it happened
- * to be last says something about that variant that isn't true. So the room stays. */
-:scope:is(lf-compare) { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
-             align-items: start; gap: var(--sp-3); margin: 14px 0; }
-:scope:is(lf-variant) { display: block; border: 1px solid var(--rule); border-radius: var(--r);
-             padding: var(--sp-3); background: var(--card); --lf-block-frame: 1; }
-:scope:is(lf-variant) > strong { display: block; margin: 0 0 4px; }
-
-/* lf-metric: one headline number as a tile; a row of them is a `.layout-tiles`. The
- * value leads, said from the attribute; the delta trails and colors by sign × direction —
- * honest coloring, no JS. */
-:scope:is(lf-metric) { display: block; border: 1px solid var(--rule); border-radius: var(--r);
-            padding: 10px 14px; background: var(--card); font-size: var(--t-6);
-            text-transform: uppercase; letter-spacing: .05em; color: var(--muted);
-            --lf-block-frame: 1; }
-:scope:is(lf-metric)::before,
-:scope:is(lf-metric) > [data-lf-said="value"] { display: block; font-size: var(--t-2);
-                    font-weight: 600; line-height: 1.3; letter-spacing: -0.01em;
-                    text-transform: none; color: var(--ink); }
-:scope:is(lf-metric)::before { content: attr(value); }
-:scope:is(lf-metric):has(> [data-lf-said="value"])::before { content: none; }
-:scope:is(lf-metric)[delta]::after,
-:scope:is(lf-metric) > [data-lf-said="delta"] { display: inline-block; margin-left: 6px;
-                          padding: var(--chip-pad); border-radius: var(--chip-r);
-                          letter-spacing: 0; text-transform: none;
-                          font-size: var(--t-6); line-height: var(--chip-lh);
-                          background: var(--chip); color: var(--ink-2); }
-:scope:is(lf-metric)[delta]::after { content: attr(delta); }
-:scope:is(lf-metric):has(> [data-lf-said="delta"])::after { content: none; }
-:scope:is(lf-metric)[direction="up-good"][delta^="+"]::after,
-:scope:is(lf-metric)[direction="up-bad"][delta^="-"]::after,
-:scope:is(lf-metric)[direction="up-good"][delta^="+"] > [data-lf-said="delta"],
-:scope:is(lf-metric)[direction="up-bad"][delta^="-"] > [data-lf-said="delta"]
-{ background: var(--ok-tint); color: var(--ok-ink); }
-:scope:is(lf-metric)[direction="up-good"][delta^="-"]::after,
-:scope:is(lf-metric)[direction="up-bad"][delta^="+"]::after,
-:scope:is(lf-metric)[direction="up-good"][delta^="-"] > [data-lf-said="delta"],
-:scope:is(lf-metric)[direction="up-bad"][delta^="+"] > [data-lf-said="delta"]
-{ background: var(--danger-tint); color: var(--danger-ink); }
 
 /* lf-board / lf-column / lf-card: the one widget the user edits directly.
  * All presentation is CSS; the lf-board upgrade wires move controls and reports
@@ -1661,10 +1498,14 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
   :scope:is(lf-tabs)[data-lf-tabs-flow="page"] { --lf-top-outer: var(--lf-top); }
   :scope:is(lf-tabs)[data-lf-tabs-flow="page"] > lf-tab {
     --lf-top: calc(var(--lf-top-outer) + var(--lf-tabstrip-h));
+    --lf-landing-room: var(--lf-landing-gap);
   }
   :scope:is(lf-tabs)[data-lf-tabs-flow="page"] > .lf-tabstrip {
     position: sticky;
     top: var(--lf-top);
+    /* Its names stand 8px below where it sticks (`--lf-head-inset`, kernel
+       shadow.css), and the root's landing room counts the strip itself. */
+    --lf-head-inset: 8px;
     z-index: 2;
     box-sizing: border-box;
     block-size: var(--lf-tabstrip-h);
@@ -2241,6 +2082,13 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
  * as a link either way because both take the user there; the time sits after it in
  * the muted voice. A row taken back keeps its place, struck through and marked undone. */
 :scope:is(lf-activity) { display: block; margin: var(--sp-3) 0; }
+:scope:is(lf-activity) .lf-activity-news { display: block; box-sizing: border-box;
+  inline-size: 100%; block-size: var(--aim-floor); min-block-size: var(--aim-floor);
+  appearance: none; background: none; border: 0; padding: 0; margin: 0;
+  color: var(--accent); font: 600 var(--t-5)/var(--lf-ui-lh) var(--sans);
+  text-align: start; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+:scope:is(lf-activity) .lf-activity-news[data-lf-news] { color: var(--danger); }
 :scope:is(lf-activity) .lf-activity-list { list-style: none; margin: 0; padding: 0;
   font: var(--t-5)/var(--lf-ui-lh) var(--sans); }
 :scope:is(lf-activity) .lf-activity-row { display: grid; grid-template-columns: 22px minmax(0, 1fr);
@@ -2256,14 +2104,17 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 :scope:is(lf-activity) .lf-activity-line { margin: 0; overflow-wrap: anywhere; }
 :scope:is(lf-activity) .lf-activity-actor { color: var(--ink); font-weight: 600; }
 :scope:is(lf-activity) .lf-activity-what { color: var(--ink-2); }
-:scope:is(lf-activity) :is(a, button).lf-activity-target { color: var(--accent);
+:scope:is(lf-activity) :is(a[href], button).lf-activity-target { color: var(--accent);
   text-decoration: underline; text-underline-offset: 2px;
   text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent); }
 :scope:is(lf-activity) button.lf-activity-target { appearance: none; background: none; border: 0;
   padding: 0; margin: 0; font: inherit; text-align: start; cursor: pointer; }
-:scope:is(lf-activity) :is(a, button).lf-activity-target:hover { text-decoration-color: currentColor; }
-:scope:is(lf-activity) span.lf-activity-target { color: var(--ink-2); }
-:scope:is(lf-activity) .lf-activity-time { color: var(--muted); white-space: nowrap; }
+:scope:is(lf-activity) :is(a[href], button).lf-activity-target:hover { text-decoration-color: currentColor; }
+:scope:is(lf-activity) :is(span, a:not([href])).lf-activity-target {
+  color: var(--ink-2); text-decoration: none; }
+:scope:is(lf-activity) .lf-activity-time { color: var(--muted); white-space: nowrap;
+  display: inline-block; inline-size: 10ch; font-variant-numeric: tabular-nums;
+  overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
 :scope:is(lf-activity) .lf-activity-time::before { content: "· "; }
 :scope:is(lf-activity) .lf-activity-undone { color: var(--muted); font-size: var(--t-6);
   border: 1px solid var(--border-2); border-radius: var(--chip-r);
@@ -2273,6 +2124,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 :scope:is(lf-activity) .lf-activity-excerpt { grid-column: 2; margin: 2px 0 0; color: var(--muted);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 :scope:is(lf-activity) .lf-activity-empty { margin: 0; color: var(--muted); font: var(--t-5) var(--sans); }
+@media print { :scope:is(lf-activity) .lf-activity-news { display: none; } }
 
 /* lf-ask: a semantic reading and arrival boundary, with no presentation of its own.
  * Block rather than the custom-element default inline so its box begins at the
@@ -2354,6 +2206,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
       margin-inline-start: auto;
       position: sticky;
       top: calc(var(--lf-top) + var(--sp-3));
+      --lf-head-inset: var(--sp-3);
     }
     :scope:is(lf-ask)::after { content: ""; display: block; clear: both; }
   }
@@ -2530,13 +2383,13 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
  * inside these widgets is a <pre> that gives up the document's dressing and inherits from
  * here (the rule below), so this is the size such a page is set in until a module
  * runs. */
-:scope:is(lf-chart), :scope:is(lf-tree), :scope:is(lf-code) { display: block; margin: 14px 0;
+:scope:is(lf-chart), :scope:is(lf-code) { display: block; margin: 14px 0;
              font-family: var(--mono); font-size: var(--code-size);
              line-height: var(--code-line); font-variant-ligatures: none;
              color: var(--code-muted); overflow-x: auto; }
 /* Code scrolls its own lines, so its longest line never sizes what holds it. */
 :scope:is(lf-code) { contain: inline-size; }
-:scope:is(lf-chart).lf-rendered, :scope:is(lf-tree).lf-rendered, :scope:is(lf-code).lf-rendered {
+:scope:is(lf-chart).lf-rendered, :scope:is(lf-code).lf-rendered {
              font: inherit; color: inherit; overflow: visible; }
 /* The authored body, before its module replaces it. Nothing here says white-space: the
    body is a <pre>, which is the whole reason it is one (a draft, whose module draws
@@ -2547,7 +2400,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
    far it stands off. The rendered <pre> a module builds is evidence again, and keeps
    the dressing. */
 :scope:is(lf-chart):not(.lf-rendered) > pre,
-:scope:is(lf-tree):not(.lf-rendered) > pre, :scope:is(lf-code):not(.lf-rendered) > pre, :scope:is(lf-draft) > pre {
+:scope:is(lf-code):not(.lf-rendered) > pre, :scope:is(lf-draft) > pre {
              background: none; border: 0; border-radius: 0; padding: 0; margin: 0;
              font: inherit; line-height: inherit; overflow: visible; }
 /* A chart is Plot's drawing, and the page dresses it the way it dresses its own text.
@@ -2564,26 +2417,6 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
   :scope:is(lf-chart):not(.lf-rendered) > pre{ visibility: hidden; }
 }
 :scope:is(lf-chart) .lf-chart-drawing svg { display: block; font: inherit; }
-
-/* lf-tree rendered form: nested lists with hairline guides and change badges. The size is
-   the `pre` contract again, and a
-   tree's own reason for taking it is that its lines are paths, the same words a code block
-   holds, set to the same measure beside them. */
-:scope:is(lf-tree).lf-rendered { font-family: var(--mono); font-size: var(--code-size);
-                      line-height: var(--code-line); color: var(--code-ink); }
-:scope:is(lf-tree) ul { list-style: none; margin: 0; padding-left: 0; }
-:scope:is(lf-tree) ul ul { padding-left: 18px; border-left: 1px solid var(--rule); margin-left: 5px; }
-:scope:is(lf-tree) li { margin: 3px 0; }
-:scope:is(lf-tree) .lf-tree-dir { font-weight: 600; }
-/* nowrap because the module appends name and badges with no whitespace between them and
- * spaces them by margin, so a line is one word to the breaker: told it may break inside
- * one, it split a two-character badge down the middle and drew half the chip on each
- * line. The name is what breaks now, which is the one of the three that can. */
-:scope:is(lf-tree) .lf-tree-badge { font-size: var(--t-6); padding: var(--chip-pad);
-                         margin-left: 6px; vertical-align: top;
-                         border-radius: var(--chip-r); white-space: nowrap; }
-:scope:is(lf-tree) .lf-tree-badge.add { background: var(--ok-tint); color: var(--ok-ink); }
-:scope:is(lf-tree) .lf-tree-badge.del { background: var(--danger-tint); color: var(--danger-ink); }
 
 /* lf-code rendered form: numbered lines, hi ranges, elided rows, notes docked at their
    line. The gutter is as wide as the block's widest number (--lf-code-digits, which the

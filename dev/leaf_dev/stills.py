@@ -1,12 +1,14 @@
 """Screenshot a fixed catalogue of UI states on BASE_REF's runtime and HEAD's, and
 show which ones changed.
 
-    uv run leaf-dev stills [BASE_REF] [--state NAME]...
+    uv run leaf-dev stills [BASE_REF] [--state NAME]... [--authored]
 
 BASE_REF defaults to the merge base of HEAD and `main`; each arm is the payload at its
 commit (`leaf_dev.arms.build_pair`), so commit what you want compared. Each page is
 built from this checkout's example source and served by the arm's own launcher, so
-only the runtime, theme and server differ between the two stills of a state. Each
+only the runtime, theme and server differ between the two stills of a state. With
+`--authored`, each arm instead reads its own committed example and companions, so
+changes to page markup are visible as well. Each
 capture starts with a fresh authored fixture and event log, so a prior gesture cannot
 change another state's initial condition.
 Message delivery belongs to thread_journey and test_render_thread_snapshots: its
@@ -41,7 +43,7 @@ from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page
 
 from leaf_dev import ROOT
-from leaf_dev.arms import build_pair, run_directory, serving_source
+from leaf_dev.arms import build_pair, copy_committed, run_directory, serving_source
 from leaf_dev.browser import BESIDE, DESKTOP, chrome, load, settle, tab
 
 OUT = ROOT / ".tmp" / "stills"
@@ -54,6 +56,28 @@ OPEN_CARD = "() => document.querySelector('.lf-margin-preview:not([hidden])')"
 
 def at_rest(page: Page) -> None:
     """The page as it loads."""
+
+
+def drawing_comment(page: Page) -> None:
+    """A freehand comment beside the page area its strokes describe."""
+    guide = page.locator("#bg-drawing-comments-guide")
+    guide.scroll_into_view_if_needed()
+    settle(page)
+    box = guide.bounding_box()
+    assert box is not None
+    page.keyboard.press("w")
+    page.mouse.move(box["x"] + 25, box["y"] + 15)
+    page.mouse.down()
+    page.mouse.move(box["x"] + 180, box["y"] + 32, steps=12)
+    page.mouse.move(box["x"] + 80, box["y"] + 48, steps=12)
+    page.mouse.up()
+    page.locator(".lf-composer-drawing").wait_for(state="visible")
+    settle(page)
+    context = page.locator(".lf-composer-drawing canvas")
+    if context.count():
+        page.locator(
+            '.lf-composer-drawing canvas[data-lf-drawing-context="ready"]'
+        ).wait_for(state="visible")
 
 
 def card_by_pointer(page: Page) -> None:
@@ -112,6 +136,32 @@ def threads_panel(page: Page) -> None:
     page.wait_for_function(
         "() => document.querySelector('.lf-thread-panel')?.checkVisibility()"
     )
+
+
+def retained_quote(page: Page) -> None:
+    """A detached passage's compact reading inside its native sample thread."""
+    page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
+        "Threads", exact=True
+    ).click()
+    sample = page.locator("#bg-retained-quote-sample")
+    sample.scroll_into_view_if_needed()
+    child = sample.frame_locator("iframe")
+    child.locator(".lf-threads-toggle").click()
+    child.locator(
+        '.lf-thread[data-id="bg-retained-quote-thread"] > .lf-thread-summary'
+    ).click()
+    child.locator('.lf-thread[data-id="bg-retained-quote-thread"] .lf-quote').wait_for(
+        state="visible"
+    )
+
+
+def retained_quote_full(page: Page) -> None:
+    """The same original words opened locally, where this runtime offers it."""
+    retained_quote(page)
+    child = page.locator("#bg-retained-quote-sample").frame_locator("iframe")
+    full = child.get_by_role("button", name="Full quote", exact=True)
+    if full.count():
+        full.click()
 
 
 def progress_messages(page: Page) -> None:
@@ -240,9 +290,8 @@ def panel_reply_long(page: Page) -> None:
 
 
 def page_comment_long(page: Page) -> None:
-    """The Threads panel's page comment with two wrapped paragraphs."""
-    threads_panel(page)
-    page.locator(".lf-general leaf-text").click()
+    """The page comment card with two wrapped paragraphs."""
+    page.locator(".lf-banner-actions > .lf-page-comment").click()
     page.keyboard.insert_text(LONG_DRAFT)
 
 
@@ -289,6 +338,18 @@ def frame_edges(page: Page) -> None:
     page.locator("#bg-frame-edges").evaluate(
         "el => el.scrollIntoView({block: 'start'})"
     )
+
+
+def gallery_metrics(page: Page) -> None:
+    """Headline values and charts, reached through the gallery's page tab."""
+    page.get_by_role("tab", name="Page & layout", exact=True).click()
+    page.locator("#bg-metrics-and-chart").scroll_into_view_if_needed()
+
+
+def gallery_plans(page: Page) -> None:
+    """Planned work beside observed history, using authored stable section identity."""
+    page.get_by_role("tab", name="Page & layout", exact=True).click()
+    page.locator("#bg-plans-and-history").scroll_into_view_if_needed()
 
 
 def theme_hierarchy(page: Page) -> None:
@@ -460,7 +521,7 @@ def widget_inline_hints(page: Page) -> None:
 
 def hub_workers(page: Page) -> None:
     """The plan with the parser goal's workers shown, its worktree in view."""
-    page.locator("#goal-parser > .lf-task-meta .lf-task-crew").click()
+    page.locator("#w-1 > details > summary").click()
     page.locator("#tree-w-1").scroll_into_view_if_needed()
 
 
@@ -475,6 +536,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
     drive.__name__.replace("_", "-"): drive
     for drive in (
         at_rest,
+        drawing_comment,
         card_by_pointer,
         card_by_keyboard,
         card_more_room,
@@ -485,6 +547,8 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         progress_messages,
         progress_messages_expanded,
         image_preview,
+        retained_quote,
+        retained_quote_full,
         screenshot_comparison,
         panel_by_keyboard,
         composer,
@@ -500,6 +564,8 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         code_note,
         frame_edges,
         theme_hierarchy,
+        gallery_metrics,
+        gallery_plans,
         wide_passage,
         multiline_passage,
         code_copy_by_pointer,
@@ -529,14 +595,9 @@ def playground_controls(page: Page) -> None:
     page.locator(".lf-playground-controls").scroll_into_view_if_needed()
 
 
-def targeting_menu(page: Page) -> None:
-    """The target-scope picker open on its selected option."""
-    targeting = page.locator("#code-comparison-targeting")
-    targeting.get_by_role("button", name="Select element").click()
-    page.locator(".reader-treatment-title").focus()
-    page.keyboard.press("Enter")
-    targeting.locator(".lf-targeting-candidate-choice").first.click()
-    control = targeting.locator("wa-select").first
+def visual_review_menu(page: Page) -> None:
+    """The review case picker open on its selected option."""
+    control = page.locator(".lf-vr-case-select")
     control.evaluate("""node => {
       node.reviewShown = new Promise(resolve => node.addEventListener(
         'wa-after-show', () => resolve(), {once: true}));
@@ -544,6 +605,13 @@ def targeting_menu(page: Page) -> None:
     control.get_by_role("combobox").click()
     control.evaluate("node => node.reviewShown")
     page.mouse.move(0, 0)
+
+
+def code_reader_feedback(page: Page) -> None:
+    """The built reader and the place where its author receives design feedback."""
+    page.locator(
+        "#code-reader-feedback, #code-targeting-ask"
+    ).scroll_into_view_if_needed()
 
 
 def margin_gallery(page: Page) -> None:
@@ -591,6 +659,13 @@ class State:
 
 
 STATES = (
+    State("drawing-comment", "developer/feature-gallery", drawing_comment),
+    State(
+        "drawing-comment-dark",
+        "developer/feature-gallery",
+        drawing_comment,
+        scheme="dark",
+    ),
     State("progress-messages", "developer/feature-gallery", progress_messages),
     State(
         "progress-messages-expanded",
@@ -623,8 +698,14 @@ STATES = (
         viewport=(390, 844),
         touch=True,
     ),
-    State("targeting-menu", "code-comparison", targeting_menu),
-    State("targeting-menu-dark", "code-comparison", targeting_menu, scheme="dark"),
+    State("visual-review-menu", "developer/visual-review-gallery", visual_review_menu),
+    State("code-reader-feedback", "code-comparison", code_reader_feedback),
+    State(
+        "visual-review-menu-dark",
+        "developer/visual-review-gallery",
+        visual_review_menu,
+        scheme="dark",
+    ),
     State("trace-controls", "developer/playwright-trace-gallery", trace_controls),
     State(
         "trace-timeline-keyboard",
@@ -635,6 +716,21 @@ STATES = (
         "trace-controls-phone",
         "developer/playwright-trace-gallery",
         trace_controls,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State("retained-quote", "developer/feature-gallery", retained_quote),
+    State("retained-quote-full", "developer/feature-gallery", retained_quote_full),
+    State(
+        "retained-quote-full-dark",
+        "developer/feature-gallery",
+        retained_quote_full,
+        scheme="dark",
+    ),
+    State(
+        "retained-quote-touch",
+        "developer/feature-gallery",
+        retained_quote_full,
         viewport=(390, 844),
         touch=True,
     ),
@@ -671,6 +767,8 @@ STATES = (
     ),
     State("gallery-tabs", "developer/feature-gallery", at_rest),
     State("frame-edges", "developer/feature-gallery", frame_edges),
+    State("gallery-metrics", "developer/feature-gallery", gallery_metrics),
+    State("gallery-plans", "developer/feature-gallery", gallery_plans),
     State("gallery-theme", "developer/feature-gallery", theme_hierarchy),
     State(
         "gallery-theme-dark",
@@ -940,7 +1038,12 @@ def crop(folder: Path, regions: list[dict]) -> None:
     multiple=True,
     help="Capture a named state; repeat for more. Defaults to the whole catalogue.",
 )
-def stills(base_ref: str | None, names: tuple[str, ...]) -> None:
+@click.option(
+    "--authored",
+    is_flag=True,
+    help="Compare each commit’s authored examples as well as its runtime.",
+)
+def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None:
     """Screenshot a catalogue of UI states on BASE_REF's runtime and HEAD's, and crop
     each state that changed into a before/after pair under .tmp/stills/."""
     states = [state for state in STATES if not names or state.name in names]
@@ -949,6 +1052,14 @@ def stills(base_ref: str | None, names: tuple[str, ...]) -> None:
     with tempfile.TemporaryDirectory(prefix="leaf-stills-") as built:
         scratch = Path(built)
         arms, commits = build_pair(base_ref, scratch)
+        source_roots = {arm: ROOT for arm in arms}
+        if authored:
+            for arm, commit in commits.items():
+                source_roots[arm] = scratch / f"{arm}-source"
+                source_roots[arm].mkdir()
+                copy_committed(
+                    ("examples", "leaf-assets.json"), source_roots[arm], commit
+                )
         with chrome() as browser:
             for state in states:
                 for arm, arm_dir in arms.items():
@@ -962,7 +1073,7 @@ def stills(base_ref: str | None, names: tuple[str, ...]) -> None:
                     try:
                         with serving_source(
                             arm_dir,
-                            ROOT / "examples" / f"{state.source}.html",
+                            source_roots[arm] / "examples" / f"{state.source}.html",
                             scratch / f"{arm}-{state.name}",
                         ) as address:
                             capture(browser, address, state, folder / f"{arm}.png")

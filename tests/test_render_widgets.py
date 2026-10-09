@@ -18,7 +18,7 @@ from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.schema import ELEMENT_ID
 from leaf_dev.example_data import patch_manifest
-from leaf_dev.stills import targeting_menu
+from leaf_dev.stills import visual_review_menu
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ALL_ASKS_IN_ORDER,
@@ -95,6 +95,7 @@ from render_harness import (
     margins_laid_out,
     open_page,
     opened_tab,
+    page_comment,
     pane_posture,
     panel_settled,
     plant_quiet_word,
@@ -106,7 +107,6 @@ from render_harness import (
     round_trip,
     scroll_settled,
     select,
-    select_words,
     sending,
     shortcut_bar_text,
     stamp_page,
@@ -609,18 +609,22 @@ def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
     assert stuck["shown"] == pytest.approx(stuck["strip"]["bottom"], abs=0.5), stuck
 
 
-def test_sticky_headers_stack_so_a_diff_in_a_page_tab_pins_under_the_strip(
-    browser, serve
-):
-    """A diff's file header in a page tab pins under the stuck tab strip rather than
-    over it: each sticky header has a stated height and adds it to `--lf-top` for what
-    it stands over. A landing on one of the diff's rows arrives below both headers, and
-    the part of a row under the diff's header reads as not on screen."""
+def _stacked_headers(browser, serve):
+    """A page tab strip over the root with a long pinned diff in its first tab, then a
+    short one whose code is wide enough to scroll sideways, and another long one after
+    the tabs."""
     path = "src/lib.rs"
     rows = "".join(f"+    let value_{i} = {i};\n" for i in range(200))
     patch = (
         f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
         f"@@ -1 +1,201 @@\n fn main() {{\n{rows}"
+    )
+    wide = "+    let wide = " + " + ".join(f"term_{i}" for i in range(60)) + ";\n"
+    short = (
+        "diff --git a/src/wide.rs b/src/wide.rs\n--- a/src/wide.rs\n+++ b/src/wide.rs\n"
+        "@@ -1 +1,11 @@\n fn wide() {\n"
+        + wide
+        + "".join(f"+    let short_{i} = {i};\n" for i in range(9))
     )
     page = open_page(
         browser,
@@ -628,15 +632,31 @@ def test_sticky_headers_stack_so_a_diff_in_a_page_tab_pins_under_the_strip(
             leaf_page(
                 "Stacked headers",
                 '<h1>Stacked</h1><lf-tabs id="root-tabs">'
-                '<lf-tab id="diff-tab" label="Diff"><lf-diff id="patch"><pre>'
+                '<lf-tab id="diff-tab" label="Diff"><lf-diff id="patch" review><pre>'
                 + patch
+                + '</pre></lf-diff><lf-diff id="wide"><pre>'
+                + short
                 + '</pre></lf-diff></lf-tab><lf-tab id="notes-tab" label="Notes">'
-                "<p>Notes.</p></lf-tab></lf-tabs>",
+                "<p>Notes.</p></lf-tab></lf-tabs>"
+                '<lf-diff id="after-tabs" review><pre>' + patch + "</pre></lf-diff>",
             )
         ),
     )
     resized(page, 1280, 720)
-    page.wait_for_function("() => document.querySelector('lf-diff.lf-rendered')")
+    page.wait_for_function(
+        "() => document.querySelectorAll('lf-diff.lf-rendered').length === 3"
+    )
+    return page
+
+
+def test_sticky_headers_stack_so_a_diff_in_a_page_tab_pins_under_the_strip(
+    browser, serve
+):
+    """A diff's file header in a page tab pins under the stuck tab strip rather than
+    over it: each sticky header has a stated height and adds it to `--lf-top` for what
+    it stands over. A landing on one of the diff's rows arrives below both headers, and
+    the part of a row under the diff's header reads as not on screen."""
+    page = _stacked_headers(browser, serve)
     read = page.evaluate(
         """async () => {
         const geometry = await window.__lfRuntimeImport('/runtime/geometry.js');
@@ -667,6 +687,67 @@ def test_sticky_headers_stack_so_a_diff_in_a_page_tab_pins_under_the_strip(
     assert landed["row"] > landed["head"], landed
     assert read["row"]["top"] < read["head"]["bottom"] < read["row"]["bottom"], read
     assert read["shown"] == pytest.approx(read["head"]["bottom"], abs=0.5), read
+
+
+def test_focus_in_a_stuck_header_leaves_the_page_where_it_is(browser, serve):
+    """A control in a stuck sticky header stands inside the root's landing band, so the
+    browser scrolled toward it on every focus and the header never came out from under
+    the band: the page crept 17px a focus under a diff's file header and 12px under its
+    file action, and was centred, hundreds of pixels a key, under a page tab strip.
+    Each header says where its controls stand (`--lf-head-inset`), so focusing one where
+    it sticks scrolls nothing: in a page tab, where the strip stands over it, and after
+    the tabs, where the root's band still counts the strip. Focus moving on from the
+    file header into its code, a tab stop since it scrolls sideways, clears the
+    header."""
+    page = _stacked_headers(browser, serve)
+    focus_in = """async (id) => {
+        const page = document.scrollingElement;
+        const diff = document.getElementById(id);
+        const row = [...diff.shadowRoot.querySelectorAll('[data-line]')][150];
+        row.scrollIntoView({block: 'start', behavior: 'instant'});
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const controls = {
+            file: diff.shadowRoot.querySelector('.lf-diff-file > details > summary'),
+            action: diff.shadowRoot.querySelector('.lf-diff-file-actions button'),
+        };
+        if (id === 'patch')
+            controls.tab = document.querySelector(
+                '#root-tabs > .lf-tabstrip [aria-selected="true"]');
+        const moved = {};
+        for (const [name, control] of Object.entries(controls)) {
+            const before = page.scrollTop;
+            control.focus();
+            await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+            moved[name] = page.scrollTop - before;
+        }
+        return moved;
+    }"""
+    assert page.evaluate(focus_in, "patch") == {"file": 0, "action": 0, "tab": 0}
+    assert page.evaluate(focus_in, "after-tabs") == {"file": 0, "action": 0}
+    # Tab from a stuck file header into its code, scrolled partly past above it.
+    page.evaluate(
+        """async () => {
+        const root = document.getElementById('wide').shadowRoot;
+        const code = root.querySelector('.lf-text-scroller');
+        document.scrollingElement.scrollTop += code.getBoundingClientRect().top - 60;
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        root.querySelector('.lf-diff-file > details > summary').focus({preventScroll: true});
+    }"""
+    )
+    page.keyboard.press("Tab")
+    rendered(page)
+    code = page.evaluate(
+        """() => {
+        const root = document.getElementById('wide').shadowRoot;
+        const head = root.querySelector('.lf-diff-file > details > summary');
+        const focused = root.activeElement;
+        return {scroller: focused?.classList.contains('lf-text-scroller'),
+                top: focused?.getBoundingClientRect().top,
+                head: head.getBoundingClientRect().bottom};
+    }"""
+    )
+    assert code["scroller"], code
+    assert code["top"] >= code["head"], code
 
 
 LONG_DIFF_PATH = "src/deeply/nested/module/file.rs"
@@ -1607,9 +1688,17 @@ def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
 
     The control is the same Ask as a full-height workspace's body, which hands its height to
     the answer."""
-    source = SWIPE_PAGE.replace(
-        "  <p>Pass removes an item from this design; Keep carries it into implementation.</p>\n",
-        "",
+    source = leaf_page(
+        "Session-store follow-ups",
+        """<h1>Session-store follow-ups</h1>
+<lf-ask id="session-triage-decision">
+  <h2>Which follow-ups should we keep?</h2>
+  <lf-options id="session-triage" choose multiple>
+    <lf-option id="rolling-expiry">Rolling expiry</lf-option>
+    <lf-option id="bounded-fallback">Bounded fallback</lf-option>
+  </lf-options>
+</lf-ask>
+""",
     )
     page = open_page(browser, serve(source))
     ask = page.locator("#session-triage-decision")
@@ -2384,16 +2473,16 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
             ),
         ),
         (
-            '<lf-metric id="lp-k-traffic" value="25%">candidate traffic</lf-metric>',
-            '<lf-metric id="lp-k-traffic" value="100%">target traffic</lf-metric>',
+            '<dl id="lp-k-traffic" class="panel"><dt>candidate traffic</dt><dd><strong>25%</strong></dd></dl>',
+            '<dl id="lp-k-traffic" class="panel"><dt>target traffic</dt><dd><strong>100%</strong></dd></dl>',
         ),
         (
-            'id="lp-k-checks" value="4 of 5" delta="-1" direction="up-good"',
-            'id="lp-k-checks" value="5 of 5"',
+            '<dl id="lp-k-checks" class="panel"><dt>checks passing</dt><dd><strong>4 of 5</strong> <small>change: -1</small></dd></dl>',
+            '<dl id="lp-k-checks" class="panel"><dt>checks passing</dt><dd><strong>5 of 5</strong></dd></dl>',
         ),
         (
-            '<lf-milestone id="lp-step-checks" status="blocked" when="now">',
-            '<lf-milestone id="lp-step-checks" status="done" when="14:25">',
+            '<li id="lp-step-checks"><small class="tag danger">blocked · now</small>',
+            '<li id="lp-step-checks"><small class="tag ok">done · 14:25</small>',
         ),
         (
             (
@@ -2403,8 +2492,8 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
             "<strong>Pass release checks</strong> All five production checks pass.",
         ),
         (
-            '<lf-milestone id="lp-step-promote" status="planned">',
-            '<lf-milestone id="lp-step-promote" status="active" when="now">',
+            '<li id="lp-step-promote"><small class="tag">planned</small>',
+            '<li id="lp-step-promote"><small class="tag warn">active · now</small>',
         ),
         (
             "Four checks pass. One blocks promotion.",
@@ -2422,7 +2511,7 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
     # The example's line wrapping is layout, not content: match each passage across
     # whatever whitespace the source wraps it with.
     for before, after in revisions:
-        pattern = r"\s+".join(map(re.escape, before.split()))
+        pattern = r"\s+".join(map(re.escape, before.split())).replace("><", r">\s*<")
         incorporated, count = re.subn(
             pattern, lambda _, after=after: after, incorporated, count=1
         )
@@ -2435,10 +2524,10 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
     wait_for_revision(page, stamp["version"])
     expect(page.locator("#lp-lede")).to_contain_text("expanding")
     expect(page.locator("#lp-current-state")).to_contain_text("Promoting to 100%")
-    expect(page.locator("#lp-k-traffic")).to_have_attribute("value", "100%")
-    expect(page.locator("#lp-k-checks")).to_have_attribute("value", "5 of 5")
-    expect(page.locator("#lp-step-checks")).to_have_attribute("status", "done")
-    expect(page.locator("#lp-step-promote")).to_have_attribute("status", "active")
+    expect(page.locator("#lp-k-traffic dd strong")).to_have_text("100%")
+    expect(page.locator("#lp-k-checks dd strong")).to_have_text("5 of 5")
+    expect(page.locator("#lp-step-checks > small")).to_have_text("done · 14:25")
+    expect(page.locator("#lp-step-promote > small")).to_have_text("active · now")
     expect(page.locator("#lp-checks-note")).to_have_text(
         "All five checks pass. Promotion is running."
     )
@@ -2510,7 +2599,7 @@ def test_merge_film_inspection_has_touch_and_keyboard_routes(browser, serve):
     context = browser.new_context(
         viewport={"width": 320, "height": 844}, has_touch=True
     )
-    page = open_page(browser, serve(example), context=context)
+    page = open_page(browser, live_url(serve(example)), context=context)
     film = page.locator("lf-merge-film")
     inspector = film.locator(".film-inspect")
     graph = film.locator("svg:visible")
@@ -2665,48 +2754,6 @@ def test_newer_navigation_wins_while_a_call_diff_target_loads(browser, serve):
     )
 
 
-SWIPE_PAGE = leaf_page(
-    "session backlog triage",
-    """
-<h1>Session-store follow-ups</h1>
-<lf-ask id="session-triage-decision">
-  <h2>Which session-store follow-ups should we keep?</h2>
-  <p>Pass removes an item from this design; Keep carries it into implementation.</p>
-  <lf-swipe-deck id="session-triage">
-    <lf-swipe-pile id="session-queue" verdict="unseen">
-      <lf-swipe-card id="swipe-a"><strong>Buffer rolling expiry</strong><p>Refresh once a minute.</p></lf-swipe-card>
-      <lf-swipe-card id="swipe-b"><strong>Bound fallback lifetime</strong><p>Refuse snapshots after 90 seconds.</p></lf-swipe-card>
-      <lf-swipe-card id="swipe-c"><strong>Partition capacity</strong><p>Separate rate-limit eviction.</p></lf-swipe-card>
-      <lf-swipe-card id="swipe-d"><strong>Index account sessions</strong><p>Make device-wide revocation bounded.</p></lf-swipe-card>
-    </lf-swipe-pile>
-    <lf-swipe-pile id="session-pass" verdict="pass">
-      <lf-swipe-card id="already-passed"><strong>Add Dynamo</strong><p>A new operating model.</p></lf-swipe-card>
-    </lf-swipe-pile>
-    <lf-swipe-pile id="session-keep" verdict="keep">
-      <lf-swipe-card id="already-kept"><strong>Delete session keys</strong><p>The revocation primitive.</p></lf-swipe-card>
-    </lf-swipe-pile>
-  </lf-swipe-deck>
-</lf-ask>
-""",
-)
-
-EMPTY_QUOTED_SWIPE_PAGE = leaf_page(
-    "completed swipe deck",
-    """
-<h1>Completed triage</h1>
-<lf-sample id="swipe-example" label="completed triage">
-  <lf-swipe-deck id="completed-swipe">
-    <lf-swipe-pile id="completed-queue" verdict="unseen"></lf-swipe-pile>
-    <lf-swipe-pile id="completed-pass" verdict="pass"></lf-swipe-pile>
-    <lf-swipe-pile id="completed-keep" verdict="keep">
-      <lf-swipe-card id="kept-card"><strong>Keep the expiry bound</strong></lf-swipe-card>
-    </lf-swipe-pile>
-  </lf-swipe-deck>
-</lf-sample>
-""",
-)
-
-
 TALL_BOARD_PAGE = leaf_page(
     "tall board",
     """
@@ -2780,78 +2827,6 @@ PLAYGROUND_PAGE = leaf_page(
 </lf-ask>
 """,
 )
-
-
-def test_a_milestone_marker_is_centred_on_its_title(browser, serve):
-    source = leaf_page(
-        "milestone marker alignment",
-        """
-<h1>Release plan</h1>
-<style>
-#rail { width: 160px; }
-#publish { --lf-timeline-rule: 4px; }
-#publish::before { width: 22px; height: 22px; border-width: 3px; }
-</style>
-<lf-milestones id="rail">
-  <lf-milestone id="publish" status="active"><strong>Publish the release after validation</strong></lf-milestone>
-</lf-milestones>
-""",
-    )
-    page = open_page(browser, serve(source))
-    centres = page.locator("#publish").evaluate(
-        """item => {
-          const titleNode = item.querySelector(':scope > strong');
-          const title = titleNode.getBoundingClientRect();
-          const lineHeight = parseFloat(getComputedStyle(titleNode).lineHeight);
-          const box = item.getBoundingClientRect();
-          const marker = getComputedStyle(item, '::before');
-          const border = marker.boxSizing === 'content-box'
-            ? parseFloat(marker.borderTopWidth) + parseFloat(marker.borderBottomWidth)
-            : 0;
-          return {
-            title: title.top + lineHeight / 2,
-            titleLines: title.height / lineHeight,
-            spineX: box.left + parseFloat(getComputedStyle(item).borderLeftWidth) / 2,
-            markerX: box.left + parseFloat(getComputedStyle(item).borderLeftWidth)
-              + parseFloat(marker.left) + parseFloat(marker.width) / 2
-              + new DOMMatrix(marker.transform === 'none' ? undefined : marker.transform).m41,
-            marker: box.top + parseFloat(marker.top)
-              + (parseFloat(marker.height) + border) / 2
-              + new DOMMatrix(marker.transform === 'none' ? undefined : marker.transform).m42,
-          };
-        }"""
-    )
-    assert centres["titleLines"] >= 2, centres
-    assert centres["markerX"] == pytest.approx(centres["spineX"], abs=0.1), centres
-    assert centres["marker"] == pytest.approx(centres["title"], abs=0.5), centres
-
-
-@pytest.mark.parametrize("timestamp", ['at="09:14"', 'at=""', ""])
-def test_a_chronology_marker_follows_its_first_visible_line(browser, serve, timestamp):
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "chronology marker alignment",
-                f"""<h1>Observed events</h1><lf-chronology id="history">
-<lf-chronology-entry id="observed" {timestamp}><strong>Work started</strong>
-The team began validation.</lf-chronology-entry></lf-chronology>""",
-            )
-        ),
-    )
-    centres = page.locator("#observed").evaluate(
-        """item => {
-          const box = item.getBoundingClientRect(), marker = getComputedStyle(item, '::after');
-          const label = item.querySelector('[data-lf-said="at"]');
-          const first = label && label.getClientRects().length ? label : item;
-          const line = first.getBoundingClientRect().top
-            + parseFloat(getComputedStyle(first).lineHeight) / 2;
-          const matrix = new DOMMatrix(marker.transform === 'none' ? undefined : marker.transform);
-          return {line, marker: box.top + parseFloat(marker.top)
-            + parseFloat(marker.height) / 2 + matrix.m42};
-        }"""
-    )
-    assert centres["marker"] == pytest.approx(centres["line"], abs=0.1), centres
 
 
 def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, serve):
@@ -4833,8 +4808,8 @@ def test_a_comment_on_a_gloss_reopens_its_explanation(browser, serve):
 
 MOTION_SAMPLE_CONTENT = """
 <lf-code id="card-code" language="python"><pre>print("retained")</pre></lf-code>
-<lf-tree id="card-tree"><pre>root/
-└── retained.txt</pre></lf-tree>
+<pre id="card-tree">root/
+└── retained.txt</pre>
 <lf-sample id="card-sample" label="Current sample">
   <template id="card-sample-page" data-sample>
     <h2>Painted sample</h2>
@@ -5895,9 +5870,7 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
     expect(page.locator("#release-query-ask")).to_be_visible()
 
 
-def test_built_code_comparison_drives_both_candidates_and_composes_targeting(
-    browser, serve
-):
+def test_built_code_comparison_drives_both_candidates(browser, serve):
     """Candidate measurements follow rendered readers through sizing and reconnection."""
     source = Path(__file__).parents[1] / "examples" / "code-comparison.html"
     context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
@@ -6023,20 +5996,6 @@ def test_built_code_comparison_drives_both_candidates_and_composes_targeting(
         "values": playground.evaluate("root => root.values"),
     }
 
-    targeting = page.locator("#code-comparison-targeting")
-    targeting.get_by_role("button", name="Select element").click()
-    page.locator(".reader-treatment-title").focus()
-    page.keyboard.press("Enter")
-    targeting.locator(".lf-targeting-candidate-choice").first.click()
-    target = targeting.locator('.lf-targeting-target[data-target-key="target-1"]')
-    target.locator("wa-input").click()
-    target.locator("wa-input").press("ControlOrMeta+A")
-    target.locator("wa-input").press_sequentially("Reader treatment heading")
-    target.locator("wa-input").press("Tab")
-    assert targeting.evaluate("root => root.currentDraft().resolutions") == {
-        "target-1": "resolved"
-    }
-
     resized(page, 480, 760)
     assert page.evaluate("document.documentElement.scrollWidth") == 480
     expect(page.locator(".code-comparison-grid")).to_have_css(
@@ -6046,55 +6005,69 @@ def test_built_code_comparison_drives_both_candidates_and_composes_targeting(
     expect(page.locator("#code-comparison-ask")).to_be_visible()
 
 
-def test_playground_composed_structural_target_resolves_in_the_next_revision(
-    browser, serve
+@pytest.mark.parametrize("route", ["pointer", "keyboard", "touch"])
+def test_built_code_reader_design_comment_keeps_its_identity_after_revision(
+    browser, serve, route
 ):
+    """The shared comment loop carries a design request through a real reader revision."""
     source_path = Path(__file__).parents[1] / "examples" / "code-comparison.html"
     source = source_path.read_text(encoding="utf-8")
-    page = open_page(browser, live_url(serve(source_path)))
-    targeting = page.locator("#code-comparison-targeting")
-
-    targeting.get_by_role("button", name="Select element").click()
-    page.locator(".reader-treatment-title").focus()
-    page.keyboard.press("Enter")
-    targeting.locator(".lf-targeting-candidate-choice").first.click()
-    target = targeting.locator('.lf-targeting-target[data-target-key="target-1"]')
-    target.locator("wa-input").click()
-    target.locator("wa-input").press("ControlOrMeta+A")
-    target.locator("wa-input").press_sequentially("Reader treatment heading")
-    target.locator("wa-input").press("Tab")
-    targeting.locator('[name="code-comparison-targeting-instruction"] textarea').fill(
-        "Keep this heading aligned with the selected reader treatment."
+    touch = route == "touch"
+    context = browser.new_context(
+        viewport={"width": 390 if touch else 1200, "height": 844 if touch else 900},
+        has_touch=touch,
+        is_mobile=touch,
     )
-    targeting.get_by_role("button", name="Add instruction").click()
-    with sending(page, "the structural reader target"):
-        targeting.get_by_role("button", name="Propose exact edit").click()
-
-    action = next(
-        event
-        for event in reversed(events_model.read_events(serve.page_dir))
-        if event.get("widget") == "code-comparison-targeting"
+    page = open_page(browser, live_url(serve(source_path)), context=context)
+    if touch:
+        banner_control(page, ".lf-banner-menu .lf-btn:text-is('Design mode')").tap()
+        page.locator("#target-reader-heading").tap()
+    else:
+        page.locator("#target-reader-heading").scroll_into_view_if_needed()
+        page.keyboard.press("l")
+        if route == "keyboard":
+            page.keyboard.press("s")
+            spoken = page.locator(".lf-live")
+            for _ in range(30):
+                previous = spoken.text_content()
+                page.keyboard.press("Tab")
+                expect(spoken).not_to_have_text(previous)
+                expect(spoken).to_have_text(
+                    re.compile(r"^Hint .*Press Enter to choose\.$")
+                )
+                if "heading: Built reader treatment" in spoken.text_content():
+                    break
+            else:
+                pytest.fail("The built reader heading was absent from the target walk")
+            page.keyboard.press("Enter")
+        else:
+            page.locator("#target-reader-heading").click()
+    field = page.locator(".lf-fab-input")
+    write(field, "Keep the heading aligned with the reader's first line.")
+    with sending(page, "the reader design comment"):
+        if route == "keyboard":
+            page.keyboard.press("ControlOrMeta+Enter")
+        else:
+            page.locator(".lf-fab-bar .lf-compose-submit").click()
+    event = next(
+        e
+        for e in reversed(events_model.read_events(serve.page_dir))
+        if e["kind"] == "comment"
     )
-    assert action["detail"]["targets"][0]["reference"] == {
-        "anchor": "target-reader-artifact",
-        "kind": "structure",
-        "path": [{"tag": "h3", "tree": "light"}],
-    }
-
-    revised = source.replace(
-        "One width gesture\n        reaches both",
-        "One shared width gesture\n        reaches both",
-    )
-    assert revised != source
-    stamp = stamp_page(serve.page_dir, revised, "Clarify the comparison gesture")
+    assert event["about"] == "design"
+    assert event["anchor"] == {"section": "target-reader-heading"}
+    assert not [
+        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
+    ]
+    revised = source.replace("Built reader treatment", "Revised reader treatment")
+    stamp = stamp_page(serve.page_dir, revised, "Align the reader treatment")
     wait_for_revision(page, stamp["revision"])
-    target = page.locator(
-        '#code-comparison-targeting .lf-targeting-target[data-target-key="target-1"]'
+    expect(page.locator("#target-reader-heading")).to_have_text(
+        "Revised reader treatment"
     )
-    expect(target).to_have_attribute("data-lf-target-status", "resolved")
-    expect(page.locator(".reader-treatment-title")).to_have_text(
-        "Built reader treatment"
-    )
+    card = page.locator(f'.lf-thread[data-id="{event["id"]}"]')
+    expect(card.locator(".lf-quote")).to_contain_text("target-reader-heading")
+    expect(card.locator(".lf-quote")).not_to_have_class(re.compile(r"detached"))
 
 
 def test_notification_configuration_becomes_a_commentable_local_artifact(
@@ -6855,698 +6828,61 @@ def test_playground_labels_can_be_selected_without_changing_the_controls(
     expect(toggle).not_to_be_checked()
 
 
-def test_targeting_selects_names_previews_reverts_and_submits_structured_changes(
+def test_ideas_shortlist_survives_revision_and_can_reopen_before_approval(
     browser, serve
 ):
-    authored = leaf_page(
-        "visual targeting",
-        """
-<h1 id="title">Landing page review</h1>
-<lf-ask id="landing-change-ask">
-  <h2>Which changes should the agent make?</h2>
-  <lf-targeting id="landing-targeting">
-    <lf-target-preview id="landing-preview">
-      <section id="hero" class="landing-card">
-        <h3 class="section-title"><span>Build the next release with complete instructions that remain available even when the candidate display has less room</span></h3>
-        <p>Keep the request path visible.</p>
-      </section>
-      <section id="evidence" class="landing-card">
-        <h3 class="section-title">Inspect the evidence</h3>
-      </section>
-    </lf-target-preview>
-  </lf-targeting>
-</lf-ask>
-""",
-    )
-    page = open_page(browser, serve(authored, packages=("targeting",)))
-    workbench = page.locator("#landing-targeting")
-
-    workbench.get_by_role("button", name="Select element").click()
-    expect(workbench).to_have_attribute("data-lf-targeting-armed", "")
-    page.locator("#hero span").click()
-    candidates = workbench.locator(".lf-targeting-candidate-choice")
-    expect(candidates).to_have_count(4)
-    candidates.filter(has_text="<section#hero>").click()
-
-    first = workbench.locator('.lf-targeting-target[data-target-key="target-1"]')
-    expect(first.locator("wa-input")).to_have_js_property(
-        "value",
-        "Build the next release with complete instructions that remain available even "
-        "when the candidate display has less room",
-    )
-    first.locator("wa-input").click()
-    first.locator("wa-input").press("ControlOrMeta+A")
-    first.locator("wa-input").press_sequentially("Hero cards")
-    expect(
-        workbench.get_by_role("combobox", name="Style target", exact=True)
-    ).to_have_value("Hero cards")
-    first.locator("wa-input input").press("Tab")
-    first.locator("wa-select").first.click()
-    first.get_by_role("option", name="Shared class").click()
-    expect(first.locator("wa-select").first).to_have_js_property("value", "class")
-    expect(first.locator("wa-select").nth(1)).to_have_js_property(
-        "value", "landing-card"
-    )
-    expect(
-        first.locator("wa-select").nth(1).locator('[part="display-input"]')
-    ).to_have_value(".landing-card · 2 matches")
-    expect(first.locator("wa-select").nth(1)).to_be_visible()
-    first.locator("wa-select").first.click()
-    page.keyboard.press("g")
-    expect(
-        page.locator(".lf-go-to-hints .lf-go-to-hint[data-lf-hint-code]")
-    ).to_have_count(0)
-    page.keyboard.press("Escape")
-    expect(first.locator("wa-select").first).to_have_js_property("open", False)
-    expect(workbench.locator(".lf-targeting-candidates")).to_be_hidden()
-
-    workbench.get_by_role("button", name="Select element").click()
-    page.locator("#evidence h3").focus()
-    page.keyboard.press("Enter")
-    workbench.locator(".lf-targeting-candidate-choice").first.click()
-    second = workbench.locator('.lf-targeting-target[data-target-key="target-2"]')
-    second.locator("wa-input").click()
-    second.locator("wa-input").press("ControlOrMeta+A")
-    second.locator("wa-input").press_sequentially("Evidence heading")
-    second.locator("wa-input").press("Tab")
-    assert (
-        workbench.locator('[name="landing-targeting-instruction-target"]').evaluate(
-            "element => element.value"
-        )
-        == "target-2"
-    )
-
-    style_target = workbench.locator('[name="landing-targeting-style-target"]')
-    style_target.click()
-    style_target.get_by_role("option", name="Hero cards", exact=True).click()
-    expect(
-        workbench.locator('[name="landing-targeting-style-property"]')
-    ).to_have_js_property("value", "padding")
-    expect(workbench.locator("wa-number-input")).to_have_js_property("value", "24")
-    workbench.get_by_role("button", name="Add style").click()
-    assert page.locator("#hero").evaluate("element => element.style.padding") == "24px"
-    assert (
-        page.locator("#evidence").evaluate("element => element.style.padding") == "24px"
-    )
-
-    style_change = workbench.locator(".lf-targeting-change", has_text="padding 24px")
-    style_change.get_by_role("button", name="Remove").click()
-    assert page.locator("#hero").evaluate("element => element.style.padding") == ""
-    assert page.locator("#evidence").evaluate("element => element.style.padding") == ""
-
-    workbench.get_by_role("button", name="Add style").click()
-    instruction_target = workbench.locator(
-        '[name="landing-targeting-instruction-target"]'
-    )
-    instruction_target.click()
-    instruction_target.get_by_role(
-        "option", name="Evidence heading", exact=True
-    ).click()
-    instruction = workbench.locator("wa-textarea textarea")
-    before_height = instruction.bounding_box()["height"]
-    instruction.fill("First line\n" * 12)
-    expect(instruction).to_have_value("First line\n" * 12)
-    assert instruction.bounding_box()["height"] > before_height
-    instruction.press("Enter")
-    expect(workbench.locator(".lf-targeting-change")).to_have_count(1)
-    instruction.fill("Use the same sentence case as the navigation label.")
-    workbench.get_by_role("button", name="Add instruction").click()
-
-    with sending(page, "the structured targeting action"):
-        workbench.get_by_role("button", name="Submit changes").click()
-
-    actions = [
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "action" and event["widget"] == "landing-targeting"
-    ]
-    assert len(actions) == 1
-    assert actions[0]["action"] == "submit"
-    assert actions[0]["detail"] == {
-        "targets": [
-            {
-                "key": "target-1",
-                "name": "Hero cards",
-                "scope": "class",
-                "className": "landing-card",
-                "reference": {"kind": "id", "id": "hero"},
-                "label": "<section#hero>",
-                "text": "Build the next release with complete instructions that remain "
-                "available even when the candidate display has less room "
-                "Keep the request path visible.",
-            },
-            {
-                "key": "target-2",
-                "name": "Evidence heading",
-                "scope": "element",
-                "className": None,
-                "reference": {
-                    "kind": "structure",
-                    "anchor": "evidence",
-                    "path": [{"tree": "light", "tag": "h3"}],
-                },
-                "label": "<h3.section-title>",
-                "text": "Inspect the evidence",
-            },
-        ],
-        "changes": [
-            {
-                "id": "change-2",
-                "target": "target-1",
-                "kind": "style",
-                "property": "padding",
-                "value": "24px",
-            },
-            {
-                "id": "change-3",
-                "target": "target-2",
-                "kind": "instruction",
-                "text": "Use the same sentence case as the navigation label.",
-            },
-        ],
-    }
-
-    page.reload(wait_until="load")
-    wait_until_ready(page)
-    assert (
-        page.locator("#landing-targeting wa-input").first.evaluate(
-            "element => element.value"
-        )
-        == "Hero cards"
-    )
-    assert page.locator("#hero").evaluate("element => element.style.padding") == "24px"
-    assert (
-        page.locator("#evidence").evaluate("element => element.style.padding") == "24px"
-    )
-
-    workbench = page.locator("#landing-targeting")
-    workbench.locator("wa-number-input").click()
-    workbench.locator("wa-number-input").press("ControlOrMeta+A")
-    workbench.locator("wa-number-input").press_sequentially("40")
-    workbench.get_by_role("button", name="Add style").click()
-    assert page.locator("#hero").evaluate("element => element.style.padding") == "40px"
-    append_carried_log_record(
-        serve.page_dir,
-        {"kind": "undo", "author": "user", "undoes": actions[0]["id"]},
-    )
-    told(page)
-    assert page.locator("#hero").evaluate("element => element.style.padding") == "40px"
-    assert workbench.evaluate("element => element.currentDraft().dirty") is True
-    workbench.get_by_role("button", name="Revert draft").click()
-    assert page.locator("#hero").evaluate("element => element.style.padding") == ""
-    expect(workbench.locator(".lf-targeting-change")).to_have_count(0)
-
-
-def test_targeting_keeps_native_name_drafts_while_targets_refresh(browser, serve):
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Target name draft",
-                """<h1>Target name draft</h1>
-<lf-targeting id="name-draft"><lf-target-preview id="name-preview">
-  <section id="named-target"><h2>Release</h2></section>
-  <p id="other-target">Other target</p>
-</lf-target-preview></lf-targeting>""",
-            ),
-            packages=("targeting",),
-        ),
-    )
-    widget = page.locator("#name-draft")
-    widget.get_by_role("button", name="Select element", exact=True).click()
-    page.locator("#named-target h2").click()
-    widget.locator(".lf-targeting-candidate-choice").first.click()
-    name = widget.locator(".lf-targeting-name input")
-    expect(name).to_be_focused()
-    widget.get_by_role("button", name="Select element", exact=True).click()
-    heading = page.locator("#named-target h2")
-    heading.focus()
-    heading.press("Enter")
-    widget.locator(".lf-targeting-candidate-choice").first.press("Enter")
-    expect(widget.locator(".lf-targeting-target")).to_have_count(1)
-    expect(name).to_be_focused()
-    widget.get_by_role("button", name="Add style", exact=True).click()
-    submit = widget.get_by_role("button", name="Submit changes", exact=True)
-    for revision, text in enumerate((" Release  name ", "")):
-        name.fill(text)
-        expect(name).to_be_focused()
-        if text:
-            expect(submit).to_be_enabled()
-        else:
-            expect(submit).to_be_disabled()
-            expect(widget.locator(".lf-targeting-name")).to_have_attribute(
-                "hint", "Enter a target name before submitting."
-            )
-        actual = name.evaluate(
-            """async (input, revision) => {
-              input.setSelectionRange(3, 3);
-              const caret = input.selectionStart;
-              document.querySelector('#name-preview > p').id = `other-${revision}`;
-              await new Promise(resolve => queueMicrotask(resolve));
-              const control = document.querySelector('.lf-targeting-name');
-              await control.updateComplete;
-              return {
-                retained: control.input === input,
-                focused: document.activeElement === control,
-                caret: control.input.selectionStart === caret,
-                value: control.value,
-              };
-            }""",
-            revision,
-        )
-        assert actual == {
-            "retained": True,
-            "focused": True,
-            "caret": True,
-            "value": text,
-        }
-
-    name.fill(" Release  name ")
-    with sending(page, "the normalized target name"):
-        submit.click()
-    actions = [
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "action" and event["widget"] == "name-draft"
-    ]
-    assert len(actions) == 1
-    assert actions[0]["detail"]["targets"][0]["name"] == "Release name"
-
-
-def test_targeting_controller_keeps_unresolved_targets_visible_and_blocks_submit(
-    browser, serve
-):
-    authored = leaf_page(
-        "target lifecycle",
-        """
-<lf-ask id="target-lifecycle-ask">
-  <h2>What should change?</h2>
-  <lf-targeting id="target-lifecycle">
-    <lf-target-preview id="target-lifecycle-preview">
-      <article><div><span><button type="button">Keep this card identifiable</button></span></div></article>
-    </lf-target-preview>
-  </lf-targeting>
-</lf-ask>
-""",
-    )
-    page = open_page(browser, serve(authored, packages=("targeting",)))
-    workbench = page.locator("#target-lifecycle")
-    target = workbench.locator("article")
-    focused = target.get_by_role("button", name="Keep this card identifiable")
-
-    armed = workbench.evaluate(
-        """element => {
-          element.arm();
-          const armed = element.currentDraft().armed;
-          element.disarm();
-          const disarmed = element.currentDraft().armed;
-          element.arm();
-          return {armed, disarmed, rearmed: element.currentDraft().armed};
-        }"""
-    )
-    assert armed == {"armed": True, "disarmed": False, "rearmed": True}
-
-    focused.focus()
-    page.keyboard.press("Enter")
-    candidates = workbench.locator(".lf-targeting-candidate-choice")
-    expect(candidates).to_have_count(5)
-    candidates.filter(has_text="<article>").click()
-    workbench.get_by_role("button", name="Add style").click()
-    submit = workbench.get_by_role("button", name="Submit changes")
-    card = workbench.locator('[data-target-key="target-1"]')
-    expect(card).to_have_attribute("data-lf-target-status", "resolved")
-    expect(submit).to_be_enabled()
-
-    draft = workbench.evaluate("element => element.currentDraft()")
-    assert draft["armed"] is False
-    assert draft["dirty"] is True
-    assert draft["resolutions"] == {"target-1": "resolved"}
-    assert draft["configuration"]["targets"][0]["reference"] == {
-        "kind": "structure",
-        "path": [{"tree": "light", "tag": "article"}],
-    }
-
-    workbench.locator("lf-target-preview").evaluate(
-        """preview => {
-          const inserted = document.createElement('article');
-          inserted.dataset.insertedTarget = '';
-          preview.prepend(inserted);
-        }"""
-    )
-    expect(card).to_have_attribute("data-lf-target-status", "ambiguous")
-    expect(card).to_contain_text("Ambiguous target")
-    expect(card).to_be_visible()
-    expect(submit).to_be_disabled()
-    assert workbench.evaluate("element => element.currentDraft().resolutions") == {
-        "target-1": "ambiguous"
-    }
-
-    workbench.locator("[data-inserted-target]").evaluate("element => element.remove()")
-    expect(card).to_have_attribute("data-lf-target-status", "resolved")
-    expect(submit).to_be_enabled()
-
-    target.evaluate("element => element.remove()")
-    expect(card).to_have_attribute("data-lf-target-status", "detached")
-    expect(card).to_contain_text("Detached target")
-    expect(card).to_be_visible()
-    expect(submit).to_be_disabled()
-    assert workbench.evaluate("element => element.currentDraft().resolutions") == {
-        "target-1": "detached"
-    }
-
-    # Armed and reset in two tasks, as two gestures are: in one, arming would be a write
-    # the reset takes back.
-    workbench.evaluate("element => element.arm()")
-    reset = workbench.evaluate(
-        """element => {
-          element.reset();
-          return element.currentDraft();
-        }"""
-    )
-    assert reset == {
-        "armed": False,
-        "dirty": False,
-        "configuration": {"targets": [], "changes": []},
-        "resolutions": {},
-    }
-    expect(workbench.locator(".lf-targeting-target")).to_have_count(0)
-    expect(workbench.locator(".lf-targeting-change")).to_have_count(0)
-
-
-def test_a_swipe_deck_reflows_with_its_parent_allocation(browser, serve):
-    page = open_page(browser, serve(SWIPE_PAGE))
-    decision = page.locator("#session-triage-decision")
-    deck = page.locator("#session-triage")
-
-    def layout(width):
-        decision.evaluate("(element, value) => element.style.width = value", width)
-        return deck.evaluate(
-            """element => {
-              const box = node => {
-                const rect = node.getBoundingClientRect();
-                return {
-                  left: rect.left,
-                  right: rect.right,
-                  top: rect.top,
-                  bottom: rect.bottom,
-                  width: rect.width,
-                };
-              };
-              return {
-                deck: box(element),
-                queue: box(element.querySelector('[verdict="unseen"]')),
-                controls: box(element.querySelector('.lf-swipe-controls')),
-                passed: box(element.querySelector('[verdict="pass"]')),
-                kept: box(element.querySelector('[verdict="keep"]')),
-              };
-            }"""
-        )
-
-    narrow = layout("20rem")
-    for name in ("queue", "controls", "passed", "kept"):
-        assert narrow[name]["width"] == pytest.approx(narrow["deck"]["width"]), narrow
-    assert narrow["queue"]["bottom"] < narrow["controls"]["top"], narrow
-    assert narrow["controls"]["bottom"] < narrow["passed"]["top"], narrow
-    assert narrow["passed"]["bottom"] < narrow["kept"]["top"], narrow
-
-    stacked = layout("40rem")
-    assert stacked["passed"]["top"] == pytest.approx(stacked["kept"]["top"]), stacked
-    assert stacked["passed"]["right"] < stacked["kept"]["left"], stacked
-
-    # With room for a rail the deck is a body beside it: the queue and its controls on
-    # the left, Kept above Passed on the right, the rail as tall as the queue.
-    railed = layout("60rem")
-    assert railed["deck"]["width"] == pytest.approx(
-        decision.evaluate("element => element.clientWidth")
-    ), railed
-    assert railed["queue"]["right"] < railed["kept"]["left"], railed
-    assert railed["kept"]["left"] == pytest.approx(railed["passed"]["left"]), railed
-    assert railed["kept"]["bottom"] < railed["passed"]["top"], railed
-    assert railed["queue"]["top"] == pytest.approx(railed["kept"]["top"]), railed
-    assert railed["queue"]["bottom"] == pytest.approx(railed["passed"]["bottom"]), (
-        railed
-    )
-    assert railed["queue"]["bottom"] < railed["controls"]["top"], railed
-    assert railed["controls"]["right"] <= railed["queue"]["right"], railed
-
-
-def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
-    """The deck owns digits forwarded at its Ask and keeps local directional keys.
-
-    The last classification both places its card and closes the Ask, so z reopens the
-    question with that card back in the queue.
-    """
-    page = open_page(browser, serve(SWIPE_PAGE))
-    decision = page.locator("#session-triage-decision")
-    deck = page.locator("#session-triage")
-
-    expect_asks_answered(page, "0/1")
-    expect(deck).to_have_attribute(
-        "aria-label", "Which session-store follow-ups should we keep?"
-    )
-    # Outside the Ask projection, the package command still spells its real binding;
-    # the Decision action name is not a keycap override.
-    page.keyboard.press("?")
-    page.keyboard.press("?")
-    pass_reference = page.locator(
-        '.lf-command-reference tr[data-lf-command="swipe.pass"]'
-    )
-    expect(pass_reference.locator("kbd")).to_have_text("← / 1")
-    expect(pass_reference.locator(".lf-binding-sequence")).to_have_attribute(
-        "aria-label", "← or 1"
-    )
-    expect(
-        page.locator('.lf-command-reference tr[data-lf-command="swipe.undo-last"]')
-    ).to_have_count(0)
-    page.keyboard.press("Escape")
-
-    page.keyboard.press("q")
-    expect(decision).to_be_focused()
-    expect(page.locator(".lf-swipe-pass")).to_have_attribute("aria-keyshortcuts", "1")
-    expect_asks_answered(page, "0/1")
-    expect(
-        page.locator(".lf-command-binding-badges .lf-command-binding-badge")
-    ).to_have_text(["1", "2"])
-    assert active_digit_bindings(page) == "1–2"
-
-    page.keyboard.press("Tab")
-    expect(page.locator(".lf-swipe-pass")).to_have_attribute(
-        "aria-keyshortcuts", "ArrowLeft 1"
-    )
-    assert "←\nPass" in shortcut_bar_text(page)
-    assert "Pass\nPass" not in shortcut_bar_text(page)
-    page.keyboard.press("q")
-    expect(decision).to_be_focused()
-
-    # The reference exposes the same exact commands through the Ask's digit routes.
-    page.keyboard.press("?")
-    page.keyboard.press("?")
-    expect(
-        page.locator('.lf-command-reference-command[data-lf-command="swipe.pass"]')
-    ).to_have_text("Pass")
-    expect(
-        page.locator('.lf-command-reference-command[data-lf-command="swipe.keep"]')
-    ).to_have_text("Keep")
-    expect(
-        page.locator(
-            '.lf-command-reference-command[data-lf-command="ask.activate-nth"]'
-        )
-    ).to_have_count(0)
-    page.keyboard.press("Escape")
-
-    # Directional keys remain the widget's intrinsic routes while focus is in the deck.
-    page.keyboard.press("Tab")
-    for binding in ("ArrowRight", "ArrowLeft", "ArrowRight", "ArrowLeft"):
-        page.keyboard.press(binding)
-    round_trip(page)
-    expect_asks_answered(page, "1/1")
-    expect(
-        page.locator(".lf-command-binding-badges .lf-command-binding-badge")
-    ).to_have_count(0)
-    assert "Undo last swipe" not in shortcut_bar_text(page)
-    assert [event["action"] for event in actions(serve.page_dir)] == [
-        "swipe",
-        "swipe",
-        "swipe",
-        "swipe",
-    ]
-
-    page.reload(wait_until="load")
-    expect(page.locator("#session-pass > #swipe-d")).to_have_count(1)
-    expect_asks_answered(page, "1/1")
-
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+q")
-    # End is the Done fold's door; Enter opens it and the row below is the deck's.
-    page.keyboard.press("End")
-    page.keyboard.press("Enter")
-    page.keyboard.press("ArrowDown")
-    row = page.locator(".lf-queue-done button.lf-queue-row")
-    expect(row).to_be_focused()
-    expect(row.locator(".lf-queue-where")).to_contain_text("Answered 3 kept · 3 passed")
-    page.keyboard.press("Enter")
-    assert "Undo last swipe" not in shortcut_bar_text(page)
-
-    page.keyboard.press("1")
-    expect(page.locator("#session-pass > #swipe-d")).to_have_count(1)
-    expect_asks_answered(page, "1/1")
-
-    page.keyboard.press("z")
-    round_trip(page)
-    expect(page.locator("#session-queue > #swipe-d")).to_have_count(1)
-    expect_asks_answered(page, "0/1")
-    page.keyboard.press("q")
-    expect_asks_answered(page, "0/1")
-
-
-def test_ideas_to_implement_is_a_fast_mobile_decision_queue(browser, serve):
-    """The worked example keeps the decision and both actions in one phone view,
-    then records a rapid mix of touch, button, and keyboard classifications."""
-    source = Path(__file__).parent.parent / "examples" / "ideas-to-implement.html"
-    url = serve(source)
+    """Ordinary choices retain the implementation set and a reversible Done."""
+    example = Path(__file__).parent.parent / "examples/ideas-to-implement.html"
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True
     )
-    page = open_page(browser, url, context=context)
-    deck = page.locator("#ideas-deck")
+    page = open_page(browser, live_url(serve(example)), context=context)
+    choices = page.locator("#ideas-shortlist")
     approve = page.locator(".lf-signoff")
     expect(approve).to_be_disabled()
-    expect(approve).to_have_attribute(
-        "title", "Answer every Ask before approving this work"
-    )
-    first = page.locator("#idea-shared-filters")
 
-    layout = page.evaluate(
-        """() => {
-          const card = document.querySelector('#idea-shared-filters').getBoundingClientRect();
-          const controls = document.querySelector('.lf-swipe-controls').getBoundingClientRect();
-          return {
-            cardBottom: card.bottom,
-            controlsBottom: controls.bottom,
-            viewportHeight: innerHeight,
-            pageWidth: document.documentElement.scrollWidth,
-            viewportWidth: document.documentElement.clientWidth,
-          };
-        }"""
-    )
-    assert layout["cardBottom"] <= layout["viewportHeight"]
-    assert layout["controlsBottom"] <= layout["viewportHeight"]
-    assert layout["pageWidth"] == layout["viewportWidth"] == 390
-
-    box = first.bounding_box()
-    assert box
-    x = round(box["x"] + box["width"] / 2)
-    y = round(box["y"] + box["height"] / 2)
-    cdp = context.new_cdp_session(page)
-    cdp.send(
-        "Input.dispatchTouchEvent",
-        {"type": "touchStart", "touchPoints": [{"x": x, "y": y}]},
-    )
-    for step in range(1, 8):
-        cdp.send(
-            "Input.dispatchTouchEvent",
-            {
-                "type": "touchMove",
-                "touchPoints": [
-                    {"x": x + round(box["width"] * 0.35 * step / 7), "y": y}
-                ],
-            },
-        )
-    cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
-    expect(page.locator("#ideas-keep > #idea-shared-filters")).to_have_count(1)
-
-    deck.get_by_role("button", name="← Pass", exact=True).click()
-    page.locator("#idea-csv-export").focus()
-    page.keyboard.press("ArrowRight")
+    first = page.locator("#idea-shared-filters .lf-pick")
+    first.focus()
+    page.keyboard.press("1")
     round_trip(page)
-
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    with page.expect_request("**/api/event"):
-        deck.get_by_role("button", name="← Pass", exact=True).click()
-
-    # The deck is the user's own gesture on their own widget, so the last card leaves
-    # the queue while its POST is still held. Whether the deck has answered its Ask is
-    # the log's reading, so the progress count and the approval gate turn over together
-    # when that answer lands.
-    expect(page.locator("#ideas-queue > lf-swipe-card")).to_have_count(0)
-    expect_asks_answered(page, "0/1")
-    expect(approve).to_be_disabled()
-    holding(page, held, 1, "the final classification")
-    held[0].continue_()
-    page.unroute("**/api/event")
+    expect(page.locator("#idea-shared-filters")).to_have_attribute("chosen", "")
+    choices.get_by_text("Export the filtered table", exact=True).tap()
     round_trip(page)
+    expect(page.locator("#idea-csv-export")).to_have_attribute("chosen", "")
 
+    done = choices.get_by_role(
+        "button", name="Done: my picks here are complete", exact=True
+    )
+    done.tap()
+    round_trip(page)
     expect_asks_answered(page, "1/1")
     expect(approve).to_be_enabled()
-    assert page.eval_on_selector_all(
-        "#ideas-pass > lf-swipe-card", "cards => cards.map(card => card.id)"
-    ) == ["idea-draft-warning", "idea-report-prefetch"]
-    assert page.eval_on_selector_all(
-        "#ideas-keep > lf-swipe-card", "cards => cards.map(card => card.id)"
-    ) == ["idea-shared-filters", "idea-csv-export"]
-    assert [
-        (event["detail"]["unit"], event["detail"]["value"])
-        for event in actions(serve.page_dir)
-    ] == [
-        ("idea-shared-filters", "ideas-keep"),
-        ("idea-draft-warning", "ideas-pass"),
-        ("idea-csv-export", "ideas-keep"),
-        ("idea-report-prefetch", "ideas-pass"),
-    ]
 
-    page.set_viewport_size({"width": 1200, "height": 900})
-    wide = page.evaluate(
-        """() => {
-          const queue = document.querySelector('#ideas-queue').getBoundingClientRect();
-          const passed = document.querySelector('#ideas-pass').getBoundingClientRect();
-          const kept = document.querySelector('#ideas-keep').getBoundingClientRect();
-          return {
-            queueRight: queue.right,
-            keptLeft: kept.left,
-            keptBottom: kept.bottom,
-            passedTop: passed.top,
-            pageWidth: document.documentElement.scrollWidth,
-            viewportWidth: document.documentElement.clientWidth,
-          };
-        }"""
+    revised = example.read_text().replace("One API", "A permission-checked API")
+    wait_for_revision(
+        page, stamp_page(serve.page_dir, revised, "Clarify export scope")["revision"]
     )
-    # The wide page gives the deck room for its rail: both piles stay beside the queue.
-    assert wide["queueRight"] < wide["keptLeft"], wide
-    assert wide["keptBottom"] < wide["passedTop"], wide
-    assert wide["pageWidth"] == wide["viewportWidth"] == 1200
-
-    expect(approve).to_have_text("Approve version")
+    expect(page.locator("#idea-shared-filters")).to_have_attribute("chosen", "")
+    expect(page.locator("#idea-csv-export")).to_have_attribute("chosen", "")
     expect(approve).to_be_enabled()
-    approve.click()
+
+    choices.get_by_role(
+        "button", name="Take back Done: reopen this question", exact=True
+    ).tap()
     round_trip(page)
-    assert events_model.read_events(serve.page_dir)[-1]["kind"] == "done"
-
-
-def test_an_unchanged_swipe_projection_repaints_nothing(browser, serve):
-    """Reapplying the controller's standing state does not restate a settled deck."""
-    page = open_page(browser, serve(SWIPE_PAGE))
-    mutations = page.locator("#session-triage").evaluate(
-        """async deck => {
-          const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const observer = new MutationObserver(() => {});
-          observer.observe(deck, {
-            subtree: true,
-            childList: true,
-            characterData: true,
-            attributes: true,
-          });
-          deck.renderState(widgetController(deck).read().state);
-          const records = observer.takeRecords().map(record => ({
-            kind: record.type,
-            attribute: record.attributeName,
-            target: record.target.id || record.target.className || record.target.nodeName,
-          }));
-          observer.disconnect();
-          return records;
-        }"""
-    )
-    assert mutations == []
+    expect_asks_answered(page, "0/1")
+    expect(approve).to_be_disabled()
+    choices.get_by_text("Export the filtered table", exact=True).tap()
+    round_trip(page)
+    expect(page.locator("#idea-csv-export")).not_to_have_attribute("chosen", "")
+    undo(page)
+    round_trip(page)
+    expect(page.locator("#idea-csv-export")).to_have_attribute("chosen", "")
+    done.tap()
+    round_trip(page)
+    banner_control(page, ".lf-signoff").tap()
+    round_trip(page)
+    expect(approve).to_contain_text("Version approved")
 
 
 def test_clearing_an_answer_reopens_its_ask_and_shuts_the_approval_gate(browser, serve):
@@ -7590,738 +6926,10 @@ def test_clearing_an_answer_reopens_its_ask_and_shuts_the_approval_gate(browser,
     )
 
 
-def test_swipe_deck_buttons_arrows_and_rapid_actions_share_order(browser, serve):
-    """Every input route ends at a button click, and quick classifications retain
-    gesture order while the outbox serializes their requests."""
-    page = open_page(browser, serve(SWIPE_PAGE))
-    deck = page.locator("#session-triage")
-    passed = deck.locator("#session-pass > lf-swipe-card")
-    kept = deck.locator("#session-keep > lf-swipe-card")
-    buttons = deck.locator(".lf-swipe-controls button:visible")
-
-    expect(buttons).to_have_count(2)
-    expect(deck).to_have_attribute("aria-keyshortcuts", "ArrowLeft ArrowRight 1 2")
-    deck.get_by_role("button", name="← Pass", exact=True).click()
-    expect(passed).to_have_count(2)
-    round_trip(page)
-
-    page.locator("#swipe-b").focus()
-    page.keyboard.press("ArrowRight")
-    expect(page.locator("#session-keep > #swipe-b")).to_have_count(1)
-    expect(page.locator("#swipe-c")).to_be_focused()
-    round_trip(page)
-
-    # No wait between these activations: the arrow's button click exposes the next
-    # card synchronously while its network attempt is still the outbox's head.
-    page.locator("#swipe-c").focus()
-    page.keyboard.press("ArrowLeft")
-    deck.get_by_role("button", name="Keep →", exact=True).click()
-    expect(passed).to_have_count(3)
-    expect(kept).to_have_count(3)
-    expect(deck.locator(".lf-swipe-progress")).to_be_focused()
-    round_trip(page)
-
-    logged = actions(serve.page_dir)
-    assert [event["action"] for event in logged] == [
-        "swipe",
-        "swipe",
-        "swipe",
-        "swipe",
-    ]
-    assert [(e["detail"]["unit"], e["detail"]["value"]) for e in logged] == [
-        ("swipe-a", "session-pass"),
-        ("swipe-b", "session-keep"),
-        ("swipe-c", "session-pass"),
-        ("swipe-d", "session-keep"),
-    ]
-    # Each swipe lands after the pile's authored card ("1") and the swipe before it.
-    a, b, c, d = (event["detail"]["rank"] for event in logged)
-    assert "1" < a < c and "1" < b < d
-
-
-def test_a_classification_can_return_before_its_send_finishes(browser, serve):
-    """An exact Return control can name its pending classification. The visual
-    withdrawal is immediate, while the outbox preserves the durable action then undo
-    order and resolves the local identity before the second POST reaches the server.
-    """
-    page = open_page(browser, serve(SWIPE_PAGE))
-    page.route("**/api/state*", refuse)
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    card = page.locator("#swipe-a")
-
-    with page.expect_request("**/api/event"):
-        page.locator("#session-triage .lf-swipe-pass").click()
-    expect(page.locator("#session-pass > #swipe-a")).to_have_count(1)
-    returned = card.get_by_role(
-        "button", name="Return Buffer rolling expiry to queue", exact=True
-    )
-    expect(returned).to_be_visible()
-    returned.click()
-    expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
-    assert len(held) == 1
-
-    accepted = held[0].fetch()
-    action = next(
-        event
-        for event in accepted.json()["state"]["events"]
-        if event.get("attempt") == held[0].request.post_data_json["attempt"]
-    )
-    held[0].fulfill(response=accepted)
-    holding(page, held, 2, "the dependent withdrawal")
-    assert held[1].request.post_data_json["undoes"] == action["id"]
-    expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
-    held[1].continue_()
-    page.unroute("**/api/event")
-    round_trip(page)
-
-    expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
-    log = [
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] in {"action", "undo"}
-    ]
-    assert [(event["kind"], event.get("undoes")) for event in log] == [
-        ("action", None),
-        ("undo", action["id"]),
-    ]
-
-
-def test_return_disappears_with_a_refused_pending_classification(browser, serve):
-    """A withdrawal dependent on an unaccepted action has nothing durable to name.
-    Refusal drops both local entries, leaves the authored card queued, and never sends
-    an invalid undo command.
-    """
-    page = open_page(browser, serve(SWIPE_PAGE))
-    page.route("**/api/state*", refuse)
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    card = page.locator("#swipe-a")
-
-    with page.expect_request("**/api/event"):
-        page.locator("#session-triage .lf-swipe-pass").click()
-    card.get_by_role(
-        "button", name="Return Buffer rolling expiry to queue", exact=True
-    ).click()
-    expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
-    attempt = held[0].request.post_data_json["attempt"]
-    held[0].fulfill(
-        status=400,
-        json={
-            "ok": False,
-            "attempt": attempt,
-            "error": "refused before append",
-            "final": True,
-        },
-    )
-    page.wait_for_timeout(50)
-
-    assert len(held) == 1
-    expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
-    assert actions(serve.page_dir) == []
-    consume_browser_errors(page, "400")
-
-
-def test_a_refused_return_restores_the_classification(browser, serve):
-    """A fallible optimistic withdrawal is an overlay on the durable projection.
-    If the undo door refuses it, the same accepted classification reappears.
-    """
-    page = open_page(browser, serve(SWIPE_PAGE))
-    card = page.locator("#swipe-a")
-    page.locator("#session-triage .lf-swipe-pass").click()
-    round_trip(page)
-
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    with page.expect_request("**/api/event"):
-        card.get_by_role(
-            "button", name="Return Buffer rolling expiry to queue", exact=True
-        ).click()
-    expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
-    attempt = held[0].request.post_data_json["attempt"]
-    held[0].fulfill(
-        status=400,
-        json={
-            "ok": False,
-            "attempt": attempt,
-            "error": "refused before append",
-            "final": True,
-        },
-    )
-    page.unroute("**/api/event")
-    round_trip(page)
-
-    expect(page.locator("#session-pass > #swipe-a")).to_have_count(1)
-    assert len(actions(serve.page_dir)) == 1
-    consume_browser_errors(page, "400")
-
-
-def test_each_classified_swipe_card_can_return_to_the_queue(browser, serve):
-    """A classified card returns to the front of the queue, including the one whose
-    classification finished the deck."""
-    page = open_page(browser, serve(SWIPE_PAGE))
-    deck = page.locator("#session-triage")
-
-    deck.get_by_role("button", name="← Pass", exact=True).click()
-    deck.get_by_role("button", name="Keep →", exact=True).click()
-    round_trip(page)
-
-    first = page.locator("#swipe-a")
-    second = page.locator("#swipe-b")
-    first.get_by_role(
-        "button", name="Return Buffer rolling expiry to queue", exact=True
-    ).click()
-    round_trip(page)
-    expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
-    expect(page.locator("#session-keep > #swipe-b")).to_have_count(1)
-    expect(first).to_be_focused()
-
-    for binding in ("ArrowLeft", "ArrowLeft", "ArrowRight"):
-        page.locator("#session-queue > lf-swipe-card").first.focus()
-        page.keyboard.press(binding)
-    round_trip(page)
-    expect_asks_answered(page, "1/1")
-    expect(deck.locator(".lf-swipe-progress")).to_have_text("All done! · 6 classified")
-    expect(
-        second.get_by_role(
-            "button", name="Return Bound fallback lifetime to queue", exact=True
-        )
-    ).to_be_visible()
-
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    with page.expect_request("**/api/event"):
-        second.get_by_role(
-            "button", name="Return Bound fallback lifetime to queue", exact=True
-        ).click()
-    expect(page.locator("#session-queue > #swipe-b")).to_have_count(1)
-    holding(page, held, 1, "the earlier card's withdrawal")
-    held[0].continue_()
-    page.unroute("**/api/event")
-    round_trip(page)
-    expect_asks_answered(page, "0/1")
-
-    final = page.locator("#swipe-d")
-    final.get_by_role(
-        "button", name="Return Index account sessions to queue", exact=True
-    ).click()
-    round_trip(page)
-    # A returned card goes to the front of the queue, so it is the one decided next.
-    assert page.eval_on_selector_all(
-        "#session-queue > lf-swipe-card", "cards => cards.map(card => card.id)"
-    ) == ["swipe-d", "swipe-b"]
-    expect_asks_answered(page, "0/1")
-    expect(final).to_be_focused()
-
-
-@pytest.mark.parametrize("accepted", [True, False], ids=["accepted", "refused"])
-def test_returning_a_swipe_card_moves_focus_before_delivery(browser, serve, accepted):
-    """Return hands focus to the card with its optimistic placement; a later
-    delivery or refusal cannot overwrite a newer Tab to another control."""
-    page = open_page(browser, serve(SWIPE_PAGE))
-    deck = page.locator("#session-triage")
-    deck.get_by_role("button", name="← Pass", exact=True).click()
-    round_trip(page)
-    returned = page.locator("#swipe-a").get_by_role(
-        "button", name="Return Buffer rolling expiry to queue", exact=True
-    )
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    with page.expect_request("**/api/event"):
-        returned.press("Enter")
-    holding(page, held, 1, "returning the classified card")
-    expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
-    expect(page.locator("#swipe-a")).to_be_focused()
-    page.keyboard.press("Tab")
-    newer = deck.get_by_role("button", name="← Pass", exact=True)
-    expect(newer).to_be_focused()
-    if accepted:
-        held[0].continue_()
-    else:
-        held[0].fulfill(
-            status=400,
-            json={
-                "ok": False,
-                "attempt": held[0].request.post_data_json["attempt"],
-                "error": "return refused",
-                "final": True,
-            },
-        )
-    page.unroute("**/api/event")
-    round_trip(page)
-    expect(newer).to_be_focused()
-    expect(page.locator("#session-queue > #swipe-a")).to_have_count(
-        1 if accepted else 0
-    )
-    if not accepted:
-        consume_browser_errors(page, "400")
-
-
-def _kept(card_id: str) -> str:
-    """SWIPE_PAGE with one queued card written into the keep pile, after the card
-    the page already kept: what a version writes after the user kept it."""
-    start = SWIPE_PAGE.index(f'<lf-swipe-card id="{card_id}">')
-    card = SWIPE_PAGE[start : SWIPE_PAGE.index("</lf-swipe-card>", start)]
-    card += "</lf-swipe-card>"
-    return SWIPE_PAGE.replace(card, "").replace(
-        "<p>The revocation primitive.</p></lf-swipe-card>",
-        f"<p>The revocation primitive.</p></lf-swipe-card>{card}",
-    )
-
-
-def test_a_card_a_later_version_wrote_into_its_pile_returns_to_the_queue(
-    browser, serve
-):
-    """Once a version writes a swipe in, its markup places the card and an undo of the
-    swipe would restore nothing. Returning the card is a new swipe to the front of
-    the queue, so it still works, and the earlier swipe is no longer offered."""
-    url = serve(SWIPE_PAGE)
-    swiped = append_command(
-        serve.page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "session-triage",
-            "action": "swipe",
-            "detail": {"unit": "swipe-a", "value": "session-keep", "rank": "2"},
-        },
-    )
-    stamp_page(serve.page_dir, _kept("swipe-a"), "kept")
-    page = open_page(browser, live_url(url))
-    wait_for_revision(page, 2)
-    expect(page.locator("#session-keep > #swipe-a")).to_have_count(1)
-    offered = """() => window.__lfRuntimeImport('/runtime/widget-api.js').then(
-        ({widgetController}) => widgetController(
-          document.getElementById('session-triage')).read().actions.swipe.undo
-          .map(event => event.id))"""
-    assert swiped["id"] not in page.evaluate(offered)
-
-    page.locator("#swipe-a").get_by_role(
-        "button", name="Return Buffer rolling expiry to queue", exact=True
-    ).click()
-    round_trip(page)
-    assert page.eval_on_selector_all(
-        "#session-queue > lf-swipe-card", "cards => cards.map(card => card.id)"
-    ) == ["swipe-a", "swipe-b", "swipe-c", "swipe-d"]
-    returned = actions(serve.page_dir)[-1]
-    assert (returned["action"], returned["revision"]) == ("swipe", 2)
-    assert returned["detail"]["value"] == "session-queue"
-    expect(page.locator("#swipe-a")).to_be_focused()
-
-
-def test_a_newer_swipe_survives_an_older_swipe_refusal(browser, serve):
-    """Optimistic cards are an outbox overlay, not snapshots of one another. If an
-    older swipe is refused, its card returns while a later queued verdict still lands."""
-    page = open_page(browser, serve(SWIPE_PAGE))
-    page.route("**/api/state*", refuse)
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    page.locator("#swipe-a").focus()
-
-    with page.expect_request("**/api/event"):
-        page.keyboard.press("ArrowLeft")
-    expect(page.locator("#swipe-b")).to_be_focused()
-    page.keyboard.press("ArrowRight")
-    expect(page.locator("#swipe-c")).to_be_focused()
-    expect(page.locator("#session-pass > #swipe-a")).to_have_count(1)
-    expect(page.locator("#session-keep > #swipe-b")).to_have_count(1)
-    assert len(held) == 1, (
-        "the outbox sent a later gesture before its predecessor settled"
-    )
-
-    attempt = held[0].request.post_data_json["attempt"]
-    with page.expect_request(
-        lambda request: (
-            "/api/event" in request.url
-            and request.post_data_json.get("attempt") != attempt
-        )
-    ):
-        held[0].fulfill(
-            status=400,
-            json={
-                "ok": False,
-                "attempt": attempt,
-                "error": "refused before append",
-                "final": True,
-            },
-        )
-    holding(page, held, 2, "the surviving swipe")
-    held[1].continue_()
-    page.unroute("**/api/event")
-    round_trip(page)
-
-    expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
-    expect(page.locator("#session-keep > #swipe-b")).to_have_count(1)
-    expect(page.locator("#swipe-a")).to_be_focused()
-    page.keyboard.press("ArrowLeft")
-    round_trip(page)
-    assert [event["detail"]["unit"] for event in actions(serve.page_dir)] == [
-        "swipe-b",
-        "swipe-a",
-    ]
-    consume_browser_errors(page, "400")
-
-
-def test_a_refused_early_swipe_leaves_the_deck_asking(browser, serve):
-    """Four rapid gestures leave the queue looking empty locally. If the first is
-    refused its card returns to the queue, and the Ask reads open again however the
-    later swipes landed, because the answer is the empty queue itself.
-    """
-    page = open_page(browser, serve(SWIPE_PAGE))
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    page.locator("#swipe-a").focus()
-
-    with page.expect_request("**/api/event"):
-        for binding in ("ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight"):
-            page.keyboard.press(binding)
-    expect(page.locator(".lf-swipe-progress")).to_be_focused()
-    assert len(held) == 1
-
-    first_attempt = held[0].request.post_data_json["attempt"]
-    held[0].fulfill(
-        status=400,
-        json={
-            "ok": False,
-            "attempt": first_attempt,
-            "error": "refused before append",
-            "final": True,
-        },
-    )
-    for index in range(1, 4):
-        holding(page, held, index + 1, f"gesture {index + 1}")
-        held[index].continue_()
-    page.unroute("**/api/event")
-    round_trip(page)
-
-    expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
-    expect(page.locator("#session-queue > lf-swipe-card")).to_have_count(1)
-    expect_asks_answered(page, "0/1")
-    assert [event["detail"]["unit"] for event in actions(serve.page_dir)] == [
-        "swipe-b",
-        "swipe-c",
-        "swipe-d",
-    ]
-    consume_browser_errors(page, "400")
-
-
-def test_swipe_deck_pointer_threshold_cancel_and_commit(browser, serve):
-    """Pointer Events preserve a vertical/tentative read and cancel cleanly; only a
-    horizontal drag beyond the deck's threshold reaches a verdict button."""
-    url = serve(SWIPE_PAGE)
-    page = open_page(browser, url)
-    card = page.locator("#swipe-a")
-    box = card.bounding_box()
-    assert box
-    x = box["x"] + box["width"] / 2
-    y = box["y"] + box["height"] / 2
-
-    page.mouse.move(x, y)
-    page.mouse.down()
-    page.mouse.move(x + 24, y)
-    page.mouse.up()
-    expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
-    expect(card).not_to_have_class(re.compile(r"\blf-swipe-dragging\b"))
-    assert card.evaluate("el => el.style.getPropertyValue('--lf-swipe-drag-x')") == ""
-
-    page.mouse.move(x, y)
-    page.evaluate(
-        """() => document.addEventListener('pointerdown', event => {
-          window.__swipePointerId = event.pointerId;
-        }, {capture: true, once: true})"""
-    )
-    page.mouse.down()
-    page.mouse.move(x + 80, y)
-    pointer_id = page.evaluate("window.__swipePointerId")
-    assert isinstance(pointer_id, int)
-    card.dispatch_event("pointercancel", {"pointerId": pointer_id})
-    expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
-    expect(card).not_to_have_class(re.compile(r"\blf-swipe-dragging\b"))
-    assert not page.evaluate(DRAG_HELD), "a cancelled pointer left the drag held"
-    assert card.evaluate("el => el.style.getPropertyValue('--lf-swipe-drag-x')") == ""
-    page.mouse.up()
-
-    select_words(page, "#swipe-a p:first-of-type")
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-    assert page.evaluate("() => getSelection().toString().trim()")
-
-    page.mouse.move(x, y)
-    page.mouse.down()
-    page.mouse.move(x - 30, y)
-    page.mouse.up()
-    # Read after the selection surface's release rendering: before the claim boundary
-    # existed, a swipe the deck let go of restored the pointerdown range and raised
-    # the Comment bar again.
-    rendered(page)
-    expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
-    assert page.evaluate("() => getSelection().toString()") == ""
-    assert not page.locator(".lf-fab-bar").is_visible()
-
-    page.mouse.move(x, y)
-    page.mouse.down()
-    page.mouse.move(x - box["width"] * 0.35, y)
-    page.mouse.up()
-    expect(page.locator("#session-pass > #swipe-a")).to_have_count(1)
-    round_trip(page)
-    page.close()
-
-    context = browser.new_context(
-        viewport={"width": 420, "height": 900}, has_touch=True
-    )
-    touch = open_page(browser, url, context=context)
-    touch_card = touch.locator("#swipe-b")
-    touch_box = touch_card.bounding_box()
-    assert touch_box
-    tx = round(touch_box["x"] + touch_box["width"] / 2)
-    ty = round(touch_box["y"] + touch_box["height"] / 2)
-    cdp = context.new_cdp_session(touch)
-    cdp.send(
-        "Input.dispatchTouchEvent",
-        {"type": "touchStart", "touchPoints": [{"x": tx, "y": ty}]},
-    )
-    for step in range(1, 8):
-        cdp.send(
-            "Input.dispatchTouchEvent",
-            {
-                "type": "touchMove",
-                "touchPoints": [
-                    {
-                        "x": tx + round(touch_box["width"] * 0.35 * step / 7),
-                        "y": ty,
-                    }
-                ],
-            },
-        )
-    cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
-    expect(touch.locator("#session-keep > #swipe-b")).to_have_count(1)
-    round_trip(touch)
-
-
-def test_swipe_deck_exit_preview_starts_at_the_dragged_card_box(browser, serve):
-    """The short label starts where the held card stood; its content stays live."""
-    source = (
-        SWIPE_PAGE.replace('<lf-ask id="session-triage-decision">', "<section>")
-        .replace("</lf-ask>", "</section>")
-        .replace("<p>Refresh once a minute.</p>", MOTION_SAMPLE_CONTENT)
-    )
-    page = open_page(browser, serve(source), init_script=HOLD_MOTION)
-    live = page.frame_locator("#card-sample iframe")
-    live.locator("#sample-draft .lf-draft-body").click()
-    editor = live.locator("#sample-draft leaf-text")
-    write(editor, "Edited swipe sample")
-    frame = page.locator("#card-sample iframe")
-    frame.evaluate("frame => window.originalSampleDocument = frame.contentDocument")
-    card = page.locator("#swipe-a")
-    card.locator(":scope > strong").scroll_into_view_if_needed()
-    original = card.element_handle()
-    box = card.bounding_box()
-    heading = card.locator(":scope > strong").bounding_box()
-    assert box and heading
-    x = heading["x"] + heading["width"] / 2
-    y = heading["y"] + heading["height"] / 2
-    page.mouse.move(x, y)
-    page.mouse.down()
-    page.mouse.move(x - box["width"] * 0.35, y)
-    dragged = card.bounding_box()
-    assert dragged
-    page.mouse.up()
-
-    echo = page.locator(".lf-swipe-exit")
-    expect(echo).to_have_count(1)
-    expect(echo).to_have_text("Buffer rolling expiry")
-    expect(echo).to_have_attribute("inert", "")
-    expect(echo.locator("*")).to_have_count(0)
-    expect(page.locator("#card-code, #card-tree, #card-sample iframe")).to_have_count(3)
-    echo_box = echo.bounding_box()
-    assert echo_box
-    assert echo_box["x"] == pytest.approx(dragged["x"], abs=0.02)
-    assert echo_box["y"] == pytest.approx(dragged["y"], abs=0.02)
-    assert echo_box["width"] <= 384 and echo_box["height"] <= 56
-    page.evaluate("window.__lfHeld[0].finish()")
-    expect(echo).to_have_count(0)
-    round_trip(page)
-    assert original.evaluate("el => el === document.querySelector('#swipe-a')")
-    assert frame.evaluate(
-        "frame => frame.contentDocument === window.originalSampleDocument"
-    )
-    expect(editor).to_have_js_property("value", "Edited swipe sample")
-    card.click(position={"x": 10, "y": 10})
-    undo(page)
-    expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
-    assert frame.evaluate(
-        "frame => frame.contentDocument === window.originalSampleDocument"
-    )
-    expect(editor).to_have_js_property("value", "Edited swipe sample")
-
-
-def test_swipe_deck_projects_the_same_exit_motion_as_a_local_swipe(browser, serve):
-    """A remote action carries its production projection through the exit motion.
-
-    A reload reads the same standing unit but arrives before presentation, so it restores
-    the final placement without replaying old news as a new transition.
-    """
-    url = serve(SWIPE_PAGE)
-    page = open_page(browser, url, init_script=HOLD_MOTION)
-
-    append_command(
-        serve.page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "session-triage",
-            "action": "swipe",
-            "detail": {"unit": "swipe-a", "value": "session-keep", "rank": "j"},
-        },
-    )
-    told(page)
-
-    expect(page.locator(".lf-swipe-exit")).to_have_count(1)
-    expect(page.locator("#session-keep > #swipe-a")).to_have_count(1)
-    page.evaluate("window.__lfHeld[0].finish()")
-    expect(page.locator(".lf-swipe-exit")).to_have_count(0)
-
-    page.reload()
-    wait_until_ready(page)
-    expect(page.locator("#session-keep > #swipe-a")).to_have_count(1)
-    expect(page.locator(".lf-swipe-exit")).to_have_count(0)
-
-
-def test_swipe_deck_activation_restores_a_standing_swipe_without_motion(browser, serve):
-    """A new revision that writes an old classification shows it at rest, as an
-    arrival."""
-    url = serve(SWIPE_PAGE)
-    page = open_page(browser, live_url(url), init_script=HOLD_MOTION)
-
-    append_command(
-        serve.page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "session-triage",
-            "action": "swipe",
-            "detail": {"unit": "swipe-a", "value": "session-keep", "rank": "j"},
-        },
-    )
-    told(page)
-    expect(page.locator(".lf-swipe-exit")).to_have_count(1)
-    page.evaluate("window.__lfHeld[0].finish()")
-    expect(page.locator(".lf-swipe-exit")).to_have_count(0)
-
-    stamp_page(serve.page_dir, _kept("swipe-a"), "second")
-    wait_for_revision(page, 2)
-
-    expect(page.locator("#session-keep > #swipe-a")).to_have_count(1)
-    expect(page.locator(".lf-swipe-exit")).to_have_count(0)
-
-
-def test_swipe_deck_reloads_replays_and_undoes_absolute_placement(browser, serve):
-    """The pile position is durable state, not module memory: reload reconstructs it,
-    and undo restores the card to its authored queue position."""
-    url = serve(SWIPE_PAGE)
-    page = open_page(browser, url)
-    page.get_by_role("button", name="Keep →", exact=True).click()
-    round_trip(page)
-    expect(page.locator("#session-keep > #swipe-a")).to_have_count(1)
-
-    page.reload(wait_until="load")
-    expect(page.locator("#session-keep > #swipe-a")).to_have_count(1)
-    assert page.evaluate(
-        """async () => {
-          const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const deck = document.getElementById('session-triage');
-          const {state} = widgetController(deck).read();
-          window.swipeCards = [...deck.querySelectorAll('lf-swipe-card')];
-          deck.renderState(state);
-          deck.renderState(state);
-          return window.swipeCards.every(card => document.getElementById(card.id) === card);
-        }"""
-    )
-    assert page.eval_on_selector_all(
-        "#session-keep > lf-swipe-card", "cards => cards.map(card => card.id)"
-    ) == ["already-kept", "swipe-a"]
-    undo(page)
-    expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
-    assert page.eval_on_selector_all(
-        "#session-queue > lf-swipe-card", "cards => cards.map(card => card.id)"
-    ) == ["swipe-a", "swipe-b", "swipe-c", "swipe-d"]
-    assert page.evaluate(
-        "window.swipeCards.every(card => document.getElementById(card.id) === card)"
-    )
-
-
-def test_a_quoted_swipe_deck_is_a_static_labeled_exhibit(browser, serve):
-    source = SWIPE_PAGE.replace(
-        '<lf-ask id="session-triage-decision">',
-        '<lf-sample id="swipe-example" label="session triage">',
-    ).replace("</lf-ask>", "</lf-sample>")
-    page = open_page(browser, serve(source))
-    deck = page.locator("#session-triage")
-
-    expect(deck).to_have_attribute("aria-label", "Card classification")
-    expect(deck.locator(".lf-swipe-controls")).to_have_count(0)
-    expect(deck.get_by_role("button")).to_have_count(0)
-    expect(deck.locator("lf-swipe-card[tabindex]")).to_have_count(0)
-    expect(deck.locator("lf-swipe-card:visible")).to_have_count(6)
-    assert deck.get_by_role("list").count() == 3
-    deck.locator("#session-queue > lf-swipe-card").evaluate_all(
-        "cards => cards.forEach(card => document.querySelector('#session-keep').append(card))"
-    )
-    deck_box = deck.bounding_box()
-    queue_box = deck.locator("#session-queue").bounding_box()
-    assert deck_box and queue_box
-    assert queue_box["x"] == pytest.approx(deck_box["x"], abs=0.02)
-    assert queue_box["width"] == pytest.approx(deck_box["width"], abs=0.02)
-    resized(page, 420, 900)
-    passed = page.locator("#session-pass").bounding_box()
-    kept = page.locator("#session-keep").bounding_box()
-    assert passed and kept and passed["y"] + passed["height"] <= kept["y"]
-
-
-def test_a_quoted_swipe_queue_spaces_its_flat_cards(browser, serve):
-    """A quoted queue is flat rather than a stack, so its cards stand in flow, a gap
-    apart rather than touching."""
-    source = SWIPE_PAGE.replace(
-        '<lf-ask id="session-triage-decision">',
-        '<lf-sample id="swipe-example" label="session triage">',
-    ).replace("</lf-ask>", "</lf-sample>")
-    page = open_page(browser, serve(source))
-    boxes = [page.locator(f"#swipe-{card}").bounding_box() for card in ("a", "b", "c")]
-    gaps = [
-        lower["y"] - (upper["y"] + upper["height"]) for upper, lower in pairwise(boxes)
-    ]
-    gap = page.evaluate(
-        "() => parseFloat(getComputedStyle(document.documentElement)"
-        ".getPropertyValue('--sp-2'))"
-    )
-    assert gap > 0
-    assert gaps == pytest.approx([gap, gap], abs=0.5)
-
-
-def test_an_empty_quoted_swipe_queue_says_it_is_empty(browser, serve):
-    page = open_page(browser, serve(EMPTY_QUOTED_SWIPE_PAGE))
-    labels = page.locator("#completed-swipe .lf-swipe-pile-label")
-
-    assert labels.all_inner_texts() == ["QUEUE · 0", "PASSED · 0", "KEPT · 1"]
-
-
-def test_a_reduced_motion_swipe_moves_without_an_exit_animation(browser, serve):
-    context = browser.new_context(reduced_motion="reduce")
-    page = open_page(browser, serve(SWIPE_PAGE), context=context)
-    page.get_by_role("button", name="← Pass", exact=True).click()
-
-    expect(page.locator("#session-pass > #swipe-a")).to_have_count(1)
-    expect(page.locator(".lf-swipe-exit")).to_have_count(0)
-    round_trip(page)
-
-
 def test_composer_grows_caps_and_shrinks_with_its_text(browser, serve):
     """The comment box fits its content, scrolls at its cap, and shrinks back."""
     page = open_page(browser, serve(LONG_PAGE))
-    page.locator(".lf-threads-toggle").click()
-    box = page.locator(".lf-general leaf-text")
+    box = page_comment(page)
 
     def state():
         return box.evaluate("""ta => ({ h: Math.round(ta.getBoundingClientRect().height),
@@ -8330,18 +6938,20 @@ def test_composer_grows_caps_and_shrinks_with_its_text(browser, serve):
     empty = state()
     box.type("A comment long enough to wrap onto a second line and then a third.")
     grown = state()
-    write(box, "x " * 900)  # far past the ceiling
+    write(box, "x " * 4000)  # far past the ceiling
     capped = state()
-    expect(page.locator(".lf-threads")).to_be_visible()
+    card_bottom = page.locator(".lf-page-comment-card").evaluate(
+        "card => card.getBoundingClientRect().bottom"
+    )
     write(box, "short again")
     shrunk = state()
 
     assert grown["h"] > empty["h"], "the box must grow with its content"
     assert not grown["scrollable"], "a box that fits its text must not be scrollable"
-    # The panel foot yields room to the thread list, so its available share can
-    # cap the editor before the viewport's 50vh ceiling does.
-    assert grown["h"] < capped["h"] <= page.viewport_size["height"] / 2, (
-        f"the box must grow within the panel's available share, got {capped['h']}px"
+    # The card takes the room beneath the banner, and the editor caps inside it.
+    assert capped["h"] > grown["h"], "the box must grow toward the card's room"
+    assert card_bottom <= page.viewport_size["height"] + 0.5, (
+        f"the capped box carried the card out of the window, to {card_bottom}px"
     )
     assert capped["scrollable"], (
         "past the ceiling the scrollbar is real and belongs there"
@@ -8518,44 +7128,24 @@ def test_a_moved_change_takes_its_controls_with_it(browser, serve):
 # change, and a collapsed container reports its content's last rendered geometry
 # rather than nothing at all — so a row that trusted a measurement would hang in
 # the margin deciding a change nobody can see.
-def test_a_terse_compare_keeps_its_side_by_side_grid(browser, serve):
-    """An exhibition is looked across where a decision is read down: terse variants
-    share a row while block content stacks the group. Which children count as block
-    is the phrasing-set inversion, and its one hazard is an inline widget — a
-    chip-led pair must not stack, which is why the stylesheet's list excludes the
-    marker the runtime paints from x-inline and this reads the shipped page to prove
-    the grid actually held. It is the whole chain in one assertion: a declaration
-    unpainted, a marker unread, or a selector naming the wrong attribute all arrive
-    here as two variants that stacked."""
-    page = open_page(
-        browser,
-        serve(Path(__file__).parent.parent / "examples/developer/feature-gallery.html"),
-    )
-    top = "el => el.getBoundingClientRect().top"
-    assert page.locator("#bg-variant-paper").evaluate(top) == page.locator(
-        "#bg-variant-screen"
-    ).evaluate(top), "chip-led terse variants must share a row"
-    assert page.locator("#bg-variant-paper-detail").evaluate(top) != page.locator(
-        "#bg-variant-screen-detail"
-    ).evaluate(top), "block-content variants must stack"
 
 
 def test_an_undone_suggestion_stays_inline_among_the_words(browser, serve):
-    """An undone suggestion retains its inline presentation and the surrounding comparison layout."""
-    page = open_page(browser, serve(REBUILT_INLINE_PAGE))
-    form = "() => getComputedStyle(document.getElementById('cmp-stores')).display"
-    assert page.evaluate(form) == "grid", (
-        "the exhibition stacked before anything was decided, so this proves nothing"
+    """A declared inline widget keeps suggestion slots inline, including after undo."""
+    source = REBUILT_INLINE_PAGE.replace(
+        "<lf-new>Valkey</lf-new>",
+        '<lf-new><lf-gloss id="replacement-name" tip="A Redis-compatible store.">Valkey</lf-gloss></lf-new>',
     )
-
+    page = open_page(browser, serve(source))
+    form = "() => getComputedStyle(document.querySelector('#sug-store lf-new')).display"
+    expect(page.locator("#replacement-name")).to_have_attribute("data-lf-inline", "")
+    assert page.evaluate(form) == "inline"
     page.locator("[data-lf-margin-for='sug-store'] .lf-sug-accept").click()
     round_trip(page)
     expect(page.locator("#sug-store lf-old")).to_be_hidden()
     undo(page)
     expect(page.locator("#sug-store lf-old")).to_be_visible()
-    assert page.evaluate(form) == "grid", (
-        "the rebuilt suggestion lost its inline mark, so the exhibition stacked"
-    )
+    assert page.evaluate(form) == "inline"
 
 
 def test_a_block_change_emphasizes_the_words_that_moved(browser, serve):
@@ -12167,62 +10757,6 @@ def test_a_body_the_module_cannot_draw_says_why_over_its_source(browser, serve):
         assert said[chart_id] in reported[0], reported
 
 
-def test_a_tree_draws_its_wrapped_hierarchy_before_runtime_upgrade(browser, serve):
-    """First paint uses the real nested rows, so long paths and badges cannot move
-    the paragraph the reader has already reached when the runtime starts."""
-    source = leaf_page(
-        "File tree",
-        '<h1>File changes</h1><lf-tree id="paths"><pre>root/\n'
-        "  very_long_file_name_with_many_identifiers_and_no_break_opportunities_in_a_long_path.py +245 -93\n"
-        "  nested/\n    deeper/\n"
-        "      one_more_long_descriptive_file_name_with_no_whitespace_breaks.toml +3\n"
-        '</pre></lf-tree><p id="after-tree">Review the file changes.</p>',
-    )
-    measure = """() => Object.fromEntries(['paths', 'after-tree'].map(id => {
-      const r = document.getElementById(id).getBoundingClientRect();
-      return [id, {x:r.x, y:r.y, width:r.width, height:r.height}];
-    }))"""
-    for width in (320, 420, 1200):
-        context = browser.new_context(viewport={"width": width, "height": 900})
-        page = context.new_page()
-        boot = []
-        page.route("**/leaf.js", lambda route, _request, boot=boot: boot.append(route))
-        try:
-            with page.expect_request("**/leaf.js"):
-                page.goto(serve(source), wait_until="commit")
-            displayed(page)
-            first = page.evaluate(measure)
-            expect(page.locator("#paths li")).to_have_count(5)
-            page.evaluate(
-                "window.__firstTreeName = document.querySelector('#paths li > span')"
-            )
-            assert boot, "the runtime was not held"
-            boot.pop().continue_()
-            wait_until_ready(page)
-            assert page.evaluate(measure) == first, (width, first)
-            assert page.evaluate(
-                "window.__firstTreeName === document.querySelector('#paths li > span')"
-            ), "upgrade must retain the selectable drawing"
-            assert (
-                page.evaluate("""() => document.documentElement.lfInitial
-              .reading(document.getElementById('paths')).querySelector('pre').textContent""")
-                == (
-                    "root/\n"
-                    "  very_long_file_name_with_many_identifiers_and_no_break_opportunities_in_a_long_path.py +245 -93\n"
-                    "  nested/\n    deeper/\n"
-                    "      one_more_long_descriptive_file_name_with_no_whitespace_breaks.toml +3\n"
-                )
-            )
-            expect(page.locator("#paths .lf-tree-badge")).to_have_text(
-                ["+245", "-93", "+3"]
-            )
-            assert root_overflow(page) == 0
-        finally:
-            for route in boot:
-                route.continue_()
-            page.unroute_all(behavior="wait")
-
-
 def test_a_chart_body_is_plot_code_that_reads_the_width_it_is_drawn_at(browser, serve):
     """The body is JavaScript, so what Plot takes as a function reaches it as one — here
     a tick format — and the body reads the width the host draws at, which is how it fits
@@ -13347,7 +11881,7 @@ def test_a_diff_disclosure_waits_for_the_source_render_that_owns_its_evidence(
 
 
 WEB_AWESOME_SHEET = """sheets => sheets.some(
-  sheet => [...sheet.cssRules].some(rule => rule.cssText.includes('wa-color-picker'))
+  sheet => [...sheet.cssRules].some(rule => rule.cssText.includes('wa-select'))
 )"""
 
 
@@ -13365,20 +11899,20 @@ def test_webawesome_chrome_loads_without_optional_controls(browser, serve):
     )
 
     assert plain.evaluate("() => customElements.get('wa-input') !== undefined")
-    assert plain.evaluate("() => customElements.get('wa-switch') === undefined")
+    assert plain.evaluate("() => customElements.get('wa-slider') === undefined")
 
-    source = Path(__file__).parents[1] / "examples" / "code-comparison.html"
+    source = (
+        Path(__file__).parents[1]
+        / "examples"
+        / "developer"
+        / "visual-review-gallery.html"
+    )
     page = open_page(browser, serve(source))
     assert (
         page.evaluate(f"() => ({WEB_AWESOME_SHEET})(document.adoptedStyleSheets)")
         is True
     )
-    targeting = page.locator("#code-comparison-targeting")
-    targeting.get_by_role("button", name="Select element").click()
-    page.locator(".reader-treatment-title").focus()
-    page.keyboard.press("Enter")
-    targeting.locator(".lf-targeting-candidate-choice").first.click()
-    control = targeting.locator("wa-select").first
+    control = page.locator(".lf-vr-case-select")
     # A page rule with no specificity at all. It can outrank the generated sheet's own
     # `:is(wa-select, …)` mapping only because that sheet sits in @layer lf-vendor.
     page.add_style_tag(
@@ -13398,13 +11932,18 @@ def test_webawesome_menu_text_stays_readable_as_the_current_option_moves(
 ):
     """Component-owned menu states remain readable through the shared theme.
 
-    The targeting picker is a second consumer of the same theme as the trace
+    The visual-review picker is a consumer of the same theme as the trace
     prototype that exposed dark text on a solid blue active row.
     """
-    source = Path(__file__).parents[1] / "examples" / "code-comparison.html"
+    source = (
+        Path(__file__).parents[1]
+        / "examples"
+        / "developer"
+        / "visual-review-gallery.html"
+    )
     page = open_page(browser, serve(source), color_scheme=color_scheme)
-    targeting_menu(page)
-    control = page.locator("#code-comparison-targeting wa-select").first
+    visual_review_menu(page)
+    control = page.locator(".lf-vr-case-select")
     options = control.locator("wa-option")
 
     def contrast(option):
@@ -13476,15 +12015,20 @@ def test_webawesome_theme_reaches_a_declared_shadow_stage(browser, serve):
 def test_interrupted_library_popovers_finish_the_latest_request(browser, serve, motion):
     """A superseded close cannot hide a reopened popover or strand its API promise.
 
-    Select, color picker and tooltip share the library's animation continuation.
+    Select and tooltip share the library's animation continuation.
     The real Enter/Space route exposed it; direct public requests exercise the
     same owner in the other consumers and both interruption directions.
     """
-    source = Path(__file__).parents[1] / "examples" / "code-comparison.html"
+    source = (
+        Path(__file__).parents[1]
+        / "examples"
+        / "developer"
+        / "visual-review-gallery.html"
+    )
     page = open_page(browser, serve(source))
     page.emulate_media(reduced_motion=motion)
-    targeting_menu(page)
-    select = page.locator("#code-comparison-targeting wa-select").first
+    visual_review_menu(page)
+    select = page.locator(".lf-vr-case-select")
     select.evaluate(
         "n => { n.reopened = new Promise(r => n.addEventListener('wa-after-show', r, {once:true})); }"
     )
@@ -13495,7 +12039,7 @@ def test_interrupted_library_popovers_finish_the_latest_request(browser, serve, 
     assert select.evaluate("n => n.open && n.popup.active && !n.listbox.hidden")
     page.keyboard.press("Escape")
 
-    for tag in ("wa-select", "wa-color-picker", "wa-tooltip"):
+    for tag in ("wa-select", "wa-tooltip"):
         page.evaluate(
             """async tag => {
           const {offer} = await import('/runtime/widget-api.js');
@@ -13554,30 +12098,6 @@ def test_interrupted_library_popovers_finish_the_latest_request(browser, serve, 
             is False
         )
         assert control.evaluate("n => !n.open && !n.popup.active")
-        if tag == "wa-color-picker":
-            control.evaluate("""n => {
-              const held = new Promise(resolve => n.releaseUpdate = resolve);
-              n.addEventListener('wa-show', () => {
-                Object.defineProperty(n, 'updateComplete', {configurable:true, get:()=>held});
-              }, {once:true});
-              n.interrupted = null;
-              n.show().then(result => n.interrupted = result);
-            }""")
-            page.wait_for_function(
-                "document.querySelector('#transition-control').releaseUpdate && Object.hasOwn(document.querySelector('#transition-control'), 'updateComplete')"
-            )
-            control.evaluate("n => { n.latest = n.hide(); }")
-            page.wait_for_function(
-                "document.querySelector('#transition-control').interrupted === false"
-            )
-            assert (
-                control.evaluate("""async n => {
-              delete n.updateComplete; n.releaseUpdate();
-              return n.latest;
-            }""")
-                is True
-            )
-            assert control.evaluate("n => !n.open && !n.popup.active && n.base.hidden")
         control.evaluate("n => n.parentElement.remove()")
 
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
@@ -14256,7 +12776,7 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
       const presses = [...document.querySelectorAll('[data-lf-offer]')]
         .filter((el) => el.dataset.lfOffer !== '');
       const said = [document.querySelector('#intro > .tag'),
-                    document.querySelector('#t-camera .lf-chips > span')];
+                    document.querySelector('#owner-fact > .tag')];
       return {
         presses: presses.map(kind), said: said.map(kind),
         saidMarked: said.map((el) => el.hasAttribute('data-lf-offer')),

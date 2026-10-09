@@ -5,7 +5,7 @@
       "visual-run": {
         "description": "An ordered set of aligned before-and-after website states captured against one base and one candidate.",
         "instructions": {
-          "producer": "Capture the same authored journey at the same viewport against immutable base and candidate URLs. Wait on a product readiness fact, disable animation, and freeze seeded data and time. Authenticate the capture browser, not the visual run: store clean target URLs, and never put query keys, cookies, or headers into page data or media. Inspect every image for credentials or personal data, import it with `leaf page media`, then replace the complete source with `leaf data set`. Each case keeps a stable `id` across refreshes, a short action and observed result, both image paths, and the browser conditions under which the pair was captured. When a small change is hard to find in a large capture, give its case one optional `focus` rectangle, `x`, `y`, `width`, and `height` in captured CSS pixels from the image's top-left, shared by both images so movement stays visible; keep it inside both decoded images with enough surrounding context to show displacement. A second area that makes a separate claim is another case reusing the image pair, not a nested region. Use a new source id when the run changes meaning."
+          "producer": "Capture the same authored journey at the same viewport against immutable base and candidate revisions. Include a target URL only when that captured revision has a real replayable destination; omit it for archive-only captures. Wait on a product readiness fact, disable animation, and freeze seeded data and time. Authenticate the capture browser, not the visual run: store clean target URLs, and never put query keys, cookies, or headers into page data or media. Inspect every image for credentials or personal data, import it with `leaf page media`, then replace the complete source with `leaf data set`. Each case keeps a stable `id` across refreshes, a short action and observed result, both image paths, and the browser conditions and observation time under which that pair was captured. Keep each capture's observedAt with that case, so refreshing one case preserves the provenance of retained evidence. When a small change is hard to find in a large capture, give its case one optional `focus` rectangle, `x`, `y`, `width`, and `height` in captured CSS pixels from the image's top-left, shared by both images so movement stays visible; keep it inside both decoded images with enough surrounding context to show displacement. A second area that makes a separate claim is another case reusing the image pair, not a nested region. Use a new source id when the run changes meaning."
         },
         "schema": {
           "type": "object",
@@ -13,10 +13,6 @@
             "title": {
               "type": "string",
               "minLength": 1
-            },
-            "observedAt": {
-              "type": "string",
-              "format": "date-time"
             },
             "base": {
               "$ref": "#/$defs/target"
@@ -34,7 +30,6 @@
           },
           "required": [
             "title",
-            "observedAt",
             "base",
             "candidate",
             "cases"
@@ -55,14 +50,17 @@
                 }
               },
               "required": [
-                "revision",
-                "url"
+                "revision"
               ],
               "additionalProperties": false
             },
             "capture": {
               "type": "object",
               "properties": {
+                "observedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
                 "browser": {
                   "type": "string",
                   "minLength": 1
@@ -109,6 +107,7 @@
                 }
               },
               "required": [
+                "observedAt",
                 "browser",
                 "browserVersion",
                 "viewport",

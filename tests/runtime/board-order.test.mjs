@@ -127,7 +127,7 @@ test("repeated drops at one place keep finding a rank between their neighbours",
   assert.deepEqual(b.order().todo, ["a", "b", "c", "d"]);
 });
 
-// A column that only grows at one end, as a swipe pile does: each key sorts past the
+// A column that only grows at one end: each key sorts past the
 // last and stays short, since an open end steps a digit rather than halving the gap.
 for (const end of ["tail", "head"]) {
   test(`two thousand drops at the ${end} keep their keys ordered and short`, () => {

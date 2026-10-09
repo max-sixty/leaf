@@ -9,13 +9,14 @@ putting one in the claim.
 """
 
 import model_folds as model
+from interact_support import PAGE_PACKAGES
 
 HUB = model.leaf_page(
     "command hub",
     """<h1 id="h">Atlas</h1>
-<lf-command id="atlas" label="Replace the parser">
-  <lf-task id="goal-parser" status="active" talk><strong>Replace the XML parser</strong></lf-task>
-</lf-command>""",
+<lf-test-plan id="atlas" label="Replace the parser">
+  <lf-test-task id="goal-parser" status="active" talk><strong>Replace the XML parser</strong></lf-test-task>
+</lf-test-plan>""",
 )
 # A request held against a goal and the agent's answer to it. `holds` names the
 # work the thread is about, which is what a command page reads it back through.
@@ -277,7 +278,7 @@ def test_a_decision_on_any_message_settles_the_thread_it_belongs_to():
     and a command page reading the thread's `holds` would go on calling settled
     work outstanding.
     """
-    registry = model.model_layer("command-hub")
+    registry = model.model_layer(PAGE_PACKAGES[0])
     open_thread = model.threads(model.reading(HUB, HELD_REQUEST, registry=registry))
     # The contrast: without it a fold that resolved every thread would pass below.
     assert open_thread["e1"]["resolved"] is None

@@ -200,7 +200,7 @@ def check_markup(
             page_dir,
             registry,
             events,
-            incoming=[(frag.lf_elements, f"incoming {kind} markup")],
+            incoming=[(frag, f"incoming {kind} markup")],
         )
     )
     if error := message_markup_error(

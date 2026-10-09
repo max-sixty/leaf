@@ -22,7 +22,29 @@
         color: var(--ink-2);
         font: 500 var(--t-5) / 1.5 var(--sans);
       }
-    </style>
+</style>
+<!-- triage-board.html authored styles -->
+<style>
+      #triage-counts > dl {
+        margin: 0;
+        padding: var(--sp-3);
+        border: 1px solid var(--rule);
+        border-radius: var(--r);
+        background: var(--card);
+      }
+      #triage-counts dt {
+        color: var(--muted);
+        font: 600 var(--t-6)/1.3 var(--sans);
+      }
+      #triage-counts dd {
+        margin: var(--sp-1) 0 0;
+        font: 600 var(--t-2)/1.2 var(--sans);
+        overflow-wrap: anywhere;
+      }
+      #triage-counts dd small {
+        font: 500 var(--t-6)/1.3 var(--sans);
+      }
+</style>
 <!-- notification-playground.html authored styles -->
 <style>
       notification-simulator {
@@ -187,7 +209,7 @@
           height: auto;
         }
       }
-    </style>
+</style>
 <!-- notification-playground.html authored script -->
 <script type="module">
       import { keeps, keepsText, layoutChanged, once } from "/runtime/widget-api.js";
@@ -457,7 +479,7 @@
           margin-inline-start: 0;
         }
       }
-    </style>
+</style>
 <!-- data-explorer.html authored script -->
 <script type="module">
       import { keepsText, layoutChanged, offer, once } from "/runtime/widget-api.js";
@@ -838,7 +860,7 @@
           grid-template-columns: minmax(0, 1fr);
         }
       }
-    </style>
+</style>
 <!-- code-comparison.html authored script -->
 <script type="module">
       import {
@@ -999,6 +1021,31 @@
     </script>
 <!-- live-progress.html authored styles -->
 <style>
+      #lp-status > dl {
+        margin: 0;
+        padding: var(--sp-3);
+        border: 1px solid var(--rule);
+        border-radius: var(--r);
+        background: var(--card);
+      }
+      #lp-status dt {
+        color: var(--muted);
+        font: 600 var(--t-6)/1.3 var(--sans);
+      }
+      #lp-status dd {
+        margin: var(--sp-1) 0 0;
+        font: 600 var(--t-2)/1.2 var(--sans);
+        overflow-wrap: anywhere;
+      }
+      #lp-status dd strong,
+      #lp-status dd small {
+        display: inline-block;
+        white-space: nowrap;
+      }
+      #lp-status dd small {
+        font: 500 var(--t-6)/1.3 var(--sans);
+      }
+
       #lp-current-state > strong {
         display: block;
         margin-bottom: var(--sp-1);
@@ -1053,9 +1100,11 @@
           grid-template-columns: repeat(4, minmax(0, 1fr));
         }
       }
-    </style>
+</style>
 <!-- pr-walkthrough.html authored styles -->
 <style>
+      @import url("/page/theme.css");
+
       /* Navigation starts the stacked reading order; the stretched side track keeps
          it beside the review on a wide window. Supporting history stays in the body. */
       #pr-rail {
@@ -1124,7 +1173,7 @@
         color: var(--ink);
         font: var(--t-3) / 1.3 var(--mono);
       }
-    </style>
+</style>
 <!-- wt-merge.html authored styles -->
 <style>
       /* The film beside the steps it plays, stacked where the workspace flows. */
@@ -1514,7 +1563,7 @@
       lf-merge-steps .this-run[data-tone="bad"] {
         color: var(--danger-ink);
       }
-    </style>
+</style>
 <!-- rust-sort.html authored styles -->
 <style>
       /* The sort beside the source it follows, stacked where the workspace flows. */
@@ -1641,7 +1690,7 @@
         color: var(--muted);
         font-size: var(--t-5);
       }
-    </style>
+</style>
 <!-- rust-sort.html authored script -->
 <script type="module">
       // A step may precede the code's rendered lines. Follow the indicated line when
@@ -1676,6 +1725,10 @@
       });
       followLine();
     </script>
+<!-- command-hub.html authored styles -->
+<style>
+      @import url("/page/theme.css");
+</style>
 <!-- annotation-workspace.html authored styles -->
 <style>
       #aw-regions {
@@ -1717,7 +1770,7 @@
           flex: none;
         }
       }
-    </style>
+</style>
 <!-- current-proposed-comparison.html authored styles -->
 <style>
       /* The regions side by side, stacked where the workspace flows. */
@@ -1730,7 +1783,7 @@
           grid-template-columns: 1fr;
         }
       }
-    </style>
+</style>
 <!-- review-queue.html authored styles -->
 <style>
       /* The regions side by side, stacked where the workspace flows. */
@@ -1743,7 +1796,7 @@
           grid-template-columns: 1fr;
         }
       }
-    </style>
+</style>
 <!-- root-tabs.html authored styles -->
 <style>
       /* The cohort queue beside its detail, stacked in a narrow window. */
@@ -1757,9 +1810,29 @@
           grid-template-columns: 1fr;
         }
       }
-    </style>
+</style>
 <!-- feature-gallery.html authored styles -->
 <style>
+      #bg-metrics > dl {
+        margin: 0;
+        padding: var(--sp-3);
+        border: 1px solid var(--rule);
+        border-radius: var(--r);
+        background: var(--card);
+      }
+      #bg-metrics dt {
+        color: var(--muted);
+        font: 600 var(--t-6)/1.3 var(--sans);
+      }
+      #bg-metrics dd {
+        margin: var(--sp-1) 0 0;
+        font: 600 var(--t-2)/1.2 var(--sans);
+        overflow-wrap: anywhere;
+      }
+      #bg-metrics dd small {
+        font: 500 var(--t-6)/1.3 var(--sans);
+      }
+
       .bg-feature-detail {
         color: var(--ink-2);
         font-weight: 400;
@@ -2064,7 +2137,7 @@
           box-shadow: none;
         }
       }
-    </style>
+</style>
 <!-- feature-gallery.html authored script -->
 <script id="bg-margin-layer-status-history" type="application/json">
       [
@@ -2212,28 +2285,6 @@
         if (selected) selectPanelView(selected);
       });
     </script>
-<!-- targeting-gallery.html authored styles -->
-<style>
-      .target-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: var(--sp-3);
-      }
-      .target-card {
-        --lf-block-frame: 1;
-        padding: var(--sp-4);
-        border: 1px solid var(--rule);
-        border-radius: var(--r);
-      }
-      .target-card h3 {
-        margin-top: 0;
-      }
-      @media (max-width: 560px) {
-        .target-grid {
-          grid-template-columns: 1fr;
-        }
-      }
-    </style>
 </head>
 <body>
 <main class="layout-column">
@@ -2506,10 +2557,14 @@ catalog.</p>
 
       <aside id="triage-status">
         <div class="layout-tiles" id="triage-counts">
-          <lf-metric id="count-cut" value="2 days">to the Thursday cut</lf-metric>
-          <lf-metric id="count-open" value="7" delta="-3" direction="up-bad"
-            >open since Monday</lf-metric
-          >
+          <dl id="count-cut" class="panel">
+            <dt>to the Thursday cut</dt>
+            <dd><strong>2 days</strong></dd>
+          </dl>
+          <dl id="count-open" class="panel">
+            <dt>open since Monday</dt>
+            <dd><strong>7</strong> <small>change: -3</small></dd>
+          </dl>
         </div>
         <section class="panel" id="triage-why">
           <h2>Why only the migration blocks</h2>
@@ -2535,48 +2590,43 @@ catalog.</p>
 <lf-tab id="corpus-ideas-to-implement" label="Ideas">
 <h1>Ideas to implement</h1>
       <p class="lede" id="ideas-premise">
-        Keep adds an idea to this round; Pass removes it. Each can ship on its own. When
-        the queue is clear, approve the set to start work.
+        Select the ideas to build this round and leave the others unchecked. Each can
+        ship on its own. Choose none if none merit the work. Done records the shortlist;
+        then approve the version to start work.
       </p>
       <lf-ask id="ideas-decision">
         <h2>Which ideas should we implement?</h2>
-        <lf-swipe-deck id="ideas-deck">
-          <lf-swipe-pile id="ideas-queue" verdict="unseen">
-            <lf-swipe-card id="idea-shared-filters">
-              <strong>Keep filters in shared links</strong>
-              <p>
-                Shared analytics links currently reopen unfiltered. Put the existing
-                team, date, and status filters in the URL. Frontend only; about half a
-                day.
-              </p>
-            </lf-swipe-card>
-            <lf-swipe-card id="idea-draft-warning">
-              <strong>Protect unsaved drafts</strong>
-              <p>
-                Closing the editor can silently discard local text. Warn only when the
-                draft differs from the saved version. Frontend only; about half a day.
-              </p>
-            </lf-swipe-card>
-            <lf-swipe-card id="idea-csv-export">
-              <strong>Export the filtered table</strong>
-              <p>
-                Operations copies this view into a spreadsheet each Friday. Export the
-                visible rows and columns with the current permission checks. One API
-                endpoint; about two days.
-              </p>
-            </lf-swipe-card>
-            <lf-swipe-card id="idea-report-prefetch">
-              <strong>Preload the next report</strong>
-              <p>
-                After a report opens, fetch the next one in the list during browser
-                idle. The next switch is faster, but one request may go unused; about
-                one day.
-              </p>
-            </lf-swipe-card>
-          </lf-swipe-pile>
-          <lf-swipe-pile id="ideas-pass" verdict="pass"></lf-swipe-pile>
-          <lf-swipe-pile id="ideas-keep" verdict="keep"></lf-swipe-pile>
-        </lf-swipe-deck>
+        <lf-options id="ideas-shortlist" choose multiple>
+          <lf-option id="idea-shared-filters">
+            <strong>Keep filters in shared links</strong>
+            <p>
+              Shared analytics links currently reopen unfiltered. Put the existing team,
+              date, and status filters in the URL. Frontend only; about half a day.
+            </p>
+          </lf-option>
+          <lf-option id="idea-draft-warning">
+            <strong>Protect unsaved drafts</strong>
+            <p>
+              Closing the editor can silently discard local text. Warn only when the
+              draft differs from the saved version. Frontend only; about half a day.
+            </p>
+          </lf-option>
+          <lf-option id="idea-csv-export">
+            <strong>Export the filtered table</strong>
+            <p>
+              Operations copies this view into a spreadsheet each Friday. Export the
+              visible rows and columns with the current permission checks. One API
+              endpoint; about two days.
+            </p>
+          </lf-option>
+          <lf-option id="idea-report-prefetch">
+            <strong>Preload the next report</strong>
+            <p>
+              After a report opens, fetch the next one in the list during browser idle.
+              The next switch is faster, but one request may go unused; about one day.
+            </p>
+          </lf-option>
+        </lf-options>
       </lf-ask>
 </lf-tab>
 
@@ -2730,15 +2780,18 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
           Open the comment beside the stalled task. Two follow-ups are selected; adjust
           them if needed, then press Done.
         </p>
-        <lf-tasks id="off-readiness">
-          <lf-task id="off-t-patch" status="review" owner="mobile">
+        <section id="off-readiness">
+          <section id="off-t-patch">
+            <p class="eyebrow">review · mobile</p>
             <strong>Ship offline editing in the first patch</strong>
-            <lf-task id="off-t-resync" status="stalled" owner="mobile">
+            <section id="off-t-resync">
+              <p class="eyebrow">stalled · mobile</p>
               <strong>iOS reconnect stall</strong> One reconnect in about 40. Nothing is
               lost — the edits stay queued — but the user sees a spinner until they
               background the app.
-            </lf-task>
-            <lf-task id="off-t-workaround" status="review" owner="mobile">
+            </section>
+            <section id="off-t-workaround">
+              <p class="eyebrow">review · mobile</p>
               <strong>Keep the resend workaround in the patch</strong> After 20 seconds
               the client resends the queued batch; 500 forced stalls all recovered.
               <lf-ask id="off-workaround-decision">
@@ -2752,21 +2805,24 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
                   </lf-option>
                 </lf-options>
               </lf-ask>
-            </lf-task>
-            <lf-task id="off-t-vendor" status="blocked" owner="mobile">
+            </section>
+            <section id="off-t-vendor">
+              <p class="eyebrow">blocked · mobile</p>
               <strong>Land the upstream fix</strong> The vendor reproduced the stall but
               has not named a release.
-            </lf-task>
-            <lf-task id="off-t-telemetry" status="done" owner="data">
+            </section>
+            <section id="off-t-telemetry">
+              <p class="eyebrow">done · data</p>
               <strong>Keep reconnect telemetry</strong> The beta alert and per-platform
               count remain on for the release cohort.
-            </lf-task>
-            <lf-task id="off-t-support" status="done" owner="support">
+            </section>
+            <section id="off-t-support">
+              <p class="eyebrow">done · support</p>
               <strong>Write the support playbook</strong> It covers the spinner, queued
               edits, and background-app recovery.
-            </lf-task>
-          </lf-task>
-        </lf-tasks>
+            </section>
+          </section>
+        </section>
       </section>
 
       <dl class="facts" id="off-facts">
@@ -2832,18 +2888,18 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
         <lf-options id="heat-first" choose>
           <lf-option id="heat-opt-hatch">
             <strong>Seal and insulate the loft hatch</strong>
-            <lf-chip>£180</lf-chip><lf-chip tone="ok">one afternoon</lf-chip>
+            <small class="tag">£180</small><small class="tag ok">one afternoon</small>
             <p>Estimated loss: 265 W. The installer can do it next week.</p>
           </lf-option>
           <lf-option id="heat-opt-window">
             <strong>Add secondary glazing to the bay</strong>
-            <lf-chip>£1,180</lf-chip><lf-chip>three-week lead</lf-chip>
+            <small class="tag">£1,180</small><small class="tag">three-week lead</small>
             <p>Estimated loss: 410 W. The internal panel leaves the sash untouched.</p>
           </lf-option>
           <lf-option id="heat-opt-floor">
             <strong>Insulate under the floorboards</strong>
-            <lf-chip>£2,100</lf-chip
-            ><lf-chip tone="warn">room closed for a week</lf-chip>
+            <small class="tag">£2,100</small
+            ><small class="tag warn">room closed for a week</small>
             <p>
               Estimated loss: 240 W. It makes sense only before the planned refinish.
             </p>
@@ -3146,29 +3202,26 @@ export function releaseLabels(releases) {
           </lf-playground-output>
         </lf-playground>
       </lf-ask>
-      <lf-ask id="code-targeting-ask" data-width="available">
-        <h2>Which exact reader element should change?</h2>
-        <p>
-          Targeting keeps element identity separate from the comparison's visual labels
-          and settings.
+      <section id="code-reader-feedback" data-width="available">
+        <h2>Point at the reader element you want changed</h2>
+        <p id="code-reader-feedback-guide">
+          Turn on Design mode with <kbd>l</kbd> or the More menu, then press the heading
+          or code reader below. For a keyboard choice, press <kbd>s</kbd>, browse
+          targets with <kbd>Tab</kbd>, and choose with <kbd>Enter</kbd>. Your comment
+          stays beside that element as its treatment changes. Describe a shared change
+          in the comment when both readers should inherit it.
         </p>
-        <lf-targeting
-          id="code-comparison-targeting"
-          data-height="767"
-          submit-label="Propose exact edit"
-        >
-          <lf-target-preview id="code-target-preview">
-            <section id="target-reader-artifact" class="code-candidate">
-              <h3 class="reader-treatment-title">Built reader treatment</h3>
-              <lf-code id="target-built-code" language="javascript" hi="2">
-                <pre>
+        <section id="target-reader-artifact" class="code-candidate">
+          <h3 id="target-reader-heading" class="reader-treatment-title">
+            Built reader treatment
+          </h3>
+          <lf-code id="target-built-code" language="javascript" hi="2">
+            <pre>
 export const summarize = checks =>
   `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;</pre>
-              </lf-code>
-            </section>
-          </lf-target-preview>
-        </lf-targeting>
-      </lf-ask>
+          </lf-code>
+        </section>
+      </section>
 </lf-tab>
 
 <lf-tab id="corpus-live-progress" label="Live">
@@ -3189,14 +3242,22 @@ export const summarize = checks =>
       <div id="lp-body">
         <div id="lp-status-room">
           <div class="layout-tiles" id="lp-status">
-            <lf-metric id="lp-k-traffic" value="25%">candidate traffic</lf-metric>
-            <lf-metric id="lp-k-checks" value="4 of 5" delta="-1" direction="up-good"
-              >checks passing</lf-metric
-            >
-            <lf-metric id="lp-k-latency" value="184 ms" delta="-6 ms" direction="up-bad"
-              >p95 latency</lf-metric
-            >
-            <lf-metric id="lp-k-observed" value="14:24:44">last observation</lf-metric>
+            <dl id="lp-k-traffic" class="panel">
+              <dt>candidate traffic</dt>
+              <dd><strong>25%</strong></dd>
+            </dl>
+            <dl id="lp-k-checks" class="panel">
+              <dt>checks passing</dt>
+              <dd><strong>4 of 5</strong> <small>change: -1</small></dd>
+            </dl>
+            <dl id="lp-k-latency" class="panel">
+              <dt>p95 latency</dt>
+              <dd><strong>184 ms</strong> <small>change: -6 ms</small></dd>
+            </dl>
+            <dl id="lp-k-observed" class="panel">
+              <dt>last observation</dt>
+              <dd><strong>14:24:44</strong></dd>
+            </dl>
           </div>
         </div>
         <aside class="callout warn" id="lp-current-state">
@@ -3270,26 +3331,29 @@ export const summarize = checks =>
       <aside id="lp-rail">
         <section class="panel" id="lp-steps">
           <h2 id="lp-steps-heading">Release steps</h2>
-          <lf-milestones id="lp-release-steps">
-            <lf-milestone id="lp-step-build" status="done" when="14:18">
+          <ol id="lp-release-steps">
+            <li id="lp-step-build">
+              <small class="tag ok">done · 14:18</small>
               <strong>Build and verify the candidate</strong> Image signed and
               provenance recorded.
-            </lf-milestone>
-            <lf-milestone id="lp-step-canary" status="done" when="14:22">
+            </li>
+            <li id="lp-step-canary">
+              <small class="tag ok">done · 14:22</small>
               <strong>Deploy the 25% canary</strong> Candidate serving production
               checkout traffic.
-            </lf-milestone>
-            <lf-milestone id="lp-step-checks" status="blocked" when="now">
+            </li>
+            <li id="lp-step-checks">
+              <small class="tag danger">blocked · now</small>
               <strong>Pass release checks</strong> Finance export has 1,998 of 1,999
               expected rows.
-            </lf-milestone>
-            <lf-milestone id="lp-step-promote" status="planned">
-              <strong>Expand to 100%</strong>
-            </lf-milestone>
-            <lf-milestone id="lp-step-observe" status="planned">
-              <strong>Observe and complete</strong>
-            </lf-milestone>
-          </lf-milestones>
+            </li>
+            <li id="lp-step-promote">
+              <small class="tag">planned</small> <strong>Expand to 100%</strong>
+            </li>
+            <li id="lp-step-observe">
+              <small class="tag">planned</small> <strong>Observe and complete</strong>
+            </li>
+          </ol>
         </section>
         <section class="panel" id="lp-checks">
           <h2>Checks</h2>
@@ -3362,27 +3426,32 @@ export const summarize = checks =>
           </details>
           <details id="lp-release-owners">
             <summary>Release owners · 5</summary>
-            <lf-roster id="lp-owners">
-              <lf-agent id="lp-agent-deployer" state="waiting">
+            <section id="lp-owners">
+              <section id="lp-agent-deployer">
+                <p class="eyebrow">waiting</p>
                 <strong>deployer</strong> Holding promotion at 25% while finance parity
                 is red.
-              </lf-agent>
-              <lf-agent id="lp-agent-ledger" state="working">
+              </section>
+              <section id="lp-agent-ledger">
+                <p class="eyebrow">working</p>
                 <strong>ledger</strong> Reconciling <code>co_18427</code> against the
                 candidate export.
-              </lf-agent>
-              <lf-agent id="lp-agent-finance" state="blocked">
+              </section>
+              <section id="lp-agent-finance">
+                <p class="eyebrow">blocked</p>
                 <strong>finance</strong> Waiting for the missing export row before
                 signing off.
-              </lf-agent>
-              <lf-agent id="lp-agent-observer" state="idle">
+              </section>
+              <section id="lp-agent-observer">
+                <p class="eyebrow">idle</p>
                 <strong>observer</strong> Ready to watch the release after promotion.
-              </lf-agent>
-              <lf-agent id="lp-agent-builder" state="done">
+              </section>
+              <section id="lp-agent-builder">
+                <p class="eyebrow">done</p>
                 <strong>builder</strong> Signed the candidate and recorded its
                 provenance.
-              </lf-agent>
-            </lf-roster>
+              </section>
+            </section>
           </details>
 
           <details id="lp-rollback-procedure">
@@ -3467,19 +3536,19 @@ export const summarize = checks =>
             </lf-chart>
             <lf-options id="ar-canary-choice" choose>
               <lf-option id="ar-canary-consecutive">
-                <lf-chip>last week: 0 pages</lf-chip>
-                <lf-chip tone="ok">recommended</lf-chip>
+                <small class="tag">last week: 0 pages</small>
+                <small class="tag ok">recommended</small>
                 <strong>Require three failed probes in a row</strong> Pages when the
                 canary is down for 90 seconds, which no deploy restart reached.
               </lf-option>
               <lf-option id="ar-canary-suppress">
-                <lf-chip>last week: 3 pages</lf-chip>
+                <small class="tag">last week: 3 pages</small>
                 <strong>Mute for five minutes after each deploy</strong> Keeps
                 single-probe sensitivity between trains, but depends on deploy events
                 arriving on time.
               </lf-option>
               <lf-option id="ar-canary-keep">
-                <lf-chip>last week: 47 pages</lf-chip>
+                <small class="tag">last week: 47 pages</small>
                 <strong>Keep paging on one failed probe</strong> No change to the rule.
               </lf-option>
             </lf-options>
@@ -3509,18 +3578,18 @@ export const summarize = checks =>
             </p>
             <lf-options id="ar-latency-choice" choose>
               <lf-option id="ar-latency-objective">
-                <lf-chip>last week: 1 page</lf-chip>
-                <lf-chip tone="ok">recommended</lf-chip>
+                <small class="tag">last week: 1 page</small>
+                <small class="tag ok">recommended</small>
                 <strong>Page on the objective itself</strong> 1.2 seconds sustained for
                 ten minutes; peaks that recover stop paging.
               </lf-option>
               <lf-option id="ar-latency-hours">
-                <lf-chip>last week: 12 pages</lf-chip>
+                <small class="tag">last week: 12 pages</small>
                 <strong>Keep 800 ms, page only in working hours</strong> Nights and
                 weekends open a ticket instead.
               </lf-option>
               <lf-option id="ar-latency-keep">
-                <lf-chip>last week: 31 pages</lf-chip>
+                <small class="tag">last week: 31 pages</small>
                 <strong>Keep the current threshold</strong> No change to the rule.
               </lf-option>
             </lf-options>
@@ -3550,18 +3619,18 @@ export const summarize = checks =>
             </p>
             <lf-options id="ar-webhooks-choice" choose>
               <lf-option id="ar-webhooks-age">
-                <lf-chip>last week: 2 pages</lf-chip>
-                <lf-chip tone="ok">recommended</lf-chip>
+                <small class="tag">last week: 2 pages</small>
+                <small class="tag ok">recommended</small>
                 <strong>Page on the oldest delivery's age</strong> Ten minutes old trips
                 it; a burst that drains does not.
               </lf-option>
               <lf-option id="ar-webhooks-depth">
-                <lf-chip>last week: 6 pages</lf-chip>
+                <small class="tag">last week: 6 pages</small>
                 <strong>Raise the depth to 20,000</strong> Fewer burst pages, and still
                 blind to a stuck consumer on a short queue.
               </lf-option>
               <lf-option id="ar-webhooks-keep">
-                <lf-chip>last week: 22 pages</lf-chip>
+                <small class="tag">last week: 22 pages</small>
                 <strong>Keep paging at 5,000</strong> No change to the rule.
               </lf-option>
             </lf-options>
@@ -3622,7 +3691,7 @@ export const summarize = checks =>
             </lf-chart>
             <lf-options id="ar-export-choice" choose>
               <lf-option id="ar-export-window">
-                <lf-chip tone="ok">recommended</lf-chip>
+                <small class="tag ok">recommended</small>
                 <strong>Mute from 01:00 to 03:30 UTC</strong> Lag outside the batch
                 still pages.
               </lf-option>
@@ -3660,7 +3729,7 @@ export const summarize = checks =>
             </p>
             <lf-options id="ar-disk-choice" choose>
               <lf-option id="ar-disk-delete">
-                <lf-chip tone="ok">recommended</lf-chip>
+                <small class="tag ok">recommended</small>
                 <strong>Delete it</strong> The capacity review and the 95% alert cover
                 the disk.
               </lf-option>
@@ -3698,7 +3767,7 @@ export const summarize = checks =>
             </p>
             <lf-options id="ar-settlement-choice" choose>
               <lf-option id="ar-settlement-retry">
-                <lf-chip tone="ok">recommended</lf-chip>
+                <small class="tag ok">recommended</small>
                 <strong>Page when the retry fails too</strong> Real failures arrive five
                 minutes later.
               </lf-option>
@@ -3758,7 +3827,7 @@ export const summarize = checks =>
             </lf-chart>
             <lf-options id="ar-3ds-choice" choose>
               <lf-option id="ar-3ds-spread">
-                <lf-chip tone="ok">recommended</lf-chip>
+                <small class="tag ok">recommended</small>
                 <strong>Page when three or more issuers fail</strong> A single bank's
                 outage opens a ticket instead.
               </lf-option>
@@ -3792,7 +3861,7 @@ export const summarize = checks =>
             </p>
             <lf-options id="ar-cert-choice" choose>
               <lf-option id="ar-cert-platform">
-                <lf-chip tone="ok">recommended</lf-chip>
+                <small class="tag ok">recommended</small>
                 <strong>Route it to Platform's queue</strong> The team that can renew it
                 sees it; payments stops paging.
               </lf-option>
@@ -3827,7 +3896,7 @@ export const summarize = checks =>
             </p>
             <lf-options id="ar-kafka-choice" choose>
               <lf-option id="ar-kafka-route">
-                <lf-chip tone="ok">recommended</lf-chip>
+                <small class="tag ok">recommended</small>
                 <strong>Page Data Platform during rebalances</strong> Payments hears
                 only when lag outlasts 15 minutes.
               </lf-option>
@@ -4092,8 +4161,8 @@ export const summarize = checks =>
           </div>
           <details id="pr-path-tree">
             <summary>Path hierarchy · 46 files</summary>
-            <lf-tree id="pr-files">
-              <pre>
+
+            <pre id="pr-files">
 max-sixty/worktrunk #3865
   src/
     commands/picker/  17 files  +823 −466
@@ -4104,7 +4173,6 @@ max-sixty/worktrunk #3865
                        9 files  +69  −42
   benches/             2 files  +13  −10
 </pre>
-            </lf-tree>
           </details>
         </section>
 
@@ -4366,61 +4434,46 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
 
         <section class="panel" id="pr-source-facts">
           <h2>Captured pull request</h2>
-          <lf-pull-request
+          <lf-pr-brief
             id="pr-reviewed-request"
             data-height="959"
             source="pr-review-facts"
-          ></lf-pull-request>
+          ></lf-pr-brief>
         </section>
 
         <section class="panel" id="pr-history">
           <h2>Review history</h2>
-          <lf-chronology id="pr-review-chronology">
-            <lf-chronology-entry
-              id="pr-chronology-open"
-              at="03:32 UTC"
-              kind="observation"
-            >
+          <ol id="pr-review-chronology">
+            <li id="pr-chronology-open">
+              <time>03:32 UTC</time> <small>observation</small>
               <strong>PR opened</strong> The first revision introduced the unified
               picker tab, shared diff preparation, and broad integration coverage.
-            </lf-chronology-entry>
-            <lf-chronology-entry
-              id="pr-chronology-first-review"
-              at="03:43 UTC"
-              kind="warning"
-            >
+            </li>
+            <li id="pr-chronology-first-review">
+              <time>03:43 UTC</time> <small>warning</small>
               <strong>First review withheld approval</strong> It found divergent sparse
               handling, a predictable shared temp directory, startup-cost uncertainty,
               and documentation drift.
-            </lf-chronology-entry>
-            <lf-chronology-entry
-              id="pr-chronology-temp-fix"
-              at="04:13 UTC"
-              kind="intervention"
-            >
+            </li>
+            <li id="pr-chronology-temp-fix">
+              <time>04:13 UTC</time> <small>intervention</small>
               <strong>Temp indexes became random, exclusive files</strong> Sparse
               registration and worktree-local temp-directory exclusion gained focused
               tests.
-            </lf-chronology-entry>
-            <lf-chronology-entry
-              id="pr-chronology-race-fix"
-              at="04:32 UTC"
-              kind="intervention"
-            >
+            </li>
+            <li id="pr-chronology-race-fix">
+              <time>04:32 UTC</time> <small>intervention</small>
               <strong>The index copy kept ownership of its pathname</strong> Writing
               through the still-open file closed the symlink race, and off-screen
               worktrees moved out of eager prewarm.
-            </lf-chronology-entry>
-            <lf-chronology-entry
-              id="pr-chronology-final-review"
-              at="04:57 UTC"
-              kind="observation"
-            >
+            </li>
+            <li id="pr-chronology-final-review">
+              <time>04:57 UTC</time> <small>observation</small>
               <strong>Agent review recommends approval with follow-ups</strong> The
               shared <code>TempIndex</code> path and orchestration prose converged;
               selected-row latency and dry-run temp artifacts remained visible notes.
-            </lf-chronology-entry>
-          </lf-chronology>
+            </li>
+          </ol>
         </section>
       </div>
 </lf-tab>
@@ -5751,8 +5804,8 @@ stateDiagram-v2
           Get the new importer through one shadow week with no unexplained variance. The
           tree lists goals of the importer rewrite. The lead is assigned to the whole
           rewrite, an area owner to one branch, and a specialist to a single task. Open
-          a goal to inspect its disposable workers and their worktrees, answer beside
-          the goal that stopped, and use
+          a worker to inspect its latest report and worktree, answer beside the goal
+          that stopped, and use
           <em>Send &amp; pause</em>
           when the thread itself should keep new workers away until you resolve it.
         </p>
@@ -5760,58 +5813,82 @@ stateDiagram-v2
 
       <section class="panel" id="hub-tree">
         <h2>Plan</h2>
-        <lf-command
+        <lf-atlas-plan
           id="hub-plan"
           label="One clean shadow week"
           phase="week 3 of 6"
-          readings="hub-readings"
+          overview="hub-readings"
         >
-          <lf-agent id="atlas-lead" state="working">
-            <strong>atlas-lead</strong> Coordinates the whole rewrite: routes decisions,
-            watches progress, and changes focus wherever the tree needs it. Its
-            placement is the project-wide remit; it does not pretend to have one leaf
-            assignment.
-          </lf-agent>
-          <lf-task id="goal-ground" status="done" when="weeks 1–2">
+          <lf-atlas-worker id="atlas-lead" state="working"
+            ><details>
+              <summary>
+                <strong>atlas-lead</strong><output class="atlas-worker-state"></output>
+              </summary>
+              <div class="atlas-worker-body">
+                <p class="atlas-worker-report"></p>
+                Coordinates the whole rewrite: routes decisions, watches progress, and
+                changes focus wherever the tree needs it. Its placement is the
+                project-wide remit; it does not pretend to have one leaf assignment.
+              </div>
+            </details></lf-atlas-worker
+          >
+          <lf-atlas-task id="goal-ground" status="done" when="weeks 1–2">
             <strong>Groundwork</strong>
-            <lf-task id="ground-corpus" status="done">
+            <lf-atlas-task id="ground-corpus" status="done">
               <strong>Snapshot the import corpus</strong> Nine months pinned by content
               hash.
-            </lf-task>
-            <lf-task id="ground-harness" status="done">
+            </lf-atlas-task>
+            <lf-atlas-task id="ground-harness" status="done">
               <strong>Build the replay harness</strong> Old and new importer over the
               same corpus.
-            </lf-task>
-            <lf-task id="ground-schema" status="done">
+            </lf-atlas-task>
+            <lf-atlas-task id="ground-schema" status="done">
               <strong>Map the legacy schema</strong> Every downstream field has an
               owner.
-            </lf-task>
-          </lf-task>
+            </lf-atlas-task>
+          </lf-atlas-task>
 
-          <lf-task id="goal-parser" status="active" when="week 3" talk>
+          <lf-atlas-task id="goal-parser" status="active" when="week 3" talk>
             <strong>Replace the XML parser</strong>
-            Two workers own separate worktrees; the whole row opens both. The stalled
-            dedupe leaf filed itself around this goal rather than turning a worker into
-            a pet.
-            <lf-agent id="w-1" state="working" on="parser-declarations">
-              <strong>w-1</strong> Parser area owner; focused now on declarations and
-              entity boundaries, but responsible for this whole branch of the plan.
-              <lf-worktree id="tree-w-1" source="atlas-worktrees"></lf-worktree>
-            </lf-agent>
-            <lf-task id="parser-declarations" status="active">
+            Two workers own separate worktrees; open each worker to inspect its
+            evidence. The stalled dedupe leaf filed itself around this goal rather than
+            turning a worker into a pet.
+            <lf-atlas-worker id="w-1" state="working" on="parser-declarations"
+              ><details>
+                <summary>
+                  <strong>w-1</strong><output class="atlas-worker-state"></output>
+                </summary>
+                <div class="atlas-worker-body">
+                  <p class="atlas-worker-report"></p>
+                  Parser area owner; focused now on declarations and entity boundaries,
+                  but responsible for this whole branch of the plan.
+                  <lf-atlas-tree id="tree-w-1" source="atlas-worktrees"></lf-atlas-tree>
+                </div></details
+            ></lf-atlas-worker>
+            <lf-atlas-task id="parser-declarations" status="active">
               <strong>Declarations and entities</strong> Three new corpus cases remain.
-              <lf-task id="parser-stream" status="done">
+              <lf-atlas-task id="parser-stream" status="done">
                 <strong>Streaming core</strong> Constant memory over the full corpus.
-              </lf-task>
-              <lf-task id="parser-cdata" status="active">
+              </lf-atlas-task>
+              <lf-atlas-task id="parser-cdata" status="active">
                 <strong>CDATA edge cases</strong> Eleven legacy exports replay cleanly.
-                <lf-agent id="w-2" state="working" on="parser-cdata">
-                  <strong>w-2</strong> CDATA specialist: escaped-markup corpus cases.
-                  <lf-worktree id="tree-w-2" source="atlas-worktrees"></lf-worktree>
-                </lf-agent>
-              </lf-task>
-            </lf-task>
-            <lf-task
+                <lf-atlas-worker id="w-2" state="working" on="parser-cdata"
+                  ><details>
+                    <summary>
+                      <strong>w-2</strong><output class="atlas-worker-state"></output>
+                    </summary>
+                    <div class="atlas-worker-body">
+                      <p class="atlas-worker-report"></p>
+                      CDATA specialist: escaped-markup corpus cases.
+                      <lf-atlas-tree
+                        id="tree-w-2"
+                        source="atlas-worktrees"
+                      ></lf-atlas-tree>
+                    </div></details
+                ></lf-atlas-worker>
+              </lf-atlas-task>
+            </lf-atlas-task>
+            <lf-atlas-task
               id="parser-dedupe"
               status="blocked"
               stopped-at="2026-08-21T08:12:00-07:00"
@@ -5819,11 +5896,21 @@ stateDiagram-v2
               <strong>Deduplicate the corpus snapshot</strong> Three hours of worker
               activity produced no commit. Last worktree:
               <a href="#tree-w-5">atlas/dedupe-attempt</a>.
-              <lf-agent id="w-5" state="reaped" on="parser-dedupe">
-                <strong>w-5</strong> Dedupe specialist, reaped after three hours without
-                a commit; its branch and evidence remain inspectable.
-                <lf-worktree id="tree-w-5" source="atlas-worktrees"></lf-worktree>
-              </lf-agent>
+              <lf-atlas-worker id="w-5" state="reaped" on="parser-dedupe"
+                ><details>
+                  <summary>
+                    <strong>w-5</strong><output class="atlas-worker-state"></output>
+                  </summary>
+                  <div class="atlas-worker-body">
+                    <p class="atlas-worker-report"></p>
+                    Dedupe specialist, reaped after three hours without a commit; its
+                    branch and evidence remain inspectable.
+                    <lf-atlas-tree
+                      id="tree-w-5"
+                      source="atlas-worktrees"
+                    ></lf-atlas-tree>
+                  </div></details
+              ></lf-atlas-worker>
               <lf-ask id="decision-dedupe-region">
                 <h3>What should the host do with the stalled work?</h3>
                 <lf-options id="decision-dedupe" choose>
@@ -5846,8 +5933,8 @@ stateDiagram-v2
                   </lf-option>
                 </lf-options>
               </lf-ask>
-            </lf-task>
-            <lf-task
+            </lf-atlas-task>
+            <lf-atlas-task
               id="parser-zero"
               status="active"
               stopped-at="2026-08-21T08:46:00-07:00"
@@ -5868,24 +5955,33 @@ stateDiagram-v2
                   </lf-option>
                 </lf-options>
               </lf-ask>
-            </lf-task>
-          </lf-task>
+            </lf-atlas-task>
+          </lf-atlas-task>
 
-          <lf-task id="goal-schema" status="active" when="week 3" talk>
+          <lf-atlas-task id="goal-schema" status="active" when="week 3" talk>
             <strong>Reconcile schema and ledger</strong> Two goals and the nightly wait
             behind the schema choice.
-            <lf-task
+            <lf-atlas-task
               id="schema-choice"
               status="review"
               stopped-at="2026-08-21T07:20:00-07:00"
             >
               <strong>Choose the additive schema</strong> Both columns are nullable; the
               migration and reverse path are green.
-              <lf-agent id="w-8" state="waiting" on="schema-choice">
-                <strong>w-8</strong> Schema-choice specialist: migration and
-                reconciliation evidence.
-                <lf-worktree id="tree-w-8" source="atlas-worktrees"></lf-worktree>
-              </lf-agent>
+              <lf-atlas-worker id="w-8" state="waiting" on="schema-choice"
+                ><details>
+                  <summary>
+                    <strong>w-8</strong><output class="atlas-worker-state"></output>
+                  </summary>
+                  <div class="atlas-worker-body">
+                    <p class="atlas-worker-report"></p>
+                    Schema-choice specialist: migration and reconciliation evidence.
+                    <lf-atlas-tree
+                      id="tree-w-8"
+                      source="atlas-worktrees"
+                    ></lf-atlas-tree>
+                  </div></details
+              ></lf-atlas-worker>
               <lf-ask id="decision-schema-region">
                 <h3>What should the host do with the schema branch?</h3>
                 <lf-options id="decision-schema" choose>
@@ -5902,11 +5998,11 @@ stateDiagram-v2
                   </lf-option>
                 </lf-options>
               </lf-ask>
-            </lf-task>
-            <lf-task id="schema-backfill" status="planned" needs="schema-choice">
+            </lf-atlas-task>
+            <lf-atlas-task id="schema-backfill" status="planned" needs="schema-choice">
               <strong>Backfill reconciliation fields</strong>
-            </lf-task>
-            <lf-task
+            </lf-atlas-task>
+            <lf-atlas-task
               id="ledger-fixture"
               status="active"
               needs="schema-choice"
@@ -5924,32 +6020,41 @@ stateDiagram-v2
 Paste the complete CSV row here. Remove customer_name and billing_email before saving.</pre>
                 </lf-draft>
               </lf-ask>
-            </lf-task>
-            <lf-task
+            </lf-atlas-task>
+            <lf-atlas-task
               id="ledger-variance"
               status="planned"
               needs="schema-choice ledger-fixture"
             >
               <strong>Nightly variance report</strong> Unreachable until both inputs
               stand.
-            </lf-task>
-          </lf-task>
+            </lf-atlas-task>
+          </lf-atlas-task>
 
-          <lf-task id="goal-api" status="active" when="week 4" talk>
+          <lf-atlas-task id="goal-api" status="active" when="week 4" talk>
             <strong>Publish the parser contract</strong> Review the branch, not its
             author. A line comment routes to a fresh evidence worker and stays anchored
             here.
-            <lf-task
+            <lf-atlas-task
               id="api-shape"
               status="review"
               stopped-at="2026-08-21T10:35:00-07:00"
             >
               <strong>Review the public result type</strong>
-              <lf-agent id="w-3" state="waiting" on="api-shape">
-                <strong>w-3</strong> Public-contract specialist: result types and
-                compatibility tests.
-                <lf-worktree id="tree-w-3" source="atlas-worktrees"></lf-worktree>
-              </lf-agent>
+              <lf-atlas-worker id="w-3" state="waiting" on="api-shape"
+                ><details>
+                  <summary>
+                    <strong>w-3</strong><output class="atlas-worker-state"></output>
+                  </summary>
+                  <div class="atlas-worker-body">
+                    <p class="atlas-worker-report"></p>
+                    Public-contract specialist: result types and compatibility tests.
+                    <lf-atlas-tree
+                      id="tree-w-3"
+                      source="atlas-worktrees"
+                    ></lf-atlas-tree>
+                  </div></details
+              ></lf-atlas-worker>
               <lf-ask id="decision-api-region">
                 <h3>What should the host do with atlas/public-api?</h3>
                 <lf-options id="decision-api" choose>
@@ -5969,26 +6074,26 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
                   </lf-option>
                 </lf-options>
               </lf-ask>
-            </lf-task>
-            <lf-task id="api-errors" status="planned" needs="api-shape">
+            </lf-atlas-task>
+            <lf-atlas-task id="api-errors" status="planned" needs="api-shape">
               <strong>Map structured failures</strong>
-            </lf-task>
-            <lf-task id="api-sdk" status="planned" needs="api-shape">
+            </lf-atlas-task>
+            <lf-atlas-task id="api-sdk" status="planned" needs="api-shape">
               <strong>Regenerate the SDK fixture</strong>
-            </lf-task>
-          </lf-task>
+            </lf-atlas-task>
+          </lf-atlas-task>
 
-          <lf-task id="goal-docs" status="done" when="week 3">
+          <lf-atlas-task id="goal-docs" status="done" when="week 3">
             <strong>Document the operator path</strong>
-            <lf-task id="docs-runbook" status="done">
+            <lf-atlas-task id="docs-runbook" status="done">
               <strong>Write the replica runbook</strong>
-            </lf-task>
-            <lf-task id="docs-rollback" status="done">
+            </lf-atlas-task>
+            <lf-atlas-task id="docs-rollback" status="done">
               <strong>Write rollback and evidence capture</strong>
-            </lf-task>
-          </lf-task>
+            </lf-atlas-task>
+          </lf-atlas-task>
 
-          <lf-task
+          <lf-atlas-task
             id="goal-cutover"
             status="planned"
             when="weeks 5–6"
@@ -5998,22 +6103,44 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
           >
             <strong>Cut over the nightly</strong> This goal is visibly downstream of
             both schema and ledger evidence.
-            <lf-task
+            <lf-atlas-task
               id="cutover-shadow"
               status="planned"
               needs="ledger-variance api-shape"
             >
               <strong>Shadow both importers for one week</strong>
-            </lf-task>
-            <lf-task id="cutover-swap" status="planned" needs="cutover-shadow">
+            </lf-atlas-task>
+            <lf-atlas-task id="cutover-swap" status="planned" needs="cutover-shadow">
               <strong>Swap with the old path behind a flag</strong>
-            </lf-task>
-          </lf-task>
-        </lf-command>
+            </lf-atlas-task>
+          </lf-atlas-task>
+        </lf-atlas-plan>
       </section>
 
       <aside id="hub-rail">
-        <lf-command-readings id="hub-readings"></lf-command-readings>
+        <section class="panel atlas-overview" id="hub-readings">
+          <h2>Current work</h2>
+          <p class="atlas-progress">
+            <output data-atlas-count="progress">Plan loading</output>
+          </p>
+          <dl class="facts">
+            <dt>Running</dt>
+            <dd><output data-atlas-count="running">0</output></dd>
+            <dt>Workers</dt>
+            <dd><output data-atlas-count="workers">0</output></dd>
+            <dt>Quiet</dt>
+            <dd><output data-atlas-count="quiet">0</output></dd>
+            <dt>Stopped</dt>
+            <dd><output data-atlas-count="stopped">0</output></dd>
+          </dl>
+          <button type="button" class="button atlas-refresh" disabled>
+            Show updates
+          </button>
+          <details class="atlas-stopped">
+            <summary>Stopped work</summary>
+            <ul></ul>
+          </details>
+        </section>
         <section class="panel" id="hub-record">
           <h2>Record</h2>
           <p>
@@ -7101,8 +7228,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 guide or in the space around it to anchor the comment here: a stroke in
                 empty space belongs to the nearest element on screen. Every further
                 stroke joins the same drawing, wherever it starts. Send the drawing
-                alone or add words first. The comment box shows the drawing beside Undo
-                last stroke and Remove drawing; in the box, <kbd>⌘Z</kbd> and
+                alone or add words first. The comment box pictures the page beneath the
+                drawing beside Undo last stroke and Remove drawing. Resize the window:
+                text reflow keeps the ink’s size, while a diagram carries its drawing in
+                the diagram’s own coordinates. In the box, <kbd>⌘Z</kbd> and
                 <kbd>⌘⇧Z</kbd> undo and redo strokes and words in the order you made
                 them. <kbd>Escape</kbd> puts the box away and leaves the drawing on the
                 page, dashed, and the next stroke brings the box back;
@@ -7353,6 +7482,66 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               the same editor. Leave this page visible beside another window while
               composing and focus that window: new replies still wait behind the notice.
             </p>
+            <section id="bg-thread-api">
+              <p class="eyebrow bg-feature-elements">lf-conversation-workspace</p>
+              <h3>Package conversation readers</h3>
+              <p id="bg-thread-api-guide">
+                Switch between Conversation, Shelf, and Feed. Answer the channel Ask
+                inside its message, write a reply, and change layouts before sending:
+                the same draft follows the conversation. Start a conversation and mark
+                the proofreading task Done. The package's queues and Leaf's Questions
+                panel show the same outcomes. First unread and question navigation
+                arrive in this reader.
+              </p>
+              <script id="bg-thread-api-history" type="application/json">
+                [
+                  {
+                    "id": "api-question",
+                    "kind": "comment",
+                    "author": "agent",
+                    "text": "Which channel should the announcement use?",
+                    "markup": "<lf-ask id=\"channel-ask\"><h3>Announcement channel</h3><lf-options id=\"channel-options\" choose><lf-option id=\"channel-email\">Email</lf-option><lf-option id=\"channel-chat\">Chat</lf-option></lf-options></lf-ask>"
+                  },
+                  {
+                    "id": "api-opening",
+                    "kind": "comment",
+                    "author": "user",
+                    "text": "Keep the announcement concise."
+                  },
+                  {
+                    "id": "api-answer",
+                    "kind": "reply",
+                    "author": "agent",
+                    "parent": "api-opening",
+                    "text": "The draft now has one paragraph."
+                  },
+                  {
+                    "id": "api-proofread",
+                    "kind": "task",
+                    "author": "agent",
+                    "owner": "user",
+                    "subject": { "kind": "page" },
+                    "title": "Proofread the announcement"
+                  }
+                ]
+              </script>
+              <lf-sample
+                id="bg-thread-api-sample"
+                label="package conversation reader"
+                window
+              >
+                <template
+                  id="bg-thread-api-page"
+                  data-sample
+                  data-sample-events="bg-thread-api-history"
+                >
+                  <h1>Announcement review</h1>
+                  <lf-conversation-workspace
+                    id="conversation-workspace"
+                  ></lf-conversation-workspace>
+                </template>
+              </lf-sample>
+            </section>
             <p id="bg-thread-notices">
               <strong>New information.</strong> Have the agent add a message after the
               page opens: its status-line notice also reaches the live region without
@@ -7386,7 +7575,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <code>Generating title</code> until the agent names it. A send slow enough
               to notice goes quiet until the log takes it. One the server refuses leaves
               the words on this passage, where opening the composer again finds them;
-              the general box in Threads gets them back in place.
+              the card under “Comment on the page” gets them back in place.
             </p>
             <p id="bg-revised-quotes-guide">
               <strong>A revised passage.</strong> Select “first draft” and send a
@@ -7522,6 +7711,31 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 “Resolved”, open the thread, and press its underlined “Resolved” to
                 bring its Thread control back to the page.
               </p>
+            </section>
+            <section id="bg-retained-quote">
+              <h3>Quotations after a revision</h3>
+              <p id="bg-retained-quote-guide">
+                Open “Old release plan” in Threads. Its quoted passage belonged to a
+                section the current page removed. Full quote expands the retained words
+                here; press it again to return to the compact preview. The control stays
+                above the words while they expand.
+              </p>
+              <lf-sample
+                id="bg-retained-quote-sample"
+                label="Retained quotation"
+                window
+              >
+                <template
+                  id="bg-retained-quote-page"
+                  data-sample
+                  data-sample-threads="bg-retained-quote-thread"
+                >
+                  <h1>Current release plan</h1>
+                  <p id="bg-current-release-plan">
+                    The release now uses automatic review.
+                  </p>
+                </template>
+              </lf-sample>
             </section>
             <section id="bg-thread-state-summary">
               <h3>Summarized and unread</h3>
@@ -7952,12 +8166,12 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               ><span class="bg-feature-detail">: charts and structured views</span>
             </h2>
             <p id="bg-default-guide">
-              These shipped widgets use synthetic data so each feature has a focused
-              example.
+              These widgets and page-owned HTML compositions use synthetic data so each
+              has a focused example.
             </p>
 
             <section id="bg-metrics-and-chart">
-              <p class="eyebrow bg-feature-elements">lf-metric · lf-chart</p>
+              <p class="eyebrow bg-feature-elements">dl · lf-chart</p>
               <h3>
                 <strong>Metrics</strong> and <strong>Chart</strong
                 ><span class="bg-feature-detail">: values and trends</span>
@@ -7973,19 +8187,18 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </p>
               <div id="bg-metrics-room">
                 <div id="bg-metrics" class="layout-tiles">
-                  <lf-metric
-                    id="bg-metric-complete"
-                    value="12"
-                    delta="+3"
-                    direction="up-good"
-                    >checks complete</lf-metric
-                  >
-                  <lf-metric id="bg-metric-open" value="2" delta="-1" direction="up-bad"
-                    >open failures</lf-metric
-                  >
-                  <lf-metric id="bg-metric-neutral" value="4 min"
-                    >sample duration</lf-metric
-                  >
+                  <dl id="bg-metric-complete" class="panel">
+                    <dt>checks complete</dt>
+                    <dd><strong>12</strong> <small>change: +3</small></dd>
+                  </dl>
+                  <dl id="bg-metric-open" class="panel">
+                    <dt>open failures</dt>
+                    <dd><strong>2</strong> <small>change: -1</small></dd>
+                  </dl>
+                  <dl id="bg-metric-neutral" class="panel">
+                    <dt>sample duration</dt>
+                    <dd><strong>4 min</strong></dd>
+                  </dl>
                 </div>
               </div>
               <div id="bg-charts" data-width="wide">
@@ -7994,7 +8207,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
 {
   ariaLabel: "Checks complete by run: baseline 4, 7, 9; candidate 5, 9, 12",
   marginBottom: 40,
-  x: {label: "run", ticks: 3},
+  x: {label: "run", ticks: [1, 2, 3], tickFormat: "d"},
   y: {grid: true, label: "checks complete"},
   color: {legend: true, range: ["var(--series-1)", "var(--series-2)"]},
   marks: [
@@ -8107,7 +8320,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
 
             <section id="bg-code-and-tree">
               <p class="eyebrow bg-feature-elements">
-                lf-code · lf-gloss · lf-note · lf-tree
+                lf-code · lf-gloss · lf-note · pre
               </p>
               <h3>
                 <strong>Code</strong>, <strong>Gloss</strong>, <strong>Note</strong>,
@@ -8123,11 +8336,11 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 >. Hover the term, then move into its explanation; the card stays open
                 while you read it. Code adds line numbers and Notes, and quotes an
                 excerpt under its file's own numbers with an elided row where it skips;
-                Tree shows file structure. Use “Copy code” on the right of either block
-                below, or <kbd>Tab</kbd> to it and press <kbd>Enter</kbd>. The clipboard
-                keeps the code's whitespace and leaves out line numbers and Notes. Bash
-                separates commands, arguments, and flags with the same syntax colors as
-                a diff.
+                A native preformatted block shows file structure. Use “Copy code” on the
+                right of either code block below, or <kbd>Tab</kbd> to it and press
+                <kbd>Enter</kbd>. The clipboard keeps the code's whitespace and leaves
+                out line numbers and Notes. Bash separates commands, arguments, and
+                flags with the same syntax colors as a diff.
               </p>
               <pre
                 id="bg-plain-code"
@@ -8149,8 +8362,8 @@ def seat(guest):
                   >The seating chart, loaded once.</lf-note
                 >
               </lf-code>
-              <lf-tree id="bg-tree">
-                <pre>
+
+              <pre id="bg-tree">
 gallery/
   index.html  +20 -1
   data.json  +2
@@ -8160,41 +8373,40 @@ gallery/
     evidence/
       rendered_first_paint_checkpoints_with_readable_path_names.json  +245 -93
 </pre>
-              </lf-tree>
+
               <p id="bg-tree-after">
-                At a narrow width, the nested filename and its change badges wrap. This
-                paragraph stays in place when the tree upgrades.
+                The native preformatted block preserves the hierarchy and change counts;
+                scroll horizontally to read long paths.
               </p>
             </section>
 
             <section id="bg-neutral-comparison">
-              <p class="eyebrow bg-feature-elements">
-                lf-compare · lf-variant · lf-chip
-              </p>
+              <p class="eyebrow bg-feature-elements">section · small</p>
               <h3>
                 <strong>Compare</strong>, <strong>Variants</strong>, and
                 <strong>Chips</strong
                 ><span class="bg-feature-detail">: parallel alternatives</span>
               </h3>
               <aside class="sidenote" id="bg-compare-note">
-                Short variants share a row. Paragraphs make the alternatives stack.
+                The page puts short alternatives in a row and longer explanations below.
                 Narrow the window to see this note return to the text flow.
               </aside>
               <p id="bg-compare-guide">
-                Compare gives each Variant the same frame. Chips label short attributes.
+                Ordinary sections compare alternatives. Small labels carry their
+                attributes.
               </p>
-              <lf-compare id="bg-compare">
-                <lf-variant id="bg-variant-paper">
-                  <lf-chip id="bg-chip-power">power: none</lf-chip
-                  ><lf-chip tone="ok">weight: low</lf-chip>
+              <div id="bg-compare" class="layout-tiles">
+                <section id="bg-variant-paper" class="panel">
+                  <small id="bg-chip-power" class="tag">power: none</small
+                  ><small class="tag ok">weight: low</small>
                   <strong>Paper map</strong> Easy to annotate and fold.
-                </lf-variant>
-                <lf-variant id="bg-variant-screen">
-                  <lf-chip>power: daily</lf-chip
-                  ><lf-chip tone="warn">weight: medium</lf-chip>
+                </section>
+                <section id="bg-variant-screen" class="panel">
+                  <small class="tag">power: daily</small
+                  ><small class="tag warn">weight: medium</small>
                   <strong>Tablet map</strong> Searchable and backlit.
-                </lf-variant>
-              </lf-compare>
+                </section>
+              </div>
               <table id="bg-route-distances">
                 <caption>
                   Route distances — numeric columns align on the right
@@ -8216,78 +8428,68 @@ gallery/
                   </tr>
                 </tbody>
               </table>
-              <lf-compare id="bg-compare-prose">
-                <lf-variant id="bg-variant-paper-detail">
+              <div id="bg-compare-prose">
+                <section id="bg-variant-paper-detail" class="panel">
                   <strong>Paper on the trail</strong>
                   <p>
                     Mark the route before leaving. The map stays readable when the
                     battery runs out.
                   </p>
-                </lf-variant>
-                <lf-variant id="bg-variant-screen-detail">
+                </section>
+                <section id="bg-variant-screen-detail" class="panel">
                   <strong>Screen at a junction</strong>
                   <p>
                     Search the nearest stop and update the route. Carry enough power for
                     the return journey.
                   </p>
-                </lf-variant>
-              </lf-compare>
+                </section>
+              </div>
             </section>
 
             <section id="bg-plans-and-history">
-              <p class="eyebrow bg-feature-elements">
-                lf-milestones · lf-milestone · lf-chronology · lf-chronology-entry
-              </p>
+              <p class="eyebrow bg-feature-elements">ol · small · time</p>
               <h3>
                 <strong>Milestones</strong> and <strong>Chronology</strong
                 ><span class="bg-feature-detail">: state and history</span>
               </h3>
               <p id="bg-plans-guide">
-                Milestones show planned, active, and completed work. A Chronology orders
-                entries by time.
+                A list shows planned, active, and completed work. Another orders entries
+                by time.
               </p>
-              <lf-milestones id="bg-milestones">
-                <lf-milestone id="bg-milestone-survey" status="done" when="morning">
+              <h4 id="bg-work-plan">Planned work</h4>
+              <ol id="bg-milestones">
+                <li id="bg-milestone-survey">
+                  <small class="tag ok">done · morning</small>
                   <strong>Survey the route</strong> Marked the crossings.
-                </lf-milestone>
-                <lf-milestone
-                  id="bg-milestone-walk"
-                  status="active"
-                  when="afternoon"
-                  tags="sample,route"
-                >
+                </li>
+                <li id="bg-milestone-walk">
+                  <small class="tag warn">active · afternoon · sample · route</small>
                   <strong>Walk the route</strong> Checking the covered section.
-                </lf-milestone>
-                <lf-milestone id="bg-milestone-report" status="planned" when="next">
+                </li>
+                <li id="bg-milestone-report">
+                  <small class="tag">planned · next</small>
                   <strong>Write the note</strong>
-                </lf-milestone>
-              </lf-milestones>
-              <lf-chronology id="bg-chronology">
-                <lf-chronology-entry id="bg-chronology-alert" at="09:14" kind="warning">
+                </li>
+              </ol>
+              <h4 id="bg-event-history">Observed events</h4>
+              <ol id="bg-chronology">
+                <li id="bg-chronology-alert">
+                  <time>09:14</time> <small class="tag warn">warning</small>
                   <strong>Rain started</strong> The open path became slippery.
-                </lf-chronology-entry>
-                <lf-chronology-entry
-                  id="bg-chronology-closed"
-                  at="09:18"
-                  kind="failure"
-                >
+                </li>
+                <li id="bg-chronology-closed">
+                  <time>09:18</time> <small class="tag danger">failure</small>
                   <strong>Path closed</strong> Standing water blocked the crossing.
-                </lf-chronology-entry>
-                <lf-chronology-entry
-                  id="bg-chronology-switch"
-                  at="09:20"
-                  kind="intervention"
-                >
+                </li>
+                <li id="bg-chronology-switch">
+                  <time>09:20</time> <small class="tag">intervention</small>
                   <strong>Route changed</strong> The sample moved under cover.
-                </lf-chronology-entry>
-                <lf-chronology-entry
-                  id="bg-chronology-clear"
-                  at="09:42"
-                  kind="observation"
-                >
+                </li>
+                <li id="bg-chronology-clear">
+                  <time>09:42</time> <small class="tag">observation</small>
                   <strong>Walk resumed</strong>
-                </lf-chronology-entry>
-              </lf-chronology>
+                </li>
+              </ol>
             </section>
 
             <section id="bg-activity-feed">
@@ -8299,10 +8501,12 @@ gallery/
                 >
               </h3>
               <p id="bg-activity-guide">
-                The feed reads this page's own log: the seeded threads, reactions, user
-                actions, and published versions. The board move near the end was taken
-                back, so its row stays struck through and marked “undone”. Press a
-                thread row to open its thread, or a widget row to travel to the widget.
+                Press Show activity to read this page's own log: the seeded threads,
+                reactions, user actions, and published versions. The board move near the
+                end was taken back, so its row stays struck through and marked “undone”.
+                Press a thread row to open its thread, or a widget row to travel to the
+                widget. New updates wait behind the fixed control while you read; press
+                it to reveal them.
               </p>
               <lf-activity id="bg-activity"></lf-activity>
             </section>
@@ -9039,77 +9243,6 @@ switch --readers checkout-api,orders-api</code></pre>
           </section>
         </lf-tab>
       </lf-tabs>
-</lf-tab>
-
-<lf-tab id="corpus-swipe-gallery" label="Swipe package">
-<h1 id="swipe-title">Classify a queue without losing context</h1>
-      <p class="lede" id="swipe-lede">
-        Swipe presents one card at a time, keeps the two outcomes visible, and records
-        each classification through the ordinary Leaf action log.
-      </p>
-      <lf-ask id="swipe-ask">
-        <h2>Which follow-ups should stay?</h2>
-        <lf-swipe-deck id="swipe-deck">
-          <lf-swipe-pile id="swipe-queue" verdict="unseen">
-            <lf-swipe-card id="swipe-keyboard-card">
-              <strong>Document the keyboard route</strong>
-              <p>Keep the interaction reachable without a pointer.</p>
-            </lf-swipe-card>
-            <lf-swipe-card id="swipe-animation-card">
-              <strong>Record the exit animation</strong>
-              <p>Keep motion evidence only when timing changes the judgment.</p>
-            </lf-swipe-card>
-          </lf-swipe-pile>
-          <lf-swipe-pile id="swipe-pass" verdict="pass"></lf-swipe-pile>
-          <lf-swipe-pile id="swipe-keep" verdict="keep"></lf-swipe-pile>
-        </lf-swipe-deck>
-      </lf-ask>
-      <section id="swipe-recorded">
-        <h2>A completed classification remains inspectable</h2>
-        <lf-sample id="swipe-recorded-sample" label="a recorded swipe result">
-          <lf-swipe-deck id="swipe-completed">
-            <lf-swipe-pile id="swipe-completed-queue" verdict="unseen"></lf-swipe-pile>
-            <lf-swipe-pile id="swipe-completed-pass" verdict="pass"></lf-swipe-pile>
-            <lf-swipe-pile id="swipe-completed-keep" verdict="keep">
-              <lf-swipe-card id="swipe-completed-card">
-                <strong>Keep the explicit expiry bound</strong>
-                <p>
-                  The card stays in the pile that carries its recorded classification.
-                </p>
-              </lf-swipe-card>
-            </lf-swipe-pile>
-          </lf-swipe-deck>
-        </lf-sample>
-      </section>
-</lf-tab>
-
-<lf-tab id="corpus-targeting-gallery" label="Targeting package">
-<h1 id="targeting-title">Point at the interface change</h1>
-      <p class="lede" id="targeting-lede">
-        Select exact interface targets, preview box-model style changes, and submit
-        those changes with target-bound instructions.
-      </p>
-      <lf-ask id="targeting-ask">
-        <h2>Which exact changes should be made?</h2>
-        <lf-targeting
-          id="targeting-workbench"
-          data-height="767"
-          submit-label="Submit changes"
-        >
-          <lf-target-preview id="targeting-preview">
-            <div class="target-grid">
-              <article id="target-release" class="target-card">
-                <h3 class="target-heading">Release readiness</h3>
-                <p>Keep the owner and remaining checks visible.</p>
-              </article>
-              <article id="target-evidence" class="target-card">
-                <h3 class="target-heading">Evidence trail</h3>
-                <p>Link each claim to the exact run that supports it.</p>
-              </article>
-            </div>
-          </lf-target-preview>
-        </lf-targeting>
-      </lf-ask>
 </lf-tab>
 
 <lf-tab id="corpus-visual-review-gallery" label="Visual review package">

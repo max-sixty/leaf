@@ -432,7 +432,7 @@ export function createGoToSequence({
       address: steps.join(" "),
       sequence: keySequenceModel(steps, progressStates(steps, sequenceKeys())),
     });
-    return { model, target: box, belowTarget: true, left: box.left, top: box.top };
+    return { model, target: box, placement: "below", left: box.left, top: box.top };
   };
   const directDestinationHints = () =>
     GO_TO_SCOPE.rows.map(directDestinationHint).filter(Boolean);
@@ -463,7 +463,7 @@ export function createGoToSequence({
           candidate,
           model: goToHintModel(candidate, candidate === current),
           target: rect,
-          belowTarget: false,
+          placement: "corner",
           left: rect.left,
           top: rect.top,
         };

@@ -107,9 +107,9 @@ from these:
 - **Independent status tiles** are a block with `class="layout-tiles"`, which sets its
   children in equal cells, as many to a row as fit. Each cell holds a surface — a
   metric, chart, table, list or log, with at most a caption — rather than paragraphs;
-  a row of headline numbers is `lf-metric` tiles in one. Tiles of paragraphs are prose
+  a row of headline numbers can use ordinary `dl` elements in one. Tiles of paragraphs are prose
   cut into columns, and read worse than the column.
-- **A comparison** is `lf-compare`, which keeps its variants paired at any width.
+- **A comparison** is a table or native sections arranged by the page's CSS.
 - **Controls beside evidence** is a playground, which declares how its controls
   operate its preview.
 - **A screen the reader moves through rather than scrolls**, like a mail client or a
@@ -128,8 +128,9 @@ from these:
 A page grows without changing its Layout: a report that gains live status gains a row of
 tiles, and its comments and anchors stay put.
 
-Use `lf-roster` when one orchestrator publishes the page and multiple workers
-report to it. On a one-agent page, the banner carries that activity. A revisited
+Compose worker readings with a page-owned adapter when multiple workers report
+to one orchestrator. Declare their report verbs and use the public work projection
+for task and worker state. On a one-agent page, the banner carries that activity. A revisited
 page with several contributors, such as a working board, command hub, or long
 review, can use `lf-activity` to show recent changes; a read-once page needs no
 activity feed.
@@ -425,9 +426,10 @@ the point — a trend, ranking, groups on one scale, or series moving together �
 lead with an `lf-chart`, even if the numbers compare the same dimensions across
 items. Put a table below it in `<details>` when readers also need exact values.
 Use a table for value lookup, mixed units that cannot share an axis, or comparisons
-with text-heavy cells; use `lf-compare` for a few alternatives read as wholes,
+with text-heavy cells; use native sections for a few alternatives read as wholes,
 and `lf-options` when the user must choose among them. A headline measurement is
-a metric. Movable things form a board. Use images only when they carry information.
+a metric. Grouped cards form a board; its registry entry guides when to use it.
+Use images only when they carry information.
 `authoring-evidence.md` says which element draws each kind, and how to draw a figure
 of your own.
 
@@ -476,7 +478,10 @@ shortcuts, live-leaves drawer, and Questions panel, which lists the page's open 
 Readers can turn off **Quick keyboard shortcuts** under **More → Keyboard shortcuts**.
 This preference persists across pages on the same origin and removes Leaf's character
 shortcuts and their hints; commands and ordinary control navigation remain available.
-Do not duplicate that chrome or keep a second list of the Asks in the page.
+A package can arrange conversations and obligations with the canonical APIs in
+`module-authoring.md`, "Owning the primary conversation presentation" and "Reading
+Asks and obligation queues". Leaf owns their state, rendering, and activation;
+page composition can choose their layout.
 
 Keep content within its allocated column, visual surface, or pane. The theme scrolls a `<pre>` or a table
 that runs wider than its container and fits an image or SVG to it, so none of them needs a

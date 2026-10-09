@@ -137,24 +137,24 @@ def test_the_gate_passes_collapsed_words_that_overlap_when_visible(browser, serv
 
 
 def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
-    """A chip is set among the words around it, so its box is the words in it and there is
+    """A gloss is set among the words around it, so its box is the words in it and there is
     no width it was ever going to reach. Held to the floor written for a widget that lays
-    out a region, a chip saying `£9` reads as a collapse, and the gate refuses a page with
+    out a region, a gloss saying `£9` reads as a collapse, and the gate refuses a page with
     nothing wrong with it — for a price, which is the shortest thing an author is likely to
     put in one. A suggestion swapping one short word is the same case in a second tag,
     there because the gate dispatches on the declaration: the day the wrapper took a box
     it stood in front of this floor, and only x-inline says whose floor is whose.
 
-    The floor a chip does keep is the height, since a line of words is a line tall under
+    The floor a gloss does keep is the height, since a line of words is a line tall under
     any layout. Both halves are asserted, because a floor deleted outright passes the
     first on its own."""
     url = serve(SHORT_CHIP_PAGE)
     page = open_page(browser, url)
-    widths = page.locator("lf-chip").evaluate_all(
+    widths = page.locator("lf-gloss").evaluate_all(
         "els => els.map(el => Math.round(el.getBoundingClientRect().width))"
     )
     assert widths and max(widths) < 40, (
-        f"these chips are {widths}px, so they clear the floor and prove nothing"
+        f"these glosses are {widths}px, so they clear the floor and prove nothing"
     )
     sug_width = page.locator("#sug-flag").evaluate(
         "el => Math.round(el.getBoundingClientRect().width)"
@@ -175,17 +175,17 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
         "with x-inline stripped the gate stays quiet, so the floor is gone rather than declared"
     )
 
-    # Flattened, the same chips are a collapse and the gate says so — the reading the
+    # Flattened, the same glosses are a collapse and the gate says so — the reading the
     # declaration narrows rather than switches off.
     page.add_style_tag(
-        content="lf-chip { display: block; height: 2px; overflow: hidden; }"
+        content="lf-gloss { display: block; height: 2px; overflow: hidden; }"
     )
     flattened = render_checks_model.evaluate_probe(
         page, "tinyBoxes", page_registry(page)
     )
     page.close()
-    assert [box for box in flattened if box["tag"] == "lf-chip"], (
-        "a chip with no height left reports nothing, so the floor is gone rather than declared"
+    assert [box for box in flattened if box["tag"] == "lf-gloss"], (
+        "a gloss with no height left reports nothing, so the floor is gone rather than declared"
     )
     assert render_gate_model.render_version(browser, url).failures == []
 
@@ -256,7 +256,7 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     page widget move handed back to the user, which is a stop of its own and no Ask.
     A second check replaces the first's screens rather than adding to them."""
     tiles = "".join(
-        f"<lf-metric id='m{i}' value='{i}'>metric {i}</lf-metric>" for i in range(4)
+        f"<dl id='m{i}'><dt>metric {i}</dt><dd>{i}</dd></dl>" for i in range(4)
     )
     serve(
         leaf_page(
@@ -458,7 +458,7 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
     page_dir = tmp_path / "state" / "page"
 
     init = subprocess.run(
-        [launcher, "page", "init", "--package", "command-hub", page_dir],
+        [launcher, "page", "init", "--package", "diagram", page_dir],
         cwd=elsewhere,
         capture_output=True,
         text=True,
@@ -466,8 +466,8 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
     )
     assert init.returncode == 0, init.stderr
     installed_registry = json.loads((page_dir / "registry.json").read_text())
-    assert "lf-command" in installed_registry
-    assert installed_registry["$layer"]["packages"] == ["command-hub"]
+    assert "lf-diagram" in installed_registry
+    assert installed_registry["$layer"]["packages"] == ["diagram"]
     (page_dir / "index.html").write_text(
         (root / "examples" / "release-notes.html").read_text()
     )
@@ -1090,7 +1090,9 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
     ], found
 
 
-def test_render_reports_a_painted_fact_whose_word_was_drawn_nowhere(browser, serve):
+def test_render_reports_a_painted_fact_whose_word_was_drawn_nowhere(
+    browser, serve, declared_reading_package
+):
     """The x-paints half of the same gate, and the line it draws between two silences.
 
     A widget may paint a fact — `kind="failure"` is a visual state and no text node —
@@ -1119,12 +1121,16 @@ def test_render_reports_a_painted_fact_whose_word_was_drawn_nowhere(browser, ser
     found = [
         f.split("] ", 1)[1]
         for f in render_gate_model.render_version(
-            browser, serve(PAINTED_IN_SILENCE_PAGE)
+            browser,
+            serve(
+                PAINTED_IN_SILENCE_PAGE,
+                packages=(*EXAMPLE_PACKAGES, declared_reading_package),
+            ),
         ).failures
     ]
     assert sorted(set(found)) == [
         (
-            '<lf-chronology-entry id=p-seen> paints kind="failure" and says nothing a user '
+            '<lf-reading id=p-seen> paints state="failure" and says nothing a user '
             "listening can hear"
         )
     ], found

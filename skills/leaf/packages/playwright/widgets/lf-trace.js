@@ -232,6 +232,11 @@ customElements.define(
           return;
         }
         const rail = this.#rail;
+        const range = widthChanged && rail?.getWindow();
+        const overview =
+          range &&
+          +range.start <= 0 &&
+          +range.end >= this.#bounds().end - this.#bounds().start;
         if (widthChanged) this.#draw();
         // Viewer owns container sizing. Reapply the page's inspection view after
         // its resize refits the image, including a hidden tab becoming visible.
@@ -255,6 +260,9 @@ customElements.define(
         const redraw = this.#waitRail((done) => {
           this.#rail.once("changed", () => {
             this.#limitRail(rail);
+            // A fitted overview follows the available width. A narrower window
+            // belongs to the reader's zoom or pan and keeps its time coordinates.
+            if (overview) rail.fit({ animation: false });
             done();
           });
           this.#rail.redraw();

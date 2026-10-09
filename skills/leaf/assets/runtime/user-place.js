@@ -3,8 +3,10 @@
    A surface that re-renders a list the user may be scrolled into takes a place hold
    around the change: `placeKeeper(scroller, {items, identity})` names the nodes that
    can mark a place and the identity each is rendered under, and its `take` / `finish`
-   pair brackets one mutation. The document itself needs none of this: its scroller is
-   the platform's, and native scroll anchoring holds it.
+   pair brackets one mutation. The same helper can bracket a widget's synchronous
+   mutation in the platform page scroller when native anchoring does not retain its
+   focused control. `around` compensates the browser's anchoring once and claims no
+   asynchronous scroll owner.
 
    The place is one reference node and its offset in the scroller's content. The
    reference is chosen by what the user last named: an item under the pointer or

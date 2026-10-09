@@ -2884,14 +2884,20 @@ def test_page_map_filtering_keeps_search_and_close_in_place(browser, serve, view
     groups = dialog.locator(".lf-page-map-group:visible")
     expect(groups).to_have_count(12)
     expect(search).to_be_focused()
-    before = {"search": search.bounding_box(), "close": close.bounding_box()}
+    search_field = dialog.locator(".lf-page-map-search")
+    before = {"search": search_field.bounding_box(), "close": close.bounding_box()}
     top = dialog.bounding_box()["y"]
 
     for query, count in [("Map note 12", 1), ("No such map entry", 0), ("", 12)]:
-        search.fill(query)
+        if query:
+            search.fill(query)
+        else:
+            search_field.get_by_role("button", name="Clear entry").click()
+            expect(search).to_have_value("")
+            expect(search).to_be_focused()
         expect(groups).to_have_count(count)
         rendered(page)
-        assert search.bounding_box() == before["search"]
+        assert search_field.bounding_box() == before["search"]
         assert close.bounding_box() == before["close"]
         assert dialog.bounding_box()["y"] == top
         assert (

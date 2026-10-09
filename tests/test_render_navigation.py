@@ -8891,10 +8891,18 @@ def test_the_reference_keeps_its_top_and_search_still_when_filtering(
     search = page.get_by_role("combobox", name="Search commands")
     expect(search).to_be_focused()
     initial_dialog = reference.bounding_box()
-    initial_search = search.bounding_box()
+    search_field = reference.locator(".lf-command-reference-search")
+    initial_search = search_field.bounding_box()
+    commands = reference.locator(".lf-command-reference-command:visible")
+    initial_count = commands.count()
 
     for query in ("page.search.open", "no command has these words", ""):
-        search.fill(query)
+        if query:
+            search.fill(query)
+        else:
+            search_field.get_by_role("button", name="Clear entry").click()
+            expect(search).to_have_value("")
+            expect(commands).to_have_count(initial_count)
         if query == "page.search.open":
             expect(
                 reference.locator(".lf-command-reference-command:visible")
@@ -8907,7 +8915,7 @@ def test_the_reference_keeps_its_top_and_search_still_when_filtering(
                 assert reference.bounding_box()["height"] < initial_dialog["height"]
         expect(search).to_be_focused()
         dialog = reference.bounding_box()
-        field = search.bounding_box()
+        field = search_field.bounding_box()
         assert dialog["y"] == pytest.approx(initial_dialog["y"], abs=0.5)
         for axis in ("x", "y", "width", "height"):
             assert field[axis] == pytest.approx(initial_search[axis], abs=0.5)

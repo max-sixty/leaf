@@ -11057,6 +11057,8 @@ def test_typing_a_search_moves_nothing_under_the_find_box(browser, serve):
         "el => el.getBoundingClientRect().left"
     )
     find = page.get_by_role("searchbox", name="Find in threads")
+    search_field = page.locator(".lf-find-box")
+    before_search = search_field.bounding_box()
     find.click()
     page.keyboard.type("zq")
     expect(page.locator(".lf-thread-view-summary")).to_have_text("0 of 2 open threads")
@@ -11074,6 +11076,16 @@ def test_typing_a_search_moves_nothing_under_the_find_box(browser, serve):
         }"""
     )
     assert words == pytest.approx(title, abs=0.5), (words, title)
+    assert search_field.bounding_box() == before_search
+    search_field.get_by_role("button", name="Clear entry").click()
+    expect(find).to_have_value("")
+    expect(find).to_be_focused()
+    expect(page.locator(".lf-thread-view-summary")).to_have_text("2 open threads")
+    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(2)
+    assert search_field.bounding_box() == before_search
+    assert page.locator(".lf-threads").evaluate(
+        "el => el.getBoundingClientRect().top"
+    ) == pytest.approx(top, abs=0.5), "clearing the search moved the list"
 
 
 def annotation_mode_source(mode):

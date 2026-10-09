@@ -848,10 +848,11 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     expect(search).to_be_focused()
     status = page.locator(".lf-page-search-status")
     expect(status).to_be_empty()
-    search_box = search.bounding_box()
+    search_field = page.locator(".lf-page-search-box")
+    search_box = search_field.bounding_box()
     search.fill("words absent from this page")
     expect(status).to_have_text("No matches")
-    assert search.bounding_box() == pytest.approx(search_box, abs=0.5)
+    assert search_field.bounding_box() == pytest.approx(search_box, abs=0.5)
     # The query and its count share the search's only frame, with no padded card
     # between the field boundary and the search surface.
     frame = search.evaluate("""input => {
@@ -868,16 +869,18 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     }""")
     assert frame["edges"] == pytest.approx([0, 0, 0, 0], abs=0.5), frame
     assert frame["statusInside"], frame
-    search.fill("")
+    search_field.get_by_role("button", name="Clear entry").click()
+    expect(search).to_have_value("")
+    expect(search).to_be_focused()
     expect(status).to_be_empty()
-    assert search.bounding_box() == pytest.approx(search_box, abs=0.5)
+    assert search_field.bounding_box() == pytest.approx(search_box, abs=0.5)
     page.keyboard.type("b")
     expect(status).to_have_text(re.compile(r"\d+ of \d+"))
-    assert search.bounding_box() == pytest.approx(search_box, abs=0.5)
+    assert search_field.bounding_box() == pytest.approx(search_box, abs=0.5)
     expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
     search.fill("button the key")
     expect(status).to_have_text("1 of 1")
-    assert search.bounding_box() == pytest.approx(search_box, abs=0.5)
+    assert search_field.bounding_box() == pytest.approx(search_box, abs=0.5)
     expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("select match")
     page.keyboard.press("Tab")

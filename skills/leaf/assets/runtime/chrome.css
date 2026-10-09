@@ -1437,11 +1437,11 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   .lf-media-viewer { position: fixed; inset: 0; z-index: var(--lf-z-media-viewer);
     width: 100%; max-width: none; height: 100dvh; max-height: none;
     box-sizing: border-box; margin: 0; padding: 0;
-    overflow: hidden; color: var(--ink); background: var(--card);
+    overflow: hidden; color: var(--ink); background: transparent;
     border: 0; border-radius: 0; }
   .lf-media-viewer[open] { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
   .lf-media-viewer::backdrop {
-    background: color-mix(in srgb, var(--ink) 38%, transparent); }
+    background: transparent; }
   .lf-media-viewer-head { position: relative; z-index: 1501; background: var(--card);
     display: flex; align-items: center;
     justify-content: space-between; gap: 12px;
@@ -1451,7 +1451,11 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   .lf-media-viewer-original { display: inline-flex; align-items: center; justify-content: center; }
   .lf-media-viewer-zoom { min-width: 4em; }
   .lf-media-viewer-stage { position: relative; min-width: 0; min-height: 0; overflow: hidden;
-    display: grid; place-items: center; background: var(--paper); }
+    display: grid; place-items: center; background: transparent; }
+  /* Match PhotoSwipe's default backdrop while its manipulation module loads.
+     Once it takes over, its backdrop alone dims the page. */
+  .lf-media-viewer-stage:has(> img) {
+    background: color-mix(in srgb, var(--paper) 80%, transparent); }
   .lf-media-viewer-stage > img { display: block; max-width: 100%; max-height: 100%;
     object-fit: contain; }
   .lf-media-viewer .pswp { position: absolute; --pswp-bg: var(--paper); --pswp-root-z-index: 0; }

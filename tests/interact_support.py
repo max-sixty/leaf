@@ -119,10 +119,21 @@ def append_command(page_dir, command):
         return event_contracts_model.append_admitted(page, command)
 
 
+def response_reference(page_dir, event):
+    """Read the exact address emitted by the real delivery producer for an input."""
+    from leaf.delivery import batch_data, freeze_delivery
+
+    event_id = event["id"] if isinstance(event, dict) else event
+    with service_model.PageTransaction(page_dir) as page:
+        captured = next(item for item in page.events if item["id"] == event_id)
+        batch = batch_data(page_dir, page, [captured])
+    return freeze_delivery([batch])["batches"][0]["events"][0]["answer"]["ref"]
+
+
 def append_carried_log_record(page_dir, event):
     """Seed already-interpreted input for a storage or transport test.
 
-    These tests declare input the carrier must deliver, without a document that
+    These tests declare input the transport must deliver, without a document that
     could decide its meaning. Semantic attention cases use `append_command`.
     A raw fixture can explicitly declare `attention=False` for quiet input.
     """
@@ -352,7 +363,7 @@ def lock_contention(
 def take_stream_activity(monkeypatch, updates: list, clears: list) -> None:
     """Collect every activity reading a turn writes, instead of a page taking it.
 
-    Every carrier and harness calls the writers through `leaf.codex`, so that one binding
+    Every App Server client and harness calls the writers through `leaf.codex`, so that one binding
     takes them all. Pass empty lists for a test that wants them to touch nothing.
     """
     monkeypatch.setattr(
@@ -578,7 +589,7 @@ def stamp_activation(d):
     from leaf.validation.source import check_source
 
     with service_model.PageTransaction(d) as page:
-        checked = check_source(d, page.events, allow_transition=True)
+        checked = check_source(d, page.events)
         return revisioning_model.activate_checked_source(page, checked)
 
 
@@ -683,9 +694,7 @@ def record_claim(page, /, harness="claude-code", **fields):
     }
     record["generation"] = session["generation"]
     record["acquisition"] = fields.get("acquisition", secrets.token_hex(16))
-    path = service_model.claim_path(page)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    cleanup_model.write_json(path, record)
+    service_model.publish_claim(page, record)
     return service_model.page_claim(page)
 
 
@@ -696,7 +705,7 @@ def bind_task_lifetime_to_worker(page):
     changes only that existing task's lifetime provenance, under its session
     lock: its generation, turn, provider observation, and page acquisition stay
     intact. Recording another claim would create a replacement generation and
-    briefly leave the already-running carrier with no pages to own.
+    briefly leave the already-running adapter with no pages to own.
     """
     claim = service_model.page_claim(page)
     with cleanup_model.flocked(cleanup_model.session_lock_path(claim["id"])):
@@ -796,7 +805,7 @@ def _decided(page_dir, words):
             "revision": files_model.latest_revision(page_dir),
             "widget": "d1",
             "action": "edit",
-            "detail": {"text": "Cut the flag; backfill first."},
+            "detail": {"value": "Cut the flag; backfill first."},
         },
     )
     return lambda words, attrs="": (page_dir / "index.html").write_text(
@@ -928,8 +937,8 @@ ACCEPT = {
 def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     """Hold one admitted writer at append and prove re-vendor cannot pass it.
 
-    Re-vendoring waits for the admitted writer, then refuses the incoming
-    vocabulary when it cannot replay that event. Release the writer before
+    Re-vendoring waits for the admitted writer, then commits the incoming
+    vocabulary while retaining that event. Release the writer before
     joining either worker, including when an assertion fails."""
     entering = threading.Event()
     resume = threading.Event()
@@ -984,7 +993,7 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
         refusal = vendoring.result(timeout=STATED_TIMEOUT)
 
     assert not passed_writer, f"re-vendor passed a validated {kind} writer"
-    assert refusal is not None
+    assert refusal is None
     return written, refusal
 
 
@@ -996,18 +1005,13 @@ def _mutated_registry_check(page_dir, mutate):
 
 
 def _report_body_record(registry):
-    registry["lf-task"]["x-state"]["status"]["record"] = {
-        "kind": "body",
-        "value": "status",
-    }
+    registry["lf-task"]["x-state"]["status"]["record"] = {"kind": "body"}
 
 
 def _report_position_record(registry):
     registry["lf-task"]["x-state"]["status"]["record"] = {
         "kind": "position",
         "within": "lf-column",
-        "value": "status",
-        "rank": "status",
     }
 
 
@@ -1025,20 +1029,15 @@ def _report_says_attr(registry):
     task["x-says"] = {"owner": "before"}
     task["x-state"]["status"] = {
         "writer": "agent",
-        "detail": {
-            "type": "object",
-            "properties": {"owner": {"type": "string"}},
-            "required": ["owner"],
-            "additionalProperties": False,
-        },
         "unit": "widget",
-        "record": {"kind": "value", "attr": "owner", "value": "owner"},
+        "record": {"kind": "value", "attr": "owner"},
     }
 
 
-def _report_detail_drift(registry):
-    registry["lf-task"]["x-state"]["status"]["detail"]["properties"]["status"] = {
-        "type": "string"
+def _report_authored_detail(registry):
+    registry["lf-task"]["x-state"]["status"]["detail"] = {
+        "type": "object",
+        "additionalProperties": False,
     }
 
 
@@ -1051,7 +1050,7 @@ def _report_without_upgrade(registry):
 
 
 def _user_verb_update(registry):
-    registry["lf-options"]["x-state"]["choose"]["update"] = "options"
+    registry["lf-options"]["x-state"]["choose"]["update"] = True
 
 
 def _agent_verb_answers(registry):
@@ -1060,6 +1059,8 @@ def _agent_verb_answers(registry):
 
 
 def _body_record_with_prose(registry):
+    # Isolate the body-record contract from the Markdown/data-content contract.
+    del registry["lf-draft"]["x-text-format"]
     registry["lf-draft"]["x-content"] = "markup"
 
 
@@ -1314,12 +1315,37 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
     this sweep stopped every server standing there (tests/AGENTS.md, "A process
     the suite starts ends with the run")."""
     yield
+    retire_test_services(tmp_path, isolated_session)
+
+
+def retire_test_services(tmp_path, isolated_session):
+    """End the test's harnesses before removing their coordination files.
+
+    Detached adapters hold session leases outside any subprocess group. Their
+    lifecycle must end while its state directory still exists, so they can
+    retire normally rather than retry a deleted startup lock forever.
+    """
     while HELD_LEASES:
         leases_model.release_lease(HELD_LEASES.pop())
+    for path in (isolated_session / "sessions").glob(
+        f"*.{cleanup_model.SESSION_SUFFIX}"
+    ):
+        record = files_model.read_json(path)
+        if isinstance(record, dict) and isinstance(record.get("id"), str):
+            cleanup_model.end_session(record["id"])
     for root in (tmp_path, isolated_session):
         for lease in root.rglob("server.lock"):
             if server_model.running_server(lease.parent):
                 hosting_model.cmd_stop(lease.parent)
+    wait_for(
+        lambda: [
+            path.name
+            for path in (isolated_session / "sessions").glob("*.adapter")
+            if leases_model.lock_is_held(path)
+        ],
+        lambda held: not held,
+        failure="a detached adapter outlived its test's ended sessions",
+    )
 
 
 @contextmanager
@@ -1668,7 +1694,7 @@ def under_codex(spawn, codex_program):
 
 @pytest.fixture
 def codex_claimed_page(tmp_path, under_codex, codex_env):
-    """A Codex-owned server before delivery starts, for carrier lifecycle tests.
+    """A Codex-owned server before delivery starts, for adapter lifecycle tests.
 
     Public handoff connects delivery too. These tests choose their own transport
     or exercise a direct wait, so setup takes the lower-level claim and serve.
@@ -1851,7 +1877,7 @@ def edit(page_dir, text, widget="note", version=1):
             "revision": revision,
             "widget": widget,
             "action": "edit",
-            "detail": {"text": text},
+            "detail": {"value": text},
         },
     )
 

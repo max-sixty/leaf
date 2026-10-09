@@ -1,7 +1,6 @@
 /* Validation for the drawing payload shared by composers and the drawing controller.
  *
- * `strokes` are offsets from the target's top-left corner and may run past its edges; a
- * page drawing has no target, and its strokes are offsets from the document's origin.
+ * `strokes` are offsets from the target's top-left corner and may run past its edges.
  * `box` is the target's size the strokes were drawn at, and `says` is the page's words
  * the drawing stands over: together the reading for whoever cannot see the page.
  * `viewport` is the layout viewport's width and height, and `scheme` the color scheme,
@@ -85,9 +84,10 @@ export function sentDrawing(drawing) {
 
 // The strokes at the target's current `size`: each axis scales by the target's side over
 // the side of the `box` they were drawn in, so a mark keeps its share of the element
-// whichever way the element was resized. A page drawing, which has no box, stands as drawn.
+// whichever way the element was resized. A draft parked in its section, which has no box
+// (`drawing.js`), stands as drawn.
 export function strokesIn(drawing, size) {
-  if (!drawing.box || !size) return drawing.strokes;
+  if (!drawing.box) return drawing.strokes;
   const across = size.width / drawing.box[0];
   const down = size.height / drawing.box[1];
   if (across === 1 && down === 1) return drawing.strokes;

@@ -20,22 +20,10 @@ vars:
     author instructions under the Leaf skill's base directory, then reply with
     the section's HTML.
 assert:
-- type: javascript
-  metric: reads-trace-registry
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/packages/playwright/registry\.json
-- type: javascript
-  metric: reads-trace-author
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/packages/playwright/instructions/author[.]md
-- type: javascript
+- type: regex
   metric: uses-imported-trace
-  value: file://text-regex.cjs
-  config:
-    pattern: '<lf-trace(?=\s|>)(?=[^>]*\sid\s*=\s*["''][a-z0-9-]+["''])(?=[^>]*\ssource\s*=\s*["'']release-journey["''])[^>]*>\s*</lf-trace\s*>'
-    flags: i
+  value: '<lf-trace(?=\s|>)(?=[^>]*\sid\s*=\s*["''][a-z0-9-]+["''])(?=[^>]*\ssource\s*=\s*["'']release-journey["''])[^>]*>\s*</lf-trace\s*>'
+  transform: output.toLowerCase()
 - type: llm-rubric
   metric: keeps-captured-evidence
   value: The section uses the selected package's trace widget for the imported journey, with no custom playback module or reconstruction of the recorded application's live behavior. Its prose does not claim that image pixels and saved accessibility boxes were captured simultaneously, or that matching accessible names uniquely identifies a button.

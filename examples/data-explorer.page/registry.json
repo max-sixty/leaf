@@ -1,5 +1,6 @@
 {
   "lf-playground": {
+    "x-initial": "/vendor/lf-playground-initial.js",
     "description": "The release query playground with one page-owned aggregate configuration.",
     "type": "object",
     "properties": {

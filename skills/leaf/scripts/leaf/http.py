@@ -746,6 +746,7 @@ class PageEndpoint:
                 return self._not_found()
             answer = child.respond()
             self.response_layer = child.response_layer
+            self.housekeeping = child.housekeeping
             return answer
 
     def _serve_root(self) -> Response:

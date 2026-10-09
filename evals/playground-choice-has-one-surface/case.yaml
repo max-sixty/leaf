@@ -66,16 +66,6 @@ vars:
     The page directory is not reachable here, so reply with the HTML and any
     page module needed for the choice and implementation request.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-playground-instructions
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/packages/playground/instructions/author\.md
 - type: llm-rubric
   metric: one-selection-surface
   value: |

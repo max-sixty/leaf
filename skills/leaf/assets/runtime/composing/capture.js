@@ -26,8 +26,7 @@ import {
 import { upFrom } from "../shadow.js";
 import { textUnits } from "../text-alignment.js";
 import { ADDRESSABLE, anchorForDatum, anchoringIsReady } from "../anchor-resolution.js";
-import { takesLetters } from "../focus.js";
-import { focused } from "../keyboard/scopes.js";
+import { takesLetters, focused } from "../focus.js";
 import { notice } from "../notifications.js";
 import { retainUserIntent } from "../user-intent.js";
 

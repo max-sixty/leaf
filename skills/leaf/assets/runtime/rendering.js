@@ -4,8 +4,9 @@
    waits on it after a gesture rather than guessing a number of frames.
 
    Leaf's rendering callbacks and size observers go through this module: `nextRender`,
-   `nextFrame` and `cancelRender` in place of `requestAnimationFrame` and
-   `cancelAnimationFrame`, `sizeObserver` in place of `new ResizeObserver`. The lint gate
+   `nextFrame` and `cancelRender` for settling work, `nextAnimation` and
+   `cancelAnimation` for continuous mechanical motion, and `sizeObserver` in place
+   of `new ResizeObserver`. The lint gate
    refuses the browser's own in the runtime and in the bundled packages, so the loop and
    the reading answer for every owner there without a list of them. Coalescing owners
    keep their own flags; this module holds the one queue behind them.
@@ -53,7 +54,8 @@
    Work toward a resting state is counted; a playback loop is not. A loop through
    `nextFrame` holds the page unsettled for as long as it runs, which is right for a
    glide that lands in a moment and wrong for a film that plays until the user stops it,
-   so a page's own playback schedules with the browser directly.
+   so playback uses nextAnimation/cancelAnimation, which schedule with the browser
+   without entering the counted queue.
 
    A rendering update runs animation-frame callbacks, then style and layout, then
    ResizeObserver delivery, then paint. A reading taken inside a callback precedes the
@@ -109,6 +111,11 @@ export const nextRender = (callback) => request(queued, callback);
 /** Run `callback` in the next frame's pass, never in the running one. */
 export const nextFrame = (callback) => request(running ? afterPaint : queued, callback);
 
+/** Continuous mechanical motion, such as a playing film, does not hold resting
+ * proof open. Its owner cancels this browser frame when stopped or retired. */
+export const nextAnimation = (callback) => requestAnimationFrame(callback);
+export const cancelAnimation = (id) => cancelAnimationFrame(id);
+
 /** Withdraw a callback `nextRender` or `nextFrame` queued. */
 export function cancelRender(id) {
   for (const queue of [queued, afterPaint, running]) {
@@ -162,11 +169,14 @@ export function afterScript(callback) {
     owedThisScript.set(callback, enqueueWork(callback));
 }
 
-/** A `ResizeObserver` whose deliveries the settled reading counts. */
-export function sizeObserver(callback) {
+/** A `ResizeObserver` whose deliveries the settled reading counts, unless it watches
+ * boxes that may move for as long as the page plays, which `counted: false` says. */
+export function sizeObserver(callback, { counted = true } = {}) {
   return new ResizeObserver((entries, observer) => {
-    heard = true;
-    unsettle();
+    if (counted) {
+      heard = true;
+      unsettle();
+    }
     callback(entries, observer);
   });
 }

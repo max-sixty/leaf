@@ -1,0 +1,100 @@
+# From Codex session 01a1177f-6bbd-7121-9958-61f8e61ead3e: a navigation
+# assessment presented recommendations as findings until the user requested Asks.
+# Includes the report framing that competed with exposing the pending decisions.
+# Initial short paired runs at e9c98892c produced Asks in both arms (2/2 per
+# context). A later drafted-report run reproduced prose-only decisions after
+# loading the first instruction draft. The final direct obligation passed 2/2,
+# as did the paired baseline; the case does not establish a causal improvement.
+# Both arms also passed drafted-report 2/2 at the source's high effort.
+description: assessment-surfaces-pending-decisions
+metadata:
+  purpose: 'Asks: an assessment exposes decisions waiting on the user while informational findings remain findings.'
+  tags:
+  - asks
+vars:
+  prompt: |
+    I asked you to survey common but non-obvious navigation interactions, explain
+    the current behavior in How it Works, and review inconsistencies or things
+    that could be improved. The reference tab and browser investigation are done.
+
+    Your last reply was:
+    > The survey now covers the main sequences, and the focused browser tests
+    > have passed. I've added the Navigation tab with a short introduction,
+    > expandable cases, and a resettable practice page. Scrolling scope and
+    > history grouping are design questions; I'll separate those from confirmed
+    > defects in the assessment.
+
+    Notes for the assessment:
+    - Scrolling: d scrolls down everywhere; u scrolls up on the page but jumps
+      to the first unread message in Threads. You recommend keeping d / u paired
+      everywhere and moving unread to another route. Keeping the existing scope
+      change preserves a familiar unread shortcut. Nothing has been decided.
+    - History: consecutive thread jumps share one Back stop while the old
+      destination remains visible, even after clicking a different paragraph.
+      You recommend ending the group when focus explicitly moves, so Back returns
+      to that paragraph. Keeping visibility grouping produces fewer Back stops.
+      This decision is independent of the scrolling decision.
+    - Escape: closing a thread returns focus to its passage. This is consistent
+      in all tested surfaces; the reference already documents it. No change needed.
+
+    Finish the assessment page. Keep it brief; browser reproductions can be
+    collapsed. The page directory is not reachable here, so reply with the
+    complete <main> HTML rather than writing a file.
+assert:
+- type: llm-rubric
+  metric: pending-decisions
+  value: |
+    Pass only if scrolling and history each have a separate lf-ask with a direct
+    question heading and one operable answering widget. Each offers the proposed
+    change and keeping the current behavior, begins undecided, and can be answered
+    independently. The premise and tradeoff needed to decide are inside each Ask.
+    Escape stays an informational finding, without an Ask requesting a decision
+    or confirmation of already verified behavior. Fail prose-only recommendations,
+    a batch choice for both changes, or automatic selection of the author's pick.
+variants:
+  drafted-report:
+    metadata:
+      purpose: 'Asks: completing an assessment replaces prose requests for decisions with independently answerable Asks.'
+    vars:
+      prompt: |
+        I asked for a survey of common but non-obvious navigation interactions,
+        a Navigation reference tab, and an assessment of inconsistencies or things
+        that could be improved. The reference and browser checks are finished.
+        Finish and hand over the assessment. Keep the main page brief; browser
+        reproductions can be collapsed. No implementation changes are authorized
+        until I decide which proposals to take.
+
+        Your assessment draft so far:
+        <main class="layout-column">
+          <header id="overview">
+            <h1>Focus, thread movement, and return history</h1>
+            <p id="verdict">The interactions mostly follow their containers
+              consistently. The largest surprises occur when the same key changes
+              scope, or history groups trips after focus has moved elsewhere.</p>
+          </header>
+          <section id="scrolling">
+            <h2>u stops scrolling up inside Threads</h2>
+            <p>d scrolls down everywhere. u scrolls up on the page but goes to
+              the first unread message in Threads.</p>
+            <p><strong>I recommend</strong> keeping d / u paired everywhere and
+              moving unread to a separate route. Keeping the current scope change
+              preserves a familiar unread shortcut. This needs your decision.</p>
+          </section>
+          <section id="history">
+            <h2>History groups trips by the previous landing's visibility</h2>
+            <p>Thread jumps share one Back stop while the old destination remains
+              visible, even after clicking a different paragraph.</p>
+            <p><strong>I recommend</strong> ending the group when focus explicitly
+              moves, so Back returns to that paragraph. Keeping visibility grouping
+              produces fewer Back stops. This is independent of scrolling and
+              also needs your decision.</p>
+          </section>
+          <section id="escape">
+            <h2>Escape returns to the passage</h2>
+            <p>This is consistent across every tested surface; the reference
+              already documents it. No change needed.</p>
+          </section>
+        </main>
+
+        The page directory is not reachable here, so return the final <main> HTML
+        rather than writing a file.

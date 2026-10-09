@@ -1,6 +1,6 @@
 #!/usr/bin/env -S uv run --script --quiet
 # /// script
-# requires-python = ">=3.10"
+# requires-python = ">=3.12"
 # dependencies = ["unidiff>=1"]
 # ///
 """Build the `unified-diff` contract's file manifest from a Git patch.

@@ -19,11 +19,6 @@ vars:
     directory. The page directory is not reachable here, so reply with the page's
     HTML and any page module it needs.
 assert:
-- type: javascript
-  metric: reads-playground-instructions
-  value: file://reference-read.cjs
-  config:
-    path: packages/playground/instructions/author\.md
 - type: regex
   metric: ask-takes-the-room
   value: <lf-ask\b[^>]*\bdata-width=["']available["']

@@ -158,6 +158,88 @@
         width: 16rem;
         border-left: 1px solid var(--rule);
       }
+      .tb {
+        width: min(38rem, 100%);
+      }
+      .tb-bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.45rem 0.7rem;
+        border-bottom: 1px solid var(--rule);
+        white-space: nowrap;
+      }
+      .tb-push {
+        flex: 1;
+      }
+      .tb-plain,
+      .tb-more {
+        color: var(--muted);
+      }
+      .tb-door {
+        padding: 0.1rem 0.4rem;
+        border-bottom: 2px solid transparent;
+      }
+      .tb-on {
+        background: var(--accent-tint);
+        border-bottom-color: var(--accent);
+      }
+      .tb-dot {
+        display: inline-block;
+        width: 0.4rem;
+        height: 0.4rem;
+        margin-left: 0.15rem;
+        border-radius: 50%;
+        background: var(--accent);
+        vertical-align: super;
+      }
+      .tb .sk-rows li {
+        grid-template-columns: auto 1fr;
+      }
+      .tb-body {
+        display: flex;
+        min-height: 8rem;
+      }
+      .tb-page {
+        flex: 1;
+        padding: 0.6rem 0.8rem;
+        color: var(--muted);
+        font-size: 0.75rem;
+      }
+      .tb-panel {
+        width: min(15rem, 60%);
+      }
+      .tb-left {
+        border-right: 1px solid var(--rule);
+      }
+      .tb-right {
+        border-left: 1px solid var(--rule);
+      }
+      .tb-head {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.5rem 0.7rem;
+        font-weight: 600;
+        border-bottom: 1px solid var(--rule);
+      }
+      .tb-head > :first-child {
+        flex: 1;
+      }
+      .tb-btn {
+        padding: 0 0.3rem;
+        border: 1px solid var(--rule);
+        border-radius: 4px;
+        font-size: 0.7rem;
+        font-weight: normal;
+      }
+      .tb-count {
+        margin: 0;
+        padding: 0.35rem 0.7rem 0;
+        font-size: 0.72rem;
+        color: var(--muted);
+      }
     </style>
   </head>
   <body>
@@ -178,11 +260,12 @@
       <lf-tabs id="page-tabs">
         <lf-tab id="tab-now" label="Where we are">
           <section id="status">
-            <h2>Steps 1 to 5 and the Queue panel are on main</h2>
+            <h2>Steps 1 to 5 and the Questions panel are on main</h2>
             <p id="direction">
               The code for queues and tasks is marked experimental, so later agents
-              change it freely. Step 7 is next and hasn't started, and step 6 isn't
-              needed for now.
+              change it freely. The top bar and the keys now treat Questions and Threads
+              alike (<a href="#bar-built">Top bar and keys</a>), on this branch and not
+              yet on main. Step 7 is next, and step 6 isn't needed for now.
             </p>
             <table id="plan-step-list" data-width="wide">
               <thead>
@@ -218,11 +301,11 @@
                   </td>
                 </tr>
                 <tr>
-                  <th scope="row">3. <kbd>a</kbd> pages through your queue</th>
+                  <th scope="row">3. <kbd>q</kbd> pages through your queue</th>
                   <td>
                     Each press goes to the next item on you in page order: an open Ask,
-                    a thread with a question for you, or a send to retry. The banner
-                    ends with "N on you · M on Claude".
+                    a thread with a question for you, or a send to retry. It was
+                    <kbd>a</kbd> until the top bar change.
                   </td>
                   <td>
                     On main (<a href="https://github.com/max-sixty/leaf/pull/1745"
@@ -231,10 +314,11 @@
                   </td>
                 </tr>
                 <tr>
-                  <th scope="row">The Queue panel</th>
+                  <th scope="row">The Questions panel</th>
                   <td>
-                    Replaces the Asks drawer: what's on you, what's on Claude, and
-                    what's done, folded at the foot.
+                    Replaces the Asks drawer: your Questions, Claude's Tasks, and what's
+                    done, folded at the foot. Called the Queue panel until the top bar
+                    change.
                   </td>
                   <td>
                     On main (<a href="https://github.com/max-sixty/leaf/pull/1789"
@@ -289,44 +373,13 @@
               </tbody>
             </table>
             <p id="try-it">
-              <strong>Try it here:</strong> <kbd>a</kbd> and <kbd>Shift</kbd>+<kbd
-                >a</kbd
+              <strong>Try it here:</strong> <kbd>q</kbd> and <kbd>Shift</kbd>+<kbd
+                >q</kbd
               >
-              walk what's on you. The banner's counts, or <kbd>g</kbd> then
-              <kbd>Shift</kbd>+<kbd>Q</kbd>, open the Queue panel; on a touch screen
-              it's under More.
+              walk your questions. The Questions door beside Threads, or
+              <kbd>g</kbd> then <kbd>Shift</kbd>+<kbd>Q</kbd>, opens the Questions
+              panel.
             </p>
-          </section>
-
-          <section id="next">
-            <lf-ask id="after-four">
-              <h3 id="after-four-heading">What after step 4?</h3>
-              <p>
-                With step 4 on main, two steps of the plan remain, and either can start
-                now.
-              </p>
-              <lf-options id="after-four-pick" choose>
-                <lf-option id="after-four-orphans"
-                  ><strong>Tasks whose session ended</strong> The first half of step 7.
-                  A task left open when its session ended stays on the agent's queue.
-                  The page marks it as having no session behind it, and the next session
-                  to hold the page is handed it to carry on. Today nothing marks it, so
-                  it reads as under way while nobody is on it. Recommended: this is the
-                  last way a task can quietly stall, and step 4's starts already record
-                  which session holds what. A few days.</lf-option
-                >
-                <lf-option id="after-four-shape" chosen
-                  ><strong>One item shape</strong> Step 5. Asks and tasks get the same
-                  fields, and the <code>question</code> and <code>answer</code> kinds
-                  go. It's plumbing you wouldn't see, and it's easier done as part of
-                  step 7, when that needs it.</lf-option
-                >
-                <lf-option id="after-four-use"
-                  ><strong>Use it first</strong> Run with steps 3 and 4 and the panel
-                  for a few days, then choose from what you hit.</lf-option
-                >
-              </lf-options>
-            </lf-ask>
           </section>
 
           <section id="still-open">
@@ -345,6 +398,320 @@
                 purpose until we've used the queues.
               </li>
             </ul>
+          </section>
+        </lf-tab>
+
+        <lf-tab id="tab-bar" label="Top bar and keys">
+          <section id="bar-built">
+            <h2>Questions and Threads now share the right edge</h2>
+            <p>
+              <strong
+                >You picked matching doors with both panels on the right, and it is
+                built on this branch:</strong
+              >
+            </p>
+            <ul>
+              <li>
+                The banner ends with <em>Questions: 3</em> beside <em>Threads: 3</em>,
+                two doors in one face: tinted and underlined while open, and a
+                <kbd>g</kbd> chip when you press <kbd>g</kbd>. <em>Tasks: 2</em>, what's
+                on Claude, follows the status sentence and opens the same panel.
+              </li>
+              <li>
+                The Questions panel opens on the right edge, at the Threads panel's
+                width and by its handle, and pressing the other door swaps one panel for
+                the other. The Leaves drawer keeps the left edge.
+              </li>
+              <li>
+                The panel lists <em>Questions</em>, then <em>Tasks</em>, then
+                <em>Done</em>. A row says what it is: an Ask by its widget's word, a
+                question in a thread as Thread, a task Claude put on you as To do, and
+                Claude's own as Task.
+              </li>
+              <li>
+                <kbd>q</kbd> and <kbd>Shift</kbd>+<kbd>q</kbd> walk your questions, as
+                <kbd>t</kbd> walks threads, and <kbd>g</kbd> <kbd>Q</kbd> opens the
+                panel, as <kbd>g</kbd> <kbd>T</kbd> opens Threads. The panel's head has
+                Next question, as Threads' has Next unread.
+              </li>
+              <li>
+                <kbd>↑</kbd> and <kbd>↓</kbd> now step through thread titles in the
+                Threads panel, as they step through rows in Questions.
+              </li>
+            </ul>
+            <p>
+              Your side is called Questions rather than Decisions because
+              <kbd>d</kbd> already pages down, and <kbd>q</kbd> was free.
+            </p>
+          </section>
+
+          <section id="bar-today">
+            <h2>
+              Before: the top bar and the keys presented Threads and the Queue
+              differently
+            </h2>
+            <p>
+              Only one panel is open at a time: opening the Threads panel closes the
+              Queue panel, and the other way round (<code>auxiliary-surfaces.js</code>).
+              So the two are one choice of what stands beside the page, but the top bar
+              and the keys present them as different kinds of thing. I checked each row
+              below on a served page with three threads, an Ask and two tasks.
+            </p>
+            <table id="bar-differences" data-width="wide">
+              <thead>
+                <tr>
+                  <th scope="col"></th>
+                  <th scope="col">Threads</th>
+                  <th scope="col">Queue</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Its door in the top bar</th>
+                  <td>“Threads: 3”, a labelled button at the right</td>
+                  <td>
+                    “3 on you · 2 on Claude”, bare counts in the middle. The labelled
+                    Queue button is folded into More.
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">The door while its panel is open</th>
+                  <td>Tinted and underlined</td>
+                  <td>Looks the same as when closed</td>
+                </tr>
+                <tr>
+                  <th scope="row">Where the panel opens</th>
+                  <td>The right edge, under its door</td>
+                  <td>The left edge, away from its door</td>
+                </tr>
+                <tr>
+                  <th scope="row">When you press <kbd>g</kbd></th>
+                  <td>A <kbd>g</kbd> <kbd>T</kbd> chip appears on the door</td>
+                  <td>
+                    No chip on the counts; <kbd>g</kbd> <kbd>Q</kbd> appears only in the
+                    key bar at the foot
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">The panel's head</th>
+                  <td>Threads, a Next unread button (<kbd>u</kbd>), and ×</td>
+                  <td>Queue and ×</td>
+                </tr>
+                <tr>
+                  <th scope="row">Under the head</th>
+                  <td>Find, View, and “3 open threads”</td>
+                  <td>The groups straight away: “On you · 3”</td>
+                </tr>
+                <tr>
+                  <th scope="row">The walk on the page</th>
+                  <td><kbd>t</kbd> and <kbd>T</kbd>, through every open thread</td>
+                  <td><kbd>a</kbd> and <kbd>A</kbd>, through what's on you</td>
+                </tr>
+                <tr>
+                  <th scope="row">The key that opens it</th>
+                  <td><kbd>g</kbd> <kbd>T</kbd>, the walk's own letter</td>
+                  <td><kbd>g</kbd> <kbd>Q</kbd>, a letter of its own</td>
+                </tr>
+                <tr>
+                  <th scope="row">Stepping through its rows</th>
+                  <td><kbd>t</kbd> and <kbd>T</kbd></td>
+                  <td><kbd>↑</kbd> and <kbd>↓</kbd></td>
+                </tr>
+              </tbody>
+            </table>
+            <p>
+              Ending something differs on purpose, and I'd keep it:
+              <kbd>r</kbd> resolves a thread, and <kbd>x</kbd> is Done on a task on you.
+              Resolving closes a conversation; Done ends a piece of work.
+            </p>
+          </section>
+
+          <section id="bar-names">
+            <h2>A name for each side, since whose it is matters most</h2>
+            <p id="names-decided">
+              <strong
+                >You picked <em>Questions</em> for what's on you and <em>Tasks</em> for
+                what's on Claude.</strong
+              >
+              The door reads “Questions: 3”, and Task on the page always means work
+              Claude owes. You first picked Decisions, but <kbd>d</kbd> pages down, so
+              its walk could not have the name's letter; <kbd>q</kbd> was free. That
+              leaves the record both sides share, today also called a task, needing a
+              name of its own (<a href="#internal-name">below</a>).
+            </p>
+            <p>
+              “Tasks: 3” didn't say whether the three were on you or on Claude. What the
+              page shows needs two words, one per side, so a count never stands without
+              saying whose it is.
+            </p>
+            <p>What can be on each side today:</p>
+            <ul>
+              <li>
+                <strong>On you:</strong> an Ask, to decide; a question in a thread, to
+                answer; a task the agent puts on you, to do, such as trying a build on
+                your phone (<code>--on user</code>); and a move to send again after it
+                failed.
+              </li>
+              <li>
+                <strong>On Claude:</strong> a reply it owes you, the move it has in
+                hand, and its own tasks.
+              </li>
+            </ul>
+            <p>
+              Two kinds on your side aren't questions: a task to do, such as trying a
+              build, and a move to send again. Claude can ask for the first as a
+              question (“Does the build work on your phone?”), and a To do and a failed
+              send keep their own rows under Questions. The other pairs weighed were
+              <em>Needs you</em> (a phrase, which reads poorly as a heading),
+              <em>To do</em> and <em>Waiting for</em> (near synonyms of task), and
+              <em>Your turn</em> and <em>Claude's turn</em> (an odd thing to count).
+            </p>
+          </section>
+
+          <section id="internal-name">
+            <h2>A name for the shared record</h2>
+            <p id="internal-decided">
+              <strong
+                >For now, <em>Task</em> on the page means Claude's side, and
+                <em>task</em> stays the name of the record both sides share.</strong
+              >
+              A record has an <code>owner</code>, says how it <code>ends</code>, and
+              stays open until it does (<a href="#task">How it works</a>); a question on
+              you is a task whose owner is you. The code, the event log,
+              <code>leaf page state</code> and
+              <code>leaf task open --on user</code> keep the word, and renaming the
+              record is in <code>TODO.md</code>.
+            </p>
+            <p>
+              The word means two things now, and a third already: the harness's unit of
+              work, as in a <em>task claim</em> or a Codex task. The candidates for the
+              shared record were <em>obligation</em>, what its owner owes until it ends;
+              <em>commitment</em>, Winograd and Flores's word, which fits Claude's tasks
+              but not a decision Claude asked of you; and <em>item</em>, which a queue
+              already uses for moves that aren't records.
+            </p>
+          </section>
+
+          <section id="bar-options">
+            <lf-ask id="bar-pick">
+              <h3 id="bar-pick-heading">Which top bar?</h3>
+              <p>
+                Each sketch shows the top bar with the queue panel open. The sketches
+                name it Decisions, the first name you picked; it is Questions now. The
+                Threads door and panel stay as they are today in every option.
+              </p>
+              <lf-options id="bar-pick-options" choose>
+                <lf-option id="bar-baseline"
+                  ><strong>Today</strong> The counts in the middle open the Queue on the
+                  left, and nothing on them changes while it is open.
+                  <div class="sketch tb" aria-hidden="true">
+                    <div class="tb-bar">
+                      <span>🍃 Claude away</span><span class="tb-push"></span
+                      ><span class="tb-plain">3 on you · 2 on Claude</span
+                      ><span class="tb-push"></span
+                      ><span class="tb-door">Threads: 3<i class="tb-dot"></i></span
+                      ><span class="tb-more">⋯</span>
+                    </div>
+                    <div class="tb-body">
+                      <div class="tb-panel tb-left">
+                        <div class="tb-head">
+                          <span>Queue</span><span class="sk-x">×</span>
+                        </div>
+                        <p class="sk-group">On you · 3</p>
+                        <ul class="sk-rows">
+                          <li>
+                            <span class="sk-kind">Ask</span
+                            ><span class="sk-title">Which first?</span>
+                          </li>
+                          <li>
+                            <span class="sk-kind">Question</span
+                            ><span class="sk-title">Make the banner quieter.</span>
+                          </li>
+                        </ul>
+                      </div>
+                      <div class="tb-page">The page</div>
+                    </div>
+                  </div>
+                </lf-option>
+                <lf-option id="bar-sides"
+                  ><strong>Matching doors, each over its panel</strong> The counts
+                  become a Decisions door with the Threads door's face: a label and a
+                  count, tinted and underlined while open, and a <kbd>g</kbd>
+                  <kbd>A</kbd> chip when you press <kbd>g</kbd>. It moves to the left,
+                  beside the status, over the panel it opens. Its count is what's on
+                  you, as the Threads count is the open threads. What's on Claude joins
+                  the status, which is already about Claude.
+                  <div class="sketch tb" aria-hidden="true">
+                    <div class="tb-bar">
+                      <span>🍃 Claude away · 2 tasks</span
+                      ><span class="tb-door tb-on">Decisions: 3</span
+                      ><span class="tb-push"></span
+                      ><span class="tb-door">Threads: 3<i class="tb-dot"></i></span
+                      ><span class="tb-more">⋯</span>
+                    </div>
+                    <div class="tb-body">
+                      <div class="tb-panel tb-left">
+                        <div class="tb-head">
+                          <span>Decisions</span><span class="tb-btn">Next on you</span
+                          ><span class="sk-x">×</span>
+                        </div>
+                        <p class="tb-count">3 decisions · Claude has 2 tasks</p>
+                        <ul class="sk-rows">
+                          <li>
+                            <span class="sk-kind">Ask</span
+                            ><span class="sk-title">Which first?</span>
+                          </li>
+                          <li>
+                            <span class="sk-kind">Question</span
+                            ><span class="sk-title">Make the banner quieter.</span>
+                          </li>
+                        </ul>
+                      </div>
+                      <div class="tb-page">The page</div>
+                    </div>
+                  </div>
+                </lf-option>
+                <lf-option id="bar-right" chosen
+                  ><strong>Matching doors, both panels on the right</strong> The same
+                  Decisions door, beside the Threads door at the right, and the
+                  Decisions panel opens on the right edge where the Threads panel does.
+                  Pressing the other door swaps one panel for the other in place, so the
+                  two read as two views of one side panel. The left edge keeps only the
+                  Leaves drawer. Recommended: since only one panel is ever open, a
+                  shared edge costs nothing, and it makes the doors and panels match in
+                  place as well as in face. It is also the larger change, because the
+                  Queue panel is built as a left drawer today.
+                  <div class="sketch tb" aria-hidden="true">
+                    <div class="tb-bar">
+                      <span>🍃 Claude away · 2 tasks</span><span class="tb-push"></span
+                      ><span class="tb-door tb-on">Decisions: 3</span
+                      ><span class="tb-door">Threads: 3<i class="tb-dot"></i></span
+                      ><span class="tb-more">⋯</span>
+                    </div>
+                    <div class="tb-body">
+                      <div class="tb-page">The page</div>
+                      <div class="tb-panel tb-right">
+                        <div class="tb-head">
+                          <span>Decisions</span><span class="tb-btn">Next on you</span
+                          ><span class="sk-x">×</span>
+                        </div>
+                        <p class="tb-count">3 decisions · Claude has 2 tasks</p>
+                        <ul class="sk-rows">
+                          <li>
+                            <span class="sk-kind">Ask</span
+                            ><span class="sk-title">Which first?</span>
+                          </li>
+                          <li>
+                            <span class="sk-kind">Question</span
+                            ><span class="sk-title">Make the banner quieter.</span>
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </lf-option>
+              </lf-options>
+            </lf-ask>
           </section>
         </lf-tab>
 

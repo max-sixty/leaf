@@ -6,6 +6,8 @@ readings instead, so every fold, including historical gesture words, stays insid
 the capture. Neither mode chooses its inputs again downstream.
 """
 
+from __future__ import annotations
+
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, replace
@@ -43,10 +45,24 @@ class PageRead:
     taken: float
 
     @cached_property
+    def work(self):
+        from .work import work_state
+
+        active = self.active
+        return work_state(
+            self.events,
+            self.revision(active["revision"]) if active else None,
+            active["revision"] if active else None,
+            self.presence,
+            self.now,
+            self.live_stream,
+        )
+
+    @cached_property
     def data(self) -> dict:
         return self.stored_data()
 
-    def through(self, sequence: int) -> "PageRead":
+    def through(self, sequence: int) -> PageRead:
         """The read as it stood once event `sequence` was appended: the log and the
         versions it had stamped by then, without a live streaming reply.
 

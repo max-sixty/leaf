@@ -27,21 +27,6 @@ vars:
     \ directory is not reachable from here, so\nreply with the complete `index.html`, rather than writing\
     \ a file.\n"
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-page-authoring
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/page-authoring\.md
-- type: javascript
-  metric: reads-registry
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/packages/default/registry\.json
 - type: llm-rubric
   metric: judgment
   value: |

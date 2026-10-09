@@ -11,14 +11,14 @@
    one declaration that reads other owners' state — the modes, the captured target, the
    Page Map's rung — so `declareStanding` is the one export, and the boot entry calls it
    once those owners stand. */
-import { letGo, release, takesLetters } from "../focus.js";
+import { letGo, release, focused } from "../focus.js";
 import { inChrome, pageQueryAll } from "../passages.js";
 import { inUi } from "../shadow.js";
 import { pageSelection } from "../composing/capture.js";
 import { heldThread } from "../thread/focus.js";
 import { heldAsk } from "../standing-target.js";
-import { boxHandsBack } from "../thread/landing.js";
-import { claimsEsc, documentFocused, focused } from "./scopes.js";
+import { leavesBox } from "../thread/landing.js";
+import { claimsEsc, documentFocused } from "./scopes.js";
 import { DISCLOSE, DISCLOSURE_SELECTOR, disclosed } from "./disclosure.js";
 import { nativeLayers } from "./layer-stack.js";
 import { pageCommand, pageRung, pageScope } from "./register.js";
@@ -99,7 +99,8 @@ pageCommand({
   touch: false,
   keys: ["F7"],
   title: "Caret browsing",
-  description: "Select text with the browser's keyboard caret, then press c to comment",
+  description:
+    "Select text with the browser's keyboard caret, then comment on the selection",
   line: false,
 });
 
@@ -120,7 +121,7 @@ export function declareStanding({ pageState }) {
   standingFloor = () => {
     if (!holding()) return null;
     if (nativeLayers().length) return null;
-    if (takesLetters(focused()) && boxHandsBack()) return null;
+    if (leavesBox()) return null;
     if (claimsEsc(focused())) return null;
     if (inChrome(documentFocused())) return null;
     const thread = heldThread();

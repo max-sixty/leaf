@@ -51,12 +51,6 @@ def answer_reports(page, heard) -> None:
     page.route("**/api/event", report)
 
 
-def previous_stamp(revision: int, versions: list[dict]) -> dict | None:
-    """The newest stamped revision before ``revision``, if one exists."""
-    earlier = [version for version in versions if version["revision"] < revision]
-    return max(earlier, key=lambda version: version["revision"]) if earlier else None
-
-
 def rendered_revision(url: str, state: dict) -> int:
     """Resolve the immutable revision shown at ``url`` from the public state."""
     name = Path(urlsplit(url).path).name
@@ -228,7 +222,7 @@ def _render_scheme(
     """Read and report the browser gate for one color scheme and viewport.
 
     `then`, when given, is handed the settled page and its registry after every reading
-    here, for the readings a version takes once rather than per scheme and viewport."""
+    here, for additional version-level readings before the page closes."""
     from playwright.sync_api import Error as PlaywrightError
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -365,12 +359,10 @@ def _render_scheme(
             )
         state = served_here("/api/state").json()
         markup = served_here(urlsplit(url).path).text()
-        # Every replay and conflict check is bounded by immutable revision.
+        # Every replay check is bounded by immutable revision.
         # A stamped URL resolves through the stamp map; an exact source preview
         # uses the synthetic active revision exposed only by its preview server.
         here = rendered_revision(url, state)
-        before = previous_stamp(here, state["versions"])
-        earlier = served_here(before["url"]).text() if before else None
     except PlaywrightTimeout as e:
         page.close()
         # The first line only: the rest is playwright's call log, which says
@@ -420,7 +412,6 @@ def _render_scheme(
         state=state,
         markup=markup,
         here=here,
-        earlier=earlier,
         replayed=replayed,
         unsettled=unsettled,
         devtools=devtools,

@@ -6,10 +6,12 @@
    letters narrow the map, Tab walks it aloud, Enter takes the one just heard, and
    Escape gives a letter back. A letter that names nothing is reported and the standing
    map is left alone, because a mistyped route should not cost the user the letters
-   they had right. A scroll freezes membership and re-reads it once the scene settles,
-   so a target arriving mid-scroll is named at rest rather than on the frame it appears.
+   they had right. A scroll holds the map as it stands, each chip riding with what it
+   names, and the map is read and seated again once the scroll settles, so a target
+   arriving mid-scroll is named at rest rather than on the frame it appears.
    A candidate is revalidated against a fresh reading before it is taken, so a target
-   that left the scene cannot be worked by a stale label.
+   that left the scene cannot be worked by a stale label. Disabled character routes
+   remove their chips and spoken codes; the target inventory and Tab/Enter walk remain.
 
    What the members are, what a chip says, what taking one does, and where chrome stands
    belong to the caller. Everything above is here once.
@@ -21,9 +23,12 @@
    opaque hint has no meaning once its face is hidden, so collisions are spread rather
    than removed. Geometry belongs to each caller and is passed in so this module
    introduces no ownership cycle through the shortcut bar. */
-import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
+import { bindingEnabled, spell } from "./bindings.js";
+import { html, render } from "../../vendor/browser-runtime.js";
+import { keySequenceModel, keySequenceTemplate } from "./presentation.js";
 import { clamp, overlaps, overlapsAcross } from "../rect.js";
-import { boxAt, placeChip } from "../geometry.js";
+import { chipSeats } from "./chip-seats.js";
+import { scrolling, watchScrollEnds } from "../arrivals.js";
 import { announce } from "../notifications.js";
 import { repaint } from "../repaint.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
@@ -42,7 +47,7 @@ export function hintCodes(count, keys = HINT_KEYS) {
 }
 
 // Lit sees only an opaque primitive. The native row or target remains controller state,
-// while an unchanged owner retains its chip and keycaps across paint-only updates.
+// while an unchanged owner retains its seat, chip and keycaps across paint-only updates.
 export function renderKeys() {
   const keys = new WeakMap();
   let next = 1;
@@ -61,26 +66,41 @@ const movedTo = (box, left, top) => ({
   height: box.height,
 });
 
+// The open top nearest `preferred`, and what decided it: the window's edge, a barrier
+// the seat stands clear of, or nothing where the preferred top is open.
 function nearestOpenTop(box, preferred, barriers, top, bottom, gap) {
   const last = Math.max(top, bottom - box.height);
-  const seats = [preferred, top, last];
+  const seats = [
+    { at: preferred, by: null },
+    { at: top, by: "edge" },
+    { at: last, by: "edge" },
+  ];
   for (const barrier of barriers)
-    seats.push(barrier.bottom + gap, barrier.top - gap - box.height);
+    seats.push(
+      { at: barrier.bottom + gap, by: barrier },
+      { at: barrier.top - gap - box.height, by: barrier },
+    );
   return seats
-    .map((seat) => clamp(seat, top, last))
+    .map(({ at, by }) => {
+      const held = clamp(at, top, last);
+      return { at: held, by: held === at ? by : "edge" };
+    })
     .filter(
-      (seat) =>
-        !barriers.some((barrier) => overlaps(movedTo(box, box.left, seat), barrier)),
+      ({ at }) =>
+        !barriers.some((barrier) => overlaps(movedTo(box, box.left, at), barrier)),
     )
-    .sort((left, right) => Math.abs(left - preferred) - Math.abs(right - preferred))[0];
+    .sort(
+      (left, right) => Math.abs(left.at - preferred) - Math.abs(right.at - preferred),
+    )[0];
 }
 
-// Read every face before moving one, keeping the pass to one layout. Callers append all
-// chips first and provide the visible rectangle each chip names and the place `at` it is
-// drawn from; each face is read there and written once, to its seat. `belowTarget` makes
-// that edge the preferred seat and the target an obstacle. The returned boxes can be
-// barriers for a following pass.
+// Read every face before seating one, keeping the pass to one layout. Callers put every
+// chip in its seat first and provide the visible rectangle each chip names and the
+// place `at` its seat is drawn from; each face is read there, and the answer is where
+// each seat stands (chip-seats.js), its `box` a barrier for a following pass.
+// `belowTarget` makes that edge the preferred seat and the target an obstacle.
 function spreadHints(
+  seats,
   hints,
   {
     barriers = [],
@@ -95,8 +115,8 @@ function spreadHints(
     parseFloat(
       getComputedStyle(document.documentElement).getPropertyValue("--focus-ring-w"),
     ) || 0;
-  const faces = hints.map(({ chip, at, target, belowTarget = false }) => ({
-    start: boxAt(chip, at),
+  const faces = hints.map(({ seat, at, target, belowTarget = false }) => ({
+    start: seats.boxAt(seat, at),
     target,
     belowTarget,
   }));
@@ -111,18 +131,23 @@ function spreadHints(
       bottom: viewportBottom,
     },
   });
-  hints.forEach(({ chip, at }, index) => {
-    const { start } = faces[index];
-    const box = placed[index];
-    placeChip(chip, at.left + box.left - start.left, at.top + box.top - start.top);
-  });
-  return placed;
+  return hints.map(({ seat, at, target, element }, index) => ({
+    seat,
+    target: element,
+    at,
+    start: faces[index].start,
+    box: placed[index],
+    // A chip on a target whose top the room cuts stands at the room's edge.
+    held: placed[index].held || Boolean(target?.clippedTop),
+  }));
 }
 
 // Where each face stands, folded from rectangles `spreadHints` has already read. Each
 // face is `{ start, target, belowTarget }`, `start` the box it was drawn at; the answer
 // is one box per face, in order, each clear of the barriers, the key line and every face
-// seated before it.
+// seated before it. A box is `held` where what decided its seat stands still as the page
+// scrolls, the window's edge, the key line or a fixed barrier, rather than its target or
+// a face riding with its own, so the window holds it where a scroll carries the rest.
 export function seatHints(
   faces,
   { barriers: fixedBarriers = [], lineBox, band, viewport },
@@ -160,19 +185,27 @@ export function seatHints(
     );
     const rightSeat = Math.max(target.left, line.right + clear);
     const canSitRight = rightSeat + start.width <= Math.min(target.right, edgeRight);
-    const left =
-      line.height && overlaps(first, lineBand) && canSitRight ? rightSeat : first.left;
-    return [movedTo(first, left, first.top), belowTarget ? target : null];
+    const beside = line.height && overlaps(first, lineBand) && canSitRight;
+    const held = beside || first.left !== preferredLeft || first.top !== preferredTop;
+    return [
+      movedTo(first, beside ? rightSeat : first.left, first.top),
+      belowTarget ? target : null,
+      held,
+    ];
   });
   const placed = [];
-  for (const [seated, ownTarget] of measured) {
-    const barriers = [...fixedBarriers, ...placed].filter((other) =>
-      overlapsAcross(other, seated),
-    );
+  for (const [seated, ownTarget, clamped] of measured) {
+    const fixed = fixedBarriers.filter((other) => overlapsAcross(other, seated));
+    const barriers = [
+      ...fixed,
+      ...placed.filter((other) => overlapsAcross(other, seated)),
+    ];
     if (ownTarget && overlapsAcross(ownTarget, seated)) barriers.push(ownTarget);
-    if (lineBand.bottom > lineBand.top && overlapsAcross(lineBand, seated))
+    if (lineBand.bottom > lineBand.top && overlapsAcross(lineBand, seated)) {
+      fixed.push(lineBand);
       barriers.push(lineBand);
-    const top = nearestOpenTop(
+    }
+    const open = nearestOpenTop(
       seated,
       seated.top,
       barriers,
@@ -183,16 +216,14 @@ export function seatHints(
     // A viewport can be physically too small for every face. Keep the preferred clamped
     // seat in that impossible case; ordinary scenes always have an open interval, and
     // the invariant tests exercise collisions at every viewport edge.
-    placed.push(movedTo(seated, seated.left, top ?? seated.top));
+    const box = movedTo(seated, seated.left, open?.at ?? seated.top);
+    // Below a face the window holds, the window holds this one too.
+    box.held =
+      clamped || open?.by === "edge" || fixed.includes(open?.by) || !!open?.by?.held;
+    placed.push(box);
   }
   return placed;
 }
-
-// How long after the last scroll frame the scene is taken as settled when the browser
-// sends no `scrollend`. A programmatic scroll written a frame at a time, and a scroll
-// restoration that replaces the scene under an armed map, both end without one; the
-// map would otherwise hold its frozen membership until the next resize.
-const SETTLE_MS = 80;
 
 /* One armed map over a caller's scene.
 
@@ -208,11 +239,12 @@ const SETTLE_MS = 80;
    `extras` are chips the caller keeps outside the coded map, such as named destinations
    on fixed chrome; they are seated first and become barriers for the coded ones.
    `chrome` reads the standing furniture the placement pass must keep clear.
-   A map paints through a scroll once it has stood still long enough to be read: its
-   chips ride with the things they name, so the codes the user is reading stay where
-   they were read and stay pressable, while membership waits for the scene to settle. A
-   map armed into a page already in flight has stood still for nobody, and shows nothing
-   until it settles rather than putting codes on a scene that is leaving. */
+   A map stands through a scroll once it has stood still long enough to be read: its
+   chips ride with the things they name (chip-seats.js), so the codes the user is
+   reading stay where they were read and stay pressable, while membership and seats
+   wait for the scene to settle. A map armed into a page already in flight has stood
+   still for nobody, and shows nothing until it settles rather than putting codes on a
+   scene that is leaving. */
 export function createHintSession({
   layer,
   walk: walkKey,
@@ -227,23 +259,29 @@ export function createHintSession({
   extras = () => [],
 }) {
   let armed = false;
-  // The page has been still for a settle since this map was armed, so the user has had
-  // the chance to read these codes where they now stand.
-  let stood = false;
   let prefix = "";
   let candidates = [];
   // Where the audible walk stands in `hinted()`, or -1 when no hint has been heard.
   let at = -1;
-  let scrolling = false;
   let stale = false;
-  let settleTimer = 0;
+  const seats = chipSeats(layer);
 
   const hinted = () => candidates.filter(({ code }) => code.startsWith(prefix));
+  const enabled = (candidate) => [...candidate.code].every(bindingEnabled);
+  const shown = (plan) => enabled(plan.candidate) || plan.candidate === hinted()[at];
+  const nativeTake = keySequenceModel([spell("Enter")], undefined, ["Enter"]);
+  const face = (plan) =>
+    plan.candidate && !enabled(plan.candidate)
+      ? html`<span
+          class=${`lf-key-hint lf-current${plan.model.className.includes(" lf-in") ? " lf-in" : ""}`}
+          data-lf-hint-native="Enter"
+          >${keySequenceTemplate(nativeTake)}</span
+        >`
+      : template(plan.model);
 
   // Every way the map is replaced whole puts the user back at its head, with no letters
   // typed and nothing heard. Whether the page is moving is a fact about the page rather
-  // than about the map, so replacing the map does not end a scroll the page has not
-  // ended: only arming and disarming answer for that.
+  // than about the map (arrivals.js, `scrolling`).
   function hold(found) {
     prefix = "";
     at = -1;
@@ -251,28 +289,15 @@ export function createHintSession({
     return (candidates = found);
   }
 
-  function rest() {
-    scrolling = false;
-    clearTimeout(settleTimer);
-  }
-
   function arm() {
     armed = true;
-    stood = false;
-    rest();
-    // Arming cannot see whether the page is already moving — a scroll is only heard while
-    // armed — so the map waits out one settle before it counts as stood. A page at rest
-    // sends nothing and the wait simply ends; a page in flight sends a scroll first, and
-    // the map goes back to waiting for the scene it will land on.
-    settleTimer = setTimeout(settled, SETTLE_MS);
     return hold(read());
   }
 
   function disarm() {
     armed = false;
-    rest();
     hold([]);
-    render(nothing, layer);
+    seats.clear();
   }
 
   // The scene the caller reads has changed meaning — a filter came or went. `refresh`
@@ -321,7 +346,9 @@ export function createHintSession({
     );
     const said = words.describe(target);
     const stop = /[.!?]$/.test(said) ? "" : ".";
-    announce(`Hint ${target.code}: ${said}${stop} Press Enter to ${words.take}.`);
+    announce(
+      `${enabled(target) ? `Hint ${target.code}: ` : ""}${said}${stop} Press Enter to ${words.take}.`,
+    );
     repaint();
   }
 
@@ -337,52 +364,59 @@ export function createHintSession({
   }
 
   function draw(extraPlans, codedPlans) {
+    codedPlans = codedPlans.filter(shown);
     const plans = [...extraPlans, ...codedPlans];
-    render(
-      html`${repeat(
-        plans,
-        ({ model }) => model.key,
-        ({ model }) => template(model),
-      )}`,
-      layer,
-    );
-    const chips = [...layer.children];
-    const seated = plans.map((drawn, index) => ({
-      chip: chips[index],
-      at: { left: drawn.left, top: drawn.top },
-      target: drawn.target,
-      belowTarget: drawn.belowTarget,
-    }));
+    const drawn = plans.map((plan) => {
+      const seat = seats.seat(plan.model.key);
+      render(face(plan), seat);
+      return {
+        seat,
+        element: plan.candidate ? identity(plan.candidate) : null,
+        at: { left: plan.left, top: plan.top },
+        target: plan.target,
+        belowTarget: plan.belowTarget,
+      };
+    });
     // Fixed chips stay where the caller put them and reserve their own pixels; the
     // coded map is spread around them, the standing chrome, and the key line.
-    const reserved = extraPlans.length
-      ? spreadHints(seated.slice(0, extraPlans.length))
+    const reserved = spreadHints(seats, drawn.slice(0, extraPlans.length));
+    const coded = codedPlans.length
+      ? spreadHints(seats, drawn.slice(extraPlans.length), {
+          barriers: [...reserved.map(({ box }) => box), ...chrome.barriers()],
+          lineBox: chrome.lineBox(),
+          viewportTop: chrome.viewportTop(),
+        })
       : [];
-    if (codedPlans.length)
-      spreadHints(seated.slice(extraPlans.length), {
-        barriers: [...reserved, ...chrome.barriers()],
-        lineBox: chrome.lineBox(),
-        viewportTop: chrome.viewportTop(),
-      });
+    seats.place([...reserved, ...coded]);
   }
 
   function paint() {
     if (!armed) {
-      render(nothing, layer);
+      seats.clear();
+      return;
+    }
+    // A scroll holds the seats, and the map the user has read keeps its faces up to date
+    // in them as they type or walk it.
+    if (scrolling()) {
+      const plans = [
+        ...extras(),
+        ...layout(hinted(), { current: hinted()[at], reading: scene() }).filter(shown),
+      ];
+      for (const plan of plans) {
+        const seat = seats.standing(plan.model.key);
+        if (seat) render(face(plan), seat);
+      }
+      seats.keepOnly(new Set(plans.map(({ model }) => model.key)));
       return;
     }
     const extraPlans = extras();
-    if (!stood) return draw(extraPlans, []);
     const wasWalking = at >= 0;
     const heard = hinted()[at];
     const emptyBefore = candidates.length === 0;
-    // A scroll keeps one map until it settles. Reconciliation is different: every old
-    // candidate is detached at once, so holding that map would paint nothing
-    // indefinitely if the replacement's scroll restoration produces no final scrollend.
     const detached = candidates.some((candidate) => !identity(candidate)?.isConnected);
     // Only with the map whole: a partly typed code freezes it until the user
     // completes or backs out of that prefix, so `hinted()` and `candidates` agree here.
-    if (!prefix && !scrolling && (stale || detached || !candidates.length)) {
+    if (!prefix && (stale || detached || !candidates.length)) {
       candidates = read();
       stale = false;
       at = heard
@@ -402,50 +436,19 @@ export function createHintSession({
     if ((wasWalking && at < 0) || emptyBefore !== (candidates.length === 0)) repaint();
   }
 
-  function settled() {
-    clearTimeout(settleTimer);
-    stood = true;
-    scrolling = false;
-    repaint();
-  }
-
-  // A page that moves under an armed map makes opaque labels temporarily untrustworthy.
-  // Capture, because a panel's list and a board's own overflow scroll in boxes of their
-  // own and a scroll event does not bubble.
-  //
-  // Only while armed, which is why these are listeners of their own rather than lines in
-  // the page's own repaint door (pageShifted): what that door says holds at every scroll
-  // position, no list's membership moving with the page, so it would be repainting for
-  // nobody. Armed, the paint is the whole shared repaint — the ring and line are cheap
-  // beside the chips, and one door is what stops the chips having a repaint set of their
-  // own to keep in step.
+  // A page that moves under an armed map makes opaque labels temporarily untrustworthy,
+  // so the map is read again once the scroll settles. Only while armed: what the
+  // page's own repaint door says holds at every scroll position, no list's membership
+  // moving with the page.
   function mount() {
-    addEventListener(
-      "scroll",
-      () => {
-        if (!armed) return;
-        scrolling = true;
-        stale = true;
-        clearTimeout(settleTimer);
-        settleTimer = setTimeout(settled, SETTLE_MS);
-        repaint();
-      },
-      { capture: true, passive: true },
-    );
-    addEventListener(
-      "scrollend",
-      () => {
-        if (armed) settled();
-      },
-      { capture: true, passive: true },
-    );
+    document.addEventListener("lf-keyboard-preference", invalidate);
+    watchScrollEnds(() => {
+      if (!armed) return;
+      stale = true;
+      repaint();
+    });
     addEventListener("resize", () => {
       if (!armed) return;
-      clearTimeout(settleTimer);
-      // A resize may arrive during the first arming wait. Let the new scene stand
-      // for a settle before drawing its generated hints.
-      if (!stood) settleTimer = setTimeout(settled, SETTLE_MS);
-      scrolling = false;
       stale = true;
       repaint();
     });

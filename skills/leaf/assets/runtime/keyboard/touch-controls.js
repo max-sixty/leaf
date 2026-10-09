@@ -27,6 +27,7 @@ import { repaint } from "../repaint.js";
 import { live, word } from "./bindings.js";
 import { invokePress, standing } from "./dispatch.js";
 import { touchPresses } from "./register.js";
+import { focusDestination, closeLayer } from "../focus.js";
 
 coarsePointer.addEventListener("change", repaint);
 
@@ -51,9 +52,13 @@ function place(press, seat) {
       // A surface the press opens hands focus back to where it was opened from, and the
       // entry is about to close with its menu.
       const held = bannerStanding();
-      dismissBannerControls();
-      if (current.row.retainStanding) restoreBannerStanding(held);
-      else bannerControlDoor(button)?.focus({ preventScroll: true });
+      closeLayer(dismissBannerControls, () => {
+        if (current.row.retainStanding) restoreBannerStanding(held);
+        else {
+          const door = bannerControlDoor(button);
+          if (door) focusDestination(door, "return");
+        }
+      });
     }
     if (live(current.row)) invokePress(current);
   });

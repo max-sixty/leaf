@@ -24,7 +24,11 @@ import { observeServerNow, observeWorkingGrace } from "./presence.js";
 import { settleAcceptedDrafts } from "./drafts.js";
 import { notice } from "./notifications.js";
 import { markStateApplied, settlePageInterface } from "./presentation.js";
-import { loadMarked, prepareAuthoredMessage, messageText } from "./thread/messages.js";
+import {
+  loadMessageMarkdown,
+  prepareAuthoredMessage,
+  messageText,
+} from "./thread/messages.js";
 import { commitWidgetDescriptors } from "./widget-descriptors.js";
 import {
   combineSemanticNews,
@@ -95,7 +99,7 @@ export function createStateApplication({
     const preparations = [
       prepareActivation(state),
       state.events.some((event) => event.kind === "comment" || event.kind === "reply")
-        ? loadMarked()
+        ? loadMessageMarkdown()
         : null,
     ];
     for (const event of state.events) {

@@ -1,0 +1,45 @@
+# Added for #11's recorded-effect contract cutover. The comparison scores whether
+# the public instructions let an author use the effect-owned payload without
+# recreating a schema or field mapping. The candidate passed and the baseline
+# failed in one Codex sample per arm; this is diagnostic, not a reliability estimate.
+description: recorded-effect-payloads
+metadata:
+  purpose: Package authors declare recorded effects once and send their validated payloads.
+  tags:
+  - packages
+  - state
+vars:
+  prompt: |
+    I'm adding three Leaf package widgets. Their controls and rendering already
+    exist; I need their state declarations and matching sends.
+
+    - lf-note has a user edit operation replacing its plain text body.
+    - lf-check has an agent finish operation setting status to done, with short
+      human-readable news. Its status property schema is
+      {"type":"string","enum":["planned","done"]}.
+    - lf-lane-board has a user move operation putting an owned card into an owned
+      lf-lane at a supplied rank key. Each card's placement is independent.
+
+    Read the shipped package references. Return only each widget's x-state entry
+    and one matching event detail object, using note text "Corrected note", news
+    "Checks passed", card id "card-1", destination id "archive", and rank key "v".
+    Do not implement controls, rendering, or transport. The rest of each widget's
+    registry entry is already valid, including its properties and ownership.
+assert:
+- type: llm-rubric
+  metric: effect-owned-payloads
+  value: |
+    Pass only if all three recorded x-state declarations omit a detail schema and
+    omit record.value and record.rank field mappings. The note's edit declaration
+    uses unit:"widget" and record:{kind:"body"}; its detail is
+    {"value":"Corrected note"}. The check's finish declaration uses writer:"agent",
+    unit:"widget", record:{kind:"value",attr:"status"}, update:true; its detail is
+    {"value":"done","text":"Checks passed"}. The board's move declaration uses
+    unit:"unit" and record:{kind:"position",within:"lf-lane"}; its detail is
+    {"unit":"card-1","value":"archive","rank":"v"}. Equivalent key ordering
+    or quote syntax is fine. A complete enclosing x-state object or just its named
+    verb members is fine. Standalone generated schemas described for explanation
+    are acceptable only if they are not included in authored declarations. Fail
+    if the answer declares arbitrary input aliases, uses an index instead of rank,
+    omits required news, or claims agent news is optional. The request supplies the
+    rest of the widget entries, so it need not redeclare properties or owners.

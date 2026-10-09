@@ -1,19 +1,18 @@
 """Name a thread from its opening message, with one small model request on the
 harness's own model.
 
-A thread's title is a `thread_title` event, and an agent that answers with `leaf
-thread reply` names an untitled thread on that reply, as its delivery's handling
-asks. That reply comes when the agent's work does, which can be minutes, and a turn
-Leaf starts over App Server writes its reply with its own messages, so it has no
-command to put a title on at all. So Leaf asks for a title itself, as soon as it can
-reach the harness's model:
+An opening or reply may carry its untitled thread's first title atomically;
+`thread_title` names one independently or renames it. An agent answering with
+`leaf response reply` can supply a title even when the provider owns final commit.
+That reply comes when the agent's work does, which can be minutes, so Leaf also
+asks for a title as soon as it can reach the harness's model:
 
 - a page server, as the user's comment or reply in the untitled thread is admitted
   (`name_admitted_thread`), through the generator the claimant's harness supplies
   (`Harness.title_generator`): a `claude -p` Haiku request for Claude Code
   (`claude_code_title`), and an App Server of its own for Codex (`codex_title`),
   whichever transport carries the task's turns;
-- the website's carrier, as the Worker dispatches the user's move in the untitled
+- the website's host, as the Worker dispatches the user's move in the untitled
   thread to it (`name_thread`), through an ephemeral thread on the App Server it owns
   (`app_server_title`), whether the move starts a turn or waits for a running one
   to end. Its page server cannot: the page has no claim before the first turn, and

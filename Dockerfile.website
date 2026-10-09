@@ -10,7 +10,7 @@ RUN npm ci --omit=dev --ignore-scripts \
     && cp -R node_modules/@openai/codex-linux-*/vendor/*/codex-resources /codex-bin/codex-resources \
     && test -x /codex-bin/codex-resources/bwrap
 
-FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim
 
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \

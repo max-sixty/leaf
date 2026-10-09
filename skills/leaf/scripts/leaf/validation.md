@@ -27,22 +27,13 @@ one of each slot, at least one of them, no nesting, `resolves` naming a comment
 in the document's reference namespace); ids are unique and hold no whitespace, no authored id, class, or
 attribute sits in the runtime's `lf-` and `data-lf-` namespaces, named today or
 not, no id takes the shape of the event ids the log mints (`schema.EVENT_ID`), since
-a command's ID names a widget or a message in one address space, and ids needed by anchored unresolved threads, standing user actions, or
-effective standing reports survive from the previous revision. A
-quoted passage is compared using the same unique-context or unique-occurrence rule
-as browser resolution. The check lists every open thread whose authored quote no
-longer resolves, and activation records its fallback to its own surviving section.
-The page transaction holds validation, revision publication and those anchor
-transitions together. With no surviving section the check requires an explicit
-replacement reply or detachment; it never guesses a replacement or the loss of a
-thread's subject. A
-declared visual part survives on the same terms as an id: while a live
-thread's current anchor names it, and no longer once every thread on it
-has moved, detached, or closed. That release is final — a revision the part has
-left cannot be asked for it back, so reopening the closed thread restores
-the thread and not its target. An agent reply may detach a thread in the same
-transition that removes its subject. A declared retirement protects its holder and slots until its
-outcome licenses their removal. Other dropped ids are reported as advice. These carry-over rules judge a candidate. A source whose captured artifact is the active revision's had its transition judged when it activated, and the append door has judged every event since against the revision it names, so neither activation nor `page check` re-judges it against the longer log. Near-free
+a command's ID names a widget or a message in one address space, and every current declaration has a valid implementation. Historical references
+never veto a revision: authored wording, placement, subjects, and vocabulary may
+change. Open threads whose passages or visual parts disappear fall back to their
+own surviving section; those whose sections disappear become detached. Their
+original coordinates remain in the log. Static checks report these relocations,
+and activation records them in the same page transaction as publication.
+Near-free
 and deterministic is what makes running it on every save affordable, so keep a new
 check that way; anything needing a browser belongs in the command's browser half.
 The effective registry is validated where it differs from the active revision's
@@ -154,13 +145,10 @@ Playwright's driver runs under its bundled Node, or `PLAYWRIGHT_NODEJS_PATH` whe
 set. Driver startup failures report the cause, the Node executable, and that
 variable; `render_gate/browser.py` owns browser and driver launch diagnostics.
 
-The browser's authored-state conflict check considers only surviving user actions
-made before the revision being checked. Actions made on that revision already saw
-its markup. After the observational probes, the complete-state renderer shows the
-authored baseline and the carried decisions, then restores current state. The gate
-reports only individual attributes or placement facts changed both by the author
-and by those carried decisions; another verb on the same element is independent.
-The runtime keeps no event-to-DOM write history for this check.
+The browser checks that rendering the same complete state twice is idempotent.
+A standing decision may paint over a changed authored baseline; this is the
+state fold's behavior, not a reason to refuse the revision. `restated` explicitly
+retracts a decision when the agent needs a fresh answer.
 
 The render gate serves its probe modules from the Leaf running the command and the
 runtime those modules import from the page, so the ephemeral server it opens refuses

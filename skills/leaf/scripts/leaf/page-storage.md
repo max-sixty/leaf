@@ -93,7 +93,7 @@ other page files and the external state listed below.
 - `user-views.lock` — the independent lock serializing observation writes;
   excluded from page freshness and activation.
 
-- `data.json` — the contract each external-data source id was first set under.
+- `data.json` — the current contract each external-data source id was set under.
   `data.py` owns storage and updates.
 
 - `data/` — one JSON file per source, `<source>.json`, holding its current value.
@@ -137,8 +137,17 @@ other page files and the external state listed below.
   listener cannot advertise a prior incarnation. `hosting.py` waits for release
   on stop, after sockets close. The stable file remains after release.
 
-- `<state-home>/claims/` — one atomic claim per resolved page, independent of its page
-  directory. Scans ignore claims for missing pages; fresh page initialization clears
+- `<state-home>/claims/<page-key>.json` — the page's one atomic canonical claim
+  payload. `<state-home>/claims/<session-key>/<page-key>.json` is a symlink
+  locating that payload for the owning session's discovery. The locator is prepared
+  before ownership commits in the payload; failed preparation leaves ownership
+  intact. Discovery admits a locator only when the payload names that partition's
+  session, so a stale locator cannot reclaim a transferred page. Named watches
+  follow prepared locators' canonical targets until ownership commits.
+  Named discovery reads only that session's partition; global observation reads
+  the canonical payloads directly. Atomic updates by existing
+  page-server writers retain the payload's path and leave discovery intact.
+  Scans ignore claims for missing pages; fresh page initialization clears
   the prior claim under the page lock. [session-lifetime.md](session-lifetime.md) owns
   claimant identity, release, harness, and lifetime.
 

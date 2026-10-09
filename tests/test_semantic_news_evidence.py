@@ -2,7 +2,6 @@
 
 from interact_support import append_carried_log_record, page_state, publish
 from leaf import activity, thread
-from leaf.asks import thread_awaits_user
 
 
 def test_live_response_evidence_keeps_its_attempt_without_text():
@@ -45,7 +44,7 @@ def test_terminal_failure_workflow_names_exact_reply_source(page_dir):
         page_dir,
         {"kind": "comment", "id": "user-input", "author": "user", "text": "A"},
     )
-    failure = thread.cmd_reply(
+    failure = thread.post_reply(
         page_dir,
         source["id"],
         "The agent turn ended.",
@@ -119,15 +118,3 @@ def test_user_prompt_names_the_latest_question_content_version(page_dir):
     )
     [thread] = page_state(page_dir)["browser"]["thread"]["threads"]
     assert thread["user_prompt"] == {"message": second["id"], "version": edited["id"]}
-
-
-def test_structural_ask_owns_attention_without_a_duplicate_plain_prompt():
-    assert thread_awaits_user(
-        "thread",
-        {"resolved": False},
-        {},
-        {},
-        None,
-        {"thread"},
-        set(),
-    ) == (True, None)

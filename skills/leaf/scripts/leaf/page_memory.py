@@ -29,9 +29,6 @@ import threading
 import weakref
 from collections.abc import Callable
 from pathlib import Path
-from typing import TypeVar
-
-T = TypeVar("T")
 
 
 class PageMemory:
@@ -41,7 +38,7 @@ class PageMemory:
         self._memos: dict[type, object] = {}
         self._lock = threading.Lock()
 
-    def memo(self, kind: type[T]) -> T:
+    def memo[T](self, kind: type[T]) -> T:
         with self._lock:
             held = self._memos.get(kind)
             if held is None:
@@ -56,7 +53,7 @@ class Slot:
 
     _held: tuple | None = None
 
-    def get(self, key, read: Callable[[], T]) -> T:
+    def get[T](self, key, read: Callable[[], T]) -> T:
         """The reading `key` names, made with `read` when the slot holds another."""
         held = self._held
         if held is not None and held[0] == key:
@@ -102,6 +99,6 @@ def memory_of(page_dir: Path) -> PageMemory:
     return _memories.of(page_dir)
 
 
-def memo(page_dir: Path, kind: type[T]) -> T:
+def memo[T](page_dir: Path, kind: type[T]) -> T:
     """The `kind` this process keeps for `page_dir`."""
     return memory_of(page_dir).memo(kind)

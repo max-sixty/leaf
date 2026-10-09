@@ -43,8 +43,8 @@
      Escape row it answers through while it is the innermost one.
    - `when` says whether the capability exists. An owned native button derives its
      disabled state from this reading; a route may declare its own `when` for a sibling
-     control. A control's platform or ARIA disabled state also makes its command
-     unavailable. When a destination surface is available
+     control. Associated controls retain platform and ARIA constraints; owned buttons
+     retain their fieldset constraint and expose availability as ARIA output. When a destination surface is available
      independently of its members, its row stays live and opens the surface even when the
      collection is empty. Member-dependent rows use the collection as their capability.
    - `covering`, on a row of the page's own scope, keeps that command reachable while an
@@ -137,10 +137,6 @@ const GLYPH = {
 // Read off `answers` rather than chosen here, so the list cannot claim more than the
 // dispatcher does — a fourth name would have to be taught to both.
 const MODIFIERS = ["Mod", "Alt", "Shift"];
-// The same modifiers as the platform's own keydowns: what `ev.key` says when a modifier
-// goes down alone, ahead of the key it modifies. The dispatcher's sequence asks this to tell
-// half a press from a key of its own.
-export const MODIFIER_KEYS = ["Shift", "Alt", "Control", "Meta"];
 // One reading of a binding's syntax, for the three questions asked of it: how it is
 // spelled, whether a press answers it, and whether a text box's letters cover it. Three
 // hand-agreed splits is one representation too few — the moment one of them had to state
@@ -227,9 +223,21 @@ export const contextualRoute = (route, command) => ({
   [ROUTED_COMMAND]: command,
 });
 export const routedCommand = (route) => route?.[ROUTED_COMMAND] ?? null;
-// Bindings are routes to commands, not their identity. A contextual projection may add a
-// route without mutating this intrinsic set; dispatch still reads one spelling here.
-export const bindings = declaredBindings;
+// A preference removes character-only routes, including Shift variants, without
+// withdrawing their commands or native activation. Declaration checks stay unfiltered.
+export const quickShortcuts = () => document.documentElement.lfKeyboard.quick;
+export const setQuickShortcuts = (on) =>
+  document.documentElement.lfKeyboard.setQuick(on);
+export const bindingEnabled = (binding) => {
+  const { key, mods } = parsed(binding);
+  return (
+    quickShortcuts() ||
+    key.length !== 1 ||
+    key === " " ||
+    mods.some((mod) => mod !== "Shift")
+  );
+};
+export const bindings = (row) => declaredBindings(row).filter(bindingEnabled);
 // The command identities under one row. Equivalent bindings keep the row's identity
 // and share its implementation; distinct results are routes and expose only those exact
 // identities. Dispatch and every command-facing projection consume this split.
@@ -278,7 +286,8 @@ export const labelOf = (row) => {
 // Whether a row is live right now, asked through one predicate by the dispatcher, the line
 // and the overlay alike, so no surface can promise a press the dispatcher refuses. A guard
 // inside `run` instead is a liveness no surface can see. A declared visible control's
-// native or ARIA disabled state is part of that same availability reading.
+// native or ARIA disabled state constrains associated controls; an executable command
+// owns its button's disabled fields as output rather than reading them back.
 // Native and contribution painters identify their derived fields here. Availability
 // never reads its own previous paint as an input; source ARIA and disabled fieldsets
 // remain platform constraints. Each owner removes its claim when handing a node back.
@@ -547,7 +556,7 @@ export const ariaShortcuts = (rows, current = true, where, includes = () => true
 //
 // A letter matches on its lowercase with Shift asked for separately, because caps lock
 // writes an uppercase key out of an unshifted press and reads an unshifted one out of a
-// shifted press. Read off the glyph, `A` would match the shifted queue walk from a
+// shifted press. Read off the glyph, `Q` would match the shifted queue walk from a
 // bare letter under caps lock, and could no longer be reached with the Shift the chip
 // names. Asking
 // for the modifier is what makes the chip true in both directions.

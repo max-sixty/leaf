@@ -76,7 +76,6 @@ import { lineOwner, shadow, stack, executeCommand } from "./dispatch.js";
 import { scopeIdentity } from "./scopes.js";
 
 import {
-  commandReferenceDialog,
   commandReferenceOpen,
   declareExpandedBarBehindReference,
   openCommandReference,
@@ -93,6 +92,13 @@ import { repaint } from "../repaint.js";
 import { walkPosition } from "../walk-position.js";
 import { declareBottomBar } from "../geometry.js";
 import { pagePresented } from "../presentation.js";
+import { closeLayer, focusDestination } from "../focus.js";
+import {
+  BANNER_CONTROL_RANK,
+  bannerControlDoor,
+  dismissBannerControls,
+  registerBannerControl,
+} from "../banner-toolbar.js";
 
 // The shortcut bar — the register's short rendering. Its fact chips are aria-hidden (the spoken
 // copies are placeholders, announcements, and the reference); More is a real button because
@@ -326,6 +332,23 @@ const completeLine = (scopes, candidates) => {
 };
 const openCompleteReference = () =>
   openCommandReference((id) => executeCommand(id, beforeShortcutCommand));
+const keyboardSettings = el("button", "lf-btn", "Keyboard shortcuts");
+keyboardSettings.type = "button";
+keyboardSettings.addEventListener("click", () => {
+  // Closing the More menu lands the user back on its door, which the complete
+  // reference returns them to (focus.js, `closeLayer`).
+  closeLayer(dismissBannerControls, () => {
+    const door = bannerControlDoor(keyboardSettings);
+    if (door) focusDestination(door, "return");
+  });
+  openCompleteReference();
+});
+registerBannerControl({
+  key: "keyboard",
+  control: keyboardSettings,
+  rank: BANNER_CONTROL_RANK.keyboard,
+  seat: "menu",
+});
 function advanceShortcutHelp() {
   if (!shortcutHelpAvailable() || shortcutBarIsExpanded) return openCompleteReference();
   const scopes = stack();
@@ -578,13 +601,12 @@ const COLLAPSE_SHORTCUT_BAR = {
   run: () => collapseShortcutBar(),
 };
 
-// The expanded bar stands inside the reference's own dialog box, and the reference claims
-// the keyboard whole while it is open, so this scope answers only in the state between
-// the two presses: the bar expanded, the reference not yet opened.
+// The expanded bar owns its own Escape. Its actual node states whether it is reachable:
+// the reference leaves it below the modal floor, and covering Threads makes it inert.
 pageScope("expanded shortcut bar", {
   title: "In the expanded shortcut bar",
   escape: "inner",
-  root: () => commandReferenceDialog,
+  root: () => shortcutBarEl,
   at: () => Boolean(shortcutBarExpanded()),
   rows: [COLLAPSE_SHORTCUT_BAR],
 });

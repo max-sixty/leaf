@@ -35,22 +35,16 @@ from .screens import page_files
 # How much of the page around the ink the picture keeps, in CSS pixels on each side.
 CONTEXT = 120
 
-# An anchored drawing's ink stands against its element, which may sit in panes that
-# scroll on their own and open scrolled elsewhere. The ink is not inside them, since it
-# is painted over the page, so each pane from the element outward is scrolled to put the
-# ink's middle at its own, reading the ink at its fixed offset from the element; then
-# the window does the same. A page drawing stands against the document and needs only
-# the window. The element is the one whose inline anchor name the ink's
+# A drawing's ink stands against its element, which may sit in panes that scroll on
+# their own and open scrolled elsewhere. The ink is not inside them, since it is painted
+# over the page, so each pane from the element outward is scrolled to put the ink's
+# middle at its own, reading the ink at its fixed offset from the element; then the
+# window does the same. The element is the one whose inline anchor name the ink's
 # `position-anchor` names (`anchor-names.js`).
-CENTER = """(el, anchored) => {
+CENTER = """(el) => {
   const middle = (box) => [box.left + box.width / 2, box.top + box.height / 2];
   const toMiddle = (scroller, [x, y], [left, top]) =>
     scroller.scrollBy({ left: x - left, top: y - top, behavior: "instant" });
-  if (!anchored) {
-    const { clientWidth, clientHeight } = document.documentElement;
-    toMiddle(window, middle(el.getBoundingClientRect()), [clientWidth / 2, clientHeight / 2]);
-    return;
-  }
   const name = el.style.positionAnchor;
   const holder = [...document.querySelectorAll("[style]")].find((node) =>
     node.style.anchorName.split(",").some((part) => part.trim() === name));
@@ -131,7 +125,7 @@ def _picture(browser, url: str, comment: dict, out: Path) -> str | None:
         ink = page.locator(f'.lf-drawing-posted[data-thread="{comment["id"]}"]')
         if not ink.count():
             return _no_ink(page, comment)
-        ink.evaluate(CENTER, "anchor" in comment)
+        ink.evaluate(CENTER)
         rendered(page)
         clip = ink.evaluate(CLIP, CONTEXT)
         if clip is None:
@@ -151,7 +145,6 @@ def _no_ink(page, comment: dict) -> str:
     """Why the runtime painted no ink for `comment`."""
     if page.evaluate("document.body.dataset.annotations") == "page":
         return "this page presents its own annotations, which draw no Leaf ink"
-    # A page drawing has no element to lose, so its ink always stands.
     section = comment["anchor"]["section"]
     window = "x".join(map(str, comment["drawing"]["viewport"]))
     return (

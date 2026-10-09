@@ -4,10 +4,10 @@ still served:
   exit: 2
   stdout: ''
   stderr: |
-    the leaf ended; <page> is idle
+    the page closed; <page> is idle
 
 server stopped:
   exit: 2
   stdout: ''
   stderr: |
-    the leaf ended; <page> is idle
+    the page closed; <page> is idle

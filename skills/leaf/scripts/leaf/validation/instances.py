@@ -6,7 +6,7 @@ from leaf.asks import asking, local_ask_entry, quoted_in
 from leaf.passages import COLLAPSE_CHARS
 from leaf.projection import enclosing_widgets
 from leaf.registry.contract import registry_path, retirement_slots, visual_parts
-from leaf.registry.schema import json_validator
+from leaf.registry.schema import json_validator, json_value, schema_error_message
 from leaf.structure import AUTHORED_ALLOCATIONS, SourceDocument
 
 from .markup import at, structure_errors
@@ -59,7 +59,7 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
             is_flag = isinstance(prop, dict) and prop.get("type") == "boolean"
             instance[name] = True if value in (None, "") and is_flag else (value or "")
         for err in sorted(json_validator(entry).iter_errors(instance), key=str):
-            errors.append(f"{where}: {err.message}")
+            errors.append(f"{where}: {schema_error_message(err)}")
         if "data-height" in rec["attrs"] and "x-height" not in entry:
             errors.append(
                 f"{where}: data-height states the height of a widget that draws into "
@@ -93,7 +93,7 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
         elif content == "members":
             if stray:
                 errors.append(
-                    f"{where}: admits only {sorted(allowed)} members, found {stray}"
+                    f"{where}: admits only {json_value(sorted(allowed))} members, found {json_value(stray)}"
                 )
             if rec["text"]:
                 errors.append(f"{where}: loose text between its members isn't allowed")
@@ -116,7 +116,7 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
             if missing or repeated:
                 errors.append(
                     f"{where}: must contain exactly one direct <{member_tag}> for "
-                    f"each `{attribute}` value; missing {missing}, repeated {repeated}"
+                    f"each `{attribute}` value; missing {json_value(missing)}, repeated {json_value(repeated)}"
                 )
     return errors
 
@@ -150,7 +150,7 @@ def layout_errors(lf_elements: list, registry: dict) -> list:
         if len(body) != 1 or body[0] == "#text":
             errors.append(
                 f"{where}: x-reading-role {role} must contain exactly one direct body "
-                f"element between its header and footer, found {body or 'nothing'}; wrap "
+                f"element between its header and footer, found {json_value(body) if body else 'nothing'}; wrap "
                 "several blocks in one <div> or <section>"
             )
     return errors
@@ -164,7 +164,7 @@ def visual_part_errors(lf_elements: list, registry: dict) -> list:
         duplicates = sorted({part for part in parts if parts.count(part) > 1})
         if duplicates:
             errors.append(
-                f"{at(rec)}: visual part ids must be unique, repeated {duplicates}"
+                f"{at(rec)}: visual part ids must be unique, repeated {json_value(duplicates)}"
             )
     return errors
 
@@ -204,7 +204,7 @@ def ask_surface_errors(lf_elements: list, registry: dict) -> list:
         if len(headings) != 1:
             errors.append(
                 f"{at(region)}: an Ask must have exactly one direct heading, "
-                f"found {headings or 'none'}"
+                f"found {json_value(headings) if headings else 'none'}"
             )
         elif region["direct"][0] != headings[0]:
             first = (
@@ -221,7 +221,7 @@ def ask_surface_errors(lf_elements: list, registry: dict) -> list:
             ]
             errors.append(
                 f"{at(region)}: an Ask must frame exactly one declared Ask source, "
-                f"found {found or 'none'}"
+                f"found {json_value(found) if found else 'none'}"
             )
     return errors
 
@@ -244,9 +244,11 @@ def target_reference_contract_error(
         declaration.get(key) == value for key, value in predicate.items()
     ):
         return None
-    expected = ", ".join(f"{key}={value!r}" for key, value in predicate.items())
+    expected = ", ".join(
+        f"{key}={json_value(value)}" for key, value in predicate.items()
+    )
     found = (
-        ", ".join(f"{key}={declaration.get(key)!r}" for key in predicate)
+        ", ".join(f"{key}={json_value(declaration.get(key))}" for key in predicate)
         if isinstance(declaration, dict)
         else "no declaration"
     )
@@ -383,7 +385,9 @@ def declared_word_errors(lf_elements: list, registry: dict) -> list:
             word = rec["attrs"].get(attr) if attr else None
             if word is not None and word not in known:
                 named = f'{attr}="{word}"'
-                errors.append(f"{at(rec, named)}: not {honored} — known: {known}")
+                errors.append(
+                    f"{at(rec, named)}: not {honored} — known: {json_value(known)}"
+                )
     return errors
 
 

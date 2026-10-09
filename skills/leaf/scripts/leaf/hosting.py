@@ -23,7 +23,7 @@ from urllib.parse import urlsplit
 
 from .detached import Handshake, StartRefused, starting_detached
 from .files import read_json
-from .harness import Harness, harness_argument, session_harness
+from .harness import Harness, claim_harness, harness_argument, session_harness
 from .leases import page_locked, release_lease, take_lease
 from .schema import SERVER_LOCK, SERVICE_FILE
 from .server import (
@@ -627,22 +627,34 @@ def start_server(
 
 
 @contextlib.contextmanager
-def claim_and_start(page_dir: Path, host: str | None = None, standing: bool = False):
+def claim_and_start(
+    page_dir: Path,
+    host: str | None = None,
+    standing: bool = False,
+    *,
+    prepared_claim: dict | None = None,
+):
     """Prepare delivery and serving, expose their acquisition, then commit.
 
     Preparation failures and cancellation before acceptance publish no takeover.
     The caller captures its exact acquisition inside this context and exposes the
     URL only after exit confirms publication. Once accepted, cancellation cannot
     restore a superseded owner; the captured acquisition governs owner cleanup.
+
+    A detached preview receives a claim prepared by its launcher, which holds
+    delivery preparation through this commit. That child uses the captured
+    lifetime and cwd rather than discovering its detached process's ancestry.
     """
-    harness = session_harness()
+    harness = claim_harness(prepared_claim) if prepared_claim else session_harness()
     delivery = (
         harness.preparing_delivery()
-        if not standing and harness is not None
+        if not standing and harness is not None and prepared_claim is None
         else contextlib.nullcontext()
     )
     with delivery:
-        claim = prepare_claim(harness, page_dir) if not standing and harness else None
+        claim = prepared_claim or (
+            prepare_claim(harness, page_dir) if not standing and harness else None
+        )
         try:
             with _starting_server(
                 page_dir, host, standing, harness=harness, acquire=True, claim=claim

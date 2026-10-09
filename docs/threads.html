@@ -412,11 +412,11 @@
         <h2>Widgets in messages</h2>
         <p id="message-widgets-markup">
           An agent's reply can carry a small widget, typically a question with options
-          to choose from (<code>leaf thread reply --markup</code>). The markup is stored
-          in the log with the reply, so the thread shows the same markup in every
-          version of the page. Leaf validates the markup when it is posted, and a later
-          <code>leaf page init</code> refuses a vocabulary that could no longer render
-          it.
+          to choose from (<code>--markup</code> on <code>leaf response reply</code>).
+          The markup is stored in the log with the reply, so the thread shows the same
+          markup in every version of the page. Leaf validates the markup when it is
+          posted, and a later <code>leaf page init</code> refuses a vocabulary that
+          could no longer render it.
         </p>
         <p id="message-widgets-state">
           A widget on the page gets its state from the version being viewed: the

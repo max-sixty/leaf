@@ -16,10 +16,10 @@ from leaf_dev.usability_eval import (
     attempt_key,
     build_fixture,
     checks_for,
-    claimed_first,
     expected_checks,
     page_events,
     post_round,
+    progress_shown,
     score_elided,
     score_mixed,
 )
@@ -30,7 +30,9 @@ def test_every_scenario_has_fixed_nonvacuous_checks():
     for case in CASES:
         expected = expected_checks(case)
         assert expected[0] == "completed"
-        assert len(expected) > 1
+        from leaf_dev.usability_eval import rubrics
+
+        assert len(expected) > 1 or rubrics(case)
         assert len(set(expected)) == len(expected)
         actual = checks_for(case, {}, [], False)
         assert list(actual) == expected
@@ -110,41 +112,162 @@ def test_live_completion_requires_every_declared_round(tmp_path):
     assert not run.usable()
 
 
-def test_a_thread_claim_must_be_accepted_for_the_comment_before_reply():
-    call = {
+def test_live_rounds_wait_for_delivery_and_cancel_the_completion_timer(
+    tmp_path, monkeypatch
+):
+    """A scripted model stream drives real HTTP admission and pickup records.
+
+    Two running injections must retain the first round's evidence
+    until its receipt arrives, and completion must leave no delayed child closure.
+    """
+    from dataclasses import replace
+
+    from leaf_dev import usability_eval
+
+    run = Run("handoff", ROOT, tmp_path)
+    run.state.mkdir()
+    page = tmp_path / "page"
+    build_fixture(run, "handoff", page)
+    (tmp_path / "work-dir").write_text(str(tmp_path))
+    case = replace(CASES["handoff"], injection=("running", "running"))
+    served = []
+    timers = []
+    timer = usability_eval.threading.Timer
+
+    def observed_timer(*args):
+        scheduled = timer(*args)
+        timers.append(scheduled)
+        return scheduled
+
+    def receive():
+        events = [event for event in page_events(page) if event.get("attention")]
+        with PageTransaction(page) as transaction:
+            record_pickup(transaction, events, session="eval", turn="active-turn")
+
+    class ModelStream:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            run.leaf("server", "start", str(page), check=True)
+            served.append(usability_eval.page_state(run, page)["server"]["url"])
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def close(self):
+            pass
+
+        def records(self):
+            yield {"type": "user", "text": "http://127.0.0.1:1/foreign-page"}
+            yield {"type": "assistant", "text": "working"}
+            assert len([e for e in page_events(page) if e.get("attempt")]) == 1
+            receive()
+            yield {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {"type": "tool_use", "id": "first", "name": "Bash", "input": {}}
+                    ]
+                },
+            }
+            assert len([e for e in page_events(page) if e.get("attempt")]) == 2
+            receive()
+            yield {"type": "result", "is_error": False}
+
+    monkeypatch.setattr(usability_eval, "LiveChild", ModelStream)
+    monkeypatch.setattr(usability_eval.threading, "Timer", observed_timer)
+    try:
+        usability_eval.execute_live(run, case, tmp_path, page)
+        records = [
+            json.loads(line)
+            for line in (tmp_path / "stream-1.jsonl").read_text().splitlines()
+        ]
+        assert [r["round"] for r in records if r["type"] == "eval_post"] == [1, 2]
+        assert [r["round"] for r in records if r["type"] == "eval_received"] == [1, 2]
+        assert [r["url"] for r in records if r["type"] == "eval_served"] == served
+        assert [
+            r["round"] for r in records if r["type"] == "eval_first_tool_state"
+        ] == [1]
+        assert len(timers) == 1
+        assert all(t.finished.is_set() for t in timers)
+    finally:
+        for scheduled in timers:
+            scheduled.cancel()
+
+
+def test_progress_uses_the_admitted_log_before_the_exact_answer():
+    """Observation delays and command failures cannot erase admitted progress."""
+    started = {"kind": "start", "seq": 2, "item": "comment", "text": "Edit"}
+    answered = {
+        "kind": "reply",
+        "seq": 3,
+        "author": "agent",
+        "parent": "root",
+        "responds": "comment",
+        "text": "Done",
+    }
+    assert progress_shown([], [started, answered], "comment")
+    assert not progress_shown([], [started, answered], "other-input")
+    assert not progress_shown([], [{**started, "seq": 4}, answered], "comment")
+    assert not progress_shown([], [{**started, "item": "other"}, answered], "comment")
+    for changes in (
+        {"ephemeral": True},
+        {"failure": "turn_failed"},
+        {"responds": "other"},
+        {"author": "user"},
+    ):
+        assert progress_shown([], [answered | changes, started | {"seq": 4}], "comment")
+    progress = {
+        "kind": "reply",
+        "author": "agent",
+        "seq": 2,
+        "ephemeral": True,
+        "start": {"item": "comment"},
+        "text": "Edit",
+    }
+    assert progress_shown([], [progress, answered], "comment")
+
+
+def test_native_opening_requires_page_response_evidence_during_handling():
+    opening = {
         "type": "assistant",
         "message": {
             "content": [
-                {
-                    "type": "tool_use",
-                    "id": "claim",
-                    "name": "Bash",
-                    "input": {"command": "leaf task start page comment 'Edit'"},
-                }
+                {"type": "text", "text": "I’ll add the dry-run duration."},
             ]
         },
     }
-    reply = {"type": "assistant", "message": {"content": [{
-        "type": "tool_use", "id": "reply", "name": "Bash",
-        "input": {"command": "leaf thread reply page --for comment --text Done"},
-    }]}}  # fmt: skip
-
-    def result(thread, refused=False):
-        return {"type": "user", "message": {"content": [{
-            "type": "tool_result", "tool_use_id": "claim", "is_error": refused,
-            "content": json.dumps({"kind": "start", "item": thread}),
-        }]}}  # fmt: skip
-
-    accepted = result("comment")
-    assert claimed_first([call, accepted, reply], "comment")
-    assert not claimed_first([call, result("comment", refused=True), reply], "comment")
-    assert not claimed_first([call, result("another-thread"), reply], "comment")
-    assert not claimed_first([call, reply, accepted], "comment")
+    tool = {
+        "type": "assistant",
+        "message": {
+            "content": [
+                {"type": "tool_use", "id": "edit", "name": "ApplyPatch", "input": {}},
+            ]
+        },
+    }
+    workflow = {
+        "input": "comment",
+        "response": {"state": "active", "has_text": True},
+    }
+    state = {"type": "eval_first_tool_state", "workflows": [workflow]}
+    assert progress_shown([opening, tool, state], [], "comment")
+    assert not progress_shown([opening, tool], [], "comment")
+    assert not progress_shown([tool, state, opening], [], "comment")
+    assert not progress_shown([opening, tool, state], [], "other-input")
+    workflow["response"]["state"] = "failed"
+    assert not progress_shown([opening, tool, state], [], "comment")
+    workflow["response"]["state"] = "active"
+    workflow["response"]["has_text"] = False
+    assert not progress_shown([opening, tool, state], [], "comment")
+    workflow["response"] = None
+    assert not progress_shown([opening, tool, state], [], "comment")
 
 
 @pytest.mark.parametrize("membership", ["together", "split", "missing-error"])
 def test_mixed_delivery_requires_the_admitted_native_error_in_the_same_batch(
-    tmp_path, membership
+    tmp_path, membership, _browser
 ):
     run = Run("mixed", ROOT, tmp_path)
     run.state.mkdir()
@@ -183,7 +306,9 @@ def test_mixed_delivery_requires_the_admitted_native_error_in_the_same_batch(
         {"type": "eval_received", "round": 1},
         {"type": "result"},
     ]
-    assert score_mixed(run, trace)["one_delivery"] == (membership == "together")
+    assert score_mixed(run, trace, _browser)["one_delivery"] == (
+        membership == "together"
+    )
 
 
 @pytest.mark.parametrize(
@@ -206,12 +331,12 @@ def test_native_scenario_output_preserves_unavailable_usage(
     tmp_path, monkeypatch, usage, expected
 ):
     from leaf_dev import usability_eval
-    from leaf_dev.arrangement_eval import trace_scores as arrangement_trace_scores
+    from leaf_dev.arms import read_trace, trace_summary
 
-    def observed_execution(run):
+    def observed_execution(run, work):
         # Replace the external model call with its recorded result shape; retain
         # actual trace files, metrics, scenario grading and provider translation.
-        (run.dir / "work-dir").write_text(str(tmp_path))
+        (run.dir / "work-dir").write_text(str(work))
         for phase, counts in enumerate(usage, 1):
             record = {"type": "result", "is_error": False, "result": "A short reply."}
             if counts is not None:
@@ -227,12 +352,12 @@ def test_native_scenario_output_preserves_unavailable_usage(
         assert "tokenUsage" not in response
     phases = response["metadata"]["diagnostics"]["phases"]
     for index, phase in enumerate(phases, 1):
-        arrangement = arrangement_trace_scores(tmp_path / f"stream-{index}.jsonl")
+        arrangement = trace_summary(read_trace(tmp_path / f"stream-{index}.jsonl"))
         for field in ("input_tokens", "output_tokens"):
             assert phase[field] == (usage[index - 1] or {}).get(field)
             assert arrangement[field] == phase[field]
-        assert phase["cost_usd"] is None and phase["cost_known"] is False
-        assert arrangement["cost_usd"] is None and arrangement["cost_known"] is False
+        assert phase["cost_usd"] is None
+        assert arrangement["cost_usd"] is None
     assert "cost" not in response
 
 
@@ -319,14 +444,17 @@ def test_round_scoring_leaves_the_watch_with_leaf():
     ]
 
 
-@pytest.mark.parametrize("harness", ["cc", "codex"])
+@pytest.mark.parametrize("harness", ["claude-code", "codex"])
 def test_live_injection_reads_the_claimants_turn_from_the_isolated_home(
-    tmp_path, harness
+    tmp_path, harness, monkeypatch
 ):
     import os
     from types import SimpleNamespace
 
-    from leaf_dev.usability_eval import arm_python, observed_active_turn
+    from leaf.harness import ClaudeCodeHarness
+    from leaf.service import PageTransaction
+    from leaf.state import close_session_turn, prompt_turn
+    from leaf_dev.usability_eval import observed_active_turn
 
     run = Run("mixed", ROOT, tmp_path, harness)
     run.state.mkdir()
@@ -335,33 +463,111 @@ def test_live_injection_reads_the_claimants_turn_from_the_isolated_home(
     # Create actual session and page-claim publications in the child state home.
     # Only the external model transport is replaced; the CLI joins the canonical
     # claim and lifecycle under the arm's own isolated environment.
-    arm_python(
-        run,
-        """
-import os, sys
-from pathlib import Path
-from leaf.harness import ClaudeCodeHarness
-from leaf.service import PageTransaction
-from leaf.state import prompt_turn
-os.environ["CLAUDE_PID"] = sys.argv[2]
-with PageTransaction(Path(sys.argv[1])) as page:
-    page.take_claim(ClaudeCodeHarness(session="injection-observer", agent="Claude"))
-prompt_turn("injection-observer", "actual-parent-turn")
-""",
-        str(page),
-        str(os.getpid()),
-    )
+    monkeypatch.setenv("XDG_STATE_HOME", str(run.state))
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    with PageTransaction(page) as transaction:
+        transaction.take_claim(
+            ClaudeCodeHarness(session="injection-observer", agent="Claude")
+        )
+    prompt_turn("injection-observer", "actual-parent-turn")
     child = SimpleNamespace(task=SimpleNamespace(running={"actual-parent-turn"}))
     assert observed_active_turn(run, page, child) == "actual-parent-turn"
     if harness == "codex":
         child.task.running.clear()
         assert observed_active_turn(run, page, child) is None
         child.task.running.add("actual-parent-turn")
-    arm_python(
-        run,
-        """
-from leaf.state import close_session_turn
-assert close_session_turn("injection-observer", "actual-parent-turn")
-""",
-    )
+    assert close_session_turn("injection-observer", "actual-parent-turn")
     assert observed_active_turn(run, page, child) is None
+
+
+def test_live_feedback_uses_its_page_server_despite_other_urls_in_agent_output(
+    tmp_path, monkeypatch
+):
+    """Replace only the model process; serving and comment admission are real.
+
+    A live candidate printed a neighboring probe's URL in `ps` output. The old
+    driver posted its comment to that other page before raising StopIteration.
+    """
+    from dataclasses import replace
+
+    from leaf_dev import usability_eval
+
+    run = Run("handoff", ROOT, tmp_path)
+    run.state.mkdir()
+    page = tmp_path / "page"
+    build_fixture(run, "handoff", page)
+    (tmp_path / "work-dir").write_text(str(tmp_path))
+
+    class ModelProcess:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            run.leaf("server", "start", str(page), check=True)
+            return self
+
+        def __exit__(self, *exc):
+            pass
+
+        def close(self):
+            pass
+
+        def records(self):
+            yield {
+                "type": "user",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "content": "A neighboring probe: http://127.0.0.1:9/?t=other-page",
+                        }
+                    ]
+                },
+            }
+            yield {"type": "result", "is_error": False, "result": "Ready."}
+
+    monkeypatch.setattr(usability_eval, "LiveChild", ModelProcess)
+    case = replace(CASES["handoff"], rounds=(CASES["handoff"].rounds[0],))
+    usability_eval.execute_live(run, case, tmp_path, page)
+    [comment] = [e for e in page_events(page) if e["kind"] == "comment"]
+    assert comment["attempt"] == attempt_key(0, 0)
+    assert comment["text"] == "Add how long the dry run took: 3 h 10 min."
+
+
+def test_handoff_url_must_match_the_server_observed_by_the_live_run():
+    from leaf_dev.usability_eval import handed_page_url
+
+    url = "http://127.0.0.1:42041/?t=this-page"
+    trace = [{"type": "eval_served", "url": url}]
+    assert handed_page_url(trace, f"[Dry run]({url}#dry-run)")
+    assert not handed_page_url(trace, "http://127.0.0.1:42042/?t=other-page")
+    assert not handed_page_url(trace, "http://127.0.0.1:42041/?t=this-page-other-key")
+    assert not handed_page_url([], url)
+
+
+def test_copy_repair_requires_the_button_to_copy(tmp_path, _browser):
+    from leaf_dev.usability_eval import copy_summary_works
+
+    run = Run("mixed", ROOT, tmp_path)
+    run.state.mkdir()
+    page = tmp_path / "page"
+    build_fixture(run, "mixed", page)
+    source = page / "index.html"
+    original = source.read_text()
+    assert not copy_summary_works(run, page, _browser)
+    source.write_text(original.replace("/\\s+/", "/\\s+/g"))
+    run.leaf("page", "stamp", str(page), "--text", "Repair copy", check=True)
+    assert copy_summary_works(run, page, _browser)
+    source.write_text(
+        original.replace("/\\s+/", "/\\s+/g").replace(
+            '"click", () => {',
+            '"click", async () => {\nawait new Promise(resolve => setTimeout(resolve, 100));',
+        )
+    )
+    run.leaf("page", "stamp", str(page), "--text", "Async copy", check=True)
+    assert copy_summary_works(run, page, _browser)
+    source.write_text(
+        original[: original.index('<script type="module">')] + "</main></body></html>"
+    )
+    run.leaf("page", "stamp", str(page), "--text", "Remove behavior", check=True)
+    assert not copy_summary_works(run, page, _browser)

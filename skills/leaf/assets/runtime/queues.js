@@ -32,7 +32,7 @@
    the server reads it, it is not known to owe anything, and an Ask it answers still
    stands open.
 
-   `selectDone` is a third list beside them, what is finished, which the Queue panel
+   `selectDone` is a third list beside them, what is finished, which the Questions panel
    folds at its foot (`queue-panel.js`): each task that has ended, an answered Ask's
    among them, with its outcome. Python serves the ended tasks beside the open ones
    (`served_state.browser`), so nothing here folds the log again.
@@ -53,7 +53,11 @@ export const endsByDone = (item) => item.ends === "done";
 
 const NOUNS = Object.freeze({ widget: "ask", reply: "question" });
 export const taskNoun = (item) =>
-  item.kind === "task" ? (NOUNS[item.ends] ?? "task") : item.kind;
+  item.kind === "task"
+    ? (NOUNS[item.ends] ?? "task")
+    : item.kind === "answer" && item.answer?.kind === "reply"
+      ? "reply"
+      : item.kind;
 
 const taskItem = (task) => ({
   kind: "task",

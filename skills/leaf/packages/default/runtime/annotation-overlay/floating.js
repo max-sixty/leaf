@@ -24,9 +24,10 @@
    anchored (CSS anchor positioning) to the element it stands beside, with its spot
    written as insets from that anchor, so the browser carries it through every scroll
    that moves the anchor, in step with the words. Words standing directly in a box that
-   scrolls them anchor to the nearest element beside them in that box, which the same
-   scroll carries (`anchorFor`). Where no anchor reaches a scroll, as inside a shadow
-   tree, native ScrollTimeline motion layers carry those remaining axes.
+   scrolls them anchor to the nearest element beside them in that box, or to the start
+   of what it holds, which the same scroll carries (`anchorFor`). Where no anchor reaches
+   a scroll, as inside a shadow tree, native ScrollTimeline motion layers carry those
+   remaining axes.
    One viewport frame holds the surface's native subtree and solver coordinates. Its
    layer graph stays intact across size solves and transfers focus/caret through the
    existing focus owner only when that graph changes. The frame ignores pointer input;
@@ -57,12 +58,16 @@
 
 import { afterPresentation } from "/runtime/presentation.js";
 import { keeps, layoutPx as px, atLayoutPrecision } from "/runtime/keeps.js";
-import { anchorElement, anchorName } from "/runtime/anchor-names.js";
+import {
+  anchorElement,
+  anchorFor,
+  anchorHolder,
+  anchorName,
+} from "/runtime/anchor-names.js";
 import { holdFocus } from "/runtime/focus.js";
 import { shownBand } from "/runtime/geometry.js";
 import {
   followScroll,
-  scrollContainer,
   scrollFollows,
   scrollMotions,
   scrollOrigins,
@@ -163,39 +168,12 @@ const stood = new Map();
 export const floatingSelections = () => [...stood.values()];
 
 const physicalContext = (context) =>
-  context?.nodeType === Node.TEXT_NODE ? context.parentElement : context;
+  context instanceof Element ? context : context?.parentElement;
 
-// An element the scroll around it carries as it carries the words beside it: one with a
-// box of its own, in flow where that scroll moves it. A line break renders as a break in
-// the words rather than a box, so it anchors nothing.
-const carriedAlong = (node) =>
-  node instanceof Element &&
-  !/^(br|wbr)$/.test(node.localName) &&
-  anchorElement(node) === node &&
-  node.getClientRects().length > 0 &&
-  /^(static|relative)$/.test(getComputedStyle(node).position);
-
-// The box a surface anchors to for `context`. Words standing directly in a box that
-// scrolls them move with that scroll, which an anchor on the box itself does not
-// follow. The nearest element beside them in that box moves with them, so the surface
-// anchors there and the browser carries it through that scroll with the words. A
+// A surface anchors to `context` where anchors reach (anchor-names.js, `anchorFor`). A
 // motion layer would carry the same scroll, but Chrome can paint it a frame before or
 // after the words it carries; it stays for a scroll no anchor reaches, as inside a
-// shadow tree or around words with no element beside them.
-function anchorFor(context) {
-  const physical = physicalContext(context);
-  if (!physical) return null;
-  const anchor = anchorElement(physical);
-  if (context === physical || anchor !== physical || !scrollContainer(physical))
-    return anchor;
-  for (
-    let before = context.previousSibling, after = context.nextSibling;
-    before || after;
-    before = before?.previousSibling, after = after?.nextSibling
-  )
-    for (const node of [before, after]) if (carriedAlong(node)) return node;
-  return anchor;
-}
+// shadow tree.
 
 // A presenter can retain this reading beside its reference rectangle before a
 // module load. The anchor box and scroll origins must describe that same geometry.
@@ -231,9 +209,8 @@ async function referenceScrolls(context, origins, getOffsetParent) {
 }
 
 export function floatingPlacement({ floating, update }) {
-  // Native anchors carry all ancestors of their CSS box. Targets inside a shadow host,
-  // and words in a self-scroller with no element beside them (`anchorFor`), have
-  // additional scroll coordinates. Each missing
+  // Native anchors carry all ancestors of their CSS box. Targets inside a shadow host
+  // have additional scroll coordinates. Each missing
   // source/axis gets one nested compositor layer with a replacement transform. Additive
   // effects on one node compose a frame late; nested native layers compose in the same
   // scroll frame. The viewport frame remains the solver's containing block.
@@ -377,7 +354,16 @@ export function floatingPlacement({ floating, update }) {
         contextElement: reference.contextElement ?? beside,
         getBoundingClientRect: () => client,
       };
-      const carried = new Set(anchor ? getOverflowAncestors(anchor) : []);
+      // The scrolls that carry the anchor, a content start's scroller's own among them.
+      const carrying = anchor && anchorHolder(anchor);
+      const carried = new Set(
+        carrying
+          ? [
+              ...(carrying === anchor ? [] : [carrying]),
+              ...getOverflowAncestors(carrying),
+            ]
+          : [],
+      );
       // Each scroller carries the box it holds next on the way in: the next scroller, or
       // the element the reference stands in.
       const sources = context

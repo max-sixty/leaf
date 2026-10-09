@@ -14,5 +14,13 @@
     "html",
     "annotation",
     "collaboration"
-  ]
+  ],
+  "userConfig": {
+    "hooks_module": {
+      "type": "boolean",
+      "title": "Watch pages with a hooks module (early access)",
+      "description": "Keep Leaf's watch between turns in a Claude Code hooks module rather than a background Stop hook, so a page's input still reaches the session after you interrupt a turn. Needs a Claude Code that loads hooks modules.",
+      "default": false
+    }
+  }
 }

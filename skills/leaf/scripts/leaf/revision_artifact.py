@@ -34,9 +34,9 @@ import posixpath
 import re
 import tempfile
 import threading
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from functools import cached_property, lru_cache
+from functools import cached_property, lru_cache, partial
 from pathlib import Path
 from types import MappingProxyType
 from urllib.parse import unquote, urlsplit
@@ -71,6 +71,11 @@ RESOURCE_TYPES = {
     ".otf": "font/otf",
 }
 _JAVASCRIPT = Language(tree_sitter_javascript.language())
+JAVASCRIPT_SUFFIXES = frozenset(
+    suffix
+    for suffix, mime in RESOURCE_TYPES.items()
+    if mime == "application/javascript"
+)
 
 
 class ArtifactError(ValueError):
@@ -203,9 +208,8 @@ class RevisionArtifact:
         return json.loads(self.manifest).get("widgets", {})
 
 
-def resolve_dependency(specifier: str, importer: str, *, module=False) -> str | None:
-    """Resolve an authored URL to the page file a revision holds for it, without a
-    filesystem escape.
+def dependency_path(specifier: str, importer: str, *, module=False) -> str | None:
+    """Resolve a browser dependency URL without assigning it to an application owner.
 
     None is a reference the revision does not hold, which stays as written: one on
     another server, a fragment of this document, or a data: URL.
@@ -234,7 +238,7 @@ def resolve_dependency(specifier: str, importer: str, *, module=False) -> str | 
         raise ArtifactError(f"{where}: encoded dependency path is not allowed")
     if module and not path.startswith(("/", "./", "../")):
         raise ArtifactError(
-            f"{where}: a module import must name a relative or /page/ URL"
+            f"{where}: a module import must name a relative or absolute local URL"
         )
     if path.startswith("/"):
         resolved = posixpath.normpath(path)
@@ -242,26 +246,35 @@ def resolve_dependency(specifier: str, importer: str, *, module=False) -> str | 
         resolved = posixpath.normpath(posixpath.join(posixpath.dirname(importer), path))
     if resolved.startswith("//") or not resolved.startswith("/"):
         raise ArtifactError(f"{where}: dependency escapes the page")
+    if module and Path(resolved).suffix not in JAVASCRIPT_SUFFIXES:
+        raise ArtifactError(
+            f"{where}: a module dependency must have JavaScript MIME type"
+        )
+    return resolved
+
+
+def resolve_dependency(specifier: str, importer: str, *, module=False) -> str | None:
+    """Admit an authored resource to the files or public entry points a revision holds."""
+    resolved = dependency_path(specifier, importer, module=module)
+    if resolved is None:
+        return None
+    where = f"{importer}: {specifier!r}"
     if module:
         if not resolved.startswith("/page/") and resolved not in PUBLIC_MODULES:
             raise ArtifactError(
                 f"{where}: module imports may use /page/ or a public layer entry point"
-            )
-        if Path(resolved).suffix not in {".js", ".mjs"}:
-            raise ArtifactError(
-                f"{where}: a module dependency must have JavaScript MIME type"
             )
     elif not resolved.startswith(("/page/", "/media/")):
         raise ArtifactError(f"{where}: dependency escapes /page/ and /media/")
     return resolved
 
 
-def javascript_tree(data: bytes, path: str):
-    """Parse UTF-8 JavaScript once at its source boundary, with located errors.
+def javascript_imports(data: bytes, path: str):
+    """Yield exact string-literal spans of static exports/imports and import().
 
-    Artifact capture and developer source analysis consume this same syntax
-    reading. Import admission remains with the artifact's reference reader.
-    """
+    A computed import() binds when it runs, so capture neither follows nor refuses it:
+    a CDN module named that way loads, and a page file it names is in the revision
+    only if something imports it literally."""
     try:
         data.decode("utf-8")
     except UnicodeDecodeError as error:
@@ -277,16 +290,6 @@ def javascript_tree(data: bytes, path: str):
                 )
             pending.extend(reversed(node.children))
         raise ArtifactError(f"{path}: invalid JavaScript")
-    return tree
-
-
-def _javascript_imports(data: bytes, path: str):
-    """Yield exact string-literal spans of static exports/imports and import().
-
-    A computed import() binds when it runs, so capture neither follows nor refuses it:
-    a CDN module named that way loads, and a page file it names is in the revision
-    only if something imports it literally."""
-    tree = javascript_tree(data, path)
     pending = [tree.root_node]
     while pending:
         node = pending.pop()
@@ -537,14 +540,33 @@ def capture_artifact(
     *,
     declaration_sources: Mapping[str, str] | None = None,
     widget_sources: Mapping[str, str] | None = None,
+    read_resource: Callable[[str], Resource] | None = None,
 ) -> RevisionArtifact:
     """Capture the candidate's complete inputs without executing authored code.
 
     The page keeps its last capture while every input is the same: the document's
     bytes, the vocabulary and declarations, and the stamp of every mutable file a
     capture may read. A capture that must be built is built from the caller's own
-    document, which the check that asks has already parsed."""
+    document, which the check that asks has already parsed.
+
+    A fixture builder may supply a resource reader that materializes missing media
+    before reading it through `capture_local_resource`. That reader uses this same
+    dependency discovery, including samples and transitive CSS and script inputs.
+    Its inputs may live outside the page, so captures with a supplied reader are
+    not cached by page-local stamps.
+    """
     page_dir = page_dir.absolute()
+    build = partial(
+        _capture_artifact,
+        page_dir,
+        document,
+        registry,
+        declaration_sources=declaration_sources,
+        widget_sources=widget_sources,
+        read_resource=read_resource or partial(capture_local_resource, page_dir),
+    )
+    if read_resource is not None:
+        return build()
     key = (
         document.data,
         _json(registry),
@@ -552,16 +574,7 @@ def capture_artifact(
         _json(dict(widget_sources or {})) if widget_sources is not None else None,
         _capture_input_stamps(page_dir),
     )
-    return memo(page_dir, _Capture).get(
-        key,
-        lambda: _capture_artifact(
-            page_dir,
-            document,
-            registry,
-            declaration_sources=declaration_sources,
-            widget_sources=widget_sources,
-        ),
-    )
+    return memo(page_dir, _Capture).get(key, build)
 
 
 class _Capture(Slot):
@@ -600,6 +613,46 @@ def capture_local_resource(page_dir: Path, path: str) -> Resource:
     return Resource(data, mime)
 
 
+def _resource_dependencies(path: str, data: bytes, mime: str) -> tuple[str, ...]:
+    """The local dependencies of an authored module or stylesheet."""
+    edges = []
+    if mime == "application/javascript" and path.startswith("/page/"):
+        for _, _, specifier in javascript_imports(data, path):
+            edges.append(resolve_dependency(specifier, path, module=True))
+    elif mime == "text/css" and path.startswith("/page/"):
+        try:
+            css = data.decode("utf-8")
+        except UnicodeDecodeError as error:
+            raise ArtifactError(f"{path}: CSS is not UTF-8") from error
+        for specifier in _css_dependencies(css):
+            edges.append(resolve_dependency(specifier, path))
+    return tuple(dict.fromkeys(edge for edge in edges if edge is not None))
+
+
+class _ResourceCapture:
+    """One capture's resource graph, including cycles and arbitrarily deep imports.
+
+    Record a resource before following its edges, so each path is read once. The
+    explicit worklist keeps graph depth independent of Python's call stack.
+    """
+
+    def __init__(self, read_resource: Callable[[str], Resource]) -> None:
+        self.read_resource = read_resource
+        self.resources: dict[str, Resource] = {}
+
+    def add(self, path: str) -> None:
+        pending = [path]
+        while pending:
+            path = pending.pop()
+            if path in self.resources:
+                continue
+            resource = self.read_resource(path)
+            data = resource.data
+            edges = _resource_dependencies(path, data, resource.mime)
+            self.resources[path] = Resource(data, resource.mime, tuple(sorted(edges)))
+            pending.extend(reversed(edges))
+
+
 def _capture_artifact(
     page_dir: Path,
     document: SourceDocument,
@@ -607,43 +660,27 @@ def _capture_artifact(
     *,
     declaration_sources: Mapping[str, str] | None = None,
     widget_sources: Mapping[str, str] | None = None,
+    read_resource: Callable[[str], Resource],
 ) -> RevisionArtifact:
     """Build a capture after its public wrapper has identified every input."""
-    resources = {}
-
-    def capture(path: str):
-        if path in resources:
-            return
-        resource = capture_local_resource(page_dir, path)
-        data, mime = resource.data, resource.mime
-        edges = []
-        if mime == "application/javascript" and path.startswith("/page/"):
-            for _, _, specifier in _javascript_imports(data, path):
-                edges.append(resolve_dependency(specifier, path, module=True))
-        elif mime == "text/css" and path.startswith("/page/"):
-            try:
-                css = data.decode("utf-8")
-            except UnicodeDecodeError as error:
-                raise ArtifactError(f"{path}: CSS is not UTF-8") from error
-            for specifier in _css_dependencies(css):
-                edges.append(resolve_dependency(specifier, path))
-        edges = [edge for edge in edges if edge is not None]
-        resources[path] = Resource(data, mime, tuple(sorted(set(edges))))
-        for edge in edges:
-            capture(edge)
+    capture = _ResourceCapture(read_resource)
+    resources = capture.resources
 
     # The layer's own imports are trusted and include computed widget module URLs.
     # Preserve the complete selected payload rather than infer that dynamic graph.
     for name in VENDORED_FILES:
         if (page_dir / name).is_file():
-            capture("/" + name)
+            capture.add("/" + name)
     for directory in BROWSER_DIRS:
         for path in sorted((page_dir / directory).rglob("*")):
             if path.is_file() and SERVED_PATH.fullmatch(
                 "/" + path.relative_to(page_dir).as_posix()
             ):
-                capture("/" + path.relative_to(page_dir).as_posix())
+                capture.add("/" + path.relative_to(page_dir).as_posix())
     resources["/registry.json"] = Resource(_json(registry), "application/json")
+    for tag, entry in registry.items():
+        if tag.startswith("lf-") and (initial := entry.get("x-initial")):
+            capture.add(initial)
 
     if widget_sources is None:
         widget_sources = {
@@ -654,7 +691,7 @@ def _capture_artifact(
             and f"/widgets/{tag}.js" in resources
         }
     for source in widget_sources.values():
-        capture("/" + source.lstrip("/"))
+        capture.add("/" + source.lstrip("/"))
 
     # Live observations and headless checks are browser code too. Capture their
     # source beside the runtime it reads, so a revision and an export have one
@@ -673,7 +710,7 @@ def _capture_artifact(
         for script in authored.inline_scripts:
             if script_kind(script["attrs"]) not in {"module", "classic"}:
                 continue
-            for _, _, specifier in _javascript_imports(
+            for _, _, specifier in javascript_imports(
                 script["body"].encode("utf-8"), "/index.html"
             ):
                 entries.append(
@@ -711,7 +748,7 @@ def _capture_artifact(
         )
     entries = [entry for entry in entries if entry is not None]
     for entry in entries:
-        capture(entry)
+        capture.add(entry)
 
     implementations = {
         tag: {
@@ -731,7 +768,7 @@ def _capture_artifact(
     # The vocabulary is digested without `$layer`, which describes the vendoring
     # run rather than the code it installed. Its fingerprint and producer commit
     # say where a layer was built, and its generation reaches a document through
-    # `runtime/layer-client.js`, where vendoring writes the epoch: a re-vendor
+    # `runtime/layer-generation.js`, where vendoring writes the epoch: a re-vendor
     # moves that module, so the modules below already carry it.
     executable = _digest(
         _canonical_json(
@@ -1154,7 +1191,7 @@ def _materialize(path: Path, bundle: Path) -> RevisionArtifact:
 
 def authored_imports(data: bytes, logical_path: str):
     """Yield each literal import of an authored module as its span and logical path."""
-    for start, end, specifier in _javascript_imports(data, logical_path):
+    for start, end, specifier in javascript_imports(data, logical_path):
         target = resolve_dependency(specifier, logical_path, module=True)
         if target is not None:
             yield start, end, target
@@ -1179,7 +1216,7 @@ def captured_imports(data: bytes, logical_path: str, resources: Mapping[str, Res
     if logical_path.startswith("/page/"):
         yield from authored_imports(data, logical_path)
         return
-    for start, end, specifier in _javascript_imports(data, logical_path):
+    for start, end, specifier in javascript_imports(data, logical_path):
         parsed = urlsplit(specifier)
         if (
             not specifier

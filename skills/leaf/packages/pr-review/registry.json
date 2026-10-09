@@ -147,43 +147,5 @@
     "x-upgrade": true,
     "x-height": true,
     "x-example": "<lf-pull-request id=\"reviewed-pr\" data-height=\"640\" source=\"pr-1842\"></lf-pull-request>"
-  },
-  "lf-call-diff": {
-    "description": "A commentable unified call-tree diff with links to its exact patch evidence.",
-    "x-instructions": "Select the diff package beside pr-review, and point diff at the lf-diff holding the exact patch. Supply authentic CallDiff plain-text output as the source’s string value:\n\n```bash\njq -Rs . calldiff.txt | leaf data set \"$PAGE\" <source-id>\n```\n\nKeep unchanged tree items as stable comparison landmarks. Prefer one focused file or entry point per widget for a large repository. Do not transcribe the output into markup, invent attribute reads as calls, or redraw separate before-and-after diagrams.",
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
-      "source": {
-        "type": "string",
-        "pattern": "^[a-z][a-z0-9-]*$"
-      },
-      "diff": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      }
-    },
-    "required": [
-      "id",
-      "source",
-      "diff"
-    ],
-    "additionalProperties": false,
-    "x-content": "empty",
-    "x-data": {
-      "document": {
-        "contract": "text-document",
-        "source": "source"
-      }
-    },
-    "x-refers": {
-      "diff": {}
-    },
-    "x-upgrade": true,
-    "x-height": true,
-    "x-example": "<lf-call-diff id=\"request-calls\" data-height=\"480\" source=\"request-call-diff\" diff=\"request-patch\"></lf-call-diff>"
   }
 }

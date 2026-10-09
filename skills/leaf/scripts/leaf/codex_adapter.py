@@ -7,7 +7,7 @@ task's delivery record, offers one delivery at a time, and reconciles the receip
 page is owed however that delivery was taken.
 
 While a proven tool hook has a running turn, it can offer the shared record
-between steps (`codex.offer_hook_delivery`). The adapter reserves its own route
+between steps (`codex.offer_hook_delivery`). The adapter reserves its own transport
 only when that turn is idle or no such hook has run, and an unread hook pointer
 then falls back to the same durable delivery.
 
@@ -21,9 +21,9 @@ turn. It observes the user's turns and Leaf delivery turns alike. Losing the
 connection disconnects the folds; reconnecting reconciles them with the provider's
 transcript, because a terminal task keeps running after this adapter disconnects.
 
-`codex.py` owns the protocol, the per-turn fold every carrier runs, the delivery
-records, and the page writers both transports share. What is here is the process
-around them.
+`codex.py` owns the protocol, the per-turn fold every App Server client runs, the
+delivery records, and the page writers both transports share. What is here is the
+process around them.
 """
 
 import json
@@ -35,11 +35,11 @@ import sys
 import threading
 import time
 from concurrent.futures import Future
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
 
 # The stream-activity writers are called as `codex.<name>`, so `leaf.codex` holds their
-# one binding: whatever takes a turn's readings there takes every carrier's too.
+# one binding: whatever takes a turn's readings there takes every client's too.
 from . import codex
 from .codex import (
     APP_SERVER_ENV,
@@ -63,10 +63,15 @@ from .codex import (
     retire_gone_task_records,
     retry_delay,
     start_app_server_delivery,
-    stream_reply_target,
     write_record,
 )
-from .codex_state import delivery_lock_path, hook_turn, step_delivery_turn
+from .codex_state import (
+    delivery_lock_path,
+    delivery_turn,
+    hook_turn,
+    sync_transcript_turn,
+)
+from .delivery import stream_reply_target
 from .detached import Handshake, starting_detached
 from .event_log import read_cursor
 from .harness import CodexHarness, Harness, session_harness
@@ -75,11 +80,11 @@ from .leases import (
     adapter_lease_path,
     release_lease,
     session_state_path,
+    step_hook_ran,
     take_lease,
 )
 from .machine import state_home
 from .service import (
-    PageTransaction,
     claim_page,
     owned_pages,
 )
@@ -91,10 +96,7 @@ from .state import (
     session_record,
     start_session_turn,
 )
-from .thread import (
-    answered_by_reply,
-    delivery_reply_reserved,
-)
+from .thread import delivery_reply_reserved
 
 QUEUE_TIMEOUT = 20
 
@@ -150,7 +152,9 @@ class TaskConnection:
     fold selection. A resume response uses its pre-request token, so intervening
     notifications or a newer prompt win; exact historical answers settle without
     adopting a current lifecycle. Matching completion refreshes the token for the
-    next natural provider turn.
+    next natural provider turn. Terminal provider IDs remain terminal for this
+    subscription, even after their heavy live folds are discarded; late output
+    and stale running snapshots cannot give them a new lifecycle.
     """
 
     def __init__(self, endpoint: str, thread_id: str):
@@ -160,6 +164,9 @@ class TaskConnection:
         self.turns: dict[str, TurnFold] = {}
         self.running: str | None = None
         self.lifecycle = session_record(thread_id)
+        self.terminal_turns: set[str] = set()
+        if self.lifecycle and self.lifecycle["turn_closed"] is not None:
+            self.terminal_turns.add(self.lifecycle["turn"])
         self.stop_event = threading.Event()
         self.socket = None
         self.started = False
@@ -189,7 +196,8 @@ class TaskConnection:
             self.stop_event.set()
         if self.socket is not None:
             self.socket.close()
-        self.thread.join()
+        if self.thread.ident is not None:
+            self.thread.join()
 
     def start_delivery(self, payload: dict) -> bool:
         """Request a fresh idle check and start; wait without owning shared locks."""
@@ -377,14 +385,8 @@ class TaskConnection:
             if (record.get("transport") or {}).get("turn") in hydrated:
                 continue
             target = delivery_stream_reply_target(self.thread_id, path.stem)
-            if target is not None:
-                try:
-                    with PageTransaction(Path(target["page"])) as page:
-                        answered = answered_by_reply(page.events, target["responds"])
-                except FileNotFoundError:
-                    continue
-                if not answered:
-                    unresolved.add(path.stem)
+            if target is not None and codex.reply_target_answered(target) is False:
+                unresolved.add(path.stem)
         if not (pending or known or unresolved):
             return
         cursor = None
@@ -400,6 +402,7 @@ class TaskConnection:
                     "cursor": cursor,
                 },
             )
+            self._observe_terminals(page["data"])
             for turn in page["data"]:
                 if not _turn_items_complete(turn):
                     raise RuntimeError(
@@ -472,13 +475,14 @@ class TaskConnection:
         A running turn is followed, whether or not it was before the connection
         dropped. An ended one is committed if something here was following it, or
         if it carries a delivery: its item was written while this connection was
-        down, or its carrier process died while the turn ran on, and its answer
+        down, or its adapter process died while the turn ran on, and its answer
         is still to write. Its turn is closed, never reopened. The snapshot's other
         turns are history. Return whether this snapshot supplied complete items.
         """
         # A completion with unloaded items says it ended, but cannot say what
         # it answered. Preserve its fold and reservation until full hydration.
         running = turn.get("status") == "inProgress"
+        self._observe_terminals([turn])
         complete = _turn_items_complete(turn)
         if not running and not complete:
             return False
@@ -517,12 +521,8 @@ class TaskConnection:
             turn_id = params.get("turnId") or self.running
         if turn_id is None:
             return
-        # Live evidence must still own the subscription's epoch before it can
-        # change running identity or reuse even an existing fold. Historical
-        # completion instead settles the exact delivery without reopening it.
-        if method != "turn/completed" and not self._observe_lifecycle(turn_id):
-            return
-
+        if method == "turn/completed":
+            self.terminal_turns.add(turn_id)
         delivery_id = app_server_delivery_id(message)
         # An offered delivery can name a turn whose `turn/started` reached the task
         # before this subscription was open to see it.
@@ -532,6 +532,22 @@ class TaskConnection:
             and delivery_record_state(self.thread_id, delivery_id)
             in {"offering", "abandoned"}
         )
+        if method != "turn/completed":
+            # Background output can outlive its turn. A start or exact offered
+            # delivery may introduce identity; ordinary items can only update
+            # a fold that still owns this subscription's current epoch.
+            if (
+                method != "turn/started"
+                and not adopting
+                and (
+                    turn_id not in self.turns
+                    or self.lifecycle is None
+                    or self.lifecycle["turn"] != turn_id
+                )
+            ):
+                return
+            if not self._observe_lifecycle(turn_id):
+                return
         fold = self._fold(
             turn_id,
             delivery_id,
@@ -548,10 +564,22 @@ class TaskConnection:
             fold.commit(terminal)
         self._refresh_lifecycle(turn_id)
 
+    def _observe_terminals(self, turns: list[dict]) -> None:
+        """Remember terminal identity even when items are unloaded or irrelevant.
+
+        These provider observations survive removal of their live folds. They
+        authorize no current state; they only prevent an ended ID from reopening.
+        """
+        self.terminal_turns.update(
+            turn["id"] for turn in turns if turn.get("status") != "inProgress"
+        )
+
     def _observe_lifecycle(
         self, turn_id: str, expected: dict | None | object = ...
     ) -> bool:
         """Adopt ordered live provider evidence only against this subscription's epoch."""
+        if turn_id in self.terminal_turns:
+            return False
         observed = start_session_turn(
             self.thread_id, turn_id, self.lifecycle if expected is ... else expected
         )
@@ -760,7 +788,7 @@ def _recover_receipt(session_id: str) -> bool:
 def _offer_queued_delivery(
     codex_path: str,
     session_id: str,
-    connection: "TaskConnection | None",
+    connection: TaskConnection | None,
 ) -> bool:
     """Offer one collecting delivery through the selected Codex transport.
 
@@ -774,8 +802,14 @@ def _offer_queued_delivery(
         # activity may hold back, but only fresh provider status permits a start.
         # Saying so is not work done: the loop goes on watching pages meanwhile.
         return False
+    if connection is None:
+        # Resume may start with no input and therefore no prompt hook. Read the
+        # provider's lifecycle before reserving the idle queue, including while
+        # the resumed turn is still executing its first tool.
+        sync_transcript_turn(session_id)
     observed_hook_turn = hook_turn(session_id)
-    if connection is None and step_delivery_turn(session_id) is not None:
+    active_hook_turn = delivery_turn(session_id) if connection is None else None
+    if active_hook_turn is not None and step_hook_ran(session_id):
         # A trusted tool hook can offer this input before the running turn ends.
         # Stop/Interrupt closes that turn; unread pointers then take this queue.
         return False
@@ -783,7 +817,7 @@ def _offer_queued_delivery(
     with flocked(lock):
         if hook_turn(session_id) != observed_hook_turn:
             # A prompt, ending, or tool step changed while activity was read.
-            # Retry before reserving a route against that newer observation.
+            # Retry before reserving a transport against that newer observation.
             return False
         records = delivery_records(session_id)
         unoffered = next(
@@ -797,6 +831,13 @@ def _offer_queued_delivery(
         prepared = None
         if unoffered is not None:
             path, record = unoffered
+            if active_hook_turn is not None and record.get("transport") == {
+                "phase": "hook",
+                "turn": active_hook_turn,
+            }:
+                # A reserved Stop offer proves this specific delivery can enter
+                # the running turn even without earlier between-step capability.
+                return False
             prepared = offer_delivery(path, record, turn_replies=connection is not None)
             if (record.get("transport") or {}).get("phase") != "starting":
                 record["transport"] = {
@@ -840,43 +881,39 @@ def run_adapter(
     harness = session_harness()
     if harness is None or harness.name != CodexHarness.name:
         raise RuntimeError("the Codex adapter needs a Codex task identity")
-    lease = take_lease(adapter_lease_path(harness.session))
-    if lease is None:
-        raise RuntimeError("a Codex delivery adapter is already active")
-    # The lease record names this adapter's transport, so a later `leaf codex start`
-    # in the task reports the one it joins.
-    lease.truncate(0)
-    lease.write(json.dumps({"app_server": app_server}).encode())
-    lease.flush()
-    watch = Watch(harness)
-    if not watch.acquire():
-        release_lease(lease)
-        raise RuntimeError(
-            "another `leaf wait` is already active; stop it before starting delivery"
-        )
-    leases_released = False
-    connection = None
-    start_lock = adapter_start_lock_path(harness.session)
+    with ExitStack() as resources:
+        lease = take_lease(adapter_lease_path(harness.session))
+        if lease is None:
+            raise RuntimeError("a Codex delivery adapter is already active")
+        # The lease record names this adapter's transport, so a later `leaf codex start`
+        # in the task reports the one it joins.
+        resources.callback(release_lease, lease)
+        lease.truncate(0)
+        lease.write(json.dumps({"app_server": app_server}).encode())
+        lease.flush()
+        watch = Watch(harness)
+        if not watch.acquire():
+            raise RuntimeError(
+                "another `leaf wait` is already active; stop it before starting delivery"
+            )
+        resources.callback(watch.release)
+        connection = None
+        start_lock = adapter_start_lock_path(harness.session)
 
-    def retire() -> None:
-        """Let this adapter's leases go, and with them, once the task owns no page,
-        the log this run wrote. Taken under the start lock, so no successor starts
-        until it is done; a task that still owns a page keeps the log for the next
-        adapter it starts. On the way out it retires every task's delivery records
-        whose pages are gone (`retire_gone_task_records`)."""
-        nonlocal leases_released
-        if connection is not None:
-            connection.stop()
-        if not owned_pages(harness.session):
-            adapter_log_path(harness.session).unlink(missing_ok=True)
-        retire_gone_task_records()
-        watch.release()
-        release_lease(lease)
-        leases_released = True
+        def retire() -> None:
+            """Let this adapter's leases go, and with them, once the task owns no page,
+            the log this run wrote. Taken under the start lock, so no successor starts
+            until it is done; a task that still owns a page keeps the log for the next
+            adapter it starts. On the way out it retires every task's delivery records
+            whose pages are gone (`retire_gone_task_records`)."""
+            resources.close()
+            if not owned_pages(harness.session):
+                adapter_log_path(harness.session).unlink(missing_ok=True)
+            retire_gone_task_records()
 
-    try:
         if app_server is not None:
             connection = TaskConnection(app_server, harness.session)
+            resources.callback(connection.stop)
             connection.start()
         else:
             check_queue_command(codex_path)
@@ -912,42 +949,32 @@ def run_adapter(
                 failures = 0
                 continue
 
-            captured = False
-
-            def capture(reading) -> None:
-                """Persist the batch without claiming that a turn opened."""
-                nonlocal captured
-                captured = capture_batch(harness.session, reading)
-
             mark = watch.mark()
-            reading = read_watch_pass(watch, None, deliver=capture)
-            if captured:
+            reading = read_watch_pass(
+                watch, None, deliver=lambda tick: capture_batch(harness.session, tick)
+            )
+            if reading.delivered:
                 continue
             if reading.outcome is not None or not reading.live:
                 with flocked(start_lock):
-                    captured = False
-                    reading = read_watch_pass(watch, None, deliver=capture)
-                    if captured or (reading.outcome is None and reading.live):
+                    reading = read_watch_pass(
+                        watch,
+                        None,
+                        deliver=lambda tick: capture_batch(harness.session, tick),
+                    )
+                    if reading.delivered or (reading.outcome is None and reading.live):
                         continue
                     if not owned_pages(harness.session):
                         retire()
                         return reading.outcome or 0
-                # The route belongs to the session's ownership, not its current
+                # The adapter belongs to the session's ownership, not its current
                 # authored status. Idle pages deliver nothing; a later status
-                # resumes this same route. Wait outside the startup lock.
+                # resumes this same adapter. Wait outside the startup lock.
                 watch.await_news(mark, timeout=1)
                 continue
             # A second a pass, as well as each time a page moves: the queued offer
             # and receipt recovery above answer to Codex, not to the page's files.
             watch.await_news(mark, timeout=1)
-    finally:
-        # Provider turns outlive the adapter. Disconnect every fold, preserving
-        # its reserved reply and transcript recovery for the next owner.
-        if connection is not None:
-            connection.stop()
-        if not leases_released:
-            watch.release()
-            release_lease(lease)
 
 
 def cmd_codex_start(
@@ -955,7 +982,7 @@ def cmd_codex_start(
     codex_path: str | None = None,
     app_server: str | None = None,
 ) -> dict:
-    """Claim PAGE and start one detached delivery carrier for this task, or find
+    """Claim PAGE and start one detached delivery adapter for this task, or find
     the one already running; return which, with its task and transport."""
     with preparing_adapter(session_harness(), codex_path, app_server) as prepared:
         claim_page(page_dir)
@@ -968,12 +995,12 @@ def preparing_adapter(
     codex_path: str | None = None,
     app_server: str | None = None,
 ):
-    """Retain a ready carrier for `harness`'s task until the caller commits page
+    """Retain a ready adapter for `harness`'s task until the caller commits page
     ownership.
 
-    The same task start lock serializes carrier startup and no-page retirement.
+    The same task start lock serializes adapter startup and no-page retirement.
     Holding it across the caller's publication lets delivery prepare before any
-    claim exists, without a carrier retiring in that gap. A new carrier captures
+    claim exists, without an adapter retiring in that gap. A new adapter captures
     the launching harness's canonical session generation before subscribing to turns.
     """
     if harness is None or harness.name != CodexHarness.name:

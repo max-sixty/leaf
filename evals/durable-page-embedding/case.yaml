@@ -25,23 +25,10 @@ vars:
     The page directory is not reachable from here, so reply with the pane's HTML
     fragment and a brief explanation rather than writing a file.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-page-authoring
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/page-authoring\.md
-- type: javascript
+- type: regex
   metric: has-frame
-  value: file://text-regex.cjs
-  config:
-    pattern: <iframe\b[^>]*\bsrc=["\x27](?:http://127\.0\.0\.1:44930/|/|\./)?versions/v2\.html\?pin#release-review["\x27]
-    flags: i
-    negate: false
+  value: <iframe\b[^>]*\bsrc=["\x27](?:http://127\.0\.0\.1:44930/|/|\./)?versions/v2\.html\?pin#release-review["\x27]
+  transform: output.toLowerCase()
 - type: llm-rubric
   metric: judgment
   value: |

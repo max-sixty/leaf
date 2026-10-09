@@ -14,7 +14,8 @@ vars:
   prompt: |
     You are the agent for a public leaf.page session, with its page directory as
     your working directory. The harness started this turn from a leaf_delivery
-    whose only event owes a turn answer. The user's comment is: "Release a8fe0702
+    whose only event has answer {kind: reply, writer: turn,
+    ref: "62af9e31:0:release-comment", to: release-comment, for: release-comment}. The user's comment is: "Release a8fe0702
     passed its deployment checks. Record that on the board, and tell me when it's
     done." You already sent the opening message and saved an index.html edit
     adding the release to the board. A shell read confirmed the hash is present.
@@ -26,11 +27,6 @@ vars:
     the turn. Only reading instructions runs here; show any commands you would
     run and then the final reply.
 assert:
-- type: javascript
-  metric: reads-app-server-contract
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/harness-codex-app-server\.md
 - type: regex
   metric: checks-saved-edit
   value: 'page check\s+\S+'

@@ -35,8 +35,8 @@ test("authored ranks and computed keys follow the rules the append door reads", 
   }
 });
 
-const record = { kind: "position", within: "lf-column", value: "to", rank: "rank" };
-const spec = { unit: "card", record };
+const record = { kind: "position", within: "lf-column" };
+const spec = { unit: "unit", record };
 const authored = new Map([
   [
     "board",
@@ -67,7 +67,7 @@ function board() {
     }).get("board").state.move;
   return {
     move(card, to, index) {
-      const detail = { card, to, rank: rankAt(state(), to, index, card) };
+      const detail = { unit: card, value: to, rank: rankAt(state(), to, index, card) };
       const e = {
         id: `m${moves.length}`,
         seq: moves.length,
@@ -169,7 +169,7 @@ const dropX = {
   seq: 0,
   widget: "board",
   action: "move",
-  detail: { card: "x", to: "todo", rank: "1i" },
+  detail: { unit: "x", value: "todo", rank: "1i" },
 };
 const foldV2 = (entry) =>
   foldWidgetStates(v2, {
@@ -213,7 +213,7 @@ for (const { name, authored: containers, moves, order } of cases.folds) {
             seq,
             widget: "board",
             action: "move",
-            detail: { card, to, rank },
+            detail: { unit: card, value: to, rank },
           },
         },
       ]),

@@ -8,6 +8,8 @@
  * mechanical values enter the semantic snapshot.
  */
 
+import { signal } from "@preact/signals-core";
+
 export type PresentationOutcome = "presented" | "superseded";
 export type PresentationStatus = "committed" | "failed";
 
@@ -124,8 +126,7 @@ interface RegionWaiter<
 
 export function describeFailure(reason: unknown): string {
   const message = reason instanceof Error ? reason.message : String(reason);
-  if (!(reason instanceof AggregateError) || reason.errors.length === 0)
-    return message;
+  if (!(reason instanceof AggregateError) || reason.errors.length === 0) return message;
   return `${message}: ${reason.errors.map(describeFailure).join("; ")}`;
 }
 
@@ -136,6 +137,12 @@ export function createPresentationCoordinator<
   Value,
   Proof,
 >({ reportFailure }: { reportFailure: (reason: unknown) => void }) {
+  // Mechanical observers use the same Signals primitive as semantic selections.
+  // Changes wake a blocked reading; they never publish a semantic epoch.
+  const changes = signal(0);
+  const changed = () => {
+    changes.value += 1;
+  };
   let document: DocumentToken | null = null;
   let documentGeneration = 0;
   let semanticEpoch = -1;
@@ -245,6 +252,7 @@ export function createPresentationCoordinator<
       completed: false,
     };
     resolveRegionWaiters();
+    changed();
     return publication;
   }
 
@@ -253,6 +261,7 @@ export function createPresentationCoordinator<
     barrier.sealed = true;
     completeBarrier();
     resolveRegionWaiters();
+    changed();
     return true;
   }
 
@@ -294,6 +303,7 @@ export function createPresentationCoordinator<
       completeBarrier();
       resolveRegionWaiters();
     }
+    changed();
   }
 
   function attach(
@@ -322,6 +332,8 @@ export function createPresentationCoordinator<
       commit: null,
       retired: false,
     });
+
+    changed();
 
     const present = (
       value: Value,
@@ -352,6 +364,7 @@ export function createPresentationCoordinator<
         // Replacing a region can also invalidate a domain-scoped wait whose semantic
         // publication is unchanged, such as an older external-data revision.
         resolveRegionWaiters();
+        changed();
         try {
           const proof = await completion;
           finish(ticket, "committed", proof);
@@ -415,6 +428,7 @@ export function createPresentationCoordinator<
         retiringBarrier.members.delete(region);
         completeBarrier();
         resolveRegionWaiters();
+        changed();
       });
     };
 
@@ -482,6 +496,21 @@ export function createPresentationCoordinator<
     );
   }
 
+  function currentRegionsPresented(
+    current: () => PresentationPublication<DocumentToken> | null,
+    wanted: readonly Region[],
+  ): boolean {
+    const target = current();
+    return (
+      target !== null &&
+      regionOutcome({
+        ...target,
+        regions: new Set(wanted),
+        resolve: () => {},
+      }) === "presented"
+    );
+  }
+
   async function whenCurrentRegionsPresented(
     current: () => PresentationPublication<DocumentToken> | null,
     regions: readonly Region[],
@@ -537,6 +566,15 @@ export function createPresentationCoordinator<
     whenCurrentPresented,
     currentPresented,
     whenCurrentRegionsPresented,
+    currentRegionsPresented,
+    subscribe: (callback: () => void) =>
+      changes.subscribe(() => {
+        try {
+          callback();
+        } catch (reason) {
+          reportFailure(reason);
+        }
+      }),
     read,
   });
 }

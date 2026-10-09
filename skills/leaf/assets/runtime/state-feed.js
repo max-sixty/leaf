@@ -23,6 +23,7 @@ import {
   runtime,
 } from "./context.js";
 import { applicationState } from "./semantic-state.js";
+import { completeReadingReturn, readingReturn } from "./reading-continuity.js";
 import {
   layerHeaders,
   admitResponse,
@@ -239,30 +240,47 @@ export function createStateFeed({
     // of opening a second one alongside.
     let reading = true;
     let readQueued = false;
+    let applyingReads = 0;
     const askOnce = async () => {
+      const returned = readingReturn();
       try {
         const state = await readState(STATE_READ_TIMEOUT_MS);
-        if (state)
+        if (state) {
+          applyingReads += 1;
           void receiveState(state)
             .then(
-              () => {
+              async () => {
                 readAnswered = true;
+                // receiveState waits for document proof and any invalidation
+                // queued behind it. present alone only stamps first startup.
+                await present();
+                // An overtaken candidate may fulfill before the newer candidate
+                // finishes preparing or painting. Only the last applying read
+                // can restore protection; otherwise the freshness look closes it.
+                if (applyingReads === 1 && !stateApplying())
+                  completeReadingReturn(returned);
               },
-              (error) => {
+              async (error) => {
                 readAnswered = false;
                 reportPageError(`read failed: ${error?.message ?? error}`);
                 renderStatus(error);
+                await present();
               },
             )
             // Presentation's own fault is reported as its own: the read behind it
             // stands, and the tick retries the presentation rather than the read.
-            .then(present)
             .catch((error) => {
               reportPageError(`presentation failed: ${error?.message ?? error}`);
+            })
+            .finally(() => {
+              applyingReads -= 1;
             });
-        else {
+        } else {
           void readNothing()
-            .then(present)
+            .then(async () => {
+              await present();
+              if (!applyingReads && !stateApplying()) completeReadingReturn(returned);
+            })
             .catch((error) => {
               readAnswered = false;
               reportPageError(`read failed: ${error?.message ?? error}`);
@@ -310,6 +328,7 @@ export function createStateFeed({
       listening = interval;
       const look = async () => {
         let delay = LOOK_MS;
+        const returned = readingReturn();
         try {
           const response = await fetch(pageUrl("api/news"), {
             signal: globalThis.AbortSignal.any([
@@ -321,10 +340,24 @@ export function createStateFeed({
           if (!admitResponse(response))
             throw new Error("news belongs to another delivery");
           if (!response.ok) throw new Error(`news returned HTTP ${response.status}`);
-          const reading = await response.text();
+          const observed = await response.text();
           if (listening === interval) {
-            if (reading !== freshness && reading !== runtime.reading) ask();
-            freshness = reading;
+            if (observed !== freshness && observed !== runtime.reading) ask();
+            else if (
+              returned !== null &&
+              observed === runtime.reading &&
+              !reading &&
+              !applyingReads &&
+              !stateApplying()
+            ) {
+              // There is no newer state to ask for. Still present what this tab
+              // held before the absence, then protect its new baseline again.
+              await invalidateDom();
+              await present();
+              if (!reading && !applyingReads && !stateApplying())
+                completeReadingReturn(returned);
+            }
+            freshness = observed;
           }
         } catch {
           if (listening !== interval) return;
@@ -336,8 +369,24 @@ export function createStateFeed({
       void look();
     };
     document.addEventListener("visibilitychange", () => {
-      if (pageIsVisible()) listen();
-      else stopListening();
+      if (!pageIsVisible()) {
+        stopListening();
+        return;
+      }
+      const returned = readingReturn();
+      // Revealing cached news needs no network round trip. A live page keeps
+      // continuity interrupted until its freshness/state answer is presented;
+      // fixed samples and offline pages already have their complete reading.
+      void invalidateDom()
+        .then(present)
+        .then(() => {
+          if (offlineInteractive || passiveSample || !sessionIsActive())
+            completeReadingReturn(returned);
+        })
+        .catch((error) =>
+          reportPageError(`return presentation failed: ${error?.message ?? error}`),
+        );
+      listen();
     });
     document.addEventListener("lf-session-active", listen);
     // The ear opens once the page has presented, not once the container has answered: a

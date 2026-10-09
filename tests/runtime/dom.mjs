@@ -28,6 +28,7 @@ GlobalRegistrator.register({ url: "https://leaf.test/" });
 // What a delivered document's prepaint declares before any module runs
 // (`runtime/prepaint.js`): the page's storage scope, "" for a page at the origin's root.
 document.documentElement.dataset.lfPageScope = "";
+await import("../../skills/leaf/assets/runtime/prepaint.js");
 
 const at = (path) => fileURLToPath(new URL(path, import.meta.url));
 const PACKAGES = at("../../skills/leaf/packages");

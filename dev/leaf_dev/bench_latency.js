@@ -3,9 +3,11 @@
  * Installed before each document. The goals stay in sessionStorage so a revision
  * that reloads the page is sampled by the document that replaces it. Sampling
  * records the first painted frame that meets each goal and the traffic from arming
- * through settlement; Python drives the gestures and agent writes.
+ * through settlement; Python drives the gestures and agent writes in the top tab.
+ * Embedded examples have their own semantic document and share no measurement.
  */
 (() => {
+  if (window !== window.top || location.protocol === "about:") return;
   const WATCH = "leaf-bench-watch";
   performance.setResourceTimingBufferSize(1000000);
   const documentId = crypto.randomUUID();
@@ -25,17 +27,25 @@
         ":is(.lf-thread, .lf-page-thread) :is([data-mid], [data-event])",
       ),
     ].filter((node) => node.textContent.includes(words) && shown(node));
-  const saysSent = (node) => node.textContent.trim() === "Sent" && shown(node);
+  let semantic = null;
+  let stopWatching = null;
+  async function diagnostics() {
+    const entry = document.querySelector("script[data-lf-entry]").dataset.lfEntry;
+    semantic ??= await import(
+      new URL("runtime/check-api.js", new URL(entry, location.href)).href
+    );
+  }
   const facts = {
     message: (words) => messages(words).length > 0,
-    sent: (words) =>
-      messages(words).some((message) =>
-        [
-          ...(
-            message.closest(".lf-thread, .lf-page-thread") ?? message
-          ).querySelectorAll(".lf-msg-sending"),
-        ].some(saysSent),
-      ),
+    // Admission and presentation belong to this exact gesture, even when its
+    // workflow already advanced beyond the initial delivery receipt.
+    delivered: (_intent, attempt) =>
+      Boolean(attempt) &&
+      Boolean(semantic) &&
+      semantic.applicationPresented() &&
+      semantic
+        .readApplication()
+        .authoritative?.browser.receipts.some((receipt) => receipt.attempt === attempt),
     card: ({ card, to }) => {
       const node = document.getElementById(card);
       return (
@@ -44,12 +54,6 @@
         shown(node)
       );
     },
-    cardSent: (card) =>
-      [
-        ...document.querySelectorAll(
-          `leaf-margin-cluster[data-lf-margin-for="${card}"] .lf-margin-entry-label-word`,
-        ),
-      ].some(saysSent),
     status: (detail) => {
       const node = document.querySelector(".lf-status-text");
       return shown(node) && node.textContent.includes(detail);
@@ -80,10 +84,7 @@
           let open = false;
           for (const goal of watch.goals) {
             if (goal.at !== null) continue;
-            let met = false;
-            try {
-              met = facts[goal.fact](goal.arg);
-            } catch {}
+            const met = facts[goal.fact](goal.arg, goal.attempt);
             if (met) {
               goal.at = at;
               // Where a trace of the page finds this frame (`leaf-dev profile`).
@@ -106,7 +107,10 @@
   });
   Object.defineProperty(window, "__leafBench", {
     value: Object.freeze({
-      arm(goals) {
+      async arm(goals) {
+        const delivering = goals.some((goal) => goal.fact === "delivered");
+        if (delivering) await diagnostics();
+        stopWatching?.();
         input = null;
         const watch = {
           goals: goals.map((goal) => ({ ...goal, at: null })),
@@ -115,10 +119,35 @@
           ledger: ledger(),
         };
         sessionStorage.setItem(WATCH, JSON.stringify(watch));
+        if (delivering) {
+          const existing = new Set(
+            semantic.readApplication().unresolved.map((entry) => entry.event.attempt),
+          );
+          // Bind before the POST can answer: a fast admission may remove its local
+          // ledger entry before the next frame samples the painted result.
+          stopWatching = semantic.watchSemantic((root) => {
+            const watch = watched();
+            for (const goal of watch.goals) {
+              if (goal.fact !== "delivered" || goal.attempt) continue;
+              const entry = root.unresolved.find(
+                ({ event }) =>
+                  !existing.has(event.attempt) &&
+                  event.kind === goal.arg.kind &&
+                  (!goal.arg.unit || event.detail.unit === goal.arg.unit),
+              );
+              if (entry) goal.attempt = entry.event.attempt;
+            }
+            sessionStorage.setItem(WATCH, JSON.stringify(watch));
+          });
+        }
         sample();
       },
       watch: watched,
-      disarm: () => sessionStorage.removeItem(WATCH),
+      disarm() {
+        stopWatching?.();
+        stopWatching = null;
+        sessionStorage.removeItem(WATCH);
+      },
       input: () => input,
       revision: () =>
         Number(document.querySelector('meta[name="lf-revision"]')?.content),
@@ -161,5 +190,9 @@
       },
     }),
   });
-  if (watched()) sample();
+  if (watched()) {
+    if (watched().goals.some((goal) => goal.fact === "delivered"))
+      addEventListener("DOMContentLoaded", diagnostics, { once: true });
+    sample();
+  }
 })();

@@ -60,7 +60,7 @@ export function createVisualMarkPaint() {
       const geometry =
         rebuildGeometry || !record ? paintGeometry(target.surface) : record.geometry;
       const placed = placement(target.surface, Boolean(geometry), inChrome(element));
-      if (!placed) {
+      if (!placed.shown) {
         element.classList.toggle(PROJECTED, false);
         if (record) {
           record.geometry = geometry;

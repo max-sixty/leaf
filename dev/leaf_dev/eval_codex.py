@@ -172,7 +172,13 @@ class CodexChild:
     `close` ends observation after an active turn completes; `limit` bounds the
     entire session, including its idle delivery waits. The production detached
     adapter may open further turns until the driver closes this session.
+
+    Its turns take Leaf's App Server transport: the private server below sets
+    `LEAF_CODEX_APP_SERVER` (`private_app_server`). The queue transport the desktop
+    app and IDE use runs only under `leaf-dev verify-codex-task`.
     """
+
+    transport = "app-server"
 
     def __init__(self, cwd, prompt, *args, stderr, limit, timed_out, dirs=(), env=None):
         from leaf_dev.arms import MODELS, codex_home, environment, now
@@ -291,6 +297,9 @@ class CodexChild:
     def close(self):
         self.closing = True
 
+    def abort(self):
+        self._give_up()
+
     def _give_up(self):
         self.timed_out.touch()
         self.closing = True
@@ -298,6 +307,7 @@ class CodexChild:
 
     def __exit__(self, *exc):
         self.deadline.cancel()
+        self.deadline.join()
         self.task.socket.close()
         self.server.__exit__(*exc)
         self.raw.close()

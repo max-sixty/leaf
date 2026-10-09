@@ -1,7 +1,7 @@
 /* The semantic target a comment or reaction at current browser focus acts on.
    Focus inside a widget keeps its exact datum or visual part; only ordered page walks
    retarget it to the document host. Pointer and focus share aimTargetAt. */
-import { focused } from "../keyboard/scopes.js";
+import { focused } from "../focus.js";
 import { inChrome } from "../passages.js";
 import { aimTargetAt } from "../anchor-resolution.js";
 import { placeOf } from "../standing-target.js";

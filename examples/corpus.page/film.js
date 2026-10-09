@@ -7,7 +7,7 @@
 // between its two worlds; the Painter reconciles keyed SVG nodes against that frame. The
 // page tells the step beside the film from the chapter and caption each frame carries.
 
-import { keeps, keepsText } from "/runtime/widget-api.js";
+import { keeps, keepsText, offer, setChildren } from "/runtime/widget-api.js";
 
 const SVG = "http://www.w3.org/2000/svg";
 const W = 1280;
@@ -161,6 +161,9 @@ export function compile(f, sc = EXAMPLE) {
   let noted = chapter;
   let captionTone = "ink";
   let caption = "";
+  const removal = f.remove
+    ? "Removed in step 7 if the run reaches it."
+    : "Kept (--no-remove).";
   const T = sc.target;
   const B = sc.branch;
 
@@ -295,7 +298,7 @@ export function compile(f, sc = EXAMPLE) {
       tone: "feat",
       side: 1,
       label: B,
-      info: `The branch being merged. Deleted with its worktree in step 7.`,
+      info: `The branch being merged. ${removal}`,
     });
     w.trees.feature = {
       o: 1,
@@ -304,7 +307,7 @@ export function compile(f, sc = EXAMPLE) {
       branch: B,
       dirty: sc.dirty,
       note: "",
-      info: `The worktree wt merge runs in. Removed in step 7 unless --no-remove.`,
+      info: `The worktree wt merge runs in. ${removal}`,
     };
   });
   if (moved) {
@@ -857,13 +860,13 @@ export function compile(f, sc = EXAMPLE) {
   const kept = ran.filter((v) => v === "squashed" || v === "rebased");
   const endTitle =
     {
-      rebase: "Refused before anything ran.",
+      rebase: "Rebase refused.",
       conflict: "Stopped mid-rebase.",
       premerge: `A hook failed. ${T} never moved.`,
     }[failed] ?? "Landed.";
   const endSub =
     {
-      rebase: `--no-rebase keeps the graph as-is, so ${T} must already be its ancestor.`,
+      rebase: `--no-rebase requires ${T} to be an ancestor of the resulting branch.`,
       conflict: `Resolve the conflict in ${sc.worktree}, then run wt merge again. ${T} is untouched.`,
       premerge: `Fix it and run wt merge again${kept.length ? ` — it's already ${kept.join(" and ")}` : ""}.`,
     }[failed] ??
@@ -954,10 +957,13 @@ export function frame(film, t) {
     const n = sc.lines.length;
     sc.lines.forEach((l, k) => {
       const lead = n === 1 ? 0 : (k / n) * 0.7;
-      const r = j < i ? 1 : raw;
-      if (r < lead) return;
-      const shown = clamp01((r - lead) / (l.kind === "cmd" ? 0.8 : 0.12));
-      lines.push({ ...l, shown, at: sc.start + lead * sc.dur });
+      const at = sc.start + lead * sc.dur;
+      if (t < at) return;
+      const shown =
+        j < i ? 1 : clamp01((t - at) / (sc.dur * (l.kind === "cmd" ? 0.8 : 0.12)));
+      // Appearance and seeking have different meanings: a line can enter during
+      // motion, but selecting it holds the complete result of its scene.
+      lines.push({ ...l, shown, at, seekAt: sc.start + sc.dur - 0.01 });
     });
   }
   return {
@@ -1031,7 +1037,12 @@ export class Painter {
   constructor(svg) {
     this.svg = svg;
     this.pool = new Map();
+    this.termLines = new Map();
     this.#build();
+  }
+
+  terminalLine(at) {
+    return this.termLines.get(at)?.firstElementChild;
   }
 
   #build() {
@@ -1228,13 +1239,13 @@ export class Painter {
 
   // Parts are the things a viewer can point at: every commit, ref, worktree and hook
   // chip visible in this frame, keyed `kind:id`. Ghosts left by a rebase are not parts.
+  // Visibility comes from the frame, before ancestry highlighting dims other commits.
   parts() {
     const out = [];
     for (const [key, element] of this.pool) {
       const [layer, id] = key.split(":");
       const kind = PART_KIND[layer];
-      if (!kind || id.includes("~") || Number(element.getAttribute("opacity")) < 0.3)
-        continue;
+      if (!kind || id.includes("~") || this.world[`${layer}s`][id].o < 0.3) continue;
       out.push({
         id: `${kind}:${id}`,
         element,
@@ -1248,6 +1259,7 @@ export class Painter {
   paint(film, fr, focus = null) {
     this.seen = new Set();
     const { world } = fr;
+    this.world = world;
     const lit = focus ? lineage(world, focus) : null;
     const dim = (id, o) => (lit && !lit.has(id) ? o * 0.22 : o);
     keepsText(this.termTitle, `${film.scenario.worktree} — zsh`);
@@ -1416,32 +1428,39 @@ export class Painter {
       }
     }
 
-    // Terminal: the last rows, the newest line typing in.
-    this.term.replaceChildren();
+    // Retained native controls give the terminal the same seek route under a
+    // pointer and a keyboard, without losing focus when the selected frame paints.
     const rows = fr.lines.slice(-TERM.rows);
-    rows.forEach((l, i) => {
-      const y = TERM.y + 56 + i * TERM.line;
-      const link = el("a", {}, this.term);
-      link.dataset.at = l.at;
-      const text = el(
-        "text",
-        { x: TERM.x + 18, y, fill: C.term[l.tone] ?? C.term.ink },
-        link,
-      );
-      if (l.kind === "cmd") {
-        const typed = fit(l.text, 46).slice(
-          0,
-          Math.round(fit(l.text, 46).length * l.shown),
-        );
-        text.textContent = `$ ${typed}${l.shown < 1 ? "▍" : ""}`;
-      } else {
-        // SVG collapses leading spaces; indentation is part of wt's output format.
-        text.textContent = fit(l.text).replace(/^ +/, (m) =>
-          String.fromCharCode(160).repeat(m.length),
-        );
-        text.setAttribute("opacity", l.shown);
+    const visible = new Set(rows.map((line) => line.at));
+    for (const [at, node] of this.termLines)
+      if (!visible.has(at)) {
+        node.remove();
+        this.termLines.delete(at);
       }
+    const nodes = rows.map((line, i) => {
+      if (!this.termLines.has(line.at)) {
+        const node = el("foreignObject", {}, this.term);
+        node.append(offer("button", "film-terminal-line"));
+        this.termLines.set(line.at, node);
+      }
+      const node = this.termLines.get(line.at);
+      keeps(node, "x", TERM.x + 18);
+      keeps(node, "y", TERM.y + 41 + i * TERM.line);
+      keeps(node, "width", TERM.w - 36);
+      keeps(node, "height", TERM.line);
+      const button = node.firstElementChild;
+      keeps(button, "data-line", line.at);
+      keeps(button, "data-at", line.seekAt);
+      keeps(button, "aria-label", `${line.kind === "cmd" ? "$ " : ""}${line.text}`);
+      keeps(button, "style", `color: ${C.term[line.tone] ?? C.term.ink}`);
+      const text =
+        line.kind === "cmd"
+          ? `$ ${fit(line.text, 46).slice(0, Math.round(fit(line.text, 46).length * line.shown))}${line.shown < 1 ? "▍" : ""}`
+          : fit(line.text);
+      keepsText(button, text);
+      return node;
     });
+    setChildren(this.term, nodes);
 
     this.#paintNotes(world);
   }

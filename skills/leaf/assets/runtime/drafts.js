@@ -76,8 +76,7 @@
 import { runtime } from "./context.js";
 import { PENDING } from "./thread/identity.js";
 import { draftStore } from "./storage.js";
-import { focused } from "./keyboard/scopes.js";
-import { focusDestination, readCaret } from "./focus.js";
+import { focusDestination, readCaret, focused } from "./focus.js";
 import { notice } from "./notifications.js";
 import { retainUserIntent } from "./user-intent.js";
 
@@ -311,7 +310,6 @@ export function transferDraft(from, to, text) {
   return true;
 }
 export const loadDraft = (ctx) => activeDraftRecord(ctx)?.text ?? null;
-export const loadDraftPayload = (ctx) => activeDraftRecord(ctx)?.payload;
 export const draftContexts = () =>
   new Set([
     ...draftCache.keys(),
@@ -566,7 +564,7 @@ export function createWritingResume({ revealReply, arriveEditor }) {
       notice("That writing place is unavailable on this version");
       return;
     }
-    intent.handoff(() => focusDestination(input, place.selection));
+    intent.handoff(() => focusDestination(input, "move", { caret: place.selection }));
   };
   return {
     id: "writing.resume",
@@ -580,8 +578,10 @@ export function createWritingResume({ revealReply, arriveEditor }) {
   };
 }
 
-// A subscription owns its editor's context and lifetime. Each context has one root
-// editor; replies explicitly declare mirrors and land through their thread owner.
+// A subscription owns its editor's context and lifetime. A context's root editors are
+// the boxes it is written in directly, of which the one shown takes the caret back
+// after a revision: one for most, two for the page's own draft (thread/page-comment.js).
+// Replies explicitly declare mirrors and land through their thread owner.
 // A revision carries mechanical editing, never another copy of the draft's words.
 export function captureDraftEditing(input = focused()) {
   const editor = [...draftEditors].find((view) => editorInput(view) === input);
@@ -623,7 +623,7 @@ export function restoreDraftEditing(editing, input) {
     focused() !== input
   )
     return false;
-  focusDestination(input, editing.selection);
+  focusDestination(input, "return", { caret: editing.selection });
   [input.scrollLeft, input.scrollTop] = editing.scroll;
   return true;
 }

@@ -16,8 +16,9 @@
    controls wear .lf-ui too when its module builds them with the widget API (`offer`) —
    rust-sort's `lf-sort-film button`, code-comparison's `code-reader-comparison
    .code-comparison-toolbar`. A token set on :root needs no naming, since the root is not
-   apparatus. Inheritance is not a selector, so the chrome's root and .lf-ui restate the
-   face they would otherwise inherit from the page (chrome.css, shadow.css).
+   apparatus. Inheritance is not a selector, so the chrome's root and native .lf-ui-face
+   defaults restate the face they would otherwise inherit from the page (chrome.css,
+   shadow.css). Custom hosts own their face through their component styles.
 
    Rewritten through the CSSOM, not as text: the browser has parsed the sheet already,
    `selectorText` hands back its canonical serialization (a legacy `:before` comes back

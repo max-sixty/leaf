@@ -2,6 +2,7 @@
 
 import json
 import re
+from io import BytesIO
 
 import pytest
 from click.testing import CliRunner
@@ -184,8 +185,10 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     assert drawn["x"] + drawn["width"] > target_box["x"] + target_box["width"]
     assert drawn["y"] < target_box["y"]
     assert page.evaluate("document.documentElement.scrollWidth") == scroll_width
-    stacking = page.locator(".lf-drawings").evaluate(
-        "el => ({classes: el.getAttribute('class'), z: getComputedStyle(el).zIndex})"
+    # Ink stacks as page paint, under a covering surface, in the stand that carries it.
+    stacking = mark.evaluate(
+        "el => ({stand: el.closest('.lf-paint-stand')?.className,"
+        " z: getComputedStyle(el.closest('.lf-paint-stand')).zIndex})"
     )
     assert stacking["z"] == "8890", stacking
     stable_mark = mark.element_handle()
@@ -681,7 +684,8 @@ def test_a_stroke_in_empty_space_belongs_to_the_nearest_element(browser, serve):
 
 def test_an_anchored_drawing_draft_repaints_in_another_tab(browser, serve, one_user):
     """The anchored composer's draft watcher repaints its stroke as well as its target
-    when another tab adds drawing geometry to the shared draft."""
+    when another tab adds drawing geometry to the shared draft, and takes the draft up
+    as it now stands rather than as a change of its own to take back."""
     url = serve(TARGETS_PAGE)
     local = open_page(browser, url, context=one_user)
     remote = open_page(browser, url, context=one_user)
@@ -704,6 +708,14 @@ def test_an_anchored_drawing_draft_repaints_in_another_tab(browser, serve, one_u
     assert remote_path.get_attribute("d") == local.locator(
         ".lf-drawing-pending path"
     ).get_attribute("d")
+
+    # The other tab's stroke is the draft this box takes up, not a step its ⌘Z takes
+    # back.
+    remote.locator(".lf-fab-input").focus()
+    remote.keyboard.press("ControlOrMeta+z")
+    remote.keyboard.type("y")
+    expect(remote.locator(".lf-fab-input")).to_have_js_property("value", "y")
+    expect(remote_path).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*$"))
 
     # With its box moved to another drawing, the prose drawing is parked and its own
     # watch gone; the other tab taking a stroke back still repaints it here.
@@ -793,12 +805,13 @@ def test_strokes_join_one_drawing_until_it_is_sent_and_escape_leaves(browser, se
 
 
 def test_a_drawing_takes_back_its_strokes_and_comes_off_its_comment(browser, serve):
-    """Every route takes back the last stroke: ⌘Z in its composer while strokes are the
+    """Every route takes back the last stroke: ⌘Z in its composer while a stroke is the
     draft's latest change, `z` or ⌘Z in Draw mode with the box put away, and the
-    composer's own control. ⌘Z walks strokes and words in the order they were made.
-    Taking back the last stroke removes the drawing, as the composer's own removal does
-    at once, and either leaves the words to send alone. In Draw mode `z` is the stroke's
-    undo and never the page's, drawing or not."""
+    composer's own control. In the composer ⌘Z and ⌘⇧Z walk strokes and words as one
+    history, in the order they were made, and a press on the drawing's controls is a step
+    in it too. Taking back the last stroke removes the drawing, as the composer's own
+    removal does at once, and either leaves the words to send alone. In Draw mode `z` is
+    the stroke's undo and never the page's, drawing or not."""
     page = open_page(browser, serve(UNDO_PAGE))
     with sending(page, "the pick"):
         page.locator("#opt-a").click()
@@ -810,7 +823,17 @@ def test_a_drawing_takes_back_its_strokes_and_comes_off_its_comment(browser, ser
     field = page.locator(".lf-fab-input")
     other = ((0.3, 0.3), (0.5, 0.7), (0.7, 0.3))
 
+    # The stroke that opens the box is the draft's first change, and the box's to take
+    # back and make again.
     draw_over(page, heading)
+    field.focus()
+    page.keyboard.press("ControlOrMeta+z")
+    expect(tile).to_have_count(0)
+    expect(page.locator(".lf-drawing-mark")).to_have_count(0)
+    # Redo is pressed as a keyboard sends it, Shift making the key "Z": a "Shift+z"
+    # press sends "z", which CodeMirror on Linux reads as Ctrl+Z, undo.
+    page.keyboard.press("ControlOrMeta+Shift+Z")
+    expect(tile).to_have_attribute("aria-label", "Drawing, 1 stroke")
     stroke_over(page, heading, points=other)
     expect(tile).to_have_attribute("aria-label", "Drawing, 2 strokes")
     page.keyboard.press("ControlOrMeta+z")
@@ -859,6 +882,24 @@ def test_a_drawing_takes_back_its_strokes_and_comes_off_its_comment(browser, ser
     expect(tile).to_have_attribute("aria-label", "Drawing, 2 strokes")
     page.keyboard.press("ControlOrMeta+z")
     expect(field).to_have_js_property("value", "")
+
+    # ⌘⇧Z makes the steps again in the same order, and a new change drops what was
+    # taken back before it, so redo never brings words back past a later stroke.
+    page.keyboard.press("ControlOrMeta+Shift+Z")
+    expect(field).to_have_js_property("value", "a")
+    page.keyboard.press("ControlOrMeta+Shift+Z")
+    expect(tile).to_have_attribute("aria-label", "Drawing, 3 strokes")
+    page.keyboard.press("ControlOrMeta+Shift+Z")
+    expect(field).to_have_js_property("value", "ab")
+    for _ in range(3):
+        page.keyboard.press("ControlOrMeta+z")
+    expect(field).to_have_js_property("value", "")
+    stroke_over(page, heading, points=other)
+    field.focus()
+    page.keyboard.press("ControlOrMeta+Shift+Z")
+    page.keyboard.press("ControlOrMeta+z")
+    expect(tile).to_have_attribute("aria-label", "Drawing, 2 strokes")
+    expect(field).to_have_js_property("value", "")
     write(field, "Here.")
 
     # With the box put away, ⌘Z or `z` takes back the strokes of the parked drawing,
@@ -876,12 +917,29 @@ def test_a_drawing_takes_back_its_strokes_and_comes_off_its_comment(browser, ser
     stroke_over(page, heading)
     stroke_over(page, heading, points=other)
     expect(field).to_have_js_property("value", "Here.")
+
+    # A draft reopened after a reload starts its history as it stands: its drawing is
+    # part of where ⌘Z starts, not a change to take back.
+    page.reload()
+    wait_until_ready(page)
+    expect(field).to_have_js_property("value", "Here.")
+    expect(tile).to_have_attribute("aria-label", "Drawing, 2 strokes")
+    field.focus()
+    page.keyboard.press("ControlOrMeta+z")
+    expect(tile).to_have_attribute("aria-label", "Drawing, 2 strokes")
+    expect(field).to_have_js_property("value", "Here.")
     page.get_by_role("button", name="Undo last stroke").click()
     expect(tile).to_have_attribute("aria-label", "Drawing, 1 stroke")
     page.get_by_role("button", name="Remove drawing").click()
     expect(tile).to_have_count(0)
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
     expect(field).to_be_focused()
+    page.keyboard.press("ControlOrMeta+z")
+    expect(tile).to_have_attribute("aria-label", "Drawing, 1 stroke")
+    expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*$"))
+    page.keyboard.press("ControlOrMeta+Shift+Z")
+    expect(tile).to_have_count(0)
+    expect(page.locator(".lf-drawing-mark")).to_have_count(0)
     with sending(page, "the words without their drawing"):
         page.keyboard.press("ControlOrMeta+Enter")
     event = events_model.read_events(serve.page_dir)[-1]
@@ -1031,9 +1089,8 @@ def test_draw_mode_leaves_inline_thread_controls_usable(browser, serve):
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
 
 
-def test_draw_mode_cursor_matches_the_widget_controls_it_captures(browser, serve):
-    """Generated controls remain part of the drawable page plane. Their cursor must
-    promise the stroke that takes their pointer press instead of promising activation."""
+def test_draw_mode_leaves_widget_controls_usable(browser, serve):
+    """An offered widget control keeps its pointer action and cursor in Draw mode."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     option = page.locator("#bg-choice-trail")
     control = option.locator(".lf-pick")
@@ -1043,20 +1100,12 @@ def test_draw_mode_cursor_matches_the_widget_controls_it_captures(browser, serve
     page.mouse.move(*point)
     page.keyboard.press("w")
 
-    assert control.evaluate("el => getComputedStyle(el).cursor") == "crosshair"
+    assert control.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
     page.mouse.click(*point)
 
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
-    assert option.get_attribute("chosen") is None
+    expect(option).to_have_attribute("chosen", "")
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
-
-    assert control.evaluate("el => getComputedStyle(el).cursor") == "crosshair"
-    page.evaluate(
-        """() => document.querySelector('.lf-thread-panel').append(
-          document.querySelector('#bg-choice-trail')
-        )"""
-    )
-    assert control.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
 
 
 def test_a_draw_press_uses_the_exact_target_under_its_start(browser, serve):
@@ -1208,6 +1257,7 @@ def test_an_inline_thread_keeps_drawing_context_on_the_page(browser, serve):
     drawing = {
         "format": "leaf-drawing/2",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
+        "box": [640.5, 96],
         "viewport": [1280, 720],
         "scheme": "light",
     }
@@ -1320,3 +1370,76 @@ def test_page_mode_keeps_visible_native_ink_and_exact_drawing_comment(browser, s
         "() => performance.getEntriesByType('resource').some(e=>new URL(e.name).pathname.includes('/annotation-overlay/'))"
     )
     assert not physical
+
+
+CLIPPED_DRAWING_PAGE = leaf_page(
+    "drawing clips",
+    '<h1 id="title">Inspect a captured detail</h1>'
+    '<div id="viewport"><div id="pixels">Captured pixels</div></div>',
+    head="<style>#viewport { width: 360px; height: 200px; overflow: hidden; }"
+    "#pixels { width: 360px; height: 200px; background: var(--paper); }</style>",
+)
+
+
+def test_drawing_ink_follows_pixels_inside_their_ancestor_viewport(browser, serve):
+    """Panning a marked surface moves its ink, while its viewport cuts the paint.
+
+    The complete surface remains the drawing's coordinate frame: clipping must
+    not renormalize the mark to only the pixels currently visible. Completed
+    draft ink uses the same clipping owner as posted ink; measuring it before
+    sending keeps a second drawing thumbnail and moving thread card out of the
+    pixel comparison.
+    """
+    page = open_page(browser, serve(CLIPPED_DRAWING_PAGE))
+    target = page.locator("#pixels")
+    draw_over(page, target, points=((0.2, 0.4), (0.4, 0.4), (0.7, 0.4)))
+    mark = page.locator(".lf-drawing-pending")
+    expect(mark).to_have_count(1)
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    for pan in (-100, 180):
+        target.evaluate(
+            "(el, x) => { el.style.transform = `translateX(${x}px)`; }", pan
+        )
+        rendered(page)
+        viewport = page.locator("#viewport").bounding_box()
+        pixels = target.bounding_box()
+        # The horizontal stroke's full band, including the hidden part of the
+        # surface. Whole-page chrome can change independently between captures.
+        left = min(viewport["x"], pixels["x"]) - 4
+        top = pixels["y"] + pixels["height"] * 0.4 - 4
+        clip = {
+            "x": left,
+            "y": top,
+            "width": max(
+                viewport["x"] + viewport["width"], pixels["x"] + pixels["width"]
+            )
+            + 4
+            - left,
+            "height": 8,
+        }
+        # Read painted pixels rather than the mark's deliberately uncut SVG box.
+        shown = Image.open(
+            BytesIO(page.screenshot(clip=clip, animations="disabled"))
+        ).convert("RGB")
+        mark.evaluate("el => { el.style.visibility = 'hidden'; }")
+        bare = Image.open(
+            BytesIO(page.screenshot(clip=clip, animations="disabled"))
+        ).convert("RGB")
+        mark.evaluate("el => { el.style.visibility = ''; }")
+        difference = ImageChops.difference(shown, bare).getbbox()
+        assert difference is not None, "the visible part of the stroke must remain"
+        assert difference[0] + left >= viewport["x"] - 1
+        assert difference[2] + left <= viewport["x"] + viewport["width"] + 1
+        assert difference[1] + top >= viewport["y"] - 1
+        assert difference[3] + top <= viewport["y"] + viewport["height"] + 1
+        # Panning moves the full stroke's coordinates; clipping must not refit it.
+        assert difference[0] + left == pytest.approx(
+            max(viewport["x"], pixels["x"] + pixels["width"] * 0.2 - 1.5), abs=1
+        )
+        assert difference[2] + left == pytest.approx(
+            min(
+                viewport["x"] + viewport["width"],
+                pixels["x"] + pixels["width"] * 0.7 + 1.5,
+            ),
+            abs=1,
+        )

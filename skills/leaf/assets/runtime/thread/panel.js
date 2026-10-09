@@ -1,4 +1,5 @@
-/* The thread panel's general composer, and the keys the Threads list itself answers.
+/* The keys the Threads list itself answers. Its general box is wired by the owner of
+   Comment on the page (thread/page-comment.js), which also owns the banner's card.
 
    Standing in the panel is where its focus is, not merely that it is open: the Threads
    button is the banner's, so opening by pointer leaves the user outside, and `g T`, `t`,
@@ -7,79 +8,56 @@
    takes words from the first paint — the offline banner says a comment will not send, not
    that there is nowhere to write it. A drawing belongs to an element's comment, never to
    this box (composing/drawing.js). */
-import { loadDraft, mirrorDraft, saveDraft, sendMessage } from "../drafts.js";
-import { focused, keys } from "../keyboard/scopes.js";
+import { keys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
 import { runtime } from "../context.js";
 import { pagePresented } from "../presentation.js";
+import { focusDestination, focused } from "../focus.js";
+import { rowWalk } from "../walk-position.js";
 
-export function createPanelComposer({
+export function createThreadPanelKeys({
   elements: {
     closeBtn,
     findInput,
-    generalInput,
-    generalSend,
     narrowingView,
+    threadsBox,
     inPanel: panelFocusIsInside,
   },
   openThreads,
-  designModeActive,
-  wireInput,
-  createPageComment,
-  showThread,
   setPanel,
   panelIsOpen,
   narrowing,
   stepThread,
-  firstUnread,
-  unreadCount,
 }) {
-  let sync = () => {};
-  let stopMirroringDraft = () => {};
-  const generalHint = () =>
-    designModeActive() ? "Comment on the design" : "Comment on the page";
-  const syncGeneral = () => sync();
-
   async function mount() {
     closeBtn.onclick = () => setPanel(false);
-    generalInput.value = loadDraft("general") ?? "";
-    sync = wireInput(generalInput, {
-      hint: generalHint,
-      accessibleName: generalHint,
-      sends: "send",
-      sendBtn: generalSend,
-      save: (text) => saveDraft("general", text),
-      send: async (_text, raw, owns) => {
-        const sent = await sendMessage("general", owns, (attempt) => {
-          const event = { attempt, text: raw };
-          if (designModeActive()) event.about = "design";
-          return createPageComment(event);
-        });
-        if (!sent) return;
-        // The message renderer cues the send; revealing its thread only lands it.
-        showThread(sent.id, { focus: false, flash: false });
-      },
-    });
-    sync();
-    stopMirroringDraft = mirrorDraft(generalInput, sync, "general", {
-      resume: () => ({
-        where: generalInput,
-        input: () => generalInput,
-        open: () => setPanel(true),
-      }),
-    });
     await findInput.updateComplete;
     declareFindBoxKeys();
   }
 
   const inPanel = () => panelFocusIsInside(panelIsOpen);
   const hasThreads = () => openThreads({ visibleOnly: panelIsOpen() }).length > 0;
+  // The list's rows are its threads' titles, which the arrows walk as they walk the
+  // Questions panel's rows; `t` and `T` still step and open. Only from a title, so the
+  // arrows inside an open thread keep scrolling it.
+  const titles = () =>
+    [...threadsBox.querySelectorAll(".lf-thread-summary")].filter((title) =>
+      title.checkVisibility(),
+    );
+  const onTitle = () => Boolean(focused()?.matches?.(".lf-thread-summary"));
+  const titleWalk = rowWalk({
+    id: "thread.list",
+    noun: "Thread",
+    plural: "threads",
+    rows: titles,
+  }).map((row) => ({ ...row, when: onTitle }));
 
   const stopPanelScope = pageScope("panel", {
     title: "In the thread panel",
     root: focused,
     at: inPanel,
     rows: [
+      ...titleWalk,
       {
         // Search repeat keeps its canonical n/N meaning in the nearest active search.
         // Only a textual query makes this row live; the waiting filter does not claim them.
@@ -105,7 +83,7 @@ export function createPanelComposer({
       {
         id: "thread.waiting.toggle",
         // `w` for the words the control says. It is the phrase the page already uses for
-        // the same question the queue walk (a/A) asks of the page, asked here of
+        // the same question the queue walk (q/Q) asks of the page, asked here of
         // the thread — so the user learns one idea and reaches it two ways rather
         // than learning "needs you" beside it.
         //
@@ -122,14 +100,6 @@ export function createPanelComposer({
         run: () => narrowingView.toggleUser(),
       },
       {
-        id: "thread.unread.first",
-        keys: ["u"],
-        description: "Go to the first unread message",
-        title: "first unread",
-        when: () => unreadCount() > 0,
-        run: firstUnread,
-      },
-      {
         id: "thread.find",
         // `/` is what every list with a search field takes it with, and the one letter a
         // text box does not shadow: the typing scope claims what types a character, so the
@@ -139,7 +109,7 @@ export function createPanelComposer({
         title: "find",
         control: () => findInput,
         run: () => {
-          findInput.focus();
+          focusDestination(findInput, "move", { scroll: true });
           findInput.select();
         },
       },
@@ -167,11 +137,7 @@ export function createPanelComposer({
   }
 
   return {
-    syncGeneral,
     mount,
-    dispose: () => {
-      stopPanelScope();
-      stopMirroringDraft();
-    },
+    dispose: () => stopPanelScope(),
   };
 }

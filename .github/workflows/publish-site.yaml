@@ -34,6 +34,9 @@ on:
       - 'dev/leaf_dev/verify_site.py'
       - 'dev/leaf_dev/verify_site_browser.js'
       - 'worker/**'
+      - 'build/runtime-bundle.mjs'
+      - 'package.json'
+      - 'package-lock.json'
       - 'Dockerfile.website'
       - '.github/workflows/publish-site.yaml'
   workflow_dispatch:
@@ -72,6 +75,8 @@ jobs:
 
       - run: npm ci
         working-directory: worker
+
+      - run: npm ci
 
       - name: 🖼 Build site
         run: |

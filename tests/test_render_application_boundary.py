@@ -720,7 +720,7 @@ customElements.define("lf-local", class extends LitElement {
     const sent = this.controller.dispatch({
       kind: "action",
       verb: "choose",
-      detail: { choice: "chosen" },
+      detail: { value: "chosen" },
     });
     if (!sent) return;
     this.reading = sent.reading;
@@ -992,14 +992,8 @@ PAGE_DECLARATION = {
         "x-upgrade": True,
         "x-state": {
             "choose": {
-                "detail": {
-                    "type": "object",
-                    "properties": {"choice": {"type": "string"}},
-                    "required": ["choice"],
-                    "additionalProperties": False,
-                },
                 "unit": "widget",
-                "record": {"kind": "value", "attr": "choice", "value": "choice"},
+                "record": {"kind": "value", "attr": "choice"},
             }
         },
         "x-example": '<lf-local id="local-example" choice="idle"></lf-local>',
@@ -1451,7 +1445,7 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
             "revision": 1,
             "widget": "page-local",
             "action": "choose",
-            "detail": {"choice": "chosen"},
+            "detail": {"value": "chosen"},
         },
     )
     told(page)
@@ -1575,21 +1569,15 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
             "markup": '<lf-local id="thread-local" choice="idle"></lf-local>',
         },
     )
-    append_carried_log_record(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",
-            "id": "frozen-widget-choice",
             "author": "user",
             "revision": 1,
             "widget": "thread-local",
             "action": "choose",
-            "detail": {"choice": "chosen"},
-            "meaning": {
-                "scope": "thread",
-                "unit": "thread-local",
-                "depends": ["thread-local"],
-            },
+            "detail": {"value": "chosen"},
         },
     )
     page.wait_for_function(

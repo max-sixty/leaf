@@ -2,50 +2,93 @@
 # sidebar as its own grid to keep the track beside the body at 900px (0 of 3); the
 # change 3 of 3. Later made to fail a sticky track: base at eee4a2d6d stuck the
 # `aside` itself (0 of 3), the change 3 of 3.
+# The completed-log and live-stream contrast only guarded in the 2026-10-07
+# scrolling-policy comparison: both wordings passed those choices on both harnesses.
 description: sidebar-page-at-900px
 metadata:
-  purpose: 'A sidebar page read at 900px: the Layout already keeps its track beside the body there, so
-    the page leaves the Layout''s widths alone, and a short track that stays in view sticks at `--lf-top`,
-    below the banner, inside a track stretched to the body''s height, so it never sticks over the body
-    where the two stack.'
+  purpose: Author a completed rollout record, render and repair it, then revise it for the user's 900px
+    reading window. Score the log and checklist as the reader sees them, including a short window.
   tags:
   - layout
-vars:
-  prompt: |
-    Write a Leaf page for the user: the rollout of release 4.12. The body is a long event
-    log (40 entries, newest last) and a chart of the error rate; beside it, a short
-    checklist of six release checks with their results, one of which is failing. The
-    user keeps the page open in a window about 900px wide beside their editor, wants the
-    checklist beside the log at that width, and wants it kept in view while they scroll
-    down the log.
+  - workflow
+  executor: leaf_dev.arrangement_eval
+  scenario: sidebar-page-at-900px
+  conditions:
+  - leaf
+variants:
+  instructions:
+    description: sidebar-page-at-900px/instructions
+    metadata:
+      purpose: 'A sidebar page read at 900px: the Layout already keeps its track beside the body there,
+        so the page leaves the Layout''s widths alone, and a short track that stays in view sticks at
+        `--lf-top`, below the banner, inside a track stretched to the body''s height, so it never sticks
+        over the body where the two stack.'
+      tags:
+      - layout
+      executor: null
+      scenario: null
+    vars:
+      prompt: |
+        Write a Leaf page for the user: the rollout of release 4.12. The body is a long event
+        log from the completed rollout (40 entries, newest last) and a chart of the error
+        rate; beside it, a short checklist of six release checks with their results, one
+        of which is failing. The user keeps the page open in a window about 900px wide
+        beside their editor, wants the
+        checklist beside the log at that width, and wants it kept in view while they scroll
+        down the log.
 
-    The page directory is not reachable from here, so reply with the complete
-    `index.html`, rather than writing a file.
-assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-page-authoring
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/page-authoring\.md
-- type: llm-rubric
-  metric: judgment
-  value: |
-    Read the HTML and its `<style>`. Pass only if all of these hold. `main` has class
-    `layout-sidebar` and the checklist is in its track. The page's own CSS leaves the
-    Layout's widths alone: fail if it sets `flex`, `flex-basis`, `grid-template-columns`
-    or `display` on `main`, the body or the track, or adds a media or container query to
-    keep them side by side. The checklist is kept in view with `position: sticky` whose
-    `top` clears Leaf's banner through one of its properties, `var(--lf-top)` or
-    `var(--lf-banner-h)`, alone or in a `calc`; fail if its `top` is a fixed length or
-    `0`, which puts it under the banner. The sticking holds only while the two stand side
-    by side: pass if the sticky element is a block inside the track and the track has
-    `align-self: stretch`, so a stacked track has no room to stick in; fail if
-    `position: sticky` is on the track itself, or on a block in a track that does not
-    stretch, since where the two stack the stuck checklist would stand over the log. A
-    width query does not rescue it: the Layout also stacks at wide widths when the body's
-    content needs the room.
+        The page directory is not reachable from here, so reply with the complete
+        `index.html`, rather than writing a file.
+    assert:
+    - type: llm-rubric
+      metric: judgment
+      value: |
+        Read the HTML and its `<style>`. Pass only if all of these hold. `main` has class
+        `layout-sidebar` and the checklist is in its track. The page's own CSS leaves the
+        Layout's widths alone: fail if it sets `flex`, `flex-basis`, `grid-template-columns`
+        or `display` on `main`, the body or the track, or adds a media or container query to
+        keep them side by side. The checklist is kept in view with `position: sticky` whose
+        `top` clears Leaf's banner through one of its properties, `var(--lf-top)` or
+        `var(--lf-banner-h)`, alone or in a `calc`; fail if its `top` is a fixed length or
+        `0`, which puts it under the banner. The sticking holds only while the two stand side
+        by side: pass if the sticky element is a block inside the track and the track has
+        `align-self: stretch`, so a stacked track has no room to stick in; fail if
+        `position: sticky` is on the track itself, or on a block in a track that does not
+        stretch, since where the two stack the stuck checklist would stand over the log. A
+        width query does not rescue it: the Layout also stacks at wide widths when the body's
+        content needs the room.
+    - type: llm-rubric
+      metric: completed-log-in-document-flow
+      value: |
+        The completed rollout's forty-entry event log is read in the document's own
+        scroll. Fail if its listing or a containing box uses data-bound, a vertically
+        scrolling pane, or CSS height/max-height with overflow-y auto/scroll to bound
+        it. Disclosure is allowed if opening it lets the log grow in document flow.
+  live:
+    description: sidebar-page-at-900px/live
+    metadata:
+      purpose: A bounded live stream can still follow incoming output while preserving a reader's earlier
+        position.
+      executor: null
+      scenario: null
+    vars:
+      prompt: |
+        Write a Leaf page for a release that is deploying now. Its run log gains
+        lines throughout the deployment, newest last. The user watches new output
+        while checking six release checks beside it, and sometimes goes back to
+        read an earlier error while the run continues. Include the log's opening
+        six lines as placeholders. The page is open beside their editor in a
+        window about 900px wide.
+
+        The page directory is not reachable here, so reply with the complete
+        index.html rather than writing a file.
+    assert:
+    - type: regex
+      metric: live-log-keeps-reading-position
+      value: <[^>]+\bdata-bound=["']end["'][^>]*>
+      transform: output.toLowerCase()
+    - type: llm-rubric
+      metric: live-log-uses-shared-reading
+      value: |
+        The run log uses Leaf's bounded reading region without substituting
+        a page-local CSS scroller or custom scroll handlers.

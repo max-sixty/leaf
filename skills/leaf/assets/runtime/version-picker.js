@@ -20,7 +20,7 @@ const EMPTY = Object.freeze([]);
 const INITIAL = Object.freeze({
   picker: Object.freeze({
     offered: false,
-    token: "Draft",
+    token: "Showing Draft",
     compared: false,
     news: false,
     keyTitle: "Draft",

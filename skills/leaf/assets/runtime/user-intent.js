@@ -6,35 +6,9 @@
 
    Intent is captured at the gesture and handed to what the work later does: `reveal`
    takes it as a required argument, so no delayed caller can take a fresh one after its
-   wait. `scroll` is not among the superseding inputs, because it is not one: the runtime's
-   own landings and place holds fire it, and so does the delayed work's own first move.
-   The user's ways of scrolling each begin with an input that is here: a scrollbar
-   press is a `pointerdown` on the scroller, a wheel or trackpad is `wheel`, a touch
-   scroll `touchstart`, a key `keydown`, and find-in-page takes focus from the window,
-   which is `blur`. */
-import { focused } from "./keyboard/scopes.js";
-
-let intent = 0;
-const leave = () => intent++;
-for (const type of ["pointerdown", "keydown", "input", "wheel", "touchstart"])
-  addEventListener(type, leave, { capture: true, passive: true });
-addEventListener("blur", leave);
-
-// Place selection treats a pointer moving or scrolling over a visible item as a newer
-// reading target than an older focused item. These inputs do not all supersede a
-// delayed action above; they only choose which visible item holds a reflow.
-let placeInput = "focus";
-for (const type of ["pointermove", "pointerdown", "wheel"])
-  addEventListener(type, () => (placeInput = "pointer"), {
-    capture: true,
-    passive: true,
-  });
-for (const type of ["focusin", "keydown"])
-  addEventListener(type, () => (placeInput = "focus"), {
-    capture: true,
-    passive: true,
-  });
-export const recentPlaceInput = () => placeInput;
+   wait. Which inputs supersede it is focus.js's count (`inputCount`), the one reading of
+   the user's inputs. */
+import { carriedFrom, focused, inputCount } from "./focus.js";
 
 // Focus a repaint took from the source and dropped on a container holding it, as a
 // list takes it from a card that folds, including where that container passed it on
@@ -42,12 +16,19 @@ export const recentPlaceInput = () => placeInput;
 // open. Focus that went anywhere else went somewhere in particular, as a widget handing
 // it on does.
 const passed = new WeakMap();
-export const passOn = (container, target) => passed.set(target, { container, intent });
+export const passOn = (container, target) =>
+  passed.set(target, { container, intent: inputCount() });
+// So is focus a hold carried from the source, or from inside it, to the node a render put
+// in its place, before any newer input.
 const displaced = (source, at) => {
   if (!(source instanceof Node) || !at) return false;
   const via = passed.get(at);
+  const carry = carriedFrom(at);
   return (
-    at.contains(source) || (via?.intent === intent && via.container.contains(source))
+    at.contains(source) ||
+    (via?.intent === inputCount() && via.container.contains(source)) ||
+    (carry?.inputs === inputCount() &&
+      (carry.from === source || source.contains(carry.from)))
   );
 };
 
@@ -58,14 +39,14 @@ export function retainUserIntent({
   available = () => true,
   fallback = null,
 } = {}) {
-  const retained = intent;
+  const retained = inputCount();
   const current = () => {
     const at = focused();
     const withinSource =
       source === document.body ? at === document.body : source?.contains(at);
     return (
       available() &&
-      retained === intent &&
+      retained === inputCount() &&
       (at === document.body || at === fallback || withinSource || displaced(source, at))
     );
   };
@@ -76,7 +57,7 @@ export function retainUserIntent({
   // and adopt it for subsequent continuity without renewing the input generation.
   // A delayed caller must check current() before beginning its synchronous handoff.
   current.handoff = (move) => {
-    if (!available() || retained !== intent) return false;
+    if (!available() || retained !== inputCount()) return false;
     const moved = current();
     if (moved) move();
     source = focused();

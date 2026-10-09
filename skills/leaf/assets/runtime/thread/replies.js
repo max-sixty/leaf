@@ -2,10 +2,9 @@
 
    A reply send draws its turn in the gesture that makes it. Its provisional result
    masks the words while the session still owes a refusal; acceptance finishes editing.
-   The send preserves the panel's
-   narrowing and, whichever control sent it, takes the user out of the reply box to stand
-   on the thread (`landSent`), since a reply is usually their last word until the agent
-   answers. `c`, or Enter on the thread, opens the box again. A saved draft preserves
+   The send preserves the panel's narrowing and, whichever control sent it, leaves
+   focus on the conversation's card or title (`landSent`). Sending never returns focus
+   to the page. `c`, or Enter on the thread, opens the box again. A saved draft preserves
    words independently of the editor. External settlement retains a reply the user is
    editing; deliberate Resolve leaves that editing place and closes the editor. Native
    Tab preserves the row's session independently of focus. The complete presentation
@@ -22,10 +21,9 @@ import {
   tellDraft,
 } from "../drafts.js";
 import { sendLanding } from "./reply-landing.js";
-import { readCaret } from "../focus.js";
+import { readCaret, focused } from "../focus.js";
 import { threadKey } from "./model.js";
 import { closestAcross } from "../passages.js";
-import { focused } from "../keyboard/scopes.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
 import { THREAD, SAY_ROW } from "./selectors.js";
 

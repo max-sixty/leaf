@@ -29,18 +29,10 @@
    the style attribute. A custom property keeps its text verbatim instead, and the same
    drift there is a write of different text, so it falls outside this rule. */
 
-// Null or undefined says the attribute is absent: one spelling for "none", where an
-// empty value beside a missing one would be two, and a caller would otherwise branch
-// between this and `removeAttribute` to say it.
-export function keeps(node, name, value) {
-  if (!node) return;
-  if (value == null) {
-    if (node.hasAttribute(name)) node.removeAttribute(name);
-    return;
-  }
-  const said = String(value);
-  if (node.getAttribute(name) !== said) node.setAttribute(name, said);
-}
+// Attribute writes also exist before modules run. Adopt that initial writer, whose
+// null/string comparison governs both initial producers and later renderers.
+export const keeps = (...args) =>
+  document.documentElement.lfInitial.keepsAttribute(...args);
 
 export function keepsHidden(node, hidden) {
   if (node && node.hidden !== hidden) node.hidden = hidden;

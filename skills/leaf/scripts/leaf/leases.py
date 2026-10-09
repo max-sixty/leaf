@@ -264,7 +264,7 @@ def step_hook_ran(session_id: str) -> bool:
 
 
 def adapter_is_live(session_id: str) -> bool:
-    """Whether this session has a detached delivery carrier right now."""
+    """Whether this session's adapter is running right now."""
     return lock_is_held(adapter_lease_path(session_id))
 
 

@@ -228,8 +228,8 @@ customElements.define(
           const canvas = this.#picture.element.parentElement;
           const viewer = this.#picture.viewer;
           const resized =
-            viewer.clientWidth !== canvas.clientWidth ||
-            viewer.clientHeight !== canvas.clientHeight;
+            viewer.clientWidth !== canvas.offsetWidth ||
+            viewer.clientHeight !== canvas.offsetHeight;
           if (resized) {
             this.#picture.resize();
             const image = this.#trace.images.find(
@@ -1168,6 +1168,9 @@ customElements.define(
           if (!current()) return;
           const retired = this.#picture;
           this.#picture = viewer;
+          // Leaf owns container resize so unchanged window signals leave the
+          // inspected image alone. Viewer otherwise refits it on every signal.
+          if (viewer) window.removeEventListener("resize", viewer.onResize);
           this.#pictureId = image.id;
           this.#pictureScope = pending.scope;
           this.#pendingPicture = null;

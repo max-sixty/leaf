@@ -1070,9 +1070,16 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
         before = user.evaluate("inspectionView()")
         before_window = user.evaluate("inspectionWindow()")
         assert before["width"] > 1.4
+        user.evaluate("""() => {
+          window.inspectionStyleWrites = 0;
+          const image = document.querySelector('.lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img');
+          new MutationObserver(records => {inspectionStyleWrites += records.length})
+            .observe(image, {attributes: true, attributeFilter: ['style']});
+        }""")
         user.evaluate("window.dispatchEvent(new Event('resize'))")
         rendered(user)
         assert user.evaluate("inspectionView()") == pytest.approx(before, abs=0.003)
+        assert user.evaluate("inspectionStyleWrites") == 0
         user.evaluate(
             "() => {inspectionFrames.length = 0; inspectionWindows.length = 0}"
         )

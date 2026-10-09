@@ -545,7 +545,8 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
         # Put the card the send opened away before selecting the next passage. The
         # thread stands in the page margin over this narrow document, so the case after
         # it would reach for a composer under that card and press the card instead. The
-        # send landed on the passage, and letting go of it takes the card.
+        # send landed on the card; leave it for the passage, then let go of both.
+        page.keyboard.press("Escape")
         page.keyboard.press("Escape")
         expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
@@ -3514,11 +3515,8 @@ def test_an_ambiguous_revised_passage_keeps_its_section_until_the_agent_moves_it
         page.locator(".lf-composer button.lf-compose-submit").click()
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    # The send leaves the user on the element the card is about, not in its reply box.
-    page.wait_for_function(
-        "() => document.activeElement !== document.body"
-        " && !document.activeElement.closest('.lf-chrome')"
-    )
+    # Sending leaves the user on the card, ready to read or reply again.
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
     expect(page.locator(".lf-margin-preview leaf-text")).not_to_be_focused()
 
     d = serve.page_dir

@@ -18,10 +18,11 @@
    so a chrome node measured as a place would put the user behind every Ask and thread
    there is; no reader measures from one that does not stand in an Ask.
 
-   Page walks share `walkOrigin`: focus, then the selection's end, then the first
+   Page walks share `walkOrigin`: focus, then the selection's ends, then the first
    visible reading block. Every press reads the browser afresh; no walk remembers a
    destination to use as the user's current place. */
 import { documentFocused } from "./keyboard/scopes.js";
+import { standingNodes } from "./focus.js";
 import { elementById, inChrome } from "./passages.js";
 import { readAsks } from "./asks/model.js";
 import { hostIn, under } from "./shadow.js";
@@ -69,11 +70,15 @@ export function placeOf(node) {
   return inChrome(at) ? null : at;
 }
 
-// Where the user stands now: where focus stands, or else the end of the selection, a
-// caret a click left included, since a click that placed one is the user saying where
-// they are.
-export const standingPlace = () =>
-  placeOf(documentFocused()) ?? placeOf(getSelection()?.focusNode);
+// Where the user stands now: the first place on the page among where they stand
+// (`standingNodes`, focus.js), focus before a selection's ends.
+export function standingPlace() {
+  for (const node of standingNodes()) {
+    const place = placeOf(hostIn(node, document));
+    if (place) return place;
+  }
+  return null;
+}
 
 // A page walk still has an origin when focus and selection name no page place. Order
 // is measured in the document's tree, where a shadow block stands at its host.

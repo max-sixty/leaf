@@ -134,6 +134,9 @@ TURN_PRESENTATION = 120_000
 # How long Threads gets to draw a reply the container has admitted; the runtime's own
 # quiet-stream bound (`SILENCE_MS` in `runtime/state-feed.js`) is the same 30 s.
 VISIBLE_REPLY_PATIENCE = 30_000
+# How long a reply first shown by its row or its notice gets for its own message to
+# come into view, which in an open card is the next frame or two.
+VISIBLE_MESSAGE_PATIENCE = 2
 # How long the page server gets to title the thread after the turn ends: its title
 # request's own limit (`TIMEOUT` in `thread_titles.py`).
 TITLE_PATIENCE = 60
@@ -699,7 +702,10 @@ def shown_reply(page: Page, answer: dict) -> dict | None:
 
 def await_reply_shown(end: BrowserEnd, answer: dict) -> dict:
     """Hear the session until the page shows the user `answer`, opening any news its
-    thread holds back, within `VISIBLE_REPLY_PATIENCE`; return when and how."""
+    thread holds back, within `VISIBLE_REPLY_PATIENCE`; return when and how. A reply
+    its row or notice showed first is heard a little longer, within
+    `VISIBLE_MESSAGE_PATIENCE`, for when its own message came into view, which a folded
+    card never draws."""
     page = end.session.page
     deadline = time.monotonic() + VISIBLE_REPLY_PATIENCE / 1000
     while (shown := shown_reply(page, answer)) is None:
@@ -711,6 +717,10 @@ def await_reply_shown(end: BrowserEnd, answer: dict) -> dict:
             )
         open_news(page, answer["parent"])
         end.pause(0.5)
+    deadline = time.monotonic() + VISIBLE_MESSAGE_PATIENCE
+    while shown["message"] is None and time.monotonic() < deadline:
+        end.pause(0.1)
+        shown = shown_reply(page, answer)
     return shown
 
 

@@ -111,7 +111,7 @@ import { allThreads } from "./state.js";
 import { THREAD } from "./selectors.js";
 import { closestAcross } from "../passages.js";
 import { readApplication } from "../semantic-state.js";
-import { onStanding, focused, standingNode } from "../focus.js";
+import { onStanding, focused, standingNodes } from "../focus.js";
 import { readingIsContinuous } from "../reading-continuity.js";
 
 // Whether this page's ledger holds a gesture of the user's on `thread`: one of its
@@ -795,12 +795,15 @@ export class HeldArrivals {
   }
 
   // Releases what `which` picks for a reason other than a gesture of the user's. A
-  // thread the user stands in, in the margin's card, stays there with them, since its
+  // thread the user stands in (`standingNodes`), by focus or by a selection of its
+  // words, in the margin's card, stays there with them, since its
   // release would take the card, and the reply they may be writing, away; it shows
   // when they press its marker, or the next time its datum leaves the window.
   #lapse(which) {
-    const standing = closestAcross(standingNode(), THREAD)?.dataset.thread;
-    return this.#release((held) => which(held) && held.id !== standing);
+    const standing = new Set(
+      standingNodes().map((node) => closestAcross(node, THREAD)?.dataset.thread),
+    );
+    return this.#release((held) => which(held) && !standing.has(held.id));
   }
 
   // One watch for each datum holding a thread, on the node it stands at now.

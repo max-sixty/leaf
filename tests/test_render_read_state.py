@@ -1401,6 +1401,7 @@ ROUTE_LINE = '["app/routes.py","new",201]'
         "started",
         "left",
         "standing",
+        "selecting",
         "returned",
     ],
 )
@@ -1415,8 +1416,8 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
     and lands on it, and the marker stays its notice when the agent settles it. It also
     shows when the user replies in it from the margin's card, when they resolve it
     there, when they start a thread on the same line, which shows after it, and when
-    they scroll the line below the window, unless they are writing in its card, which
-    stays with them. Returning from a hidden tab reveals current messages while
+    they scroll the line below the window, unless they stand in its card, writing there
+    or holding a selection of its words, which stays with them. Returning from a hidden tab reveals current messages while
     preserving that composing margin card. The news lands well past Chrome's half
     second of recent input, so the shift watch checks that holding the thread moved
     nothing."""
@@ -1565,6 +1566,40 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
             "data-thread", second
         )
         expect(box).to_be_focused()
+        return
+    elif end == "selecting":
+        # A selection of the card's words is standing there too, with focus left on a
+        # control elsewhere.
+        page.keyboard.press("t")
+        card = page.locator(f'.lf-margin-thread .lf-page-thread[data-thread="{held}"]')
+        expect(card).to_be_focused()
+        words = card.locator(".lf-msg-text").first
+        words.evaluate(
+            """node => { const range = document.createRange();
+            range.selectNodeContents(node); const selection = getSelection();
+            selection.removeAllRanges(); selection.addRange(range); }"""
+        )
+        page.locator(".lf-threads-toggle").focus()
+        # The user scrolls the line away, a gesture of theirs the page answers.
+        page.mouse.move(40, 400)
+        page.mouse.wheel(
+            0,
+            line.evaluate(
+                "line => line.getBoundingClientRect().top - innerHeight - 400"
+            ),
+        )
+        page.wait_for_function(
+            "line => line.getBoundingClientRect().top > innerHeight",
+            arg=line.element_handle(),
+        )
+        page.evaluate(
+            "() => new Promise(done => requestAnimationFrame("
+            "() => requestAnimationFrame(done)))"
+        )
+        expect(outlet).to_have_count(0)
+        assert page.evaluate("getSelection().toString()") == (
+            "Should the old route name stay as an alias?"
+        )
         return
     elif end == "clicked":
         marker.click()

@@ -37,9 +37,9 @@ def _response_key(responds: str) -> dict:
     under: an explicit `response reply` takes an author's retry key from a namespace of
     its own, so it can never consume the provider final's append identity. The input
     they both answer is the identity they share. A failure receipt is no answer
-    (`thread.is_answer`), so it keeps its own name, and so does any answer after an
-    input's first, which the log can hold though no writer gives one: the first wins
-    (`thread.answered_by_reply`), and a name stands for one message."""
+    (`thread.is_answer`), so it keeps its own name. The log can hold a second answer to
+    an input though no writer gives one; a name stands for one message, so only the
+    input's first answer in the log takes it."""
     return {"key": f"response:{responds}"}
 
 
@@ -48,12 +48,11 @@ def _named(event: dict) -> dict:
     return {**event, "agent": agent_name(event)}
 
 
-def _answer_key(event: dict, answered: set[str]) -> dict:
-    """An input's first answer's name (`_response_key`), recording the input in
-    `answered`, the inputs an earlier event answered; nothing for any other event."""
-    if not is_answer(event) or event["responds"] in answered:
+def _answer_key(event: dict, first_answers: dict[str, str]) -> dict:
+    """The name of an input's first answer (`_response_key`), by `first_answers`, each
+    input's first answer's id in log order; nothing for any other event."""
+    if not is_answer(event) or first_answers[event["responds"]] != event["id"]:
         return {}
-    answered.add(event["responds"])
     return _response_key(event["responds"])
 
 
@@ -74,7 +73,10 @@ def browser_thread(
     )
     summaries_for = active_summaries(events, threads)
     rendered_threads = []
-    answered: set[str] = set()
+    first_answers: dict[str, str] = {}
+    for event in events:
+        if is_answer(event):
+            first_answers.setdefault(event["responds"], event["id"])
     for thread_id, thread in threads.items():
         questions = work.questions[thread_id]
         protected = set()
@@ -94,7 +96,7 @@ def browser_thread(
                 identity for identity in summary["covers"] if identity in protected
             ]
         messages = [
-            {**_named(message), **_answer_key(message, answered)}
+            {**_named(message), **_answer_key(message, first_answers)}
             for message in thread["msgs"]
         ]
         rendered_threads.append(

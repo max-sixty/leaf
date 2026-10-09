@@ -1808,6 +1808,7 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
     box-sizing: border-box;
     border: 1px dashed color-mix(in srgb, var(--accent) 55%, transparent); }
   .lf-legend-tag { position: absolute; left: -1px; bottom: 100%; max-width: 40vw;
+    visibility: var(--lf-design-tag-visibility, visible);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     padding: 0 5px; font-size: var(--t-6); line-height: 1.5;
     background: color-mix(in srgb, var(--accent) 12%, var(--card)); color: var(--accent);

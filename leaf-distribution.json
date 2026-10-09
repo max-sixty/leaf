@@ -1,7 +1,7 @@
 {
   "producer": {
-    "commit": "70a7296910b7",
-    "committed": "2026-10-09T05:17:25-07:00",
+    "commit": "b91b9660cd61",
+    "committed": "2026-10-09T09:28:29-07:00",
     "dirty": false
   },
   "runtime_paths": [
@@ -181,7 +181,6 @@
     "syntax.js",
     "target-paint-geometry.js",
     "target-paint.js",
-    "target-references.js",
     "text-alignment.js",
     "thread-panel.js",
     "thread/actions.js",

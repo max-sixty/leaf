@@ -72,7 +72,6 @@ The optional bundled packages are:
 | `diagram` | `lf-diagram` and its Agentic Mermaid renderer. |
 | `diff` | `lf-diff`, its `unified-diff` data contract and Pierre renderer, and `lf-call-diff` with links to exact patch evidence. |
 | `playground` | Controls and structured state with shared reset, restore, preview, output, and typed configuration submission. |
-| `targeting` | Preview-element selection and structured, reversible change proposals. |
 | `command-hub` | Multi-agent orchestration widgets. |
 | `pr-review` | A typed pull-request brief with a safe Markdown description and compact checks table. |
 | `monitoring` | Release-workspace instructions for current state, checks, a run log, and a rollback Ask. |

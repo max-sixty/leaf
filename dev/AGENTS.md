@@ -118,18 +118,17 @@ in `leaf-assets.json` and the README's image URLs that name it.
   has private listener ports, temporary site, container build context and state,
   and retained logs under `.tmp/verify-site/run-*/`. `worker/README.md` owns hosted-agent
   diagnostics and the failure contract.
-- `leaf-dev journey TARGET` runs one user's journey in Chrome against a real
-  agent: through Threads it asks for a release that passed its checks to be
-  recorded, and requires a revision and a reply; on a harness ("Harnesses" below)
-  it takes further steps. For the website, TARGET is an origin, `website-adapter`
-  for the website's adapter on this machine, or `website-worker` for the built site
-  through the local Worker and container; `publish-site` runs it against each
-  release. It prints one JSON
-  sample: the title, published revision and reply timed on the page server's clock
-  from the comment's admission, and what only the browser sees from the send. Each
-  sample is also appended to `$XDG_STATE_HOME/leaf-dev/journey.jsonl` on the machine
-  that ran it, and `leaf-dev journey-chart` prints an `lf-chart` of those samples,
-  for the latest version each target ran, to put on a page.
+- `leaf-dev journey TARGET` runs one user's journey against a real agent: it asks
+  for a release that passed its checks to be recorded, and requires a revision and
+  a reply; on a harness ("Harnesses" below) it takes further steps. For the website,
+  TARGET is an origin, `website-adapter` for the website's adapter on this machine,
+  or `website-worker` for the built site through the local Worker and container,
+  and the user is in Chrome; `publish-site` runs it against each release. It prints
+  one JSON sample: each comment's milestones timed on the page server's clock from
+  its admission, and in Chrome what only the browser sees from the send. Each sample
+  is also appended to `$XDG_STATE_HOME/leaf-dev/journey.jsonl` on the machine that
+  ran it, and `leaf-dev journey-chart` prints an `lf-chart` of those samples, for
+  the latest version each target ran at each user end, to put on a page.
 - `worker/deploy-dev.sh` (`npm run deploy:dev --prefix worker`) deploys the checkout
   to the standing `leaf-website-dev` environment and verifies it. Production deploys
   only through `.github/workflows/publish-site.yaml`.
@@ -151,10 +150,12 @@ the host's login. TARGET is `claude-code` (interactive, in a tmux pane),
 the desktop app's and IDE extension's), or `pi` (the version `dev/pi/package.json`
 pins, in RPC mode, on a copy of the host's Codex login). `journey.py` owns what the
 harnesses share: the isolation and its evidence under `.tmp/journey/`, the
-`Terminal` every wait hears the session through, and the `User`, whose release
-ask goes through Threads in Chrome and whose later comments are posted to the page as
-a tab posts them, each timed from the page's log on the server's clock, with the
-agent's work on each split into delivery, model and tool phases.
+`Terminal` every wait hears the session through, and the `User`, at one end for
+every step: over HTTP by default, posting each comment as the page's tab does with no
+browser, which is what agent and harness behaviour and timing need, or in Chrome with
+`--browser`, typing each comment in Threads and timing what the page shows, the whole
+user journey. Either way each comment is timed from the page's log on the server's
+clock, with the agent's work on it split into delivery, model and tool phases.
 Between steps the journey fails unless every comment so far has one reply and
 entered the session's context, and the page's claim names the session with its turn closed; what else each
 target checks is its harness's promise, which its module lists with its steps

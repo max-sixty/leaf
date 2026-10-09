@@ -1240,11 +1240,15 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
         "target": "website-adapter",
         "harness": "website",
         "origin": "http://127.0.0.1:8080",
+        "userEnd": "browser",
         "version": "a" * 40,
         "comment": {"eventIds": ["comment"]},
     }
     assert (step["step"], step["comments"]) == ("release", {})
     # A harness's options belong to its harness alone.
+    refused = runner.invoke(journey.journey, ["website-adapter", "--http"])
+    assert refused.exit_code == 2
+    assert "a website's journey is its page in a browser" in refused.output
     refused = runner.invoke(journey.journey, ["website-adapter", "--hooks-module"])
     assert refused.exit_code == 2
     assert "--hooks-module is an option of claude-code" in refused.output
@@ -3216,6 +3220,19 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
         expect(news).to_have_count(0)
         expect(thread.locator(".lf-msg.agent")).to_be_hidden()
         assert set(current_responses(page_dir, read_events(page_dir))) == {other["id"]}
+        # Its row is all the user sees of the answer, and the page times the answer
+        # from it whatever the journey is doing then.
+        [folded] = [
+            event
+            for event in read_events(page_dir)
+            if event["kind"] == "reply" and event["parent"] == comment["id"]
+        ]
+        shown = page.evaluate(
+            "window.__leafVerifier.replyShownAt",
+            {"thread": comment["id"], "id": folded["id"], "ts": folded["ts"]},
+        )
+        assert shown["by"] == "row"
+        assert committed <= shown["at"] <= drawn
     else:
         # The short thread's reopened answer would move its writing box, so the
         # reader explicitly opens the news before the visibility clock can see it. The

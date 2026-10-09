@@ -86,10 +86,11 @@ def attempt(step: str) -> str:
     return f"journey-step-{step}"
 
 
-def post(url: str, step: str) -> str:
-    """Post step `step`'s comment (`COMMENTS`) to the page served at its keyed `url`,
-    on its section, as the page's tab posts one; return its admitted id."""
-    section, text = COMMENTS[step]
+def post(url: str, step: str, text: str | None = None) -> str:
+    """Post step `step`'s comment to the page served at its keyed `url`, as the page's
+    tab posts one, and return its admitted id: the scenario's (`COMMENTS`) on its
+    section, or `text` on the page as a whole."""
+    section, text = COMMENTS[step] if text is None else (None, text)
     client = PageClient(url)
     client.post(
         {
@@ -97,7 +98,7 @@ def post(url: str, step: str) -> str:
             "revision": client.state()["active"]["revision"],
             "attempt": attempt(step),
             "text": text,
-            "anchor": {"section": section},
+            **({"anchor": {"section": section}} if section else {}),
         }
     )
     return next(

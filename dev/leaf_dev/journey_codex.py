@@ -11,8 +11,8 @@ private App Server the way `leaf codex launch` does (`private_app_server`). On
 sees no App Server environment variable, as in the desktop app or IDE extension, and
 the real `codex queue` command is routed to the private server (`task_codex`). The
 journey is then the terminal: it opens the task and types the user's turns, and
-after the release ask posts the user's comments to the served page as a tab would. It
-reads the page's log and claim in process, and stops at the first check that fails.
+sends the user's comments at the journey's user end. It reads the page's log and
+claim in process, and stops at the first check that fails.
 
 The steps, in order:
 
@@ -377,6 +377,10 @@ def steps(
         # Aborted command items need not emit item/completed. They cannot stand
         # in for execution of the resumed turn's first command.
         task.running_commands.clear()
+        # The user writes the comment now and sends it the moment the resumed turn
+        # starts; in a browser its admission then does not wait on typing in a turn
+        # this short.
+        send = user.write("resume")
         previous_turns = len(task.started)
         resumed = task.request(
             "turn/start",
@@ -390,8 +394,7 @@ def steps(
             lambda: resumed in task.started, "the empty-input resume did not start"
         )
         require(resumed in task.running, "the empty-input resume already ended")
-        # Post while that native turn is open, before its first delivery hook.
-        during = user.comment("resume")
+        during = send()
         codex.settle(
             lambda: user.answered("resume"),
             "the comment sent during resume was not answered",

@@ -268,18 +268,25 @@ idle a preview to quiet the loop; `idle` closes the page in the browser.
 
 ## Run the agent journey
 
-`uv run --project <root> leaf-dev journey TARGET` runs one user's journey in
-Chrome against a real agent: on the triage board, it tells the agent through
-Threads that a release passed its checks and asks it to record that, leaving how to
-the agent, then checks a reply shows and a reload presents a revision naming the
-release. It prints how long each step took, the agent's steps on the page server's
-clock, so the same journey benchmarks every target. A run spends the target's
-login.
+`uv run --project <root> leaf-dev journey TARGET` runs one user's journey against a
+real agent: on the triage board, it tells the agent that a release passed its checks
+and asks it to record that, leaving how to the agent, then checks a reply and a
+revision naming the release. It prints how long each step took, the agent's steps on
+the page server's clock, so the same journey benchmarks every target. A run spends
+the target's login.
+
+Where the user is applies to every step. On a harness the default is over HTTP:
+no browser starts, and each comment is posted as the page's tab posts one. Use it
+for harness behaviour and agent timing, which the page's log carries whole.
+`--browser` runs the whole user journey in Chrome instead: each comment typed in
+Threads, each reply's showing timed by the page, and the release ask's reload
+checked. Use it when what the page shows is part of the change. A website target
+is always in Chrome, since delivery through the page is its subject.
 
 On a harness the journey runs a session of it with this working tree as its plugin,
 under a throwaway home holding the host's login, and goes on as the user at its
-terminal: it types turns, presses Escape, kills the adapter, and posts each later
-step's comment to the page as a tab would, timing it from the page's log. Between
+terminal: it types turns, presses Escape, kills the adapter, and sends each step's
+comment, timing it from the page's log. Between
 steps it checks every comment so far is answered once and entered the session's
 context, and the page's claim names the session with its turn closed. The
 suite stands in for each harness, and only this run shows what the harness itself

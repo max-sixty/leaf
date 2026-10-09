@@ -9,6 +9,7 @@ import subprocess
 import sys
 import time
 from itertools import count
+from types import SimpleNamespace
 
 import pytest
 from leaf_dev import journey, journey_claude_code, journey_pi
@@ -19,12 +20,14 @@ def at(seconds: float) -> str:
     return f"2026-10-08T09:00:{seconds:06.3f}+00:00"
 
 
-def test_a_steps_comments_are_timed_from_the_log():
-    """Each step keeps the comments it posted, timed from the page's log on the
+@pytest.mark.parametrize("end", ["http", "browser"])
+def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(end):
+    """Each step keeps the comments it sent, timed from the page's log on the
     server's clock from their admission, with the turn split from the session's
-    records from the opened pickup on. A permission prompt the user answered marks
-    its step's comments, and the release ask's, so a reading held up by one is told
-    apart from those that were not."""
+    records from the opened pickup on; in a browser, also from their send to their
+    reply showing, as the page recorded it. A permission prompt the user answered
+    marks its step's comments, and the release ask's, so a reading held up by one is
+    told apart from those that were not."""
     events = [
         {"kind": "comment", "id": "c1", "ts": at(0)},
         {
@@ -63,10 +66,14 @@ def test_a_steps_comments_are_timed_from_the_log():
     ]
     terminal = journey.Terminal()
     terminal.trace = records
-    session = journey.Session(
-        None, None, [], "", "", {}, {}, None, records=terminal.records
-    )
-    user = journey.User(session, "v", lambda: events, terminal)
+    shown = []
+
+    def show(answer):
+        shown.append(answer["id"])
+        return {"at": 1_000_000 + 9_500, "by": "row"}
+
+    user_end = SimpleNamespace(name=end, shown=show)
+    user = journey.User(user_end, "v", lambda: events, terminal)
     user.release_reading = {
         "version": "v",
         "comment": {
@@ -77,12 +84,20 @@ def test_a_steps_comments_are_timed_from_the_log():
     }
     terminal.approved.append("Do you want to make this edit to index.html?")
     user.passed("release", time.monotonic())
-    user.ids["mid-turn"] = "c1"
+    profile = None
+    if end == "browser":
+        profile = journey.AgentProfile()
+        profile.ask_count = 1
+        profile.visible_reply_started_ms = 1_000_000
+        profile.acknowledged = [0.04]
+        profile.event_ids = ["c1"]
+    user.ids["mid-turn"], user.profiles["mid-turn"] = "c1", profile
     user.sent = ["mid-turn"]
     terminal.approved.append("Do you want to proceed?")
     user.passed("mid-turn", time.monotonic() - 6)
 
     sample = user.sample()
+    assert sample["userEnd"] == end
     assert sample["comment"]["approved"] == [
         "Do you want to make this edit to index.html?"
     ]
@@ -96,6 +111,12 @@ def test_a_steps_comments_are_timed_from_the_log():
     assert reading["approved"] == ["Do you want to proceed?"]
     assert reading["sinceAdmissionMs"]["pickedUp"] == 1000
     assert reading["sinceAdmissionMs"]["replied"] == 9000
+    if end == "browser":
+        assert reading["sinceSendMs"]["responseVisible"] == 9500
+        assert reading["responseShownBy"] == "row"
+        assert shown == ["r1"]
+    else:
+        assert "sinceSendMs" not in reading and shown == []
     # The record before the pickup is no delivery; the work after it is.
     assert [phase["phase"] for phase in reading["turn"]] == [
         "delivery",
@@ -115,10 +136,12 @@ def test_a_steps_comments_are_timed_from_the_log():
         [prompted, later, {**later, "comment": sample["comment"]}]
     )
     # The latest version is chosen before rows split by prompt, so a prompted run of
-    # an older version leaves the chart once a newer one runs.
+    # an older version leaves the chart once a newer one runs; each user end has rows
+    # of its own.
+    over = " over HTTP" if end == "http" else ""
     assert {row["row"] for row in rows} == {
-        "Claude Code at v",
-        "Claude Code after a permission prompt at v",
+        f"Claude Code{over} at v",
+        f"Claude Code{over} after a permission prompt at v",
     }
 
 

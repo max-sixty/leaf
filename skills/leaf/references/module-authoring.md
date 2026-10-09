@@ -329,6 +329,14 @@ reached by its own arrows offers one Tab stop with `rove(items, stop)`. `standin
 says whether the user stands in a scope, across shadow trees, and `whenLeft(element, leave)`
 runs `leave` once when they move off an element.
 
+Generated native controls can give themselves a stable `data-lf-carry` key inside
+their nearest named owner. That owner must match authored markup by id and tag;
+another named wrapper establishes its own scope. Live document replacement carries
+focus and caret by owner id, key and native tag, once the generated control is visible
+after upgrade. Authored inputs retain focus immediately so typing continues during
+startup. The widget owns its drawing and values. An initial renderer keeps retained
+view geometry from the first frame. Keys are unique within their named owner.
+
 A module that takes the user to a thread calls `openThread(id, {focus})`
 with the Thread's `id`. It opens the thread where the page shows it, inline beside
 its passage or widget, and in Threads when it has no place on the page, the same choice a
@@ -555,25 +563,25 @@ Declare ordinary local bindings in `keys` and explicitly forwardable aliases in
 the enclosing Ask's opening and its associated margin controls and threads. A route can
 declare its own `contextKeys`; an ordinary key on another route is never forwarded.
 Numbers are widget choices, not an Ask allocation: options own their stable numeric
-assignments, and a swipe deck declares Pass as `1` and Keep as `2`. The page owns `q`
+assignments, and a classifier declares Pass as `1` and Keep as `2`. The page owns `q`
 and `Shift+q` navigation between Asks. Do not assign numbers based on currently available
 actions: disabling `1` must not turn `2` into a different action.
 
 ```javascript
-const actions = commandScope("In a swipe deck", [
+const actions = commandScope("In a classifier", [
   {
-    id: "swipe.pass",
+    id: "classify.pass",
     title: "Pass",
     keys: ["ArrowLeft"],
     contextKeys: ["1"],
     decision: true,
     control: passButton,
     bindingBadge: passHint,
-    when: canSwipe,
-    run: () => swipe("pass"),
+    when: canClassify,
+    run: () => classify("pass"),
   },
 ]);
-commands(deck, actions);
+commands(classifier, actions);
 ```
 
 For a native button, `control` and `run` declare one activation path: Leaf invokes
@@ -723,7 +731,10 @@ A widget that renders the page's history declares `x-history` and reads it throu
 `watchHistory(owner, callback)`: the server's rows, newest first, each already
 carrying its thread, whether it was undone, the name an agent's row is shown under
 as `agent`, and a gesture's words as the document it was made in had them. The
-widget words those facts; it does not fold the log.
+widget words those facts; it does not fold the log. The callback also receives
+`{ready}`: whether the authoritative application is ready. A widget that restores a
+tab-local retained reading keeps it through preparation, then compares it with the
+ready history; a preparation reading is not a new history baseline.
 
 ## Data subscriptions and projections
 

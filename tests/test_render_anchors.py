@@ -208,10 +208,10 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
             const near = el.closest('.lf-ui, [data-lf-said]');
             return !near || near.matches('[data-lf-said]');
         };
-        // Native passage blocks come from the runtime. The four composite roots are
+        // Native passage blocks come from the runtime. The composite roots are
         // representative widgets whose direct prose otherwise has no native block;
         // data-lf-said is the runtime's marker for generated words the page still says.
-        const compositeSelector = 'lf-metric,lf-milestone,lf-option,lf-variant';
+        const compositeSelector = 'lf-option,lf-sample';
         const blocks = [...document.querySelectorAll(
             `${TEXT_BLOCK},${compositeSelector},[data-lf-said]`)]
           .filter(b => speaks(b) && b.checkVisibility()
@@ -474,11 +474,11 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
     if revision == 2:
         source = FENCED_CAPTURE_PAGE.replace("</title>", " revised</title>")
     elif revision == 3:
-        source = FENCED_CAPTURE_PAGE.replace('when="week-1"', 'when="week-2"')
+        source = FENCED_CAPTURE_PAGE.replace("week-1", "week-2")
     if revision != 1:
         stamp_page(serve.page_dir, source, "Refresh the document")
         wait_for_revision(page, 2)
-    expect(page.locator("#gate-milestone .lf-chips")).to_have_count(1)
+    expect(page.locator('#gate-milestone [data-lf-said="label"]')).to_have_count(1)
     registry = json.loads((serve.page_dir / "registry.json").read_text())
     cases = [
         ("#gate-milestone strong", "Build feeders", "gate-milestone"),
@@ -486,7 +486,7 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
         ("#after-milestone", "Ready next.", "after-milestone"),
         # One chip out of a band of them: authored markup, so both readings hold it
         # for the same reason they hold the title beside it.
-        ("#fence-option > lf-chip", "effort: low", "fence-option"),
+        ("#fence-option > small.tag", "effort: low", "fence-option"),
     ]
 
     for index, (selector, quote, section) in enumerate(cases, 1):

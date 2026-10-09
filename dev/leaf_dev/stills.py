@@ -1,12 +1,14 @@
 """Screenshot a fixed catalogue of UI states on BASE_REF's runtime and HEAD's, and
 show which ones changed.
 
-    uv run leaf-dev stills [BASE_REF] [--state NAME]...
+    uv run leaf-dev stills [BASE_REF] [--state NAME]... [--authored]
 
 BASE_REF defaults to the merge base of HEAD and `main`; each arm is the payload at its
 commit (`leaf_dev.arms.build_pair`), so commit what you want compared. Each page is
 built from this checkout's example source and served by the arm's own launcher, so
-only the runtime, theme and server differ between the two stills of a state. Each
+only the runtime, theme and server differ between the two stills of a state. With
+`--authored`, each arm instead reads its own committed example and companions, so
+changes to page markup are visible as well. Each
 capture starts with a fresh authored fixture and event log, so a prior gesture cannot
 change another state's initial condition.
 Message delivery belongs to thread_journey and test_render_thread_snapshots: its
@@ -41,7 +43,7 @@ from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page
 
 from leaf_dev import ROOT
-from leaf_dev.arms import build_pair, run_directory, serving_source
+from leaf_dev.arms import build_pair, copy_committed, run_directory, serving_source
 from leaf_dev.browser import BESIDE, DESKTOP, chrome, load, settle, tab
 
 OUT = ROOT / ".tmp" / "stills"
@@ -338,6 +340,18 @@ def frame_edges(page: Page) -> None:
     )
 
 
+def gallery_metrics(page: Page) -> None:
+    """Headline values and charts, reached through the gallery's page tab."""
+    page.get_by_role("tab", name="Page & layout", exact=True).click()
+    page.locator("#bg-metrics-and-chart").scroll_into_view_if_needed()
+
+
+def gallery_plans(page: Page) -> None:
+    """Planned work beside observed history, using authored stable section identity."""
+    page.get_by_role("tab", name="Page & layout", exact=True).click()
+    page.locator("#bg-plans-and-history").scroll_into_view_if_needed()
+
+
 def theme_hierarchy(page: Page) -> None:
     """A neutral callout with open and closed support; exercise the closed row by key."""
     page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
@@ -550,6 +564,8 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         code_note,
         frame_edges,
         theme_hierarchy,
+        gallery_metrics,
+        gallery_plans,
         wide_passage,
         multiline_passage,
         code_copy_by_pointer,
@@ -751,6 +767,8 @@ STATES = (
     ),
     State("gallery-tabs", "developer/feature-gallery", at_rest),
     State("frame-edges", "developer/feature-gallery", frame_edges),
+    State("gallery-metrics", "developer/feature-gallery", gallery_metrics),
+    State("gallery-plans", "developer/feature-gallery", gallery_plans),
     State("gallery-theme", "developer/feature-gallery", theme_hierarchy),
     State(
         "gallery-theme-dark",
@@ -1020,7 +1038,12 @@ def crop(folder: Path, regions: list[dict]) -> None:
     multiple=True,
     help="Capture a named state; repeat for more. Defaults to the whole catalogue.",
 )
-def stills(base_ref: str | None, names: tuple[str, ...]) -> None:
+@click.option(
+    "--authored",
+    is_flag=True,
+    help="Compare each commit’s authored examples as well as its runtime.",
+)
+def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None:
     """Screenshot a catalogue of UI states on BASE_REF's runtime and HEAD's, and crop
     each state that changed into a before/after pair under .tmp/stills/."""
     states = [state for state in STATES if not names or state.name in names]
@@ -1029,6 +1052,14 @@ def stills(base_ref: str | None, names: tuple[str, ...]) -> None:
     with tempfile.TemporaryDirectory(prefix="leaf-stills-") as built:
         scratch = Path(built)
         arms, commits = build_pair(base_ref, scratch)
+        source_roots = {arm: ROOT for arm in arms}
+        if authored:
+            for arm, commit in commits.items():
+                source_roots[arm] = scratch / f"{arm}-source"
+                source_roots[arm].mkdir()
+                copy_committed(
+                    ("examples", "leaf-assets.json"), source_roots[arm], commit
+                )
         with chrome() as browser:
             for state in states:
                 for arm, arm_dir in arms.items():
@@ -1042,7 +1073,7 @@ def stills(base_ref: str | None, names: tuple[str, ...]) -> None:
                     try:
                         with serving_source(
                             arm_dir,
-                            ROOT / "examples" / f"{state.source}.html",
+                            source_roots[arm] / "examples" / f"{state.source}.html",
                             scratch / f"{arm}-{state.name}",
                         ) as address:
                             capture(browser, address, state, folder / f"{arm}.png")

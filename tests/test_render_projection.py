@@ -3206,30 +3206,31 @@ def test_media_the_revision_never_mentioned_keeps_its_address(browser, serve):
     }, f"the revision re-addressed a picture it never mentioned: {standing}"
 
 
-def test_a_word_the_revision_adds_to_a_surviving_element_is_said(browser, serve):
-    """An attribute written in place is dressed like one that arrived.
-
-    A metric says its delta through an attribute rendered as real text. When a revision
-    adds that attribute to an element the patch keeps, the element is dressed again, so
-    the number is readable and pointable rather than an attribute nobody rendered.
-    """
+def test_a_word_the_revision_adds_to_a_surviving_element_is_said(
+    browser, serve, declared_reading_package
+):
+    """A newly authored label is readable and pointable on a surviving node."""
     first = leaf_page(
         "Said first",
-        '<h1 id="sd-title">Said</h1>\n'
-        '<div class="layout-tiles" id="sd-metrics"><lf-metric id="sd-metric" value="42">'
-        "checks complete</lf-metric></div>",
+        '<h1 id="sd-title">Said</h1>'
+        '<lf-reading id="sd-reading"><p>Checks complete.</p></lf-reading>',
     )
     second = first.replace("Said first", "Said second").replace(
-        'value="42"', 'value="45" delta="+3"'
+        'id="sd-reading"', 'id="sd-reading" label="Release checks"'
     )
-    page = open_page(browser, live_url(serve(first)))
-    expect(page.locator('#sd-metric [data-lf-said="value"]')).to_have_text("42")
+    page = open_page(
+        browser,
+        live_url(serve(first, packages=(*EXAMPLE_PACKAGES, declared_reading_package))),
+    )
+    page.evaluate("window.__sample = document.getElementById('sd-reading')")
 
     (serve.page_dir / "index.html").write_text(second)
     told(page)
     expect(page).to_have_title("Said second")
-    expect(page.locator('#sd-metric [data-lf-said="value"]')).to_have_text("45")
-    expect(page.locator('#sd-metric [data-lf-said="delta"]')).to_have_text("+3")
+    expect(page.locator('#sd-reading [data-lf-said="label"]')).to_have_text(
+        "Release checks"
+    )
+    assert page.evaluate("window.__sample === document.getElementById('sd-reading')")
 
 
 def test_a_revision_reaches_a_paragraph_a_page_module_moved(browser, serve):
@@ -4873,6 +4874,105 @@ customElements.define('page-counter', class extends HTMLElement {
     expect(page.locator("#lk-note")).to_be_focused()
     assert page.locator("#lk-why").evaluate("el => el.open") is True
     assert page.locator("#lk-evidence").evaluate("el => el.scrollTop") == 40
+
+
+@pytest.mark.parametrize("start", ["generated", "authored"])
+@pytest.mark.parametrize("typed", [False, True], ids=["clicked", "typed"])
+def test_replacing_document_yields_to_input_before_runtime_loads(
+    browser, serve, start, typed
+):
+    """The fresh page belongs to its reader before its module graph arrives."""
+    html = leaf_page(
+        "Arrival",
+        '<h1>Arrival</h1><lf-activity id="feed"></lf-activity>'
+        '<section id="notes"><h2>Notes</h2>'
+        '<input id="first" type="text" aria-label="First">'
+        '<input id="second" type="text" aria-label="Second"></section>',
+    )
+    page = open_page(browser, live_url(serve(html)))
+    panel = page.locator(".lf-threads-toggle")
+    panel.click()
+    expect(panel).to_have_attribute("aria-expanded", "true")
+    first = page.locator(
+        "#feed .lf-activity-news" if start == "generated" else "#first"
+    )
+    first.focus()
+    expect(first).to_be_focused()
+    original_document = page.evaluate("performance.timeOrigin")
+    blocked = []
+    page.route("**/leaf.js", lambda route: blocked.append(route))
+    stamp_page(
+        serve.page_dir,
+        html.replace("</head>", '<script type="module">void 0;</script></head>'),
+        "Replace executable inputs",
+    )
+    page.wait_for_function(
+        "old => performance.timeOrigin !== old", arg=original_document
+    )
+    page.wait_for_function("document.readyState !== 'loading'")
+    assert blocked, "the runtime module must still be withheld"
+    second = page.locator("#second")
+    second.click()
+    if typed:
+        page.keyboard.type("Keep this input")
+    expect(second).to_be_focused()
+    page.unroute("**/leaf.js")
+    for route in blocked:
+        route.continue_()
+    wait_for_revision(page, 2)
+    wait_until_ready(page)
+    expect(panel).to_have_attribute("aria-expanded", "true")
+    expect(second).to_be_focused()
+    if typed:
+        expect(second).to_have_value("Keep this input")
+
+
+def test_replacing_document_keeps_typing_while_presentation_is_held(browser, serve):
+    """An authored field receives real keys before the fresh state answer arrives."""
+    module = '<script type="module">void 0;</script>'
+    first = LIVE_KEYS_APPARATUS.replace("</head>", module + "</head>")
+    second = LIVE_KEYS_APPARATUS_REWRITTEN.replace(
+        "</head>", module.replace("void 0", "void 1") + "</head>"
+    )
+    page = open_page(browser, live_url(serve(first)))
+    note = page.locator("#lk-note")
+    note.click()
+    note.type("half a thought")
+    original_document = page.evaluate("performance.timeOrigin")
+    replaced = False
+    blocked = []
+
+    def navigated(frame):
+        nonlocal replaced
+        if frame == page.main_frame:
+            replaced = True
+
+    def state_answer(route):
+        if replaced:
+            blocked.append(route)
+        else:
+            route.continue_()
+
+    page.on("framenavigated", navigated)
+    page.route("**/api/state*", state_answer)
+    (serve.page_dir / "index.html").write_text(second)
+    # Deliberately test the startup interval: final readiness is held at the HTTP
+    # boundary, while the replacement owes the field its focus and native keys.
+    page.wait_for_function(
+        "old => performance.timeOrigin !== old", arg=original_document
+    )
+    expect(page).to_have_title("Live keys rewritten")
+    expect(note).to_be_focused()
+    assert page.locator("body").get_attribute("data-lf-presented") is None
+    page.keyboard.type(" continued")
+    expect(note).to_have_value("half a thought continued")
+    assert blocked
+    page.unroute("**/api/state*", state_answer)
+    for route in blocked:
+        route.continue_()
+    wait_until_ready(page)
+    expect(note).to_have_value("half a thought continued")
+    expect(note).to_be_focused()
 
 
 def test_a_withdrawn_ask_leaves_the_user_on_the_page(browser, serve):
@@ -9691,6 +9791,7 @@ def test_command_hub_input_is_trimmed_before_it_enters_the_record(browser, serve
     assert "Alice" not in edit["detail"]["value"]
     assert "a@example.test" not in edit["detail"]["value"]
     assert edit["detail"]["value"].count("[redacted]") == 2
+    page.locator("#atlas-record .lf-activity-news").click()
     saved = page.locator("#atlas-record .lf-activity-row").first
     expect(saved).to_contain_text("You edited")
     expect(saved.locator('a[href="#ledger-cargo"]')).to_have_count(1)
@@ -9999,6 +10100,7 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
         seat.get_by_role("button", name="Send & pause", exact=True).click()
     expect(goal).to_have_attribute("data-lf-held")
     expect(goal.locator(":scope > .lf-task-meta")).to_contain_text("paused by you")
+    page.locator("#atlas-record .lf-activity-news").click()
     paused = page.locator("#atlas-record .lf-activity-row").first
     # The goal is named by its leading <strong>, not the words under it.
     expect(paused).to_contain_text("You paused")
@@ -10010,6 +10112,7 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
         if event.get("holds") == "goal-parser"
     )
 
+    seat.get_by_role("textbox", name="Reply", exact=True).scroll_into_view_if_needed()
     append_carried_log_record(
         d,
         {
@@ -10023,17 +10126,16 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
     )
     told(page)
     expect(goal).to_have_attribute("data-lf-held", root["id"])
-    # The feed quotes the reply in the words its Markdown renders, not its source.
-    replied = page.locator("#atlas-record .lf-activity-row").first
-    expect(replied.locator(".lf-activity-line")).to_contain_text("Relay replied")
-    expect(replied.locator(".lf-activity-excerpt")).to_have_text(
-        "The hunk is complete; see the run and park."
-    )
     # The reply landed where the user was looking, so it waits for them to open it.
     seat.get_by_role("button", name="1 new reply").click()
     inline_link = seat.locator('a[href="https://example.com/run"]')
     expect(inline_link).to_have_attribute("target", "_blank")
     expect(inline_link.locator(":scope > svg.lf-external-mark")).to_be_visible()
+    replied = page.locator("#atlas-record .lf-activity-row").first
+    expect(replied.locator(".lf-activity-line")).to_contain_text("Relay replied")
+    expect(replied.locator(".lf-activity-excerpt")).to_have_text(
+        "The hunk is complete; see the run and park."
+    )
 
     page.locator(".lf-threads-toggle").click()
     thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
@@ -10676,6 +10778,7 @@ def test_the_activity_feed_words_a_pick_in_the_document_it_was_made_in(browser, 
     page = open_page(browser, live_url(serve(page_with(ask("Fast path")))))
     page.locator("#route-fast .lf-pick").click()
     round_trip(page)
+    page.locator("#feed .lf-activity-news").click()
     row = page.locator("#feed .lf-activity-row", has_text="chose")
     expect(row).to_contain_text("chose “Fast path” in")
 
@@ -10687,3 +10790,341 @@ def test_the_activity_feed_words_a_pick_in_the_document_it_was_made_in(browser, 
     stamp_page(serve.page_dir, page_with(""), "drop the question")
     wait_for_revision(page, 3)
     expect(row).to_contain_text("chose “Fast path” in")
+
+
+@pytest.mark.parametrize(
+    ("fresh", "touch"),
+    [(False, False), (True, False), (False, True)],
+    ids=["patched", "fresh", "touch"],
+)
+def test_activity_held_targets_follow_the_current_document(
+    browser, serve, fresh, touch
+):
+    """Held history keeps its words and seat, but never a departed destination."""
+
+    def source(destination, executable=""):
+        return leaf_page(
+            "Route",
+            '<h1>Route history</h1><lf-activity id="feed"></lf-activity>' + destination,
+        ).replace("</head>", executable + "</head>")
+
+    route = """<lf-ask id="route-ask"><h2>Which route?</h2>
+      <lf-options id="route" choose>
+        <lf-option id="route-fast">Fast path</lf-option>
+        <lf-option id="route-slow">Slow path</lf-option>
+      </lf-options></lf-ask>"""
+    url = live_url(serve(source(route)))
+    if touch:
+        page = browser.new_page(
+            viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True
+        )
+        page.goto(url)
+        wait_until_ready(page)
+        page.locator("#route-fast .lf-pick").tap()
+    else:
+        page = open_page(browser, url)
+        page.locator("#route-fast .lf-pick").click()
+    round_trip(page)
+    page.locator("#feed .lf-activity-news").click()
+    row = page.locator("#feed .lf-activity-row", has_text="chose")
+    target = row.locator(".lf-activity-target")
+    expect(target).to_have_attribute("href", "#route")
+    page.keyboard.press("Tab")
+    expect(target).to_be_focused()
+    before = row.bounding_box()
+    what = row.locator(".lf-activity-what").text_content()
+    label = target.text_content()
+    fragment = page.evaluate("location.hash")
+    executable = '<script type="module">void 0;</script>' if fresh else ""
+    if fresh:
+        page.add_init_script("""
+          window.activityTargetFrames = [];
+          let remaining = 180;
+          function readTarget() {
+            const target = document.querySelector('#feed a.lf-activity-target');
+            if (target) window.activityTargetFrames.push({
+              href: target.getAttribute('href'), label: target.textContent,
+              parsed: document.readyState !== 'loading'
+            });
+            if (--remaining) requestAnimationFrame(readTarget);
+          }
+          requestAnimationFrame(readTarget);
+        """)
+
+    stamp_page(serve.page_dir, source("", executable), "Remove the route")
+    wait_for_revision(page, 2)
+    wait_until_ready(page)
+    expect(row.locator(".lf-activity-what")).to_have_text(what)
+    expect(target).to_have_text(label)
+    expect(target).not_to_have_attribute("href", "#route")
+    expect(row.get_by_role("link")).to_have_count(0)
+    expect(target).to_be_focused()
+    assert row.bounding_box() == before
+    target.press("Enter")
+    assert page.evaluate("location.hash") == fragment
+    if touch:
+        target.tap()
+    else:
+        target.click()
+    assert page.evaluate("location.hash") == fragment
+    if fresh:
+        frames = page.evaluate("window.activityTargetFrames")
+        assert frames
+        assert all(
+            frame["href"] is None and frame["label"] == label for frame in frames
+        )
+
+    # A destination returning is current capability too; held labels stay historical.
+    restored = '<section id="route"><h2>A different route heading</h2></section>'
+    restored_executable = '<script type="module">void 1;</script>' if fresh else ""
+    blocked = []
+    if fresh:
+        page.route("**/leaf.js", lambda route: blocked.append(route))
+    stamp_page(
+        serve.page_dir, source(restored, restored_executable), "Restore a destination"
+    )
+    if fresh:
+        page.wait_for_function("""() => document.readyState === 'interactive' &&
+          document.querySelector('#feed a.lf-activity-target')?.getAttribute('href') === '#route'""")
+        assert blocked, "startup module must remain pending during the parsed drawing"
+        assert page.locator("body").get_attribute("data-lf-presented") is None
+        page.unroute("**/leaf.js")
+        for route in blocked:
+            route.continue_()
+    wait_for_revision(page, 3)
+    expect(target).to_have_attribute("href", "#route")
+    expect(row.locator(".lf-activity-what")).to_have_text(what)
+    expect(target).to_have_text(label)
+    expect(target).to_be_focused()
+    assert row.bounding_box() == before
+    if fresh:
+        frames = page.evaluate(
+            "window.activityTargetFrames.filter(frame => frame.parsed)"
+        )
+        assert frames
+        assert all(
+            frame["href"] == "#route" and frame["label"] == label for frame in frames
+        )
+    target.press("Enter")
+    expect(page).to_have_url(re.compile(r"#route$"))
+    expect(page.locator("#route")).to_be_in_viewport()
+
+
+@pytest.mark.parametrize("touch", [False, True], ids=["keyboard", "touch"])
+def test_activity_holds_arrivals_until_the_reader_reveals_them(browser, serve, touch):
+    """News above a visible passage waits; its fixed control never dodges activation."""
+    html = leaf_page(
+        "History",
+        '<h1>History</h1><section id="recent"><h2>Recent</h2>'
+        '<lf-activity id="feed"></lf-activity></section><section id="policy">'
+        '<h2>Policy</h2><p id="reading">Keep this visible line where it stands.</p></section>',
+    )
+    url = live_url(serve(html))
+    if touch:
+        page = browser.new_page(
+            viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True
+        )
+        page.goto(url)
+        wait_until_ready(page)
+    else:
+        page = open_page(browser, url)
+    control = page.locator("#feed .lf-activity-news")
+    line = page.locator("#reading")
+    expect(control).to_have_text("Show activity")
+    before = line.bounding_box()
+    first = append_command(
+        serve.page_dir,
+        {
+            "revision": 1,
+            "kind": "comment",
+            "author": "user",
+            "anchor": {"section": "policy"},
+            "text": "First incoming update",
+        },
+    )
+    told(page)
+    expect(control).to_have_text("Show activity · 1 new")
+    expect(page.locator("#feed .lf-activity-row")).to_have_count(1)
+    assert line.bounding_box()["y"] == pytest.approx(before["y"], abs=0.5)
+    if touch:
+        control.tap()
+    else:
+        control.press("Tab")
+        page.keyboard.press("Shift+Tab")
+        expect(control).to_be_focused()
+        control.press("Enter")
+    expect(page.locator("#feed .lf-activity-row")).to_have_count(2)
+    expect(control).to_have_text("Hide activity")
+    focused_row = page.locator("#feed .lf-activity-row").first.locator(
+        ".lf-activity-target"
+    )
+    if not touch:
+        page.keyboard.press("Tab")
+        expect(focused_row).to_be_focused()
+    before = line.bounding_box()
+    trigger = control.bounding_box()
+    append_command(
+        serve.page_dir,
+        {
+            "revision": 1,
+            "kind": "reply",
+            "author": "agent",
+            "parent": first["id"],
+            "text": "A second arrival with enough words to visibly grow the feed.",
+        },
+    )
+    told(page)
+    expect(control).to_have_text("1 new update")
+    expect(page.locator("#feed .lf-activity-row")).to_have_count(2)
+    assert line.bounding_box()["y"] == pytest.approx(before["y"], abs=0.5)
+    assert control.bounding_box() == trigger
+    if touch:
+        control.tap()
+    else:
+        expect(focused_row).to_be_focused()
+        page.keyboard.press("Shift+Tab")
+        expect(control).to_be_focused()
+        control.press("Space")
+    expect(page.locator("#feed .lf-activity-row")).to_have_count(3)
+    expect(page.locator("#feed .lf-activity-row").first).to_contain_text(
+        "A second arrival"
+    )
+    assert control.bounding_box() == trigger
+    expect(control).to_be_focused()
+
+    # An existing row changing shape is news too, even with no newly added row.
+    before = line.bounding_box()
+    resolution = append_command(
+        serve.page_dir, {"kind": "resolve", "author": "user", "parent": first["id"]}
+    )
+    told(page)
+    control.click()
+    before = line.bounding_box()
+    append_command(
+        serve.page_dir, {"kind": "undo", "author": "user", "undoes": resolution["id"]}
+    )
+    told(page)
+    expect(control).to_have_text("Activity changed")
+    assert line.bounding_box()["y"] == pytest.approx(before["y"], abs=0.5)
+    control.click()
+    expect(
+        page.locator("#feed .lf-activity-row", has_text="You resolved")
+    ).to_have_attribute("data-lf-undone", "")
+    assert control.bounding_box() == trigger
+    before_revision = line.bounding_box()
+    stamp_page(
+        serve.page_dir,
+        html.replace("Keep this visible", "Still keep this visible"),
+        "Revise the policy",
+    )
+    wait_for_revision(page, 2)
+    expect(control).to_have_attribute("aria-expanded", "true")
+    expect(control).to_have_text("1 new update")
+    assert line.bounding_box()["y"] == pytest.approx(before_revision["y"], abs=0.5)
+    # Changing executable inputs replaces the document, rather than patching it.
+    page.add_init_script("""
+      window.activityFrames = [];
+      let remaining = 180;
+      function readFrame() {
+        const line = document.getElementById("reading");
+        const control = document.querySelector("#feed .lf-activity-news");
+        if (line && control) window.activityFrames.push({
+          line: line.getBoundingClientRect().y,
+          open: control.getAttribute("aria-expanded")
+        });
+        if (--remaining) requestAnimationFrame(readFrame);
+      }
+      requestAnimationFrame(readFrame);
+    """)
+    before_replacement = line.bounding_box()
+    original_document = page.evaluate("performance.timeOrigin")
+    expect(control).to_be_focused()
+    fresh = html.replace("Keep this visible", "Still keep this visible").replace(
+        "</head>", '<script type="module">void 0;</script></head>'
+    )
+    stamp_page(serve.page_dir, fresh, "Replace executable inputs")
+    wait_for_revision(page, 3)
+    wait_until_ready(page)
+    expect(control).to_have_attribute("aria-expanded", "true")
+    assert page.evaluate("performance.timeOrigin") != original_document
+    assert line.bounding_box()["y"] == pytest.approx(before_replacement["y"], abs=0.5)
+    expect(control).to_be_focused()
+    frames = page.evaluate("window.activityFrames")
+    assert frames
+    assert all(frame["open"] == "true" for frame in frames)
+    assert all(
+        frame["line"] == pytest.approx(before_replacement["y"], abs=0.5)
+        for frame in frames
+    )
+    # Generated row targets use the same keyed handoff as the notice.
+    target = page.locator("#feed .lf-activity-row button.lf-activity-target").first
+    control.press("Tab")
+    expect(target).to_be_focused()
+    stamp_page(serve.page_dir, fresh.replace("void 0", "void 1"), "Replace again")
+    wait_for_revision(page, 4)
+    wait_until_ready(page)
+    expect(target).to_be_focused()
+    assert line.bounding_box()["y"] == pytest.approx(before_replacement["y"], abs=0.5)
+
+
+def test_activity_prints_complete_history_even_when_closed_or_held(browser, serve):
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "History", '<h1>History</h1><lf-activity id="feed"></lf-activity>'
+            )
+        ),
+    )
+    control = page.locator("#feed .lf-activity-news")
+    expect(control).to_have_attribute("aria-expanded", "false")
+    page.emulate_media(media="print")
+    expect(page.locator("#feed .lf-activity-row")).to_have_count(1)
+    expect(page.locator("#feed .lf-activity-row")).to_be_visible()
+    expect(control).to_be_hidden()
+    page.emulate_media(media="screen")
+    expect(control).to_be_visible()
+    expect(control).to_have_attribute("aria-expanded", "false")
+    control.click()
+    comment = append_command(
+        serve.page_dir,
+        {
+            "revision": 1,
+            "kind": "comment",
+            "author": "user",
+            "text": "A held record for paper.",
+        },
+    )
+    told(page)
+    expect(control).to_have_text("1 new update")
+    expect(page.locator("#feed .lf-activity-row")).to_have_count(1)
+    page.emulate_media(media="print")
+    expect(page.locator("#feed .lf-activity-row")).to_have_count(2)
+    expect(page.locator("#feed .lf-activity-row").first).to_contain_text(
+        "A held record for paper."
+    )
+    page.emulate_media(media="screen")
+    expect(control).to_have_text("1 new update")
+    expect(page.locator("#feed .lf-activity-row")).to_have_count(1)
+
+    control.click()
+    resolution = append_command(
+        serve.page_dir, {"kind": "resolve", "author": "user", "parent": comment["id"]}
+    )
+    told(page)
+    control.click()
+    target = page.locator("#feed .lf-activity-row").first.locator("button")
+    control.press("Tab")
+    expect(target).to_be_focused()
+    append_command(
+        serve.page_dir, {"kind": "undo", "author": "user", "undoes": resolution["id"]}
+    )
+    told(page)
+    expect(control).to_have_text("Activity changed")
+    page.emulate_media(media="print")
+    expect(page.locator("#feed .lf-activity-row").first).to_have_attribute(
+        "data-lf-undone", ""
+    )
+    page.emulate_media(media="screen")
+    expect(control).to_have_text("Activity changed")
+    expect(target).to_be_focused()

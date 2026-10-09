@@ -71,7 +71,6 @@ The optional bundled packages are:
 | `code-review` | Review-authoring instructions; select alongside the evidence packages the page needs. |
 | `diagram` | `lf-diagram` and its Agentic Mermaid renderer. |
 | `diff` | `lf-diff`, its `unified-diff` data contract and Pierre renderer, and `lf-call-diff` with links to exact patch evidence. |
-| `swipe` | A pass-or-keep technical backlog deck. |
 | `playground` | Controls and structured state with shared reset, restore, preview, output, and typed configuration submission. |
 | `command-hub` | Multi-agent orchestration widgets. |
 | `pr-review` | A typed pull-request brief with a safe Markdown description and compact checks table. |
@@ -274,7 +273,6 @@ widget's role on the page:
 | Key                  | Shipped example                                                |
 | -------------------- | -------------------------------------------------------------- |
 | `x-reading-role`     | `lf-pane`                                                      |
-| `x-required-members` | `lf-swipe-deck` in `swipe`                                     |
 | `x-visual`           | `lf-chart` declares `whole`, `lf-diagram` in `diagram` `parts`  |
 | `x-bound`            | `lf-activity`                                                  |
 | `x-height`           | `lf-chart`                                                     |
@@ -302,38 +300,32 @@ under the element's `x-state`, and Leaf validates each event at the log's one ap
 door, folds the log into current state, gives that state to the module, and lists it
 for the agent under `state` in `leaf page state`.
 
-The swipe package is a small complete example. `packages/swipe/registry.json`
-declares one verb on `lf-swipe-deck` and the condition that answers its Ask, and
-`widgets/lf-swipe-deck.js` subscribes to and dispatches it:
+The default board declares `move` as a position record in
+`packages/default/registry.json`; its module subscribes to and dispatches that state:
 
 ```json
 {
   "x-state": {
-    "swipe": {
+    "move": {
       "unit": "unit",
-      "record": { "kind": "position", "within": "lf-swipe-pile" }
-    }
-  },
-  "x-awaits": {
-    "answered": {
-      "swipe": { "empty": { "within": "lf-swipe-pile", "when": { "verdict": ["unseen"] } } }
+      "record": { "kind": "position", "within": "lf-column" }
     }
   }
 }
 ```
 
-The record determines the event's payload schema. A swipe sends
-`detail: {unit: cardId, value: pileId, rank}`: the moved card, its destination pile,
+The record determines the event's payload schema. A move sends
+`detail: {unit: cardId, value: columnId, rank}`: the moved card, its destination column,
 and its rank key. Leaf checks their types and ownership at admission. The package
 declares no separate `detail` schema or input-field mapping for a recorded verb.
 
 Each verb is its own piece of state: the owning element, the `unit`, and the verb together form the fold
 coordinate. At each coordinate the latest surviving action stands, and different
-coordinates stand side by side. Swiping a card again therefore replaces that card's
-earlier verdict, while verdicts on different cards coexist. Recorded body, attribute,
+coordinates stand side by side. Moving a card again therefore replaces that card's
+earlier position, while positions of different cards coexist. Recorded body, attribute,
 and value verbs use `unit: "widget"`; position verbs use `unit: "unit"`, naming the
 canonical detail field for the moved element. `record` says how the standing state reads in markup: here, the
-card's position inside a pile. Standing decisions supply the current state;
+card's position inside a column. Standing decisions supply the current state;
 `restated` explicitly retracts a decision, and revisions may change their authored
 baseline without a historical-state veto. The `$keys`
 entries in `assets/registry.json` define each key exactly.
@@ -359,10 +351,15 @@ custom actions, such as a playground's submitted settings, and generated childre
 `x-awaits.answered` says when the widget's Ask is answered, as a condition on that
 standing state for each verb that can answer it. `{}` holds while the verb's state
 stands, `when` narrows a verb to instances with matching attributes, and `empty` holds
-while the named container inside the widget has no members. Here the deck is answered
-once its `unseen` pile is empty, so the swipe that empties it is the answer and
-returning any card reopens the Ask. The one-line forms elsewhere follow the same
-shape: `"answered": {"edit": {}}` answers a draft once an edit stands, and
+while the named container inside the widget has no members. For a page-owned queue,
+`"answered": {"move": {"empty": {"within": "lf-queue-column", "when": {"queued": [true]}}}}`
+answers when the marked column is empty; returning a card reopens the Ask. The package
+declares its own column and card elements, whose `x-owners` name their containers, and
+its module renders the positions. The default board's `lf-column` belongs only to
+`lf-board`; declaring a new queue does not change that ownership or make ordinary
+boards into Asks.
+
+`"answered": {"edit": {}}` answers a draft once an edit stands, and
 `"answered": {"choose": {"when": {"multiple": [false]}}, "answer": {"when":
 {"multiple": [true]}}}` answers a single-choice group by its pick and a `multiple` group
 by its Done press.

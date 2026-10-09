@@ -208,7 +208,7 @@ import { retainUserIntent } from "./runtime/user-intent.js";
 
 // Automatic recovery belongs to this arrival. A press made while its presentation
 // waits owns the page; recovery must not capture a fresh focus intent after that wait.
-const recoverComposer = retainUserIntent();
+const recoverComposer = retainUserIntent({ since: 0 });
 
 // This declaration belongs to the executable document lifetime. The revision capture
 // includes it in executable identity, so selecting another presentation retires this
@@ -1024,10 +1024,9 @@ if (!passiveSample && !offlineInteractive) {
     setDesignMode: designMode.setActive,
   });
   annotationRenderer?.restoreAnnotations();
-  // The page has just arrived, so nothing holds focus and the first Tab starts at the
-  // skip link. Not the reading landing: a user who has read nothing has no position
-  // for the browser to carry on from.
-  releaseFocus();
+  // A page nobody has used starts Tab at the skip link. Inputs before the
+  // module graph arrived already gave this document a place to keep.
+  recoverComposer.handoff(releaseFocus);
 }
 mountHistory({
   followFragment: anchorTravel.followFragment,

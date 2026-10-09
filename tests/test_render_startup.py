@@ -2458,11 +2458,8 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
     html = JOURNEY_V1.replace(
         '<h2 id="notes">',
         """
-<lf-milestones>
-  <lf-milestone id="gate-milestone" status="active" tags="wood,solar">
-    <strong>Build feeders</strong> Two classic models.
-  </lf-milestone>
-</lf-milestones>
+<lf-code id="gate-code"><pre>Build feeders
+Two classic models.</pre></lf-code>
 <h2 id="notes">""",
     )
     page = open_page(
@@ -2487,7 +2484,7 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
     )
     expect(page.locator(".lf-banner")).to_be_visible()
     expect(page.locator(".lf-threads-toggle")).to_be_enabled()
-    expect(page.locator("#gate-milestone .lf-chips")).to_have_count(0)
+    expect(page.locator("#gate-code .lf-code-line")).to_have_count(0)
     expect(page.locator("#draft-ops .lf-draft-body")).to_have_count(0)
     assert (
         page.evaluate(
@@ -2521,11 +2518,11 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
 
     page.evaluate("window.lfReleaseRegistry()")
     expect(page.locator(".lf-thread")).to_have_count(2)
-    expect(page.locator("#gate-milestone .lf-chips")).to_have_count(1)
+    expect(page.locator("#gate-code .lf-code-line")).to_have_count(2)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     page.wait_for_function("() => document.body.dataset.lfPresented === '1'")
-    words = page.locator("#gate-milestone strong").bounding_box()
-    assert words, "the upgraded milestone never produced selectable words"
+    words = page.locator("#gate-code .lf-code-line").first.bounding_box()
+    assert words, "the upgraded code never produced selectable words"
     y = words["y"] + words["height"] / 2
     select(
         page,
@@ -2581,6 +2578,7 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
 
     modules = sorted(p for p in asked if p.startswith("/widgets/"))
     assert modules == [
+        "/widgets/activity-view.js",
         "/widgets/lf-activity.js",
         "/widgets/lf-board.js",
     ], modules

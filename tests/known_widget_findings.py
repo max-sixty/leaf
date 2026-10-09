@@ -10,9 +10,7 @@ KNOWN = {
     "default": {
         # What these draw is the page's state, which arrives with the first state
         # answer after the first paint and which the served document does not carry:
-        # the activity feed's rows are the log's history, and a text document's lines
-        # are its bound source's value, wrapped at the column's width.
-        ("lf-activity", "keeps-first-box"),
+        # a text document's lines are its bound source's value, wrapped at the column's width.
         ("lf-text-document", "keeps-first-box"),
         # Which form the contents takes, the fixed map in the margin or the outline in
         # the flow, is the margin pass's residency decision (`data-lf-margin`,

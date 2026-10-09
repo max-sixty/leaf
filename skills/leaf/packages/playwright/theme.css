@@ -61,7 +61,7 @@
 .lf-trace-marker:hover, .lf-trace-marker[aria-current] { background: var(--accent-tint); color: var(--accent); }
 .lf-trace-marker:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .lf-trace-marker:disabled { color: var(--muted); cursor: default; }
-.lf-trace-markers .vis-timeline { border: 1px solid var(--border-2); border-radius: var(--r); font: inherit; }
+.lf-trace-markers .vis-timeline { --lf-drawing: 1; border: 1px solid var(--border-2); border-radius: var(--r); font: inherit; }
 .lf-trace-markers .vis-panel, .lf-trace-markers .vis-grid { border-color: var(--border-2); }
 .lf-trace-markers .vis-text { color: var(--muted); font: var(--t-6) / 1.4 var(--sans); }
 .lf-trace-markers .vis-item { color: var(--ink); border: 0; background: none; }
@@ -151,7 +151,7 @@
 .lf-trace-selection { font-size: var(--t-6); }
 }
 .lf-trace-tooltip::part(base) { pointer-events: none; --show-duration: 0ms; --hide-duration: 0ms; }
-.lf-trace-canvas { position: relative; inline-size: 100%; block-size: 100%; margin-inline: auto; overflow: hidden; border: 1px solid var(--border-2); box-sizing: border-box; background: var(--paper-2, var(--paper)); }
+.lf-trace-canvas { --lf-drawing: 1; position: relative; inline-size: 100%; block-size: 100%; margin-inline: auto; overflow: hidden; border: 1px solid var(--border-2); box-sizing: border-box; background: var(--paper-2, var(--paper)); }
 .lf-trace-canvas > img { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; object-fit: contain; border: 0; }
 .lf-trace-canvas .viewer-container { background: var(--paper-2, var(--paper)); }
 .lf-trace-canvas .viewer-canvas { touch-action: pan-y; }

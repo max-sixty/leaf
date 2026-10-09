@@ -545,9 +545,10 @@ html:not([data-lf-live]) {
  * the content is an inset the box did not state, and it is the whole of the marking on a
  * quotation, where 16px of bar ran past the exhibit at each end.
  *
- * `margin-trim` is the property for this and Chrome hasn't got it (151: `CSS.supports`
- * says no, and the declaration lays nothing out), so the trim is written here — and the
- * half worth thinking about is who writes it. A list of the boxes that frame what they
+ * Native `margin-trim` is not available in every served browser and does not share
+ * this contract for generated children and non-collapsing layout contexts
+ * (notes/browser-support.md, "Frame margin trimming"), so the trim is written here.
+ * A list of the boxes that frame what they
  * hold is the closed list the norms forbid: a layer's stylesheet can only name that
  * layer's own, so a project's card is outside it and the failure is a silent 13px rather
  * than an error. A box says so itself instead, in the same declaration where it draws the
@@ -586,7 +587,9 @@ html:not([data-lf-live]) {
  * the edge stops being right: its first item at the frame's edge would lose its margin
  * and the items beside it keep theirs, so the row no longer lines up. A stylesheet cannot
  * ask a box for its display, so such a box says so, --lf-holds-edge: 1, and the trim
- * stops at it. */
+ * stops at it. Direct frames and propagated edges share one rule per edge, so that
+ * boundary holds even when the row draws its own frame. The frame reset remains
+ * independent: a row still bounds its content when its children keep their margins. */
 @property --lf-frame-start {
   syntax: "<integer>";
   inherits: false;
@@ -603,23 +606,15 @@ html:not([data-lf-live]) {
   initial-value: 0;
 }
 @container style(--lf-block-frame: 1) or style(--lf-block-frame: trim) {
-  :nth-child(1 of :not(.lf-ui, [data-lf-gen])) {
-    margin-block-start: 0;
-    --lf-frame-start: 1;
-  }
-  :nth-last-child(1 of :not(.lf-ui, [data-lf-gen])) {
-    margin-block-end: 0;
-    --lf-frame-end: 1;
-  }
   * { --lf-block-frame: 0; }
 }
-@container style(--lf-frame-start: 1) and (not style(--lf-holds-edge: 1)) {
+@container (style(--lf-block-frame: 1) or style(--lf-block-frame: trim) or style(--lf-frame-start: 1)) and (not style(--lf-holds-edge: 1)) {
   :nth-child(1 of :not(.lf-ui, [data-lf-gen])) {
     margin-block-start: 0;
     --lf-frame-start: 1;
   }
 }
-@container style(--lf-frame-end: 1) and (not style(--lf-holds-edge: 1)) {
+@container (style(--lf-block-frame: 1) or style(--lf-block-frame: trim) or style(--lf-frame-end: 1)) and (not style(--lf-holds-edge: 1)) {
   :nth-last-child(1 of :not(.lf-ui, [data-lf-gen])) {
     margin-block-end: 0;
     --lf-frame-end: 1;

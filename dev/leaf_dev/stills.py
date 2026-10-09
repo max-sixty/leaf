@@ -280,6 +280,17 @@ def code_note(page: Page) -> None:
     )
 
 
+def frame_edges(page: Page) -> None:
+    """The drawn row's parallel paragraphs, with their declared margins intact."""
+    page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
+        "Page & layout", exact=True
+    ).click()
+    settle(page)
+    page.locator("#bg-frame-edges").evaluate(
+        "el => el.scrollIntoView({block: 'start'})"
+    )
+
+
 def theme_hierarchy(page: Page) -> None:
     """A neutral callout with open and closed support; exercise the closed row by key."""
     page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
@@ -487,6 +498,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         ask_by_keyboard,
         card_grabbed,
         code_note,
+        frame_edges,
         theme_hierarchy,
         wide_passage,
         multiline_passage,
@@ -658,6 +670,7 @@ STATES = (
         touch=True,
     ),
     State("gallery-tabs", "developer/feature-gallery", at_rest),
+    State("frame-edges", "developer/feature-gallery", frame_edges),
     State("gallery-theme", "developer/feature-gallery", theme_hierarchy),
     State(
         "gallery-theme-dark",

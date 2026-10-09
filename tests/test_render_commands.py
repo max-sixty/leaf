@@ -660,7 +660,6 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
     page.emulate_media(media="print")
     expect(links.first).not_to_be_visible()
     assert shown_frames(page) == ["before", "after"]
-    context.close()
 
 
 def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):

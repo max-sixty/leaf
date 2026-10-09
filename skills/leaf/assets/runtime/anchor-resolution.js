@@ -44,6 +44,7 @@ import {
   elementById,
   elementReading,
   findQuote,
+  fileModelsPassage,
   inChrome,
   leafSurface,
   pageDocument,
@@ -640,12 +641,12 @@ function designTargetAt(
   return {
     ...named,
     capture() {
-      if (namedParts(element, part).length < 2) return named;
+      const repeatedName = namedParts(element, part).length > 1;
       // Native associated labels are physical faces of the same control. Try the
       // visible words on each face without inventing quote text from an ARIA name.
       for (const face of faces) {
         for (const passage of controlPassages(face, partElement)) {
-          if (!passage.length) continue;
+          if (!passage.length || !fileModelsPassage(passage)) continue;
           const captured = anchorForRange(rangeOf(passage));
           const resolved = captured.quote && resolveAnchor(captured, pageText());
           const attachment =
@@ -658,7 +659,7 @@ function designTargetAt(
             overlaps(attachment, face.getBoundingClientRect()) &&
             visiblePassage(resolved.segments)
           ) {
-            // The announced repeated control and its durable anchor share the same
+            // A repeated control’s announcement and its durable anchor share the same
             // distinguishing context, including neighbouring table cells.
             const context = contextAround(pageText(), resolved.segments, {
               before: [...(captured.prefix ?? "")].length,
@@ -675,7 +676,7 @@ function designTargetAt(
             return {
               ...named,
               anchor: { ...target.anchor, ...captured, part },
-              label: phrase,
+              label: repeatedName ? phrase : named.label,
             };
           }
         }
@@ -855,13 +856,16 @@ export function resolveAnchor(anchor, text = "") {
   }
 
   const segments = findQuote(text, anchor.quote, anchor, sectionOf(anchor));
-  return segments.length
-    ? resolvedPassage({
-        // Attached chrome belongs beside the passage's readable block or authored item.
-        place: segments[0].block ?? addressableAt(segments[0].node),
-        segments,
-      })
-    : null;
+  if (!segments.length) return null;
+  // An exact named-control quote identifies its actual readable face, so both the
+  // editor and sent thread clear that face. Ordinary prose still clears its block.
+  const face = anchor.part && closestAcross(segments[0].node, DESIGN_CONTROLS);
+  const controlFace =
+    face && segments.every(({ node }) => closestAcross(node, DESIGN_CONTROLS) === face);
+  return resolvedPassage({
+    place: controlFace ? face : (segments[0].block ?? addressableAt(segments[0].node)),
+    segments,
+  });
 }
 
 // One fragment reading serves message hrefs and location.hash. Malformed escapes retain

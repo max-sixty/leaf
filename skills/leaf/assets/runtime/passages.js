@@ -376,6 +376,10 @@ const unmodelled = (el) => {
   const attr = el.getAttribute("data-lf-said");
   return !(attr && registry[el.parentElement?.localName]?.["x-says"]?.[attr]);
 };
+// Automatic control capture can promise a file-readable coordinate only for words
+// represented by authored content or a registry-declared generated reading.
+export const fileModelsPassage = (segments) =>
+  segments.every(({ gen }) => !gen || !unmodelled(gen));
 // A cell candidate: an opaque widget or one of its original direct children, which
 // always fence, or an unmodelled generated element, which fences once a word of the
 // page's reading is its own (`readPage`).

@@ -2720,6 +2720,11 @@ def test_design_label_and_input_are_one_control(browser, serve, route):
       return aimTargets({design:true}).filter(t => t.anchor.part === 'A').map(t => t.anchor);
     }""")
     assert inventory == [{"section": "options", "part": "A"}]
+    captured = page.evaluate("""async () => {
+      const {aimTargetAt} = await import('/runtime/anchor-resolution.js');
+      return aimTargetAt(document.querySelector('#options input'),{design:true}).anchor;
+    }""")
+    assert captured["quote"] == "A"
     if route == "keyboard":
         said = page.locator(".lf-live")
         for _ in range(10):
@@ -2747,7 +2752,7 @@ def test_design_label_and_input_are_one_control(browser, serve, route):
         for e in reversed(events_model.read_events(serve.page_dir))
         if e["kind"] == "comment"
     )
-    assert event["anchor"] == inventory[0]
+    assert event["anchor"] == captured
     expect(page.get_by_role("radio", name="A", exact=True)).not_to_be_checked()
 
 
@@ -5303,9 +5308,34 @@ def test_design_can_comment_on_a_generated_tab_with_a_repeated_summary(browser, 
     )
     assert event["anchor"] == {"section": "queue", "part": "Backup"}
     assert event["about"] == "design"
+    source = (serve.page_dir / "index.html").read_text()
+    passages = passages_model.page_passages(structure_model.SourceDocument(source))
+    assert (
+        anchor_capture_model.resolve_quote(
+            passages, {**event["anchor"], "quote": "Backup pages"}
+        )
+        is None
+    )
     expect(
         page.locator(f'.lf-thread[data-id="{event["id"]}"] .lf-msg-text')
     ).to_contain_text("Clarify this summary.")
+    assert page.evaluate(
+        """async anchor => {
+      const A=await import('/runtime/anchor-resolution.js');
+      const P=await import('/runtime/passages.js');
+      const target=A.resolveAnchor(anchor,P.pageText());
+      return target.exact===false && target.status==='fallback';
+    }""",
+        event["anchor"],
+    )
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    stamp = stamp_page(
+        serve.page_dir,
+        source.replace("Backup evidence.", "Revised backup evidence."),
+        "Revise the tab content",
+    )
+    wait_for_revision(page, stamp["revision"])
     assert page.evaluate(
         """async anchor => {
       const A=await import('/runtime/anchor-resolution.js');
@@ -5398,3 +5428,73 @@ def test_design_control_speech_uses_its_captured_context_and_visible_label(
     )
     assert event["anchor"] == inventory[1]["anchor"]
     expect(page.locator("main input").nth(1)).not_to_be_checked()
+
+
+@pytest.mark.parametrize("route", ["pointer", "keyboard"])
+def test_a_unique_anonymous_control_captures_its_visible_face(browser, serve, route):
+    page = open_page(
+        browser,
+        live_url(
+            serve(
+                leaf_page(
+                    "Control face",
+                    '<h1>Settings</h1><section id="controls" style="padding:80px"><label><input type="radio" name="choice" aria-label="Choice A">Choice A</label> <label><input type="radio" name="choice" aria-label="Choice B">Choice B</label><div style="height:400px"></div></section>',
+                )
+            )
+        ),
+    )
+    page.keyboard.press("l")
+    control = page.get_by_role("radio", name="Choice B")
+    target = page.evaluate("""async () => {
+      const A=await import('/runtime/anchor-resolution.js');const P=await import('/runtime/passages.js');
+      const target=A.aimTargetAt(document.querySelector('[aria-label="Choice B"]'),{design:true});
+      const resolved=A.resolveAnchor(target.anchor,P.pageText());
+      return {anchor:target.anchor,label:target.label,exact:resolved.exact};
+    }""")
+    assert target["exact"] and target["anchor"]["quote"] == "Choice B"
+    assert target["anchor"]["part"] == "Choice B"
+    if route == "pointer":
+        control.click()
+    else:
+        page.keyboard.press("s")
+        said = page.locator(".lf-live")
+        for _ in range(8):
+            previous = said.text_content()
+            page.keyboard.press("Tab")
+            expect(said).not_to_have_text(previous)
+            expect(said).to_have_text(re.compile(r"^Hint .*Press Enter to choose\.$"))
+            if f": {target['label']}. Press Enter to choose." in said.text_content():
+                break
+        else:
+            pytest.fail("The Choice B control was not offered")
+        page.keyboard.press("Enter")
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    expect(control).not_to_be_checked()
+    field_box, control_box = field.bounding_box(), control.bounding_box()
+    assert abs(field_box["y"] - control_box["y"]) < 100
+    write(field, "Clarify Choice B.")
+    with sending(page, "the selected control's visible face"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    event = next(
+        e
+        for e in reversed(events_model.read_events(serve.page_dir))
+        if e["kind"] == "comment"
+    )
+    assert event["anchor"] == target["anchor"]
+    source = (serve.page_dir / "index.html").read_text()
+    passages = passages_model.page_passages(structure_model.SourceDocument(source))
+    assert anchor_capture_model.resolve_quote(passages, event["anchor"]) is not None
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    stamp = stamp_page(
+        serve.page_dir,
+        source.replace("<h1>Settings</h1>", "<h1>Updated settings</h1>"),
+        "Revise the page around the retained control",
+    )
+    wait_for_revision(page, stamp["revision"])
+    page.keyboard.press("Shift+t")
+    card = page.locator(".lf-margin-thread .lf-page-thread")
+    expect(card).to_be_visible()
+    expect(card).to_contain_text("Clarify Choice B.")
+    assert abs(card.bounding_box()["y"] - control.bounding_box()["y"]) < 100

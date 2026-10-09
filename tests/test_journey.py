@@ -8,8 +8,9 @@ import signal
 import subprocess
 import sys
 import time
+from contextlib import contextmanager
 from itertools import count
-from types import SimpleNamespace
+from pathlib import Path
 
 import pytest
 from leaf_dev import journey, journey_claude_code, journey_pi
@@ -68,11 +69,20 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(end):
     terminal.trace = records
     shown = []
 
-    def show(answer):
-        shown.append(answer["id"])
-        return {"at": 1_000_000 + 9_500, "by": "row"}
+    class Page:
+        """The page as the browser end reads it: when it showed a reply."""
 
-    user_end = SimpleNamespace(name=end, shown=show)
+        def evaluate(self, script, arg=None):
+            assert script == "window.__leafVerifier.replyShownAt"
+            shown.append(arg["id"])
+            return {"at": 1_000_000 + 9_500, "by": "row"}
+
+    url = "http://127.0.0.1:1/?t=token"
+    user_end = (
+        journey.BrowserEnd(journey.Session(None, Page(), [], url, url, {}, {}, None))
+        if end == "browser"
+        else journey.HttpEnd(url, Path("page"), time.sleep)
+    )
     user = journey.User(user_end, "v", lambda: events, terminal)
     user.release_reading = {
         "version": "v",
@@ -84,13 +94,12 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(end):
     }
     terminal.approved.append("Do you want to make this edit to index.html?")
     user.passed("release", time.monotonic())
-    profile = None
+    profile = journey.AgentProfile()
+    profile.ask_count = 1
+    profile.event_ids = ["c1"]
     if end == "browser":
-        profile = journey.AgentProfile()
-        profile.ask_count = 1
         profile.visible_reply_started_ms = 1_000_000
         profile.acknowledged = [0.04]
-        profile.event_ids = ["c1"]
     user.ids["mid-turn"], user.profiles["mid-turn"] = "c1", profile
     user.sent = ["mid-turn"]
     terminal.approved.append("Do you want to proceed?")
@@ -272,3 +281,111 @@ def test_pis_events_give_the_turn_phases(monkeypatch):
         {"phase": "tool", "startMs": 3000, "ms": 1000, "calls": ["sleep 1"]},
         {"phase": "model", "startMs": 4000, "ms": 2000},
     ]
+
+
+def test_the_release_ask_over_http_is_the_shared_check(tmp_path):
+    """Over HTTP the release ask is posted as the page's tab posts one, and the same
+    check as in a browser waits on its turn, title and answer, requiring a published
+    revision naming the release; it reads nothing a browser would. A step's comment
+    is posted on its section."""
+    from leaf.event_log import append_event, read_events
+    from leaf.thread import post_reply, title_event
+    from leaf_dev import ROOT
+    from leaf_dev.arms import run_leaf, serving
+    from leaf_dev.review_scenario import post, prepare
+
+    state, page = tmp_path / "state", tmp_path / "page"
+    prepare(ROOT, state, page)
+    version = "abcd1234" + "0" * 32
+    agent = {"agent": "The agent", "session": "journey-release"}
+    paused = []
+
+    def pause(seconds):
+        """The agent, as the journey waits: it records the release, titles the
+        thread and answers."""
+        paused.append(seconds)
+        if len(paused) > 1:
+            return
+        [comment] = [e for e in read_events(page) if e["kind"] == "comment"]
+        index = page / "index.html"
+        index.write_text(
+            index.read_text().replace(
+                "</main>", "<p>Release abcd1234 passed.</p></main>"
+            )
+        )
+        run_leaf(
+            ROOT, state, "page", "stamp", str(page), "--text", "Recorded.", check=True
+        )
+        append_event(page, title_event(comment["id"], "Release recorded", agent))
+        post_reply(
+            page,
+            comment["id"],
+            "Recorded.",
+            "",
+            for_event=comment["id"],
+            identity=agent,
+        )
+
+    with serving(ROOT, state, page) as url:
+        reading = journey.run_journey(journey.HttpEnd(url, page, pause), version)
+        step = post(url, "mid-turn")
+    assert reading["change"] == {
+        "marker": "abcd1234",
+        "revision": 2,
+        "reply": "Recorded.",
+    }
+    assert set(reading) == {"version", "comment", "change"}
+    milestones = reading["comment"]["sinceAdmissionMs"]
+    assert None not in (
+        milestones["titled"],
+        milestones["published"],
+        milestones["replied"],
+    )
+    assert "sinceSendMs" not in reading["comment"]
+    [asked] = [
+        e for e in read_events(page) if e.get("attempt") == "journey-step-release"
+    ]
+    assert "anchor" not in asked or asked["anchor"].get("section") is None
+    [anchored] = [e for e in read_events(page) if e["id"] == step]
+    assert anchored["anchor"]["section"] == "triage-why"
+
+
+def test_a_harness_journey_over_http_starts_no_browser(monkeypatch):
+    """Without `--browser` a harness target's user posts its comments, and no
+    browser is launched; with it the user is in one."""
+    from click.testing import CliRunner
+
+    launched = []
+
+    @contextmanager
+    def chrome():
+        launched.append(True)
+        yield "chrome"
+
+    entered = []
+
+    @contextmanager
+    def target_session(browser, target, release, *, hooks_module, preview):
+        entered.append(browser)
+        end = (
+            journey.HttpEnd("http://127.0.0.1:1/?t=t", Path("page"), time.sleep)
+            if browser is None
+            else journey.BrowserEnd(
+                journey.Session(None, None, [], "u", "u", {}, {}, None)
+            )
+        )
+        end.close = lambda: None
+        yield journey.User(end, "v"), {"target": target}, lambda: None
+
+    monkeypatch.setattr(journey, "chrome", chrome)
+    monkeypatch.setattr(journey, "target_session", target_session)
+    monkeypatch.setattr(journey, "samples_path", lambda: Path(os.devnull))
+    runner = CliRunner()
+    result = runner.invoke(journey.journey, ["claude-code"])
+    assert result.exit_code == 0, result.output
+    assert (launched, entered) == ([], [None])
+    assert json.loads(result.stdout)["userEnd"] == "http"
+    result = runner.invoke(journey.journey, ["claude-code", "--browser"])
+    assert result.exit_code == 0, result.output
+    assert (launched, entered) == ([True], [None, "chrome"])
+    assert json.loads(result.stdout)["userEnd"] == "browser"

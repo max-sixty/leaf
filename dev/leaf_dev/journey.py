@@ -48,6 +48,10 @@ Where the user is, every step alike, is the journey's one axis (`User.end`):
   page, and the release ask's reload is checked and profiled (`BrowserEnd`). This is
   the whole journey, what the page shows the user included.
 
+Both ends share every check: the release ask waits on the same turn, title and answer
+(`run_journey`), and each end only sends the user's comments and says what it saw of
+them (`reading`), the browser alone reloading the page and timing what it shows.
+
 The timings come from where each step happened. The page server records when it
 admitted a comment, recorded its pickup, titled its thread, activated the published
 revision and admitted the reply; `sinceAdmissionMs` reads those from the comment's
@@ -157,10 +161,8 @@ def samples_path() -> Path:
 
 class Session(NamedTuple):
     """One user's open page, with what reaching its state takes: `headers` go with
-    each state read, and `after_post` runs once a comment is admitted. Where the
-    journey runs the answering agent itself, `records` reads its session's record so
-    far, as tool and turn records stamped `received_at`, and `pause` waits while
-    hearing it."""
+    each state read, and `after_post` runs once a comment is admitted. `pause`
+    waits, hearing the answering agent's session where the journey runs it."""
 
     context: BrowserContext
     page: Page
@@ -170,7 +172,6 @@ class Session(NamedTuple):
     state: dict
     headers: dict[str, str]
     after_post: Callable[[dict], None] | None
-    records: Callable[[], list[dict]] | None = None
     pause: Callable[[float], None] = time.sleep
 
 
@@ -552,7 +553,7 @@ def send_written(
 
 
 def await_turn(
-    session: Session,
+    end: HttpEnd | BrowserEnd,
     comment: dict,
     revision: int,
     marker: str,
@@ -566,7 +567,7 @@ def await_turn(
     answer = None
     current: dict = {}
     while True:
-        current = read_state(session)
+        current = end.state()
         profile.observe(current)
         replies = [
             event
@@ -575,14 +576,14 @@ def await_turn(
         ]
         answer = deployment_answer(current.get("events", []), comment["id"])
         active = current["active"]
-        if published is None and active["revision"] > revision:
-            # The turn may publish a checkpoint first, so read the document for the
-            # marker rather than taking the first new revision.
-            document = session.context.request.get(
-                urljoin(session.url, active["url"]), timeout=120_000
-            )
-            if document.ok and marker in document.text():
-                published = active
+        # The turn may publish a checkpoint first, so read the document for the
+        # marker rather than taking the first new revision.
+        if (
+            published is None
+            and active["revision"] > revision
+            and end.names(active, marker)
+        ):
+            published = active
         if published is not None and answer is not None:
             break
         # A harness failure receipt closes the turn; otherwise either half of a success
@@ -594,28 +595,28 @@ def await_turn(
         waited = time.monotonic() - started
         if waited >= TURN_PATIENCE and not still_answering(current, comment["id"]):
             break
-        session.pause(2)
+        end.pause(2)
     return TurnReading(current, published, replies, answer)
 
 
-def await_title(session: Session, thread: str, state: dict) -> dict:
+def await_title(end: HttpEnd | BrowserEnd, thread: str, state: dict) -> dict:
     """Read the page until it titles `thread` or `TITLE_PATIENCE` passes; return the
     last reading. The page server names a thread beside the agent's turn rather than
     within it, so the title can land after the reply that ended the turn."""
     deadline = time.monotonic() + TITLE_PATIENCE
     while title(state["events"], thread) is None and time.monotonic() < deadline:
-        session.pause(1)
-        state = read_state(session)
+        end.pause(1)
+        state = end.state()
     return state
 
 
-def ask_until_answered(session: Session, marker: str) -> AgentAsks:
+def ask_until_answered(end: HttpEnd | BrowserEnd, marker: str) -> AgentAsks:
     """Ask the agent to record `marker` until it answers or stops answering.
 
     A `startup_failed` receipt is retried once while a healthy turn's budget remains;
     any other receipt, or a turn that stops without answering, ends the pass.
     """
-    state = session.state
+    state = end.state()
     published = None
     asks = 0
     profile = AgentProfile()
@@ -626,9 +627,9 @@ def ask_until_answered(session: Session, marker: str) -> AgentAsks:
         # A second ask continues the revision the first left, and keeps what it
         # published.
         revision = state["active"]["revision"]
-        comment = ask_to_record(session, marker, profile, asks)
+        comment = end.ask(marker, profile, asks)
         state, published, replies, answer = await_turn(
-            session, comment, revision, marker, published, deadline, profile
+            end, comment, revision, marker, published, deadline, profile
         )
         if answer is not None or not (
             asks < TURN_ASKS
@@ -642,7 +643,7 @@ def ask_until_answered(session: Session, marker: str) -> AgentAsks:
                 profile,
             )
         print(
-            f"↻ {session.url} settled its ask with a startup failure; sending one "
+            f"↻ {end.url} settled its ask with a startup failure; sending one "
             "new message",
             file=sys.stderr,
         )
@@ -670,108 +671,72 @@ def shown_reply(page: Page, answer: dict) -> dict | None:
     )
 
 
-def await_reply_shown(session: Session, answer: dict) -> dict:
+def await_reply_shown(end: BrowserEnd, answer: dict) -> dict:
     """Hear the session until the page shows the user `answer`, opening any news its
     thread holds back, within `VISIBLE_REPLY_PATIENCE`; return when and how."""
+    page = end.session.page
     deadline = time.monotonic() + VISIBLE_REPLY_PATIENCE / 1000
-    while (shown := shown_reply(session.page, answer)) is None:
+    while (shown := shown_reply(page, answer)) is None:
         if time.monotonic() >= deadline:
-            debug = session.page.evaluate("window.__leafVerifier.visibleReplyDebug")
+            debug = page.evaluate("window.__leafVerifier.visibleReplyDebug")
             raise RuntimeError(
-                f"{session.url} reply {answer['id']} never showed in Threads, its "
+                f"{end.url} reply {answer['id']} never showed in Threads, its "
                 f"news opened; the page reports {json.dumps(debug)}"
             )
-        open_news(session.page, answer["parent"])
-        session.pause(0.5)
+        open_news(page, answer["parent"])
+        end.pause(0.5)
     return shown
 
 
-def run_journey(session: Session, version: str) -> dict:
-    """Tell the agent behind `session` that release `version` passed its checks and
-    ask it to record that, then require a reply in Threads and a reload presenting a
-    published revision that names the release. Return the journey's profile.
+def run_journey(
+    end: HttpEnd | BrowserEnd,
+    version: str,
+    records: Callable[[], list[dict]] | None = None,
+) -> dict:
+    """Tell the agent that release `version` passed its checks and ask it to record
+    that, at the user's `end`, then require a published revision naming the release
+    and an answer, and in a browser a reload presenting it. Return the journey's
+    reading of the ask, its agent's work split into phases where `records` reads the
+    session.
 
     The page check is a containment of the release's short hash anywhere in the
     page: where and how the agent records it is the agent's call.
     """
-    page, url = session.page, session.url
-    initial_startup = startup_reading(page)
     marker = version[:8]
-    page.locator(".lf-threads-toggle").click()
-    turn, asks, revision, profile = ask_until_answered(session, marker)
-    check_turn_answered(url, marker, turn, asks, revision)
+    opening = end.opening()
+    turn, asks, revision, profile = ask_until_answered(end, marker)
+    check_turn_answered(end.url, marker, turn, asks, revision)
     published, answer = turn.published, turn.answer
     answered_comment = next(
         event for event in turn.state["events"] if event["id"] == answer["parent"]
     )
-    events = await_title(session, answer["parent"], turn.state)["events"]
-    steps = recorded_steps(events, answered_comment, published)
-    profile.show(await_reply_shown(session, answer))
-    comment = agent_profile(profile, steps)
-    if session.records is not None:
+    events = await_title(end, answer["parent"], turn.state)["events"]
+    comment = end.reading(
+        profile, recorded_steps(events, answered_comment, published), answer
+    )
+    if records is not None:
         comment["turn"] = turn_phases(
-            session.records(),
+            records(),
             answered_comment["ts"],
             pickup_at(events, answered_comment["id"], "opened"),
             answer["ts"],
         )
     print(json.dumps(comment, indent=2), file=sys.stderr)
-    reloaded = page.reload(wait_until="load", timeout=120_000)
-    check(
-        reloaded is not None and reloaded.ok,
-        f"{url} did not reload after its agent turn",
-    )
-    await_presentation(page, url, session.failures, timeout=TURN_PRESENTATION)
-    startup = startup_reading(page)
-    # The runtime presents without waiting for its first read, which is what brings
-    # the revision back, so that follow gets its own wait and its own timing.
-    followed_at = time.monotonic()
-    try:
-        page.wait_for_function(
-            "window.__leafVerifier.revisionAtLeast",
-            arg=published["revision"],
-            timeout=TURN_PRESENTATION,
-        )
-    except PlaywrightTimeout:
-        pass
-    followed_in = (time.monotonic() - followed_at) * 1000
-    # After the wait, so an error on the way there is reported rather than the
-    # revision it never reached.
-    check(not session.failures, f"{url} reported browser errors: {session.failures}")
-    shown = page.evaluate("window.__leafVerifier.revision")
-    # The banner separates a page whose first read answered with an old revision from
-    # one that presented offline and was never told.
-    banner = page.evaluate("window.__leafVerifier.status")
-    check(
-        (shown or "").isdigit() and int(shown) >= published["revision"],
-        f"{url} stands on revision {shown} rather than following the published "
-        f"{published['revision']}, with the banner reading ‘{banner}’",
-    )
-    rendered = page.locator("main").inner_text()
-    check(
-        marker in rendered,
-        f"{url} rendered a page that never names ‘{marker}’, which the agent's "
-        "published revision did",
-    )
     print(
         f"✓ the agent published revision {published['revision']} and replied: "
-        f"{answer['text']}; the reloaded page followed it {followed_in:.0f} ms "
-        "after presentation",
+        f"{answer['text']}",
         file=sys.stderr,
     )
     return {
         "version": version,
-        "page": startup_profile(initial_startup),
+        **opening,
         "comment": comment,
         "change": {
             "marker": marker,
             "revision": published["revision"],
             "reply": answer["text"],
         },
-        "changedPage": {
-            **startup_profile(startup),
-            "followedRevisionMs": followed_in,
-        },
+        **end.closing(published, answer, marker),
     }
 
 
@@ -933,13 +898,9 @@ def user_at(
     session's trace as evidence however the journey ends."""
     url = running_server(place.page)["url"]
     end = (
-        HttpEnd(url, place.page)
+        HttpEnd(url, place.page, terminal.hear)
         if browser is None
-        else BrowserEnd(
-            local_session(browser, url)._replace(
-                records=terminal.records, pause=terminal.hear
-            )
-        )
+        else BrowserEnd(local_session(browser, url)._replace(pause=terminal.hear))
     )
     user = User(end, checkout_version(), lambda: read_events(place.page), terminal)
     try:
@@ -950,101 +911,64 @@ def user_at(
             trace.writelines(json.dumps(record) + "\n" for record in terminal.records())
 
 
-def comment_reading(
-    events: list[dict],
-    comment: dict,
-    published: dict | None,
-    profile: AgentProfile | None,
-    records: Callable[[], list[dict]] | None,
-) -> dict:
-    """What a sample says of one comment: its milestones on the page server's clock
-    (`recorded_steps`), what the browser saw of it where it was sent from one
-    (`profile`), and the agent's work on it split into phases where the journey runs
-    the agent (`records`)."""
-    steps = recorded_steps(events, comment, published)
-    reading = (
-        agent_profile(profile, steps)
-        if profile is not None
-        else {
-            "eventIds": [comment["id"]],
-            "sinceAdmissionMs": {
-                step: None if seconds is None else seconds * 1000
-                for step, seconds in steps.items()
-            },
-        }
-    )
-    answer = deployment_answer(events, comment["id"])
-    if records is not None and answer is not None:
-        reading["turn"] = turn_phases(
-            records(),
-            comment["ts"],
-            pickup_at(events, comment["id"], "opened"),
-            answer["ts"],
-        )
-    return reading
-
-
 class HttpEnd:
     """The user's end with no browser: every comment, the release ask's included, is
     posted to the page served at `url` as its tab posts one (`review_scenario.post`),
-    and read back from the page's log in `page`. This times the agent and its
-    harness from the page server's clock alone, which every milestone is on."""
+    and read back from the page's state and directory `page`. This times the agent
+    and its harness from the page server's clock alone, which every milestone is on.
+    `pause` waits while hearing the session."""
 
     name = "http"
 
-    def __init__(self, url: str, page: Path) -> None:
-        self.url, self.page = url, page
+    def __init__(self, url: str, page: Path, pause: Callable[[float], None]) -> None:
+        self.url, self.page, self.pause = url, page, pause
 
-    def release(self, user: User) -> dict:
-        """Ask on the page for the release to be recorded, as `run_journey` does in
-        Chrome, and require a published revision naming it and an answer."""
-        marker = user.version[:8]
-        before = PageClient(self.url).state()["active"]["revision"]
-        comment = post(self.url, "release", release_ask(marker))
-        published: dict | None = None
+    def state(self) -> dict:
+        return PageClient(self.url).state()
 
-        def done() -> bool:
-            nonlocal published
-            if published is None:
-                active = PageClient(self.url).state()["active"]
-                if (
-                    active["revision"] > before
-                    and marker
-                    in revision_path(self.page, active["revision"]).read_text()
-                ):
-                    published = active
-            return published is not None and user.answered("release")
+    def names(self, active: dict, marker: str) -> bool:
+        """Whether the `active` revision names `marker`."""
+        return marker in revision_path(self.page, active["revision"]).read_text()
 
-        user.ids["release"] = comment
-        user.terminal.until(
-            done,
-            f"release: no published revision naming ‘{marker}’ and an answer",
-            TURN_LIMIT,
-        )
-        events = read_events(self.page)
-        admitted = next(e for e in events if e["id"] == comment)
-        answer = deployment_answer(events, comment)
-        reading = comment_reading(events, admitted, published, None, user.records)
-        print(json.dumps(reading, indent=2), file=sys.stderr)
-        return {
-            "version": user.version,
-            "comment": reading,
-            "change": {
-                "marker": marker,
-                "revision": published["revision"],
-                "reply": answer["text"],
-            },
-        }
+    def ask(self, marker: str, profile: AgentProfile, ask: int) -> dict:
+        """Post the release ask, the `ask`th time; return its admitted comment."""
+        profile.started = time.monotonic()
+        step = "release" if ask == 1 else f"release-{ask}"
+        posted = post(self.url, step, release_ask(marker))
+        state = self.state()
+        profile.observe(state)
+        profile.event_ids.append(posted)
+        return next(event for event in state["events"] if event["id"] == posted)
 
-    def write(self, name: str) -> Callable[[], tuple[str, None]]:
+    def opening(self) -> dict:
+        """What the release ask reads before it: nothing, with no page drawn."""
+        return {}
+
+    def closing(self, published: dict, answer: dict, marker: str) -> dict:
+        """What the release ask reads after it: nothing, with no page to reload."""
+        return {}
+
+    def write(self, name: str) -> Callable[[], tuple[str, AgentProfile]]:
         """What posts step `name`'s comment, which takes no writing first."""
-        return lambda: (post(self.url, name), None)
+
+        def send() -> tuple[str, AgentProfile]:
+            profile = AgentProfile()
+            profile.ask_count = 1
+            profile.started = time.monotonic()
+            profile.event_ids.append(post(self.url, name))
+            return profile.event_ids[0], profile
+
+        return send
 
     def wait(self, comment: str) -> None:
         """Nothing: no page shows the reply."""
 
-    def shown(self, answer: dict) -> None:
-        """Nothing: no page shows the reply."""
+    def reading(self, profile: AgentProfile, steps: dict, answer: dict) -> dict:
+        """A comment's reading: its milestones on the page server's clock, with
+        nothing a browser would have seen."""
+        reading = agent_profile(profile, steps)
+        del reading["sinceSendMs"], reading["responseShownBy"]
+        return reading
 
     def close(self) -> None:
         """Nothing to close."""
@@ -1053,16 +977,86 @@ class HttpEnd:
 class BrowserEnd:
     """The user's end in Chrome: every comment typed in Threads, on the passage it is
     anchored to by selecting it, its send and its reply showing timed by the page
-    (`shown_reply`), and the release ask's reload checked and profiled
-    (`run_journey`). This is the whole journey, what the page shows included."""
+    (`shown_reply`), and the release ask's reload checked and profiled. This is the
+    whole journey, what the page shows included."""
 
     name = "browser"
 
     def __init__(self, session: Session) -> None:
-        self.session = session
+        self.session, self.url = session, session.url
+        self.pause = session.pause
 
-    def release(self, user: User) -> dict:
-        return run_journey(self.session, user.version)
+    def state(self) -> dict:
+        return read_state(self.session)
+
+    def names(self, active: dict, marker: str) -> bool:
+        """Whether the `active` revision's document, as the page serves it, names
+        `marker`."""
+        document = self.session.context.request.get(
+            urljoin(self.url, active["url"]), timeout=120_000
+        )
+        return document.ok and marker in document.text()
+
+    def ask(self, marker: str, profile: AgentProfile, ask: int) -> dict:
+        return ask_to_record(self.session, marker, profile, ask)
+
+    def opening(self) -> dict:
+        """The page's startup profile as the user found it, and Threads opened."""
+        page = startup_profile(startup_reading(self.session.page))
+        self.session.page.locator(".lf-threads-toggle").click()
+        return {"page": page}
+
+    def closing(self, published: dict, answer: dict, marker: str) -> dict:
+        """Require a reload to present the published revision naming `marker`, and
+        return the reloaded page's profile."""
+        page, url, failures = self.session.page, self.url, self.session.failures
+        reloaded = page.reload(wait_until="load", timeout=120_000)
+        check(
+            reloaded is not None and reloaded.ok,
+            f"{url} did not reload after its agent turn",
+        )
+        await_presentation(page, url, failures, timeout=TURN_PRESENTATION)
+        startup = startup_reading(page)
+        # The runtime presents without waiting for its first read, which is what
+        # brings the revision back, so that follow gets its own wait and timing.
+        followed_at = time.monotonic()
+        try:
+            page.wait_for_function(
+                "window.__leafVerifier.revisionAtLeast",
+                arg=published["revision"],
+                timeout=TURN_PRESENTATION,
+            )
+        except PlaywrightTimeout:
+            pass
+        followed_in = (time.monotonic() - followed_at) * 1000
+        # After the wait, so an error on the way there is reported rather than the
+        # revision it never reached.
+        check(not failures, f"{url} reported browser errors: {failures}")
+        shown = page.evaluate("window.__leafVerifier.revision")
+        # The banner separates a page whose first read answered with an old revision
+        # from one that presented offline and was never told.
+        banner = page.evaluate("window.__leafVerifier.status")
+        check(
+            (shown or "").isdigit() and int(shown) >= published["revision"],
+            f"{url} stands on revision {shown} rather than following the published "
+            f"{published['revision']}, with the banner reading ‘{banner}’",
+        )
+        rendered = page.locator("main").inner_text()
+        check(
+            marker in rendered,
+            f"{url} rendered a page that never names ‘{marker}’, which the agent's "
+            "published revision did",
+        )
+        print(
+            f"  the reloaded page followed it {followed_in:.0f} ms after presentation",
+            file=sys.stderr,
+        )
+        return {
+            "changedPage": {
+                **startup_profile(startup),
+                "followedRevisionMs": followed_in,
+            }
+        }
 
     def write(self, name: str) -> Callable[[], tuple[str, AgentProfile]]:
         """Write step `name`'s comment (`COMMENTS`) on its passage, unsent, as a user
@@ -1087,8 +1081,12 @@ class BrowserEnd:
         does. The page times what it shows, so when this runs changes no reading."""
         open_news(self.session.page, comment)
 
-    def shown(self, answer: dict) -> dict | None:
-        return shown_reply(self.session.page, answer)
+    def reading(self, profile: AgentProfile, steps: dict, answer: dict) -> dict:
+        """A comment's reading: its milestones on the page server's clock, and from
+        its send, its acknowledgement and its reply showing in Threads, which must."""
+        if profile.visible_reply_by is None:
+            profile.show(await_reply_shown(self, answer))
+        return agent_profile(profile, steps)
 
     def close(self) -> None:
         self.session.context.close()
@@ -1111,14 +1109,14 @@ class User:
         self.events, self.terminal = events, terminal
         self.records = terminal.records if terminal is not None else None
         self.ids: dict[str, str] = {}
-        self.profiles: dict[str, AgentProfile | None] = {}
+        self.profiles: dict[str, AgentProfile] = {}
         self.sent: list[str] = []
         self.steps: list[dict] = []
         self.release_reading: dict = {}
 
     def release(self) -> None:
-        """The ask every target answers, timed."""
-        self.release_reading = self.end.release(self)
+        """The ask every target answers, timed (`run_journey`)."""
+        self.release_reading = run_journey(self.end, self.version, self.records)
         self.ids["release"] = self.release_reading["comment"]["eventIds"][-1]
 
     def release_alone(self) -> None:
@@ -1190,24 +1188,25 @@ class User:
 
     def sample(self) -> dict:
         """The journey's reading: the user's end, the release ask's, and each step's
-        duration and the timings of the comments it sent, each marked with the
-        permission prompts answered during its step. In a browser each reply must
-        have shown in Threads."""
+        duration and the timings of the comments it sent (`end.reading`), each marked
+        with the permission prompts answered during its step."""
         events = self.events() if self.profiles else []
         comments = {}
         for name, profile in self.profiles.items():
             comment = next(e for e in events if e["id"] == self.ids[name])
             answer = deployment_answer(events, comment["id"])
             check(answer is not None, f"`{name}` has no answer")
-            if profile is not None:
-                shown = self.end.shown(answer)
-                check(
-                    shown is not None, f"the reply to `{name}` never showed in Threads"
-                )
-                profile.show(shown)
-            comments[name] = comment_reading(
-                events, comment, None, profile, self.records
+            reading = self.end.reading(
+                profile, recorded_steps(events, comment, None), answer
             )
+            if self.records is not None:
+                reading["turn"] = turn_phases(
+                    self.records(),
+                    comment["ts"],
+                    pickup_at(events, comment["id"], "opened"),
+                    answer["ts"],
+                )
+            comments[name] = reading
         release = self.release_reading
         for step in self.steps:
             for name in step["comments"]:

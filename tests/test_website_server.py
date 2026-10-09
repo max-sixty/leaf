@@ -1220,7 +1220,8 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
 
     def session(browser, release, *, origin, direct_agent):
         calls.append((origin, release, direct_agent))
-        return SimpleNamespace(context=Context()), release or "served"
+        session = SimpleNamespace(context=Context(), url=origin, pause=time.sleep)
+        return session, release or "served"
 
     monkeypatch.setattr(journey, "local_adapter", local)
     monkeypatch.setattr(journey, "local_worker", worker)
@@ -1229,7 +1230,10 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
     monkeypatch.setattr(
         journey,
         "run_journey",
-        lambda s, v: {"version": v, "comment": {"eventIds": ["comment"]}},
+        lambda end, version, records=None: {
+            "version": version,
+            "comment": {"eventIds": ["comment"]},
+        },
     )
     runner = CliRunner()
     local_result = runner.invoke(journey.journey, ["website-adapter"])
@@ -4379,7 +4383,7 @@ def test_the_agent_verifier_opens_news_arriving_after_an_earlier_notice(browser)
         pause=lambda seconds: page.wait_for_timeout(seconds * 1000),
     )  # fmt: skip
     answer = {"parent": "comment", "id": "answer", "ts": "2026-10-08T09:00:00Z"}
-    shown = journey.await_reply_shown(session, answer)
+    shown = journey.await_reply_shown(journey.BrowserEnd(session), answer)
     assert shown["by"] == "message"
     assert page.locator(".lf-thread-news").count() == 0
 
@@ -4654,7 +4658,7 @@ def test_the_deploy_gate_retries_only_startup_failures(failure):
         {"Leaf-Layer": "layer", "Leaf-Release": "release"},
         None,
     )
-    asked = journey.ask_until_answered(session, "abcd1234")
+    asked = journey.ask_until_answered(journey.BrowserEnd(session), "abcd1234")
     if failure == "rate_limited":
         assert asked.asks == 1
         assert asked.turn.answer is None
@@ -4896,7 +4900,7 @@ def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed(
         None,
     )
     turn = journey.await_turn(
-        session,
+        journey.BrowserEnd(session),
         comment,
         1,
         "abcd1234",
@@ -4962,7 +4966,9 @@ def test_a_title_written_after_the_reply_is_still_timed(tmp_path):
         session = journey.Session(
             Context(), None, [], url, url, untitled, {}, None, pause=pause
         )
-        events = journey.await_title(session, comment["id"], untitled)["events"]
+        events = journey.await_title(
+            journey.BrowserEnd(session), comment["id"], untitled
+        )["events"]
     assert paused == [1]
     assert journey.title(events, comment["id"]) == "Release recorded"
     steps = journey.recorded_steps(events, comment, None)
@@ -5451,6 +5457,12 @@ def test_a_503_the_worker_did_not_write_is_this_release_failing():
 
 # The page's log for a turn that titled its thread at 2.25 s and replied at 12.5 s,
 # each from the comment's admission.
+def run_browser_journey(website):
+    """The release ask at the user's browser end on `website`'s session and release."""
+    session, version = website
+    return journey.run_journey(journey.BrowserEnd(session), version)
+
+
 TURN_LOG = [
     {"kind": "comment", "id": "test-comment", "ts": "2026-10-04T12:00:00.000-07:00"},
     {
@@ -5558,8 +5570,8 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             "time",
             SimpleNamespace(monotonic=iter([39.0, 39.5, 40.0, 42.5]).__next__),
         )
-        benchmark = journey.run_journey(
-            *journey.website_session(
+        benchmark = run_browser_journey(
+            journey.website_session(
                 _DeployedSite(container),
                 None,
                 origin="https://leaf.page",
@@ -5656,8 +5668,8 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     # branch is here to stop conflating with a slow read.
     refused = _DeployedPage(recorded, revision=2, presented_at=28444.0, reload_ok=False)
     with pytest.raises(RuntimeError, match="did not reload after its agent turn"):
-        journey.run_journey(
-            *journey.website_session(
+        run_browser_journey(
+            journey.website_session(
                 _DeployedSite(_DeployedContainer(release, refused)),
                 release,
                 origin="https://leaf.page",
@@ -5729,8 +5741,8 @@ def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
         banner="Server offline — reconnecting",
     )
     with pytest.raises(RuntimeError) as reported:
-        journey.run_journey(
-            *journey.website_session(
+        run_browser_journey(
+            journey.website_session(
                 _DeployedSite(_DeployedContainer(release, offline)),
                 release,
                 origin="https://leaf.page",
@@ -5754,8 +5766,8 @@ def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
         banner="Claude is handling 1 update",
     )
     with pytest.raises(RuntimeError) as named:
-        journey.run_journey(
-            *journey.website_session(
+        run_browser_journey(
+            journey.website_session(
                 _DeployedSite(_DeployedContainer(release, told)),
                 release,
                 origin="https://leaf.page",

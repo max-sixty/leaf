@@ -72,7 +72,6 @@ import {
 } from "./presentation.js";
 import { el } from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
-import { closeLayer, focusDestination } from "../focus.js";
 import { lineOwner, shadow, stack, executeCommand } from "./dispatch.js";
 import { scopeIdentity } from "./scopes.js";
 
@@ -93,6 +92,7 @@ import { repaint } from "../repaint.js";
 import { walkPosition } from "../walk-position.js";
 import { declareBottomBar } from "../geometry.js";
 import { pagePresented } from "../presentation.js";
+import { closeLayer, focusDestination } from "../focus.js";
 import {
   BANNER_CONTROL_RANK,
   bannerControlDoor,

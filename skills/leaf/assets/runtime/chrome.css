@@ -1254,16 +1254,6 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   .lf-general {
     display: flex; gap: 6px; flex: 1; min-height: 0;
     flex-direction: column; flex-wrap: nowrap; align-items: stretch; }
-  /* A sent draft's room, held by page-comment.js. `--lf-held-field` keeps the field's
-     height until the user writes again, as its basis rather than a floor, so the editor
-     still shrinks before the card scrolls when the window has less room.
-     `--lf-held-gap` keeps the room its attachments took above the field while the shelf
-     stands empty, until the card goes: neither the field nor Send moves while the send
-     is out, when a refusal hands the attachments back, or when the user types again. */
-  .lf-general > .lf-compose-field {
-    flex: var(--lf-held-grow, 1) 1 var(--lf-held-field, 0%); }
-  .lf-general:has(> .lf-composer-media[hidden]) {
-    padding-block-start: var(--lf-held-gap, 0px); }
   .lf-thread-action { border: none; background: none; color: var(--muted); cursor: pointer; }
   .lf-thread-action:hover { color: var(--ok); }
   /* Reopen stands in the same row as Resolve and answers the same question from the
@@ -1274,7 +1264,7 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   .lf-thread-action:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
     --lf-focus-ring: thread-action; outline-offset: 2px; }
   .lf-general > .lf-composer-media { flex: none; }
-  .lf-general > .lf-compose-field { min-height: var(--lf-compose-h);
+  .lf-general > .lf-compose-field { flex: 1; min-height: var(--lf-compose-h);
     grid-template-rows: minmax(var(--lf-compose-h), 1fr); }
   .lf-general > .lf-compose-field > leaf-text { max-height: none; }
   .lf-system { color: var(--ok); margin: 8px 0; }

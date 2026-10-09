@@ -57,8 +57,8 @@ browser's order.
 - A reply, or the first comment that starts a thread, leaves the user standing on
   the thread's card or title once sent, including in the margin. Send never returns
   focus to the page; Escape follows the card's usual route back to its target.
-  The page comment card also stays open and focused after Send; `c` writes again,
-  and Escape closes it and returns to the control it hangs from.
+  The page comment card closes after Send and returns focus to its banner control
+  (More on a phone); `c` opens it again. Escape also closes it, keeping any draft.
   A box that stays open for more messages, such as a seat's, keeps the user in it.
 - Threads selects one thread whenever it shows any, and focus on the list is focus
   on that thread's title: `g T`, and an Escape from its find box, land there.

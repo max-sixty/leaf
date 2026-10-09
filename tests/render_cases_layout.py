@@ -892,7 +892,9 @@ BANNER_ORDER = r"""() => {
             getComputedStyle(control).visibility !== 'hidden')
     .map(control => (control.getAttribute('aria-label') || control.textContent).trim()
       // The version's age ticks with the clock between two readings; the order does not.
-      .replace(/ · \S+ ago$/, ''));
+      .replace(/ · \S+ ago$/, '')
+      // The queue's population does not change the control's place in that order.
+      .replace(/^Questions: \d+ waiting on you$/, 'Questions'));
 }"""
 
 

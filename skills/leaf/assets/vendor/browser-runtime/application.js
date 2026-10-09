@@ -28,7 +28,11 @@ import {
   isMessageEvent,
 } from "../../runtime/pending/model.js";
 import { PENDING } from "../../runtime/thread/identity.js";
-import { queueOffers, selectDone, selectQueues } from "../../runtime/queues.js";
+import {
+  queueOffers,
+  selectDone,
+  selectQueues,
+} from "../../runtime/queues.js";
 
 // The pure model's input types are inferred from its existing implementation. They
 // remain one contract while those folds move to compiled source independently.
@@ -220,6 +224,8 @@ function advance(
  * the open ones on either side and `ended_tasks` the ones that ended, with their
  * outcome. A task on the user that an Ask or a thread's question holds has no title of
  * its own. */
+
+
 
 
 
@@ -452,6 +458,11 @@ function localTasks(
       .filter(({ event }) => event.kind === "undo")
       .map(({ event }) => event.undoes          ),
   );
+  const approving = new Set(
+    local
+      .filter(({ event }) => event.kind === "done")
+      .map(({ event }) => event.version          ),
+  );
   const served = [...(view?.document.tasks ?? []), ...(state?.browser.tasks ?? [])];
   const ended = [
     ...(view?.document.ended_tasks ?? []),
@@ -465,18 +476,19 @@ function localTasks(
       .filter(reopened)
       .map((task) => ({ ...task, state: "open"         , outcome: null })),
   ];
+  const locallyEnded = (task          ) =>
+    ending.has(task.id) ||
+    (task.ends === "approval" && approving.has(task.approval .version));
   return {
-    open: open.filter((task) => !ending.has(task.id)),
+    open: open.filter((task) => !locallyEnded(task)),
     ended: [
       ...ended.filter((task) => !reopened(task)),
-      ...open
-        .filter((task) => ending.has(task.id))
-        .map((task) => ({
-          ...task,
-          state: "done"         ,
-          running: null,
-          outcome: { ts: null, detail: null },
-        })),
+      ...open.filter(locallyEnded).map((task) => ({
+        ...task,
+        state: "done"         ,
+        running: null,
+        outcome: { ts: null, detail: null },
+      })),
     ],
   };
 }
@@ -793,7 +805,11 @@ export function createSemanticApplication({
     const workflows = [
       ...(state ? state.workflows : []),
       ...messages.map((entry) => localWorkflow(entry, false)),
-      ...refused.map((entry) => localWorkflow(entry, true)),
+      // A refused message or widget move has a destination to send again.
+      // Other gestures restore their own control or task when speculation ends.
+      ...refused
+        .filter((entry) => entry.message || entry.event.widget)
+        .map((entry) => localWorkflow(entry, true)),
     ];
     const threads = readThreadRecords(
       obligated,
@@ -804,7 +820,10 @@ export function createSemanticApplication({
     );
     const selectedQueues = selectQueues({ threads, workflows, tasks: tasks.open });
     const workflowById = new Map(workflows.map((workflow) => [workflow.id, workflow]));
-    const contextual =                                         (items     , onYou = false) =>
+    const contextual =                                         (
+      items     ,
+      onYou = false,
+    ) =>
       items.map((item) => ({
         ...item,
         workflow: workflowById.get(item.id) ?? null,

@@ -1124,22 +1124,25 @@ pre:hover + .lf-code-copy,
   .lf-code-copy { display: none; }
 }
 
-/* A thread's reply is one field on every surface; its container decides where it stands.
-   The wrapper wears the border and focus band around the editor and its Send action. */
-.lf-thread-reply { display: block; margin-top: var(--sp-3); min-width: 0; }
-.lf-thread-reply .lf-compose-field {
-          --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px);
+/* Standard comment boxes share one frame around their editor and Send. Other
+   uses of the shared editor plumbing, such as option entry and the extended
+   anchored response control, supply their own face. Containers place comment
+   boxes; they do not supply a second frame. */
+.lf-comment-box > .lf-compose-field {
           border: 1px solid var(--border-2);
-          border-radius: 6px; background: var(--card); }
-.lf-thread-reply .lf-compose-field:has(> leaf-text:is(:focus, .lf-focus)) {
+          border-radius: var(--r); background: var(--card); }
+.lf-comment-box > .lf-compose-field:has(> leaf-text:is(:focus, .lf-focus)) {
           outline: var(--focus-ring); --lf-focus-ring: text-box;
           outline-offset: 0; border-color: transparent; }
-.lf-thread-reply .lf-compose-field > leaf-text { display: block; min-width: 0;
+.lf-comment-box > .lf-compose-field > leaf-text {
           padding: 8px var(--lf-compose-pad-inline-start);
           border: 0; border-radius: 0; background: transparent;
           color: var(--ink); font: var(--t-5)/1.5 var(--sans);
           max-height: 50vh; overflow-y: auto; }
-.lf-thread-reply .lf-compose-field > leaf-text:is(:focus, .lf-focus) { outline: none; }
+.lf-comment-box > .lf-compose-field > leaf-text:is(:focus, .lf-focus) { outline: none; }
+.lf-thread-reply { display: block; margin-top: var(--sp-3); min-width: 0; }
+.lf-thread-reply .lf-compose-field {
+          --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px); }
 
 .lf-msg-body a.detached { color: var(--muted-2); text-decoration: underline dashed; cursor: default; }
 .lf-msg-body.lf-suggest-body { white-space: pre-wrap; }

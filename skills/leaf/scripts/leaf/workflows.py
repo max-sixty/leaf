@@ -57,6 +57,7 @@ from .events import (
     conversation_turns,
     unanswered_turns,
 )
+from .files import stamped_version
 from .projection import (
     NO_RECORD,
     PageReading,
@@ -64,7 +65,7 @@ from .projection import (
 )
 from .tasks import (
     TaskReading,
-    ask_tasks,
+    document_tasks,
 )
 
 
@@ -77,11 +78,18 @@ def admission_workflows(readings) -> tuple[list[dict], dict]:
 
 
 def admission_tasks(readings) -> list[dict]:
-    """All tasks under the admission vocabulary, including document Asks."""
+    """All tasks under the admission vocabulary, including document questions."""
     work = readings.work
     standing, ended = work.page_tasks()
     page_standing, page_ended = (
-        ask_tasks(work.document.asks) if work.document is not None else ([], [])
+        document_tasks(
+            work.document,
+            work.page.revision,
+            stamped_version(work.events, work.page.revision),
+            work.approvals,
+        )
+        if work.document is not None
+        else ([], [])
     )
     return page_standing + page_ended + standing + ended
 

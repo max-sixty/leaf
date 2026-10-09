@@ -8,7 +8,14 @@
  */
 
 import { sameAnchor } from "./anchor-coordinate.js";
-import { resolvedElement, resolvedPassage, targetElement } from "./resolved-target.js";
+import {
+  resolvedElement,
+  resolvedPassage,
+  targetElement,
+  passageGeometry,
+} from "./resolved-target.js";
+import { overlaps } from "./rect.js";
+import { clippedContents } from "./geometry.js";
 import { inUi, uiInside, under, upFrom } from "./shadow.js";
 import {
   registeredVisualPart,
@@ -23,11 +30,22 @@ import {
   authoredScope,
   blockAt,
   closestAcross,
+  cut,
+  contextAround,
+  neighbourhood,
+  pageText,
+  readingFrom,
+  rangeOf,
+  segmentsIn,
+  textNodesUnder,
+  quoteFrom,
+  spanIn,
   DATUM,
   elementById,
   elementReading,
   findQuote,
   inChrome,
+  leafSurface,
   pageDocument,
   pageQueryAll,
   settledAway,
@@ -423,9 +441,257 @@ export function datumAimTarget(datum) {
   };
 }
 
-// Pointer aim and target-picker hints share this reading. The returned element is the
-// element the coordinate resolves to, so the promise and eventual mark agree.
-export function aimTargetAt(node) {
+// Capture enough context to identify the selected span, stopping at the reading’s
+// semantic fences. A short unique quote keeps the file capture’s initial context;
+// repeated words grow their context until the shared resolver finds this exact span
+// or the real boundary is exhausted. An unresolved passage remains unresolved.
+const CONTEXT = 24;
+export function anchorForRange(range) {
+  const node = range.commonAncestorContainer;
+  const holder = node.nodeType === Node.ELEMENT_NODE ? node : upFrom(node);
+  // The neighbours come from the same indexed reading the search uses and stop at
+  // the same opaque-widget fences as the file-side capture. The browser knows words
+  // a module generated and may quote them; it does not pretend the file can confirm
+  // context across their seam.
+  const segments = segmentsIn(range);
+  const { text: quote, units } = readingFrom(segments);
+  const dataNodes = new Set(
+    segments.map((seg) => closestAcross(seg.node, DATUM)).filter(Boolean),
+  );
+  const [onlyDatum] = dataNodes;
+  const datum =
+    dataNodes.size === 1 &&
+    segments.every((seg) => closestAcross(seg.node, DATUM) === onlyDatum)
+      ? onlyDatum
+      : null;
+  // Identity is the context for projected data. Neighbouring display values may reorder
+  // or repeat, so storing their words as prefix/suffix would make incidental layout a
+  // second, conflicting answer to which datum the user selected.
+  if (datum) return anchorForDatum(datum, quote ? { quote } : {});
+  const section = closestAcross(holder, ADDRESSABLE)?.id ?? null;
+  if (!quote) return { section };
+  const reading = pageText();
+  const [start, stop] = spanIn(reading, segments);
+  for (let width = CONTEXT; ; width *= 2) {
+    const prefix = cut(neighbourhood(reading, start, width, true), -width, Infinity);
+    const suffix = cut(neighbourhood(reading, stop, width, false), 0, width);
+    const anchor = {
+      section,
+      quote,
+      ...(prefix && { prefix }),
+      ...(suffix && { suffix }),
+    };
+    const resolved = quote && resolveAnchor(anchor, reading);
+    if (resolved?.exact && resolved.kind === "passage") {
+      // Quotes discard boundary whitespace. Compare the characters the passage
+      // reader retained, rather than demanding the drag's cosmetic spaces survive.
+      const first = resolved.segments[0];
+      const last = resolved.segments.at(-1);
+      const from = units[0].start;
+      const to = units.at(-1).end;
+      if (
+        first.node === from.node &&
+        first.start === from.offset &&
+        last.node === to.node &&
+        last.end === to.offset
+      )
+        return anchor;
+    }
+    if ([...prefix].length < width && [...suffix].length < width)
+      return { ...anchor, detached: true };
+  }
+}
+
+// Design names the authored interface, including an agent-authored widget in a Leaf
+// surface or the item a margin entry represents. Content aim names semantic data and
+// visual parts instead. Both direct presses and the picker use this one target reading;
+// choosing a route must never change a control's part coordinate.
+const DESIGN_CONTROLS = PRESSES;
+// Controls have accessible names even when they are chrome with no passage words.
+// innerText reads their currently rendered face; textContent also reads hidden feedback.
+const controlName = (control) =>
+  ownName(control) ||
+  control.innerText?.trim().replace(/\s+/g, " ") ||
+  addressableWord(control);
+// A native label is a route into its control, not a second control identity.
+const controlIdentity = (control) => control.control ?? control;
+const namedParts = (owner, name) =>
+  [...new Set(pageQueryAll(DESIGN_CONTROLS).map(controlIdentity))].filter(
+    (control) =>
+      control !== owner &&
+      under(control, owner) &&
+      addressableAt(control) === owner &&
+      controlName(control) === name,
+  );
+// Spoken context includes prose and this control's visible face, never a neighbour's
+// label. The shared block prose is read once per inventory; chosen capture stays lazy.
+function controlContext(control, contexts) {
+  const block = blockAt(control);
+  if (!block) return "";
+  if (!contexts.has(block))
+    contexts.set(
+      block,
+      quoteFrom(
+        textNodesUnder(block).filter(
+          ({ node }) => !closestAcross(node, DESIGN_CONTROLS),
+        ),
+      ),
+    );
+  return [contexts.get(block), elementReading(control)].filter(Boolean).join(" ");
+}
+// Keep inline emphasis in one label passage, but never cross the nested field's
+// words or native box to pretend its options are part of the visible label.
+function controlPassages(face, control) {
+  const words = textNodesUnder(face);
+  if (face === control) return [words];
+  const passages = [];
+  let run = [];
+  const finish = () => {
+    if (run.length) passages.push(run);
+    run = [];
+  };
+  for (const word of words) {
+    if (under(word.node, control)) {
+      finish();
+      continue;
+    }
+    if (run.length && rangeOf([...run, word]).intersectsNode(control)) finish();
+    run.push(word);
+  }
+  finish();
+  return passages;
+}
+
+function visiblePassage(segments) {
+  const clips = new Map();
+  return segments.every((segment) => {
+    const holder = segment.node.parentElement;
+    if (!holder.checkVisibility({ opacityProperty: true, visibilityProperty: true }))
+      return false;
+    return [...rangeOf([segment]).getClientRects()].some(
+      (rect) =>
+        rect.width > 0 && rect.height > 0 && clippedContents(rect, holder, clips),
+    );
+  });
+}
+
+function designTargetAt(
+  node,
+  marginTargetAt,
+  reading = { owners: new Map(), contexts: new Map() },
+) {
+  const { owners, contexts } = reading;
+  let at = node?.nodeType === 1 ? node : node?.parentElement;
+  if (!at) return null;
+  const pressed = closestAcross(at, DESIGN_CONTROLS);
+  const control = pressed && controlIdentity(pressed);
+  if (pressed?.control) at = control;
+  const surface = leafSurface(at);
+  const margin = closestAcross(at, ".lf-margin-entry, [data-lf-margin-for]");
+  const marginTarget = marginTargetAt?.(at);
+  const standsFor = margin && (!surface || under(margin, surface)) && marginTarget;
+  const authored = surface && closestAcross(at, '[id]:not([id^="lf-"])');
+  const element =
+    standsFor ||
+    (surface ? authored && under(authored, surface) && authored : addressableAt(at));
+  if (!element) return null;
+  const partElement =
+    control &&
+    control !== element &&
+    (marginTarget === element || under(control, element))
+      ? control
+      : null;
+  const part = partElement && controlName(partElement);
+  let target = owners.get(element);
+  if (!target) {
+    target = addressableAimTarget(element);
+    owners.set(element, target);
+  }
+  if (!part)
+    return control === element
+      ? {
+          ...target,
+          controlElement: control,
+          controlFaces: [control, ...(control.labels ?? [])],
+        }
+      : target;
+  const faces = [partElement, ...(partElement.labels ?? [])];
+  const detail = [
+    ...new Set([
+      controlContext(partElement, contexts),
+      ...[...(partElement.labels ?? [])].map((label) =>
+        quoteFrom(
+          textNodesUnder(label).filter(({ node }) => !under(node, partElement)),
+        ),
+      ),
+    ]),
+  ]
+    .filter((text) => text && text !== part)
+    .join(" · ");
+  const named = {
+    ...target,
+    anchor: { ...target.anchor, part },
+    label: `${part}${detail ? ` · ${detail}` : ""} · ${target.label}`,
+    controlElement: partElement,
+    controlFaces: faces,
+  };
+  // Inventory reads names and faces only. Capture the chosen control's passage once,
+  // when direct aim or a picker choice actually needs its durable coordinate.
+  return {
+    ...named,
+    capture() {
+      if (namedParts(element, part).length < 2) return named;
+      // Native associated labels are physical faces of the same control. Try the
+      // visible words on each face without inventing quote text from an ARIA name.
+      for (const face of faces) {
+        for (const passage of controlPassages(face, partElement)) {
+          if (!passage.length) continue;
+          const captured = anchorForRange(rangeOf(passage));
+          const resolved = captured.quote && resolveAnchor(captured, pageText());
+          const attachment =
+            resolved?.kind === "passage" && passageGeometry(resolved)?.attachment;
+          // Hidden option words and repeated passages cannot establish an exact face.
+          if (
+            resolved?.exact &&
+            attachment &&
+            resolved.segments.every(({ node }) => under(node, face)) &&
+            overlaps(attachment, face.getBoundingClientRect()) &&
+            visiblePassage(resolved.segments)
+          ) {
+            // The announced repeated control and its durable anchor share the same
+            // distinguishing context, including neighbouring table cells.
+            const context = contextAround(pageText(), resolved.segments, {
+              before: [...(captured.prefix ?? "")].length,
+              after: [...(captured.suffix ?? "")].length,
+            });
+            const phrase = [
+              part === captured.quote ? part : `${part} · “${captured.quote}”`,
+              context.before && `after …${context.before}`,
+              context.after && `before ${context.after}…`,
+              target.label,
+            ]
+              .filter(Boolean)
+              .join(" · ");
+            return {
+              ...named,
+              anchor: { ...target.anchor, ...captured, part },
+              label: phrase,
+            };
+          }
+        }
+      }
+      return named;
+    },
+  };
+}
+
+// The returned element is the coordinate's durable owner. A named control part also
+// supplies its own hint seat, so several controls in one owner keep separate identities.
+export function aimTargetAt(node, { design = false, marginTargetAt } = {}) {
+  if (design) {
+    const target = designTargetAt(node, marginTargetAt);
+    return target?.capture ? target.capture() : target;
+  }
   const visual = visualAt(node, { unclaimed: false });
   if (visual?.part)
     return {
@@ -440,22 +706,42 @@ export function aimTargetAt(node) {
   return addressable ? addressableAimTarget(addressable) : null;
 }
 
-export function aimTargets() {
+export function aimTargets(options = {}) {
   const candidates = [
     ...pageQueryAll(ADDRESSABLE).filter(isAddressable),
     ...pageQueryAll(DATUM),
+    ...(options.design ? pageQueryAll(DESIGN_CONTROLS) : []),
     ...pageQueryAll(declaredVisualSelector()).flatMap((visual) =>
       visualParts(visual).map((part) => part.element),
     ),
   ];
-  const targets = candidates.map(aimTargetAt).filter(Boolean);
+  const reading = { owners: new Map(), contexts: new Map() };
+  const targets = candidates
+    .map((node) =>
+      options.design
+        ? designTargetAt(node, options.marginTargetAt, reading)
+        : aimTargetAt(node, options),
+    )
+    .filter(Boolean);
+  if (options.design) {
+    const seen = new Set();
+    return targets.filter((target) => {
+      const identity = target.controlElement ?? target.element;
+      if (seen.has(identity)) return false;
+      seen.add(identity);
+      return true;
+    });
+  }
   return targets.filter(
     (target, index) =>
-      !targets.slice(0, index).some(({ anchor }) => sameAnchor(anchor, target.anchor)),
+      !targets.slice(0, index).some((prior) => sameAnchor(prior.anchor, target.anchor)),
   );
 }
 
 export function resolveAnchor(anchor, text = "") {
+  // Capture exhausted the selected occurrence's real fences without identifying it.
+  // Later uniqueness cannot prove that the survivor was the user's occurrence.
+  if (anchor.detached) return null;
   if (anchor.datum) {
     const source = sectionOf(anchor);
     const datums = currentDatums(
@@ -557,9 +843,15 @@ export function resolveAnchor(anchor, text = "") {
 
   if (!anchor.quote) {
     const section = sectionOf(anchor);
-    return section && !settledAway(section)
-      ? resolvedElement({ element: section, surface: wholeVisualSurface(section) })
-      : null;
+    if (!section || settledAway(section)) return null;
+    const target = resolvedElement({
+      element: section,
+      surface: wholeVisualSurface(section),
+    });
+    // A named part describes a control; it is not a durable control id. Without
+    // captured words, only its owner is known. A later revision leaving one control
+    // never promotes an earlier ambiguous gesture into an exact one.
+    return anchor.part ? { ...target, exact: false, status: "fallback" } : target;
   }
 
   const segments = findQuote(text, anchor.quote, anchor, sectionOf(anchor));

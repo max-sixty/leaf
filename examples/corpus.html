@@ -2212,28 +2212,6 @@
         if (selected) selectPanelView(selected);
       });
     </script>
-<!-- targeting-gallery.html authored styles -->
-<style>
-      .target-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: var(--sp-3);
-      }
-      .target-card {
-        --lf-block-frame: 1;
-        padding: var(--sp-4);
-        border: 1px solid var(--rule);
-        border-radius: var(--r);
-      }
-      .target-card h3 {
-        margin-top: 0;
-      }
-      @media (max-width: 560px) {
-        .target-grid {
-          grid-template-columns: 1fr;
-        }
-      }
-    </style>
 </head>
 <body>
 <main class="layout-column">
@@ -3146,29 +3124,26 @@ export function releaseLabels(releases) {
           </lf-playground-output>
         </lf-playground>
       </lf-ask>
-      <lf-ask id="code-targeting-ask" data-width="available">
-        <h2>Which exact reader element should change?</h2>
-        <p>
-          Targeting keeps element identity separate from the comparison's visual labels
-          and settings.
+      <section id="code-reader-feedback" data-width="available">
+        <h2>Point at the reader element you want changed</h2>
+        <p id="code-reader-feedback-guide">
+          Turn on Design mode with <kbd>l</kbd> or the More menu, then press the heading
+          or code reader below. For a keyboard choice, press <kbd>s</kbd>, browse
+          targets with <kbd>Tab</kbd>, and choose with <kbd>Enter</kbd>. Your comment
+          stays beside that element as its treatment changes. Describe a shared change
+          in the comment when both readers should inherit it.
         </p>
-        <lf-targeting
-          id="code-comparison-targeting"
-          data-height="767"
-          submit-label="Propose exact edit"
-        >
-          <lf-target-preview id="code-target-preview">
-            <section id="target-reader-artifact" class="code-candidate">
-              <h3 class="reader-treatment-title">Built reader treatment</h3>
-              <lf-code id="target-built-code" language="javascript" hi="2">
-                <pre>
+        <section id="target-reader-artifact" class="code-candidate">
+          <h3 id="target-reader-heading" class="reader-treatment-title">
+            Built reader treatment
+          </h3>
+          <lf-code id="target-built-code" language="javascript" hi="2">
+            <pre>
 export const summarize = checks =>
   `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;</pre>
-              </lf-code>
-            </section>
-          </lf-target-preview>
-        </lf-targeting>
-      </lf-ask>
+          </lf-code>
+        </section>
+      </section>
 </lf-tab>
 
 <lf-tab id="corpus-live-progress" label="Live">
@@ -9168,35 +9143,6 @@ switch --readers checkout-api,orders-api</code></pre>
           </lf-swipe-deck>
         </lf-sample>
       </section>
-</lf-tab>
-
-<lf-tab id="corpus-targeting-gallery" label="Targeting package">
-<h1 id="targeting-title">Point at the interface change</h1>
-      <p class="lede" id="targeting-lede">
-        Select exact interface targets, preview box-model style changes, and submit
-        those changes with target-bound instructions.
-      </p>
-      <lf-ask id="targeting-ask">
-        <h2>Which exact changes should be made?</h2>
-        <lf-targeting
-          id="targeting-workbench"
-          data-height="767"
-          submit-label="Submit changes"
-        >
-          <lf-target-preview id="targeting-preview">
-            <div class="target-grid">
-              <article id="target-release" class="target-card">
-                <h3 class="target-heading">Release readiness</h3>
-                <p>Keep the owner and remaining checks visible.</p>
-              </article>
-              <article id="target-evidence" class="target-card">
-                <h3 class="target-heading">Evidence trail</h3>
-                <p>Link each claim to the exact run that supports it.</p>
-              </article>
-            </div>
-          </lf-target-preview>
-        </lf-targeting>
-      </lf-ask>
 </lf-tab>
 
 <lf-tab id="corpus-visual-review-gallery" label="Visual review package">

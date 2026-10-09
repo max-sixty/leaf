@@ -119,6 +119,8 @@ import {
 import { decisionFor, registry } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { COLLAPSE } from "./collapse.js";
+import { textUnits } from "./text-alignment.js";
+import { excerptWords } from "./contribution-model.js";
 
 // Opaque widgets and their original direct children: each is a passage cell of its own.
 const passageFences = new WeakSet();
@@ -1312,15 +1314,43 @@ export function findText(text, query) {
   return out;
 }
 
-export function contextAround(text, segments, length = 28) {
+// Display context completes its outer language-aware word within the local window.
+// Oversized tokens use the existing bounded excerpt; stored anchors retain their exact
+// character windows. Search and Design descriptions share this presentation reading.
+export function contextAround(text, segments, { before = 28, after = 28 } = {}) {
   const [start, end] = spanIn(text, segments);
-  const before = neighbourhood(text, start, length, true);
-  const after = neighbourhood(text, end, length, false);
-  const beforeLength = [...before].length;
-  return {
-    before: cut(before, Math.max(0, beforeLength - length), beforeLength),
-    after: cut(after, 0, length),
-  };
+  function side(at, length, backwards) {
+    if (!length) return "";
+    const budget = length * 2 + 1;
+    const neighbourhoodPoints = [...neighbourhood(text, at, budget, backwards)];
+    const points = backwards
+      ? neighbourhoodPoints.slice(-budget)
+      : neighbourhoodPoints.slice(0, budget);
+    const context = points.join("");
+    const boundary = backwards
+      ? points.slice(0, Math.max(0, points.length - length)).join("").length
+      : points.slice(0, length).join("").length;
+    const word = textUnits
+      .segment(context)
+      .containing(backwards ? boundary : boundary - 1);
+    const outer = word?.isWordLike
+      ? backwards
+        ? word.index
+        : word.index + word.segment.length
+      : boundary;
+    const reachesEdge = backwards ? outer === 0 : outer === context.length;
+    if (reachesEdge && points.length >= budget) {
+      // An unfinished token at the local reading's edge cannot justify reading the
+      // whole passage. The caller supplies the visible/spoken outer ellipsis.
+      const excerpt = excerptWords(
+        backwards ? points.toReversed().join("") : context,
+        length,
+      ).slice(0, -1);
+      return backwards ? [...excerpt].toReversed().join("") : excerpt;
+    }
+    return (backwards ? context.slice(outer) : context.slice(0, outer)).trim();
+  }
+  return { before: side(start, before, true), after: side(end, after, false) };
 }
 
 export function pageParts(sel) {

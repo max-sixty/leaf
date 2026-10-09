@@ -37,7 +37,12 @@ projection names an external input, `source` and `source_revision`. `identity` n
 subject the emitter knows persists across source replacements, independently of the
 `datum` key used to reconcile its rendering. `source_revision` records the value seen.
 `visual` names a declared part of a picture and `part` the control a design comment
-landed on.
+landed on. A browser selection whose complete fenced context cannot identify its
+selected occurrence carries `detached: true`. It retains the observed words without
+claiming a location, including after a revision leaves only one identical occurrence.
+The native Range may still place its live editor; that mechanical geometry is not part
+of the durable anchor. File capture requires a unique authored passage and refuses an
+ambiguous quote request, which has no selected occurrence to record.
 
 Activation records a `reanchor` for every affected open thread, even when no reply
 addresses it. The original message retains its quote; `build_threads` reads the

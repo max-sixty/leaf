@@ -198,11 +198,6 @@ export {
   isPagePaint,
   quietWord,
 } from "./presentation.js";
-export {
-  captureTargetReference,
-  resolveTargetReference,
-  targetCandidates,
-} from "./target-references.js";
 export { projectData } from "./application.js";
 export { copyCodeBlock } from "./code-copy.js";
 export { retainUserIntent } from "./user-intent.js";

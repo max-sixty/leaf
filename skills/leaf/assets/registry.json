@@ -486,6 +486,7 @@
                 "visual": {"type": "string", "minLength": 1},
                 "prefix": {"type": "string"},
                 "suffix": {"type": "string"},
+                "detached": {"const": true},
                 "part": {"type": "string"}
               },
               "anyOf": [
@@ -499,6 +500,7 @@
                 "source_revision": ["datum", "source"],
                 "identity": ["datum"],
                 "part": ["section"],
+                "detached": ["quote"],
                 "visual": ["section"]
               },
               "additionalProperties": false
@@ -633,6 +635,7 @@
                 "visual": {"type": "string", "minLength": 1},
                 "prefix": {"type": "string"},
                 "suffix": {"type": "string"},
+                "detached": {"const": true},
                 "part": {"type": "string"}
               },
               "anyOf": [
@@ -646,6 +649,7 @@
                 "source_revision": ["datum", "source"],
                 "identity": ["datum"],
                 "part": ["section"],
+                "detached": ["quote"],
                 "visual": ["section"]
               },
               "additionalProperties": false

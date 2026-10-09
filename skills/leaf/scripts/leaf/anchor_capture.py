@@ -4,12 +4,10 @@ from .passages import collapse, page_passages, section_span
 from .registry.contract import visual_parts
 from .structure import SourceDocument
 
-# How much of the surrounding text an anchor stores to tell two identical passages
-# apart. The browser's capture states the same number and a test holds the two equal,
-# so this side cannot come to store a neighbourhood the browser would never have
-# written. The quote itself is stored whole, however long the passage: it is the extent
-# the page marks, and a cap on it was a comment quietly made on less than was quoted
-# (see `selectionAnchor` in the runtime's composing/capture.js).
+# Initial context shared with browser capture. The CLI already requires a unique
+# quote; a browser selection identifies an occurrence and may grow this context to
+# its semantic fences until the shared resolver identifies that exact span. Both
+# readers accept that complete context, and neither guesses by document order.
 CONTEXT = 24
 
 
@@ -41,7 +39,10 @@ def resolve_quote(passages, anchor: dict) -> int | None:
 
     This is the file side of `passages.js.findQuote`: document order never
     disambiguates repeated words, and an opaque passage fence cannot be crossed.
+    An observation already detached at capture cannot become exact by losing siblings.
     """
+    if anchor.get("detached"):
+        return None
     quote = collapse(anchor["quote"])
     lo, hi = 0, len(passages.text)
     if section := anchor.get("section"):

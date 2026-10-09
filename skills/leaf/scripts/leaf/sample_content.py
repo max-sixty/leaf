@@ -68,10 +68,12 @@ def _fixture_anchor(anchor: dict, readings: AdmissionReadings) -> dict:
         anchor.get("visual"),
         additions=generated_children(projection.desired, document.ids),
     )
-    # Context is derived by capture, including the absence of a neighbour at a
-    # document edge. A supplied stale prefix or suffix cannot override that proof.
+    # File capture proves a unique passage and derives its context, including absent
+    # neighbours. Supplied context or uncertainty cannot override that observation.
     authored = {
-        key: value for key, value in anchor.items() if key not in {"prefix", "suffix"}
+        key: value
+        for key, value in anchor.items()
+        if key not in {"prefix", "suffix", "detached"}
     }
     return {**authored, **captured}
 

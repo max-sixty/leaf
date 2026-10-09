@@ -111,7 +111,31 @@ import { floatingGeometry } from "./floating.js";
 
 // One fresh mechanical reading for the editor and the card it becomes. Resolving the
 // durable subject or passage remains with the caller; both surfaces read its boxes here.
-export function commentAttachment({ target, point = null, passage = null }) {
+export function commentAttachment({
+  target,
+  point = null,
+  passage = null,
+  boundary = null,
+}) {
+  // A detached draft keeps its original semantic coordinate and uses the existing
+  // unanchored window posture. A window seat is geometry, never a replacement anchor.
+  if (!target) {
+    const element = document.documentElement;
+    const extent = boundary ?? commentBoundary();
+    return {
+      element,
+      contextNode: element,
+      geometry: floatingGeometry([element]),
+      clear: null,
+      extent,
+      row: extent.top,
+      lastRow: extent.top,
+      column: null,
+      margin: null,
+      region: null,
+      scroller: effectiveScroller(element),
+    };
+  }
   const context = point ?? passage?.contextNode ?? target;
   const element = point ?? target;
   const geometry = floatingGeometry([element, context]);

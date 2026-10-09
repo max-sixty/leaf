@@ -1422,9 +1422,6 @@ def test_route_corner_hint_overrides_the_rows_face_in_ask_and_widget(browser, se
 SWIPE_GALLERY = next(path for path in CORPUS_SOURCES if path.stem == "swipe-gallery")
 
 
-TARGETING_GALLERY = next(
-    path for path in CORPUS_SOURCES if path.stem == "targeting-gallery"
-)
 VISUAL_REVIEW_GALLERY = next(
     path for path in CORPUS_SOURCES if path.stem == "visual-review-gallery"
 )
@@ -2453,15 +2450,6 @@ CONTROL_ARCHETYPES = (
         "name": "interaction-playback",
         "source": INTERACTION_PLAYBACK_PAGE,
         "target": "[data-interaction-toggle]",
-    },
-    {
-        # The targeting package's box-model row. The property select can show labels
-        # from Padding through Minimum height beside the add press, so choosing the
-        # longest value proves that the row reserves enough room for every state.
-        "name": "targeting-box-model",
-        "source": TARGETING_GALLERY,
-        "target": ".lf-targeting-property",
-        "select": "min-height",
     },
     {
         # The case queue's Previous, case selector, and Next controls share the

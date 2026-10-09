@@ -1,4 +1,5 @@
-/* This module owns Design mode, its targets, and legend geometry. */
+/* This module owns Design mode and legend geometry. Anchor resolution owns the
+ * target reading shared by its direct presses, pointer promise, and keyboard picker. */
 import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
 import { bannerFoot, shownBox } from "./geometry.js";
 import { layoutPx } from "./keeps.js";
@@ -6,12 +7,16 @@ import { paintSet } from "./target-paint-geometry.js";
 import { el } from "./widget-elements.js";
 import { WORKS } from "./control-selectors.js";
 import { tabStore } from "./storage.js";
-import { isAddressable, ADDRESSABLE, addressableAt } from "./anchor-resolution.js";
+import {
+  isAddressable,
+  ADDRESSABLE,
+  aimTargetAt,
+  aimTargets,
+} from "./anchor-resolution.js";
 import { closestAcross, inChrome, leafSurface } from "./passages.js";
 import { tagsDeclaring } from "./registry.js";
 import { designName, DESIGN_MODE_KEY } from "./design-readings.js";
 import { pageCommand, pageRung, pageScope } from "./keyboard/register.js";
-import { under } from "./shadow.js";
 import { coarsePointer } from "./pointer.js";
 
 // The name of what the pointer is over in design mode, floated at its corner. Chrome
@@ -302,51 +307,11 @@ export function createDesignMode({
     if (designModeOn && legendBoxes.size) placeTags(true);
   };
 
-  // What a design press is about: the nearest addressable element, the same answer the ⌥
-  // aim gives; the item a margin entry stands for; or inside a Leaf surface the nearest
-  // authored id within it, a widget an agent sent, whose module's generated parts wear
-  // the runtime's namespace and are passed over — and the control the press landed on
-  // where it landed on one, since "the grip" and "the card" are different remarks.
-  // Nothing on the rest of a Leaf surface, which keeps working (the header above), even
-  // where its owner seated it inside a widget on the page. A margin entry answers only
-  // where it is nearer than the surface: a thread a diff seats in a line's margin row is
-  // the thread's, not the row's.
-  const MARGIN_ENTRY = ".lf-margin-entry, [data-lf-margin-for]";
-  function authoredAt(at) {
-    const surface = leafSurface(at);
-    const margin = closestAcross(at, MARGIN_ENTRY);
-    const standsFor =
-      margin && (!surface || under(margin, surface)) && marginTargetAt(at);
-    if (standsFor) return standsFor;
-    if (!surface) return addressableAt(at);
-    const authored = closestAcross(at, '[id]:not([id^="lf-"])');
-    return authored && under(authored, surface) ? authored : null;
-  }
+  const targetOptions = { design: true, marginTargetAt };
+  const designTarget = (node) => aimTargetAt(node, targetOptions);
   // Asked at use: widget-elements.js's selector reaches this module back through the
   // geometry helpers, so it is not readable as this module evaluates.
   const controls = () => `${WORKS},[data-lf-offer]`;
-  function designTarget(node) {
-    const at = node?.nodeType === 1 ? node : node?.parentElement;
-    if (!at) return null;
-    const marginTarget = marginTargetAt(at);
-    const el = authoredAt(at);
-    if (!el) return null;
-    const control = closestAcross(at, controls());
-    const part =
-      control && control !== el && (marginTarget === el || under(control, el))
-        ? controlWord(control)
-        : "";
-    return { element: el, part };
-  }
-
-  // A control's word for the label: what it says to a screen reader, else what it shows,
-  // else what it is.
-  function controlWord(control) {
-    const said =
-      control.getAttribute("aria-label") ||
-      control.textContent.replace(/\s+/g, " ").trim();
-    return said || control.tagName.toLowerCase();
-  }
 
   // Which presses the mode takes at the press, ahead of the page: everything on the page
   // but prose, and whatever in the chrome the agent made. A widget, a control, a picture —
@@ -360,14 +325,14 @@ export function createDesignMode({
   function designPress(target) {
     const at = target?.nodeType === 1 ? target : target?.parentElement;
     if (!designModeOn || !at) return false;
-    return Boolean(leafSurface(at) ? authoredAt(at) : closestAcross(at, PRESSED()));
+    return Boolean(leafSurface(at) ? designTarget(at) : closestAcross(at, PRESSED()));
   }
 
   // The one way a design target becomes the composer's anchor: the element by id, and the
   // control's word where the press landed on one.
-  function openOnDesign({ element, part }) {
+  function openOnDesign({ anchor }) {
     composer.showFab(null);
-    composer.openComposer({ section: element.id, ...(part && { part }) }, "");
+    composer.openComposer(anchor, "");
   }
 
   function destroy() {
@@ -442,6 +407,7 @@ export function createDesignMode({
     legendScrolled,
     paintLegend,
     target: designTarget,
+    targets: () => aimTargets(targetOptions),
     press: designPress,
     open: openOnDesign,
     name: designName,

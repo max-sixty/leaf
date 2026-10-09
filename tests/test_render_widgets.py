@@ -18,7 +18,7 @@ from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.schema import ELEMENT_ID
 from leaf_dev.example_data import patch_manifest
-from leaf_dev.stills import targeting_menu
+from leaf_dev.stills import visual_review_menu
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ALL_ASKS_IN_ORDER,
@@ -5977,9 +5977,7 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
     expect(page.locator("#release-query-ask")).to_be_visible()
 
 
-def test_built_code_comparison_drives_both_candidates_and_composes_targeting(
-    browser, serve
-):
+def test_built_code_comparison_drives_both_candidates(browser, serve):
     """Candidate measurements follow rendered readers through sizing and reconnection."""
     source = Path(__file__).parents[1] / "examples" / "code-comparison.html"
     context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
@@ -6105,20 +6103,6 @@ def test_built_code_comparison_drives_both_candidates_and_composes_targeting(
         "values": playground.evaluate("root => root.values"),
     }
 
-    targeting = page.locator("#code-comparison-targeting")
-    targeting.get_by_role("button", name="Select element").click()
-    page.locator(".reader-treatment-title").focus()
-    page.keyboard.press("Enter")
-    targeting.locator(".lf-targeting-candidate-choice").first.click()
-    target = targeting.locator('.lf-targeting-target[data-target-key="target-1"]')
-    target.locator("wa-input").click()
-    target.locator("wa-input").press("ControlOrMeta+A")
-    target.locator("wa-input").press_sequentially("Reader treatment heading")
-    target.locator("wa-input").press("Tab")
-    assert targeting.evaluate("root => root.currentDraft().resolutions") == {
-        "target-1": "resolved"
-    }
-
     resized(page, 480, 760)
     assert page.evaluate("document.documentElement.scrollWidth") == 480
     expect(page.locator(".code-comparison-grid")).to_have_css(
@@ -6128,55 +6112,69 @@ def test_built_code_comparison_drives_both_candidates_and_composes_targeting(
     expect(page.locator("#code-comparison-ask")).to_be_visible()
 
 
-def test_playground_composed_structural_target_resolves_in_the_next_revision(
-    browser, serve
+@pytest.mark.parametrize("route", ["pointer", "keyboard", "touch"])
+def test_built_code_reader_design_comment_keeps_its_identity_after_revision(
+    browser, serve, route
 ):
+    """The shared comment loop carries a design request through a real reader revision."""
     source_path = Path(__file__).parents[1] / "examples" / "code-comparison.html"
     source = source_path.read_text(encoding="utf-8")
-    page = open_page(browser, live_url(serve(source_path)))
-    targeting = page.locator("#code-comparison-targeting")
-
-    targeting.get_by_role("button", name="Select element").click()
-    page.locator(".reader-treatment-title").focus()
-    page.keyboard.press("Enter")
-    targeting.locator(".lf-targeting-candidate-choice").first.click()
-    target = targeting.locator('.lf-targeting-target[data-target-key="target-1"]')
-    target.locator("wa-input").click()
-    target.locator("wa-input").press("ControlOrMeta+A")
-    target.locator("wa-input").press_sequentially("Reader treatment heading")
-    target.locator("wa-input").press("Tab")
-    targeting.locator('[name="code-comparison-targeting-instruction"] textarea').fill(
-        "Keep this heading aligned with the selected reader treatment."
+    touch = route == "touch"
+    context = browser.new_context(
+        viewport={"width": 390 if touch else 1200, "height": 844 if touch else 900},
+        has_touch=touch,
+        is_mobile=touch,
     )
-    targeting.get_by_role("button", name="Add instruction").click()
-    with sending(page, "the structural reader target"):
-        targeting.get_by_role("button", name="Propose exact edit").click()
-
-    action = next(
-        event
-        for event in reversed(events_model.read_events(serve.page_dir))
-        if event.get("widget") == "code-comparison-targeting"
+    page = open_page(browser, live_url(serve(source_path)), context=context)
+    if touch:
+        banner_control(page, ".lf-banner-menu .lf-btn:text-is('Design mode')").tap()
+        page.locator("#target-reader-heading").tap()
+    else:
+        page.locator("#target-reader-heading").scroll_into_view_if_needed()
+        page.keyboard.press("l")
+        if route == "keyboard":
+            page.keyboard.press("s")
+            spoken = page.locator(".lf-live")
+            for _ in range(30):
+                previous = spoken.text_content()
+                page.keyboard.press("Tab")
+                expect(spoken).not_to_have_text(previous)
+                expect(spoken).to_have_text(
+                    re.compile(r"^Hint .*Press Enter to choose\.$")
+                )
+                if "heading: Built reader treatment" in spoken.text_content():
+                    break
+            else:
+                pytest.fail("The built reader heading was absent from the target walk")
+            page.keyboard.press("Enter")
+        else:
+            page.locator("#target-reader-heading").click()
+    field = page.locator(".lf-fab-input")
+    write(field, "Keep the heading aligned with the reader's first line.")
+    with sending(page, "the reader design comment"):
+        if route == "keyboard":
+            page.keyboard.press("ControlOrMeta+Enter")
+        else:
+            page.locator(".lf-fab-bar .lf-compose-submit").click()
+    event = next(
+        e
+        for e in reversed(events_model.read_events(serve.page_dir))
+        if e["kind"] == "comment"
     )
-    assert action["detail"]["targets"][0]["reference"] == {
-        "anchor": "target-reader-artifact",
-        "kind": "structure",
-        "path": [{"tag": "h3", "tree": "light"}],
-    }
-
-    revised = source.replace(
-        "One width gesture\n        reaches both",
-        "One shared width gesture\n        reaches both",
-    )
-    assert revised != source
-    stamp = stamp_page(serve.page_dir, revised, "Clarify the comparison gesture")
+    assert event["about"] == "design"
+    assert event["anchor"] == {"section": "target-reader-heading"}
+    assert not [
+        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
+    ]
+    revised = source.replace("Built reader treatment", "Revised reader treatment")
+    stamp = stamp_page(serve.page_dir, revised, "Align the reader treatment")
     wait_for_revision(page, stamp["revision"])
-    target = page.locator(
-        '#code-comparison-targeting .lf-targeting-target[data-target-key="target-1"]'
+    expect(page.locator("#target-reader-heading")).to_have_text(
+        "Revised reader treatment"
     )
-    expect(target).to_have_attribute("data-lf-target-status", "resolved")
-    expect(page.locator(".reader-treatment-title")).to_have_text(
-        "Built reader treatment"
-    )
+    card = page.locator(f'.lf-thread[data-id="{event["id"]}"]')
+    expect(card.locator(".lf-quote")).to_contain_text("target-reader-heading")
+    expect(card.locator(".lf-quote")).not_to_have_class(re.compile(r"detached"))
 
 
 def test_notification_configuration_becomes_a_commentable_local_artifact(
@@ -6935,384 +6933,6 @@ def test_playground_labels_can_be_selected_without_changing_the_controls(
     expect(toggle).to_be_checked()
     toggle.press("Space")
     expect(toggle).not_to_be_checked()
-
-
-def test_targeting_selects_names_previews_reverts_and_submits_structured_changes(
-    browser, serve
-):
-    authored = leaf_page(
-        "visual targeting",
-        """
-<h1 id="title">Landing page review</h1>
-<lf-ask id="landing-change-ask">
-  <h2>Which changes should the agent make?</h2>
-  <lf-targeting id="landing-targeting">
-    <lf-target-preview id="landing-preview">
-      <section id="hero" class="landing-card">
-        <h3 class="section-title"><span>Build the next release with complete instructions that remain available even when the candidate display has less room</span></h3>
-        <p>Keep the request path visible.</p>
-      </section>
-      <section id="evidence" class="landing-card">
-        <h3 class="section-title">Inspect the evidence</h3>
-      </section>
-    </lf-target-preview>
-  </lf-targeting>
-</lf-ask>
-""",
-    )
-    page = open_page(browser, serve(authored, packages=("targeting",)))
-    workbench = page.locator("#landing-targeting")
-
-    workbench.get_by_role("button", name="Select element").click()
-    expect(workbench).to_have_attribute("data-lf-targeting-armed", "")
-    page.locator("#hero span").click()
-    candidates = workbench.locator(".lf-targeting-candidate-choice")
-    expect(candidates).to_have_count(4)
-    candidates.filter(has_text="<section#hero>").click()
-
-    first = workbench.locator('.lf-targeting-target[data-target-key="target-1"]')
-    expect(first.locator("wa-input")).to_have_js_property(
-        "value",
-        "Build the next release with complete instructions that remain available even "
-        "when the candidate display has less room",
-    )
-    first.locator("wa-input").click()
-    first.locator("wa-input").press("ControlOrMeta+A")
-    first.locator("wa-input").press_sequentially("Hero cards")
-    expect(
-        workbench.get_by_role("combobox", name="Style target", exact=True)
-    ).to_have_value("Hero cards")
-    first.locator("wa-input input").press("Tab")
-    first.locator("wa-select").first.click()
-    first.get_by_role("option", name="Shared class").click()
-    expect(first.locator("wa-select").first).to_have_js_property("value", "class")
-    expect(first.locator("wa-select").nth(1)).to_have_js_property(
-        "value", "landing-card"
-    )
-    expect(
-        first.locator("wa-select").nth(1).locator('[part="display-input"]')
-    ).to_have_value(".landing-card · 2 matches")
-    expect(first.locator("wa-select").nth(1)).to_be_visible()
-    first.locator("wa-select").first.click()
-    page.keyboard.press("g")
-    expect(
-        page.locator(".lf-go-to-hints .lf-go-to-hint[data-lf-hint-code]")
-    ).to_have_count(0)
-    page.keyboard.press("Escape")
-    expect(first.locator("wa-select").first).to_have_js_property("open", False)
-    expect(workbench.locator(".lf-targeting-candidates")).to_be_hidden()
-
-    workbench.get_by_role("button", name="Select element").click()
-    page.locator("#evidence h3").focus()
-    page.keyboard.press("Enter")
-    workbench.locator(".lf-targeting-candidate-choice").first.click()
-    second = workbench.locator('.lf-targeting-target[data-target-key="target-2"]')
-    second.locator("wa-input").click()
-    second.locator("wa-input").press("ControlOrMeta+A")
-    second.locator("wa-input").press_sequentially("Evidence heading")
-    second.locator("wa-input").press("Tab")
-    assert (
-        workbench.locator('[name="landing-targeting-instruction-target"]').evaluate(
-            "element => element.value"
-        )
-        == "target-2"
-    )
-
-    style_target = workbench.locator('[name="landing-targeting-style-target"]')
-    style_target.click()
-    style_target.get_by_role("option", name="Hero cards", exact=True).click()
-    expect(
-        workbench.locator('[name="landing-targeting-style-property"]')
-    ).to_have_js_property("value", "padding")
-    expect(workbench.locator("wa-number-input")).to_have_js_property("value", "24")
-    workbench.get_by_role("button", name="Add style").click()
-    assert page.locator("#hero").evaluate("element => element.style.padding") == "24px"
-    assert (
-        page.locator("#evidence").evaluate("element => element.style.padding") == "24px"
-    )
-
-    style_change = workbench.locator(".lf-targeting-change", has_text="padding 24px")
-    style_change.get_by_role("button", name="Remove").click()
-    assert page.locator("#hero").evaluate("element => element.style.padding") == ""
-    assert page.locator("#evidence").evaluate("element => element.style.padding") == ""
-
-    workbench.get_by_role("button", name="Add style").click()
-    instruction_target = workbench.locator(
-        '[name="landing-targeting-instruction-target"]'
-    )
-    instruction_target.click()
-    instruction_target.get_by_role(
-        "option", name="Evidence heading", exact=True
-    ).click()
-    instruction = workbench.locator("wa-textarea textarea")
-    before_height = instruction.bounding_box()["height"]
-    instruction.fill("First line\n" * 12)
-    expect(instruction).to_have_value("First line\n" * 12)
-    assert instruction.bounding_box()["height"] > before_height
-    instruction.press("Enter")
-    expect(workbench.locator(".lf-targeting-change")).to_have_count(1)
-    instruction.fill("Use the same sentence case as the navigation label.")
-    workbench.get_by_role("button", name="Add instruction").click()
-
-    with sending(page, "the structured targeting action"):
-        workbench.get_by_role("button", name="Submit changes").click()
-
-    actions = [
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "action" and event["widget"] == "landing-targeting"
-    ]
-    assert len(actions) == 1
-    assert actions[0]["action"] == "submit"
-    assert actions[0]["detail"] == {
-        "targets": [
-            {
-                "key": "target-1",
-                "name": "Hero cards",
-                "scope": "class",
-                "className": "landing-card",
-                "reference": {"kind": "id", "id": "hero"},
-                "label": "<section#hero>",
-                "text": "Build the next release with complete instructions that remain "
-                "available even when the candidate display has less room "
-                "Keep the request path visible.",
-            },
-            {
-                "key": "target-2",
-                "name": "Evidence heading",
-                "scope": "element",
-                "className": None,
-                "reference": {
-                    "kind": "structure",
-                    "anchor": "evidence",
-                    "path": [{"tree": "light", "tag": "h3"}],
-                },
-                "label": "<h3.section-title>",
-                "text": "Inspect the evidence",
-            },
-        ],
-        "changes": [
-            {
-                "id": "change-2",
-                "target": "target-1",
-                "kind": "style",
-                "property": "padding",
-                "value": "24px",
-            },
-            {
-                "id": "change-3",
-                "target": "target-2",
-                "kind": "instruction",
-                "text": "Use the same sentence case as the navigation label.",
-            },
-        ],
-    }
-
-    page.reload(wait_until="load")
-    wait_until_ready(page)
-    assert (
-        page.locator("#landing-targeting wa-input").first.evaluate(
-            "element => element.value"
-        )
-        == "Hero cards"
-    )
-    assert page.locator("#hero").evaluate("element => element.style.padding") == "24px"
-    assert (
-        page.locator("#evidence").evaluate("element => element.style.padding") == "24px"
-    )
-
-    workbench = page.locator("#landing-targeting")
-    workbench.locator("wa-number-input").click()
-    workbench.locator("wa-number-input").press("ControlOrMeta+A")
-    workbench.locator("wa-number-input").press_sequentially("40")
-    workbench.get_by_role("button", name="Add style").click()
-    assert page.locator("#hero").evaluate("element => element.style.padding") == "40px"
-    append_carried_log_record(
-        serve.page_dir,
-        {"kind": "undo", "author": "user", "undoes": actions[0]["id"]},
-    )
-    told(page)
-    assert page.locator("#hero").evaluate("element => element.style.padding") == "40px"
-    assert workbench.evaluate("element => element.currentDraft().dirty") is True
-    workbench.get_by_role("button", name="Revert draft").click()
-    assert page.locator("#hero").evaluate("element => element.style.padding") == ""
-    expect(workbench.locator(".lf-targeting-change")).to_have_count(0)
-
-
-def test_targeting_keeps_native_name_drafts_while_targets_refresh(browser, serve):
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Target name draft",
-                """<h1>Target name draft</h1>
-<lf-targeting id="name-draft"><lf-target-preview id="name-preview">
-  <section id="named-target"><h2>Release</h2></section>
-  <p id="other-target">Other target</p>
-</lf-target-preview></lf-targeting>""",
-            ),
-            packages=("targeting",),
-        ),
-    )
-    widget = page.locator("#name-draft")
-    widget.get_by_role("button", name="Select element", exact=True).click()
-    page.locator("#named-target h2").click()
-    widget.locator(".lf-targeting-candidate-choice").first.click()
-    name = widget.locator(".lf-targeting-name input")
-    expect(name).to_be_focused()
-    widget.get_by_role("button", name="Select element", exact=True).click()
-    heading = page.locator("#named-target h2")
-    heading.focus()
-    heading.press("Enter")
-    widget.locator(".lf-targeting-candidate-choice").first.press("Enter")
-    expect(widget.locator(".lf-targeting-target")).to_have_count(1)
-    expect(name).to_be_focused()
-    widget.get_by_role("button", name="Add style", exact=True).click()
-    submit = widget.get_by_role("button", name="Submit changes", exact=True)
-    for revision, text in enumerate((" Release  name ", "")):
-        name.fill(text)
-        expect(name).to_be_focused()
-        if text:
-            expect(submit).to_be_enabled()
-        else:
-            expect(submit).to_be_disabled()
-            expect(widget.locator(".lf-targeting-name")).to_have_attribute(
-                "hint", "Enter a target name before submitting."
-            )
-        actual = name.evaluate(
-            """async (input, revision) => {
-              input.setSelectionRange(3, 3);
-              const caret = input.selectionStart;
-              document.querySelector('#name-preview > p').id = `other-${revision}`;
-              await new Promise(resolve => queueMicrotask(resolve));
-              const control = document.querySelector('.lf-targeting-name');
-              await control.updateComplete;
-              return {
-                retained: control.input === input,
-                focused: document.activeElement === control,
-                caret: control.input.selectionStart === caret,
-                value: control.value,
-              };
-            }""",
-            revision,
-        )
-        assert actual == {
-            "retained": True,
-            "focused": True,
-            "caret": True,
-            "value": text,
-        }
-
-    name.fill(" Release  name ")
-    with sending(page, "the normalized target name"):
-        submit.click()
-    actions = [
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "action" and event["widget"] == "name-draft"
-    ]
-    assert len(actions) == 1
-    assert actions[0]["detail"]["targets"][0]["name"] == "Release name"
-
-
-def test_targeting_controller_keeps_unresolved_targets_visible_and_blocks_submit(
-    browser, serve
-):
-    authored = leaf_page(
-        "target lifecycle",
-        """
-<lf-ask id="target-lifecycle-ask">
-  <h2>What should change?</h2>
-  <lf-targeting id="target-lifecycle">
-    <lf-target-preview id="target-lifecycle-preview">
-      <article><div><span><button type="button">Keep this card identifiable</button></span></div></article>
-    </lf-target-preview>
-  </lf-targeting>
-</lf-ask>
-""",
-    )
-    page = open_page(browser, serve(authored, packages=("targeting",)))
-    workbench = page.locator("#target-lifecycle")
-    target = workbench.locator("article")
-    focused = target.get_by_role("button", name="Keep this card identifiable")
-
-    armed = workbench.evaluate(
-        """element => {
-          element.arm();
-          const armed = element.currentDraft().armed;
-          element.disarm();
-          const disarmed = element.currentDraft().armed;
-          element.arm();
-          return {armed, disarmed, rearmed: element.currentDraft().armed};
-        }"""
-    )
-    assert armed == {"armed": True, "disarmed": False, "rearmed": True}
-
-    focused.focus()
-    page.keyboard.press("Enter")
-    candidates = workbench.locator(".lf-targeting-candidate-choice")
-    expect(candidates).to_have_count(5)
-    candidates.filter(has_text="<article>").click()
-    workbench.get_by_role("button", name="Add style").click()
-    submit = workbench.get_by_role("button", name="Submit changes")
-    card = workbench.locator('[data-target-key="target-1"]')
-    expect(card).to_have_attribute("data-lf-target-status", "resolved")
-    expect(submit).to_be_enabled()
-
-    draft = workbench.evaluate("element => element.currentDraft()")
-    assert draft["armed"] is False
-    assert draft["dirty"] is True
-    assert draft["resolutions"] == {"target-1": "resolved"}
-    assert draft["configuration"]["targets"][0]["reference"] == {
-        "kind": "structure",
-        "path": [{"tree": "light", "tag": "article"}],
-    }
-
-    workbench.locator("lf-target-preview").evaluate(
-        """preview => {
-          const inserted = document.createElement('article');
-          inserted.dataset.insertedTarget = '';
-          preview.prepend(inserted);
-        }"""
-    )
-    expect(card).to_have_attribute("data-lf-target-status", "ambiguous")
-    expect(card).to_contain_text("Ambiguous target")
-    expect(card).to_be_visible()
-    expect(submit).to_be_disabled()
-    assert workbench.evaluate("element => element.currentDraft().resolutions") == {
-        "target-1": "ambiguous"
-    }
-
-    workbench.locator("[data-inserted-target]").evaluate("element => element.remove()")
-    expect(card).to_have_attribute("data-lf-target-status", "resolved")
-    expect(submit).to_be_enabled()
-
-    target.evaluate("element => element.remove()")
-    expect(card).to_have_attribute("data-lf-target-status", "detached")
-    expect(card).to_contain_text("Detached target")
-    expect(card).to_be_visible()
-    expect(submit).to_be_disabled()
-    assert workbench.evaluate("element => element.currentDraft().resolutions") == {
-        "target-1": "detached"
-    }
-
-    # Armed and reset in two tasks, as two gestures are: in one, arming would be a write
-    # the reset takes back.
-    workbench.evaluate("element => element.arm()")
-    reset = workbench.evaluate(
-        """element => {
-          element.reset();
-          return element.currentDraft();
-        }"""
-    )
-    assert reset == {
-        "armed": False,
-        "dirty": False,
-        "configuration": {"targets": [], "changes": []},
-        "resolutions": {},
-    }
-    expect(workbench.locator(".lf-targeting-target")).to_have_count(0)
-    expect(workbench.locator(".lf-targeting-change")).to_have_count(0)
 
 
 def test_a_swipe_deck_reflows_with_its_parent_allocation(browser, serve):
@@ -13430,7 +13050,7 @@ def test_a_diff_disclosure_waits_for_the_source_render_that_owns_its_evidence(
 
 
 WEB_AWESOME_SHEET = """sheets => sheets.some(
-  sheet => [...sheet.cssRules].some(rule => rule.cssText.includes('wa-color-picker'))
+  sheet => [...sheet.cssRules].some(rule => rule.cssText.includes('wa-select'))
 )"""
 
 
@@ -13448,20 +13068,20 @@ def test_webawesome_chrome_loads_without_optional_controls(browser, serve):
     )
 
     assert plain.evaluate("() => customElements.get('wa-input') !== undefined")
-    assert plain.evaluate("() => customElements.get('wa-switch') === undefined")
+    assert plain.evaluate("() => customElements.get('wa-slider') === undefined")
 
-    source = Path(__file__).parents[1] / "examples" / "code-comparison.html"
+    source = (
+        Path(__file__).parents[1]
+        / "examples"
+        / "developer"
+        / "visual-review-gallery.html"
+    )
     page = open_page(browser, serve(source))
     assert (
         page.evaluate(f"() => ({WEB_AWESOME_SHEET})(document.adoptedStyleSheets)")
         is True
     )
-    targeting = page.locator("#code-comparison-targeting")
-    targeting.get_by_role("button", name="Select element").click()
-    page.locator(".reader-treatment-title").focus()
-    page.keyboard.press("Enter")
-    targeting.locator(".lf-targeting-candidate-choice").first.click()
-    control = targeting.locator("wa-select").first
+    control = page.locator(".lf-vr-case-select")
     # A page rule with no specificity at all. It can outrank the generated sheet's own
     # `:is(wa-select, …)` mapping only because that sheet sits in @layer lf-vendor.
     page.add_style_tag(
@@ -13481,13 +13101,18 @@ def test_webawesome_menu_text_stays_readable_as_the_current_option_moves(
 ):
     """Component-owned menu states remain readable through the shared theme.
 
-    The targeting picker is a second consumer of the same theme as the trace
+    The visual-review picker is a consumer of the same theme as the trace
     prototype that exposed dark text on a solid blue active row.
     """
-    source = Path(__file__).parents[1] / "examples" / "code-comparison.html"
+    source = (
+        Path(__file__).parents[1]
+        / "examples"
+        / "developer"
+        / "visual-review-gallery.html"
+    )
     page = open_page(browser, serve(source), color_scheme=color_scheme)
-    targeting_menu(page)
-    control = page.locator("#code-comparison-targeting wa-select").first
+    visual_review_menu(page)
+    control = page.locator(".lf-vr-case-select")
     options = control.locator("wa-option")
 
     def contrast(option):
@@ -13559,15 +13184,20 @@ def test_webawesome_theme_reaches_a_declared_shadow_stage(browser, serve):
 def test_interrupted_library_popovers_finish_the_latest_request(browser, serve, motion):
     """A superseded close cannot hide a reopened popover or strand its API promise.
 
-    Select, color picker and tooltip share the library's animation continuation.
+    Select and tooltip share the library's animation continuation.
     The real Enter/Space route exposed it; direct public requests exercise the
     same owner in the other consumers and both interruption directions.
     """
-    source = Path(__file__).parents[1] / "examples" / "code-comparison.html"
+    source = (
+        Path(__file__).parents[1]
+        / "examples"
+        / "developer"
+        / "visual-review-gallery.html"
+    )
     page = open_page(browser, serve(source))
     page.emulate_media(reduced_motion=motion)
-    targeting_menu(page)
-    select = page.locator("#code-comparison-targeting wa-select").first
+    visual_review_menu(page)
+    select = page.locator(".lf-vr-case-select")
     select.evaluate(
         "n => { n.reopened = new Promise(r => n.addEventListener('wa-after-show', r, {once:true})); }"
     )
@@ -13578,7 +13208,7 @@ def test_interrupted_library_popovers_finish_the_latest_request(browser, serve, 
     assert select.evaluate("n => n.open && n.popup.active && !n.listbox.hidden")
     page.keyboard.press("Escape")
 
-    for tag in ("wa-select", "wa-color-picker", "wa-tooltip"):
+    for tag in ("wa-select", "wa-tooltip"):
         page.evaluate(
             """async tag => {
           const {offer} = await import('/runtime/widget-api.js');
@@ -13637,30 +13267,6 @@ def test_interrupted_library_popovers_finish_the_latest_request(browser, serve, 
             is False
         )
         assert control.evaluate("n => !n.open && !n.popup.active")
-        if tag == "wa-color-picker":
-            control.evaluate("""n => {
-              const held = new Promise(resolve => n.releaseUpdate = resolve);
-              n.addEventListener('wa-show', () => {
-                Object.defineProperty(n, 'updateComplete', {configurable:true, get:()=>held});
-              }, {once:true});
-              n.interrupted = null;
-              n.show().then(result => n.interrupted = result);
-            }""")
-            page.wait_for_function(
-                "document.querySelector('#transition-control').releaseUpdate && Object.hasOwn(document.querySelector('#transition-control'), 'updateComplete')"
-            )
-            control.evaluate("n => { n.latest = n.hide(); }")
-            page.wait_for_function(
-                "document.querySelector('#transition-control').interrupted === false"
-            )
-            assert (
-                control.evaluate("""async n => {
-              delete n.updateComplete; n.releaseUpdate();
-              return n.latest;
-            }""")
-                is True
-            )
-            assert control.evaluate("n => !n.open && !n.popup.active && n.base.hidden")
         control.evaluate("n => n.parentElement.remove()")
 
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])

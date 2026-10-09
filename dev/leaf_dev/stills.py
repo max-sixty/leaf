@@ -579,14 +579,9 @@ def playground_controls(page: Page) -> None:
     page.locator(".lf-playground-controls").scroll_into_view_if_needed()
 
 
-def targeting_menu(page: Page) -> None:
-    """The target-scope picker open on its selected option."""
-    targeting = page.locator("#code-comparison-targeting")
-    targeting.get_by_role("button", name="Select element").click()
-    page.locator(".reader-treatment-title").focus()
-    page.keyboard.press("Enter")
-    targeting.locator(".lf-targeting-candidate-choice").first.click()
-    control = targeting.locator("wa-select").first
+def visual_review_menu(page: Page) -> None:
+    """The review case picker open on its selected option."""
+    control = page.locator(".lf-vr-case-select")
     control.evaluate("""node => {
       node.reviewShown = new Promise(resolve => node.addEventListener(
         'wa-after-show', () => resolve(), {once: true}));
@@ -594,6 +589,13 @@ def targeting_menu(page: Page) -> None:
     control.get_by_role("combobox").click()
     control.evaluate("node => node.reviewShown")
     page.mouse.move(0, 0)
+
+
+def code_reader_feedback(page: Page) -> None:
+    """The built reader and the place where its author receives design feedback."""
+    page.locator(
+        "#code-reader-feedback, #code-targeting-ask"
+    ).scroll_into_view_if_needed()
 
 
 def margin_gallery(page: Page) -> None:
@@ -680,8 +682,14 @@ STATES = (
         viewport=(390, 844),
         touch=True,
     ),
-    State("targeting-menu", "code-comparison", targeting_menu),
-    State("targeting-menu-dark", "code-comparison", targeting_menu, scheme="dark"),
+    State("visual-review-menu", "developer/visual-review-gallery", visual_review_menu),
+    State("code-reader-feedback", "code-comparison", code_reader_feedback),
+    State(
+        "visual-review-menu-dark",
+        "developer/visual-review-gallery",
+        visual_review_menu,
+        scheme="dark",
+    ),
     State("trace-controls", "developer/playwright-trace-gallery", trace_controls),
     State(
         "trace-timeline-keyboard",

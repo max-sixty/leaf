@@ -19,10 +19,4 @@ KNOWN = {
         # margin-layout.js), made from the room it measures after the first paint.
         ("lf-toc", "keeps-first-box"),
     },
-    # The widgets below generate an interface of wrapped words, whose height follows the
-    # viewer's fonts: each example drew 22px to 45px taller on CI's Linux than on
-    # macOS. No height a page states holds on every platform, so their examples state
-    # none. Where one declares x-height, a page's data-height is an estimate taken on
-    # the author's machine, which `page check --render` advises.
-    "targeting": {("lf-targeting", "keeps-first-box")},
 }

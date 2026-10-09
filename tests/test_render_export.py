@@ -532,7 +532,7 @@ def _reachable(url: str) -> bool:
     try:
         with urllib.request.urlopen(url, timeout=STATED_TIMEOUT) as answer:
             return answer.status == 200
-    except urllib.error.URLError, OSError:
+    except (urllib.error.URLError, OSError):
         return False
 
 

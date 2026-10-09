@@ -12,7 +12,7 @@
 # One exclude for the file rather than one per hook, because the rule is the file's and
 # a per-hook list misses whichever hook is added next. The right order for a change to
 # the corpus is the hooks first, `leaf-dev corpus` last.
-exclude: ^(skills/leaf/packages/default/shadow\.css$|skills/leaf/(assets/vendor|packages/.*/vendor)/|build/browser/generated/|examples/(corpus\.html|pr-walkthrough\.patch)$)
+exclude: ^(skills/leaf/packages/default/shadow\.css$|skills/leaf/(assets/vendor|packages/.*/vendor)/|examples/(corpus\.html|pr-walkthrough\.patch)$)
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks

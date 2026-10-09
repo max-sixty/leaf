@@ -1,4 +1,6 @@
-"""Diff comment controls keep line coordinates readable and use Leaf's shared face."""
+"""Diff comments preserve the compact reader and keep hover marks clear of numbers."""
+
+from html import escape
 
 import pytest
 from leaf import data as data_model
@@ -8,7 +10,7 @@ from render_harness import leaf_page, open_page, write
 
 @pytest.mark.parametrize("touch", [False, True])
 def test_diff_thread_controls_leave_line_numbers_readable(browser, serve, touch):
-    """Every line has a stable comment lane, including under a finger.
+    """A hover mark fits the native margin without changing its reading geometry.
 
     Measuring the number's ink catches an overlay even when the gutter's own box
     contains both the number and the button. Hover must preserve that separation.
@@ -28,7 +30,8 @@ def test_diff_thread_controls_leave_line_numbers_readable(browser, serve, touch)
     url = serve(
         leaf_page(
             "Config change",
-            '<h1>Config change</h1><lf-diff id="patch" source="patch-data"><pre></pre></lf-diff>',
+            '<h1>Config change</h1><lf-diff id="patch" source="patch-data"><pre></pre></lf-diff>'
+            f'<lf-diff id="native"><pre>{escape(patch)}</pre></lf-diff>',
         )
     )
     data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
@@ -49,22 +52,35 @@ def test_diff_thread_controls_leave_line_numbers_readable(browser, serve, touch)
         return buttons.evaluate_all("""buttons => buttons.map(button => {
           const number = button.parentElement.querySelector('[data-line-number-content]');
           const ink = new Range(); ink.selectNodeContents(number);
-          const bounds = button.getBoundingClientRect();
+          const bounds = button.querySelector('.lf-diff-line-plus').getBoundingClientRect();
           return {right: bounds.right, number: ink.getBoundingClientRect().left,
-                  height: bounds.height, width: bounds.width,
+                  height: button.parentElement.getBoundingClientRect().height,
                   opacity: getComputedStyle(button).opacity};
         })""")
 
     before = geometry()
     for reading in before:
         assert reading["right"] <= reading["number"], reading
-        assert reading["height"] >= (44 if touch else 24), reading
-        assert reading["width"] >= (44 if touch else 24), reading
-        assert reading["opacity"] == "1", reading
+        assert reading["opacity"] == "0", reading
+    native = page.locator("#native [data-gutter] > [data-line-index]").first
+    assert before[0]["height"] == native.bounding_box()["height"]
+    assert (
+        diff.locator("[data-gutter]").bounding_box()["width"]
+        == page.locator("#native [data-gutter]").bounding_box()["width"]
+    )
+    diff.locator("[data-content] > [data-line]").first.hover()
+    after = geometry()
+    assert after[0]["opacity"] == "1"
+    assert [{k: v for k, v in r.items() if k != "opacity"} for r in after] == [
+        {k: v for k, v in r.items() if k != "opacity"} for r in before
+    ]
     buttons.first.hover()
-    assert geometry() == before
+    assert geometry()[0] == after[0]
     assert buttons.first.get_attribute("title") is None
-    expect(buttons.first.locator('[data-lf-icon="comment"]')).to_have_count(1)
+    expect(buttons.first.locator('[data-lf-icon="comment"]')).to_have_count(0)
+    expect(
+        diff.locator('.lf-diff-file-comment [data-lf-icon="comment"]')
+    ).to_have_count(1)
 
     buttons.nth(2).click()
     editor = diff.locator(".lf-fab-input")

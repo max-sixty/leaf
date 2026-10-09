@@ -173,18 +173,22 @@
 .lf-diff-file-actions:empty { display: none; }
 .lf-diff-comment { border-color: transparent; background: transparent; color: var(--muted); }
 .lf-diff-file-comment { --lf-icon-action-hit: var(--lf-diff-action-h); }
-.lf-diff-comment:is(:hover, :focus-visible, .lf-focus-visible) {
+.lf-diff-file-comment:is(:hover, :focus-visible, .lf-focus-visible) {
   background: var(--chip); color: var(--ink); }
-/* A dedicated gutter lane keeps the thread symbol clear of every line number.
-   It stays visible for pointer, keyboard and touch; no hover changes its geometry.
-   The same dimension gives a finger enough room between adjacent line actions. */
-:scope:host(.lf-rendered) { --lf-diff-line-action: max(24px, var(--aim-floor)); }
-[data-gutter] > :has(> .lf-diff-line-comment) {
-  position: relative; padding-inline-start: calc(var(--lf-diff-line-action) + 4px);
-  min-block-size: var(--lf-diff-line-action); }
-.lf-diff-line-comment { --lf-icon-action-hit: var(--lf-diff-line-action);
-  position: absolute; inset-block-start: 50%; inset-inline-start: 2px;
-  translate: 0 -50%; }
+/* Keep Pierre's compact gutter and row height. The whole number row is a press,
+   while its hover mark fits the existing 2ch blank margin, clear of the number.
+   Touch can tap that same number; keyboard commenting also has the target picker. */
+[data-gutter] > :has(> .lf-diff-line-comment) { position: relative; }
+.lf-diff-line-comment { position: absolute; z-index: 2; inset: 0; width: 100%; height: 100%;
+  min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 0;
+  background: transparent; color: var(--accent); opacity: 0; }
+.lf-diff-line-plus { position: absolute; inset-inline-start: 1px;
+  inset-block-start: 50%; translate: 0 -50%; width: calc(2ch - 2px);
+  border-radius: 3px; background: var(--accent-tint);
+  font: 700 13px/1.2 var(--mono); text-align: center; }
+[data-gutter] > :hover > .lf-diff-line-comment,
+[data-gutter] > .lf-diff-line-hover > .lf-diff-line-comment,
+.lf-diff-line-comment:is(:focus-visible, .lf-focus-visible) { opacity: 1; }
 .lf-diff-filtered { display: none !important; }
 /* The filter field is not listed here. It is a vendored text field, whose Tab stop and
    ringed box are both inside its own shadow root, so a rule on this host would reach
@@ -346,7 +350,6 @@
   :scope:host(.lf-rendered) .lf-diff-rename { padding-right: 0; }
   .lf-diff-file > .lf-diff-fold > .lf-diff-head::before,
   .lf-diff-file .lf-diff-rename::before { display: none; }
-  [data-gutter] > :has(> .lf-diff-line-comment) { padding-inline-start: 2ch; min-block-size: 0; }
   .lf-diff-filtered { display: block !important; }
   [data-line] { white-space: pre-wrap !important; overflow-wrap: anywhere !important; }
   code[data-code] { overflow-x: visible !important; --lf-diff-row-fill: 0; }

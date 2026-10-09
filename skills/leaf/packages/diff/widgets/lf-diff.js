@@ -389,10 +389,21 @@ function fileRow(row) {
 }
 
 function commentButton(label, opened, className) {
-  const button = offer("button", `lf-btn lf-icon-action lf-diff-comment ${className}`);
+  const file = className === "lf-diff-file-comment";
+  const button = offer(
+    "button",
+    `lf-btn lf-diff-comment ${className}${file ? " lf-icon-action" : ""}`,
+  );
   button.type = "button";
   button.setAttribute("aria-label", `Comment on ${label}`);
-  button.append(iconElement("comment", "lf-action-icon"));
+  if (file) button.append(iconElement("comment", "lf-action-icon"));
+  else {
+    const plus = document.createElement("span");
+    plus.className = "lf-diff-line-plus";
+    plus.setAttribute("aria-hidden", "true");
+    plus.textContent = "+";
+    button.append(plus);
+  }
   button.addEventListener("click", opened);
   return button;
 }
@@ -1452,6 +1463,12 @@ customElements.define(
         line.comment.tabIndex = -1;
         line.comment.setAttribute(LINE_KEY, diffDatumKey(line));
         gutterRow.append(line.comment);
+        line.node.addEventListener("pointerenter", () =>
+          gutterRow.classList.add("lf-diff-line-hover"),
+        );
+        line.node.addEventListener("pointerleave", () =>
+          gutterRow.classList.remove("lf-diff-line-hover"),
+        );
       }
     }
 

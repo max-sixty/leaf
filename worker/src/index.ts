@@ -990,26 +990,16 @@ export default {
     const manifest = await siteManifest(request, env);
     const releasedAsset = releaseAssetRoute(pathname, manifest);
     if (releasedAsset !== null) {
-      const assetUrl = new URL(request.url);
-      assetUrl.pathname = releasedAsset.pathname;
-      const response = stampedStaticResponse(
-        await env.ASSETS.fetch(new Request(assetUrl, request)),
-        releasedAsset.route,
-        manifest,
-      );
-      const headers = new Headers(response.headers);
-      headers.set("Cache-Control", "public, max-age=31536000, immutable");
-      return new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers,
-      });
+      // Use the page's canonical path for both the built asset and a possible
+      // private revision file that only its active container can serve.
+      url.pathname = releasedAsset.pathname;
+      request = new Request(url, request);
     }
-    const route = pageRoute(pathname, manifest);
+    const route = releasedAsset?.route ?? pageRoute(pathname, manifest);
     if (route === null) {
       return staticAssetResponse(await env.ASSETS.fetch(request), manifest);
     }
-    if (needsPageSlash(pathname, route)) {
+    if (releasedAsset === null && needsPageSlash(pathname, route)) {
       const canonical = new URL(request.url);
       canonical.pathname += "/";
       return Response.redirect(canonical.toString(), 308);
@@ -1052,7 +1042,7 @@ export default {
       isLivePageDocumentRequest(route) &&
       /^[1-9][0-9]*$/.test(privateRevision ?? "");
     if (
-      (request.method === "GET" || request.method === "HEAD") &&
+      (request.method === "GET" || request.method === "HEAD" || releasedAsset !== null) &&
       !isPageApiRequest(route) &&
       !privateDocumentReload
     ) {
@@ -1061,6 +1051,20 @@ export default {
         route,
         manifest,
       );
+      if (
+        releasedAsset !== null &&
+        (response.status !== 404 || !["GET", "HEAD"].includes(request.method))
+      ) {
+        const headers = new Headers(response.headers);
+        if (response.ok) {
+          headers.set("Cache-Control", "public, max-age=31536000, immutable");
+        }
+        return new Response(response.body, {
+          status: response.status,
+          statusText: response.statusText,
+          headers,
+        });
+      }
       if (
         response.status !== 404 ||
         !isPageSessionFileRequest(route, manifest) ||

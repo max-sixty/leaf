@@ -46,6 +46,7 @@ from render_harness import (
     example_media,
     leaf_page,
     open_page,
+    opened_tab,
     page_registry,
     panel_settled,
     primed,
@@ -617,10 +618,11 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
 
     # A modified link retains its href and ordinary browser destination.
     after = links.nth(1)
-    with context.expect_page() as opened:
-        after.click(modifiers=["ControlOrMeta"])
-    original = opened.value
-    original.wait_for_load_state()
+    original = opened_tab(
+        page,
+        after.evaluate("link => link.href"),
+        lambda: after.click(modifiers=["ControlOrMeta"]),
+    )
     assert original.url.endswith(sources["after"])
     original.close()
     expect(viewer).not_to_be_visible()

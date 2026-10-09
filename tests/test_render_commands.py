@@ -21,6 +21,7 @@ from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate import version as render_gate_model
+from leaf.render_gate.page_code import run_page_code
 from playwright.sync_api import expect
 from render_cases_layout import (
     BADGE_CHROME,
@@ -1253,6 +1254,61 @@ FILM_DECLARATION = {
 FILM_PAGE = LONG_PAGE.replace(
     "</main>", '<lf-film id="film"></lf-film><lf-loader id="loader"></lf-loader></main>'
 )
+
+
+def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(
+    browser, serve
+):
+    url = serve(
+        FILM_PAGE.replace("</main>", '<img src="/page/missing-image.png"></main>'),
+        page_files={
+            "registry.json": json.dumps(FILM_DECLARATION),
+            "film.js": 'import { label } from "./helper.js";\n'
+            "export const paint = el => (el.textContent = label);\n",
+            "helper.js": 'export const label = "loaded";\n',
+            "widgets/lf-film.js": 'import { paint } from "../film.js";\n'
+            "customElements.define('lf-film', class extends HTMLElement {\n"
+            "  connectedCallback() { paint(this); }\n"
+            "});\n",
+            "widgets/lf-loader.js": "customElements.define('lf-loader', class extends HTMLElement {\n"
+            "  connectedCallback() { this.textContent = 'loaded'; }\n"
+            "});\n",
+        },
+        media={"page/missing-image.png": solid_png(1, 1, (0, 0, 0))},
+    )
+
+    class RoutedBrowser:
+        def __init__(self, *, fail_helper):
+            self.fail_helper = fail_helper
+
+        def new_page(self, **kwargs):
+            page = browser.unwatched.new_page(**kwargs)
+            page.route(
+                "**/page/helper.js",
+                lambda route: (
+                    route.abort("failed") if self.fail_helper else route.continue_()
+                ),
+            )
+            page.route(
+                "**/page/missing-image.png", lambda route: route.fulfill(status=404)
+            )
+            return page
+
+    failed = run_page_code(RoutedBrowser(fail_helper=True), url)
+    assert any("page failed to start" in report for report in failed), failed
+    assert any(
+        "Browser request failed (Script, net::ERR_FAILED)" in report
+        and f"in {url}:" in report
+        and "/page/helper.js" in report
+        for report in failed
+    ), failed
+    assert any(
+        "Browser request returned HTTP 404 (Image)" in report
+        and "/page/missing-image.png" in report
+        for report in failed
+    ), failed
+
+    assert run_page_code(RoutedBrowser(fail_helper=False), url) == []
 
 
 def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_shell):

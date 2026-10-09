@@ -567,7 +567,7 @@ customElements.define(
       const restoreFocus = holdFocus(this);
       const resume = this.#controller.defer();
       try {
-        const places = placeKeeper(scrollerFor(this), {
+        const places = placeKeeper(scrollerFor(this.#casesBody), {
           items: `#${CSS.escape(this.id)} :is(.lf-vr-case-title, .lf-vr-disposition, .lf-vr-next-remaining, .lf-vr-details-summary, .lf-vr-action, .lf-vr-result)`,
           identity: (node) =>
             `${node.closest(".lf-vr-case").dataset.lfDatum}/${node.dataset.disposition ?? [...node.classList].find((name) => name.startsWith("lf-vr-"))}`,

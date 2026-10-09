@@ -23,7 +23,6 @@
    whole-thread geometry readings rather than descendant nodes. */
 import { nextRender, sizeObserver } from "../rendering.js";
 import { holdFocus, focusDestination, focused } from "../focus.js";
-import { TEXT_FIELD } from "../control-selectors.js";
 import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
 import { anchorLabel, MessageView, messageReading } from "./messages.js";
@@ -32,7 +31,12 @@ import { offer, reachedForWords, measure, reserve } from "../widget-elements.js"
 import { keeps, keepsHidden, layoutPx } from "../keeps.js";
 import { keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
-import { wireReply, replyIsEditing, replyAvailable, dismissReply } from "./replies.js";
+import {
+  createReplyView,
+  replyIsEditing,
+  replyAvailable,
+  dismissReply,
+} from "./replies.js";
 import { settleThread, foldOut, finishFold, isFolding } from "./folding.js";
 import { iconTemplate } from "../icons.js";
 import { loadDraft } from "../drafts.js";
@@ -103,7 +107,10 @@ export function threadReading(thread, surface, commands, options) {
   const messages = turns(thread).map((message) =>
     messageReading(message, {
       panel,
-      nativeAuthored: panel && commands.nativeAuthored !== false,
+      nativeAuthored:
+        typeof commands.nativeAuthored === "function"
+          ? commands.nativeAuthored(message)
+          : Boolean(commands.nativeAuthored ?? panel),
       reactions: reactionReading(thread, message, panel || surface === "outlet"),
       workflows: message.workflows,
     }),
@@ -1185,16 +1192,6 @@ export class ThreadView {
 
   #createReply(model) {
     const panel = model.surface === "panel";
-    const row = offer("div", "lf-thread-reply");
-    // The reply is its editor on every surface, at rest too: `c`, its key badge and
-    // landing all name this box, so nothing stands in for it on screen.
-    const input = offer(TEXT_FIELD);
-    input.name = "reply";
-    const send = offer("button", "lf-btn lf-thread-send", "Send");
-    row.append(input, send);
-    if (panel)
-      input.lfRevealReply = () =>
-        this.#commands.listRoot.revealNavigation(this.#model.id);
     const replyChanged = () => {
       if (!this.#reply) return;
       this.#draftFrame ||= nextRender(() => {
@@ -1204,10 +1201,13 @@ export class ThreadView {
         if (this.#model.resolved) this.#commands.reply.changed();
       });
     };
-    const lifetime = wireReply(model.key, row, input, send, {
-      ...this.#commands.reply,
+    const lifetime = createReplyView(model.key, this.#commands.reply, {
       onChange: replyChanged,
     });
+    const { node: row, input } = lifetime;
+    if (panel)
+      input.lfRevealReply = () =>
+        this.#commands.listRoot.revealNavigation(this.#model.id);
     if (!panel) return { node: row, dispose: lifetime.dispose };
     replyRowSizes.observe(row);
     return {

@@ -177,9 +177,31 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-preview[data-lf-comment-frame] {
     width: min(var(--lf-comment-width), var(--lf-thread-width));
   }
+  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type {
+    display: flex; flex-direction: column; max-height: 100%;
+  }
+  /* Pictures keep their complete image in the transcript's ordinary reading flow.
+     Their extent can scroll there; the editor's cap still belongs only to its words. */
+  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type:has(.lf-msg-media) {
+    max-height: none;
+  }
+  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-head {
+    flex: none;
+  }
   .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body {
+    display: flex; flex-direction: column; min-height: 0;
     box-sizing: border-box; width: min(100%, calc(var(--lf-comment-message-width) - var(--lf-thread-text-inset)));
-    max-height: var(--lf-comment-message-height); overflow-y: auto; margin-top: var(--lf-comment-body-gap);
+    margin-top: var(--lf-comment-body-gap);
+  }
+  /* Only the submitted words inherit the editor's viewport. Message metadata,
+     such as the drawing reference, is added after Send and keeps its own room.
+     The viewport shrinks with its transcript track when the card loses room. */
+  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body > :not(.lf-msg-text) {
+    flex: none;
+  }
+  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text {
+    display: block; box-sizing: border-box; min-height: 0;
+    max-height: var(--lf-comment-message-height); overflow-y: auto;
     padding-block: var(--lf-comment-text-pad-block);
     padding-inline: 0 var(--lf-comment-text-pad-end);
   }
@@ -193,7 +215,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      (text-field.js, `endRoom`): on every line, after the last words only — the last
      paragraph of words, before any pasted images, or a suggestion's text — or, where
      the draft ended on a blank line, nowhere. */
-  .lf-margin-preview[data-lf-comment-frame="every-line"] .lf-msg:first-of-type > .lf-msg-body {
+  .lf-margin-preview[data-lf-comment-frame="every-line"] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text {
     padding-inline-end: calc(var(--lf-comment-text-pad-end) + var(--lf-comment-send-room)); }
   .lf-margin-preview[data-lf-comment-frame="last-line"] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text
     > p:is(:last-child, :has(+ p > .lf-message-media:only-child)):not(:has(> .lf-message-media:only-child))::after,
@@ -248,7 +270,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-thread .lf-thread-reply { contain: inline-size;
     display: grid; grid-template-rows: auto minmax(0, max-content);
     box-sizing: border-box;
-    min-height: calc(var(--lf-compose-h) + var(--lf-comment-foot-gap) + 2px);
+    min-height: var(--lf-comment-reply-row);
     align-items: stretch; margin: 0;
     padding-block: var(--lf-comment-foot-gap) 0;
     background: inherit; }

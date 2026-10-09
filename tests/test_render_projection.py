@@ -113,6 +113,7 @@ from render_harness import (
     leaf_page,
     open_page,
     opened_tab,
+    page_comment,
     page_registry,
     pane_posture,
     panel_settled,
@@ -2435,9 +2436,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
         "stamping the displayed revision replaced its main"
     )
 
-    write(
-        page.locator(".lf-general leaf-text"), "This comment belongs to the live draft."
-    )
+    write(page_comment(page), "This comment belongs to the live draft.")
     with sending(page, "the comment on the live draft"):
         page.locator(".lf-general button").click()
     assert events_model.read_events(serve.page_dir)[-1]["revision"] == 2
@@ -3762,8 +3761,8 @@ def test_a_live_revision_reapplies_the_authored_thread_seat_predicate(browser, s
         told(page)
         return page.evaluate(
             """async () => {
-              const {openAsks} = await window.__lfRuntimeImport('/runtime/application.js');
-              return openAsks().map(ask => ask.sourceId);
+              const {readAsks} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+              return readAsks().user.map(ask => ask.sourceId);
             }"""
         )
 
@@ -4458,12 +4457,12 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
     """Unsent words hold an arriving version, but clearing them releases it.
 
     The chip is news during the hold, not a required confirmation: after the user
-    leaves the text box, the ordinary poll activates the already-published version.
+    puts the page comment card away, the ordinary poll activates the already-published
+    version.
     """
     version_url = serve(LIVE_V1)
     page = open_page(browser, live_url(version_url))
-    page.locator(".lf-threads-toggle").click()
-    general = page.locator(".lf-general leaf-text")
+    general = page_comment(page)
     write(general, "Do not replace the page under these words.")
 
     (serve.page_dir / "index.html").write_text(LIVE_V2)
@@ -4471,9 +4470,9 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
     expect(page).to_have_title("Live first")
     expect_banner_control_offered(page.locator(".lf-latest-chip"))
 
-    # Leaving the text box releases the hold. The live address and durable panel
+    # Leaving the text box releases the hold. The live address and the card's durable
     # draft survive the arriving document without a confirmation press.
-    general.press("Tab")
+    page.keyboard.press("Escape")
     expect(general).not_to_be_focused()
     told(page)
     expect(page).to_have_title("Live second")
@@ -4489,8 +4488,7 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
     )
 
     # Keep editing after the first release, then ask v3 to honor the hold again.
-    general.focus()
-    expect(general).to_be_focused()
+    page_comment(page)
     (serve.page_dir / "index.html").write_text(LIVE_V3)
     told(page)
     expect(page).to_have_title("Live second")
@@ -4928,8 +4926,7 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
     """A request started by the old realm cannot apply a later response in the new one."""
     version_url = serve(LIVE_V1)
     page = open_page(browser, live_url(version_url))
-    page.locator(".lf-threads-toggle").click()
-    general = page.locator(".lf-general leaf-text")
+    general = page_comment(page)
     write(general, "Do not replace the page under these words.")
 
     # Let the page learn that the second revision exists before holding a read. The
@@ -4969,10 +4966,11 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
         # The chip's own read remains independent of the background read held above. It
         # moves the page to the second revision, then the third revision is written
         # before the held request is released.
-        banner_control(page, ".lf-latest-chip").click()
+        # Opening More to reach the chip puts the card away, keeping its words.
+        chip = banner_control(page, ".lf-latest-chip")
+        chip.click()
         expect(page).to_have_title("Live second")
-        general.focus()
-        expect(general).to_be_focused()
+        page_comment(page)
         (serve.page_dir / "index.html").write_text(LIVE_V3)
 
         # The premise of the whole reading arrangement, stated rather than inferred: a read the

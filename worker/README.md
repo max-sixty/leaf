@@ -43,6 +43,11 @@ Every ordinary visit and reload continues to use the edge document. The containe
 composes the private document against `/<page>/revisions/rN-<hash>/`, which is
 content-addressed over the document and its resources.
 
+The container image installs the prepared installation `leaf-dev site` built its
+pages with (`.tmp/site-install`), the tree consumer installs follow. A revision a
+hosted session writes therefore captures the compiled kernel the published revisions
+were built from, rather than the checkout's source modules.
+
 The deployment admits up to 5,990 concurrent `basic` containers. A prewarmed container
 with no interaction sleeps after ten idle minutes. After any page in a session is
 active, a visible active page holds its container through Leaf's finite freshness requests; a passive

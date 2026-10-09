@@ -3885,7 +3885,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         "comment with a drawing": {
             "kind": "comment",
             "drawing": {
-                "format": "leaf-drawing/2",
+                "format": "leaf-drawing/3",
                 "strokes": [[[0, 0], [9, 9]]],
                 "box": [640, 120],
                 "viewport": [1200, 900],

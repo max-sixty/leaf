@@ -38,21 +38,37 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from leaf_dev import ROOT
 from leaf_dev.arms import codex_home, copy_working, environment, run_directory
 from leaf_dev.browser import chrome
-from leaf_dev.site import asset_site
+from leaf_dev.site import asset_site, install_tree
 from leaf_dev.startup import observe_startup as record_startup
 from leaf_dev.startup import startup_reading
 
 MANIFEST = ROOT / ".tmp" / "site" / "_leaf" / "site.json"
 # The site build, run from ROOT, which writes ROOT/.tmp/site (`leaf_dev.site`).
 BUILD_SITE = [sys.executable, "-m", "leaf_dev", "site"]
-# The website's Python server, as its container runs it (`leaf_website`).
-SERVE_SITE = [sys.executable, "-m", "leaf_website"]
 VERIFIER_SCRIPT = Path(__file__).with_name("verify_site_browser.js")
 PAGES = (
     ("/", "product", True),
     ("/examples/triage-board/", "example", True),
     ("/examples/feature-gallery/versions/v1.html", "example", False),
 )
+
+
+def serve_site(install: Path) -> list[str]:
+    """The website's Python server as its container runs it: `leaf_website` in the
+    installation a site build wrote (`site.install_tree`)."""
+    return [
+        "uv",
+        "run",
+        "--project",
+        str(install),
+        "--package",
+        "leaf-website",
+        "--no-dev",
+        "--frozen",
+        "python",
+        "-m",
+        "leaf_website",
+    ]
 
 
 class AgentSession(NamedTuple):
@@ -590,7 +606,7 @@ def local_adapter() -> Iterator[tuple[str, str]]:
         )
         release = json.loads((site / "_leaf" / "site.json").read_text())["release"]
         with serving(
-            [*SERVE_SITE, "--port", "0"],
+            [*serve_site(install_tree(site)), "--port", "0"],
             output,
             lambda: ready_origin(log, "container_http_ready", "/health"),
             30,
@@ -621,17 +637,13 @@ def local_worker() -> Iterator[tuple[str, str]]:
             logged(log) as output,
         ):
             root = Path(temporary)
-            # Freeze both halves of this release. Docker must build from the same
-            # private site the edge serves, even if another run rebuilds .tmp/site.
+            # Freeze this release. Docker must build from the same private site and
+            # installation the edge was built with, even if another run rebuilds
+            # .tmp/site.
             context = root / "context"
             copy_working(
                 [
                     "Dockerfile.website",
-                    "pyproject.toml",
-                    "uv.lock",
-                    "skills/leaf",
-                    "worker/pyproject.toml",
-                    "worker/leaf_website",
                     "worker/package.json",
                     "worker/package-lock.json",
                     "worker/codex-config.toml",
@@ -642,6 +654,11 @@ def local_worker() -> Iterator[tuple[str, str]]:
 
             with flocked(MANIFEST.parents[1].with_name("site.lock")):
                 shutil.copytree(MANIFEST.parents[1], context / ".tmp" / "site")
+                shutil.copytree(
+                    install_tree(MANIFEST.parents[1]),
+                    context / ".tmp" / "site-install",
+                    ignore=shutil.ignore_patterns(".venv"),
+                )
                 shutil.copytree(asset_site(MANIFEST.parents[1]), root / "assets")
             release = json.loads(
                 (context / ".tmp" / "site" / "_leaf" / "site.json").read_text()

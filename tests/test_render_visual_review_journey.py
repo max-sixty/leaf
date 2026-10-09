@@ -1002,10 +1002,13 @@ def test_visual_review_refresh_hands_focus_across_replaced_evidence(browser, ser
     expect(case.locator(".lf-vr-case-title")).to_be_in_viewport()
 
 
-def test_visual_review_refresh_keeps_the_focused_verdict_in_place(browser, serve):
+@pytest.mark.parametrize("viewport", [(390, 844), (1366, 768)])
+def test_visual_review_refresh_keeps_the_focused_verdict_in_place(
+    browser, serve, viewport
+):
     """A source revision reflows reading content without moving the aimed action."""
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
-    resized(page, 390, 844)
+    resized(page, *viewport)
     widget = page.locator("#visual-review-run")
     case = widget.locator(".lf-vr-case:not([hidden])")
     verdict = case.get_by_role("button", name="Looks right")

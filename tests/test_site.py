@@ -58,6 +58,7 @@ from render_harness import (
     holding,
     navigate,
     open_page,
+    page_comment,
     root_overflow,
     select,
     sending,
@@ -137,7 +138,7 @@ def published_pages():
 def site(tmp_path_factory):
     """One build for the module: it vendors a layer and checks every published page."""
     out = tmp_path_factory.mktemp("published") / "site"
-    site_build.build(out)
+    site_build.build(out, site_build.checkout_leaf())
     return out
 
 
@@ -653,15 +654,13 @@ def test_a_nested_page_keeps_one_draft_across_its_version_addresses(
     draft on the other."""
     _, url = served_example("log-retention")
     page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()  # the box lives in the panel
-    write(page.locator(".lf-general leaf-text"), "Kept across addresses")
+    write(page_comment(page), "Kept across addresses")
 
     opened(page, f"{url}versions/v1.html")
     expect(page.locator(".lf-version")).to_have_text("Showing v1")
-    # The open panel is the user's standing arrangement, so it is open here too.
-    expect(page.locator(".lf-general leaf-text")).to_have_js_property(
-        "value", "Kept across addresses"
-    )
+    expect(
+        page.locator(".lf-page-comment-card .lf-general leaf-text")
+    ).to_have_js_property("value", "Kept across addresses")
 
 
 def test_the_published_notification_example_runs_its_authored_module(
@@ -1155,7 +1154,7 @@ def test_an_invalid_product_document_stops_the_build(tmp_path, monkeypatch):
     monkeypatch.setattr(site_build, "DOCS", staged_docs)
 
     with pytest.raises(SystemExit) as stopped:
-        site_build.build(tmp_path / "invalid-site")
+        site_build.build(tmp_path / "invalid-site", site_build.checkout_leaf())
     assert "<base>" in str(stopped.value)
 
 
@@ -2297,9 +2296,8 @@ def test_what_a_user_leaves_on_one_page_stays_on_it(served_example, browser):
     """Independent page backends do not share their logs or reading positions."""
     _, url = served_example("heat-loss")
     page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()  # the box lives in the panel
-    write(page.locator(".lf-general leaf-text"), "Where does this go?")
-    page.locator(".lf-general .lf-compose-submit").click()
+    write(page_comment(page), "Where does this go?")
+    page.locator(".lf-page-comment-card .lf-general .lf-compose-submit").click()
     # One, and typed: this example ships no log, so the count is the comment
     # just written and nothing else.
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")

@@ -227,6 +227,21 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    with it, the top of its ring cut off under the pane's header rule. At no weight, like
    the ring. */
 :where(:focus) { scroll-margin-block: var(--focus-ring-room); }
+/* A control in a sticky header stands where the header sticks, which a scroller's
+   landing band can count as covered: the root's band starts `--lf-landing-room` below
+   the banner, where a header sticks. The browser then scrolls toward the control on
+   every focus, and a stuck header never comes out from under the band, so each Tab
+   crept the page by the difference, and one standing wholly inside the band, a page
+   tab strip, was centred, 403px a key. A header says how far below the slot it sticks
+   against (`--lf-top`) its controls stand when stuck (`--lf-head-inset`), and the
+   margin takes the band's room back from that, so a focused control where its header
+   sticks is shown, and one revealed from elsewhere lands exactly there.
+   `--lf-landing-room` is the scroller's own: 12px on the root (theme.css), none where
+   a box that scrolls restarts the slot (state.css), and a list that pads its edge for the
+   ring says so (chrome.css). */
+:where(:focus) {
+  scroll-margin-top: calc(var(--lf-head-inset, calc(var(--focus-ring-room)
+    + var(--lf-landing-room, 0px))) - var(--lf-landing-room, 0px)); }
 [data-lf-offer]:where(:not([data-lf-offer=""])) { cursor: pointer; }
 [data-lf-offer]:where(:not([data-lf-offer=""])):hover:where(:not([aria-disabled="true"], :disabled)) {
   box-shadow: inset 0 0 0 100px color-mix(in srgb, var(--ink) 7%, transparent); }
@@ -970,13 +985,12 @@ button.lf-media-open { cursor: zoom-in; }
   object-fit: cover; }
 /* Controls stay inside each tile, so the scrolling shelf never cuts their hit area.
    Images and drawings keep their own thumbnail dimensions beside full-height presses. */
-.lf-composer-drawing > .lf-composer-media-open { padding: 4px;
-  box-sizing: border-box; }
-.lf-composer-drawing > .lf-composer-media-open > svg { display: block; width: 100%;
-  height: 100%; overflow: visible; }
-.lf-composer-drawing > .lf-composer-media-open path { fill: none;
-  stroke: var(--accent); stroke-width: 2px; stroke-linecap: round;
-  stroke-linejoin: round; }
+.lf-composer-drawing > .lf-composer-media-open { padding: 0;
+  box-sizing: border-box; position: relative; }
+.lf-drawing-context-status { position: absolute; inset-inline: 0; inset-block-end: 0;
+  padding: 2px; font: 10px/1.2 var(--sans); background: var(--paper); color: var(--ink-2); }
+.lf-composer-drawing > .lf-composer-media-open > canvas { display: block; width: 100%;
+  height: 100%; object-fit: contain; }
 .lf-composer-media-item > button:not(.lf-media-open) { flex: none; display: grid; place-items: center;
   inline-size: max(26px, var(--aim-floor)); min-block-size: var(--aim-floor);
   padding: 0; border: 0; font: inherit;
@@ -1041,10 +1055,15 @@ button.lf-media-open { cursor: zoom-in; }
 .lf-fab-bar[data-lf-presentation="inline"].lf-response-open
           > .lf-response-options { display: inline-flex; align-items: center;
           flex-wrap: wrap; gap: 4px; max-width: 100%; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media {
+.lf-fab-bar .lf-composer-media {
           flex: none; max-width: 148px; padding: 0; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media-open {
+.lf-fab-bar .lf-composer-media:has(> .lf-composer-drawing) {
+          --lf-drawing-preview-width: 96px;
+          max-width: calc(var(--lf-drawing-preview-width) + 2 * max(26px, var(--aim-floor)) + 2px); }
+.lf-fab-bar .lf-composer-media-open {
           width: 42px; height: 34px; }
+.lf-fab-bar .lf-composer-drawing > .lf-composer-media-open {
+          width: var(--lf-drawing-preview-width); height: 64px; }
 @media print {
   .lf-fab-bar[data-lf-presentation="inline"] { display: none !important; }
 }

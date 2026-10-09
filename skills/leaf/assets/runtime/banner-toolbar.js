@@ -59,6 +59,7 @@ export const BANNER_CONTROL_RANK = Object.freeze({
   commands: 75,
   blanket: 80,
   versions: 90,
+  keyboard: 95,
   approval: 100,
   pageComment: 105,
   // Questions and Threads are the two doors to the one side panel, side by side.

@@ -473,6 +473,9 @@ stay literal and uncolored when they are not source code.
 
 The runtime injects the status banner, thread panel, Versions menu, keyboard
 shortcuts, live-leaves drawer, and Questions panel, which lists the page's open Asks.
+Readers can turn off **Quick keyboard shortcuts** under **More → Keyboard shortcuts**.
+This preference persists across pages on the same origin and removes Leaf's character
+shortcuts and their hints; commands and ordinary control navigation remain available.
 Do not duplicate that chrome or keep a second list of the Asks in the page.
 
 Keep content within its allocated column, visual surface, or pane. The theme scrolls a `<pre>` or a table

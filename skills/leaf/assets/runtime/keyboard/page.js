@@ -99,7 +99,8 @@ pageCommand({
   touch: false,
   keys: ["F7"],
   title: "Caret browsing",
-  description: "Select text with the browser's keyboard caret, then press c to comment",
+  description:
+    "Select text with the browser's keyboard caret, then comment on the selection",
   line: false,
 });
 

@@ -1898,8 +1898,9 @@ export function createVersionController({
       if (!anchoringIsReady()) return;
       tabStore.set(VIEW_KEY, JSON.stringify(captureView()));
     });
-    const restoreCarryScroll = handoff && restoreCarry(handoff.carry);
-    const currentIntent = retainUserIntent({ fallback: compositionInput });
+    const currentIntent = retainUserIntent({ fallback: compositionInput, since: 0 });
+    const restoreCarryScroll =
+      handoff && restoreCarry(handoff.carry, new Map(), currentIntent.handoff);
     const landArrival = () =>
       landContinuity(async () => {
         if (!currentIntent()) return;
@@ -1944,7 +1945,7 @@ export function createVersionController({
   function aimArrival() {
     const fresh = performance.getEntriesByType("navigation")[0]?.type === "navigate";
     const arrivedAt = location.hash;
-    const currentIntent = retainUserIntent();
+    const currentIntent = retainUserIntent({ since: 0 });
     return function landFragment() {
       aimedAt ??= fresh && fragmentTarget(arrivedAt);
       if (!aimedAt || !currentIntent()) return;

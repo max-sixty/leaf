@@ -1,4 +1,6 @@
-/* The tree's one drawing runs before first paint, so directory indentation,
+/* Package-owned drawings run before first paint; live modules adopt their nodes.
+ * The activity producer retains tab-local reading through executable replacement.
+ * The tree's one drawing runs before first paint, so directory indentation,
  * wrapped names and badges occupy their actual box. Upgrade adopts the same
  * nodes; later arrivals use this producer through the initial coordinator.
  * Indentation gives ancestry, a trailing slash or children marks a directory,
@@ -62,3 +64,6 @@ function render(host) {
 }
 
 document.documentElement.lfInitial.register("lf-tree", render);
+
+import { initialActivity } from "./widgets/activity-view.js";
+document.documentElement.lfInitial.register("lf-activity", initialActivity);

@@ -168,7 +168,7 @@
   },
   "lf-activity": {
     "description": "A newest-first feed of the page’s comments, actions, reports, and published revisions.",
-    "x-instructions": "Put the feed last in the column or in a pane of its own. Write it empty with a stable id.",
+    "x-instructions": "Write it empty with a stable id.",
     "type": "object",
     "properties": {
       "id": {
@@ -182,6 +182,7 @@
     "x-bound": "start",
     "x-history": true,
     "x-upgrade": true,
+    "x-initial": "/vendor/lf-tree-initial.js",
     "x-example": "<section id=\"recent\">\n  <h2>Recent activity</h2>\n  <lf-activity id=\"page-activity\"></lf-activity>\n</section>"
   },
   "lf-options": {

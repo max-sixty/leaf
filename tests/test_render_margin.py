@@ -9180,7 +9180,12 @@ def test_a_card_beside_an_element_scrolled_past_its_top_waits_at_the_windows_top
     leaves with it. On an Ask's options, the binding badge the banner holds in stands
     in the window's plane too, for the same reason."""
     comment = {**COMMENT_ON_ASK, "anchor": {"section": target}}
-    page = open_page(browser, serve(ASK_PAGE, events=[comment]))
+    # Give the last Ask room to pass above the viewport before scroll reaches the
+    # document's end; the fixture otherwise stops with #bracket still visible.
+    source = ASK_PAGE.replace(
+        "</main>", '<div style="height: 800px" aria-hidden="true"></div></main>'
+    )
+    page = open_page(browser, serve(source, events=[comment]))
     resized(page, 1440, 600)
     marker = page.locator(f'[data-lf-margin-for="{target}"] .lf-margin-marker')
     marker.evaluate(
@@ -9200,7 +9205,8 @@ def test_a_card_beside_an_element_scrolled_past_its_top_waits_at_the_windows_top
     }"""
 
     def scroll_by(by):
-        page.evaluate("by => document.scrollingElement.scrollBy(0, by)", by)
+        page.mouse.wheel(0, by)
+        scroll_settled(page)
         rendered(page)
         return page.evaluate(reading, target)
 
@@ -9214,6 +9220,7 @@ def test_a_card_beside_an_element_scrolled_past_its_top_waits_at_the_windows_top
     at = page.evaluate(reading, target)
     assert at["card"] == pytest.approx(at["window"], abs=0.5), at
     at = scroll_by(at["bottom"] - at["window"] + 20)
+    assert at["bottom"] < at["window"], at
     expect(card).to_have_attribute("data-lf-plane", "page")
     assert at["card"] == pytest.approx(at["bottom"], abs=0.5), at
 

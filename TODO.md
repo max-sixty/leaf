@@ -255,15 +255,11 @@ Boxes that still move without input, which the "Stability" rule in
 `skills/leaf/assets/AGENTS.md` forbids. `tests/known_widget_findings.py` lists each widget
 that changes size after first paint, with its cause.
 
-- **Size the activity feed and text documents at first paint.** `lf-activity` draws the
-  log's history and `lf-text-document` its bound source's value, and both arrive with
-  the first state answer, after first paint. Serving that state inside the page does
-  not work: modules run after first paint, and a page revision is immutable while the
-  log keeps changing. Follow #1566's Command Hub pattern instead: draw a summary whose
-  structure is fixed, declared as the widget's `x-prepaint` so the first paint lays it
-  out, open the rows from it, and hold later growth with
-  `HeldReading` (`runtime/thread/held-news.js`) while it would be seen. Check first
-  whether a text document, which the reader came to read, can stand behind a summary.
+- **Size text documents at first paint.** `lf-text-document` draws its bound source's
+  value after the first state answer. Check whether the document can be laid out from
+  a synchronous source reading, or whether a summary can serve the reader who came
+  to read it. The activity feed now opens log-sized rows deliberately and holds later
+  growth with `HeldReading`.
 - **Decide the contents' form before first paint.** `lf-toc` changes size because the
   margin pass decides after first paint whether it is the fixed map in the margin or
   the outline in the flow (`data-lf-margin`, `margin-layout.js`), from the room

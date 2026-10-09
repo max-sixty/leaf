@@ -11,6 +11,29 @@
   // fallback, and only a served page draws the live chrome (`data-lf-live`, bootstrap.js).
   root.toggleAttribute("data-lf-interactive", true);
 
+  // Inputs belong to this document from its first script, even while the module
+  // graph is still loading. Delayed arrival work must not take focus or scroll
+  // back from someone already using the authored page. focus.js exposes this
+  // same counter and subscription after startup; no later listener starts over.
+  let inputs = 0;
+  const inputReaders = new Set();
+  root.lfInputs = {
+    get count() {
+      return inputs;
+    },
+    observe(read) {
+      inputReaders.add(read);
+      return () => inputReaders.delete(read);
+    },
+  };
+  const input = (event) => {
+    if (event.type === "blur" && event.target !== window) return;
+    inputs++;
+    for (const read of inputReaders) read(event);
+  };
+  for (const type of ["pointerdown", "keydown", "input", "wheel", "touchstart", "blur"])
+    window.addEventListener(type, input, { capture: true, passive: true });
+
   // Whether the runtime could not start, named on the root (`data-lf-startup-error`)
   // for whatever reports it. A fault is `incomplete` where something the page needs
   // did not arrive: its entry module or one it imports, its theme, or what the page

@@ -524,8 +524,8 @@ export function resolveAnchor(anchor, text = "") {
       : {
           ...resolvedElement({ element: datums[0] }),
           datumElement: datums[0],
-          exact: true,
-          status: "exact",
+          exact: false,
+          status: "fallback",
         };
   }
 

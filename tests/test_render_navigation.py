@@ -8177,7 +8177,9 @@ def test_page_map_cancellation_returns_to_its_opener_without_moving_the_reading(
         '<div style="height:900px"></div>'
     )
     if nested:
-        content = f'<div id="reading" style="height:350px;overflow:auto">{content}</div>'
+        content = (
+            f'<div id="reading" style="height:350px;overflow:auto">{content}</div>'
+        )
     page = open_page(browser, serve(leaf_page("Map return", content)))
     page.locator("#reading-control").focus()
     page.locator("#reading-control").scroll_into_view_if_needed()

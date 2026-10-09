@@ -4859,7 +4859,9 @@ def test_a_title_written_after_the_reply_is_still_timed():
                 **answered,
                 "events": [comment, reply, title],
                 "browser": {
-                    "thread": {"threads": [{"id": comment["id"], "title": title["title"]}]}
+                    "thread": {
+                        "threads": [{"id": comment["id"], "title": title["title"]}]
+                    }
                 },
             }
         ]

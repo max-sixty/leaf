@@ -274,14 +274,17 @@ export function createFloatingResponsePlacement({
           layoutPx(Math.max(0, boundary.width / scale)),
         );
     };
-    // The frame may grow to the height Floating UI's size middleware gives it, the whole
-    // boundary, since shift can slide it anywhere inside. Native tracks reserve the
-    // furniture and give the editor what remains. Typing never scrolls the page to make
-    // room. The box grows from the edge that holds it, then slides inside the window,
-    // over its passage if it must, and once it fills the window scrolls its own words.
-    const setHeight = (height) => {
+    // The frame may grow to the whole boundary on any side, past the room its held edge
+    // leaves, since shift slides it inside. Native tracks reserve the furniture and give
+    // the editor what remains. Typing never scrolls the page to make room. The box grows
+    // from the edge that holds it, then slides inside the window, over its passage if it
+    // must, and once it fills the window scrolls its own words.
+    const setHeight = (scale) => {
       if (!response.open) return;
-      fabBar.style.setProperty("--lf-float-h", layoutPx(Math.max(0, height)));
+      fabBar.style.setProperty(
+        "--lf-float-h",
+        layoutPx(Math.max(0, boundary.height / scale)),
+      );
     };
     fabPlacement.choose({
       clear: place.clear,
@@ -310,10 +313,10 @@ export function createFloatingResponsePlacement({
           column: place.column,
           margin: place.margin,
           boundary,
-          fit({ width, height, scale }) {
+          fit({ width, scale }) {
             if (!stillCurrent()) return;
             setWidth(width, scale.x);
-            setHeight(height);
+            setHeight(scale.y);
             const frame = fabBar.getBoundingClientRect();
             if (
               Math.ceil(frame.width) > Math.ceil(boundary.width) ||

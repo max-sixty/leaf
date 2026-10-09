@@ -393,9 +393,10 @@ def sent(browser, serve, name, shots):
             else rect["top"] - block["bottom"]
         )
         if gap < 0:
+            # Typing never scrolls the page to make room, so a box that outgrew the
+            # room shown on its side slid over the block only as far as the window's
+            # edge required.
             limits = (block, rect, phone_room)
-            required = block["bottom"] - block["top"] + rect["bottom"] - rect["top"]
-            assert required + phone_room["gap"] > phone_room["height"], limits
             edge = "top" if side == "above" else "bottom"
             assert rect[edge] == pytest.approx(phone_room[edge], abs=0.75), limits
         else:

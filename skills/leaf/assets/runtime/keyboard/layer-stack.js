@@ -75,7 +75,7 @@ function pushNativeLayer(node) {
 // the user: standing nowhere. A modal is still modal as it announces its close, with the
 // page behind it inert, so a let-go there lands no one and only takes the body's stop
 // and gives it back; the modal's owner lands the user as it closes it (the Page Map's
-// cancel, the command reference's close).
+// cancellation returns to its opener or reading position; the command reference closes).
 function closing(event) {
   if (event.newState !== "closed") return;
   const entry = entries.find((candidate) => candidate.root === event.target);

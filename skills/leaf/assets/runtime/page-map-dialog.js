@@ -8,9 +8,10 @@
 
    A native dialog delivers `close` after it has hidden the dialog, a task later. A close
    overtaken by a reopen therefore leaves the new opening's target and focus route intact.
-   Every way out places focus itself, synchronously, as it closes the dialog: the Page
-   Map's own Close button hands the user back to its invoker, and keyboard departure and
-   record actions land them where they go. The `close` event places nothing.
+   Every way out declares its landing as it closes the dialog:
+   cancellation by Escape or Close hands the user back to the opening focus, or
+   their reading position when there was none. Record actions navigate separately.
+   The `close` event places nothing.
 
    The dialog is a list with a search above it. Up and Down walk its rows, Down or Enter
    in the search enters the list at the first match, and a row's Enter is its own press.
@@ -26,11 +27,11 @@
 import { nextRender } from "./rendering.js";
 import { blockAt, says } from "./passages.js";
 import {
+  closeLayer,
   focusDestination,
+  focused,
   handBack,
   holdFocus,
-  letGo,
-  closeLayer,
   openLayer,
   openerOf,
 } from "./focus.js";
@@ -365,7 +366,7 @@ export function createPageMapDialog({
   }
 
   function openPageMap(entry = null, { invoker = null, focusSpill = false } = {}) {
-    const openedFrom = invoker ?? pageMapInvoker();
+    const openedFrom = invoker ?? focused();
     target = entry ? targetFor(entry) : null;
     if (!dialog.open) {
       openLayer(dialog, openedFrom);
@@ -385,7 +386,7 @@ export function createPageMapDialog({
       else if (groupBox.bottom > listBox.bottom)
         dialogList.scrollTop += groupBox.bottom - listBox.bottom;
     }
-    const spilled = focusSpill ? openedFrom.lfFirstSpilledOption : null;
+    const spilled = focusSpill ? openedFrom?.lfFirstSpilledOption : null;
     const destination = focusSpill
       ? [...(group?.querySelectorAll(".lf-page-map-action") ?? [])].find(
           (button) =>
@@ -417,6 +418,11 @@ export function createPageMapDialog({
     dialog.close();
   }
 
+  function cancelPageMap() {
+    const returnTo = openerOf(dialog);
+    closeLayer(leavePageMap, () => handBack(returnTo));
+  }
+
   // The page has the map's keys while the map has entries, open or not, so the command
   // reference can say what the dialog's keys do before the user opens it; they answer
   // only from inside it, where focus puts the user.
@@ -431,36 +437,21 @@ export function createPageMapDialog({
       mapHasEntries,
     );
     mapButton.onclick = enterPageMap;
-    // Escape is one step of the page's unwind, and a modal's parent is the page it
-    // stands over, so this press lands the user there. Leaf performs the whole step
-    // rather than letting the platform close the dialog and this owner land the user
-    // from the `close` event: that event arrives a task later, and a user whose next
+    // Escape and Close return to the opening focus or the prior reading position.
+    // Leaf performs the whole step instead of landing the user from the `close` event:
+    // that event arrives a task later, and a user whose next
     // press is `g` would arm the sequence before the focus moved and disarm it on
-    // arrival. The Close button is the other way out and keeps the invoker, the pointer
-    // being already on the control that reopens the dialog.
+    // arrival.
     dialog.addEventListener("cancel", (event) => {
       event.preventDefault();
-      closeLayer(leavePageMap, letGo);
+      cancelPageMap();
     });
     dialog.addEventListener("close", () => {
       if (dialog.open) return;
       target = null;
       paintKeys();
     });
-    dialogClose.onclick = () => {
-      const returnTo = openerOf(dialog);
-      const invoker = pageMapInvoker();
-      closeLayer(
-        () => dialog.close(),
-        () =>
-          handBack(
-            returnTo,
-            invoker,
-            annotationFocus?.(null),
-            bannerControlDoor(versionBtn),
-          ),
-      );
-    };
+    dialogClose.onclick = cancelPageMap;
     root.append(dialog);
     dialogSearch.updateComplete.then(declareSearchKeys);
   }

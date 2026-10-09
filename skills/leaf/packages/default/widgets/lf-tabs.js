@@ -85,6 +85,7 @@ import {
   tabStore,
   watchAsks,
   focusDestination,
+  rove,
 } from "/runtime/widget-api.js";
 
 // The page's navigation strip, where one stands: the first tab set in main, drawn as
@@ -454,8 +455,8 @@ customElements.define(
           // tabindex, so explicitly exclude closed panels from the tab order.
           keeps(panel, "tabindex", panel === active ? 0 : -1);
           keeps(btn, "aria-selected", panel === active);
-          keeps(btn, "tabindex", panel === active ? 0 : -1);
         }
+        rove(this.#buttons.values(), this.#buttons.get(active));
         this.#active = active;
         const button = this.#buttons.get(active);
         this.#showTab(button);

@@ -3243,6 +3243,7 @@ def test_reader_state_observes_behavior_without_freezing_the_dom(browser, serve)
         "field => { field.value = 'kept words'; field.setSelectionRange(2, 5, 'backward'); }"
     )
     page.get_by_role("button", name="Continue", exact=True).focus()
+
     # This arm probes the field reading. The served Leaf page may finish placing
     # unrelated chrome while these property-only changes are made.
     def draft_reading():

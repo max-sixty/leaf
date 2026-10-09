@@ -479,6 +479,26 @@ def build_trace_library(work: Path, library: str) -> list[Path]:
     """
     out = package_vendor("playwright") / f"{library}.esm.js"
     out.parent.mkdir(exist_ok=True)
+    if library == "images":
+        # Viewer schedules a class write 300 ms after an inline image is viewed even
+        # with transitions disabled. It changes no paint, but wakes Leaf's margin
+        # layout after presentation. Patch the installed copy used by this bundle;
+        # the original package still supplies its version and license notice.
+        viewer = work / "node_modules/viewerjs"
+        shutil.copytree(NODE_MODULES / "viewerjs", viewer)
+        source = viewer / "dist/viewer.esm.js"
+        original = """        setTimeout(function () {
+          toggleClass(image, CLASS_TRANSITION, options.transition);
+        }, 300);"""
+        replacement = """        if (options.transition) {
+          setTimeout(function () {
+            toggleClass(image, CLASS_TRANSITION, options.transition);
+          }, 300);
+        }"""
+        text = source.read_text(encoding="utf-8")
+        if text.count(original) != 1:
+            raise ValueError("Viewer post-view transition seam changed")
+        source.write_text(text.replace(original, replacement), encoding="utf-8")
     entry = (
         'export { Timeline } from "vis-timeline/esnext/esm/vis-timeline-graph2d.js";\n'
         'export { DataSet } from "vis-data/esnext/esm/vis-data.js";\n'

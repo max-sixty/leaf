@@ -875,6 +875,43 @@ describe("product-site delivery", () => {
     expect(getContainer).not.toHaveBeenCalled();
   });
 
+  it("serves a private revision's release-scoped modules from its active container", async () => {
+    const sessionId = "18".repeat(16);
+    const pathname = `${MANIFEST.pages["/examples/triage-board"].assets}/revisions/r3-aabbccdd/runtime/semantic-state.js`;
+    const assetFetch = vi.fn(async () => new Response("not found", { status: 404 }));
+    const containerFetch = vi.fn(async () => new Response("export const active = true", {
+      headers: { "Content-Type": "text/javascript" },
+    }));
+    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    const env = environment({ ASSETS: { fetch: assetFetch } as unknown as Fetcher });
+
+    const response = await worker.fetch(new Request(`https://leaf.page${pathname}`, {
+      headers: {
+        Cookie: `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`,
+      },
+    }), env);
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("export const active = true");
+    expect(containerFetch).toHaveBeenCalledWith(expect.objectContaining({
+      url: "https://leaf.page/examples/triage-board/revisions/r3-aabbccdd/runtime/semantic-state.js",
+    }));
+    expect(response.headers.get("Leaf-Session")).toBe("active");
+  });
+
+  it("does not fetch a missing release-scoped revision from an anonymous container", async () => {
+    const pathname = `${MANIFEST.pages["/examples/triage-board"].assets}/revisions/r3-aabbccdd/runtime/semantic-state.js`;
+    const assetFetch = vi.fn(async () => new Response("not found", { status: 404 }));
+    const env = environment({ ASSETS: { fetch: assetFetch } as unknown as Fetcher });
+
+    const response = await worker.fetch(new Request(`https://leaf.page${pathname}`), env);
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get("Cache-Control")).toBeNull();
+    expect(assetFetch).toHaveBeenCalledOnce();
+    expect(getContainer).not.toHaveBeenCalled();
+  });
+
   it.each([
     "/examples/triage-board/revisions/r3-aabbccdd.html",
     "/examples/triage-board/versions/v3.html",

@@ -56,6 +56,7 @@ from interact_support import (
     owed,
     page_state,
     publish,
+    queue_board_registry,
     record_claim,
     release_codex_command,
     release_held,
@@ -17773,28 +17774,30 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared
     leases_model.release_lease(lease)
 
 
-DECK_PAGE = PAGE.replace(
+QUEUE_PAGE = PAGE.replace(
     "</section>",
     """<lf-ask id="triage-decision"><h3>Which follow-ups should we keep?</h3>
-  <lf-swipe-deck id="triage">
-    <lf-swipe-pile id="queue" verdict="unseen">
-      <lf-swipe-card id="card-a"><strong>Rolling expiry</strong></lf-swipe-card>
-      <lf-swipe-card id="card-b"><strong>Bounded fallback</strong></lf-swipe-card>
-      <lf-swipe-card id="card-c"><strong>Retry budget</strong></lf-swipe-card>
-    </lf-swipe-pile>
-    <lf-swipe-pile id="keep" verdict="keep"></lf-swipe-pile>
-    <lf-swipe-pile id="pass" verdict="pass"></lf-swipe-pile>
-  </lf-swipe-deck>
+  <lf-board id="triage">
+    <lf-column id="queue" label="Queued">
+      <lf-card id="card-a"><strong>Rolling expiry</strong></lf-card>
+      <lf-card id="card-b"><strong>Bounded fallback</strong></lf-card>
+      <lf-card id="card-c"><strong>Retry budget</strong></lf-card>
+    </lf-column>
+    <lf-column id="keep" label="Kept"></lf-column>
+    <lf-column id="pass" label="Passed"></lf-column>
+  </lf-board>
 </lf-ask></section>""",
 )
 
 
-def test_a_finished_deck_owes_every_card_the_user_sorted(page_dir):
-    """An Ask's answer can span units: a deck's cards are each swiped, and only the
-    swipe that empties the queue answers the Ask. Before it the user is still
-    answering and the agent owes nothing; once it lands, every sorted card is owed
-    its place in the markup, not only the one that finished the deck."""
-    (page_dir / "index.html").write_text(DECK_PAGE)
+def test_a_finished_queue_owes_every_card_the_user_moved(page_dir):
+    """Completing a queue owes every moved card, not just the final one."""
+    (page_dir / "registry.json").write_text(
+        json.dumps(
+            queue_board_registry(json.loads((page_dir / "registry.json").read_text()))
+        )
+    )
+    (page_dir / "index.html").write_text(QUEUE_PAGE)
     publish(page_dir)
 
     def sort(card, rank):
@@ -17805,7 +17808,7 @@ def test_a_finished_deck_owes_every_card_the_user_sorted(page_dir):
                 "author": "user",
                 "revision": 1,
                 "widget": "triage",
-                "action": "swipe",
+                "action": "move",
                 "detail": {"unit": card, "value": "keep", "rank": rank},
             },
         )
@@ -17819,10 +17822,13 @@ def test_a_finished_deck_owes_every_card_the_user_sorted(page_dir):
     assert owed_cards == ["card-a", "card-b", "card-c"]
 
 
-def test_a_deck_in_a_thread_owes_nothing_until_it_is_finished(page_dir):
-    """The page's rule holds in thread markup: a swipe that leaves the queue
-    standing is the user still answering, so no reply is owed and the Ask stays
-    theirs."""
+def test_a_queue_in_a_thread_owes_nothing_until_it_is_finished(page_dir):
+    """A move leaving cards queued keeps the thread's Ask on the user."""
+    (page_dir / "registry.json").write_text(
+        json.dumps(
+            queue_board_registry(json.loads((page_dir / "registry.json").read_text()))
+        )
+    )
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     append_carried_log_record(
@@ -17832,14 +17838,14 @@ def test_a_deck_in_a_thread_owes_nothing_until_it_is_finished(page_dir):
             "author": "agent",
             "revision": 1,
             "text": "Sort these follow-ups.",
-            "markup": '<lf-swipe-deck id="triage">'
-            '<lf-swipe-pile id="queue" verdict="unseen">'
-            '<lf-swipe-card id="card-a"><strong>Rolling expiry</strong></lf-swipe-card>'
-            '<lf-swipe-card id="card-b"><strong>Retry budget</strong></lf-swipe-card>'
-            "</lf-swipe-pile>"
-            '<lf-swipe-pile id="keep" verdict="keep"></lf-swipe-pile>'
-            '<lf-swipe-pile id="pass" verdict="pass"></lf-swipe-pile>'
-            "</lf-swipe-deck>",
+            "markup": '<lf-board id="triage">'
+            '<lf-column id="queue" label="Queued">'
+            '<lf-card id="card-a"><strong>Rolling expiry</strong></lf-card>'
+            '<lf-card id="card-b"><strong>Retry budget</strong></lf-card>'
+            "</lf-column>"
+            '<lf-column id="keep" label="Kept"></lf-column>'
+            '<lf-column id="pass" label="Passed"></lf-column>'
+            "</lf-board>",
         },
     )
 
@@ -17851,7 +17857,7 @@ def test_a_deck_in_a_thread_owes_nothing_until_it_is_finished(page_dir):
                 "author": "user",
                 "revision": 1,
                 "widget": "triage",
-                "action": "swipe",
+                "action": "move",
                 "detail": {"unit": card, "value": "keep", "rank": rank},
             },
         )

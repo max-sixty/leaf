@@ -173,7 +173,6 @@ ANCHOR_SOURCES = (
     FEATURE_GALLERY,
     ROOT / "examples" / "pr-walkthrough.html",
     ROOT / "examples" / "ship-review.html",
-    ROOT / "examples" / "developer" / "swipe-gallery.html",
 )
 
 

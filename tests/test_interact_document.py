@@ -1778,57 +1778,6 @@ def test_check_rejects_loose_content_in_items_container(page_dir):
     assert "loose text" in result.output
 
 
-def test_check_requires_one_child_for_each_declared_role(page_dir):
-    registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-phases"] = {
-        "description": "A set of phases with one of each declared status.",
-        "type": "object",
-        "properties": {},
-        "x-content": "members",
-        "x-upgrade": False,
-        "x-required-members": {"lf-phase": {"one-each": "status"}},
-    }
-    registry["lf-phase"] = {
-        "description": "One phase.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "status": {
-                "type": "string",
-                "enum": ["planned", "active", "done", "blocked"],
-            },
-        },
-        "required": ["status"],
-        "x-owners": ["lf-phases"],
-        "x-content": "markup",
-        "x-upgrade": False,
-    }
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-    version = page_dir / "index.html"
-    version.write_text(
-        version.read_text().replace(
-            "<lf-options>",
-            """<lf-phases>
-  <lf-phase id="role-planned" status="planned">Planned</lf-phase>
-  <lf-phase id="role-active" status="active">Active</lf-phase>
-  <lf-phase id="role-done" status="done">Done</lf-phase>
-  <lf-phase id="role-blocked" status="blocked">Blocked</lf-phase>
-</lf-phases>
-<lf-options>""",
-        )
-    )
-    assert check(page_dir).exit_code == 0, check(page_dir).output
-
-    version.write_text(
-        version.read_text().replace('status="blocked"', 'status="planned"')
-    )
-    result = check(page_dir)
-
-    assert result.exit_code != 0
-    assert "exactly one direct <lf-phase> for each `status` value" in result.output
-    assert 'missing ["blocked"], repeated ["planned"]' in result.output
-
-
 def test_flag_attribute_accepts_both_html_spellings(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace('id="backfill-first">', 'id="backfill-first" chosen="">')

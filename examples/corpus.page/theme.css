@@ -9,7 +9,7 @@ lf-pr-brief { display: block; margin-block: var(--sp-4); }
 
 /* Native hierarchy and disclosures belong to this Atlas page. */
 lf-atlas-plan, lf-atlas-task, lf-atlas-worker, lf-atlas-tree { display: block; }
-lf-atlas-task { margin-block: 1.25rem; padding-inline-start: 1rem; border-inline-start: 1px solid var(--rule); }
+lf-atlas-task { --lf-block-frame: 1; margin-block: 1.25rem; padding-inline-start: 1rem; border-inline-start: 1px solid var(--rule); }
 lf-atlas-task > strong { font-size: 1.06em; }
 .atlas-task-state { margin: 0 0 .3rem; min-block-size: 1.4em; color: var(--muted); font: 500 .8rem/1.4 var(--sans); }
 lf-atlas-task:not(:defined)::before { content: attr(status); display: block; min-block-size: 1.4em; margin-bottom: .3rem; font: 500 .8rem/1.4 var(--sans); }

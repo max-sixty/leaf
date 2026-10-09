@@ -503,7 +503,7 @@ def build_shared_source(run: Run, page: Path) -> None:
         "page",
         "init",
         "--package",
-        "./" + os.path.relpath(ROOT / "examples/command-hub.page", run.work),
+        "./" + os.path.relpath(ROOT / "examples/command-hub.page", Path.cwd()),
         str(page),
         check=True,
     )

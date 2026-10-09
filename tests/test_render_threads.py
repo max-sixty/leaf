@@ -5721,8 +5721,8 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     expect(pick("waiting", "user")).to_have_attribute("aria-pressed", "false")
     expect(pick("waiting", "user")).to_have_text("You (1)")
     expect(pick("waiting", "agent")).to_have_text("Agent (3)")
-    expect(pick("gone", "gone")).to_be_visible()
-    expect(pick("gone", "gone")).to_be_disabled()
+    expect(pick("unplaced", "unplaced")).to_be_visible()
+    expect(pick("unplaced", "unplaced")).to_be_disabled()
     expect(visible).to_have_count(1)
     expect(page.locator(f'.lf-thread[data-id="{resolved}"]')).to_be_visible()
     pick("status", "resolved").click()
@@ -5790,12 +5790,12 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     expect(visible).to_have_count(1)
     expect(page.locator(f'.lf-thread[data-id="{gone}"]')).to_be_visible()
     expect(page.locator(f'.lf-thread[data-id="{design}"]')).to_be_hidden()
-    pick("gone", "gone").click()
+    pick("unplaced", "unplaced").click()
     expect(visible).to_have_count(1)
-    expect(pick("gone", "gone")).to_have_text("No longer here (1)")
+    expect(pick("unplaced", "unplaced")).to_have_text("Not located (1)")
     page.locator(".lf-thread-filter-toggle").click()
     expect(page.locator(".lf-thread-view-summary")).to_have_text(
-        "1 of 5 open threads · On agent · Anchored · Content · No longer here"
+        "1 of 5 open threads · On agent · Anchored · Content · Not located"
     )
     page.get_by_role("button", name="Reset thread filters").click()
     expect(visible).to_have_count(5)

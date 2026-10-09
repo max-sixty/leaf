@@ -117,10 +117,12 @@ def _thread_heading(thread: dict) -> str:
         head = f"> § {anchor['section']}"
         if anchor.get("visual"):
             head += f" · {anchor['visual']}"
-        if anchor.get("part"):
-            head += f" · {anchor['part']}"
     else:
         head = "> (page-level)"
+    if anchor.get("part"):
+        head += f" · {anchor['part']}"
+    if anchor.get("detached"):
+        head += "  — passage not identified"
     if thread["detached_from"]:
         head += "  — no longer in this version"
     if thread["root"].get("about") == "design":

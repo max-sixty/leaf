@@ -1493,6 +1493,27 @@ def test_server_round_trip(server, page_dir):
         cli_model.cli, ["page", "transcript", str(page_dir)]
     )
     assert "> § feeder-board · grip  — about the design" in transcript.output
+    status, _ = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {
+                "kind": "comment",
+                "revision": 2,
+                "text": "Keep this control readable",
+                "about": "design",
+                "anchor": {
+                    "section": "feeder-board",
+                    "part": "grip",
+                    "quote": "Remove",
+                },
+            }
+        ).encode(),
+    )
+    assert status == 200
+    transcript = CliRunner().invoke(
+        cli_model.cli, ["page", "transcript", str(page_dir)]
+    )
+    assert "> “Remove” · grip" in transcript.output
     drawing = {
         "format": "leaf-drawing/3",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],

@@ -15,6 +15,7 @@ from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as files_model
+from leaf import passages as passages_model
 from leaf import service as service_model
 from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
@@ -183,7 +184,9 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
     wait_until_ready(page)
     result = page.evaluate(
         """async () => {
-        const {TEXT_BLOCK, pageRange} = await window.__lfRuntimeImport('/runtime/passages.js');
+        const {TEXT_BLOCK, pageRange, pageText} = await window.__lfRuntimeImport('/runtime/passages.js');
+        const {anchorForRange, resolveAnchor} =
+            await window.__lfRuntimeImport('/runtime/anchor-resolution.js');
         const {nextRender, renderingSettled} =
             await window.__lfRuntimeImport('/runtime/rendering.js');
         const tick = () => new Promise(r => setTimeout(r, 0));
@@ -235,8 +238,8 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
                 drags.set(join, drags.get(join) ?? [block, next]);
             }
         });
-        const missed = [], skipped = [], astray = [];
-        let attempted = 0;
+        const missed = [], skipped = [], astray = [], nonexact = [];
+        let attempted = 0, detached = 0, fallback = 0;
         for (const [start, end] of drags.values()) {
             attempted++;
             // A mouse selection starts in page words and ends with the native
@@ -260,6 +263,22 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
             // a passage silently outside this sweep, and the sweep is the coverage.
             if (fab.style.display !== 'block') {
                 skipped.push(range.toString().replace(/\\s+/g, ' ').trim().slice(0, 70));
+                continue;
+            }
+            const anchor = anchorForRange(range);
+            const resolved = resolveAnchor(anchor, pageText());
+            // A cross-cell selection remains a real native selection and a writable
+            // comment. It must not acquire an exact semantic highlight by ignoring
+            // the same fences file capture respects. Generated wordless faces and
+            // identified data can also retain an element fallback.
+            if (!resolved?.exact || resolved.kind !== 'passage') {
+                nonexact.push(anchor);
+                if (anchor.detached) detached++;
+                else fallback++;
+                if (range.collapsed || !range.toString().trim() || fab.disabled)
+                    missed.push('unusable native selection: ' + range.toString().slice(0, 70));
+                sel.removeAllRanges();
+                await rendered();
                 continue;
             }
             const painted = CSS.highlights.get('lf-pending');
@@ -290,9 +309,20 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
             sel.removeAllRanges();
             await rendered();
         }
-        return {attempted, missed, skipped, astray};
+        return {attempted, detached, fallback, missed, skipped, astray, nonexact};
     }"""
     )
+    # Refusing a highlight needs evidence independent of browser resolution. A
+    # regression that detaches ordinary file-readable prose must fail this sweep.
+    passages = passages_model.page_passages(
+        structure_model.SourceDocument((serve.page_dir / "index.html").read_text()),
+        json.loads((serve.page_dir / "registry.json").read_text()),
+    )
+    for anchor in result["nonexact"]:
+        located = {key: value for key, value in anchor.items() if key != "detached"}
+        assert anchor_capture_model.resolve_quote(passages, located) is None, (
+            f"{source.stem}: browser detached a file-readable passage: {anchor}"
+        )
     assert result["attempted"] > 0, f"{source.stem}: the passage sweep found nothing"
     assert result["missed"] == [], (
         f"{len(result['missed'])} passages in {source.stem} quote text the page "

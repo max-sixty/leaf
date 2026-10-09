@@ -377,12 +377,11 @@ function datumLabel(anchor) {
   return datum?.dataset.lfDatumLabel?.trim() ?? "";
 }
 
-export function anchorLabel(anchor, about) {
+function coordinateLabel(anchor, about) {
   if (about === "design") {
     const addressable = anchor?.section ? elementById(anchor.section) : null;
     const name = addressable ? designName(addressable) : anchor?.section || "the page";
-    const on = anchor?.part ? `${anchor.part} · ${name}` : name;
-    return anchor?.quote ? `design · ${on} · “${anchor.quote}”` : `design · ${on}`;
+    return anchor?.quote ? `${name} · “${anchor.quote}”` : name;
   }
   const datum = datumLabel(anchor);
   if (datum) return anchor?.quote ? `${datum} · “${anchor.quote}”` : `§ ${datum}`;
@@ -396,4 +395,12 @@ export function anchorLabel(anchor, about) {
   if (!addressable) return `§ ${anchor.section}`;
   const says = addressableLabel(addressable);
   return `§ ${[addressableWord(addressable), says].filter(Boolean).join(" · ")}`;
+}
+
+// A named control part belongs to the coordinate in every reading, not just Design.
+export function anchorLabel(anchor, about) {
+  const label = coordinateLabel(anchor, about);
+  return [about === "design" && "design", anchor?.part, label]
+    .filter(Boolean)
+    .join(" · ");
 }

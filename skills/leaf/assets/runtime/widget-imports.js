@@ -16,8 +16,7 @@ export function widgetImports(scope, registry) {
   const modules = [];
   for (const tag of registeredTags(scope, registry)) {
     const entry = registry[tag];
-    if (entry?.["x-initial"])
-      initializers.push({ tag, path: entry["x-initial"] });
+    if (entry?.["x-initial"]) initializers.push({ tag, path: entry["x-initial"] });
     if (entry?.["x-upgrade"]) modules.push(tag);
   }
   return { initializers, modules };

@@ -20,10 +20,9 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 /** Read initial work through the document's generated rooted import map. */
 export async function initialModules(layerRoot, assetRoot, imports, entries) {
   const origin = "https://leaf.invalid";
-  const mappings = Object.entries(imports).map(([name, target]) => [
-    new URL(name, origin).href,
-    new URL(target, origin).href,
-  ]).sort(([left], [right]) => right.length - left.length);
+  const mappings = Object.entries(imports)
+    .map(([name, target]) => [new URL(name, origin).href, new URL(target, origin).href])
+    .sort(([left], [right]) => right.length - left.length);
   const resolveImport = (specifier, parent) => {
     const address = new URL(specifier, parent).href;
     for (const [name, target] of mappings) {
@@ -33,9 +32,9 @@ export async function initialModules(layerRoot, assetRoot, imports, entries) {
     }
     return new URL(address);
   };
-  const pending = entries.toReversed().map((entry) =>
-    resolveImport(entry, new URL(`${assetRoot}/`, origin)),
-  );
+  const pending = entries
+    .toReversed()
+    .map((entry) => resolveImport(entry, new URL(`${assetRoot}/`, origin)));
   const modules = new Set();
   while (pending.length) {
     const url = pending.pop();
@@ -107,13 +106,15 @@ async function preloadDocuments(pageRoot, layers, parser) {
       );
     }
     const modules = graphs.get(graphKey);
-    const probe = markup.querySelector("script[data-lf-runtime][data-lf-probe]")
+    const probe = markup
+      .querySelector("script[data-lf-runtime][data-lf-probe]")
       ?.getAttribute("data-lf-probe");
     if (!probe) throw new Error(`document has no registry address: ${path}`);
     const links = [
       `<link rel="preload" as="fetch" href="${probe.replaceAll("&", "&amp;")}" crossorigin data-lf-runtime>`,
-      ...modules.map((url) =>
-        `<link rel="modulepreload" href="${url.replaceAll("&", "&amp;")}" data-lf-runtime>`,
+      ...modules.map(
+        (url) =>
+          `<link rel="modulepreload" href="${url.replaceAll("&", "&amp;")}" data-lf-runtime>`,
       ),
     ].join("");
     const insertion = importMap.index + importMap[0].length;

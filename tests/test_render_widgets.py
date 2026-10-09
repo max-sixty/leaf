@@ -610,12 +610,21 @@ def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
 
 
 def _stacked_headers(browser, serve):
-    """A page tab strip over the root with a long pinned diff in its first tab."""
+    """A page tab strip over the root with a long pinned diff in its first tab, then a
+    short one whose code is wide enough to scroll sideways, and another long one after
+    the tabs."""
     path = "src/lib.rs"
     rows = "".join(f"+    let value_{i} = {i};\n" for i in range(200))
     patch = (
         f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
         f"@@ -1 +1,201 @@\n fn main() {{\n{rows}"
+    )
+    wide = "+    let wide = " + " + ".join(f"term_{i}" for i in range(60)) + ";\n"
+    short = (
+        "diff --git a/src/wide.rs b/src/wide.rs\n--- a/src/wide.rs\n+++ b/src/wide.rs\n"
+        "@@ -1 +1,11 @@\n fn wide() {\n"
+        + wide
+        + "".join(f"+    let short_{i} = {i};\n" for i in range(9))
     )
     page = open_page(
         browser,
@@ -623,15 +632,20 @@ def _stacked_headers(browser, serve):
             leaf_page(
                 "Stacked headers",
                 '<h1>Stacked</h1><lf-tabs id="root-tabs">'
-                '<lf-tab id="diff-tab" label="Diff"><lf-diff id="patch"><pre>'
+                '<lf-tab id="diff-tab" label="Diff"><lf-diff id="patch" review><pre>'
                 + patch
+                + '</pre></lf-diff><lf-diff id="wide"><pre>'
+                + short
                 + '</pre></lf-diff></lf-tab><lf-tab id="notes-tab" label="Notes">'
-                "<p>Notes.</p></lf-tab></lf-tabs>",
+                "<p>Notes.</p></lf-tab></lf-tabs>"
+                '<lf-diff id="after-tabs" review><pre>' + patch + "</pre></lf-diff>",
             )
         ),
     )
     resized(page, 1280, 720)
-    page.wait_for_function("() => document.querySelector('lf-diff.lf-rendered')")
+    page.wait_for_function(
+        "() => document.querySelectorAll('lf-diff.lf-rendered').length === 3"
+    )
     return page
 
 
@@ -675,39 +689,30 @@ def test_sticky_headers_stack_so_a_diff_in_a_page_tab_pins_under_the_strip(
     assert read["shown"] == pytest.approx(read["head"]["bottom"], abs=0.5), read
 
 
-LONG_DIFF_PATH = "src/deeply/nested/module/file.rs"
-LONG_DIFF_PATCH = (
-    f"diff --git a/{LONG_DIFF_PATH} b/{LONG_DIFF_PATH}\n"
-    f"--- a/{LONG_DIFF_PATH}\n+++ b/{LONG_DIFF_PATH}\n"
-    "@@ -1 +1,81 @@\n fn main() {\n"
-    + "".join(f"+    let value_{i} = {i};\n" for i in range(80))
-)
-
-
 def test_focus_in_a_stuck_header_leaves_the_page_where_it_is(browser, serve):
     """A control in a stuck sticky header stands inside the root's landing band, so the
     browser scrolled toward it on every focus and the header never came out from under
-    the band: the page crept 17px a focus under a diff's file header and was centred,
-    hundreds of pixels a key, under a page tab strip. The focus margin reads where a
-    stuck header's controls stand from the sticky-header slot, so focusing one where it
-    sticks scrolls nothing."""
+    the band: the page crept 17px a focus under a diff's file header and 12px under its
+    file action, and was centred, hundreds of pixels a key, under a page tab strip.
+    The focus margin is read from the sticky-header slot, so focusing one where it
+    sticks scrolls nothing: in a page tab, where the strip stands over it, and after
+    the tabs, where the root's band still counts the strip. Focus moving on from the
+    file header into its code, a tab stop since it scrolls sideways, clears the
+    header."""
     page = _stacked_headers(browser, serve)
-    page.evaluate(
-        """() => {
-        const diff = document.querySelector('lf-diff');
+    focus_in = """async (id) => {
+        const page = document.scrollingElement;
+        const diff = document.getElementById(id);
         const row = [...diff.shadowRoot.querySelectorAll('[data-line]')][150];
         row.scrollIntoView({block: 'start', behavior: 'instant'});
-    }"""
-    )
-    rendered(page)
-    read = page.evaluate(
-        """async () => {
-        const page = document.scrollingElement;
-        const diff = document.querySelector('lf-diff');
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
         const controls = {
-            tab: document.querySelector('#root-tabs > .lf-tabstrip [aria-selected="true"]'),
             file: diff.shadowRoot.querySelector('.lf-diff-file > details > summary'),
+            action: diff.shadowRoot.querySelector('.lf-diff-file-actions button'),
         };
+        if (id === 'patch')
+            controls.tab = document.querySelector(
+                '#root-tabs > .lf-tabstrip [aria-selected="true"]');
         const moved = {};
         for (const [name, control] of Object.entries(controls)) {
             const before = page.scrollTop;
@@ -717,8 +722,41 @@ def test_focus_in_a_stuck_header_leaves_the_page_where_it_is(browser, serve):
         }
         return moved;
     }"""
+    assert page.evaluate(focus_in, "patch") == {"file": 0, "action": 0, "tab": 0}
+    assert page.evaluate(focus_in, "after-tabs") == {"file": 0, "action": 0}
+    # Tab from a stuck file header into its code, scrolled partly past above it.
+    page.evaluate(
+        """async () => {
+        const root = document.getElementById('wide').shadowRoot;
+        const code = root.querySelector('.lf-text-scroller');
+        document.scrollingElement.scrollTop += code.getBoundingClientRect().top - 60;
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        root.querySelector('.lf-diff-file > details > summary').focus({preventScroll: true});
+    }"""
     )
-    assert read == {"tab": 0, "file": 0}, read
+    page.keyboard.press("Tab")
+    rendered(page)
+    code = page.evaluate(
+        """() => {
+        const root = document.getElementById('wide').shadowRoot;
+        const head = root.querySelector('.lf-diff-file > details > summary');
+        const focused = root.activeElement;
+        return {scroller: focused?.classList.contains('lf-text-scroller'),
+                top: focused?.getBoundingClientRect().top,
+                head: head.getBoundingClientRect().bottom};
+    }"""
+    )
+    assert code["scroller"], code
+    assert code["top"] >= code["head"], code
+
+
+LONG_DIFF_PATH = "src/deeply/nested/module/file.rs"
+LONG_DIFF_PATCH = (
+    f"diff --git a/{LONG_DIFF_PATH} b/{LONG_DIFF_PATH}\n"
+    f"--- a/{LONG_DIFF_PATH}\n+++ b/{LONG_DIFF_PATH}\n"
+    "@@ -1 +1,81 @@\n fn main() {\n"
+    + "".join(f"+    let value_{i} = {i};\n" for i in range(80))
+)
 
 
 def long_diff(id):

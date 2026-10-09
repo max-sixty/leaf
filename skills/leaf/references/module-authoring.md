@@ -262,6 +262,7 @@ read itself:
 .file > .head { position: sticky; top: var(--lf-top); block-size: var(--head-h); }
 .file > .rows { --lf-top: calc(var(--lf-top-outer) + var(--head-h)); }
 .file .row { scroll-margin-top: var(--head-h); }
+.file > .head { --lf-head-inset: var(--head-pad); }
 ```
 
 The rows' `scroll-margin-top` has a landing on a row, native or the runtime's, arrive
@@ -269,10 +270,12 @@ below the header. Focus needs nothing declared: the runtime marks a box that sti
 the layer's focus margin counts a control in a stuck header as shown where it sticks,
 and lands a focused row below the headers stacked over it. A box that scrolls with
 `scroll-padding` of its own states that room as `--lf-landing-room-start` beside its
-`--lf-top-start`. The runtime reads what passes under it as off screen from `--lf-top`,
-for read acknowledgement, arrival checks, and chrome placement, so nothing is declared.
-The stacked value goes on a box that does not itself scroll, since the runtime reads a
-box that scrolls where it stands. The runtime starts `--lf-top` again on every box that
+`--lf-top-start`. A header whose controls stand below where it sticks may say how far
+(`--lf-head-inset`), so a control revealed from elsewhere lands exactly there. The
+runtime reads what passes under it as off screen from `--lf-top`, for read
+acknowledgement, arrival checks, and chrome placement, so nothing is declared. The
+stacked value goes on a box that does not itself scroll, since the runtime reads a box
+that scrolls where it stands. The runtime starts `--lf-top` again on every box that
 scrolls and doesn't itself stick, `overflow: hidden` included, so a header inside one
 sticks at that box's top. A box a package makes scroll also states `--lf-top: 0px`
 beside its overflow, so the restart holds from the first paint. A header sticks below

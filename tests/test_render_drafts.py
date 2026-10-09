@@ -2245,7 +2245,7 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
         f'.lf-margin-thread .lf-page-thread[data-thread="{sent["id"]}"]'
     )
     reply = thread.locator("leaf-text")
-    expect(page.locator("#p1")).to_be_focused()
+    expect(thread).to_be_focused()
     thread.get_by_role("textbox", name="Reply", exact=True).click()
     expect(reply).to_be_focused()
 

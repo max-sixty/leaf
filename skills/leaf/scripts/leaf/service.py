@@ -6,6 +6,8 @@ opens a transaction after every tool call, so process inspection and page-event
 semantics are imported only by their callers. A transaction imports the page model
 only to finish an interrupted publication."""
 
+from __future__ import annotations
+
 import hashlib
 import os
 import secrets
@@ -253,7 +255,7 @@ def _touched_recently(page_dir: Path, claimed_at: str) -> bool:
                 newest = max(newest, entry.stat().st_mtime)
             except OSError:  # replaced under us; the next pass sees its successor
                 continue
-    except FileNotFoundError, NotADirectoryError:
+    except (FileNotFoundError, NotADirectoryError):
         return False  # the page is gone, and a claim on it owns nothing
     return time.time() - newest < ACTIVITY_GRACE_SECS
 

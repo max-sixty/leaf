@@ -474,7 +474,7 @@ export function createAskView({
     if (!ask || standingAsk()?.id === ask) return;
     const record = allAsks().find((candidate) => candidate.id === ask);
     const target = record && arrivalFocus(record);
-    if (target) focusForNavigation(target);
+    if (target) focusForNavigation(target, "return");
   }
 
   const HEADING = "h1,h2,h3,h4,h5,h6";

@@ -243,8 +243,17 @@ same records live under the agent administration token.
 Each public document emits one `component=leaf-startup` record from the inline
 bootstrap, including when the module graph fails. It identifies the route, release,
 browser family and major version, platform, and navigation type. `serverMs`,
-`firstByteMs`, `firstContentfulPaintMs`, and `presentedMs` separate Worker, network,
-browser paint, and Leaf startup time. `outcome` says how the load ended, not how far it
+`firstByteMs`, and `firstContentfulPaintMs` measure Worker, network, and browser paint.
+The version 2 report adds `upgradedMs` for the first observed body widget-upgrade
+mark and `firstStateResponseMs` for the first completed same-origin, page-root
+`api/state` response, measured by Resource Timing's `responseEnd`. These and
+`presentedMs` are milliseconds since navigation started, or `null` when unobserved.
+Upgrade can finish while private state still waits for its container. Normal state
+restoration presents after that answer is applied and rendered; the bounded offline
+fallback can present authored content with `firstStateResponseMs: null`.
+Resource completions are
+observed continuously, so a full resource timeline does not erase the first answer,
+and later polling does not replace it. `outcome` says how the load ended, not how far it
 got: `presented` where the page came up and the document went on to finish loading,
 `failed` where the page declared it could not start, `timeout` where fifteen seconds
 passed without either, and `abandoned` where the user left first. A page that comes up

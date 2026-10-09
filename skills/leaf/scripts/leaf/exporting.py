@@ -10,6 +10,8 @@ embedded in full, including recordings: no size cap silently removes content, an
 the reported output byte count includes the base64 expansion.
 """
 
+from __future__ import annotations
+
 import base64
 import hashlib
 import json

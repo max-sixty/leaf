@@ -60,10 +60,11 @@ const drawn = (node) =>
   node?.isConnected && node.checkVisibility({ visibilityProperty: true });
 
 function returnPlace({ focus, place, caret, ends }) {
-  if (focus !== document.body && drawn(focus)) focusDestination(focus, caret);
+  if (focus !== document.body && drawn(focus))
+    focusDestination(focus, "return", { caret });
   // A thread card may have closed on departure. Its page target is the same working
   // place from the other side, and remains a browser focus destination on return.
-  else if (drawn(place)) focusDestination(place);
+  else if (drawn(place)) focusDestination(place, "return");
   else deepFocus()?.blur();
   const selection = getSelection();
   selection.removeAllRanges();

@@ -398,7 +398,7 @@ def _page_reading_or_none(page_dir: Path) -> str | None:
     """A page's reading, or None once its directory is gone."""
     try:
         return page_reading(page_dir)
-    except FileNotFoundError, NotADirectoryError:
+    except (FileNotFoundError, NotADirectoryError):
         return None
 
 

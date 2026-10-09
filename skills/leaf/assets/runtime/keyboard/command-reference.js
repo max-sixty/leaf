@@ -26,6 +26,10 @@ import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
 
 import {
   bindings,
+  declaredBindings,
+  bindingEnabled,
+  quickShortcuts,
+  setQuickShortcuts,
   clampedRow,
   commandPresentations,
   contextBindings,
@@ -46,7 +50,7 @@ import {
   keySequenceTemplate,
   neutralStates,
 } from "./presentation.js";
-import { handBack, tabStops } from "../focus.js";
+import { handBack, tabStops, focusDestination } from "../focus.js";
 import { closeControl } from "../widget-elements.js";
 import { keeps } from "../keeps.js";
 import { ELEMENTS, pageScope, pageScopes } from "./register.js";
@@ -252,8 +256,9 @@ function captureCommandReferenceCatalog() {
         .map(({ row, sequence: prefix }) => {
           const sequence = [...(word(prefix) ?? [])];
           const declared = [...allBindings(row)];
-          const referenceRow = { ...row, keys: declared };
-          const rowBindings = [...bindings(row)];
+          const shownBindings = declared.filter(bindingEnabled);
+          const referenceRow = { ...row, keys: shownBindings };
+          const rowBindings = [...declaredBindings(row)];
           const baseTitle = titleOf(row);
           const baseDescription = descriptionOf(row);
           return {
@@ -264,7 +269,9 @@ function captureCommandReferenceCatalog() {
             referenceRow,
             baseTitle,
             baseDescription,
-            familySteps: [...sequence, ...completeRowSteps(referenceRow)],
+            familySteps: shownBindings.length
+              ? [...sequence, ...completeRowSteps(referenceRow)]
+              : [],
             presentations: commandPresentations(row, declared, {
               includeUnavailable: true,
             }).map(({ id, route }) => ({
@@ -337,11 +344,12 @@ function captureCommandReferenceCatalog() {
           route?.description !== undefined
             ? descriptionOf(route)
             : rowInfo.baseDescription;
-        const steps = [
-          ...rowInfo.sequence,
-          ...completeRowSteps(rowInfo.referenceRow, route),
-        ];
-        const alternatives = route ? [route.binding] : rowInfo.declared;
+        const alternatives = (route ? [route.binding] : rowInfo.declared).filter(
+          bindingEnabled,
+        );
+        const steps = alternatives.length
+          ? [...rowInfo.sequence, ...completeRowSteps(rowInfo.referenceRow, route)]
+          : [];
         const isAvailable = executable.has(id);
         const spokenSteps = spokenReferenceSteps(
           rowInfo.row,
@@ -709,6 +717,26 @@ function commandReferenceTemplate() {
       <div class="lf-command-reference-title">Command reference</div>
       ${commandReferenceClose}
     </div>
+    <label class="lf-command-reference-preference">
+      <input
+        type="checkbox"
+        name="quick-keyboard-shortcuts"
+        autocomplete="off"
+        .checked=${quickShortcuts()}
+        aria-labelledby="lf-quick-keyboard-label"
+        aria-describedby="lf-quick-keyboard-help"
+        @change=${(event) => {
+          setQuickShortcuts(event.currentTarget.checked);
+          commandReferenceCatalog = captureCommandReferenceCatalog();
+          presentCommandReference();
+          repaint();
+        }}
+      />
+      <span id="lf-quick-keyboard-label">Quick keyboard shortcuts</span>
+      <small id="lf-quick-keyboard-help"
+        >Use letters, numbers and symbols for Leaf actions.</small
+      >
+    </label>
     <input
       type="search"
       name="shortcut-search"
@@ -796,7 +824,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
     // so that user reads as standing on `body` here too.
     const at = focused();
     commandReferenceOrigin = at === document.body ? null : at;
-    commandRoutesAtOpen = availableCommandRoutes();
+    commandRoutesAtOpen = availableCommandRoutes({ commands: true });
   }
   commandReferenceIsOpen = open;
   if (fresh) {
@@ -828,13 +856,14 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
   // The results are a real overflow region and must enter the modal Tab loop.
   if (open) reachScrollers(commandReferenceDialog);
   if (open)
-    commandReferenceDialog
-      .querySelector(
+    focusDestination(
+      commandReferenceDialog.querySelector(
         preserveSelection
           ? ".lf-command-reference-close"
           : ".lf-command-reference-search",
-      )
-      .focus({ preventScroll: true });
+      ),
+      "move",
+    );
   repaint();
   // The reference is a bounded interaction rather than a level of the page: it claims the
   // whole keyboard while it stands and hands the user back itself, to the control the
@@ -846,7 +875,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
 
 export function moveCommandReferenceFocus(dir) {
   const stops = tabStops(commandReferenceDialog);
-  if (!stops.length) return commandReferenceDialog.focus({ preventScroll: true });
+  if (!stops.length) return focusDestination(commandReferenceDialog, "step");
   const at = stops.indexOf(focused());
   const next =
     at < 0
@@ -854,7 +883,7 @@ export function moveCommandReferenceFocus(dir) {
         ? stops[0]
         : stops.at(-1)
       : stops[(at + dir + stops.length) % stops.length];
-  next.focus({ preventScroll: true });
+  focusDestination(next, "step");
 }
 
 const commandButton = (id) =>
@@ -895,7 +924,7 @@ export function moveCommandReferenceSelection(dir) {
   };
   presentCommandReference();
   const next = commandButton(nextId);
-  if (focusedId) next.focus({ preventScroll: true });
+  if (focusedId) focusDestination(next, "move");
   next.closest("tr").scrollIntoView({ block: "nearest" });
   beginWalk("shortcut-command", "Command", () => {
     const current = focusedCommandId() ?? commandReferenceState.selectedCommandId;

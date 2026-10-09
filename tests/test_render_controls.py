@@ -1045,7 +1045,7 @@ def test_restoring_question_focus_can_execute_its_command_in_the_same_turn(
         """async () => {
           const {focusDestination} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const {executeCommand} = await window.__lfRuntimeImport('/runtime/keyboard/dispatch.js');
-          focusDestination(document.getElementById('question'));
+          focusDestination(document.getElementById('question'), 'move');
           const executed = executeCommand('probe.action-10');
           return {executed, held: document.activeElement.id,
             output: document.querySelector('#probe output').textContent};
@@ -1431,6 +1431,49 @@ LIVE_SAMPLES_PAGE = leaf_page(
 </lf-sample>
 """,
 )
+
+
+def test_a_live_revision_mounts_and_resets_its_new_sample(browser, serve):
+    """An arriving sample allocates from its own revision before that revision paints."""
+    page = open_page(browser, live_url(serve(LIVE_SAMPLES_PAGE)))
+    addition = """
+<lf-sample id="arriving-practice" label="New practice">
+  <template id="arriving-source" data-sample>
+    <h1 id="arrival-heading">Practice added in the revision</h1>
+  </template>
+</lf-sample>
+"""
+    revised = LIVE_SAMPLES_PAGE.replace("</main>", addition + "</main>")
+    with page.expect_request("**/api/samples") as allocation:
+        _publish(serve.page_dir, 2, revised, "Add another practice page.")
+    sample = page.locator("#arriving-practice")
+    expect(sample.frame_locator("iframe").locator("#arrival-heading")).to_have_text(
+        "Practice added in the revision"
+    )
+    wait_until_ready(page)
+    child_url = sample.locator("iframe").get_attribute("src")
+
+    # A later revision keeps this exact node and its template. Reset must retain
+    # the source coordinate it arrived with rather than borrow the newer reading.
+    _publish(
+        serve.page_dir,
+        3,
+        revised.replace("Practice without changing this page", "Practice together"),
+        "Revise the surrounding explanation.",
+    )
+    expect(page.locator("#host-heading")).to_have_text("Practice together")
+    wait_until_ready(page)
+    reset = sample.get_by_role("button", name="Reset", exact=True)
+    with page.expect_request("**/api/samples") as replacement:
+        reset.click()
+    assert replacement.value.header_value("Leaf-View-Revision") == (
+        allocation.value.header_value("Leaf-View-Revision")
+    )
+    expect(sample.locator("iframe")).not_to_have_attribute("src", child_url)
+    expect(sample.frame_locator("iframe").locator("#arrival-heading")).to_have_text(
+        "Practice added in the revision"
+    )
+    wait_until_ready(page)
 
 
 def test_thread_panel_gallery_shows_independent_live_views(browser, serve):

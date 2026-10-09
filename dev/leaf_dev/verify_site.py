@@ -506,7 +506,7 @@ def answers(url: str) -> bool:
     try:
         with urllib.request.urlopen(url, timeout=1):
             return True
-    except urllib.error.URLError, TimeoutError:
+    except (urllib.error.URLError, TimeoutError):
         return False
 
 

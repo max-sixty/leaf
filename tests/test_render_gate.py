@@ -717,10 +717,9 @@ def test_a_module_the_page_never_receives_names_the_wait_that_stopped(browser, s
 def test_a_wait_before_the_entry_is_released_names_only_the_page_s_own_request(
     browser, serve
 ):
-    """The proof holds the Leaf entry itself until after the theme stylesheet, so the
-    entry is open at every wait before that by the gate's own choice. Naming it
-    beside what the page is waiting for would point a reader at the hold rather than
-    at the file that never came."""
+    """A held head stylesheet may stop parsing before main. At whichever wait
+    stops first, the diagnostic names the page's request, not the entry held by
+    the gate itself."""
     source = leaf_page("held theme", "<h1>Waiting on a theme</h1>")
     page = browser.unwatched.new_page()
     page.set_default_timeout(5_000)
@@ -741,9 +740,10 @@ def test_a_wait_before_the_entry_is_released_names_only_the_page_s_own_request(
 
     assert holding, "the page asked for no theme stylesheet, so nothing was held"
     path = urlsplit(holding[0].request.url).path
-    assert str(stopped.value) == (
-        f"the document never reached its theme stylesheet; still requesting {path}"
-    )
+    message = str(stopped.value)
+    assert message.startswith("the document never reached ")
+    assert message.endswith(f"; still requesting {path}")
+    assert "leaf.js" not in message
 
 
 @pytest.fixture
@@ -3228,30 +3228,41 @@ def test_reader_state_observes_behavior_without_freezing_the_dom(browser, serve)
 
     # A real closed-root editor exposes its source through its public field API,
     # even while focus is elsewhere and accessibility only reports the host.
-    page.goto(serve(leaf_page("Reader state", "<button>Continue</button>")))
-    wait_until_ready(page)
-    page.set_content(
-        '<button>Continue</button><leaf-text aria-label="Draft" '
-        'style="display:block;width:400px;height:70px"></leaf-text>'
+    page.goto(
+        serve(
+            leaf_page(
+                "Reader state",
+                '<button>Continue</button><leaf-text aria-label="Draft" '
+                'style="display:block;width:400px;height:70px"></leaf-text>',
+            )
+        )
     )
+    wait_until_ready(page)
     draft = page.locator('leaf-text[aria-label="Draft"]')
     draft.evaluate(
         "field => { field.value = 'kept words'; field.setSelectionRange(2, 5, 'backward'); }"
     )
     page.get_by_role("button", name="Continue", exact=True).focus()
-    before = reader_state(page)
+
+    # This arm probes the field reading. The served Leaf page may finish placing
+    # unrelated chrome while these property-only changes are made.
+    def draft_reading():
+        return [line for line in reader_state(page) if line.startswith("field: ")]
+
+    before = draft_reading()
+    assert len(before) == 1
     draft.evaluate(
         "field => { field.value = 'lost words'; field.setSelectionRange(2, 5, 'backward'); }"
     )
-    assert reader_state(page) != before, "an unfocused draft loss must be observable"
+    assert draft_reading() != before, "an unfocused draft loss must be observable"
     draft.evaluate(
         "field => { field.value = 'kept words'; field.setSelectionRange(2, 5, 'backward'); }"
     )
-    assert reader_state(page) == before
+    assert draft_reading() == before
     draft.evaluate("field => field.setSelectionRange(0, 0)")
-    assert reader_state(page) != before, "an unfocused caret loss must be observable"
+    assert draft_reading() != before, "an unfocused caret loss must be observable"
     draft.evaluate("field => field.setSelectionRange(2, 5, 'backward')")
-    assert reader_state(page) == before
+    assert draft_reading() == before
 
 
 # Each surface a page-level key opens, by the keys that open it from the page, and the

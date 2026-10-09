@@ -102,19 +102,15 @@ jobs:
         run: npm ci
         working-directory: worker
 
-      - name: Check committed browser framework
-        run: npm run check:framework
+      - run: npm ci --prefix evals
 
       # The bundles build from the installed lock, so a rebuild reproduces the
       # tracked bytes exactly and any difference is a lock nobody rebuilt from.
       - name: Check vendored bundles
         run: npm run check:bundles
 
-      - name: 🧪 Runtime folds
-        run: npm run test:runtime
-
-      - name: Check eval assertions without model calls
-        run: npm ci --prefix evals && npm test --prefix evals
+      - name: Check browser, runtime, Worker and eval assertions
+        run: npm run check
 
       # Cheap gates fail before the complete Python suite spends its runner time.
       # The runner's four vCPUs sat ~41% idle under two workers; four left 7% idle
@@ -137,10 +133,6 @@ jobs:
       # its artifacts before starting Docker or the unconditional upload below.
       - name: Wait for Python tests
         wait: python-tests
-
-      - name: 🧪 Website worker tests
-        if: github.event_name == 'pull_request'
-        run: npm run check:worker
 
       - name: Check website deployment
         if: github.event_name == 'pull_request'

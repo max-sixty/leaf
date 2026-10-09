@@ -34,10 +34,7 @@ bundles = "npm run check:bundles"
 # branch edits, as a pull request's gate does. CI runs the rest after main moves.
 [[pre-merge]]
 tests = "uv run pytest tests --nightly-changed-since main"
-folds = "npm run test:runtime"
-browser = "npm run check:framework"
-worker = "npm run check:worker"
-eval-assertions = "npm test --prefix evals"
+node-checks = "npm run check"
 
 # A new worktree has no `node_modules`, so an ordinary `uv run pytest tests` fails before
 # anyone reaches a merge. Install in the background rather than blocking the switch; the

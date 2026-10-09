@@ -8329,10 +8329,11 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     page = open_page(browser, serve(example))
     page.emulate_media(reduced_motion="reduce")
     resized_shell(page, 1920, 900)
-    marker = page.get_by_role(
-        "group", name=re.compile(r"Page actions for task · iOS reconnect stall")
-    ).locator(":scope > .lf-margin-marker")
+    marker = page.locator('[data-lf-margin-for="off-t-resync"] > .lf-margin-marker')
     expect(marker).to_have_count(1)
+    expect(marker.locator("..")).to_have_attribute(
+        "aria-label", re.compile(r"Page actions for .*iOS reconnect stall")
+    )
     marker.evaluate(
         "marker => scrollBy(0, marker.getBoundingClientRect().top - innerHeight + 52)"
     )

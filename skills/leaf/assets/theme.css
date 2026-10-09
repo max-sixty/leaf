@@ -993,12 +993,14 @@ hr { border: none; border-top: 1px solid var(--rule); margin: 40px 0; }
   font-size: var(--t-4);
   line-height: 1.45;
 }
-.density-working :is(p, ul, ol) { margin-block: 6px; }
-.density-working li { margin-block: 3px; }
-.density-working h2 { margin: 18px 0 6px; }
-.density-working h3 { margin: 12px 0 4px; }
-.density-working h4 { margin: 10px 0 4px; }
-.density-working :is(th, td) { padding: 4px 10px; }
+/* Like the element styles above, these are prose defaults. A component's own
+ * spacing must win, including package rules in this same base layer. */
+:where(.density-working) :is(p, ul, ol) { margin-block: 6px; }
+:where(.density-working) li { margin-block: 3px; }
+:where(.density-working) h2 { margin: 18px 0 6px; }
+:where(.density-working) h3 { margin: 12px 0 4px; }
+:where(.density-working) h4 { margin: 10px 0 4px; }
+:where(.density-working) :is(th, td) { padding: 4px 10px; }
 figure { margin: 22px 0; }
 figcaption { font-size: var(--t-6); color: var(--muted); margin-top: 8px; }
 img, svg, video { max-width: 100%; height: auto; }

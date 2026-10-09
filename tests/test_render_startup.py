@@ -3969,7 +3969,6 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         },
     )
     told(page)
-    held_thread.get_by_role("button", name="1 new reply", exact=True).click()
     followup_workflow = held_thread.locator(
         f'.lf-msg.user[data-mid="{followup["id"]}"] > .lf-msg-head .lf-msg-sending'
     )
@@ -4003,7 +4002,6 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         },
     )
     told(page)
-    held_thread.get_by_role("button", name="1 new reply", exact=True).click()
     expect(page.locator(f'.lf-thread[data-id="{held}"] .lf-msg.agent')).to_have_count(1)
     expect(held_workflow).to_have_count(0)
     expect(workflows).to_have_count(1)

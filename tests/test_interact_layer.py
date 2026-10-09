@@ -5150,15 +5150,22 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     nothing binds a key behind its back. That is not a property a rendered page can be
     asked about — a listener nobody declared looks exactly like no listener at all until
     the press it eats goes missing — so it is pinned in the source, the way the
-    document-level class surface is.
+    document-level class surface is. The listeners are read from each parsed module
+    (tests/keydown_listeners.mjs), so one wrapped across lines or registered for several
+    types in a loop counts as written.
 
-    Three are allowed and each is named here. The dispatcher is the register's own. The aim
-    latch is not a binding at all: holding ⌥ arms nothing and answers no press, it paints
-    what a click would take, and its keyup half has no place in a table of presses. The
+    Each allowed one is named here. The dispatcher is the register's own. The aim latch
+    is not a binding at all: holding ⌥ arms nothing and answers no press, it paints what
+    a click would take, and its keyup half has no place in a table of presses. The
     prepaint bootstrap's hold answers no press either: it keeps keys pressed before the
-    page presents and hands them to the dispatcher's owner. Another is how every drift this
-    register replaced began — a `keydown` beside a display list, the two of them free to
-    disagree about which keys the widget answers."""
+    page presents and hands them to the dispatcher's owner. focus.js reads every key as
+    an input, as the end of a label press, and as a Tab's step, and answers none. The
+    interaction log records keys and answers none. A covering surface's Tab loop keeps
+    the platform's own sequential navigation inside it. The code block's copy control
+    hands Tab back to its source, and the block's Enter moves to that control, which no
+    register row declares. Another is how every drift this register replaced began — a
+    `keydown` beside a display list, the two of them free to disagree about which keys the
+    widget answers."""
     layer = ROOT / "skills/leaf"
     sources = [
         layer / "assets/leaf.js",
@@ -5166,14 +5173,27 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
         *sorted((layer / "packages").glob("*/widgets/*.js")),
         *sorted((ROOT / "examples/packages").glob("*/widgets/*.js")),
     ]
-    listeners = [
-        f"{src.name}:{n}"
-        for src in sources
-        for n, line in enumerate(src.read_text().splitlines(), 1)
-        if 'addEventListener("keydown"' in line
-    ]
-    assert len(listeners) == 3, (
-        f"the runtime's keydown listeners changed: {listeners}. A key belongs in the "
+    listed = subprocess.run(
+        ["node", str(ROOT / "tests/keydown_listeners.mjs"), *map(str, sources)],
+        capture_output=True,
+        text=True,
+        check=True,
+        cwd=ROOT,
+    ).stdout.split()
+    by_file = {}
+    for line in listed:
+        name = line.split(":")[0]
+        by_file[name] = by_file.get(name, 0) + 1
+    assert by_file == {
+        "controller.js": 1,
+        "aim.js": 1,
+        "bootstrap.js": 1,
+        "focus.js": 3,
+        "interaction-log.js": 1,
+        "auxiliary-surfaces.js": 1,
+        "code-copy.js": 2,
+    }, (
+        f"the runtime's keydown listeners changed: {listed}. A key belongs in the "
         "register (keys(el, title, rows)), which is what lets a surface promise it."
     )
 

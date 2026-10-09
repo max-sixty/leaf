@@ -21,6 +21,25 @@ gesture are functional failures and need a fix or an explicit support decision.
 An unsupported API alone does not justify blocking the whole browser: record
 what fails and what still works.
 
+## Supported APIs checked
+
+### Task group names
+
+- **Owner:** `lf-task.js` in the Command Hub package. `ariaLabelledByElements`
+  names each task group from its own visible title without adding identifiers or
+  copying the title into a second label.
+- **Compatibility checked 2026-10-08:** Chrome/Edge 135+, Firefox 136+, and
+  Safari/iOS Safari 16.4+, according to
+  [MDN's compatibility data](https://github.com/mdn/browser-compat-data/blob/main/api/Element.json).
+  The property is defined by
+  [WAI-ARIA's element-reference reflection](https://w3c.github.io/aria/#dom-ariamixin-arialabelledbyelements).
+- **Observed:** Chrome 155's native accessibility tree exposes the task names
+  and nested group ancestry, including after reports and title revisions.
+  Playwright's DOM-based `aria_snapshot` omits names supplied by this property;
+  `test_task_hierarchy_is_accessible_through_reports_and_revisions` therefore
+  reads Chrome's native accessibility tree. This is a test-tool limitation,
+  rather than an observed browser support gap.
+
 ## Known gaps
 
 ### State-preserving content reordering (review #22)

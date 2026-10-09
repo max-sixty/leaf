@@ -21,7 +21,6 @@ import {
   failSoft,
   ensureSyntaxLanguage,
   focusDestination,
-  focused,
   holdFocus,
   inChrome,
   inBaseLayer,
@@ -142,6 +141,8 @@ const hunkHeads = (entry) =>
     (line, index) => index === 0 || line.hunk !== entry.lines[index - 1].hunk,
   );
 
+const LINE_KEY = "data-lf-line";
+
 const lineLabel = ({ path, side, oldLine, newLine }) => {
   const file = path || "(unnamed file)";
   if (side === "old") return `${file} · old line ${oldLine}`;
@@ -187,6 +188,9 @@ function renderedLines(file, rendered) {
       (alternate !== null && node.dataset.altLine !== String(alternate))
     )
       throw new Error(`Pierre returned an unexpected source line for ${file.name}`);
+    // The line's identity, which its gutter's Comment carries too, so a hold across a
+    // re-render finds the same line under its new node (`holdFileFocus`).
+    node.setAttribute(LINE_KEY, diffDatumKey(record));
     return { ...record, node };
   });
 }
@@ -398,7 +402,7 @@ function rowSpan(node) {
 // when one leaves this file; the file's source fallback must not replace that standing.
 function holdFileFocus(entry, outlets) {
   for (const { outlet } of outlets?.values() ?? []) if (holdFocus(outlet)) return null;
-  return holdFocus(entry.node);
+  return holdFocus(entry.node, { key: LINE_KEY });
 }
 
 function replaceFileRendering(entry, rendered, outlets) {
@@ -413,10 +417,6 @@ function replaceFileRendering(entry, rendered, outlets) {
 }
 
 function replaceFileContent(entry, rendered, pairs, outlets) {
-  const held = focused();
-  const line = entry.lines.find(
-    ({ node, comment }) => node.contains(held) || comment === held,
-  );
   const restore = holdFileFocus(entry, outlets);
   const details = entry.details;
   const pre = details.querySelector("pre");
@@ -507,13 +507,7 @@ function replaceFileContent(entry, rendered, pairs, outlets) {
       .map((node) => (node === nextPre && pre ? pre : node)),
   ]);
   entry.lines = rendered.lines;
-  const counterpart =
-    line && entry.lines.find((next) => diffDatumKey(next) === diffDatumKey(line));
-  return () =>
-    restore?.(
-      counterpart && (held === line.comment ? counterpart.comment : counterpart.node),
-      details.firstElementChild,
-    );
+  return () => restore?.(details.firstElementChild);
 }
 
 function setWrappedLines(body, wrapped) {
@@ -1503,6 +1497,7 @@ customElements.define(
         // target picker is the keyboard route to the same exact datum; this control is
         // the conventional pointer affordance in the line-number gutter.
         line.comment.tabIndex = -1;
+        line.comment.setAttribute(LINE_KEY, diffDatumKey(line));
         line.node.addEventListener("pointerenter", () =>
           gutterRow.classList.toggle("lf-diff-line-hover", true),
         );

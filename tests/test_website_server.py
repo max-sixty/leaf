@@ -3058,12 +3058,15 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     watcher = take_lease(waiter_lease_path(page_dir, "hosted-thread"))
     assert watcher is not None
     request.addfinalizer(watcher.close)
+    thread = page.locator(f'.lf-threads > [data-id="{comment["id"]}"]')
+    # An active editor holds the turn's update so this journey exercises the receipt
+    # beside held news; an idle panel thread now shows the update immediately.
+    thread.locator("leaf-text").focus()
     turn.begin()
     # Present the accepted turn before resolving it: coalescing these server writes
     # would never exercise a workflow receipt disappearing beside the news control.
     told(page)
     rendered(page)
-    thread = page.locator(f'.lf-threads > [data-id="{comment["id"]}"]')
     metadata = thread.locator(
         ".lf-thread-transcript > .lf-msg:first-child > .lf-msg-head"
     )
@@ -3186,7 +3189,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
         expect(thread.locator(".lf-msg.agent")).to_be_hidden()
         assert set(current_responses(page_dir, read_events(page_dir))) == {other["id"]}
     else:
-        # The short thread's reopened answer would move its writing box, so the
+        # The short thread's reopened answer would move its active editor, so the
         # reader explicitly opens the news before the visibility clock can see it. The
         # card stands as drawn, open, so the reopening is no news.
         expect(news).to_have_text("1 new reply")

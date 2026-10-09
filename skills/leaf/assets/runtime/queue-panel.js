@@ -32,11 +32,11 @@
    count beside the status sentence opens it too; `g Shift+Q` is the key.
 
    Rows join, leave and change only while the panel is open, and the list holds its
-   focus across them (`RowFocus`); a closed panel holds no rows. Its door stands on
-   every page, as the Threads door does, so a question arriving or the last one leaving
-   moves nothing on the banner: "Questions: 0" opens a panel that says so. Before the
-   log's first answer it says only "Questions", since a count read from no log would be
-   a claim. */
+   focus across them (focus.js, keyed `holdFocus`); a closed panel holds no rows. Its door
+   stands on every page, as the Threads door does, so a question arriving or the last one
+   leaving moves nothing on the banner: "Questions: 0" opens a panel that says so. Before
+   the log's first answer it says only "Questions", since a count read from no log would
+   be a claim. */
 import {
   addressableLabel,
   addressableName,

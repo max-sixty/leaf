@@ -739,8 +739,8 @@ export function createSelectionComposer({
           composerEpoch === epoch && loadDraft(ctx) === null && !pageSelection();
         const mayReveal = () => revealAvailable() && currentIntent();
         const shouldReveal = mayReveal();
-        // Land where any send leaves the user (`landSent`): on the thread, or on the
-        // element the margin card's thread is about, never in its reply box. A later
+        // Land where any send leaves the user (`landSent`): on the conversation's
+        // card or title, never back on its page target. A later
         // gesture may already have moved the user elsewhere while presentation was
         // settling.
         if (shouldReveal || panelIsOpen()) {

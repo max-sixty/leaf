@@ -24,6 +24,7 @@ import {
   paintKeys,
   PRESS,
   projectData,
+  readingPosture,
   registerReadingRegion,
   relabel,
   scopedMediaUrl,
@@ -56,6 +57,10 @@ const SCALE = {
   fit: "Fit",
   actual: "100%",
 };
+
+// The smallest scale Fit shrinks a pair to so it fits its pane whole: at it, a captured
+// page's 16px body text stays above 11px.
+const READABLE_SCALE = 0.7;
 
 const SCOPE = {
   focus: "Focus change",
@@ -402,10 +407,19 @@ customElements.define(
       const visibleHeights = activeFocus
         ? [activeFocus.height, activeFocus.height]
         : heights;
-      // The stage is as tall as the captures and the page scrolls through them, so the
-      // window the chrome leaves is the height a reader sees at once.
+      // The height a reader sees the pair in at once. Where the evidence pane scrolls on
+      // its own, as in a workspace that fills the window, it is the pane body's, from the
+      // stage's top down, and Fit contains the pair in it. Elsewhere the page scrolls
+      // the review, and it is the window the chrome leaves.
+      const bounded = readingPosture(this.#evidenceHost) === "bounded";
       const stageWidth = entry.shotHost.clientWidth;
-      const stageHeight = shownWindow({ viewport: "layout" }).height;
+      const stageHeight = bounded
+        ? this.#casesBody.clientHeight -
+          (entry.shotHost.getBoundingClientRect().top -
+            this.#casesBody.getBoundingClientRect().top +
+            this.#casesBody.scrollTop) -
+          (entry.shotHost.offsetHeight - entry.shotHost.clientHeight)
+        : shownWindow({ viewport: "layout" }).height;
 
       const stageStyle = getComputedStyle(entry.shotHost);
       const gap = parseFloat(stageStyle.getPropertyValue("--lf-vr-gap"));
@@ -430,15 +444,33 @@ customElements.define(
       const wideCapture = width / Math.max(...visibleHeights) >= 1.5;
       const compareLayout =
         wideCapture || stackContainScale >= sideContainScale ? "stack" : "side";
-      const fitScale =
+      const widthScale =
         this.#mode === "compare"
           ? compareLayout === "stack"
             ? (stageWidth - frameBorder) / width
             : sideWidthScale
           : (stageWidth - frameBorder) / width;
-      // A comparison is a reading surface: fit the pair to its available width and
-      // scroll through its height. Containing both frames vertically made tall mobile
-      // captures unreadably small even when both fit side by side.
+      // Flip shows one frame under lf-shot's rail of controls.
+      const rail =
+        this.#mode === "flip"
+          ? (shot.querySelector(".lf-shotrail")?.offsetHeight ?? 0)
+          : 0;
+      const containScale =
+        this.#mode === "compare"
+          ? compareLayout === "stack"
+            ? stackContainScale
+            : sideContainScale
+          : Math.min(
+              widthScale,
+              (stageHeight - rail - frameBorder) / Math.max(...visibleHeights),
+            );
+      // Where the evidence pane scrolls on its own, Fit shrinks the pair to fit the
+      // pane, so the reader sees all of it at once, unless that takes it below
+      // `READABLE_SCALE`: a tall mobile capture shrunk to fit whole was unreadably small.
+      // Such a pair takes the width instead and its pane scrolls, as the page does where
+      // the page scrolls the review.
+      const fitScale =
+        bounded && containScale >= READABLE_SCALE ? containScale : widthScale;
       const scale = this.#scale === "actual" ? 1 : Math.min(1, fitScale);
       keeps(this, "data-compare-layout", compareLayout);
       keeps(entry.shotHost, "data-focus-authored", Boolean(focus));

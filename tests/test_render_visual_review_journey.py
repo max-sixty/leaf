@@ -446,8 +446,9 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     )
     expect(second).to_have_attribute("aria-label", "Visual review case 2 of 2")
     second_looks_right = second.get_by_role("button", name="Looks right")
-    expect(second.locator(".lf-vr-case-title")).to_be_focused()
-    expect(second.locator(".lf-vr-case-title")).to_be_in_viewport()
+    # Case browsing from a verdict reveals its counterpart. Evidence navigation
+    # has its own heading destination, covered by the Next unreviewed journey.
+    assert_keyboard_focus(user, second_looks_right)
     assert second.locator("lf-shot img").evaluate_all(
         "images => images.every(image => image.complete && image.naturalWidth > 0)"
     )

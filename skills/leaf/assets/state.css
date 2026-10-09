@@ -10,11 +10,11 @@
      value and a Layout's, since one stacked onto a box that scrolls reaches nothing
      the box holds; a box that starts its slot elsewhere says so in `--lf-top-start`.
      Its landing band starts there too (`--lf-top-covered`, theme.css), with the room
-     the box states below it, none unless it pads its scroll edge. A box that sticks
-     reads the slot for its own `top`, so it keeps all three, and one that scrolls what
-     it holds restarts them itself (a column's sidebar, layouts.css). */
-  [data-lf-scrolls]:not([data-lf-sticks]) { --lf-top: var(--lf-top-start);
-    --lf-top-covered: var(--lf-top-start); --lf-landing-room: var(--lf-landing-room-start); }
+     the box states below it, none unless it pads its scroll edge. A box that sticks is
+     not marked, since it reads the slot for its own `top`; one that scrolls what it
+     holds restarts all three itself (a column's sidebar, layouts.css). */
+  [data-lf-scrolls] { --lf-top: var(--lf-top-start); --lf-top-covered: var(--lf-top-start);
+    --lf-landing-room: var(--lf-landing-room-start); }
 
   /* Retiring the only slot leaves its wrapper empty. Keep that wrapper in the
      layout tree so Undo can restore the text in the same place. */

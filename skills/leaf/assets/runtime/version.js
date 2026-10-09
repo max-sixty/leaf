@@ -153,6 +153,7 @@ import { keepPageRulesOffLayer } from "./page-sheets.js";
 import { replaceEntry } from "./history.js";
 import {
   blocksOnScreen,
+  captureFocusedControl,
   capturePlace,
   hasLandmark,
   rawOffsetFits,
@@ -1684,10 +1685,9 @@ export function createVersionController({
   // left to keep: its reading goes when the next reading is taken, so a page whose
   // blocks come and go carries only the regions it has.
   const regionViews = new Map();
-  // The page's own record holds no words: reading them would scan every block above the
-  // window on each scroll, and the browser's scroll anchoring already keeps them where
-  // they stood. Nor does it hold an offset, which would undo that anchoring. What is left
-  // is a focused control the user could see, which anchoring does not keep in view.
+  // The page's own record holds only a focused control (`captureFocusedControl`): no
+  // words, which the browser's scroll anchoring already keeps where they stood, and no
+  // offset, which would undo that anchoring.
   let pageView = null;
   const dropGoneRegions = () => {
     const standing = new Set(readingRegions().map(({ id }) => id));
@@ -1700,10 +1700,7 @@ export function createVersionController({
   // names every one.
   function recordRegions(moved = null) {
     dropGoneRegions();
-    if (!moved || moved.has(pageScroller)) {
-      const { y, scroller, ...place } = capturePlace(null, []);
-      pageView = place;
-    }
+    if (!moved || moved.has(pageScroller)) pageView = captureFocusedControl();
     const main = document.querySelector("body > main");
     const shown = readingRegions().filter(
       (region) =>

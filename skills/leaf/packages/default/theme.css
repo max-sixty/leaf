@@ -1198,7 +1198,7 @@
 :scope:is(lf-tabs).lf-rendered > lf-tab { margin-top: 14px; }
 /* Laid out by the live-page block below; hidden until then, because a row of
  * buttons is worth showing only where something will answer one. */
-.lf-tabstrip { display: none; gap: 2px;
+.lf-tabstrip { display: none; gap: 2px; --lf-tab-focus-gap: 2px;
                border-bottom: 1px solid var(--border-2); }
 /* The aim floor is the padding, which a side list's column cannot squeeze out from under
  * a row's summary as it could a min-height. Of what stands between the floor and the
@@ -1221,7 +1221,7 @@
                outline: none; }
 .lf-tabstrip .lf-tab-btn:is(:focus-visible, .lf-focus-visible) > .lf-tab-name {
                outline: var(--focus-ring); --lf-focus-ring: tab-btn;
-               outline-offset: 2px; }
+               outline-offset: var(--lf-tab-focus-gap); }
 /* Every name reserves the same square face; selection paints it without changing any
  * control's measure. */
 .lf-tabstrip .lf-tab-btn > .lf-tab-name {
@@ -1234,6 +1234,16 @@
   .lf-tabstrip .lf-tab-btn[aria-selected="true"] > .lf-tab-name {
     text-decoration: underline; text-decoration-thickness: 2px;
     text-underline-offset: 2px;
+  }
+  /* Forced colors makes transparent borders visible. Page tabs already reserve a
+   * selection rule, so hide the inactive rule with the system background instead. */
+  :scope:is(lf-tabs)[data-lf-tabs-flow="page"] > .lf-tabstrip
+    .lf-tab-btn:not([aria-selected="true"]) > .lf-tab-name {
+    border-bottom-color: Canvas;
+  }
+  :scope:is(lf-tabs)[data-lf-tabs-flow="page"] > .lf-tabstrip
+    .lf-tab-btn[aria-selected="true"] > .lf-tab-name {
+    text-decoration: none;
   }
 }
 /* A tab counts the passages the version diff marks. An empty count takes no room. */
@@ -1324,10 +1334,12 @@
     border-radius: calc(var(--r) - 1px) 0 0 calc(var(--r) - 1px);
     align-self: stretch;
   }
-    /* A row is its name, then its diff count, with the summary on a line under them. */
+    /* A row is its name, then its diff count, with the summary on a line under them.
+     * Adjacent columns leave the name's focus ring clear of the answer and count. */
   :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-btn {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: calc(var(--focus-ring-w) + var(--lf-tab-focus-gap));
     align-items: baseline;
     justify-items: start;
     text-align: start;

@@ -69,6 +69,16 @@ def tab_by_pointer(page: Page) -> None:
     page.locator(".lf-tab-btn").nth(1).hover()
 
 
+def boxed_tab_by_keyboard(page: Page) -> None:
+    """A boxed tab's compact focus and persistent selection fill."""
+    page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
+        "Page & layout", exact=True
+    ).click()
+    page.locator("#bg-tabs").scroll_into_view_if_needed()
+    page.keyboard.press("Tab")
+    page.locator("#bg-tabs .lf-tab-btn").first.focus()
+
+
 def drawing_comment(page: Page) -> None:
     """A freehand comment beside the page area its strokes describe."""
     guide = page.locator("#bg-drawing-comments-guide")
@@ -549,6 +559,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         at_rest,
         tab_by_keyboard,
         tab_by_pointer,
+        boxed_tab_by_keyboard,
         drawing_comment,
         card_by_pointer,
         card_by_keyboard,
@@ -781,6 +792,10 @@ STATES = (
     State("gallery-tabs", "developer/feature-gallery", at_rest),
     State("gallery-tab-focus", "developer/feature-gallery", tab_by_keyboard),
     State("gallery-tab-hover", "developer/feature-gallery", tab_by_pointer),
+    State(
+        "gallery-boxed-tab-focus", "developer/feature-gallery", boxed_tab_by_keyboard
+    ),
+    State("side-tab-focus", "alert-review", tab_by_keyboard),
     State("frame-edges", "developer/feature-gallery", frame_edges),
     State("gallery-metrics", "developer/feature-gallery", gallery_metrics),
     State("gallery-plans", "developer/feature-gallery", gallery_plans),

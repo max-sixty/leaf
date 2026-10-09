@@ -258,6 +258,7 @@ const replaceDrawing = (anchor, drawn) => {
 // A composer's own controls for the drawing its draft holds, which the drawing
 // controller answers, and its history's way of putting one back.
 const drawingEdits = {
+  target: (anchor) => drawing.target(anchor),
   undoStroke: (anchor) => drawing.undoStroke(anchor),
   remove: (anchor) => drawing.removeDrawing(anchor),
   replace: replaceDrawing,

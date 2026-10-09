@@ -161,6 +161,14 @@ def build_jsdiff(work: Path) -> list[Path]:
     return [out]
 
 
+def build_drawing_context(work: Path) -> list[Path]:
+    """The optional DOM renderer loaded when a composer first carries a drawing."""
+    out = ASSETS / "vendor/drawing-context.esm.js"
+    shutil.copyfile(ROOT / "build/drawing-context.mjs", work / "build.mjs")
+    run("node", "build.mjs", str(out), cwd=work)
+    return [out]
+
+
 def build_photoswipe(work: Path) -> list[Path]:
     """Load the viewer with its own styles in one optional, exportable module."""
     out = ASSETS / "vendor/photoswipe.esm.js"
@@ -491,6 +499,7 @@ BUILDS: dict[str, Callable[[Path], list[Path]]] = {
     "floating-ui": build_floating_ui,
     "syntax": build_syntax,
     "jsdiff": build_jsdiff,
+    "drawing-context": build_drawing_context,
     "plot": build_plot,
     "pierre": build_pierre,
     "webawesome": build_webawesome,

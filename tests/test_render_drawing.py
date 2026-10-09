@@ -159,7 +159,7 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     assert event["anchor"] == {"section": "bg-choice-trail"}
     assert event["text"] == "This bend is the part I mean."
     drawing = event["drawing"]
-    assert drawing["format"] == "leaf-drawing/2"
+    assert drawing["format"] == "leaf-drawing/3"
     assert drawing["viewport"] == page.evaluate(
         "[document.documentElement.clientWidth, document.documentElement.clientHeight]"
     )
@@ -226,6 +226,220 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     )
 
 
+NATIVE_FRAME_PAGE = leaf_page(
+    "anonymous visual frames",
+    '<h1 id="title">Sketches</h1><figure id="visuals">'
+    '<svg viewBox="20 30 400 160"><path d="M20 110 H420" stroke="blue" /></svg>'
+    '<svg viewBox="20 30 400 160"><path d="M20 110 H420" stroke="red" /></svg>'
+    "<figcaption>Two independently framed sketches.</figcaption></figure>",
+    head="<style>#visuals {width:80vw;margin:0}"
+    "#visuals svg {display:block;width:100%;height:auto}</style>",
+)
+
+
+def native_ink_start(page, selector, mark=".lf-drawing-pending"):
+    """Read ink back in the native SVG viewport, independent of page layout."""
+    return page.evaluate(
+        """([selector, mark]) => {
+          const svg = document.querySelector(selector);
+          const path = document.querySelector(`${mark} path`);
+          const point = path.getPointAtLength(0).matrixTransform(path.getScreenCTM());
+          const local = point.matrixTransform(svg.getScreenCTM().inverse());
+          return [local.x, local.y];
+        }""",
+        [selector, mark],
+    )
+
+
+def test_a_drawing_uses_its_anonymous_svg_inside_its_semantic_figure(browser, serve):
+    """Two native visuals share one semantic comment seat. The selected visual's
+    user space carries ink through camera pan, resize, addition and replay, even
+    with a nonzero viewBox origin and a zero-height path."""
+    url = serve(NATIVE_FRAME_PAGE)
+    page = open_page(browser, url)
+    second = page.locator("#visuals svg").nth(1)
+    draw_over(page, second)
+    start = native_ink_start(page, "#visuals svg:nth-of-type(2)")
+    assert start == pytest.approx([108, 129.2], abs=0.03)
+    second.evaluate("""async svg => {
+      const {layoutChanged} = await import('/runtime/widget-elements.js');
+      svg.setAttribute('viewBox', '50 50 400 160');
+      await layoutChanged(svg);
+    }""")
+    assert native_ink_start(page, "#visuals svg:nth-of-type(2)") == pytest.approx(
+        start, abs=0.03
+    ), "a camera pan moves the graphic and its ink together"
+    page.locator("#visuals").evaluate("""el => {
+      el.querySelector('figcaption').textContent += ' Longer caption.'.repeat(20);
+      const chrome = document.createElement('aside');
+      chrome.dataset.lfRuntime = '';
+      el.prepend(chrome);
+    }""")
+    page.set_viewport_size({"width": 680, "height": 720})
+    rendered(page)
+    assert native_ink_start(page, "#visuals svg:nth-of-type(2)") == pytest.approx(
+        start, abs=0.03
+    )
+    # Draw on the same graphic points after the camera moved by 30x20 user units.
+    stroke_over(
+        page, second, points=tuple((x - 30 / 400, y - 20 / 160) for x, y in STROKE)
+    )
+    with sending(page, "the second anonymous sketch"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    event = events_model.read_events(serve.page_dir)[-1]
+    assert event["anchor"] == {"section": "visuals"}
+    assert event["drawing"]["box"] == [400, 160]
+    assert event["drawing"]["frame"] == {
+        "root": "figure",
+        "path": [{"tag": "svg", "index": 1, "siblings": 3}],
+    }
+    assert event["drawing"]["strokes"][0][0] == pytest.approx(start, abs=0.03)
+    assert event["drawing"]["strokes"][0][0] == pytest.approx(
+        event["drawing"]["strokes"][1][0], abs=0.03
+    )
+    page.reload(wait_until="load")
+    wait_until_ready(page)
+    posted = f'.lf-drawing-posted[data-thread="{event["id"]}"]'
+    assert native_ink_start(
+        page, "#visuals svg:nth-of-type(2)", posted
+    ) == pytest.approx(start, abs=0.03)
+
+
+@pytest.mark.parametrize("change", ["remove", "insert"])
+def test_a_missing_native_frame_cannot_retarget_another_svg(browser, serve, change):
+    """A removed frame or inserted same-tag sibling parks draft ink rather than
+    transferring the mark to whichever visual now occupies its child index."""
+    page = open_page(browser, serve(NATIVE_FRAME_PAGE))
+    draw_over(page, page.locator("#visuals svg").nth(1))
+    before = mark_box(page, ".lf-drawing-pending")
+    page.locator("#visuals").evaluate(
+        """(el, change) => {
+          const svg = el.querySelectorAll('svg')[1];
+          if (change === 'remove') svg.remove();
+          else el.prepend(svg.cloneNode(true));
+        }""",
+        change,
+    )
+    page.set_viewport_size({"width": 1000, "height": 720})
+    rendered(page)
+    expect(page.locator(".lf-drawing-pending")).to_have_count(0)
+    expect(page.locator(".lf-drawing-parked")).to_have_count(1)
+    after = mark_box(page, ".lf-drawing-parked")
+    assert [after[key] for key in ("width", "height")] == pytest.approx(
+        [before[key] for key in ("width", "height")], abs=0.03
+    )
+    page.get_by_role("button", name="Remove drawing").click()
+    expect(page.locator(".lf-drawing-mark")).to_have_count(0)
+
+
+@pytest.mark.parametrize(
+    "position", ["right 10px bottom 20px", "calc(100% - 10px) calc(100% - 20px)"]
+)
+def test_native_image_frames_follow_object_fit_and_position(browser, serve, position):
+    """The painted content, including letterboxing and CSS edge offsets, owns
+    native image points through resizing instead of the semantic figure's box."""
+    source = (
+        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' "
+        "width='400' height='100'%3E%3Cpath d='M0 50H400' stroke='red'/%3E%3C/svg%3E"
+    )
+    html = leaf_page(
+        "positioned image",
+        f'<h1 id="title">Image</h1><figure id="visuals"><img src="{source}" '
+        'alt="Horizontal reference line"></figure>',
+        head="<style>#visuals {margin:0;width:80vw} #visuals img {display:block;"
+        f"width:100%;height:400px;object-fit:contain;object-position:{position}"
+        "}</style>",
+    )
+    page = open_page(browser, serve(html))
+    image = page.locator("#visuals img")
+    image.evaluate("el => el.decode()")
+    box = image.bounding_box()
+    page.mouse.move(box["x"] + 100, box["y"] + 100)
+    page.keyboard.press("w")
+    trace(page, [(box["x"] + 100, box["y"] + 100), (box["x"] + 150, box["y"] + 110)])
+    expect(page.locator(".lf-drawing-pending")).to_have_count(1)
+    page.set_viewport_size({"width": 680, "height": 720})
+    rendered(page)
+    current = image.bounding_box()
+    relation = mark_relation(page, ".lf-drawing-pending", "#visuals img")
+    # contain's scale is width/400 here; y includes bottom20px letterboxing.
+    old_scale = box["width"] / 400
+    new_scale = current["width"] / 400
+    local_x = (100 + 10) / old_scale
+    local_y = (100 - (400 - 100 * old_scale - 20)) / old_scale
+    assert relation[:2] == pytest.approx(
+        [local_x * new_scale - 10, local_y * new_scale + 400 - 100 * new_scale - 20],
+        abs=0.03,
+    )
+    with sending(page, "the positioned image"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    drawing = events_model.read_events(serve.page_dir)[-1]["drawing"]
+    assert drawing["box"] == [400, 100]
+    assert drawing["frame"]["path"] == [{"tag": "img", "index": 0, "siblings": 1}]
+
+
+@pytest.mark.parametrize("engine", ["firefox_browser", "webkit_browser"])
+def test_native_frames_resolve_css_positions_in_supported_engines(
+    request, serve, engine
+):
+    """Browser CSS math resolves native offsets, including negative cover space,
+    without experimental Typed OM or repeat geometry-read DOM mutations."""
+    source = (
+        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' "
+        "width='400' height='100'%3E%3C/svg%3E"
+    )
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Native offsets",
+                f'<h1>Offsets</h1><img id="pixels" src="{source}" alt="Reference" style="width:300px;height:200px">',
+            )
+        ),
+    )
+    results = page.evaluate("""async () => {
+      const {elementFrame} = await import('/runtime/geometry.js');
+      const image = document.querySelector('#pixels');
+      await image.decode();
+      const readings = [];
+      for (const fit of ['contain', 'cover']) {
+        for (const position of [
+          'right 10px bottom 20px',
+          'calc(100% - 10px) calc(100% - 20px)',
+          'min(100%, 30px) max(0px, calc(100% - 20px))',
+          'clamp(10px, 50%, 30px) clamp(-20px, 50%, 20px)',
+        ]) {
+          image.style.objectFit = fit;
+          image.style.objectPosition = position;
+          const observer = new MutationObserver(() => {});
+          observer.observe(document.body, {subtree:true, childList:true, attributes:true});
+          const frame = elementFrame(image);
+          observer.takeRecords();
+          elementFrame(image);
+          const repeatMutations = observer.takeRecords().length;
+          observer.disconnect();
+          readings.push({fit, position, repeatMutations,
+            origin:[frame.matrix.e-frame.box.left, frame.matrix.f-frame.box.top],
+            scale:[frame.matrix.a,frame.matrix.d], size:[frame.width,frame.height]});
+        }
+      }
+      return readings;
+    }""")
+    for result in results:
+        cover = result["fit"] == "cover"
+        free_x, free_y = (-500, 0) if cover else (0, 125)
+        if result["position"].startswith("min"):
+            expected = [min(free_x, 30), max(0, free_y - 20)]
+        elif result["position"].startswith("clamp"):
+            expected = [max(10, min(free_x / 2, 30)), max(-20, min(free_y / 2, 20))]
+        else:
+            expected = [free_x - 10, free_y - 20]
+        assert result["origin"] == pytest.approx(expected, abs=0.03), result
+        assert result["scale"] == pytest.approx([2, 2] if cover else [0.75, 0.75])
+        assert result["size"] == [400, 100]
+        assert result["repeatMutations"] == 0
+
+
 WORDS_PAGE = leaf_page(
     "drawn words",
     '<h1 id="t">Words</h1>'
@@ -285,58 +499,94 @@ def around(page, box):
     )
 
 
-def test_an_anchored_drawing_scales_with_the_box_it_was_drawn_in(browser, serve):
-    """An anchored drawing replays at its element's current size, each axis by its own
-    ratio to the recorded box, so the mark keeps its share of the element in a narrower
-    window. A stroke drawn after the element resized joins at the new size, and the
-    record's box is that size."""
-    page = open_page(browser, serve(TARGETS_PAGE))
+@pytest.mark.parametrize("change", ["wrap", "grow"])
+def test_drawing_ink_keeps_its_coordinates_when_its_target_changes_size(
+    browser, serve, change
+):
+    """A one-pixel wrap and unrelated growth cannot stretch a drawing's pixels."""
+    page = open_page(browser, serve(WORDS_PAGE))
+    line = page.locator("#line")
+    line.evaluate("""el => {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      el.style.width = `${range.getBoundingClientRect().width + 0.5}px`;
+    }""")
+    drawn_at = line.bounding_box()
+    draw_over(page, line)
+    mark = ".lf-drawing-pending"
+    expect(page.locator(mark)).to_have_count(1)
+    relation = mark_relation(page, mark, "#line")
+    if change == "wrap":
+        line.evaluate("el => el.style.width = `${parseFloat(el.style.width) - 1}px`")
+    else:
+        line.evaluate("el => el.style.paddingBottom = '40px'")
+    rendered(page)
+    changed = line.bounding_box()
+    assert changed["height"] > drawn_at["height"] + 10, (drawn_at, changed)
+    assert mark_relation(page, mark, "#line") == pytest.approx(relation, abs=0.02)
+
+
+def test_drawing_strokes_keep_their_pixels_across_resize_addition_send_and_replay(
+    browser, serve
+):
+    """Every stroke keeps its target-local pixels even when later strokes are drawn
+    after a paragraph reflows, and sending, undoing and reloading use that same frame.
+    """
+    url = serve(TARGETS_PAGE)
+    page = open_page(browser, url)
     prose = page.locator("#prose")
     wide = page.viewport_size
     draw_over(page, prose)
     expect(page.locator(".lf-drawing-pending")).to_have_count(1)
+    original_path = page.locator(".lf-drawing-pending path").get_attribute("d")
     drawn_at = prose.bounding_box()
+    original_relation = mark_relation(page, ".lf-drawing-pending", "#prose")
 
     page.set_viewport_size({"width": 420, "height": wide["height"]})
+    rendered(page)
     narrow = prose.bounding_box()
     assert narrow["width"] < 0.8 * drawn_at["width"]
     assert narrow["height"] > drawn_at["height"], "the paragraph must reflow"
+    assert mark_relation(page, ".lf-drawing-pending", "#prose") == pytest.approx(
+        original_relation, abs=0.02
+    )
     stroke_over(page, prose, points=((0.3, 0.3), (0.5, 0.7), (0.7, 0.3)))
-    field = page.locator(".lf-fab-input")
-    expect(field).to_be_focused()
+    path = page.locator(".lf-drawing-pending path").get_attribute("d")
+    assert mark_relation(page, ".lf-drawing-pending", "#prose")[2] == pytest.approx(
+        max(drawn_at["width"] * 0.78, narrow["width"] * 0.7)
+        - min(drawn_at["width"] * 0.22, narrow["width"] * 0.3),
+        abs=0.02,
+    ), "a pending drawing wider than the viewport keeps its full width"
+    assert path.startswith(original_path + " M"), (
+        "adding ink cannot reframe earlier ink"
+    )
+    page.get_by_role("button", name="Undo last stroke").click()
+    expect(page.locator(".lf-drawing-pending path")).to_have_attribute(
+        "d", original_path
+    )
+    stroke_over(page, prose, points=((0.3, 0.3), (0.5, 0.7), (0.7, 0.3)))
     with sending(page, "the resized drawing"):
         page.keyboard.press("ControlOrMeta+Enter")
 
     event = events_model.read_events(serve.page_dir)[-1]
     drawing = event["drawing"]
-    assert drawing["box"] == pytest.approx(
-        [narrow["width"], narrow["height"]], abs=0.01
-    )
     first, second = drawing["strokes"]
-    # Each stroke is a share of the one box, whichever size it was drawn at.
-    assert first[0][0] / drawing["box"][0] == pytest.approx(STROKE[0][0], abs=0.02)
-    assert first[0][1] / drawing["box"][1] == pytest.approx(STROKE[0][1], abs=0.02)
-    assert second[0][0] / drawing["box"][0] == pytest.approx(0.3, abs=0.02)
-
+    assert first[0] == pytest.approx(
+        [drawn_at["width"] * STROKE[0][0], drawn_at["height"] * STROKE[0][1]], abs=0.02
+    )
+    assert second[0] == pytest.approx(
+        [narrow["width"] * 0.3, narrow["height"] * 0.3], abs=0.02
+    )
     posted = f'.lf-drawing-posted[data-thread="{event["id"]}"]'
     expect(page.locator(posted)).to_have_count(1)
-
-    def shares():
-        """The mark's offset and size as shares of the element's current box."""
-        rendered(page)
-        dx, dy, width, height = mark_relation(page, posted, "#prose")
-        box = prose.bounding_box()
-        return [
-            dx / box["width"],
-            dy / box["height"],
-            width / box["width"],
-            height / box["height"],
-        ]
-
-    at_narrow = shares()
+    relation = mark_relation(page, posted, "#prose")
     page.set_viewport_size(wide)
-    assert prose.bounding_box()["width"] == pytest.approx(drawn_at["width"], abs=0.5)
-    assert shares() == pytest.approx(at_narrow, abs=0.01)
+    rendered(page)
+    assert mark_relation(page, posted, "#prose") == pytest.approx(relation, abs=0.02)
+    page.reload()
+    wait_until_ready(page)
+    expect(page.locator(posted)).to_have_count(1)
+    assert mark_relation(page, posted, "#prose") == pytest.approx(relation, abs=0.02)
 
 
 def test_a_drawing_says_the_words_it_stands_over_and_the_box_it_was_drawn_in(
@@ -436,6 +686,39 @@ SWATCH_PAGE = leaf_page(
 )
 # Across the band, which runs from 84% of the swatch's height to its foot.
 BAND_STROKE = ((0.22, 0.95), (0.5, 0.88), (0.78, 0.95))
+
+
+def test_an_active_stroke_keeps_its_start_when_its_pane_scrolls(browser, serve):
+    """Sampling another point cannot move earlier ink off its scrolled content."""
+    page = open_page(browser, serve(SWATCH_PAGE))
+    page.locator("#pane").evaluate("el => el.scrollTop = 600")
+    rendered(page)
+    swatch = page.locator("#swatch")
+    box = swatch.bounding_box()
+    x, y = box["x"] + 40, box["y"] + 50
+    page.mouse.move(x, y)
+    page.keyboard.press("w")
+    page.mouse.down()
+    page.mouse.move(x + 50, y + 10)
+    expect(page.locator(".lf-drawing-active")).to_have_count(1)
+
+    def start():
+        return page.evaluate("""() => {
+          const path = document.querySelector('.lf-drawing-active path');
+          const point = path.getPointAtLength(0).matrixTransform(path.getScreenCTM());
+          const box = document.querySelector('#swatch').getBoundingClientRect();
+          return [point.x - box.x, point.y - box.y];
+        }""")
+
+    before = start()
+    page.locator("#pane").evaluate("el => el.scrollTop += 30")
+    rendered(page)
+    moved = swatch.bounding_box()
+    assert moved["y"] == pytest.approx(box["y"] - 30, abs=0.02)
+    page.mouse.move(x + 70, y + 20)
+    rendered(page)
+    assert start() == pytest.approx(before, abs=0.02)
+    page.mouse.up()
 
 
 def test_a_drawing_is_pictured_in_the_window_it_was_drawn_in(browser, serve):
@@ -1200,7 +1483,7 @@ def test_a_malformed_anchored_drawing_draft_keeps_its_words_without_the_mark(
               anchor,
               suggest: false,
               about: null,
-              drawing: {format: 'leaf-drawing/2', strokes: [[[0, 0]]]},
+              drawing: {format: 'leaf-drawing/3', strokes: [[[0, 0]]]},
               touched: Date.now(),
             }),
             attempt: record.attempt,
@@ -1243,7 +1526,7 @@ def test_a_drawing_can_be_sent_without_words(browser, serve):
     event = events_model.read_events(serve.page_dir)[-1]
     assert event["kind"] == "comment"
     assert "text" not in event
-    assert event["drawing"]["format"] == "leaf-drawing/2"
+    assert event["drawing"]["format"] == "leaf-drawing/3"
     thread = page.get_by_role("dialog", name=re.compile("Thread for"))
     expect(thread).to_be_visible()
     expect(thread.locator(".lf-drawing-reference")).to_have_text("Drawing comment")
@@ -1255,7 +1538,7 @@ def test_an_inline_thread_keeps_drawing_context_on_the_page(browser, serve):
     in the inline transcript."""
     url = serve(THREAD_DIFF_PAGE)
     drawing = {
-        "format": "leaf-drawing/2",
+        "format": "leaf-drawing/3",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
         "box": [640.5, 96],
         "viewport": [1280, 720],
@@ -1379,6 +1662,78 @@ CLIPPED_DRAWING_PAGE = leaf_page(
     head="<style>#viewport { width: 360px; height: 200px; overflow: hidden; }"
     "#pixels { width: 360px; height: 200px; background: var(--paper); }</style>",
 )
+
+
+@pytest.mark.parametrize(
+    "transform", ["scale(.5)", "rotate(90deg)", "ancestor scale(.5)"]
+)
+def test_drawing_ink_follows_its_targets_transform(browser, serve, transform):
+    """A page transform moves marked visual features and their ink together."""
+    page = open_page(browser, serve(CLIPPED_DRAWING_PAGE))
+    target = page.locator("#pixels")
+    target.evaluate("el => el.style.transformOrigin = '0 0'")
+    draw_over(page, target, points=((0.2, 0.4), (0.4, 0.4), (0.7, 0.4)))
+    expect(page.locator(".lf-drawing-pending")).to_have_count(1)
+    box = target.bounding_box()
+    transformed = (
+        page.locator("#viewport") if transform.startswith("ancestor") else target
+    )
+    transformed.evaluate(
+        """async (el, value) => {
+      const {layoutChanged} = await import('/runtime/widget-elements.js');
+      el.style.transformOrigin = '0 0';
+      el.style.transform = value;
+      await layoutChanged(el);
+    }""",
+        transform.removeprefix("ancestor "),
+    )
+    rendered(page)
+    point = page.evaluate("""() => {
+      const path = document.querySelector('.lf-drawing-pending path');
+      const point = path.getPointAtLength(0).matrixTransform(path.getScreenCTM());
+      return [point.x, point.y];
+    }""")
+    if "scale" in transform:
+        expected = [box["x"] + 0.1 * box["width"], box["y"] + 0.2 * box["height"]]
+    else:
+        expected = [box["x"] - 0.4 * box["height"], box["y"] + 0.2 * box["width"]]
+    assert point == pytest.approx(expected, abs=0.02)
+
+
+def test_a_drawing_captured_on_a_scaled_svg_keeps_its_local_feature(browser, serve):
+    """SVG viewBox scale and a CSS transform are both part of the drawing frame."""
+    source = CLIPPED_DRAWING_PAGE.replace(
+        '<div id="pixels">Captured pixels</div>',
+        '<svg id="pixels" viewBox="0 0 180 100" role="img" aria-label="Sample">'
+        '<rect width="180" height="100" fill="var(--paper)"/></svg>',
+    )
+    page = open_page(browser, serve(source))
+    target = page.locator("#pixels")
+    target.evaluate(
+        "el => { el.style.transformOrigin = '0 0'; el.style.transform = 'scale(.5)'; }"
+    )
+    draw_over(page, target)
+    expect(page.locator(".lf-drawing-pending")).to_have_count(1)
+    with sending(page, "the drawing on the scaled SVG"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    drawing = events_model.read_events(serve.page_dir)[-1]["drawing"]
+    assert drawing["box"] == pytest.approx([180, 100], abs=0.02)
+    assert drawing["strokes"][0][0] == pytest.approx([180 * 0.22, 100 * 0.62], abs=0.02)
+    target.evaluate("""async el => {
+      const {layoutChanged} = await import('/runtime/widget-elements.js');
+      el.style.transform = 'none';
+      await layoutChanged(el);
+    }""")
+    rendered(page)
+    box = target.bounding_box()
+    point = page.evaluate("""() => {
+      const path = document.querySelector('.lf-drawing-posted path');
+      const point = path.getPointAtLength(0).matrixTransform(path.getScreenCTM());
+      return [point.x, point.y];
+    }""")
+    assert point == pytest.approx(
+        [box["x"] + box["width"] * 0.22, box["y"] + box["height"] * 0.62], abs=0.02
+    )
 
 
 def test_drawing_ink_follows_pixels_inside_their_ancestor_viewport(browser, serve):

@@ -600,8 +600,8 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
      an auxiliary toggle wears: the card's top edge meets it there. */
   .lf-page-comment[aria-expanded="true"] { color: var(--accent); background: var(--chip); }
   /* The card hangs from the control: its top edge on the banner's foot and its right
-     edge on the control's, with no border along the edge it hangs from, so control and
-     card read as one piece while it is open. If that placement overflows the window,
+     edge on the control's. The standard comment box supplies its only frame; the
+     popover reserves just the room its focus ring paints into. If placement overflows the window,
      it slides just enough for the window's inset to own its left edge, inside the side
      safe areas. Its height is the room beneath the banner; the editor shrinks before
      the card scrolls. On a phone, where the control is behind More, it spans the window
@@ -617,9 +617,8 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
     margin: 0; z-index: var(--lf-z-menu);
     box-sizing: border-box; width: var(--lf-card-width);
     max-height: calc(100dvh - var(--lf-banner-h)); overflow-y: auto;
-    padding: 12px; background: var(--paper); color: var(--ink);
-    border: 1px solid var(--border-2); border-top: 0;
-    border-radius: 0 0 var(--r) var(--r); box-shadow: 0 12px 36px var(--shade); }
+    padding: var(--focus-ring-w); background: var(--card); color: var(--ink);
+    border: 0; border-radius: var(--r); filter: drop-shadow(0 12px 18px var(--shade)); }
   .lf-page-comment-card:popover-open { display: flex; flex-direction: column; }
   @media screen and (width <= 480px) {
     .lf-page-comment-card { right: calc(var(--lf-card-inset) + var(--lf-safe-right));

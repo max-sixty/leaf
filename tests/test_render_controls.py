@@ -1425,6 +1425,14 @@ VISUAL_REVIEW_GALLERY = next(
 )
 
 
+SAMPLE_STARTUP_FAILURE = """<script type="module">
+if (new URL(location.href).searchParams.has('startup-failure'))
+  window.dispatchEvent(new CustomEvent('lf-startup-failed', {
+    detail: {reason: 'Practice could not start'},
+  }));
+</script>"""
+
+
 LIVE_SAMPLES_PAGE = leaf_page(
     "Independent practice pages",
     """
@@ -1452,18 +1460,18 @@ LIVE_SAMPLES_PAGE = leaf_page(
   </template>
 </lf-sample>
 """,
-)
+).replace("</template>", SAMPLE_STARTUP_FAILURE + "</template>")
 
 
 def fail_sample_startup(route):
-    """A real child reports startup failure over its authenticated bridge."""
-    response = route.fetch()
-    body = response.text().replace(
-        "</body>",
-        '<script>window.dispatchEvent(new CustomEvent("lf-startup-failed", '
-        '{detail: {reason: "Practice could not start"}}));</script></body>',
+    """The real child reports its fixture's failure over the private bridge.
+
+    Keep native document delivery: an intercepted synthetic response has no network
+    address space, so Chromium refuses its opaque origin's real loopback resources.
+    """
+    route.fulfill(
+        status=307, headers={"Location": route.request.url + "?startup-failure"}
     )
-    route.fulfill(response=response, body=body)
 
 
 def test_live_sample_full_view_keeps_the_child_and_returns_after_inner_escape(
@@ -2108,6 +2116,7 @@ def test_sample_reset_keeps_the_keyboard_position_while_loading(browser, serve):
 </lf-sample>
 """,
     )
+    source = source.replace("</template>", SAMPLE_STARTUP_FAILURE + "</template>")
     page = open_page(browser, serve(source))
     sample = page.locator("#practice")
     reset = sample.get_by_role("button", name="Reset", exact=True)

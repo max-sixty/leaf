@@ -1,7 +1,7 @@
 /** CodeMirror owns editing, selection, history and conflict presentation.
  * The surrounding widget alone owns file revisions and disk writes.
  */
-import { sizeObserver } from "/runtime/widget-api.js";
+import { LeafEditorView, sizeObserver } from "/runtime/widget-api.js";
 import {
   ChangeSet,
   Compartment,
@@ -201,7 +201,7 @@ export function createEditor(
       ],
     });
   let retained = state(text);
-  let view = new EditorView({ state: retained, parent });
+  let view = new LeafEditorView({ state: retained, parent });
   let scroll = { top: 0, left: 0 };
   const reading = () => view?.state ?? retained;
   const dispatch = (spec) => {
@@ -285,7 +285,7 @@ export function createEditor(
     },
     connect() {
       if (view) return;
-      view = new EditorView({ state: retained, parent });
+      view = new LeafEditorView({ state: retained, parent });
       view.scrollDOM.scrollTop = scroll.top;
       view.scrollDOM.scrollLeft = scroll.left;
       resize?.observe(view.scrollDOM);

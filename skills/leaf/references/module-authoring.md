@@ -32,6 +32,12 @@ filter field. It supplies the shared frame, accessible label, native editor and
 Clear; the caller owns its query and results. Put an auxiliary reading such as a
 match count in its `end` slot and reserve its longest value with `reserve`.
 
+For a CodeMirror editor, import `LeafEditorView` from `widget-api.js` and use it
+in place of the dependency's `EditorView` constructor. It retains CodeMirror's
+state and editing API while admitting focus through Leaf's input owner and
+keeping editor reveals within the current document. Its navigation extension
+survives retained states and complete `setState` replacements.
+
 For a vertical navigation that must retain sideways reading, use
 `scrollIntoReadingBand(target, holder, block, behavior)`: `target` is an element or
 Range, and `holder` is the element whose reading regions contain it. Element targets

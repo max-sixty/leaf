@@ -74,7 +74,6 @@ customElements.define(
           this.#host = host;
           host.on("height", ({ height }) => this.#height(height));
           host.on("loading", () => this.#track(host.ready));
-          host.on("error", (error) => this.#failure(error));
           return host.ready;
         },
         (error) => {

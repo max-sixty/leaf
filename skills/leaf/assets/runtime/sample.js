@@ -79,6 +79,7 @@ export function mountSample(
   let nextId = 0;
   let readyResolve;
   let readyReject;
+  let presenting = false;
   let connectedNonce = null;
   const candidates = new Set();
   const pending = new Map();
@@ -150,14 +151,38 @@ export function mountSample(
     for (const { reject } of pending.values()) reject(reason);
     pending.clear();
   }
+  // Public readiness includes failure retirement. Reset coalesces this same
+  // operation, so a reported failure already permits a fresh allocation.
+  function begin(work) {
+    const active = work;
+    operation = active;
+    host.ready = active;
+    const settled = () => {
+      if (operation === active) operation = null;
+    };
+    active.then(settled, settled);
+    return active;
+  }
+  async function settle(work) {
+    try {
+      return await work;
+    } catch (error) {
+      await retire();
+      throw error;
+    }
+  }
   function presentation() {
-    host.ready = new Promise((resolve, reject) => {
-      readyResolve = resolve;
-      readyReject = reject;
+    presenting = true;
+    return new Promise((resolve, reject) => {
+      readyResolve = (value) => {
+        presenting = false;
+        resolve(value);
+      };
+      readyReject = (error) => {
+        presenting = false;
+        reject(error);
+      };
     });
-    // A reload can start without a caller waiting on the new presentation.
-    host.ready.catch(() => {});
-    return host.ready;
   }
   function connect(event) {
     if (
@@ -187,7 +212,7 @@ export function mountSample(
         if (reloading) {
           const previousResolve = readyResolve;
           const previousReject = readyReject;
-          presentation().then(previousResolve, previousReject);
+          begin(settle(presentation())).then(previousResolve, previousReject);
           notify("loading");
         }
         visibility();
@@ -212,8 +237,11 @@ export function mountSample(
         visibility();
       } else if (data.type === "error") {
         const error = new Error(data.detail.message);
-        readyReject(error);
-        notify("error", error);
+        if (presenting) readyReject(error);
+        else {
+          begin(settle(Promise.reject(error)));
+          notify("loading");
+        }
       } else if (data.type === "return")
         frame.dispatchEvent(new Event("lf-sample-return"));
       else notify(data.type, data.detail);
@@ -275,44 +303,33 @@ export function mountSample(
   }
   async function replace() {
     await retire();
-    return loadWithinLimit(async (release) => {
-      if (destroyed) throw new DOMException("sample destroyed", "AbortError");
-      const { url } = await request(
-        pageUrl("api/samples"),
-        { template, passive },
-        revision ? { "Leaf-View-Revision": String(revision) } : {},
-      );
-      current = new URL(url, location.href).href;
-      try {
+    return settle(
+      loadWithinLimit(async (release) => {
         if (destroyed) throw new DOMException("sample destroyed", "AbortError");
-        const presented = presentation();
-        // A loaded module graph frees its slot even while presentation waits on
-        // slow state. Native load needs no access to the opaque child document.
-        frame.addEventListener("load", release, { once: true });
-        frame.src = current;
-        return await presented;
-      } catch (error) {
-        await retire();
-        throw error;
-      } finally {
-        frame.removeEventListener("load", release);
-      }
-    });
+        const { url } = await request(
+          pageUrl("api/samples"),
+          { template, passive },
+          revision ? { "Leaf-View-Revision": String(revision) } : {},
+        );
+        current = new URL(url, location.href).href;
+        try {
+          if (destroyed) throw new DOMException("sample destroyed", "AbortError");
+          const presented = presentation();
+          // A loaded module graph frees its slot even while presentation waits on
+          // slow state. Native load needs no access to the opaque child document.
+          frame.addEventListener("load", release, { once: true });
+          frame.src = current;
+          return await presented;
+        } finally {
+          frame.removeEventListener("load", release);
+        }
+      }),
+    );
   }
   function reset() {
     if (destroyed)
       return Promise.reject(new Error("the sample host has been destroyed"));
-    if (!operation) {
-      operation = replace();
-      operation.then(
-        () => {
-          operation = null;
-        },
-        () => {
-          operation = null;
-        },
-      );
-    }
+    if (!operation) begin(replace());
     return operation;
   }
   const host = {
@@ -372,6 +389,6 @@ export function mountSample(
     if (!event.persisted) void host.destroy();
   };
   window.addEventListener("pagehide", departing);
-  host.ready = reset();
+  reset();
   return host;
 }

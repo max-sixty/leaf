@@ -3,7 +3,15 @@
 from leaf.file_bindings import bind_file
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
-from render_harness import consume_browser_errors, leaf_page, open_page, primed
+from render_harness import (
+    consume_browser_errors,
+    leaf_page,
+    one_frame,
+    open_page,
+    primed,
+    rendered,
+    scroll_settled,
+)
 
 
 def test_file_editor_saves_quietly_and_preserves_inflight_edits(
@@ -228,3 +236,131 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
         "409 ",
         "Failed to load resource: net::ERR_FAILED",
     )
+
+
+def test_sample_file_editor_resize_keeps_classic_scrollbars_inside_its_document(
+    scrollbar_browser, serve
+):
+    """A desktop horizontal scrollbar must not invoke a cross-frame mobile reveal."""
+    page = open_page(
+        scrollbar_browser,
+        serve(
+            leaf_page(
+                "File editor containment",
+                """
+<h1>Containing page</h1><button id="owner">Containing owner</button>
+<div style="height:1400px"></div>
+<lf-sample id="practice" label="File practice" window>
+  <template id="practice-source" data-sample>
+    <style>
+      html { overflow-x:scroll !important; }
+      ::-webkit-scrollbar { width:16px; height:16px; background:#ddd; }
+      ::-webkit-scrollbar-thumb { background:#888; }
+    </style>
+    <script type="module">
+      let height = 220;
+      document.addEventListener('keydown', event => {
+        if (event.key !== 'F2') return;
+        event.preventDefault();
+        document.querySelector('#file').style.setProperty(
+          '--lf-file-editor-height', `${height}px`);
+        height -= 40;
+      });
+    </script>
+    <h1>File practice</h1><div style="width:3000px;height:4px"></div>
+    <lf-file-editor id="file" binding="notes"></lf-file-editor>
+    <div style="height:3000px"></div>
+  </template>
+</lf-sample>
+<div style="height:1400px"></div>
+""",
+            ),
+            packages=["file-editor"],
+        ),
+    )
+    sample = page.locator("#practice")
+    sample.evaluate("async sample => await sample.ready")
+    frame = sample.locator("iframe")
+    child = frame.element_handle().content_frame()
+    editor = child.get_by_role("textbox", name="File contents", exact=True)
+    expect(editor).to_have_attribute("aria-readonly", "true")
+    expect(child.locator(".lf-file-editor-explanation")).not_to_be_empty()
+    consume_browser_errors(page, f"400 {child.url}api/files/notes")
+    editor.click()
+    expect(editor).to_be_focused()
+    assert child.evaluate("innerHeight - visualViewport.height") > 1
+
+    # Scroll the active editor away, then resize it while its child document is
+    # outside the parent's viewport. CodeMirror defers this layout until visible.
+    child.evaluate("scrollTo(0, 2000)")
+    page.evaluate("scrollTo(0, 0)")
+    scroll_settled(page)
+    page.keyboard.press("F2")
+    top = frame.evaluate("frame => frame.getBoundingClientRect().top + scrollY")
+    before = round(top - page.viewport_size["height"] + 100)
+    page.evaluate("y => scrollTo(0, y)", before)
+    scroll_settled(page)
+    rendered(child)
+    # Visibility delivers the deferred observer and its editor measurement.
+    one_frame(child)
+    rendered(child)
+    assert page.evaluate("scrollY") == before
+
+    page.keyboard.press("F2")
+    rendered(child)
+    one_frame(child)
+    rendered(child)
+    assert page.evaluate("scrollY") == before
+    expect(editor).to_be_focused()
+
+
+def test_file_editor_page_navigation_preserves_the_caret_position(
+    browser, serve, tmp_path
+):
+    """PageDown aligns the next page at the caret's retained viewport offset."""
+    file = tmp_path / "notes.md"
+    file.write_text("\n".join(f"Line {number}" for number in range(1, 301)) + "\n")
+    url = serve(
+        leaf_page(
+            "Notes",
+            '<h1>Notes</h1><lf-file-editor id="notes-file" binding="notes"></lf-file-editor>',
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "notes", file)
+    page = open_page(browser, live_url(url))
+    editor = page.locator("lf-file-editor").get_by_role(
+        "textbox", name="File contents", exact=True
+    )
+    editor.click()
+    page.keyboard.press("ControlOrMeta+Home")
+    for _ in range(10):
+        page.keyboard.press("ArrowDown")
+    rendered(page)
+
+    def reading():
+        return editor.evaluate("""editor => {
+          const root = editor.getRootNode();
+          const port = root.querySelector('.cm-scroller');
+          const caret = root.querySelector('.cm-cursor-primary, .cm-cursor');
+          return {scroll: port.scrollTop,
+            offset: caret.getBoundingClientRect().top - port.getBoundingClientRect().top};
+        }""")
+
+    initial = reading()
+    previous = initial["scroll"]
+    for _ in range(3):
+        page.keyboard.press("PageDown")
+        rendered(page)
+        current = reading()
+        assert abs(current["offset"] - initial["offset"]) <= 1
+        assert current["scroll"] > previous
+        previous = current["scroll"]
+
+    for _ in range(3):
+        page.keyboard.press("PageUp")
+        rendered(page)
+        current = reading()
+        assert abs(current["offset"] - initial["offset"]) <= 1
+        assert current["scroll"] < previous
+        previous = current["scroll"]

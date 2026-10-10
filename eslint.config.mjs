@@ -478,12 +478,38 @@ export const placementsRule = {
       arg.type === "ObjectExpression" ||
       arg.type === "SpreadElement" ||
       (arg.type === "Identifier" && /^opt/u.test(arg.name));
+    // CodeMirror's imported state effect asks its view's scroll handler to reveal;
+    // it is not the browser method. Resolve the binding so aliases work and a local
+    // element merely named EditorView does not gain an exception.
+    const editorReveal = (callee) => {
+      if (callee.object.type !== "Identifier") return false;
+      for (
+        let scope = context.sourceCode.getScope(callee);
+        scope;
+        scope = scope.upper
+      ) {
+        const binding = scope.set.get(callee.object.name);
+        if (!binding) continue;
+        return binding.defs.some(
+          (definition) =>
+            definition.type === "ImportBinding" &&
+            definition.node.imported?.name === "EditorView" &&
+            /(?:^|\/)vendor\/codemirror\.esm\.js$/u.test(
+              definition.parent.source.value,
+            ),
+        );
+      }
+      return false;
+    };
     return {
       CallExpression(node) {
         const { callee, arguments: args } = node;
         if (callee.type === "MemberExpression" && !callee.computed) {
           if (
-            ["scrollIntoView", "scrollIntoViewIfNeeded"].includes(callee.property.name)
+            ["scrollIntoView", "scrollIntoViewIfNeeded"].includes(
+              callee.property.name,
+            ) &&
+            !(callee.property.name === "scrollIntoView" && editorReveal(callee))
           )
             context.report({
               node,
@@ -1256,11 +1282,6 @@ export default [
       ],
       "no-restricted-properties": [
         "error",
-        {
-          property: "scrollIntoView",
-          message:
-            "Use scrollIntoView(node, options) from landing-scroll.js or widget-api.js; native scrolling crosses the document boundary into containing samples.",
-        },
         ...["window", "globalThis"].flatMap((object) =>
           ["requestAnimationFrame", "cancelAnimationFrame", "ResizeObserver"].map(
             (property) => ({ object, property, message: RENDERING_MESSAGE }),
@@ -1301,6 +1322,8 @@ export default [
           // The text field's own `focus()`, which the placement calls, hands on to the
           // editor its shadow tree holds.
           "skills/leaf/assets/runtime/composing/text-field.js",
+          // The shared CodeMirror adapter places its own native editor.
+          "skills/leaf/assets/runtime/editor-view.js",
         ],
       ],
       "architecture/layer-returns": [

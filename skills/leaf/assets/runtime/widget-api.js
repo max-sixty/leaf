@@ -245,3 +245,5 @@ export {
   worksInside,
 } from "./widget-elements.js";
 export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";
+
+export { LeafEditorView } from "./editor-view.js";

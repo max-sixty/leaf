@@ -72,7 +72,7 @@ what fails and what still works.
 - **Owners:** focus admission and layer returns in `runtime/focus.js`, native
   openings and the canonical modal reading in `runtime/keyboard/layer-stack.js`,
   document-local reveal in `runtime/landing-scroll.js`, and the editor adapter in
-  `runtime/composing/text-field.js`.
+  `runtime/editor-view.js`.
 - **Observed, 2026-10-09:** installed Chrome 155 and Playwright Chromium
   153.0.8010.12 allow autonomous SVG focus, `window.focus`, `dialog.showModal`,
   `showPopover`, and nested-frame native focus to take focus from the containing
@@ -110,7 +110,13 @@ what fails and what still works.
   without scrolling, and places the retained selection from editor state. The
   regression passes repeated entry and real editing in Chromium and WebKit 26.6;
   WebKit dialog and popover phase checks also preserve containing-page focus and
-  scroll. These are engine checks, not installed Safari or mobile-browser checks.
+  scroll. Playwright Chromium 153.0.8010.12 also invoked CodeMirror's native mobile
+  reveal fallback on desktop when a classic horizontal scrollbar reduced
+  `visualViewport.height` below `innerHeight`. A focused read-only file editor's
+  deferred resize then moved the containing page as its sample became visible.
+  The shared editor adapter consumes reveal requests through Leaf's document-local
+  scroll owner; the classic-scrollbar regression now keeps the containing page
+  still. These are engine checks, not installed Safari or mobile-browser checks.
 
 ### Frame margin trimming
 

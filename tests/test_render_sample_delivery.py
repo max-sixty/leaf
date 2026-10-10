@@ -58,8 +58,8 @@ document.querySelector('#popup').addEventListener('click', () => {
         ),
     )
     sample = page.locator("#practice")
-    sample.locator(":scope > iframe").wait_for(state="attached")
-    child = sample.locator(":scope > iframe").element_handle().content_frame()
+    sample.locator("iframe").wait_for(state="attached")
+    child = sample.locator("iframe").element_handle().content_frame()
     child.wait_for_function(
         "document.body?.hasAttribute('data-lf-presented')", timeout=20000
     )

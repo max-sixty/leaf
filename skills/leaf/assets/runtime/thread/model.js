@@ -90,6 +90,7 @@ export const threadKey = (thread) => thread.root.attempt ?? thread.id;
 // server's `key` where it names one, as it does for an agent's answer to an input and
 // the provisional reply that stood for it (`served_state/thread.py`), else the user's
 // own attempt for a message this tab sent, else the id the log gave it.
+/** @param {Pick<Message, "id" | "key" | "attempt">} message */
 export const messageKey = (message) => message.key ?? message.attempt ?? message.id;
 
 // Every name that reaches a thread: its own id, the id of each message in it, which a

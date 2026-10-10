@@ -42,6 +42,8 @@ export type LocalMessage = Extract<Command, { kind: "comment" | "reply" }> & {
 export type StreamingMessage = {
   id: string;
   attempt: string;
+  key: string;
+  provisional: true;
   kind: "reply";
   addressable: false;
   author: "agent";
@@ -52,6 +54,8 @@ export type StreamingMessage = {
   pending: boolean;
 };
 export type Message = CompleteUnion<MessageEvent | LocalMessage | StreamingMessage> & {
+  // The name it is drawn under where the server gives one (`thread.messageKey`).
+  key?: string;
   agent?: string | null;
   pending?: boolean;
   edited?: { id: string; seq: number; ts: string };

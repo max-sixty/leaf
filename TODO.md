@@ -66,19 +66,6 @@ has tried; settle that before building it.
   result is hidden. Decide whether a page needs one progress reading across Questions,
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
-- **Keep Tab off page content a panel beside the page covers.** Threads and the
-  Questions panel leave the page live beside them while standing over part of it. Max's rule
-  (2026-10-06): the panels dominate focus, so moving focus never closes or changes a
-  standing panel, focus never lands on page content a panel covers, and Threads still
-  stands beside a full-width workspace. A comment box already refuses a covered seat
-  (`underOccluder`, geometry.js). Tab still walks onto `annotation-workspace`'s rail
-  under Threads, or the Questions panel that shares its right edge, at 1440×900. Making what a panel covers inert was built and withdrawn: it left the visible
-  part of a partly covered element dead to clicks and selection, and focus still reached
-  chrome markers, sample frames, overflowing children and content an attribute revealed.
-  Decide between laying the page out in the width a panel leaves beside it, which
-  reverses "auxiliary surfaces never change the page's geometry"
-  (`skills/leaf/assets/AGENTS.md`), and Leaf owning Tab beside a panel, skipping stops
-  `hides` says it covers.
 
 ### Agent and author experience
 
@@ -175,7 +162,19 @@ has tried; settle that before building it.
   sent card, or a control that keeps the field's measure
   (`skills/leaf/assets/runtime/composing/selection.js`).
 - **Reconsider thread navigation.** Decide how the Threads panel should change
-  before refining it (`skills/leaf/assets/AGENTS.md`, "Space and scrolling").
+  before refining it (`skills/leaf/assets/AGENTS.md`, "Space and scrolling"). The
+  redesign also settles how focus stays off page content a panel covers (Max,
+  2026-10-10). His rule (2026-10-06): the panels dominate focus, so moving focus never
+  closes or changes a standing panel, and focus never lands on content a panel covers.
+  Today Tab still walks onto `annotation-workspace`'s rail under Threads, or under the
+  Questions panel that shares its right edge, at 1440×900. Making covered content inert
+  was built and withdrawn: the visible part of a partly covered element went dead to
+  clicks and selection, and focus still reached chrome markers, sample frames,
+  overflowing children and content an attribute revealed. A comment box already
+  refuses a covered seat (`underOccluder`, `geometry.js`). The two routes weighed
+  before were laying the page out in the width a panel leaves, which reverses
+  "auxiliary surfaces never change the page's geometry", and Leaf owning Tab beside a
+  panel.
 
 ### Layout
 

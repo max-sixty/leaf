@@ -1153,34 +1153,38 @@ def test_shift_judgement_waits_for_paint_instead_of_a_time_cap(browser):
 
 
 @pytest.mark.parametrize(
-    "when",
+    "when, opaque",
     [
-        "already-hidden",
-        "hidden-during-drain",
-        "resize-during-drain",
-        "cssom-during-drain",
+        pytest.param("already-hidden", False, id="already-hidden"),
+        pytest.param("hidden-during-drain", False, id="hidden-during-drain"),
+        pytest.param("resize-during-drain", False, id="resize-during-drain"),
+        pytest.param("resize-during-drain", True, id="opaque-resize-during-drain"),
+        pytest.param("cssom-during-drain", False, id="cssom-during-drain"),
     ],
 )
-def test_a_hidden_frame_judges_existing_records_without_awaiting_paint(browser, when):
+def test_a_hidden_frame_judges_existing_records_without_awaiting_paint(
+    browser, when, opaque
+):
     page = field_page(browser)
     page.set_viewport_size({"width": 900, "height": 600})
     page.evaluate(
-        """when => {
+        """({when, opaque}) => {
       const style = document.createElement('style');
       style.textContent = '@media(max-width:600px){iframe{display:none}}';
       document.head.append(style);
       const frame = document.createElement('iframe');
       if (when === 'already-hidden') frame.style.display = 'none';
+      if (opaque) frame.setAttribute('sandbox', 'allow-scripts');
       frame.srcdoc = '<!doctype html><body><button>Hidden control</button></body>';
       document.body.append(frame);
     }""",
-        when,
+        {"when": when, "opaque": opaque},
     )
-    page.wait_for_function(
-        "document.querySelector('iframe').contentDocument?.readyState === 'complete'"
-    )
+    page.frame_locator("iframe").locator("button").wait_for(state="attached")
     frame = page.frames[1]
-    frame.evaluate("""() => {
+    drawn = page.locator("iframe").evaluate("frame => frame.checkVisibility()")
+    frame.evaluate(
+        """async drawn => {
       const nativeFrame = window.lfWatchPlatform.frame;
       const held = [];
       window.lfWatchPlatform.frame = callback => { held.push(callback); return 0; };
@@ -1188,14 +1192,22 @@ def test_a_hidden_frame_judges_existing_records_without_awaiting_paint(browser, 
         window.lfWatchPlatform.frame = nativeFrame;
         for (const callback of held.splice(0)) nativeFrame(callback);
       };
+      window.readHeldFrame = () => {
+        for (const callback of held.splice(0)) callback(performance.now());
+      };
+      // Holding future registrations leaves previously requested callbacks live.
+      // Let them enter the hold before forcing the next reading to verify itself.
+      if (drawn) await new Promise(nativeFrame);
       // The driver publishes owner visibility; this sensor-level fixture supplies
       // the same fact while holding paint. Opaque-frame integration is above.
       window.lfWatchJudgement = {
-        ancestorsDrawn: window.frameElement.checkVisibility(),
+        ancestorsDrawn: drawn,
       };
       window.hiddenJudged = false;
       window.lfShiftsJudged().then(() => window.hiddenJudged = true);
-    }""")
+    }""",
+        drawn,
+    )
     try:
         if when != "already-hidden":
             assert frame.evaluate("window.hiddenJudged") is False
@@ -1207,11 +1219,14 @@ def test_a_hidden_frame_judges_existing_records_without_awaiting_paint(browser, 
                 )
             else:
                 page.evaluate("document.querySelector('iframe').style.display = 'none'")
-        frame.evaluate(
-            "lfWatchJudgement.ancestorsDrawn = frameElement.checkVisibility()"
-        )
+        # A native callback may run after the owner hides but before the driver
+        # refreshes its visibility fact. The sensor must read that change itself
+        # or retain complete readings where the owner is opaque.
+        frame.evaluate("window.readHeldFrame()")
+        drawn = page.locator("iframe").evaluate("frame => frame.checkVisibility()")
+        frame.evaluate("drawn => lfWatchJudgement.ancestorsDrawn = drawn", drawn)
         frame.wait_for_function("window.hiddenJudged === true", polling=100)
-        assert frame.evaluate("window.frameElement.checkVisibility()") is False
+        assert drawn is False
     finally:
         frame.evaluate("window.restoreFrame(); delete window.lfWatchJudgement")
 

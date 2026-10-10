@@ -5,6 +5,7 @@ from pathlib import Path
 
 from leaf.activity import answer_command
 from leaf.data_contracts import data_binding_errors
+from leaf.events import build_threads
 from leaf.files import list_revisions
 from leaf.registry.schema import json_value
 from leaf.registry.storage import require_registry
@@ -105,6 +106,14 @@ def logged_id(events: list, value: str, responses: dict) -> str | None:
     if owed is None and kind in MESSAGE_KINDS:
         owed = thread_obligation(events, responses, value)
         if owed is None:
+            thread = build_threads(events, {}).get(thread_names(events)[value])
+            resolution = thread["resolved"] if thread else None
+            if resolution is not None and resolution["kind"] == "resolve":
+                actor = "the user" if resolution["author"] == "user" else "the agent"
+                return (
+                    f"{held}; {actor} resolved the thread at {resolution['ts']}, "
+                    "so no reply is owed"
+                )
             return (
                 f"{held}, and nothing is owed for it — "
                 f"`leaf thread reply <page> {value}` replies to it"

@@ -199,7 +199,11 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
                 now,
             )
         elif edit == "resize-insert":
-            assert now["height"] > before["height"] + 50, (before, now)
+            # Moving Send to the new last line can also remove a wrapped row.
+            assert now["height"] > before["height"], (before, now)
+            assert now["height"] == pytest.approx(
+                editor.evaluate("box => box.naturalBlockSize"), abs=0.5
+            ), (before, now)
         else:
             assert now["height"] < before["height"] - 50, (before, now)
         assert now["y"] == pytest.approx(before["y"], abs=0.5), (before, now)

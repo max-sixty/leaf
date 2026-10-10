@@ -492,7 +492,9 @@ def test_a_screen_region_that_runs_past_its_room_gets_advice(browser, serve):
     queued = source.replace("<p>Disk pressure on db-2.</p>", asks)
     reading = render_gate_model.render_version(browser, serve(queued, packages=()))
     (advice,) = [line for line in reading.advice if "past the region" in line]
-    assert "holds 2 open Asks" in advice and 'lf-tabs list="side"' in advice, advice
+    assert "holds 2 open Questions" in advice and 'lf-tabs list="side"' in advice, (
+        advice
+    )
 
 
 STACK = "{ #regions { grid-template-columns: 1fr; } }"

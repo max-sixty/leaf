@@ -3,26 +3,26 @@
    Threads panel stands. Only one of the two is open at a time, so they are two views of
    one side panel, and their banner doors stand side by side (banner.js).
 
-   The two words are the two sides: what the user is asked, and what the agent does.
-   Inside the code both are tasks, the one record with an `owner` (`tasks.py`), and the
-   words are this panel's and the banner's alone.
+   Its queues combine canonical Questions, explicit tasks and delivery recovery.
+   Each Question carries its source and answer; only an explicit user task offers
+   Done. This view renders the publisher's selections and never recreates Questions
+   from task rows.
 
-   EXPERIMENTAL. This is a first cut at the panel that replaced the Asks drawer, chosen
-   to see how it does in use; expect its groups, rows, wording and routes to change a
-   lot, and change them freely.
+   EXPERIMENTAL. Expect its groups, rows, wording and routes to change as the panel
+   is used, and change them freely.
 
    The panel decides no membership. Its two queues are the application's one reading,
    `queues.onYou` and `queues.onAgent` (`queues.js`, the browser's side of
    `agent_state.queues`), the same lists the `q` walk steps through and the banner
-   counts; what is done is `done`, selected beside them from the tasks that ended, the
-   answered Asks among them. So a reply the user sends
+   counts; what is done is `done`, selected beside them from ended tasks and answered
+   or withdrawn Questions. So a reply the user sends
    leaves "On you" and joins the agent's queue in the turn it is sent, as it leaves the
    banner's count.
 
    Each row says what kind of item it is, the item's title or opening words, and where it
    is: the passage or section it stands at, and its age, stage or outcome. A press or
    Enter on a row arrives exactly as `q` does (`queue-walk.js`, `arriveAtItem`), so the
-   panel and the walk cannot disagree about where an item is. An Ask's row, and the row
+   panel and the walk cannot disagree about where an item is. A Question's row, and the row
    of a page widget move the user must send again, stands at that element
    (`declareSide`), so a walk or a comment from a focused row starts there. A row whose
    task the user ends with Done carries that Done (`queue-list.js`), the walk's own
@@ -55,6 +55,7 @@ import { elementById, inChrome } from "./passages.js";
 import { PRESENTATION } from "./presentation.js";
 import { standsAt } from "./queue-list.js";
 import { taskNoun } from "./queues.js";
+import { registry } from "./registry.js";
 import { repaint } from "./repaint.js";
 import { keeps, keepsHidden, keepsText } from "./keeps.js";
 import {
@@ -67,26 +68,22 @@ import {
   watchSemantic,
 } from "./semantic-state.js";
 import { under } from "./shadow.js";
-import { askAnswers } from "./asks/answer.js";
-import { readAsks } from "./asks/model.js";
+import { questionWords } from "./questions/answer.js";
+import { readQuestions } from "./questions/model.js";
+import { questionPlace } from "./questions/place.js";
 import { readThreads } from "./thread/state.js";
 import { readQueues, queueItemKey } from "./queue-api.js";
-import { askHolding, declareSide } from "./standing-target.js";
+import { questionHolding, declareSide } from "./standing-target.js";
 import { anchorLabel } from "./thread/messages.js";
 import { queueTitle } from "./queue-title.js";
 import { threadSummary } from "./thread/model.js";
 import { workflowLabel } from "./thread/workflow.js";
 import { walkPositionLabel } from "./walk-position.js";
 
-// What an item is called (`taskNoun`), in the row's apparatus voice. An Ask says what
-// kind of thing is asking, in its widget's own word ("Deletion", "Options"), and "Ask"
-// where its element is not built. A question asked in a thread says Thread, which is
-// where it is answered, and a task the agent put on the user says To do, since Task
-// is the agent's side.
+// Widget requests say Question, prose requests say Thread, and explicit user tasks
+// say To do. Response obligations keep their own Reply or Answer wording.
 const WORDS = Object.freeze({
-  ask: "Ask",
-  question: "Thread",
-  approval: "Approval",
+  question: "Question",
   recovery: "Resend",
   answer: "Answer",
   reply: "Reply",
@@ -97,15 +94,19 @@ const wordOf = (item, noun) =>
   noun === "task" && item.owner === "user" ? "To do" : WORDS[noun];
 const OUTCOMES = Object.freeze({ done: "Done", failed: "Failed", dropped: "Dropped" });
 const HEADINGS = "h1, h2, h3, h4, h5, h6";
-const capital = (words) => words.charAt(0).toUpperCase() + words.slice(1);
 
-function askWord(item) {
-  const word = addressableWord(elementById(item.id));
-  return word ? capital(word) : WORDS.ask;
+function questionWord(item) {
+  const question = item.question;
+  if (question.source.kind === "reply") return "Thread";
+  if (question.source.kind === "approval") return "Approval";
+  const word =
+    registry[question.source.tag]?.["x-word"] &&
+    addressableWord(questionPlace(question).source);
+  return word ? word.charAt(0).toUpperCase() + word.slice(1) : "Question";
 }
 
 // The section a page element stands in: the last heading before it whose parent also
-// holds it, so a heading inside an earlier Ask, or one closing an earlier section, is
+// holds it, so a heading inside an earlier Question, or one closing an earlier section, is
 // not this element's.
 function sectionWords(element) {
   if (!element || inChrome(element)) return "";
@@ -159,10 +160,10 @@ export function createQueuePanel({ actions, next, announce }) {
         : "";
     if (itself) return `§ ${itself}`;
     if (!thread) {
-      // A widget answering an Ask is where that Ask is.
+      // A widget answering a Question is where that Question is.
       const own = elementById(item.subject.id);
-      const ask = own && askHolding(readAsks().all, own);
-      return sectionWords(ask ? elementById(ask.id) : own);
+      const question = own && questionHolding(readQuestions().all, own);
+      return sectionWords(question ? questionPlace(question).context : own);
     }
     if (!thread.anchor?.section) return "Whole page";
     const about = elementById(thread.anchor.section);
@@ -184,12 +185,12 @@ export function createQueuePanel({ actions, next, announce }) {
       return [item.running.text, shortAgo(item.running.ts)].filter(Boolean).join(" · ");
     return "";
   }
-  // An Ask, which only its widget's answer ends, says the answer; any other task says
-  // its outcome.
+  // A Question names its canonical answer or withdrawal; an explicit task names its
+  // outcome.
   function ended(item) {
-    if (item.ends === "widget") {
-      const ask = readAsks().all.find((candidate) => candidate.id === item.id);
-      const answer = ask ? askAnswers([ask])[0] : "";
+    if (item.kind === "question") {
+      if (item.question.status === "withdrawn") return "Withdrawn";
+      const answer = questionWords(item.question);
       return answer ? `Answered ${answer}` : "Answered";
     }
     return [OUTCOMES[item.state] ?? item.state, shortAgo(item.ended)]
@@ -199,7 +200,7 @@ export function createQueuePanel({ actions, next, announce }) {
   function row(item, list) {
     const thread = threadOf(item.thread);
     const noun = taskNoun(item);
-    const word = noun === "ask" ? askWord(item) : wordOf(item, noun);
+    const word = noun === "question" ? questionWord(item) : wordOf(item, noun);
     const where = (
       list === "done"
         ? [ended(item), place(item, thread)]
@@ -208,15 +209,17 @@ export function createQueuePanel({ actions, next, announce }) {
       .filter(Boolean)
       .join(" · ");
     const words = queueTitle(item);
-    // The element a row stands at: an Ask, or a page widget whose move the user must send
-    // again. A reply the agent owes a move stands nowhere, so an Ask's own row is the one
+    // The element a row stands at: a Question, or a page widget whose move the user must send
+    // again. A reply the agent owes a move stands nowhere, so a Question's own row is the one
     // row standing at it.
     const at =
-      noun === "ask" ||
+      noun === "question" ||
       (item.kind === "recovery" &&
         item.subject.kind === "widget" &&
         item.thread === null)
-        ? item.subject.id
+        ? item.kind === "question"
+          ? item.question.id
+          : item.subject.id
         : null;
     return Object.freeze({
       key: `${list}:${noun}:${item.id}`,
@@ -352,7 +355,8 @@ export function createQueuePanel({ actions, next, announce }) {
   // A row stands at the element it names rather than in the panel.
   declareSide((node) => {
     const at = standsAt(node);
-    return at ? elementById(at) : null;
+    const question = readQuestions().all.find((question) => question.id === at);
+    return question ? questionPlace(question).node : at ? elementById(at) : null;
   });
 
   function mount() {

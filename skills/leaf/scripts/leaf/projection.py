@@ -1,6 +1,7 @@
 """Declaration-driven state and retirement projections."""
 
 import re
+from collections.abc import Callable, Iterable
 from typing import NamedTuple
 
 from leaf.events import (
@@ -187,6 +188,7 @@ class PageReading(NamedTuple):
     revision: int
     events: list
     projection: StateProjection
+    prior: Callable[[], Iterable[tuple[int, SourceReading]]] | None = None
 
     @property
     def document(self) -> SourceDocument:
@@ -561,8 +563,52 @@ def folded_value(e: dict, spec: dict):
     return value
 
 
+def question_value(
+    owner, verb, spec, byid, spk, registry, projection, *, answered=False
+):
+    """Read a Question's typed value and presence from the canonical state fold.
+
+    Widget units use their declared record or custom action detail. Member units
+    form one mapping; positions retain every container, including empty ones.
+    Empty authored values need completion to count as an answer; a standing value
+    action counts even while completion is outstanding. Null never holds a value.
+    """
+    actions = {
+        coordinate: held
+        for coordinate, held in projection.actions.items()
+        if coordinate[0] == owner and coordinate[2] == verb
+    }
+    record = spec.get("record")
+    if spec["unit"] == "widget":
+        held = actions.get((owner, owner, verb))
+        value = (
+            (folded_value(*held) if record else held[0]["detail"])
+            if held is not None
+            else markup_value(owner, spec, byid, spk, registry)
+        )
+    elif (record or {}).get("kind") == "position":
+        value = folded_positions(owner, verb, record, byid, spk, registry, projection)
+    else:
+        value = {
+            coordinate[1]: folded_value(*held) if record else held[0]["detail"]
+            for coordinate, held in sorted(actions.items())
+        }
+    present = (
+        value is not NO_RECORD
+        and value is not None
+        and (value not in ("", [], {}) or answered or bool(actions))
+    )
+    return (value if value is not NO_RECORD else None), present
+
+
 def page_reading(
-    reading: SourceReading, events: list, revision: int, *, withdrawn: set | None = None
+    reading: SourceReading,
+    events: list,
+    revision: int,
+    *,
+    withdrawn: set | None = None,
+    revisions: Iterable[int] = (),
+    revision_reader: Callable[[int], SourceReading] | None = None,
 ) -> PageReading:
     """Read one page's markup and log window through one construction.
 
@@ -570,7 +616,9 @@ def page_reading(
     `page check` share declarations, floors, and the log window. The document's
     own reading (`SourceReading`) travels with the projection for callers that need
     its authored construction; a stored revision's is held across reads, so only
-    the fold over the log is taken here."""
+    the fold over the log is taken here. Revision history is optional transaction
+    input: this owner selects predecessors newest first and reads each under its
+    captured vocabulary, lazily when Question registration needs it."""
     return PageReading(
         reading,
         revision,
@@ -583,6 +631,15 @@ def page_reading(
             revision,
             withdrawn=withdrawn,
         ),
+        (
+            lambda: (
+                (previous, revision_reader(previous))
+                for previous in sorted(revisions, reverse=True)
+                if previous < revision
+            )
+        )
+        if revision_reader is not None
+        else None,
     )
 
 

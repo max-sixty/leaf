@@ -1,0 +1,76 @@
+/* Sent media can live in chrome-owned threads or page-owned widget threads.
+   Scale the complete image in both surfaces; a tall capture must not become the whole
+   thread, and nothing is cropped. */
+.lf-message-media img { display: block;
+  max-width: 100%; max-height: min(60vh, 480px); border-radius: var(--r); }
+:is(.lf-btn, .button):is(.on, [aria-pressed="true"]) { border-color: var(--accent); color: var(--accent); background: var(--chip); }
+/* Draw mode takes page-word presses while offered controls keep their gestures.
+   Document selectors do not cross a declared shadow root. */
+:host-context(html[data-lf-draw-mode]):host-context(main) * { cursor: crosshair !important; }
+:host-context(html[data-lf-draw-mode]):host-context(main) .lf-thread-seat,
+:host-context(html[data-lf-draw-mode]):host-context(main) .lf-thread-seat *,
+:host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-offer],
+:host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-offer] * {
+  cursor: auto !important; }
+/* Copy floats over the code's corner without changing its box or scrolling text.
+   Pointer and keyboard intent reveal it; touch keeps the control available. */
+:root {
+  --lf-code-copy-size: max(32px, var(--aim-floor));
+}
+.lf-code-copy {
+  position: absolute;
+  /* Hidden sources have no anchor; their chrome controls stay outside the window. */
+  top: calc(anchor(top, -9999px) + 4px);
+  left: calc(anchor(right, -9999px) - var(--lf-code-copy-size) - 4px);
+  width: var(--lf-code-copy-size);
+  height: var(--lf-code-copy-size);
+  z-index: 1;
+  white-space: normal;
+  font-size: 0;
+  line-height: 0;
+  opacity: 0;
+}
+.lf-code-copy.lf-code-copy-away { display: none; }
+pre:hover + .lf-code-copy,
+.lf-code-copy-hover,
+.lf-code-copy-focused,
+.lf-code-copy:is(:hover, :focus-within) { opacity: 1; }
+@media (pointer: coarse), (hover: none) {
+  .lf-code-copy { opacity: 1; }
+  pre:focus + .lf-code-copy,
+  .lf-code-copy.lf-code-copy-focused { opacity: 0; pointer-events: none; }
+}
+.lf-code-copy::part(button) {
+  width: var(--lf-code-copy-size);
+  height: var(--lf-code-copy-size);
+  padding: 6px;
+  border: 1px solid var(--code-border);
+  border-radius: var(--r);
+  background: var(--pre-bg);
+  color: var(--muted);
+  display: flex;
+  font-size: var(--t-5);
+}
+.lf-code-copy::part(button):hover { color: var(--ink); }
+.lf-code-copy::part(button):focus-visible {
+  outline: var(--focus-ring);
+  --lf-focus-ring: code-copy;
+}
+@media print {
+  .lf-code-copy { display: none; }
+}
+
+.lf-msg-body a.detached { color: var(--muted-2); text-decoration: underline dashed; cursor: default; }
+.lf-msg-body.lf-suggest-body { white-space: pre-wrap; }
+
+.lf-suggest-label { color: var(--muted-2); }
+
+.lf-react-said { font-family: var(--sans); color: var(--mark-ink); }
+/* The response foot sits after flexible mechanical space in a retained flow body.
+   Details' summary is its own disclosure outside that body. */
+.lf-reply-continuity[open]::details-content,
+.lf-reply-continuity:not(details) { display: flex; flex-direction: column;
+  min-block-size: var(--lf-thread-body-extent, 0px); }
+.lf-reply-space { flex: 1 0 0; min-block-size: 0; }
+.lf-reply-continuity > .lf-thread-reply leaf-text:not(:state(placeholder-shown)) {
+  block-size: var(--lf-reply-writing-room, auto); }

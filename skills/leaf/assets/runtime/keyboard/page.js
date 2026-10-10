@@ -1,3 +1,4 @@
+import { sampleNotice } from "../sample-child.js";
 /* The page's own parts: what the user is standing on when it belongs to no feature,
    the one press that lets go of it, and the foot of the Escape ladder.
 
@@ -16,7 +17,7 @@ import { inChrome, pageQueryAll } from "../passages.js";
 import { inUi } from "../shadow.js";
 import { pageSelection } from "../composing/capture.js";
 import { heldThread } from "../thread/focus.js";
-import { heldAsk } from "../standing-target.js";
+import { heldQuestion } from "../standing-target.js";
 import { leavesBox } from "../thread/landing.js";
 import { claimsEsc, documentFocused } from "./scopes.js";
 import { DISCLOSE, DISCLOSURE_SELECTOR, disclosed } from "./disclosure.js";
@@ -126,7 +127,7 @@ export function declareStanding({ pageState }) {
     if (inChrome(documentFocused())) return null;
     const thread = heldThread();
     if (pageSelection() || pageState()) return null;
-    return thread || heldAsk() || !inUi(focused()) ? document.body : null;
+    return thread || heldQuestion() || !inUi(focused()) ? document.body : null;
   };
   pageScope("standing", {
     title: "Standing on something",
@@ -168,12 +169,11 @@ pageRung("page", () => {
   // A sample has one more containing page. Its own controls and standing unwind
   // first; the frame's owner takes the focus back, not another keyboard listener
   // competing with this register.
-  const frame = window.frameElement;
-  return frame?.hasAttribute("data-lf-contained")
+  return document.documentElement.lfSample
     ? {
         title: "return to containing page",
         description: "Leave this sample and return to its containing page",
-        out: () => frame.dispatchEvent(new Event("lf-sample-return")),
+        out: () => sampleNotice("return"),
       }
     : null;
 });

@@ -54,12 +54,12 @@
    - pressing its notice, or its margin marker where a widget holds it out of the flow;
    - opening the thread: a folded outlet, or a panel card the list opens;
    - arriving at it: coming to stand in it from outside it, by a move of theirs, a t/T
-     walk, an Ask, a link, Tab, whatever route took them (focus.js, `onStanding`), or by
+     walk, a Question, a link, Tab, whatever route took them (focus.js, `onStanding`), or by
      a press on its title, which stands for the whole thread, whether or not it already
      stood open. Coming back to the thread they stood in is a stay, whatever puts them
      there, as when the runtime puts back a reply box a surface stopped drawing, and so
      is a move within it, such as Escape out of its reply box onto its title or going to
-     an Ask it already shows;
+     a Question it already shows;
    - acting in it (`gesturedOn`): a reply, a reaction on one of its messages, settling
      it, a move on a widget one of them holds, or a thread they start in the seat, which
      answers what came before it and so follows it;
@@ -68,7 +68,7 @@
    Held news also shows once none of the seat shows in the window, where its growth moves
    nothing anyone sees. A press into the thread, such as into its reply box, shows
    nothing: it asks for what it lands on, and drawing the news would move that under the
-   press. Where the destination is itself held, a message or an Ask in a held turn, or a
+   press. Where the destination is itself held, a message or a Question in a held turn, or a
    thread a seat holds whole, the route shows it first (`showHeld`), since nothing
    undrawn can take focus. Anything held in a seat is not drawn, so it stays unread until
    it shows.

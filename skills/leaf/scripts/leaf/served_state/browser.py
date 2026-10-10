@@ -29,19 +29,19 @@ class BrowserReading(NamedTuple):
 
 
 def _apply_thread_attention(
-    threads: list[dict], asks: dict, workflows: list[dict], tasks: list[dict]
+    threads: list[dict], questions: dict, workflows: list[dict], tasks: list[dict]
 ) -> None:
-    """Attach the shared attention aggregate, with user Asks taking precedence.
+    """Attach the shared attention aggregate, with user Questions taking precedence.
 
     This is the browser's one reading of whose turn a thread is: `needs_user` for
-    an open Ask or a question the agent's latest turn leaves (`user_prompt`), or a
+    an open Question or a question the agent's latest turn leaves (`user_prompt`), or a
     response the user must recover; `waiting` while a workflow holds the thread with
     the agent, which covers every input `events.unanswered_turns` holds, or while a
     task the agent opened on it stands; else None. `workflows` are
     `served_workflows`, so the first that qualifies is the one the thread waits on,
     and a workflow speaks before a task. `tasks` are the agent's open tasks, each
     stamped with its `thread`."""
-    user_threads = {ask["thread"] for ask in asks["user"]}
+    user_threads = {question["thread"] for question in questions["user"]}
     by_thread: dict[str, list[dict]] = {}
     for workflow in workflows:
         if workflow["thread"] is not None:
@@ -53,7 +53,7 @@ def _apply_thread_attention(
         if thread["id"] in user_threads or thread["user_prompt"]:
             thread["attention"] = {
                 "kind": "needs_user",
-                "reason": "ask",
+                "reason": "question",
                 "workflow": None,
             }
             continue
@@ -107,6 +107,7 @@ def browser_state(
     revisions: RevisionReader | None = None,
     *,
     work: WorkState | None = None,
+    revision_ids: set[int] | frozenset[int] | None = None,
 ) -> tuple[dict, BrowserReading]:
     """The browser's derived reading of one transaction-consistent page snapshot.
 
@@ -119,7 +120,14 @@ def browser_state(
     through_seq = events[-1]["seq"] if events else 0
 
     work = work or work_state(
-        events, readings[active_revision], active_revision, present, now, live_stream
+        events,
+        readings[active_revision],
+        active_revision,
+        present,
+        now,
+        live_stream,
+        revisions=revision_ids if revision_ids is not None else readings,
+        revision_reader=revisions or readings.__getitem__,
     )
     durable = work.durable
     active_page = durable.page
@@ -141,7 +149,14 @@ def browser_state(
         page = (
             active_page
             if revision == active_revision
-            else page_reading(readings[revision], events, revision, withdrawn=withdrawn)
+            else page_reading(
+                readings[revision],
+                events,
+                revision,
+                withdrawn=withdrawn,
+                revisions=revision_ids if revision_ids is not None else readings,
+                revision_reader=revisions or readings.__getitem__,
+            )
         )
         reading = (
             durable.document
@@ -149,7 +164,7 @@ def browser_state(
             else read_document(page, threads)
         )
         stamp = stamped_version(events, revision)
-        document = browser_document(reading, revision, stamp, durable.approvals)
+        document = browser_document(reading, revision)
         documents[revision] = reading
         projection = reading.projection
         classified = {
@@ -203,7 +218,7 @@ def browser_state(
     tasks, ended_tasks = durable.page_tasks(work.activity["tasks"])
     _apply_thread_attention(
         thread["threads"],
-        thread["asks"],
+        thread["questions"],
         workflows,
         [task for task in tasks if task["owner"] == "agent"],
     )
@@ -269,4 +284,5 @@ def project_browser_state(
         context.live_stream,
         context.revision,
         work=context.work,
+        revision_ids=context.revisions,
     )

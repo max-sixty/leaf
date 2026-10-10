@@ -1,16 +1,16 @@
 """The agent-harness hooks Leaf registers, and the part of each that reads no page.
 
-Every hook marks that it ran for its session (`leases.mark_hooks`), and a wait
-only wakes a session so marked (`Harness.hooks_carry`): a session launched
-without these hooks still gets the envelope printed, rather than waking to an
-empty turn. SessionEnd retires the harness instance without reading pages;
+Every hook marks that it ran for its session (`leases.mark_hooks`), evidence
+that its harness supports hook delivery (`Harness.hooks_carry`). An explicit
+`leaf wait` always prints the envelope; it does not depend on another hook
+running after it. SessionEnd retires the harness instance without reading pages;
 persisted desktop chats retain their generation across instance unloads.
 
 Codex's synchronous prompt hook records the provider turn even before the session
 claims a page. Its native transcript also records turns resumed without input,
 which run no prompt hook. Hooks reconcile that provider evidence before checking
 their turn identity, then offer a pointer between steps or before Stop and leave
-receipt to the agent's actual delivery read.
+receipt to the agent's explicit confirmation of complete input.
 An accepted TurnStart opens the same lifecycle as UserPromptSubmit without
 reading or receiving page input. Pi calls it after its SDK reserves the run;
 accepted message finalization or a live turn boundary confirms the receipt.
@@ -54,8 +54,8 @@ def cmd_hook(harness: str, payload: dict) -> None:
     started = time.monotonic()
     event, sid = payload.get("hook_event_name"), payload.get("session_id") or ""
     if sid:
-        # Evidence that this harness runs Leaf's hooks for the session, which is what
-        # lets its `leaf wait` only wake it (`Harness.hooks_carry`).
+        # Capability evidence for hook transport and open-turn activity. An
+        # explicit wait carries its own input even if later hooks fail.
         mark_hooks(sid)
     if event == "SessionEnd":
         end_harness_instance(sid)
@@ -128,14 +128,29 @@ def cmd_hook(harness: str, payload: dict) -> None:
             from .codex import offer_hook_delivery
             from .harness import HOOK_HARNESSES
 
-            if prompt := offer_hook_delivery(sid, turn_id):
-                import json
+            offering = True
+            if event == "Stop":
+                from .hook_transport import read_plans, stop_continues
 
-                print(json.dumps(HOOK_HARNESSES[harness].hook_context(event, prompt)))
-                return
-            # Offering renews the observed turn even on a quiet page. Carry the
-            # resulting revision into Stop's independent response-debt check.
-            expected = session_record(sid)
+                plans = read_plans(sid)
+                if session_record(sid) != expected or any(
+                    plan.lifecycle != expected for plan in plans
+                ):
+                    return
+                offering = stop_continues(
+                    plans,
+                    [plan.batch for plan in plans if plan.batch],
+                    repeated=bool(payload.get("stop_hook_active")),
+                )
+            if offering:
+                prompt, expected = offer_hook_delivery(sid, expected)
+                if prompt:
+                    import json
+
+                    print(
+                        json.dumps(HOOK_HARNESSES[harness].hook_context(event, prompt))
+                    )
+                    return
     if event == "PostToolUse":
         return
     # Retained claims may need reconnecting after active ownership expired.

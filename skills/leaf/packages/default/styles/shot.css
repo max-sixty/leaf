@@ -1,0 +1,358 @@
+/* lf-shot: Web Awesome owns the live draggable divider. The pair's natural-width
+ * validation supplies an aspect ratio based on its taller image, so unequal heights
+ * still reserve one fixed frame and move nothing below it. The rail's endpoint buttons
+ * and full-size inspection links stay outside the component in one fixed two-row rail.
+ * Before the upgrade lands, the frames are direct children
+ * of the host and the transparent native checkbox covers the flip view while loading.
+ * Compare and overlay inspection views compose those same frames through this owner;
+ * the containing inspector only allocates room and chooses the local view.
+ * Print stacks both frames. */
+:scope:is(lf-shot) { display: block; margin: 16px 0;
+    --lf-shot-rail-row-size: max(34px, var(--aim-floor));
+    --lf-shot-rail-size: calc(2 * var(--lf-shot-rail-row-size)); }
+:scope:is(lf-shot):has(.lf-shotframe) { display: grid; }
+/* Where the runtime runs, the rail and the frame stand empty from the first paint, the
+ * frame in the pair's shape, which delivery reads from the images
+ * (`data-lf-media-width`, `data-lf-media-height`), so the images and the comparison
+ * arrive in a box that is already there. */
+@scope (html[data-lf-interactive] :scope) {
+  :scope:is(lf-shot):not(:has(> .lf-shotrail)){
+    &::before { content: ""; display: block; height: var(--lf-shot-rail-size); border: 1px solid var(--rule);
+      border-bottom: 0; border-radius: var(--r) var(--r) 0 0; background: var(--card); }
+    &::after { content: ""; display: block; box-sizing: border-box;
+      aspect-ratio: attr(data-lf-media-width type(<number>)) /
+      attr(data-lf-media-height type(<number>));
+      border: 1px solid var(--rule); border-radius: 0 0 var(--r) var(--r);
+      background: var(--card); }
+  }
+}
+:scope:is(lf-shot) .lf-shotcomparison { grid-area: 2 / 1; aspect-ratio: var(--lf-shot-ratio);
+    border: 1px solid var(--rule); border-radius: 0 0 var(--r) var(--r);
+    background: var(--card); --divider-width: 2px; --handle-size: 38px;
+    --wa-color-surface-default: var(--card); --wa-color-neutral-on-quiet: var(--ink-2);
+    --wa-focus-ring: var(--focus-ring); --wa-focus-ring-offset: 1px;
+    --lf-focus-ring: shot; }
+:scope:is(lf-shot) .lf-shotcomparison::part(divider) {
+    background: color-mix(in srgb, var(--ink-2) 48%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--card) 72%, transparent);
+    transition: background-color 120ms ease; }
+:scope:is(lf-shot) .lf-shotcomparison::part(handle) { border: 1px solid var(--ink-2);
+    box-shadow: 0 1px 3px var(--shade);
+    opacity: .52; scale: .88;
+    transition: opacity 120ms ease, scale 120ms ease; }
+:scope:is(lf-shot) .lf-shot-handle { display: block; box-sizing: border-box;
+    width: 13px; height: 13px; border: 1.5px solid currentColor;
+    border-radius: 50%; pointer-events: none; }
+:scope:is(lf-shot) .lf-shotcomparison::part(before),
+:scope:is(lf-shot) .lf-shotcomparison::part(after) { cursor: pointer; }
+:scope:is(lf-shot) .lf-shotcomparison:is(:hover, :focus-within, :state(dragging))::part(divider) {
+    background: var(--ink-2); }
+:scope:is(lf-shot) .lf-shotcomparison:is(:hover, :focus-within, :state(dragging))::part(handle) {
+    opacity: 1; scale: 1; }
+:scope:is(lf-shot) .lf-shotcomparison:is([position="0"], [position="100"]):not(:hover, :focus-within)::part(handle) {
+    opacity: .18; scale: .68; }
+:scope:is(lf-shot) .lf-shotframe { position: relative; overflow: clip; background: var(--card); }
+:scope:is(lf-shot) .lf-shotframe img { display: block; width: 100%; height: auto;
+    background: var(--card); }
+:scope:is(lf-shot) .lf-shotrail { display: grid; grid-area: 1 / 1; align-items: center;
+    grid-template: repeat(2, var(--lf-shot-rail-row-size)) / auto minmax(0, 1fr) auto;
+    height: var(--lf-shot-rail-size); padding: 0 11px;
+    border: 1px solid var(--rule); border-bottom: 0;
+    border-radius: var(--r) var(--r) 0 0; color: var(--muted);
+    background: var(--card); }
+/* Keep the comparison's identity and endpoint controls over a tall pair. The rail
+ * stops at the shot's foot and stacks below any enclosing sticky header. Frames
+ * declare the covered band to the shared visibility reading; the extra pixel is
+ * the rail's top border, outside its stated content height. */
+@media screen {
+  :scope:is(lf-shot) { --lf-top-outer: var(--lf-top); }
+  :scope:is(lf-shot) > .lf-shotrail {
+    position: sticky; top: var(--lf-top); z-index: 1; --lf-head-inset: 1px;
+  }
+  :scope:is(lf-shot):not([data-lf-shot-controls="off"]):has(> .lf-shotrail)
+    > :is(.lf-shotcomparison, .lf-shotframe) {
+    --lf-top: calc(var(--lf-top-outer) + var(--lf-shot-rail-size) + 1px);
+  }
+}
+:scope:is(lf-shot) .lf-shotcap { display: flex; align-items: center; align-self: stretch;
+    font-size: var(--t-6); font-weight: 650; text-transform: uppercase;
+    letter-spacing: .04em; padding: 0 5px; margin: 0 -5px; color: var(--muted); }
+:scope:is(lf-shot) :is(.lf-shotcap[data-lf-state="before"], .lf-shot-open[data-lf-shot-open="before"]) {
+    grid-column: 1; justify-self: start; }
+:scope:is(lf-shot) :is(.lf-shotcap[data-lf-state="after"], .lf-shot-open[data-lf-shot-open="after"]) {
+    grid-column: 3; justify-self: end; }
+:scope:is(lf-shot) .lf-shotcap { grid-row: 1; }
+:scope:is(lf-shot) .lf-shot-open { grid-row: 2; display: flex; align-items: center;
+    align-self: stretch; font: var(--t-6)/1.4 var(--sans); }
+:scope:is(lf-shot) .lf-shotdelta { grid-area: 1 / 2 / 3 / 3; justify-self: center;
+    padding-inline: 8px; text-align: center; }
+:scope:is(lf-shot) .lf-shotcap[data-lf-state] { outline-offset: -2px; }
+:scope:is(lf-shot) .lf-shotcap[data-lf-state="before"] {
+    --lf-shot-side-tint: var(--del-tint); --lf-shot-side-ink: var(--danger-ink); }
+:scope:is(lf-shot) .lf-shotcap[data-lf-state="after"] {
+    --lf-shot-side-tint: var(--add-tint); --lf-shot-side-ink: var(--ok-ink); }
+:scope:is(lf-shot) .lf-shotcap:hover { background: var(--chip); }
+:scope:is(lf-shot) .lf-shotcap[aria-pressed="true"] {
+    color: var(--lf-shot-side-ink); background: var(--lf-shot-side-tint);
+    box-shadow: inset 0 -3px var(--lf-shot-side-ink); }
+:scope:is(lf-shot) .lf-shotcap[aria-pressed="false"] {
+    color: var(--muted); box-shadow: none; }
+/* In a split both frames are visible, so both labels carry their side's color
+   while neither wears the selected fill or underline. */
+:scope:is(lf-shot):not(:has(.lf-shotcap[aria-pressed="true"])) .lf-shotcap {
+    color: var(--lf-shot-side-ink); }
+/* Where the pair differs: each frame outlines its own regions where they sit in it, so
+   content that moved is marked at its old place in before and its new place in after,
+   and an outline never stands over a place the frame left empty. What changed takes a
+   solid warning rule and what only moved a dashed accent one. The marks take the pair's
+   own frame (natural width by the taller image's height), stand a little outside what
+   they mark rather than over it, and stop at the frame's edge, so a region that reaches
+   the edge still shows its outline there. The rail counts the regions, and says so when
+   there is none to draw: identical, throughout the image, or only slight. */
+:scope:is(lf-shot) .lf-shotdiff { position: absolute; top: 0; left: 0; width: 100%;
+    aspect-ratio: var(--lf-shot-ratio); pointer-events: none; }
+:scope:is(lf-shot) .lf-shotdiff > span { position: absolute;
+    left: max(0px, calc(var(--lf-shot-x) - 4px));
+    top: max(0px, calc(var(--lf-shot-y) - 4px));
+    right: max(0px, calc(100% - var(--lf-shot-x) - var(--lf-shot-w) - 4px));
+    bottom: max(0px, calc(100% - var(--lf-shot-y) - var(--lf-shot-h) - 4px));
+    border: 2px solid var(--warn); border-radius: 2px; }
+:scope:is(lf-shot) .lf-shotdiff > span[data-lf-shot-mark="moved"] {
+    border-style: dashed; border-color: var(--accent); }
+:scope:is(lf-shot) .lf-shotdelta { font-size: var(--t-6); color: var(--muted); }
+/* A pair that is identical, or changed only slightly, is what a handoff most often
+   describes wrong, so the rail raises those readings. */
+:scope:is(lf-shot) .lf-shotdelta:is([data-lf-shot-delta="identical"], [data-lf-shot-delta="slight"]) {
+    color: var(--warn-ink); font-weight: 650; }
+/* The outlines, and the count they make up, show where the pair asks for them. */
+:scope:is(lf-shot):not([outlines]) :is(.lf-shotdiff, .lf-shotdelta[data-lf-shot-delta="areas"]) {
+    display: none; }
+
+/* Before the progressive flip comparison arrives the image is the native target. */
+:scope:is(lf-shot) > input.lf-shotflip { display: none; grid-area: 2 / 1; z-index: 2;
+    align-self: stretch; justify-self: stretch; width: 100%; height: 100%;
+    min-width: 0; min-height: 0; margin: 0; padding: 0; border: 0;
+    appearance: none; opacity: 0; cursor: pointer; }
+:scope:is(lf-shot):not([data-lf-shot-mode="compare"], [data-lf-shot-mode="overlay"]):not(:has(> .lf-shotcomparison)) > .lf-shotframe {
+    grid-area: 2 / 1; border: 1px solid var(--rule);
+    border-radius: 0 0 var(--r) var(--r); }
+:scope:is(lf-shot):not([data-lf-shot-mode="compare"], [data-lf-shot-mode="overlay"]):not(:has(> .lf-shotcomparison))
+> .lf-shotframe[data-lf-state="after"] { visibility: hidden; }
+:scope:is(lf-shot):not([data-lf-shot-mode="compare"], [data-lf-shot-mode="overlay"]):not(:has(> .lf-shotcomparison)):has(input:checked)
+> .lf-shotframe[data-lf-state="before"] { visibility: hidden; }
+:scope:is(lf-shot):not([data-lf-shot-mode="compare"], [data-lf-shot-mode="overlay"]):not(:has(> .lf-shotcomparison)):has(input:checked)
+> .lf-shotframe[data-lf-state="after"] { visibility: visible; }
+:scope:is(lf-shot):not(:has(> .lf-shotcomparison)) > input.lf-shotflip {
+    display: block; }
+
+:scope:is(lf-shot):has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) {
+    outline: var(--focus-ring); --lf-focus-ring: shot; outline-offset: 1px;
+    border-radius: var(--r); }
+
+@media print {
+  :scope:is(lf-shot), :scope:is(lf-shot):has(.lf-shotframe) { display: block !important; }
+  :scope:is(lf-shot) > .lf-shotrail { border-bottom: 1px solid var(--rule);
+    margin-bottom: var(--sp-2); }
+  :scope:is(lf-shot) .lf-shotcap { color: var(--ink) !important; background: none !important;
+    box-shadow: none !important; }
+  :scope:is(lf-shot) .lf-shotcap[data-lf-state="before"]::after { content: " · top"; }
+  :scope:is(lf-shot) .lf-shotcap[data-lf-state="after"]::after { content: " · bottom"; }
+  :scope:is(lf-shot) > input.lf-shotflip { display: none; }
+  :scope:is(lf-shot) > .lf-shotrail { height: auto;
+    grid-template-rows: var(--lf-shot-rail-row-size); }
+  :scope:is(lf-shot) .lf-shotdelta { grid-row: 1; }
+  :scope:is(lf-shot) > .lf-shotcomparison { display: block; aspect-ratio: auto; border: 0;
+    overflow: visible; }
+  /* The before frame sits in the component's second part (lf-shot.js), and paper
+   * puts it on top. */
+  :scope:is(lf-shot) > .lf-shotcomparison::part(comparison) { display: flex;
+    flex-direction: column-reverse; }
+  :scope:is(lf-shot) > .lf-shotcomparison::part(before),
+  :scope:is(lf-shot) > .lf-shotcomparison::part(after) { position: relative; width: auto;
+    height: auto; clip-path: none !important; }
+  :scope:is(lf-shot) > .lf-shotcomparison::part(divider) { display: none; }
+  :scope:is(lf-shot) .lf-shotframe { visibility: visible !important; margin-bottom: var(--sp-2);
+    border: 1px solid var(--rule); border-radius: var(--r); }
+}
+
+/* Inspection belongs to the pair, including when another package chooses its
+ * view. The containing package allocates room; it never targets these frame nodes.
+ * Typed lengths give the fitting consumer resolved CSS pixels even for rem/calc. */
+@property --lf-shot-frame-border { syntax: "<length>"; inherits: true; initial-value: 0px; }
+@property --lf-shot-label-height { syntax: "<length>"; inherits: true; initial-value: 0px; }
+@property --lf-shot-gap { syntax: "<length>"; inherits: true; initial-value: 0px; }
+:scope:is(lf-shot) {
+  --lf-shot-frame-border: 1px;
+  --lf-shot-label-height: 24px;
+  --lf-shot-gap: var(--sp-2);
+}
+:scope:is(lf-shot)[data-lf-shot-mode] {
+  margin: 0;
+  width: calc(var(--lf-shot-frame-width, calc(100% - 2 * var(--lf-shot-frame-border))) + 2 * var(--lf-shot-frame-border));
+  max-width: none;
+}
+:scope:is(lf-shot)[data-lf-shot-mode] .lf-shotcomparison {
+  border-width: var(--lf-shot-frame-border);
+}
+@media screen {
+
+  :scope:is(lf-shot)[data-lf-shot-mode="compare"],
+  :scope:is(lf-shot)[data-lf-shot-mode="overlay"] {
+    display: grid;
+  }
+
+  :scope:is(lf-shot)[data-lf-shot-mode="compare"][data-lf-shot-layout="side"] {
+    grid-template-columns: repeat(2, calc(var(--lf-shot-frame-width) + 2 * var(--lf-shot-frame-border)));
+    gap: var(--lf-shot-gap);
+    width: max-content;
+  }
+
+  :scope:is(lf-shot)[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"],
+  :scope:is(lf-shot)[data-lf-shot-mode="overlay"] {
+    grid-template-columns: calc(var(--lf-shot-frame-width) + 2 * var(--lf-shot-frame-border));
+  }
+
+  :scope:is(lf-shot)[data-lf-shot-mode]:not([data-lf-shot-mode="flip"])
+  .lf-shotrail,
+  :scope:is(lf-shot)[data-lf-shot-mode]:not([data-lf-shot-mode="flip"])
+  .lf-shotflip {
+    display: none;
+  }
+
+  :scope:is(lf-shot)[data-lf-shot-mode]:not([data-lf-shot-mode="flip"])
+  .lf-shotframe {
+    border: var(--lf-shot-frame-border) solid var(--rule);
+    display: grid;
+    visibility: visible;
+    border-radius: var(--r);
+  }
+
+  :scope:is(lf-shot)[data-lf-shot-mode="compare"][data-lf-shot-layout="side"]
+  .lf-shotframe {
+    grid-row: 1;
+  }
+
+  :scope:is(lf-shot)[data-lf-shot-mode="compare"][data-lf-shot-layout="side"]
+  .lf-shotframe[data-lf-state="before"] {
+    grid-column: 1;
+  }
+
+  :scope:is(lf-shot)[data-lf-shot-mode="compare"][data-lf-shot-layout="side"]
+  .lf-shotframe[data-lf-state="after"] {
+    grid-column: 2;
+  }
+
+  :scope:is(lf-shot)[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
+  .lf-shotframe {
+    grid-column: 1;
+  }
+
+  :scope:is(lf-shot)[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
+  .lf-shotframe[data-lf-state="before"] {
+    grid-row: 1;
+  }
+
+  :scope:is(lf-shot)[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
+  .lf-shotframe[data-lf-state="after"] {
+    grid-row: 2;
+  }
+
+  :scope:is(lf-shot)[data-lf-shot-mode="compare"]
+  .lf-shot-frame-label {
+    box-sizing: border-box;
+    display: block;
+    height: var(--lf-shot-label-height);
+    padding: 5px 8px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--card);
+    color: var(--ink-2);
+    font: 650 var(--t-6) / 1 var(--sans);
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+
+  :scope:is(lf-shot)[data-lf-shot-mode="compare"]
+  .lf-shot-frame-label::before {
+    content: attr(data-label);
+  }
+
+  :scope:is(lf-shot)[data-lf-shot-mode="overlay"]
+  .lf-shotframe {
+    grid-row: 1;
+    grid-column: 1;
+  }
+
+  :scope:is(lf-shot)[data-lf-shot-mode="overlay"]
+  .lf-shotframe[data-lf-state="after"] {
+    z-index: 1;
+    opacity: var(--lf-shot-opacity);
+  }
+
+  :scope:is(lf-shot) .lf-shotframe img {
+    width: 100%;
+    max-width: none;
+  }
+
+  :scope:is(lf-shot)[data-lf-shot-crop="true"] .lf-shotframe {
+    height: var(--lf-shot-focus-height);
+  }
+
+  /* Flip's comparison takes the whole capture's shape (lf-shot), which on a focus crop
+     left empty room under the crop as tall as the rest of the capture. */
+  :scope:is(lf-shot)[data-lf-shot-crop="true"] .lf-shotcomparison {
+    aspect-ratio: auto;
+    height: var(--lf-shot-focus-height);
+  }
+
+  :scope:is(lf-shot)[data-lf-shot-mode="compare"][data-lf-shot-crop="true"]
+  .lf-shotframe {
+    height: calc(var(--lf-shot-focus-height) + var(--lf-shot-label-height));
+    grid-template-rows: var(--lf-shot-label-height) var(--lf-shot-focus-height);
+  }
+
+  :scope:is(lf-shot)[data-lf-shot-crop="true"] .lf-shotframe img {
+    width: var(--lf-shot-focus-width);
+    height: var(--lf-shot-focus-height);
+    object-view-box: var(--lf-shot-focus-view);
+  }
+
+  /* lf-shot's changed-region marks take the full frame's coordinates: below the
+     compare label, and nowhere on a focus crop, which shows another part of the
+     frame. The case's position line states the reading in every view. */
+  :scope:is(lf-shot)[data-lf-shot-mode="compare"] .lf-shotdiff {
+    top: var(--lf-shot-label-height);
+  }
+
+  :scope:is(lf-shot)[data-lf-shot-crop="true"] .lf-shotdiff {
+    display: none;
+  }
+
+  :scope:is(lf-shot)[data-lf-shot-focus="true"][data-lf-shot-crop="false"]
+  .lf-shotframe::after {
+    content: "";
+    position: absolute;
+    z-index: 2;
+    top: var(--lf-shot-focus-y);
+    left: var(--lf-shot-focus-x);
+    box-sizing: border-box;
+    width: var(--lf-shot-focus-width);
+    height: var(--lf-shot-focus-height);
+    border: 2px solid var(--accent);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    pointer-events: none;
+  }
+
+  :scope:is(lf-shot)[data-lf-shot-mode="compare"][data-lf-shot-focus="true"][data-lf-shot-crop="false"]
+  .lf-shotframe::after {
+    top: calc(var(--lf-shot-focus-y) + var(--lf-shot-label-height));
+  }
+
+}
+
+@media print {
+  :scope:is(lf-shot)[data-lf-shot-mode] {
+    width: min(100%, var(--lf-shot-capture-width, 100%));
+    max-width: 100%;
+  }
+  .lf-shot-frame-label { display: none !important; }
+}

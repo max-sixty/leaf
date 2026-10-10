@@ -407,7 +407,7 @@ export function createPrimaryReader(owner, render, commands, update) {
       .map((descriptor) => descriptor.id);
     await whenWidgetsPresented(widgets);
   }
-  const destination = (key, { message = null, focus = null } = {}) => {
+  const destination = (key, { message = null, part = null } = {}) => {
     const parts = destinations.get(key) ?? [];
     if (message) {
       const id = shown.get(key)?.source.msgs.find((item) => item.key === message)?.id;
@@ -418,7 +418,7 @@ export function createPrimaryReader(owner, render, commands, update) {
       }
       return null;
     }
-    if (focus !== "thread")
+    if (part !== "thread")
       for (const view of parts) {
         const input = view.node.querySelector(SAY_BOX);
         if (input && !view.node.hidden) return input;

@@ -4703,7 +4703,7 @@ customElements.define('lf-feed', class extends HTMLElement {
     expect(page.locator('[data-lf-datum="b-1"]')).not_to_have_class(
         re.compile(r"\blf-mark-el\b")
     )
-    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_count(0)
+    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_text("Changed")
 
     with sending(page, "the kept draft"):
         draft.press("ControlOrMeta+Enter")
@@ -5115,7 +5115,7 @@ customElements.define('lf-derived', class extends HTMLElement {
     )
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
     expect(page.locator(".lf-thread .lf-quote")).to_contain_text("Ready")
-    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_count(0)
+    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_text("Changed")
 
 
 def test_a_captured_source_stays_pointable_and_pinned(browser, serve):

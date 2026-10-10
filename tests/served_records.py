@@ -5,7 +5,8 @@ through `model_folds.served_reading` rather than written by hand, so a Node test
 every field the server sends and cannot omit one the runtime relies on. `thread` and
 `workflow` are one record of each, which `served.mjs` hands out for a test to change
 only the fields the server sends; `gestures` holds an admitted edit, undo, refusal
-and revision sequence shared across runtimes; `readings` holds whole served readings
+and revision sequence shared across runtimes; `question_values` holds typed values
+folded by Python for comparison with the browser; `readings` holds whole served readings
 whose premise is the case under test. `served.mjs` reads this output directly, so its
 assertions always consume this checkout's server rather than a recorded copy.
 """
@@ -15,6 +16,10 @@ import json
 from interact_support import model_layer
 from leaf.agent_state import queues
 from leaf.event_log import EventRefused
+from leaf.passages import SourceReading
+from leaf.projection import StateProjection, authored_rank, question_value
+from leaf.questions import collection
+from leaf.structure import SourceDocument
 from model_folds import leaf_page, served_reading
 
 PAGE = leaf_page("Served records", '<h1 id="h">Steps</h1><p id="p">Two steps.</p>')
@@ -50,6 +55,7 @@ def build() -> dict:
     threads = {thread["id"]: thread for thread in records["threads"]}
     workflows = {workflow["id"]: workflow for workflow in records["workflows"]}
     return {
+        "question_values": question_value_cases(),
         "thread": threads["e1"],
         "workflow": workflows["e4"],
         "gestures": gesture_sequence(),
@@ -227,25 +233,177 @@ ASK_PAGE = leaf_page(
 
 def _done(events: tuple[dict, ...]) -> dict:
     """The reading the browser selects what is done from, as it is handed it: the
-    ended tasks served beside the open ones, the version's Asks' first."""
+    ended explicit tasks and the canonical Question inventory."""
     state = served_reading(ASK_PAGE, events)
     return {
-        "tasks": state["browser"]["views"]["1"]["document"]["ended_tasks"]
-        + state["browser"]["ended_tasks"]
+        "tasks": state["browser"]["ended_tasks"],
+        "questions": collection(
+            state["browser"]["views"]["1"]["document"]["questions"]["all"]
+            + state["browser"]["thread"]["questions"]["all"]
+        ),
     }
 
 
 def _queued(events: tuple[dict, ...]) -> dict:
-    """The three readings `agent_state.queues` selects from, as the browser is handed
+    """The readings `agent_state.queues` selects from, as the browser is handed
     them, and the two queues Python selects from them."""
     state = served_reading(ASK_PAGE, events)
     served = {
         "threads": state["browser"]["thread"]["threads"],
         "workflows": state["workflows"],
-        "tasks": state["browser"]["views"]["1"]["document"]["tasks"]
-        + state["browser"]["tasks"],
+        "tasks": state["browser"]["tasks"],
+        "questions": collection(
+            state["browser"]["views"]["1"]["document"]["questions"]["all"]
+            + state["browser"]["thread"]["questions"]["all"]
+        ),
     }
     return {**served, "queues": queues(**served)}
+
+
+def question_value_cases():
+    """Shared typed-value fixtures: Python's projection reader supplies expected output.
+
+    These isolate the state boundary from event admission, pairing authored markup
+    with its browser initial state and standing value actions. Both runtimes fold
+    the same operation specs; no Question-specific store participates.
+    """
+    cases = []
+
+    def add(
+        name,
+        record=None,
+        *,
+        unit="widget",
+        body="",
+        attrs="",
+        initial=None,
+        actions=(),
+        answered=False,
+    ):
+        spec = {"unit": unit, **({"record": record} if record else {})}
+        markup = f'<lf-value id="owner" {attrs}>{body}</lf-value>'
+        registry = {"lf-value": {"x-state": {"set": spec}}}
+        source = SourceReading(SourceDocument(markup), registry)
+        held = {}
+        entries = []
+        for seq, (part, detail) in enumerate(actions, 1):
+            event = {
+                "kind": "action",
+                "meaning": {},
+                "id": f"e{seq}",
+                "seq": seq,
+                "widget": "owner",
+                "action": "set",
+                "detail": detail,
+            }
+            coordinate = ("owner", part, "set")
+            held[coordinate] = (event, spec)
+            entries.append(
+                {
+                    "e": event,
+                    "unit": part,
+                    "spec": spec,
+                    "coordinate": json.dumps(coordinate, separators=(",", ":")),
+                }
+            )
+        projection = StateProjection(held, {}, held, {}, {}, frozenset(), frozenset())
+        value, present = question_value(
+            "owner",
+            "set",
+            spec,
+            source.document.by_id,
+            source.spoken,
+            registry,
+            projection,
+            answered=answered,
+        )
+        state = {"value": initial}
+        if unit != "widget":
+            state["units"] = {}
+            if record and record["kind"] == "position":
+                state["ranks"] = {
+                    part: authored_rank(index)
+                    for parts in initial.values()
+                    for index, part in enumerate(parts)
+                }
+        cases.append(
+            {
+                "name": name,
+                "spec": spec,
+                "authored": state,
+                "entries": entries,
+                "answered": answered,
+                "expected": {"value": value, "present": present},
+            }
+        )
+
+    attribute = {"kind": "attribute", "attr": "chosen"}
+    add("attribute authored empty", attribute, initial=[])
+    add("attribute completed empty", attribute, initial=[], answered=True)
+    add(
+        "attribute sorted action",
+        attribute,
+        body='<lf-part id="a">A</lf-part><lf-part id="b">B</lf-part>',
+        initial=[],
+        actions=[("owner", {"value": ["b", "a"]})],
+    )
+    value = {"kind": "value", "attr": "value"}
+    add("value absent despite completion", value, initial=None, answered=True)
+    for scalar in (False, 0, ""):
+        add(
+            f"value action {scalar!r}",
+            value,
+            initial=None,
+            actions=[("owner", {"value": scalar})],
+        )
+    add(
+        "body exact source",
+        {"kind": "body"},
+        body="<pre>  user words\n</pre>",
+        initial="  user words\n",
+    )
+    add("body completed empty", {"kind": "body"}, initial="", answered=True)
+    add("custom undo despite completion", initial=None, answered=True)
+    add("custom empty action", initial=None, actions=[("owner", {})])
+    add(
+        "custom structured action",
+        initial=None,
+        actions=[("owner", {"outcome": "accept", "text": "Ready"})],
+    )
+    for kind in ("attribute", "value", "body", "custom"):
+        record = (
+            attribute
+            if kind == "attribute"
+            else value
+            if kind == "value"
+            else {"kind": "body"}
+            if kind == "body"
+            else None
+        )
+        detail = (
+            {"value": ["b", "a"]}
+            if kind == "attribute"
+            else {"value": " source "}
+            if kind != "custom"
+            else {"text": "detail"}
+        )
+        add(
+            f"member {kind}",
+            record,
+            unit="part",
+            initial={},
+            body='<lf-part id="a">A</lf-part><lf-part id="b">B</lf-part>',
+            actions=[("b", detail), ("a", detail)],
+        )
+    add(
+        "position complete containers",
+        {"kind": "position", "within": "lf-container"},
+        unit="part",
+        initial={"left": ["a"], "right": []},
+        body='<lf-container id="left"><lf-part id="a">A</lf-part></lf-container><lf-container id="right"></lf-container>',
+        actions=[("a", {"value": "right", "rank": "1"})],
+    )
+    return cases
 
 
 def gesture_sequence() -> dict:

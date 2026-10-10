@@ -11,7 +11,7 @@ whose "Delivery and acknowledgement" section says how a wait ends. Its job is:
 
 1. Confirm that `send_message_to_thread` is available before claiming the page. If it is
    missing, finish with that reason and do not run `leaf wait`.
-2. Run `leaf wait <page>` in unified exec. Retain the command's session id and
+2. Run `leaf page claim <page>`, then `leaf wait <page>` in unified exec. Retain the command's session id and
    poll it with empty `write_stdin` calls and long yields. Keep the watcher turn active
    while the page is live.
 3. Once the complete output arrives, send one background follow-up to the page task. Put
@@ -25,22 +25,16 @@ whose "Delivery and acknowledgement" section says how a wait ends. Its job is:
    ```
 
    Append the complete wait output verbatim. If the send fails or its outcome is
-   uncertain, acknowledge nothing and resend the same follow-up. If the wait output was
-   lost or truncated, acknowledge nothing and rerun `leaf wait <page>`, as the batch
-   reference says.
+   uncertain, acknowledge nothing and resend the same follow-up. For lost or
+   truncated output, reread the delivery before forwarding it.
 4. After the harness accepts the follow-up, run `leaf wait --ack <delivery-id>` in
-   unified exec. Retain and poll that command's session id: after advancing the
-   cursor, it stays active as the next wait. A batch on stdout is the next
-   delivery; return to step 3. An ending on stderr is one of those the batch
-   reference lists. Each ends the watcher, except `server is not running`: run
-   the recovery command it gives, then resume with an unnamed wait. Rerun the
-   named wait of step 3 only when a batch was lost or truncated before
-   acknowledgement. The watcher does not author, reply, resolve, stamp, change status, or
-   handle an event itself.
+   unified exec. Retain and poll that command's session id. A batch on stdout is
+   the next delivery; return to step 3. Follow any ending diagnostic. The watcher
+   does not author, reply, resolve, stamp, change status, or handle an event itself.
 
 Wait for the watcher to claim the page, title it `Leaf watcher — <page name>`, and confirm
 that `leaf page state <page>` reports `listening: true` before ending the page task's
-turn. The named wait transfers the page's claim to the watcher, so the page task's Stop
+turn. The explicit claim transfers ownership to the watcher, so the page task's Stop
 hook stands down. Status updates, replies, and versions do not reclaim the page. Setting
 the page idle ends the watcher's next wait.
 

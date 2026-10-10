@@ -93,7 +93,7 @@ class Harness:
 
     name: ClassVar[str]
     # Whether the harness's hooks can carry input into the turn: they freeze and
-    # hand over the whole delivery, and `leaf wait` only wakes the session.
+    # hand over the whole delivery. Explicit waits carry their own envelope.
     # `hooks_carry` says whether they do for this session.
     hook_delivers: ClassVar[bool] = False
 
@@ -144,10 +144,11 @@ class Harness:
         yield
 
     def hooks_carry(self) -> bool:
-        """Whether this session's hooks carry its input: its harness runs hooks that
-        can, and one has run for this session. Until one has, `leaf wait` prints
-        the delivery for its reader to confirm, so a session whose hooks never run
-        still reads its input rather than being woken to an empty turn."""
+        """Whether the harness supports hook delivery and a hook has run here.
+
+        This is capability evidence for hook transport and turn activity, not
+        proof that a future hook will succeed. Explicit waits deliver directly.
+        """
         return self.hook_delivers and hooks_ran(self.session)
 
     def turn_takes_input(self) -> bool:
@@ -157,16 +158,15 @@ class Harness:
         (`activity.takes_input`)."""
         return self.hooks_carry()
 
-    def receive_pointer(self, payload: dict) -> None:
-        """Confirm a pointer this session read whose `acknowledge` names nobody,
-        the receipt its hooks left to the read.
+    def receive_pointer(self, payload: dict) -> list[Path]:
+        """Confirm the reader's complete-reading attestation for a pointer whose
+        original `acknowledge` names nobody, the receipt its hooks left to the reader.
 
-        Hooks that deliver confirm each batch the session still holds; a harness
-        whose hooks hand nothing over has no pointer of its own to confirm."""
-        if self.hook_delivers:
-            from .delivery import receive_held
+        Explicit reader confirmation is strict: a transferred page or ended turn
+        reports refusal rather than silently accepting a partial receipt."""
+        from .delivery import receive
 
-            receive_held(payload, self.session)
+        return receive(payload, self.session)
 
     def input_unpicked(self, page_dir: Path, *, listening: bool) -> str:
         """What to do about events past this page's cursor that nothing will
@@ -453,36 +453,14 @@ class CodexHarness(EnvironmentHarness):
             yield
 
     def lifetime(self) -> dict:
-        """Codex states no process, so this one is discovered: the nearest
-        ancestor running the `codex` program.
+        """CLI sessions live with their nearest Codex ancestor, not the shell
+        running a tool command, which can exit before the session does.
 
-        The launcher cannot hand it over, because a shell tool's $PPID is a fact
-        about the *shape* of the command rather than about the session. Measured
-        through `codex exec` at 0.147.0: a bare command, an `&&` chain and a
-        `bash -lc` all reported the codex process, because the shell it wraps
-        them in can exec a last simple command in place; `leaf … | cat` reported
-        the wrapping shell itself, which exits with the pipeline. Recording that
-        one would have taken the page's server down a second after the command
-        that started it, and the page would have told its user no session
-        holds it while the session sat there working.
-
-        Codex has a second shape with no session process at all. The ChatGPT app
-        runs one `codex ... app-server` per app launch and multiplexes every
-        conversation through it: its children are node, uv and zsh, never a
-        per-conversation `codex`. The ancestry walk still reaches that process,
-        so recording its pid gave every session in the app one shared lifetime,
-        and one that ends only when the app quits — measured on a machine with
-        133 claims naming a single app-server pid and 49 session-managed servers
-        that could never retire. Nothing else there is per-conversation either:
-        the app holds every thread's writer lock under
-        `~/.codex/thread-writer-locks` for its own lifetime rather than the
-        thread's, so those are pinned the same way.
-
-        Such a session belongs to a persisted chat, whose native transcript the
-        hooks validate and publish in the session record. That file survives an
-        idle instance unloading and an unattended night. Archival moves it and
-        deletion removes it, ending ownership without an inactivity timeout.
-        Missing native evidence cannot establish a new desktop lifetime."""
+        Desktop chats share an App Server process and its writer locks, so neither
+        identifies one chat's lifetime. Its native transcript, validated by hooks
+        and published in the session record, survives idle instance unloading.
+        Archive moves that file and delete removes it. Starting a desktop page
+        requires that validated source to exist."""
         if (pid := self.process_pid()) is not None:
             if "app-server" in (process_argv(pid) or []):
                 from .state import chat_exists, session_record
@@ -511,10 +489,10 @@ class CodexHarness(EnvironmentHarness):
         its Stop hook keeps the turn going over input nothing else will carry."""
         return step_hook_ran(self.session)
 
-    def receive_pointer(self, payload: dict) -> None:
-        from .codex_state import accept_codex_delivery_read
+    def receive_pointer(self, payload: dict) -> list[Path]:
+        from .codex_state import confirm_codex_pointer
 
-        accept_codex_delivery_read(self.session, payload["id"])
+        return confirm_codex_pointer(self.session, payload)
 
     def watcher_live(self, *, listening: bool) -> bool:
         """A wait lease says only that some process can read page events. The

@@ -82,8 +82,8 @@ const searchCount = (position, total) => `${position} of ${total}`;
 // chosen target; `/` opens the page's text search directly or from that map. The banner's
 // Select element opens this same picker, and its Cancel selection closes it. A choice
 // in Design mode keeps that mode's design intent; Draw reserves the page for ink and
-// offers no picker. While the picker stands, the page is armed as it is under a held
-// Alt (aim.js): a mouse shows the target
+// offers no picker. Area capture also claims the page until it ends. While the picker
+// stands, the page is armed as it is under a held Alt (aim.js): a mouse shows the target
 // under it, and a press, by finger or mouse, chooses that target without activating
 // authored controls. The key and the modifier are two ways into one gesture, so a press
 // means the same under either.
@@ -108,12 +108,12 @@ export function createTargetPicker({
   commentOnTarget,
   updateFab,
   fabAnchorAt,
-  drawModeActive,
+  pointerModeActive,
   readTargets,
   armChanged,
 }) {
   const canChoose = () =>
-    anchoringIsReady() && !coveringAuxiliarySurface() && !drawModeActive();
+    anchoringIsReady() && !coveringAuxiliarySurface() && !pointerModeActive();
 
   let pickerOpen = false;
   let pageSearchOpen = false;

@@ -599,16 +599,17 @@ button.lf-thread-notice:is(:focus-visible, .lf-focus-visible) { outline: var(--f
    trees. The editor and messages share the theme's entry-size floor. A contextual
    card supplies its editor's vertical inset; retaining its viewport never changes
    these rules.
-   Paragraphs keep a blank line between them through send, replies and reopening. */
+   Paragraphs keep the editor's whitespace and a blank line between them through
+   send, replies and reopening. */
   :is(.lf-thread-transcript, .lf-thread-reply, .lf-general) { --quote-inset: 10px; --pre-inset: 10px; }
   leaf-text.lf-fab-input, .lf-msg-body {
-          font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans); color: var(--ink-2); }
+          font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans); color: var(--ink); }
   .lf-msg-body { min-width: 0; margin: var(--lf-msg-body-gap) 0 0; overflow-wrap: anywhere; }
   .lf-msg-text { display: block; padding-block: var(--lf-thread-text-pad-block, 0px); }
   .lf-msg-text > :first-child { margin-top: 0; }
   .lf-msg-body > :last-child, .lf-msg-text > :last-child { margin-bottom: 0; }
   .lf-msg-body :is(p, ul, ol, pre, blockquote, table, hr) { margin: 6px 0; }
-  .lf-msg-text > p { font: inherit; margin-block: 1lh; }
+  .lf-msg-text > p { font: inherit; white-space: break-spaces; margin-block: 1lh; }
   /* Prose here breaks anywhere, because the thing a reply overflows on is a URL
      no wrap can help. A table is the one block in a reply with somewhere else to
      put the width — the theme makes it scroll inside itself — so breaking its

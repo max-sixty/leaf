@@ -9920,7 +9920,7 @@ def test_contextual_messages_share_text_spacing_through_send_and_reopen(
     page.locator("#target").click(modifiers=["Alt"])
     box = page.locator(".lf-fab-input")
     box.click()
-    text = "First paragraph.\nIts second line.\n\nSecond paragraph.\n\n# A heading"
+    text = "First paragraph.\nIts second line.  \nIts third line.\n\nSecond paragraph.\n\n# A heading"
     write(box, text)
     with sending(page, "the opening comment"):
         page.keyboard.press("ControlOrMeta+Enter")
@@ -9934,7 +9934,7 @@ def test_contextual_messages_share_text_spacing_through_send_and_reopen(
         page.keyboard.press("ControlOrMeta+Enter")
     expect(preview.locator(".lf-msg")).to_have_count(2)
     for paragraph in preview.locator(".lf-msg-text > p:first-child").all():
-        assert paragraph.inner_text() == text.split("\n\n")[0]
+        assert paragraph.inner_text() == text.split("\n\n")[0].replace("  \n", "\n")
     for message in preview.locator(".lf-msg").all():
         body = message.locator(".lf-msg-body")
         for property in ("font-size", "line-height"):

@@ -1768,10 +1768,15 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
 
           const list = document.querySelector('leaf-thread-list');
           const present = list.present.bind(list);
-          let failures = 2;
+          window.reservedListFailures = 0;
+          window.completeListFailures = 0;
+          let firstWave = true;
           let releaseFailure;
           const failedCandidate = new Promise(done => { releaseFailure = done; });
-          window.releaseFirstListFailure = releaseFailure;
+          window.releaseFirstListFailure = () => {
+            firstWave = false;
+            releaseFailure();
+          };
           let releaseRetry;
           const retry = new Promise(done => { releaseRetry = done; });
           window.releaseThreadRetry = releaseRetry;
@@ -1782,14 +1787,15 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
                 row.descriptor.id === 'held-widget-thread'
             );
             if (!candidate) return present(model);
-            if (failures > 0) {
+            // Disclosure and choosing another card can supersede a pending paint.
+            // Allocate each admitted fault before yielding; the entire failed wave
+            // stays held until the user's choice. Later paints wait at the retry gate.
+            if (firstWave) {
+              window.reservedListFailures += 1;
               await present(model);
-              if (failures === 2) {
-                window.failedCandidatePresented = true;
-                await failedCandidate;
-              }
-              failures -= 1;
-              window.completeListFailures = 2 - failures;
+              window.failedCandidatePresented = true;
+              await failedCandidate;
+              window.completeListFailures += 1;
               throw new Error('injected complete-list failure');
             }
             if (!window.threadRetryReleased) {
@@ -1853,12 +1859,14 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         selected = page.locator('.lf-thread[data-id="earlier-thread"]')
         selected.locator(".lf-thread-summary").click()
         expect(selected).to_have_attribute("open", "")
+        page.wait_for_function("window.reservedListFailures >= 2")
     elif place == "leave-displaced-title":
         expect(page.locator(".lf-thread[open] > .lf-thread-summary")).to_be_focused()
         page_comment(page)
     page.evaluate("window.releaseFirstListFailure()")
     page.wait_for_function(
-        """() => window.completeListFailures === 2 &&
+        """() => window.completeListFailures >= 1 &&
+          window.completeListFailures === window.reservedListFailures &&
           window.threadRetryHeld === true""",
     )
 

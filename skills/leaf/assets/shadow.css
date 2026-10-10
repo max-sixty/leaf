@@ -101,8 +101,11 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 :where(:focus) {
   scroll-margin-block: var(--focus-ring-room);
 }
+:where([data-lf-sticks]) {
+  --lf-head-inset: 0px;
+}
 :where(:focus) {
-  scroll-margin-top: calc(var(--lf-head-inset, calc(var(--focus-ring-room) + var(--lf-landing-room, 0px))) - var(--lf-landing-room, 0px));
+  scroll-margin-top: calc(var(--lf-top) - var(--lf-top-covered, var(--lf-top)) + var(--lf-head-inset, calc(var(--focus-ring-room) + var(--lf-landing-room, 0px))) - var(--lf-landing-room, 0px));
 }
 [data-lf-offer]:where(:not([data-lf-offer=""])) {
   cursor: pointer;

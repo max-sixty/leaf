@@ -106,7 +106,7 @@ import {
   prepareDeclaredMarkdown,
   formatDeclaredMarkdown,
 } from "./markdown.js";
-import { pageScroller } from "./scrolling.js";
+import { moveScrollerBy, pageScroller } from "./scrolling.js";
 import {
   containingReadingRegionFor,
   effectiveScroller,
@@ -1821,12 +1821,20 @@ export function createVersionController({
   // restores that reading. A visible focused element is itself a live reading landmark;
   // focus retained on an element the reader scrolled past is not.
   // A composition change in progress owns any shift inside it.
+  //
+  // The page shifts with the window. The browser's scroll anchoring holds its words where
+  // they stood in the window, but a place stands below the landing band, which moves when
+  // the banner takes another row: the line the user was reading went under it. So the
+  // page moves with its band first, and a region the page carries lands against the new
+  // band from its own record.
   function restoreShifted(shifted, currentIntent, views) {
     if (compositionChanges.size) return;
     if (!currentIntent()) return;
+    const page = shifted.find(({ region }) => !region);
+    if (page?.band) moveScrollerBy(pageScroller, -page.band);
     const candidates = shifted
       .map(({ region }) => region)
-      .filter((region) => shownRegionBounds(region));
+      .filter((region) => region && shownRegionBounds(region));
     restoreRegions(candidates, currentIntent, null, views);
     recordRegions();
   }

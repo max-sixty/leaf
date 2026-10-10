@@ -261,7 +261,6 @@
   :scope:host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file > details > summary {
     position: sticky;
     --lf-top: var(--lf-top-outer);
-    --lf-head-inset: 0px;
     top: var(--lf-top, 0px);
     z-index: 2;
   }

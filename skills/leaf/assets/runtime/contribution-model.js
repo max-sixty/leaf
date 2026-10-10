@@ -74,7 +74,7 @@ export const KINDS = Object.freeze(
         indication: true,
       },
       comment: { label: "Thread", icon: "comment", priority: 1 },
-      ask: { label: "Ask", icon: "question", priority: 2 },
+      question: { label: "Question", icon: "question", priority: 2 },
       sent: {
         label: "Sent",
         icon: "sent",

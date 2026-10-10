@@ -85,7 +85,7 @@ export function threadAttention(thread) {
       ) ?? null)
     : null;
   if (thread.attention?.kind === "needs_user") {
-    const answering = thread.attention.reason === "ask";
+    const answering = thread.attention.reason === "question";
     const nextMove = answering
       ? "answer"
       : workflow?.subject.kind === "thread"

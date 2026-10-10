@@ -2,7 +2,7 @@
 
    The application supplies the neutral annotation inventory and its live target/action
    directory. This renderer selects clusters and controls from those readings; it does
-   not gather Threads, Asks, workflows or contributed actions. Shared contribution
+   not gather Threads, Questions, workflows or contributed actions. Shared contribution
    controls retain native entries across page and frozen-Thread seats. This renderer's
    Lit view owns direct/disclosed child order; margin-layout.js owns rail/pin posture,
    lanes and packing. Page Map consumes the inventory independently of this renderer.
@@ -110,9 +110,8 @@ import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
 import { repaint } from "/runtime/repaint.js";
 import { chromeRoot, chromeForeground } from "/runtime/chrome.js";
 import { versionBtn } from "/runtime/version-picker.js";
-
-import { askHolding, declareSide, placeOf } from "/runtime/standing-target.js";
-import { readAsks } from "/runtime/asks/model.js";
+import { questionHolding, declareSide, placeOf } from "/runtime/standing-target.js";
+import { readQuestions } from "/runtime/questions/model.js";
 import { closestAcross, inChrome } from "/runtime/passages.js";
 import { visualAt } from "/runtime/anchor-resolution.js";
 import { paintTrace } from "/runtime/target-paint.js";
@@ -168,7 +167,7 @@ export function createMarginProjection({
   toolbar.setAttribute("role", "toolbar");
   toolbar.setAttribute(
     "aria-label",
-    "Changes, threads, asks, delivery status, and activity",
+    "Changes, threads, questions, delivery status, and activity",
   );
   nav.append(toolbar);
 
@@ -1451,7 +1450,7 @@ export function createMarginProjection({
       intent.handoff(closePreview);
       void held.presented.then(() =>
         openPageThread(held.id, {
-          focus: "thread",
+          part: "thread",
           travel: false,
           intent,
         }),
@@ -1545,9 +1544,9 @@ export function createMarginProjection({
     ].some((seat) => closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"));
   // The innermost target holding the node whose threads the card would show. A thread is
   // about exactly its anchor's target (glossary, Standing target), reached from anywhere
-  // inside it and never from outside: after `q` the user stands on the Ask element, so
-  // the card shows a thread on the Ask but not one on its options or a phrase in its
-  // heading. Treating an Ask as one target for its threads is a possible refinement. It
+  // inside it and never from outside: after `q` the user stands on the Question element, so
+  // the card shows a thread on the Question but not one on its options or a phrase in its
+  // heading. Treating a Question as one target for its threads is a possible refinement. It
   // belongs where a thread's target is decided (anchor-placement), so every
   // reader keeps one definition, not in this or any other single reader.
   // Read from where the node stands (standing-target.js), so chrome that shows a page
@@ -1569,7 +1568,7 @@ export function createMarginProjection({
   };
   // A folded cluster opens while the keyboard stands at its target, as it does when
   // the keyboard arrives on its toggle: what the user stands at offers its actions, and
-  // an Ask's digits name them. It folds again when they stand anywhere else but in the
+  // a Question's digits name them. It folds again when they stand anywhere else but in the
   // cluster itself, where standing keeps it open (the fold beside `arriveAtCluster`).
   let standingUnfolded = null;
   // The arrivals below are the keyboard's: the user's latest input was a key, not a
@@ -1616,8 +1615,8 @@ export function createMarginProjection({
     )
       return;
     const host = closestAcross(active, "[data-lf-margin-for]");
-    // Working an Ask keeps its decisions clear; explicit discussion remains open.
-    if (askHolding(readAsks().all, placeOf(active))) {
+    // Working a Question keeps its decisions clear; explicit discussion remains open.
+    if (questionHolding(readQuestions().all, placeOf(active))) {
       const entry = threadEntryAt(active);
       if (
         previewOpen() &&

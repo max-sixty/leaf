@@ -723,7 +723,7 @@ pick on the page:
         the pick in a later version, mark the element `restated` and say why in
         the version note.
     - text: >-
-        It answers the page's Ask, so the page shows it as waiting on you until
+        It answers the page's Question, so the page shows it as waiting on you until
         the markup records it. Name the work it selects or unblocks with `leaf task
         start <page> <event-id> "<the work, in a line>"` before starting it, then
         do it, write it in, and stamp a version.
@@ -752,9 +752,9 @@ option the user added:
         the version note.
     - when: {"not": {"required": ["answer"]}}
       text: >-
-        This move owes no answer of its own: it answers no Ask, a later move on
-        the same widget carries the answer, or it does not finish the answer yet,
-        such as a pick before the Done its group waits for.
+        This move owes no answer of its own: it answers no Question, a later move
+        on the same widget carries the answer, or it does not finish the answer
+        yet, such as a pick before the Done its group waits for.
 
 pick before Done:
   event:
@@ -775,9 +775,9 @@ pick before Done:
         the version note.
     - when: {"not": {"required": ["answer"]}}
       text: >-
-        This move owes no answer of its own: it answers no Ask, a later move on
-        the same widget carries the answer, or it does not finish the answer yet,
-        such as a pick before the Done its group waits for.
+        This move owes no answer of its own: it answers no Question, a later move
+        on the same widget carries the answer, or it does not finish the answer
+        yet, such as a pick before the Done its group waits for.
 
 decided suggestion:
   event:
@@ -801,7 +801,7 @@ decided suggestion:
         the pick in a later version, mark the element `restated` and say why in
         the version note.
     - text: >-
-        It answers the page's Ask, so the page shows it as waiting on you until
+        It answers the page's Question, so the page shows it as waiting on you until
         the markup records it. Name the work it selects or unblocks with `leaf task
         start <page> <event-id> "<the work, in a line>"` before starting it, then
         do it, write it in, and stamp a version.

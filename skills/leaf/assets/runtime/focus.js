@@ -998,10 +998,10 @@ export function controlNavigationKeys(node) {
 
 // Landing the user in the document. One act at both ends of the ladder, and for every
 // step that would otherwise leave them on Leaf's own apparatus, because standing on an
-// Ask out on the page and standing on a banner button are the same state — the user
+// Question out on the page and standing on a banner button are the same state — the user
 // holding something — reached from either side of the chrome. What those rungs do not
 // share is the word, and neither word is the other's: leaving the chrome names where the
-// user lands, since that is the whole of what the rung is for, and letting go of an Ask
+// user lands, since that is the whole of what the rung is for, and letting go of a Question
 // names the act, since they were on the page all along.
 //
 // Where they land is the block they are reading in the page region they last acted in

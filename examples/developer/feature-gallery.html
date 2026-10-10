@@ -380,7 +380,18 @@
       ]
     </script>
     <script type="module">
-      import { afterPresentation, commands } from "/runtime/widget-api.js";
+      import {
+        afterPresentation,
+        commands,
+        readQuestions,
+      } from "/runtime/widget-api.js";
+
+      document.querySelector("#bg-read-question").addEventListener("click", () => {
+        const question = readQuestions().all.find((q) => q.id === "widget:bg-choice");
+        const output = document.querySelector("#bg-question-reading");
+        output.textContent = JSON.stringify(question, null, 2);
+        output.hidden = false;
+      });
 
       const localNote = document.querySelector("#bg-shortcut-note");
       const focusNote = document.querySelector("#bg-shortcut-focus-note");
@@ -507,33 +518,34 @@
           <section id="bg-core-surfaces">
             <p class="eyebrow bg-feature-elements">lf-ask · lf-options · lf-option</p>
             <h2>
-              <strong>Asks</strong
+              <strong>Questions</strong
               ><span class="bg-feature-detail">: decisions and answers</span>
             </h2>
             <p id="bg-core-surfaces-guide">
-              An <code>lf-ask</code> is one complete Ask: its heading names the
-              question, and one nested widget owns the answer. This sample uses
-              <code>lf-options</code>, which records a choice Leaf can replay as page
-              state. Press <kbd>q</kbd> for the next question waiting on you, in page
-              order: an open Ask, a thread whose question is yours to answer, such as
-              the gallery thread that asks about a pasted image, a to-do the agent put
-              on you, or a move whose reply failed and needs sending again. The banner's
-              <strong>Questions</strong> door, beside Threads, counts them, and the
-              agent's Tasks count follows its status. Press either, or press
-              <kbd>g</kbd> then <kbd>Shift+Q</kbd>, to see both lists in the panel
-              Threads also opens in, with answered Asks and finished tasks folded under
-              Done; Enter on a row goes where <kbd>q</kbd> would. A stamped page asking
-              for sign-off also lists its version approval as a Question. That row
-              reaches the banner's Approve control; approving ends it, and Undo brings
-              it back. The Questions panel is experimental. Within a view,
+              An <code>lf-ask</code> adds a heading and context to a Question whose
+              nested widget owns the answer. The Question keeps that widget’s identity
+              and typed value; the widget can also pose it without the wrapper. This
+              sample uses <code>lf-options</code>, which records a choice Leaf can
+              replay as page state. Press <kbd>q</kbd> for the next question waiting on
+              you, in page order: an open Question, a thread whose question is yours to
+              answer, such as the gallery thread that asks about a pasted image, a to-do
+              the agent put on you, or a move whose reply failed and needs sending
+              again. The banner's <strong>Questions</strong> door, beside Threads,
+              counts them, and the agent's Tasks count follows its status. Press either,
+              or press <kbd>g</kbd> then <kbd>Shift+Q</kbd>, to see both lists in the
+              panel Threads also opens in, with answered Questions and finished tasks
+              folded under Done; Enter on a row goes where <kbd>q</kbd> would. The
+              Questions panel is experimental. A stamped page asking for sign-off also
+              lists its version approval as a Question. That row reaches the banner's
+              Approve control; approving answers it, and Undo reopens it. Within a view,
               <kbd>q</kbd> scrolls to the question. When it opens another view, the
               question appears immediately and its tab name briefly highlights.
               <kbd>Shift+Q</kbd> walks back. Reduced motion removes the glide and
-              highlight. When <kbd>q</kbd> reaches a commented Ask, its discussion stays
-              closed while you read and choose, including when Tab enters its controls.
-              Press <kbd>c</kbd> to reply in that existing discussion, <kbd>t</kbd> to
-              read it, or its Thread marker to open it under a finger. Returning to an
-              Ask you have answered also keeps its controls clear.
+              highlight. When <kbd>q</kbd> reaches a commented Question, its discussion
+              stays closed while you read and choose, including when Tab enters its
+              controls. Press <kbd>c</kbd> to reply in that existing discussion,
+              <kbd>t</kbd> to read it, or its Thread marker to open it under a finger.
+              Returning to a Question you have answered also keeps its controls clear.
             </p>
             <lf-ask id="bg-choice-ask">
               <h3>Which map should the sample team carry?</h3>
@@ -542,6 +554,17 @@
                 <lf-option id="bg-choice-trail">Trail map</lf-option>
               </lf-options>
             </lf-ask>
+            <details id="bg-question-api">
+              <summary>Inspect the Question record</summary>
+              <p>
+                The map's Question is <code>widget:bg-choice</code> whether or not it
+                has an <code>lf-ask</code> wrapper. Choose a map, then read its current
+                record: <code>answer.value</code> contains option ids, and
+                <code>prompt.target</code> names the surrounding context.
+              </p>
+              <button id="bg-read-question" type="button">Read current Question</button>
+              <pre id="bg-question-reading" hidden></pre>
+            </details>
             <section id="bg-task-on-you">
               <h3>A task on you</h3>
               <p>
@@ -549,14 +572,14 @@
                 <code>leaf task open … --on user</code>: check that the trail map marks
                 the shelter. Nothing here answers it, so it ends at your Done. It waits
                 under Questions in the Questions panel, as a To do whose row has a Done
-                button, and <kbd>q</kbd> reaches it after the Ask above. Where
+                button, and <kbd>q</kbd> reaches it after the Question above. Where
                 <kbd>q</kbd> lands on it, press <kbd>x</kbd>, or under a finger the
                 banner's <strong>Done</strong>. Done moves it under the panel's Done
                 fold and tells the agent.
               </p>
             </section>
             <section id="bg-widget-shortcut-hints">
-              <h3>Inline hints outside an Ask</h3>
+              <h3>Inline hints outside a Question</h3>
               <p>
                 Tab into this sample to see <kbd>1</kbd> beside its button. Press it to
                 focus the note: the hint disappears and digits type normally. Leaving
@@ -752,7 +775,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 ><span class="bg-feature-detail">: approve a version</span>
               </h3>
               <p id="bg-signoff-guide">
-                This gallery deliberately leaves sample Asks unanswered, so
+                This gallery deliberately leaves sample Questions unanswered, so
                 <strong>Approve version</strong> remains unavailable. On a settled page
                 it records approval for the current version; <kbd>z</kbd>, or “Undo” in
                 “More page controls” on a touch screen, takes that approval back.
@@ -848,10 +871,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 Select some words in this guide, or focus its heading, then scroll until
                 it sits lower on screen. Press <kbd>g</kbd> and <kbd>z</kbd>, or choose
                 Align current item at top in More page controls: its reading block moves
-                just below the banner, keeping your focus and selection. A focused Ask
-                aligns its question; a focused thread in Threads aligns its card inside
-                the panel. A bounded reading area aligns within its own scroller.
-                Browser Back has no new stop to undo. Inside an editor, typing
+                just below the banner, keeping your focus and selection. A focused
+                Question aligns its question; a focused thread in Threads aligns its
+                card inside the panel. A bounded reading area aligns within its own
+                scroller. Browser Back has no new stop to undo. Inside an editor, typing
                 <kbd>g</kbd><kbd>z</kbd> writes those letters.
               </p>
             </section>
@@ -1082,12 +1105,12 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <p class="eyebrow bg-feature-elements">lf-conversation-workspace</p>
               <h3>Package conversation readers</h3>
               <p id="bg-thread-api-guide">
-                Switch between Conversation, Shelf, and Feed. Answer the channel Ask
-                inside its message, write a reply, and change layouts before sending:
-                the same draft follows the conversation. Start a conversation and mark
-                the proofreading task Done. The package's queues and Leaf's Questions
-                panel show the same outcomes. First unread and question navigation
-                arrive in this reader.
+                Switch between Conversation, Shelf, and Feed. Answer the channel
+                Question inside its message, write a reply, and change layouts before
+                sending: the same draft follows the conversation. Start a conversation
+                and mark the proofreading task Done. The package's queues and Leaf's
+                Questions panel show the same outcomes. First unread and question
+                navigation arrive in this reader.
               </p>
               <script id="bg-thread-api-history" type="application/json">
                 [
@@ -1478,14 +1501,14 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
           <section id="bg-ask-track">
             <p class="eyebrow bg-feature-elements">lf-ask · lf-chart · lf-options</p>
             <h2>
-              <strong>An Ask beside its figure</strong
+              <strong>A Question beside its figure</strong
               ><span class="bg-feature-detail">: the options track</span>
             </h2>
             <p id="bg-ask-track-guide">
-              This Ask holds a chart and ends in one option list, and it takes the wide
-              measure. In a window wide enough for both, the list stands in a column
-              beside the chart and stays put while the evidence scrolls past it; narrow
-              the window and the list drops below the chart again.
+              This Question holds a chart and ends in one option list, and it takes the
+              wide measure. In a window wide enough for both, the list stands in a
+              column beside the chart and stays put while the evidence scrolls past it;
+              narrow the window and the list drops below the chart again.
             </p>
             <lf-ask id="bg-track-ask" data-width="wide">
               <h3>Which trail should the sample team hike on Saturday?</h3>
@@ -1540,10 +1563,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               The tab list stands left of the open item, each row its name and summary,
               and each run of rows sharing a <code>group</code> under its heading. Walk
               it with the up and down arrows, which pass the headings by. Answer the
-              first item's Ask and its row shows a check and the option you picked, and
-              undo takes them away; narrow the window below the set's 36rem and the list
-              becomes a row above the item, with each group's name before its first row
-              and the rows keeping only the check.
+              first item's Question and its row shows a check and the option you picked,
+              and undo takes them away; narrow the window below the set's 36rem and the
+              list becomes a row above the item, with each group's name before its first
+              row and the rows keeping only the check.
             </p>
             <lf-tabs id="bg-side-queue" list="side">
               <lf-tab
@@ -1679,9 +1702,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               ><span class="bg-feature-detail">: annotations beside their targets</span>
             </h3>
             <p id="bg-margin-layer-guide">
-              Leaf places threads, unanswered Asks, actions, changes, and delivery or
-              work status beside the content they concern. With enough room beside the
-              reading column, their controls stand in the rail. Where the rail is
+              Leaf places threads, unanswered Questions, actions, changes, and delivery
+              or work status beside the content they concern. With enough room beside
+              the reading column, their controls stand in the rail. Where the rail is
               absent, the same controls appear as pins near their targets on the page.
               Every annotation uses the same filled teardrop face as a pin. Its glyph
               and label keep their meaning: a Thread opens a conversation, Accept acts
@@ -1713,7 +1736,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <strong>Action pins without a rail.</strong> This practice page has no
               rail. The suggestion's “Accept” and “Reject” controls appear as pins
               beside the proposed wording. Choose either, then use “Undo” to restore the
-              suggestion. These annotations work without a thread or an Ask.
+              suggestion. These annotations work without a thread or a Question.
             </p>
             <lf-sample id="bg-margin-layer-actions" label="suggestion without a rail">
               <template id="bg-margin-layer-actions-page" data-sample data-rail="none">

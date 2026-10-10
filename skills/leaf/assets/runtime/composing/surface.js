@@ -119,7 +119,7 @@ import {
 import { commandScope, projectCommandScope } from "../keyboard/scopes.js";
 import { shadowHost, under, upFrom } from "../shadow.js";
 import { nativeLayers } from "../keyboard/layer-stack.js";
-import { heldAsk } from "../standing-target.js";
+import { heldQuestion } from "../standing-target.js";
 
 import { coarsePointer, pointerAt } from "../pointer.js";
 import { anchorLabel } from "../thread/messages.js";
@@ -346,9 +346,9 @@ export function createResponseSurface({
       scrollToRange,
     }) ?? null;
   // An element response exits to its subject, or the declared proxy representing it.
-  // Resolve that structural parent from the current anchor, so c from an Ask and an
-  // aimed press on the same Ask unwind alike. There is no saved pre-command focus:
-  // standing on an option comments on its Ask, and closing returns to the Ask itself.
+  // Resolve that structural parent from the current anchor, so c from a Question and an
+  // aimed press on the same Question unwind alike. There is no saved pre-command focus:
+  // standing on an option comments on its Question, and closing returns to the Question itself.
   // A quoted selection clears to the page; a removed subject has no parent to land on.
   const returnPlaces = (anchor) =>
     anchor && !anchor.quote ? [visualActionAnchor(anchor), anchorTargetAt(anchor)] : [];
@@ -1165,7 +1165,7 @@ export function createResponseSurface({
       const threadId = markAt?.(point.x, point.y);
       if (threadId)
         return void openPageThread(threadId, {
-          focus: panel.classList.contains("open") ? "reply" : "thread",
+          part: panel.classList.contains("open") ? "reply" : "thread",
           travel: false,
         });
     });
@@ -1206,10 +1206,10 @@ export function createResponseSurface({
     const here = standingTarget();
     const anchor = fabAnchorAt();
     // The thread the user is at continues where it is about what they stand on: they
-    // are in it, or its target lies within the element they stand at — the Ask holding
-    // focus, answered or not, else the element itself — as an Ask's options group does
+    // are in it, or its target lies within the element they stand at — the Question holding
+    // focus, answered or not, else the element itself — as a Question's options group does
     // when the user holds one of its marks. A card showing an enclosing block's thread is
-    // about that block, so an element inside it, such as an Ask in a commented task,
+    // about that block, so an element inside it, such as a Question in a commented task,
     // takes a thread of its own, and a selection still starts one on its words.
 
     const inline = threadHere();
@@ -1221,12 +1221,12 @@ export function createResponseSurface({
       (inline.dataset.thread ?? inline.dataset.id) === threadId &&
       (!here ||
         inline.contains(focused()) ||
-        (target && under(target, heldAsk() ?? here.element))) &&
+        (target && under(target, heldQuestion() ?? here.element))) &&
       threadInput(inline);
     const said =
       standingThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
     const subject =
-      threadId && (!here || (target && under(target, heldAsk() ?? here.element)));
+      threadId && (!here || (target && under(target, heldQuestion() ?? here.element)));
     const replySubject = subject && replyId;
     // A captured passage outranks the focus it preceded, but a kept draft is not a
     // standing target. Read both page and thread standing before choosing the aim.
@@ -1263,7 +1263,7 @@ export function createResponseSurface({
         box: null,
         go: async () => {
           const destination = await openPageThread(threadId, {
-            focus: "reply",
+            part: "reply",
             travel: false,
           });
           if (!destination) return;

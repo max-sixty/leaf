@@ -21,7 +21,7 @@ const action = (attempt, extra = {}) => ({
   ...extra,
 });
 const earlier = action("earlier", { id: "e0", seq: 1 });
-const noAsks = () => ({ all: [], user: [], unanswered: [] });
+const noQuestions = () => ({ all: [], user: [], unanswered: [] });
 let taken = 0;
 // A reading whose log holds `events`, each standing and each the user's to take back.
 const reading = (events) => ({
@@ -37,7 +37,7 @@ const reading = (events) => ({
     thread: {
       threads: [],
       projection: { entries: [], actions: [], reports: [], desired: [] },
-      asks: noAsks(),
+      questions: noQuestions(),
     },
     views: {
       1: {
@@ -45,7 +45,7 @@ const reading = (events) => ({
         coverage: [],
         undo: events.map((event) => ({ event })).reverse(),
         document: {
-          asks: noAsks(),
+          questions: noQuestions(),
           projection: {
             entries: events.map((event) => ({
               event,

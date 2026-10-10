@@ -26,20 +26,13 @@ the page on the agent's own initiative, is a task the agent opens on the page or
 widget or section it concerns; housekeeping, such as re-vendoring or restarting the
 server, owes the user nothing and is no item.
 
-The user's tasks come from declarations and the log, and their subject says how each
-ends. Each Ask in the markup is one, under the Ask's id, from the version that adds
-it, ended `done` when its widget is answered (`asks`); each agent turn in a thread
-that asks the user (`asks.thread_questions`) is one, under that turn's id, ended by
-the user's reply there or a settling reaction; the document starts state, so neither
-writes an event, and `page_tasks` reads them. Another is a `task` event the agent
-writes with `--on user` on a widget, an element or the page, never a thread, where
-the question is the task. Nothing else answers it, so it ends at the user's Done,
-their own `task_end`, which `undo` takes back. A stamped document declaring
-`lf-review=sign-off` holds an approval question for that exact version, until its
-unwithdrawn `done` approval; `document_tasks` reads it beside the document's Asks.
-The agent can end any task on the user but an Ask's or required approval, which the
-markup holds and a version retires: ending a question's settles it, since the prompt
-reading takes an ended one off the user (`TaskReading.ends`).
+Tasks on the user are explicit `task` events opened with `--on user`, ending at
+Done or an agent end. Questions are separate canonical records (`questions`),
+selected directly by work queues, never synthesized into tasks. The existing
+`task_end` write can also withdraw an open prose request by its Question id or
+source-message id; that withdraws the request without recording a user answer.
+A stamped document declaring `lf-review=sign-off` adds an approval Question
+for that exact public version; only its unwithdrawn approval answers it.
 
 A start lasts until its item ends: a task's end, or for a move the reply or stamped
 version that answers it (`workflows.canonical_workflows`), and it holds its item
@@ -61,7 +54,7 @@ thread, a widget needing no seat; a start on an open task of the agent's or a mo
 the agent owes; and an end of an open task, the user's only of one the agent opened
 on them (`task_error`). `TaskReading` holds the log's tasks, starts and endings
 for one event basis; `canonical_tasks` supplies the same fold to standalone callers.
-`page_tasks` and `document_tasks` derive the tasks held by threads and documents.
+`WorkReading.page_tasks` attaches thread and activity readings to explicit tasks.
 
 Not yet: a task whose session has ended reads open until another session ends it.
 
@@ -76,8 +69,6 @@ from functools import cached_property
 from pathlib import Path
 
 from .events import note_settlements, taken_back
-from .schema import agent_name
-from .structure import review_mode
 
 OUTCOMES = ("done", "failed", "dropped")
 
@@ -248,175 +239,9 @@ def log_tasks_open(events: list) -> list[dict]:
     return [task for task in canonical_tasks(events) if task["state"] == "open"]
 
 
-# How a task ends, the one reading of it every reader takes (`ends` on each task):
-# the agent's at its `task_end` or a version's `--completes`, an Ask's when its widget
-# answers it, a question's at the user's reply or a settling reaction, and any other
-# task on the user at their Done; a stamped document's required sign-off at approval.
+# Explicit committed work ends through its owner, independently of Questions.
 ENDS_BY_AGENT = "agent"
-ENDS_BY_WIDGET = "widget"
-ENDS_BY_REPLY = "reply"
 ENDS_BY_DONE = "done"
-ENDS_BY_APPROVAL = "approval"
-
-
-def _log_task(task: dict) -> dict:
-    """One of the log's tasks as `page_tasks` serves it, with how it ends."""
-    return {
-        **task,
-        "ends": ENDS_BY_AGENT if task["owner"] == "agent" else ENDS_BY_DONE,
-        "ask": None,
-    }
-
-
-def _derived(
-    identity: str,
-    subject: dict,
-    thread: str | None,
-    state: str,
-    ends: str,
-    *,
-    ended: dict | None = None,
-    ask: dict | None = None,
-    message: dict | None = None,
-) -> dict:
-    """A task on the user that the page's markup or a thread's question holds rather
-    than a `task` event, in the shape of the log's: it has no title of its own, and
-    nobody opened it. `ended` is the `task_end` that ended it (`TaskReading.ends`), if one
-    did."""
-    return {
-        "id": identity,
-        "owner": "user",
-        "subject": subject,
-        "thread": thread,
-        "title": None,
-        "state": ended["state"] if ended else state,
-        "seq": message["seq"] if message else None,
-        "ts": message["ts"] if message else None,
-        "agent": agent_name(message) if message else None,
-        "session": message.get("session") if message else None,
-        "revision": None,
-        "running": None,
-        "outcome": {key: value for key, value in ended.items() if key != "state"}
-        if ended
-        else None,
-        "ends": ends,
-        "ask": ask,
-    }
-
-
-def ask_tasks(asks: dict) -> tuple[list[dict], list[dict]]:
-    """The user's tasks one Ask reading holds (`{all, user, unanswered}`,
-    `asks.page_ask_readings` or `asks.thread_ask_readings`), as the open ones and the
-    ended ones.
-
-    Each Ask is a task on the user under the Ask's own id, open while it is
-    unanswered and `done` once its widget answers it, with `ask` naming the widget
-    that answers and whether a thread in that widget's seat holds it with the agent
-    (`held_by_seat`), which takes it off the user's queue meanwhile. The markup holds
-    it, so nothing else ends it: a version that removes the Ask, or marks it
-    `restated`, retires it. A document's Asks are read with the document, so a page's
-    are served with the version they stand in (`served_state.document`), and the
-    queues read those of the version shown."""
-    unanswered = {ask["id"] for ask in asks["unanswered"]}
-    on_user = {ask["id"] for ask in asks["user"]}
-    standing: list[dict] = []
-    ended: list[dict] = []
-    for ask in asks["all"]:
-        task = _derived(
-            ask["id"],
-            {"kind": "widget", "id": ask["id"]},
-            ask["thread"],
-            "open" if ask["id"] in unanswered else "done",
-            ENDS_BY_WIDGET,
-            ask={
-                "tag": ask["tag"],
-                "widget": ask["source"],
-                "widget_tag": ask["source_tag"],
-                "held_by_seat": ask["id"] in unanswered and ask["id"] not in on_user,
-            },
-        )
-        (standing if task["state"] == "open" else ended).append(task)
-    return standing, ended
-
-
-def document_tasks(
-    document, revision: int, stamp: int | None, approvals: list[dict]
-) -> tuple[list[dict], list[dict]]:
-    """A document's Ask tasks and its required approval of an actual public stamp.
-
-    Sign-off is a question on the user only once the agent stamps this exact
-    revision. It ends at that version's admitted, unwithdrawn approval, never at
-    a task_end. Approval admission still checks unanswered Asks alone, so the
-    approval question cannot block its own answer. An unstamped revision owes
-    no approval, and an older version's approval cannot settle a newer one.
-    """
-    standing, ended = ask_tasks(document.asks)
-    if stamp is None or review_mode(document.document) != "sign-off":
-        return standing, ended
-    approved = next(
-        (event for event in reversed(approvals) if event["version"] == stamp), None
-    )
-    task = _derived(
-        f"approval:v{stamp}",
-        {"kind": "page"},
-        None,
-        "done" if approved else "open",
-        ENDS_BY_APPROVAL,
-        ended={"state": "done", **_outcome(approved, None)} if approved else None,
-    )
-    task.update(
-        title=f"Approve v{stamp}?",
-        revision=revision,
-        approval={"version": stamp},
-    )
-    (standing if task["state"] == "open" else ended).append(task)
-    return standing, ended
-
-
-def page_tasks(
-    log: list[dict],
-    thread_asks: dict,
-    questions: dict,
-) -> tuple[list[dict], list[dict]]:
-    """Tasks beside the document's Asks, selecting the shared question lifecycle.
-
-    `log` holds explicit tasks with their thread and aged activity. `thread_asks`
-    holds frozen widget Asks. `questions` is `WorkReading.questions`: the same
-    recognition, current prompt and settling event thread attention consumes.
-    Only the current prose prompt is open on the user; each answered question
-    retains the exact event that ended it in the Questions panel's Done history.
-    """
-    standing, ended = ask_tasks(thread_asks)
-    for identity, reading in questions.items():
-        for question in reading.questions:
-            message = question["message"]
-            if question["state"] == "open" and (
-                reading.prompt is None or message["id"] != reading.prompt["message"]
-            ):
-                continue
-            settlement = question["settlement"]
-            outcome = (
-                {
-                    "state": question["state"],
-                    **_outcome(settlement, settlement.get("detail")),
-                }
-                if settlement is not None
-                else None
-            )
-            task = _derived(
-                message["id"],
-                {"kind": "thread", "id": identity},
-                identity,
-                question["state"],
-                ENDS_BY_REPLY,
-                ended=outcome,
-                message=message,
-            )
-            (standing if task["state"] == "open" else ended).append(task)
-    for task in log:
-        task = _log_task(task)
-        (standing if task["state"] == "open" else ended).append(task)
-    return standing, ended
 
 
 def task_error(
@@ -429,21 +254,16 @@ def task_error(
     user_widget_error,
     owed: set[str],
     tasks,
+    questions,
 ) -> str | None:
     """Why the append door refuses a task event, or None.
 
-    The agent's task stands on an open thread of `threads` (`events.build_threads`),
-    on a widget `seat_error` admits, on an element `element_error` admits, or on the
-    page. A task it puts on the user stands on an element `element_error` admits, a
-    widget `user_widget_error` admits, which is no Ask, since an Ask already is a task
-    on the user, or the page, and not on a thread, where a question asked with
-    `--awaits` is the task on the user. A start names an open task of the agent's or a
-    move in `owed`, the inputs of the moves on the agent.
-
-    An outcome ends a task still open, one of `tasks()`, every task on the page
-    (`page_tasks`), read only for an outcome. Who may end it is how it `ends`: the
-    agent its own and any on the user but an Ask's or required approval, which the
-    markup holds; the user only one their Done ends."""
+    Explicit work stands on an admitted widget, page element, page or open thread;
+    user-owned work cannot stand on a thread. A start names an open agent task or
+    an owed move. Either side can end explicit work within its ownership rules.
+    An agent end may also withdraw an open prose Question by canonical id or source
+    message id, while widget Questions remain owned by their declared state.
+    """
     kind = event["kind"]
     if kind == "task":
         subject = event["subject"]
@@ -483,29 +303,30 @@ def task_error(
     identity = event["task"]
     task = next((task for task in tasks() if task["id"] == identity), None)
     if task is None:
+        question = next(
+            (question for question in questions() if identity == question["id"]),
+            None,
+        )
+        if question is not None:
+            if question["source"]["kind"] == "approval":
+                return (
+                    f"Question {identity!r} requires the user's approval of "
+                    f"v{question['source']['version']}; it ends at the page's Approval control"
+                )
+            if question["source"]["kind"] == "widget":
+                return f"{identity!r} is a widget Question; its source owns the answer, so retire it in the document"
+            if event["author"] != "agent":
+                return "the user's reply or settling reaction answers a prose Question"
+            if question["status"] != "open":
+                return f"Question {identity!r} has already {question['status']}"
+            return None
         if ended := log.ends.get(identity):
             return f"task {identity!r} has already ended ({ended['state']})"
         return f"unknown task {identity!r}"
-    if task["ends"] == ENDS_BY_WIDGET:
-        return (
-            f"task {identity!r} is an Ask's, which ends when its widget answers it; "
-            "to retire the Ask, leave it out of a stamped version, or mark it "
-            "`restated` there"
-        )
-    if task["ends"] == ENDS_BY_APPROVAL:
-        return (
-            f"task {identity!r} requires the user's approval of "
-            f"v{task['approval']['version']}; it ends at the page's Approval control"
-        )
     if task["state"] != "open":
         return f"task {identity!r} has already ended ({task['state']})"
     if event["author"] == "user" and task["ends"] != ENDS_BY_DONE:
-        return (
-            f"task {identity!r} is the agent's; the user ends only a task on them"
-            if task["ends"] == ENDS_BY_AGENT
-            else f"task {identity!r} is a question in its thread, which the user's "
-            "reply or a settling reaction answers"
-        )
+        return f"task {identity!r} is the agent's; the user ends only a task on them"
     return None
 
 

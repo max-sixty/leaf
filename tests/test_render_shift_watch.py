@@ -3225,7 +3225,17 @@ def test_owned_native_finish_records_the_applied_endpoint(browser, fault, fill):
 
 @pytest.mark.parametrize(
     "case",
-    ["root", "scaled", "fixed-both", "sticky", "fixed-fault", "clamp", "clamp-fault"],
+    [
+        "root",
+        "scaled",
+        "fixed-both",
+        "sticky",
+        "fixed-fault",
+        "clamp",
+        "clamp-fault",
+        "viewport",
+        "viewport-fault",
+    ],
 )
 def test_observed_attachment_credits_only_the_measured_scroll_placement(
     browser, serve, case
@@ -3233,8 +3243,12 @@ def test_observed_attachment_credits_only_the_measured_scroll_placement(
     """Fixed/sticky constraints and solver clamps retain only their solved movement.
 
     A physical reference does not always travel by its ancestry's entire scroll.
-    Matching that scroll with an extra holder move must still fail.
+    Matching that scroll with an extra holder move must still fail. A native-capable
+    surface constrained by the viewport keeps this proof too: a window-to-window
+    comparison need not have sampled an intermediate page-plane placement.
     """
+    native = case.startswith("viewport")
+    clamped = case.startswith(("clamp", "viewport"))
     style = {
         "scaled": "transform:scale(2);transform-origin:top left;",
         "fixed-both": "position:fixed;top:180px;left:100px;",
@@ -3256,12 +3270,14 @@ def test_observed_attachment_credits_only_the_measured_scroll_placement(
     page = open_page(
         browser,
         serve(source),
-        init_script="""const supports = CSS.supports.bind(CSS);
+        init_script=None
+        if native
+        else """const supports = CSS.supports.bind(CSS);
           CSS.supports = (property, value) => property === 'anchor-name' ? false : supports(property, value);
           delete window.ViewTimeline; delete window.ScrollTimeline;""",
     )
     resized(page, 1200, 700)
-    if case.startswith("clamp"):
+    if clamped:
         offset = page.evaluate(
             """() => {
               const offset = subject.getBoundingClientRect().top + scrollY - 12;
@@ -3276,7 +3292,7 @@ def test_observed_attachment_credits_only_the_measured_scroll_placement(
             "node => node.style.top = `${node.getBoundingClientRect().top - 10}px`"
         )
     page.evaluate(
-        """async clamp => {
+        """async ({clamp, native}) => {
       const module = await window.__lfRuntimeImport('/runtime/annotation-overlay/floating.js');
       const ui = await module.floatingUi();
       const subject = document.querySelector('#subject'), holder = document.querySelector('#holder');
@@ -3288,14 +3304,15 @@ def test_observed_attachment_credits_only_the_measured_scroll_placement(
         owner.begin();
         const answer = await owner.position(ui.computePosition, reference,
           {placement:'right-start',middleware:clamp ? [ui.shift({crossAxis:true,padding:0})] : []},
-          ()=>'page', subject);
+          ()=>native ? {edge:'top', at:0} : 'page', subject);
         if (answer) owner.stand(answer);
       }
+      if (native && !owner.nativeAvailable()) throw Error('Native attachment support missing');
       owner.watch(subject,reference,ui.autoUpdate);
       await place();
       holder.style.removeProperty('visibility');
     }""",
-        case.startswith("clamp"),
+        {"clamp": clamped, "native": native},
     )
     expect(page.locator("#holder")).to_have_attribute("data-lf-plane", "window")
     paint(page)
@@ -3303,7 +3320,7 @@ def test_observed_attachment_credits_only_the_measured_scroll_placement(
     held_stretch(page)
     before = page.locator("#field").bounding_box()
     holder_before = page.locator("#holder").bounding_box()
-    if case.startswith("clamp"):
+    if clamped:
         assert 0 < holder_before["y"] < 30
     scroll = page.evaluate(
         """([scenario, extra]) => {
@@ -3313,7 +3330,7 @@ def test_observed_attachment_credits_only_the_measured_scroll_placement(
       if (scenario.endsWith('fault')) holder.style.marginTop = `${-extra}px`;
       return before;
     }""",
-        [case, 30 - holder_before["y"] if case == "clamp-fault" else 30],
+        [case, 30 - holder_before["y"] if clamped and case.endswith("fault") else 30],
     )
     if case != "scaled":
         page.wait_for_function("offset => scrollY === offset", arg=scroll["root"] + 30)
@@ -3325,7 +3342,13 @@ def test_observed_attachment_credits_only_the_measured_scroll_placement(
     rendered(page)
     paint(page)
     judge_watches()
-    delta = {"scaled": -60, "sticky": -10, "clamp": -holder_before["y"]}.get(case, -30)
+    expect(page.locator("#holder")).to_have_attribute("data-lf-plane", "window")
+    delta = {
+        "scaled": -60,
+        "sticky": -10,
+        "clamp": -holder_before["y"],
+        "viewport": -holder_before["y"],
+    }.get(case, -30)
     assert page.locator("#field").bounding_box()["y"] == pytest.approx(
         before["y"] + delta, abs=1
     )

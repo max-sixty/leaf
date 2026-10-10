@@ -113,12 +113,13 @@ is a console error, since the page reports it);
 every widget upgraded, painted with values that resolve, and given real space;
 words a user can mark, reach, and select, with the registry's verbatim and shadow
 declarations honored; no sideways scroll, clipped control, squeezed table, or
-misplaced box; and standing state that replays without conflict and idempotently.
+misplaced box; space below words and controls for a horizontal overlay scrollbar;
+and standing state that replays without conflict and idempotently.
 `render_gate/readings.py` is the list. Those readings run
 at a desktop and a phone viewport; once they are done, the loaded desktop page is
-resized through the widths from 360px to 1920px and the two sideways readings are taken
-again at each: a version holds at every width from the narrowest phone to a wide
-desktop, not only at the two the gate renders, and each fault the sweep alone finds is
+resized through the widths from 360px to 1920px and sideways overflow, misplaced boxes,
+and scrollbar clearance are read again at each: a version holds at every width from
+the narrowest phone to a wide desktop, not only at the two the gate renders, and each fault the sweep alone finds is
 reported with the widths it spans. The sweep also finds each width where the page's own
 margin residents change (`data-lf-margin` on `main`, less the rail), and the readings
 run again there in the light scheme, where each resident has the least room it will

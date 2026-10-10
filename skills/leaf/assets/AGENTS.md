@@ -7,6 +7,15 @@ owns its local contract. Page-authoring rules live in
 `../references/module-authoring.md`, package contracts in `../references/packages.md`,
 and rules shared with Python in root `AGENTS.md`, "Cross-runtime invariants".
 
+Shared stylesheet owners live under `styles/`: `styles/shadow.css` composes
+`styles/components/` into the shared root sheet. Document composition loads that
+sheet before the theme, and declared shadow roots adopt it too. Edit these sources
+and `styles/theme.css` / `styles/chrome.css`, not generated `theme.css`, `shadow.css`
+or `runtime/chrome.css`.
+`build/AGENTS.md`, “Committed bundles”, owns rebuilding and checking them, including
+bundled package entrypoints. Custom package authors supply complete sheets under
+`../references/packages.md`, “Styles and composition”.
+
 ## Layout and motion
 
 Leaf's current product focus is desktop; judge layout first at a representative
@@ -250,8 +259,9 @@ state that is already true, and motion that must finish before the result can be
 read is a pause. A motion the user waits on stays under 300ms; one that moves
 nothing, such as a landing flash, may run longer. A delay may withhold a flicker
 but never adds a minimum spinner time or a staged reveal. `runtime/motion.js` owns
-the shared gate, ease, reduced-motion answer, and every duration two motions
-share; the theme's guard answers for CSS.
+the shared gate, ease, and reduced-motion answer. Typed `--lf-motion-*` properties
+in the theme own shared durations; its readers resolve the live document-root
+values for JavaScript. The theme's guard answers for CSS.
 
 ## Runtime ownership
 
@@ -283,7 +293,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | --- | --- |
 | Composition and semantic publication | `application.js`, `semantic-state.js`, `context.js` |
 | Delivery, accepted state, and wakeups | `delivery.js`, `state-application.js`, `state-feed.js`, `layer-client.js`, `traffic.js` |
-| State models and projection | `projection/`, `thread/model.js`, `thread/workflow.js`, `thread/state.js`, `pending/`, `asks/model.js`, `queues.js` |
+| State models and projection | `projection/`, `thread/model.js`, `thread/workflow.js`, `thread/state.js`, `pending/`, `questions/model.js`, `queues.js` |
 | Widget capture and lifecycle | `document-identity.js`, `widget-descriptors.js`, `widget-controller.js`, `widget-loader.js`, `widget-upgrade.js` |
 | Vocabulary and public helpers | `registry.js`, `widget-api.js`, `widget-elements.js` |
 | External data | `data.js`, `projection/data.js`, `projection/authored.js` |
@@ -293,7 +303,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Reading regions and scrolling | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js` |
 | Keyboard | `keyboard/AGENTS.md` |
 | Focus and navigation | `focus.js`, `standing-target.js`, `navigation.js`, `queue-walk.js`, `history.js`, `user-intent.js`, `walk-position.js` |
-| Asks | `asks/` |
+| Questions | `questions/` |
 | Comment capture | `composing/`, `drafts.js`, `media.js` |
 | Threads | `thread/`, `thread-panel.js` |
 | Annotation inventory and controls | `annotation-inventory.js`, `annotation-view.js`, `contributions.js`, `contribution-controls.js`, `inline-contributions.js` |
@@ -393,7 +403,7 @@ unresolved local work into the one reading every component selects from:
 | version shown | the revision the delivery prelude names; a newer revision with the same executable identity patches in place, a different one navigates to a fresh document |
 | accepted history, and the reading applied | the server event log and its `/api/state` answer, adopted whole by the publisher |
 | unresolved browser work | the publisher's one ordered ledger |
-| thread, workflow, attention, Asks, tasks, activity, unread | the server's folds; the browser adds only its own unresolved sends and the versions it is marking read |
+| thread, workflow, attention, Questions, tasks, activity, unread | the server's folds; the browser adds only its own unresolved sends and the versions it is marking read |
 | what is waiting on the user and on the agent | `queues.js`'s selection from those readings, the browser's side of `agent_state.queues` |
 | what the DOM represents | the presentation coordinator's renderer tickets and preparation regions |
 | when a document-wide renderer paints | the publication that opened the epoch, in the order `runtime/semantic-state.js` declares |
@@ -454,12 +464,17 @@ reading of its own: whether chrome has caught up with input since.
 
 ## Authoritative projection
 
-Python owns the durable Ask and thread projections, including whether an Ask is
-answered (the registry's `$awaits.answered`); the browser adds no second fold.
-The server ships page and thread Asks as `document.asks` and the thread's
-`asks`, and each thread's `attention`, the one reading of whose turn a thread is
-(`needs_user` or `waiting`), which the browser adjusts only for its own
-unresolved sends; a refusal restores the accepted reading. Every state read has
+Python owns Question membership, widget completion and thread settlement. The server
+ships complete page and frozen-thread inventories as `document.questions` and
+`thread.questions`; prose Questions join that same thread inventory. A Question
+contains its source, prompt, typed answer, status and next actor. The browser
+selects each widget answer from the same local-inclusive state its controls draw,
+without folding its `x-awaits.answered` completion rule again. A required-version
+approval is another Question source: its local approval or undo updates its contained
+answer and status immediately, with refusal restoring the admitted reading. Thread attention
+(`needs_user` or `waiting`) changes locally for unresolved sends; a refusal restores
+the admitted reading. Questions derive their queue rows directly, while Tasks hold
+explicit committed work. Every state read has
 one `through_seq`, and version comparison asks `/api/view` at the sequence
 already applied. A page widget's projection stops at the current revision; a
 widget in frozen thread markup reads the whole log. `restated` and answered

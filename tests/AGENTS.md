@@ -48,8 +48,11 @@ races are arrangements, not probabilities**), and fix that cause.
 The host supplies `wt`, `uv`, `jq` 1.6 or newer, and Node 22 or newer.
 `wt setup` installs Playwright's Chromium headless
 shell, WebKit, Firefox, and Chrome, their Linux system dependencies, the example assets,
-and the npm trees; `uv run` syncs Python. Cloud environments supply the host tools and
-fonts; checkout setup follows the same commands below.
+and the npm trees; `uv run` syncs Python. Worktrunk starts this setup in the background
+when it creates a worktree, so editing can begin immediately. Run `wt setup` before
+testing: it waits for any ongoing setup, refreshes dependencies, and reports failures.
+A plain clone does not fire Worktrunk's creation hook; start its background setup with
+`wt hook post-start project:setup`. Cloud environments supply the host tools and fonts.
 
 ```sh
 wt setup
@@ -258,6 +261,13 @@ fixture captures its DOM commit callback with `lfInputWork.capture` during the
 trusted handler and invokes that callback after `await`; the capture states the
 cause instead of guessing among concurrent operations. Leaf's draft sends put words
 away synchronously before awaiting delivery.
+
+Private document-channel endpoints publish `lfDocumentPort` on the bootstrap
+element before their first message. The harness enrolls those endpoints in input
+provenance observation, retaining each message's exact enqueue source across an
+opaque frame. The setter stays active when a reload or Reset replaces the endpoint.
+Unclassified ports, including authored Worker and SharedWorker peers, retain native
+message values and never acquire an input from nearby document traffic.
 
 Leaf's own widgets are held to the widget quality report `package check --render`
 gives a package's author (`leaf/render_gate/widget_quality.py`):

@@ -7,7 +7,7 @@ reaches, where what scales with the window is at its largest, and on a phone, ea
 far as its first eight screens, where a reader decides whether to go on, with the
 label saying how many of the page's screens they are; one screen at each width
 where the page's own arrangement is at its tightest before it changes, or where its
-margin content changes, with that box in view; and, on a page with Asks, the desktop
+margin content changes, with that box in view; and, on a page with Questions, the desktop
 window at each of its first eight open ones as `q` arrives there from the top, which is
 how a user working the page reads each question, with the view that holds it opened;
 `q` walks everything waiting on the user, so a thread or a handed-back widget move it
@@ -66,30 +66,30 @@ def _down_the_page(page, into: Path, stem: str) -> tuple[list[Path], int]:
     return shots, total
 
 
-# Where a press of `q` left the user: the Ask they stand in, as the runtime marks it
+# Where a press of `q` left the user: the Question they stand in, as the runtime marks it
 # (the outermost element wearing its ring, outside the Questions panel, which mirrors the
 # same reading); else the thread holding focus; else the page widget holding it, where
 # the walk puts the user on a move handed back to them. Those are the walk's other
 # kinds of stop (queue-walk.js), which the screens pass, so each is read only to step
 # past it.
 STANDING_ITEM = """() => {
-  const ask = [...document.querySelectorAll('[data-lf-ask]:not(.lf-queue-row)')]
-    .find((el) => !el.parentElement?.closest('[data-lf-ask]'))?.id;
-  if (ask) return {ask: true, id: ask};
+  const question = [...document.querySelectorAll('[data-lf-question]:not(.lf-queue-row)')]
+    .find((el) => !el.parentElement?.closest('[data-lf-question]'))?.id;
+  if (question) return {question: true, id: question};
   let held = document.activeElement;
   while (held?.shadowRoot?.activeElement) held = held.shadowRoot.activeElement;
   const thread = held?.closest?.('.lf-thread, .lf-page-thread');
   const id = thread?.dataset.id ?? thread?.dataset.thread;
-  if (id) return {ask: false, id};
+  if (id) return {question: false, id};
   const page = document.activeElement;
   const widget = page?.closest?.('.lf-chrome') ? null : page?.closest?.('[id]');
-  return widget ? {ask: false, id: widget.id} : null;
+  return widget ? {question: false, id: widget.id} : null;
 }"""
 
 
-def _asks_in_turn(page, into: Path) -> tuple[list[Path], bool]:
-    """The window at each open Ask `q` reaches from the top, as far as MOST_SCREENS,
-    and whether the walk goes on past them. Which Ask a press reached is the runtime's
+def _questions_in_turn(page, into: Path) -> tuple[list[Path], bool]:
+    """The window at each open Question `q` reaches from the top, as far as MOST_SCREENS,
+    and whether the walk goes on past them. Which Question a press reached is the runtime's
     own mark, so the walk covers whatever `q` does, a suggestion as much as an
     `lf-ask`. The walk stops at its last item rather than wrapping, so a press that
     reaches an item it has already stood on has reached the end."""
@@ -98,14 +98,14 @@ def _asks_in_turn(page, into: Path) -> tuple[list[Path], bool]:
         page.keyboard.press("q")
         rendered(page)
         here = page.evaluate(STANDING_ITEM)
-        if here is None or (here["ask"], here["id"]) in seen:
+        if here is None or (here["question"], here["id"]) in seen:
             return shots, False
-        seen.add((here["ask"], here["id"]))
-        if not here["ask"]:
+        seen.add((here["question"], here["id"]))
+        if not here["question"]:
             continue
         if len(shots) == MOST_SCREENS:
             return shots, True
-        shot = into / f"{page.viewport_size['width']}px-ask-{len(shots) + 1}.png"
+        shot = into / f"{page.viewport_size['width']}px-question-{len(shots) + 1}.png"
         page.screenshot(path=shot)
         shots.append(shot)
 
@@ -160,10 +160,10 @@ def save_screens(
     whole(RENDER_VIEWPORT, False, "desktop")
     context, page = _open(browser, url, RENDER_VIEWPORT, False)
     try:
-        shots, more = _asks_in_turn(page, into)
-        label = "desktop, each press of `q` from the top, at the next open Ask"
+        shots, more = _questions_in_turn(page, into)
+        label = "desktop, each press of `q` from the top, at the next open Question"
         if more:
-            label = f"{label}, the first {len(shots)} of the page's open Asks"
+            label = f"{label}, the first {len(shots)} of the page's open Questions"
         saved.extend((shot, label) for shot in shots)
     finally:
         context.close()

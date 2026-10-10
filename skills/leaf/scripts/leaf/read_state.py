@@ -24,7 +24,7 @@ standing log.
 An edit is a new version logged after every earlier move, so it reads as unread again
 until fresh evidence arrives. A summary does not mark read what it covers. Unread is
 independent of turn-taking and of the user's outstanding work: reading never answers
-an Ask, and answering one does mark it read.
+a Question, and answering one does mark it read.
 """
 
 from .events import taken_back

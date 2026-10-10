@@ -11,6 +11,8 @@
    a message's frozen markup is bound when it is prepared, before the thread mounts
    it, so what the projection paints on it arrives with the node. */
 import { runtime } from "./context.js";
+import { elementDeclarations } from "./registry.js";
+import { isElementName } from "./registry-contract.js";
 import { authoredParents } from "./projection/authored.js";
 import { elementById } from "./passages.js";
 import { initialOrigin, initialParent, initialSource } from "./initial-render.js";
@@ -19,8 +21,7 @@ const byElement = new WeakMap();
 const byId = new Map();
 const elements = new Map();
 
-const declaredTags = () =>
-  Object.keys(runtime.registry).filter((tag) => !tag.startsWith("$"));
+const declaredTags = () => elementDeclarations().map(([tag]) => tag);
 
 const candidates = (root) => {
   const tags = declaredTags();
@@ -45,7 +46,11 @@ const parentOf = (element) => {
 const declaredAncestors = (element) => {
   const ancestors = [];
   for (let parent = parentOf(element); parent; parent = parentOf(parent))
-    if (parent.id && runtime.registry[parent.localName])
+    if (
+      parent.id &&
+      isElementName(parent.localName) &&
+      runtime.registry[parent.localName]
+    )
       ancestors.push({ id: parent.id, tag: parent.localName });
   return ancestors;
 };

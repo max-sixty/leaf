@@ -231,7 +231,7 @@ counter-event.
 Actions and reports share one registry-declared key: owner widget, fold unit, and
 verb. Admission records the command's declared meaning in the event, so a later
 reader recovers it without the widget. Python derives winners, retractions,
-settlement, Asks, threads, and updates in one transaction-consistent browser view.
+settlement, Questions, threads, and updates in one transaction-consistent browser view.
 JavaScript combines that view with authored initial values and unresolved local
 gestures into complete widget and thread state, and widgets render it, unset and
 undecided values included. Undo never reconstructs widgets or replays baseline
@@ -241,7 +241,7 @@ frozen into thread markup use the thread window.
 A forward gesture whose result the page can draw shows that result in the turn that
 sends it, before the log answers; a disabled control, spinner, or other delivery
 status is not that result. The page can draw what its own document settles, such as
-a widget's state or a thread's turn. Which Asks the document still holds, and which
+a widget's state or a thread's turn. Which widget Questions the document still holds, and which
 of them the user owes, depend on the whole log, so that reading changes only when
 the browser adopts the state the gesture's own POST returns; the browser never
 derives it. A refusal restores the authoritative state.
@@ -273,7 +273,7 @@ canonical activity summary for neighboring rows (`server_rows.py`). The summary 
 disposable delivery output; neighboring readers consult it and server liveness,
 never another page's log or document.
 Messages, thread attention, and margin entries consume the canonical workflows;
-thread attention also retains outstanding user Asks. Page activity does not imply
+thread attention also retains outstanding user Questions. Page activity does not imply
 work on every message. JavaScript adds unresolved local sends through the
 application publisher and may schedule a read at `next_transition_at`; it does not
 age or independently reclassify accepted workflow evidence. The stop guard consumes

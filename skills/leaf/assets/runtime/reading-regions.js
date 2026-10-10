@@ -21,7 +21,9 @@
    scroller but rewraps, which moves its words under the reader just the same. Each
    region's host is watched for size, and a region whose scroller is no longer the one
    last seen, or whose width is not, is announced to watchers as a `shift`, after the new
-   geometry exists. Continuity owners record the user's place
+   geometry exists. A viewport height change shifts every shown region, including
+   flowing bodies whose own size stays the same while their visible band shrinks.
+   Continuity owners record the user's place
    continuously and restore it on a shift; this module stores no landmarks or scroll
    offsets. `preserveReadingRegions` brackets a composition change with the same
    watchers, as `before` and `after`, retaining only scrollers inside that composition
@@ -33,7 +35,7 @@
    It includes unfocusable words, which update the reading region without a focus
    arrival. Mechanical returns, programmatic arrivals and scrolling are not choices
    of another passage. Each consumer interprets that target in its own domain. */
-import { sizeObserver } from "./rendering.js";
+import { nextRender, sizeObserver } from "./rendering.js";
 import { shownRect, skipped } from "./geometry.js";
 import { pageScroller } from "./scrolling.js";
 import { reachReadingScroller } from "./reach.js";
@@ -329,6 +331,7 @@ export async function preserveReadingRegions(owner, change) {
 // Whether a region is scrolled by the box last seen for it, at the width last seen.
 const asSeen = (region, scroller, width) =>
   region.scroller === scroller && region.width === width;
+let viewportHeight = innerHeight;
 
 // Whether every region stands as last seen. A layout that has handed a region to another
 // scroller or rewrapped it, before the observer below has announced it, is not a place
@@ -337,6 +340,7 @@ const asSeen = (region, scroller, width) =>
 // would return them to that moved place. A region hidden from layout shows no words to
 // move, and measuring one in skipped content would lay out what it skips.
 export const regionsSettled = () =>
+  viewportHeight === innerHeight &&
   [...regions.values()].every(
     (region) =>
       !live(region) ||
@@ -350,13 +354,15 @@ export const regionsSettled = () =>
 // produced it. A hidden region keeps what was last seen of it and is compared again once
 // it shows. Read on the observer's delivery, which follows layout; nothing here writes a
 // box it observes.
-const sizes = sizeObserver(() => {
+function measureRegions() {
+  const viewportChanged = viewportHeight !== innerHeight;
+  viewportHeight = innerHeight;
   const shifted = [];
   for (const region of regions.values()) {
     if (!live(region) || !shown(region)) continue;
     const scroller = effectiveScroller(region);
     const width = region.host.offsetWidth;
-    if (region.scroller && !asSeen(region, scroller, width))
+    if (region.scroller && (viewportChanged || !asSeen(region, scroller, width)))
       shifted.push({
         region: regionRecord(region),
         from: region.scroller,
@@ -366,4 +372,8 @@ const sizes = sizeObserver(() => {
     region.width = width;
   }
   if (shifted.length) notify({ phase: "shift", shifted });
-});
+}
+const sizes = sizeObserver(measureRegions);
+// A flowing region need not resize when only the window's height changes.
+// Share the observer's comparison so one reflow produces one shift reading.
+addEventListener("resize", () => nextRender(measureRegions), { passive: true });

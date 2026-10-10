@@ -27,10 +27,10 @@ from leaf.styles import (
 from leaf.thread_context import thread_ids, thread_structure
 from leaf.validation.instances import (
     addressable_instance_errors,
-    ask_surface_errors,
     declared_word_errors,
     layout_errors,
     line_ref_errors,
+    question_context_errors,
     reference_errors,
     suggestion_errors,
     visual_part_errors,
@@ -174,7 +174,7 @@ def _instance_errors(
     errors.extend(layout_errors(parser.lf_elements, registry))
     errors.extend(visual_part_errors(parser.lf_elements, registry))
     errors.extend(addressable_instance_errors(parser.lf_elements, registry))
-    errors.extend(ask_surface_errors(parser.lf_elements, registry))
+    errors.extend(question_context_errors(parser.lf_elements, registry))
     errors.extend(
         reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
     )

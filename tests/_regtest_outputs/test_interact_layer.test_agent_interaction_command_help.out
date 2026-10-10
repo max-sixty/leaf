@@ -1,7 +1,8 @@
 ## leaf wait --help
 Usage: leaf wait [OPTIONS] PAGE
 
-  Watch every page this session holds \u2014 plus PAGE, claimed first, when given.
+  Watch every page this session holds, or observe PAGE without taking ownership.
+  Claim a foreign page explicitly with `leaf page claim`.
 
   Print one page's complete ordered batch, thread context, and response
   requirements as an immutable delivery, whose `acknowledge` says how to confirm
@@ -16,9 +17,17 @@ Options:
 ## leaf delivery read --help
 Usage: leaf delivery read [OPTIONS] DELIVERY_ID
 
-  Print DELIVERY_ID with its complete batches and response requirements. Where a
-  harness's hook offered it to this session as a pointer, reading it confirms
-  it, so the user's updates read Picked up.
+  Read input without confirming it. Follow its next and acknowledgement
+  instructions.
+
+Options:
+  --part INTEGER RANGE  Read this numbered part of a large delivery.  [x>=1]
+  --help                Show this message and exit.
+
+## leaf delivery ack --help
+Usage: leaf delivery ack [OPTIONS] DELIVERY_ID
+
+  Attest complete receipt after reading every part of DELIVERY_ID.
 
 Options:
   --help  Show this message and exit.
@@ -27,7 +36,7 @@ Options:
 Usage: leaf page state [OPTIONS] PAGE [ID]
 
   Fold the log onto the active revision and print the result as one JSON object:
-  the active revision's file, standing state, reports, open Asks, thread
+  the active revision's file, standing state, reports, open Questions, thread
   summaries, versions, presence, and bound data. Read the active revision's HTML
   beside it for the document.
 
@@ -35,7 +44,7 @@ Usage: leaf page state [OPTIONS] PAGE [ID]
   one, names its thread: the reading is that thread with a page of its messages,
   their frozen markup, and the state on its widgets, paged by --after and
   --limit. A widget on the page names itself: its element, the actions and
-  reports standing on it, its Asks, and its workflows.
+  reports standing on it, its Questions, and its workflows.
 
 Options:
   --after SEQ            a thread's history after this sequence (default: from

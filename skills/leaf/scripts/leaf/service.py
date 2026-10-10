@@ -163,15 +163,13 @@ def claim_is_active(claim: dict | None) -> bool:
     above that writes what this reads."""
     if not claim or claim["released"] is not None:
         return False
-    record = None
-    if "generation" in claim:
-        record = session_record(claim["id"])
-        if (
-            not record
-            or record["generation"] != claim["generation"]
-            or record["ended"] is not None
-        ):
-            return False
+    record = session_record(claim["id"])
+    if (
+        not record
+        or record["generation"] != claim["generation"]
+        or record["ended"] is not None
+    ):
+        return False
     if "job" in claim:
         return (Path(claim["job"]) / "state.json").is_file()
     if claim.get("chat") is True:
@@ -752,9 +750,8 @@ def prepare_claim(harness: Harness, page_dir: Path) -> dict:
 def take_page_claim(page_dir: Path) -> tuple[dict | None, dict] | None:
     """Make the harness session the page's watcher, if a harness supplied one.
 
-    `server start`, a named `leaf wait` and `page claim` claim; authoring
-    commands do not. A
-    bare-shell serve makes no claim and therefore starts as standing.
+    `server start` and `page claim` claim; waiting and authoring commands do not.
+    A bare-shell serve makes no claim and therefore starts as standing.
     """
     from leaf.harness import session_harness
 

@@ -109,7 +109,7 @@ export function createThreadActions({
       if (!target) return null;
       return open(
         target.id,
-        message === null ? options : { ...options, focus: "message" },
+        message === null ? options : { ...options, part: "message" },
       );
     },
     create,

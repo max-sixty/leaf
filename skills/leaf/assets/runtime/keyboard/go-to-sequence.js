@@ -7,11 +7,11 @@
    activation, and the paint — and this owner declares what the scene holds, what a chip
    says, and what taking one does. The lowercase kind mnemonics are separate commands
    that filter the map: `g h` shows hyperlinks, `g f` folds, `g m` margin targets, `g t`
-   Thread controls, and `g a` Ask controls. A filtered map keeps each member's code from
+   Thread controls. A filtered map keeps each member's code from
    the complete map, which is why codes are assigned here rather than by the session.
 
-   Lowercase `g`, `j`, `k`, and `p` retain their structural meanings, while `a`, `f`, `h`,
-   `m`, and `t` name filters; `i` resumes writing, `v` restores selection and `z` aligns the current item at the top; these are excluded from the generated alphabet. `g g` and
+   Lowercase `g`, `j`, `k`, and `p` retain their structural meanings, while `f`, `h`, `m`,
+   and `t` name filters; `i` resumes writing, `v` restores selection and `z` aligns the current item at the top; these are excluded from the generated alphabet. `g g` and
    `g G` glide to the page edges; from a focused thread, `g k` and `g j` place its card at
    an edge of the list; `g p` returns focus to the page while leaving open surfaces
    standing. Uppercase mnemonics remain named
@@ -282,13 +282,6 @@ export function createGoToSequence({
       word: "Thread controls",
       matches: ({ kind, member }) =>
         kind === MARGIN_TARGET_KIND && marginEntryKind(member) === "comment",
-    },
-    {
-      id: "asks",
-      key: "a",
-      word: "Ask controls",
-      matches: ({ kind, member }) =>
-        kind === MARGIN_TARGET_KIND && marginEntryKind(member) === "ask",
     },
     {
       id: "hyperlinks",

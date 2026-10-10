@@ -1,7 +1,6 @@
 /* A package chooses layout while Leaf retains conversations, messages and replies.
    Local selection and ordering never change the log or decide obligation membership. */
 import {
-  askAnswers,
   compoundReadingRegionId,
   HeldReading,
   keepsHidden,
@@ -11,7 +10,8 @@ import {
   queueActions,
   queueItemKey,
   queueTitle,
-  readAsks,
+  readQuestions,
+  questionWords,
   readQueues,
   readThreads,
   registerThreadPresentation,
@@ -21,7 +21,7 @@ import {
   threadActions,
   threadSummary,
   threadTurns,
-  watchAsks,
+  watchQuestions,
   watchQueues,
 } from "/runtime/widget-api.js";
 
@@ -44,13 +44,13 @@ customElements.define(
           this.mode = "Conversation";
         },
       });
-      this.stopAsks = watchAsks(this, () => this.paintObligations());
+      this.stopQuestions = watchQuestions(this, () => this.paintObligations());
       this.stopQueues = watchQueues(this, () => this.paintObligations());
     }
     disconnectedCallback() {
       for (const stop of this.stopRegions) stop();
       this.presentation.unregister();
-      this.stopAsks();
+      this.stopQuestions();
       this.stopQueues();
       this.indexOrder.dispose();
     }
@@ -190,7 +190,7 @@ customElements.define(
           const node = offer("li");
           const button = offer("button", "lf-btn");
           button.addEventListener("click", () => {
-            void threadActions.open(key, { focus: "thread" });
+            void threadActions.open(key, { part: "thread" });
           });
           node.append(button);
           row = { node, button };
@@ -262,13 +262,25 @@ customElements.define(
       return JSON.parse(shown);
     }
     paintObligations() {
-      const asks = readAsks();
-      const answers = askAnswers(asks.all).filter(
-        (answer) => answer !== null && answer !== "",
+      const questions = readQuestions();
+      const answered = questions.all.filter(
+        (question) => question.status === "answered",
       );
+      // Counts cover every Question; this summary lists completed widget choices.
+      const labels = questions.all
+        .filter(
+          (question) =>
+            question.source.kind === "widget" && question.status === "answered",
+        )
+        .map(questionWords)
+        .filter(Boolean);
       keepsText(
         this.counts,
-        `${asks.user.length} Asks on you${answers.length ? " · " + answers.join(" · ") : ""}`,
+        [
+          `${questions.user.length} Questions on you`,
+          ...(answered.length ? [`${answered.length} answered`] : []),
+          ...labels,
+        ].join(" · "),
       );
       const queues = readQueues();
       const layout = this.indexLayout();

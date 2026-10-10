@@ -9,11 +9,11 @@ This object is transaction-scoped and never written to disk.
 
 from functools import cached_property
 
-from .asks import thread_ask_readings, thread_questions
 from .document_reading import read_document
 from .events import build_threads, standing_approvals
 from .projection import frozen_thread_reading
-from .tasks import TaskReading, page_tasks
+from .questions import collection, thread_question_readings, thread_questions
+from .tasks import TaskReading
 
 
 class WorkReading:
@@ -45,8 +45,8 @@ class WorkReading:
         )
 
     @cached_property
-    def asks(self) -> dict:
-        return thread_ask_readings(
+    def widget_questions(self) -> dict:
+        return thread_question_readings(
             self.events,
             self.registry,
             {identity for identity, held in self.threads.items() if held["resolved"]},
@@ -54,25 +54,49 @@ class WorkReading:
         )
 
     @cached_property
-    def questions(self) -> dict:
-        open_asks = {ask["thread"] for ask in self.asks["user"]}
+    def thread_questions(self) -> dict:
+        open_widget_threads = {
+            question["thread"] for question in self.widget_questions["user"]
+        }
         return {
             identity: thread_questions(
                 identity,
                 held,
                 self.registry,
                 self.thread.structure,
-                open_asks,
+                open_widget_threads,
                 self.log.ends,
             )
             for identity, held in self.threads.items()
         }
 
+    @cached_property
+    def questions(self) -> dict:
+        return collection(
+            [
+                *self.widget_questions["all"],
+                *(
+                    question
+                    for reading in self.thread_questions.values()
+                    for question in reading.questions
+                ),
+            ]
+        )
+
+    @cached_property
+    def all_questions(self) -> dict:
+        return collection(
+            [
+                *(self.document.questions["all"] if self.document is not None else []),
+                *self.questions["all"],
+            ]
+        )
+
     @property
     def prompts(self) -> dict:
         return {
             identity: reading.prompt
-            for identity, reading in self.questions.items()
+            for identity, reading in self.thread_questions.items()
             if reading.prompt is not None
         }
 
@@ -94,10 +118,11 @@ class WorkReading:
             page=self.page,
             events=self.events,
             task_reading=self.log,
+            questions=self.all_questions,
         )
 
     def page_tasks(self, aged: list[dict] = ()) -> tuple[list[dict], list[dict]]:
-        """Tasks beside document Asks; activity may supply the aged agent tasks."""
+        """Explicit tasks enriched with their thread and current activity."""
         by_id = {task["id"]: task for task in aged}
         log = [
             {
@@ -106,8 +131,11 @@ class WorkReading:
             }
             for task in self.log.tasks
         ]
-        return page_tasks(
-            log,
-            self.asks,
-            self.questions,
+        selected = [
+            {**task, "ends": "agent" if task["owner"] == "agent" else "done"}
+            for task in log
+        ]
+        return (
+            [task for task in selected if task["state"] == "open"],
+            [task for task in selected if task["state"] != "open"],
         )

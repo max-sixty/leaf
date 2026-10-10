@@ -45,11 +45,13 @@ Other answers in the slice take the operations their delivered `handling`
 clauses name.
 
 Before finishing a turn that changed `index.html`, run `leaf page check <page>`
-and fix every error. The final reply requires valid source, and its refusal arrives
-after the model's turn has ended, when it can no longer correct the edit.
+and fix every error. If automatic publication refuses a final, Leaf sends a
+correction turn with the diagnostic and the same response address. Correct that
+failure and complete the answer.
 
 A `leaf-delivery` pointer queued before Leaf observed the task can still arrive as a
-user message. Read it with `leaf delivery read <id>`: it was frozen for the queue, so
+user message. Read it with `leaf delivery read <id>` and follow its receipt
+instruction: it was frozen for the queue, so
 its reply has `writer: "agent"` for `leaf response reply <answer.ref>`, as `references/harness-codex.md`
 describes.
 

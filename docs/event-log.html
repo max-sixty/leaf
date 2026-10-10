@@ -175,6 +175,7 @@ flowchart TD
   "answer": {"detail": {"type": "object", "additionalProperties": false}, "unit": "widget"}
 },
 "x-awaits": {
+  "value": "choose",
   "answered": {
     "choose": {"when": {"multiple": [false]}},
     "answer": {"when": {"multiple": [true]}}
@@ -210,9 +211,13 @@ flowchart TD
             <code>multiple</code> group.</lf-note
           >
           <lf-note at="17"
+            >The Question's typed answer comes from the standing
+            <code>choose</code> value.</lf-note
+          >
+          <lf-note at="18"
             >A single-choice group is answered when an option is selected. A
             multiple-choice group is answered when the user presses Done. Undo can make
-            the group unanswered again.</lf-note
+            the Question unanswered again.</lf-note
           >
         </lf-code>
         <p id="coordinate">
@@ -433,8 +438,8 @@ flowchart TD
             record's line in the log.</lf-note
           >
           <lf-note at="37"
-            >This pick makes the Ask's answered condition hold, so it is the answer.
-            <code>null</code> means it closes no thread; a group with a
+            >This pick makes the Question's answered condition hold, so it completes the
+            Question. <code>null</code> means it closes no thread; a group with a
             <code>resolves</code> attribute would name one here.</lf-note
           >
           <lf-note at="58"

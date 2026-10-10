@@ -233,7 +233,10 @@
   margin: 0;
   accent-color: var(--accent);
 }
-.lf-playground-choice-face:focus-within {
+.lf-playground-radio:is(:focus-visible, .lf-focus-visible) {
+  outline: none;
+}
+.lf-playground-choice-face:has(> input:is(:focus-visible, .lf-focus-visible)) {
   outline: var(--focus-ring);
   outline-offset: 2px;
   --lf-focus-ring: playground-choice;

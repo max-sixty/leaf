@@ -19,6 +19,7 @@ from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf import render_checks as render_checks_model
 from leaf.registry import storage as registry_storage
+from leaf.registry.contract import element_declarations
 from leaf.render_checks import rendered
 from leaf.render_gate import scheme as render_gate_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -441,7 +442,7 @@ OVER_ITS_CONTAINER = LONG_PAGE.replace(
     "</main>",
     "<div id='clipping' style='width: 300px; overflow: hidden'>"
     "<div id='eaten' style='width: 420px'>Nobody sees the end of this.</div></div>"
-    "<div id='scrolling' style='width: 300px; overflow-x: auto'>"
+    "<div id='scrolling' style='width: 300px; overflow-x: auto; padding-bottom: 15px'>"
     "<div id='reachable' style='width: 420px'>This one scrolls into view.</div></div>"
     "<div id='holding' style='width: 300px; height: 40px; overflow: hidden'>"
     "<div id='hung' style='position: absolute; width: 420px'>Placed, so this one "
@@ -561,7 +562,7 @@ HIDDEN_SCROLLERS = {
 }
 SCROLLED_CONTAINER = LONG_PAGE.replace(
     "</main>",
-    "<div id='rolled' style='width: 300px; overflow-x: auto'>"
+    "<div id='rolled' style='width: 300px; overflow-x: auto; padding-bottom: 15px'>"
     "<div id='riding' style='width: 900px'>Where the content of a scrolled box "
     "starts.</div></div>\n</main>",
 )
@@ -943,9 +944,7 @@ def aim_targets(page_dir):
     clicking its prose. The vocabulary is read from the page's own registry rather than
     listed, so the twelfth widget is swept by existing. Prose has no handler at all, so
     one press into it proves what fifty would."""
-    tags = ", ".join(
-        t for t in registry_storage.load_registry(page_dir) if not t.startswith("$")
-    )
+    tags = ", ".join(element_declarations(registry_storage.load_registry(page_dir)))
     return f":is({PRESS}, {tags}):not(.lf-chrome *)"
 
 

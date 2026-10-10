@@ -193,9 +193,10 @@ def queue_board_registry(registry: dict) -> dict:
     """
     registry = deepcopy(registry)
     registry["lf-board"]["x-awaits"] = {
+        "value": "move",
         "answered": {
             "move": {"empty": {"within": "lf-column", "when": {"label": ["Queued"]}}}
-        }
+        },
     }
     return registry
 
@@ -936,19 +937,18 @@ def state_json(d):
     return json.loads(result.output)
 
 
-def asks_on_you(state):
-    """The Asks on the user's queue in one agent-facing state: each open Ask's task,
-    as the widget it is and the widget that answers it."""
+def questions_on_you(state):
+    """Widget requests on the user's queue, retaining source and prompt identity."""
     return [
         {
             "id": item["id"],
-            "tag": item["ask"]["tag"],
-            "widget": item["ask"]["widget"],
-            "widget_tag": item["ask"]["widget_tag"],
+            "tag": item["question"]["source"]["tag"],
+            "widget": item["question"]["source"]["id"],
+            "widget_tag": item["question"]["source"]["tag"],
             "thread": item["thread"],
         }
         for item in state["queues"]["on_you"]
-        if item.get("ask")
+        if item["kind"] == "question" and item["question"]["source"]["kind"] == "widget"
     ]
 
 

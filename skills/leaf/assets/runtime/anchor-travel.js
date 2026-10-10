@@ -3,7 +3,7 @@
  * A place is what an anchor names (anchor-resolution.js): an addressed element, which
  * is what a fragment names too, a passage inside one, or a part of a widget, a projected
  * datum or a visual part. A thread travels to the place its anchor names, a fragment
- * link to its element, an Ask to its own arrival region, and a module's
+ * link to its element, a Question to its own arrival region, and a module's
  * `navigateToDatum` to the part its declared reference addresses. Whichever route names
  * it, a part is drawn through the one `revealAddressed`, what holds the place opens
  * through the one `reveal`, and the surface hiding it is cleared through the one
@@ -20,7 +20,7 @@
  * subordinate geometry never imports the presenter. A trip keeps its original user
  * intent through hydration, reveal and presentation. Newer input or another trip
  * cancels its landing without cancelling the data the page is loading. Every trip, to a
- * thread, an Ask or a datum, prepares its outgoing checkpoint before reveal, then
+ * thread, a Question or a datum, prepares its outgoing checkpoint before reveal, then
  * decides whether the user is already there. Only a successful arrival commits its
  * departure to history, so browser Back returns the user to where they
  * were reading; a journey, trips each leaving from the last one's landing, is one
@@ -93,7 +93,7 @@ export function createAnchorTravel({
   // arrival commits it only once its final destination exists (history.js).
   // A destination already readable where the user stands is no departure. A trip that
   // names its `landing` while any of the last trip's landing still shows continues that
-  // journey, whether it goes to threads or Asks: it replaces the journey's entry, which
+  // journey, whether it goes to threads or Questions: it replaces the journey's entry, which
   // already holds where the journey began. Choosing a different authored passage by
   // pointer or Tab ends the journey, as does moving off its landing. The next successful
   // trip then saves the newly chosen working place. A journey is not a walk (the glossary's ordered movement
@@ -263,7 +263,7 @@ export function createAnchorTravel({
   // or newer intent leaves history and the continuing journey untouched. A destination
   // not yet placed (a datum a widget has yet to hydrate) is somewhere else. `there` is the
   // caller's reading of already being there where it asks more than the destination's
-  // own (an Ask's arrival region), built on the reading it is handed. Clearing a surface
+  // own (a Question's arrival region), built on the reading it is handed. Clearing a surface
   // can take the focus out of it, so the caller's retained `intent` hands the gesture
   // over to where that leaves the user rather than reading the move as a newer one.
   function prepareTrip({ landing = null, url, keep = false, intent }) {
@@ -275,8 +275,14 @@ export function createAnchorTravel({
     };
     let moving;
     return {
-      plan(where, { there = (readable) => readable(where) } = {}) {
-        if (where && !keep) intent.handoff(() => surfaces.clearFor(where));
+      plan(where, { there = (readable) => readable(where), required = [] } = {}) {
+        // A compound destination promises its answering or editing surface as well
+        // as the context the reader lands on. Apply the same clearance policy to
+        // each; a broad context can remain visible while its narrow control is hidden.
+        if (where && !keep)
+          intent.handoff(() => {
+            for (const place of new Set([where, ...required])) surfaces.clearFor(place);
+          });
         moving = !(where && there(readableDestination));
         return moving;
       },
@@ -497,7 +503,7 @@ export function createAnchorTravel({
 
   async function scrollToThread(
     id,
-    { focus = null, keep = false, presented = null, intent } = {},
+    { part = null, focus = true, keep = false, presented = null, intent } = {},
   ) {
     const mayArrive = retainTravel(intent);
     const thread = threadNames(currentThreads()).get(id);
@@ -531,7 +537,7 @@ export function createAnchorTravel({
       () => {
         const where = threadDestination(id);
         if (!where) return null;
-        const target = focus && threadFocusTarget(id, { focus });
+        const target = focus && part && threadFocusTarget(id, { part });
         return {
           where,
           focus: target,

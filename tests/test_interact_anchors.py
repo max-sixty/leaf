@@ -11,7 +11,6 @@ from interact_support import (
     SUGGESTION,
     append_carried_log_record,
     append_command,
-    asks_on_you,
     before_choice,
     check,
     comment,
@@ -21,6 +20,7 @@ from interact_support import (
     page_state,
     publish,
     published,
+    questions_on_you,
     response_reference,
     stamp,
     state_json,
@@ -674,7 +674,7 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
             "detached_from": None,
             "resolved": None,
             "unread": [root["id"], reply["id"]],
-            "attention": {"kind": "needs_user", "reason": "ask", "workflow": None},
+            "attention": {"kind": "needs_user", "reason": "question", "workflow": None},
         }
     ]
     transcript = CliRunner().invoke(
@@ -1216,7 +1216,7 @@ def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir
             "detached_from": root["anchor"],
             "resolved": None,
             "unread": [root["id"], reply["id"]],
-            "attention": {"kind": "needs_user", "reason": "ask", "workflow": None},
+            "attention": {"kind": "needs_user", "reason": "question", "workflow": None},
         }
     ]
     stored_root = next(event for event in events if event["id"] == root["id"])
@@ -2153,10 +2153,7 @@ def test_unresolve_reopens_a_thread_in_agent_readings(page_dir):
 
 
 def test_a_closed_thread_stops_asking(page_dir):
-    """A question in a thread is the thread's, so closing the thread withdraws it.
-    Otherwise an agent that asked and then answered the question for itself leaves
-    the user a standing decision for the life of the page, pointing into the disclosure
-    closed threads live in."""
+    """Resolving a thread suppresses its Question attention while retaining inventory."""
     (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
     root = append_carried_log_record(
@@ -2173,10 +2170,10 @@ def test_a_closed_thread_stops_asking(page_dir):
             "</lf-options></lf-ask>",
         },
     )
-    assert asks_on_you(state_json(page_dir)) == [
+    assert questions_on_you(state_json(page_dir)) == [
         {
-            "id": "gm-decision",
-            "tag": "lf-ask",
+            "id": "widget:gm",
+            "tag": "lf-options",
             "widget": "gm",
             "widget_tag": "lf-options",
             "thread": root["id"],
@@ -2185,7 +2182,7 @@ def test_a_closed_thread_stops_asking(page_dir):
     append_carried_log_record(
         page_dir, {"kind": "resolve", "author": "agent", "parent": root["id"]}
     )
-    assert asks_on_you(state_json(page_dir)) == []
+    assert questions_on_you(state_json(page_dir)) == []
 
 
 def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
@@ -2210,17 +2207,17 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
                 },
             )
         )
-    assert asks_on_you(state_json(page_dir)) == [
+    assert questions_on_you(state_json(page_dir)) == [
         {
-            "id": "group-a-decision",
-            "tag": "lf-ask",
+            "id": "widget:group-a",
+            "tag": "lf-options",
             "widget": "group-a",
             "widget_tag": "lf-options",
             "thread": roots[0]["id"],
         },
         {
-            "id": "group-b-decision",
-            "tag": "lf-ask",
+            "id": "widget:group-b",
+            "tag": "lf-options",
             "widget": "group-b",
             "widget_tag": "lf-options",
             "thread": roots[1]["id"],
@@ -2238,10 +2235,10 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
             "detail": {"value": ["option-a"]},
         },
     )
-    assert asks_on_you(state_json(page_dir)) == [
+    assert questions_on_you(state_json(page_dir)) == [
         {
-            "id": "group-b-decision",
-            "tag": "lf-ask",
+            "id": "widget:group-b",
+            "tag": "lf-options",
             "widget": "group-b",
             "widget_tag": "lf-options",
             "thread": roots[1]["id"],

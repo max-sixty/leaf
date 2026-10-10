@@ -1,5 +1,9 @@
 /* The optional file editor reserves its frame before CodeMirror arrives. Internal
- * presentation belongs to shadow.css, alongside the registered shadow stage. */
+ * presentation belongs to shadow.css, alongside the registered shadow stage.
+ * Public host inputs: --lf-file-editor-height chooses the editing region height;
+ * --lf-file-editor-size chooses its inherited type size (.88rem, .82rem below 36rem).
+ * Set them on lf-file-editor to override the responsive defaults. Colors and focus
+ * consume the shared inherited theme inputs. */
 :scope:is(lf-file-editor) {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;

@@ -1,6 +1,6 @@
 Third-party licenses for markdown-it
 
-===== linkify-it 5.0.2 (MIT) =====
+===== linkify-it 6.1.0 (MIT) =====
 Copyright (c) 2015 Vitaly Puzrin.
 
 Permission is hereby granted, free of charge, to any person
@@ -24,7 +24,7 @@ WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 
-===== markdown-it 14.3.2 (MIT) =====
+===== markdown-it 15.0.2 (MIT) =====
 Copyright (c) 2014 Vitaly Puzrin, Alex Kocharin.
 
 Permission is hereby granted, free of charge, to any person
@@ -63,7 +63,7 @@ WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-===== entities 4.5.0 (BSD-2-Clause) =====
+===== entities 8.1.0 (BSD-2-Clause) =====
 Copyright (c) Felix Böhm
 All rights reserved.
 
@@ -145,7 +145,7 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-===== uc.micro 2.1.0 (MIT) =====
+===== uc.micro 3.0.0 (MIT) =====
 Copyright Mathias Bynens <https://mathiasbynens.be/>
 
 Permission is hereby granted, free of charge, to any person obtaining

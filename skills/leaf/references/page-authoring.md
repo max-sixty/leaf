@@ -659,6 +659,12 @@ authorizes its own document, captured assets and APIs, so native resource loader
 module-relative URLs work directly. It grants no parent routes. Child responses
 suppress referrers; external requests retain the browser's opaque-origin CORS rules.
 Reload reconnects the child; Reset replaces it with a fresh copy of its initial state.
+Initial document admission failures reject `ready` after releasing the failed
+allocation; the sample keeps its error and Reset control. Later native navigation
+keeps the destination in the frame and Reset available. While that document has no
+Leaf connection, `ready` and presentation commands reject with `AbortError`; a
+valid Leaf reload reconnects. The containing page cannot distinguish an external
+destination from a failed reload inside the opaque frame.
 To select a conversation, call `await sample.showThread(id)` with its root event id;
 this shows the same page destination as its marker. To inspect it in Threads,
 call `await sample.showThread(id, {surface: "panel"})`. The panel view accepts

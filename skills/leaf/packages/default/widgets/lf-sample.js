@@ -17,6 +17,7 @@ import {
   cancelRender,
   nextRender,
   keeps,
+  keepsText,
   mountSample,
   once,
   offer,
@@ -74,6 +75,11 @@ customElements.define(
           this.#host = host;
           host.on("height", ({ height }) => this.#height(height));
           host.on("loading", () => this.#track(host.ready));
+          host.on("departed", () => {
+            this.#ready = host.ready;
+            keepsText(this.#status, "");
+            keeps(this.#reset, "aria-disabled", null);
+          });
           return host.ready;
         },
         (error) => {
@@ -81,7 +87,9 @@ customElements.define(
           throw error;
         },
       );
-      widgetController(this).present(this.#track(ready));
+      // A failed child is drawn by this widget's status and Reset. That is a
+      // completed parent rendering; the public sample.ready still rejects.
+      widgetController(this).present(this.#track(ready).catch(() => {}));
     }
 
     disconnectedCallback() {
@@ -143,7 +151,7 @@ customElements.define(
           closeNativeLayer(this.#view);
           this.#view.setAttribute("role", "dialog");
           this.#view.setAttribute("aria-label", this.#frame.title);
-          this.#full.textContent = "Return to page";
+          keepsText(this.#full, "Return to page");
           showNativeLayer(this.#view);
           this.#setWindow(true);
           focusDestination(this.#full, "move");
@@ -172,7 +180,7 @@ customElements.define(
       this.#view.setAttribute("role", "presentation");
       this.#view.removeAttribute("aria-label");
       this.style.removeProperty("--lf-sample-height");
-      this.#full.textContent = "Full view";
+      keepsText(this.#full, "Full view");
       this.#setWindow(this.hasAttribute("window"));
     }
 
@@ -201,13 +209,13 @@ customElements.define(
 
     #failure(error) {
       if (error.name === "AbortError") return;
-      this.#status.textContent = error.message;
+      keepsText(this.#status, error.message);
       keeps(this.#reset, "aria-disabled", null);
     }
 
     #track(promise) {
       keeps(this.#reset, "aria-disabled", "true");
-      this.#status.textContent = "Loading sample…";
+      keepsText(this.#status, "Loading sample…");
       const ready = promise.then(async (reading) => {
         if (this.#ready !== ready) return reading;
         const current = await this.#host.setWindow(
@@ -216,7 +224,7 @@ customElements.define(
         if (this.#ready !== ready) return reading;
         this.#height(current.height, { immediate: true });
         keeps(this.#reset, "aria-disabled", null);
-        this.#status.textContent = "";
+        keepsText(this.#status, "");
         this.dispatchEvent(
           new CustomEvent("lf-sample-ready", {
             bubbles: true,

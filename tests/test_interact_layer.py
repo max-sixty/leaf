@@ -5074,7 +5074,9 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     is not a binding at all: holding ⌥ arms nothing and answers no press, it paints what
     a click would take, and its keyup half has no place in a table of presses. The
     prepaint bootstrap's hold answers no press either: it keeps keys pressed before the
-    page presents and hands them to the dispatcher's owner. prepaint.js records inputs
+    page presents and hands them to the dispatcher's owner. The sample bootstrap's
+    other listener enters its browsing context on trusted input without answering a
+    key; the same listener handles pointer input. prepaint.js records inputs
     from the document's first script. focus.js reads keys as the end of a label press
     and as a Tab's step; neither answers a command. The
     interaction log records keys and answers none. A covering surface's Tab loop keeps
@@ -5104,7 +5106,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     assert by_file == {
         "controller.js": 1,
         "aim.js": 1,
-        "bootstrap.js": 1,
+        "bootstrap.js": 2,
         "prepaint.js": 1,
         "focus.js": 2,
         "interaction-log.js": 1,

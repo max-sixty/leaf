@@ -118,6 +118,29 @@ what fails and what still works.
   scroll owner; the classic-scrollbar regression now keeps the containing page
   still. These are engine checks, not installed Safari or mobile-browser checks.
 
+### Sample document admission and native navigation
+
+- **Owners:** initial admission and private-port lifetime in `runtime/sample.js`,
+  the child departure notice in `runtime/bootstrap.js`, and the `Leaf-Document`
+  response header in `leaf/http.py`.
+- **Observed, 2026-10-10:** Chromium can deliver a parent's self-posted completion
+  check before a child window's earlier load announcement. A shared message task
+  source does not establish delivery order across these browsing contexts. In
+  Chromium, parent resource timing exposes the initial iframe response's
+  `Server-Timing` header, but child-initiated reload adds no parent resource entry.
+  WebKit's initial iframe entry omits that header even with `Timing-Allow-Origin: *`.
+  Chromium's Navigation API exposes no current entry or navigation events inside
+  an opaque sample.
+- **Disposition:** allocation and Reset admit the child URL with a credentialless
+  HEAD and require its server-owned `Leaf-Document` header before ordinary native
+  iframe navigation. This checks the document the server offers at admission;
+  it cannot prove the later navigation receives the same response. A child's
+  `pagehide` cancels private presentation and pending commands while retaining its
+  native destination and Reset. A valid Leaf reload reconnects; a non-Leaf document
+  stays visible without a private port. The opaque parent cannot classify a later
+  failed reload separately from authored departure. The author-facing contract is
+  [Live samples](../skills/leaf/references/page-authoring.md#live-samples).
+
 ### Frame margin trimming
 
 - **Disposition: shared CSS retained.** Leaf trims a frame's content edges through

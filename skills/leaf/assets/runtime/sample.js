@@ -2,8 +2,11 @@
  * unguessable page URL grants native requests to its own document, assets and log;
  * presentation commands and observations cross a private port as values.
  * Allocation captures the owning widget's immutable revision. Reset replaces the
- * allocation; an ordinary reload reconnects the same allocation with a fresh port
- * and presentation promise. Departed ports cannot settle the replacement's calls.
+ * allocation, admitting its initial document with a credentialless HEAD before
+ * native navigation. A later authored navigation keeps the frame and disables its
+ * private port; an ordinary reload reconnects with a fresh presentation promise.
+ * An opaque parent cannot classify a later document which has no Leaf bootstrap.
+ * Departed ports cannot settle the replacement's calls.
  * A block follows the child's reported height; a window keeps its own viewport.
  * Passive demonstrations remain inert. Removing a frame retires its realm before
  * releasing the allocation, including on reset and parent departure. */
@@ -80,6 +83,7 @@ export function mountSample(
   let readyResolve;
   let readyReject;
   let presenting = false;
+  let hasConnected = false;
   let connectedNonce = null;
   const candidates = new Set();
   const pending = new Map();
@@ -167,7 +171,9 @@ export function mountSample(
     try {
       return await work;
     } catch (error) {
-      await retire();
+      // Native navigation cancels the private presentation, while the browser
+      // keeps its destination. Reset and destroy retire allocations themselves.
+      if (error.name !== "AbortError") await retire();
       throw error;
     }
   }
@@ -184,12 +190,22 @@ export function mountSample(
       };
     });
   }
+  function failure(error) {
+    if (presenting) readyReject(error);
+    else {
+      begin(settle(Promise.reject(error)));
+      notify("loading");
+    }
+  }
   function connect(event) {
     if (
       !current ||
       event.source !== frame.contentWindow ||
-      event.data?.type !== "leaf-sample-connect" ||
-      event.data.sample !== new URL(current).pathname ||
+      event.data?.sample !== new URL(current).pathname
+    )
+      return;
+    if (
+      event.data.type !== "leaf-sample-connect" ||
       typeof event.data.nonce !== "string" ||
       event.data.nonce === connectedNonce
     )
@@ -198,6 +214,8 @@ export function mountSample(
     const owned = current;
     const pair = new MessageChannel();
     const port = pair.port1;
+    // Publish this private document endpoint at the existing diagnostic seam.
+    document.querySelector("script[data-lf-entry]").lfDocumentPort = port;
     candidates.add(port);
     port.onmessage = ({ data }) => {
       if (data.type === "connected") {
@@ -205,10 +223,11 @@ export function mountSample(
         candidates.delete(port);
         for (const candidate of candidates) candidate.close();
         candidates.clear();
-        const reloading = connectedNonce !== null;
+        const reloading = hasConnected;
         disconnect(new DOMException("sample document replaced", "AbortError"));
         channel = port;
         connectedNonce = nonce;
+        hasConnected = true;
         if (reloading) {
           const previousResolve = readyResolve;
           const previousReject = readyReject;
@@ -220,6 +239,14 @@ export function mountSample(
       }
       // Messages from the departed realm cannot settle the next realm's calls.
       if (channel !== port) return;
+      if (data.type === "departed") {
+        const error = new DOMException("sample document navigated", "AbortError");
+        disconnect(error);
+        if (presenting) readyReject(error);
+        else begin(Promise.reject(error));
+        notify("departed");
+        return;
+      }
       if (data.type === "visibility-read") {
         void readVisibility(port, data.detail.id);
         return;
@@ -236,12 +263,7 @@ export function mountSample(
         readyResolve(data.detail);
         visibility();
       } else if (data.type === "error") {
-        const error = new Error(data.detail.message);
-        if (presenting) readyReject(error);
-        else {
-          begin(settle(Promise.reject(error)));
-          notify("loading");
-        }
+        failure(new Error(data.detail.message));
       } else if (data.type === "return")
         frame.dispatchEvent(new Event("lf-sample-return"));
       else notify(data.type, data.detail);
@@ -289,6 +311,7 @@ export function mountSample(
     if (!current) return;
     const previous = current;
     current = null;
+    hasConnected = false;
     const cancelled = new DOMException("sample replaced", "AbortError");
     disconnect(cancelled);
     for (const port of candidates) port.close();
@@ -313,7 +336,23 @@ export function mountSample(
         );
         current = new URL(url, location.href).href;
         try {
-          if (destroyed) throw new DOMException("sample destroyed", "AbortError");
+          if (destroyed) {
+            await retire();
+            throw new DOMException("sample destroyed", "AbortError");
+          }
+          // The opaque frame cannot expose its document or order cross-process
+          // bootstrap messages against load. Admit the server's document contract
+          // before native navigation; later authored destinations remain native.
+          const admission = await fetch(current, {
+            method: "HEAD",
+            credentials: "omit",
+          });
+          if (!admission.ok || !admission.headers.has("Leaf-Document"))
+            throw new Error("The sample document did not start Leaf");
+          if (destroyed) {
+            await retire();
+            throw new DOMException("sample destroyed", "AbortError");
+          }
           const presented = presentation();
           // A loaded module graph frees its slot even while presentation waits on
           // slow state. Native load needs no access to the opaque child document.
@@ -340,15 +379,16 @@ export function mountSample(
       asWindow = value;
       return host.call("window", { window: value });
     },
-    async call(method, detail = {}) {
+    call(method, detail = {}) {
       const ready = host.ready;
-      await ready;
-      if (ready !== host.ready || !channel)
-        return Promise.reject(new DOMException("sample unavailable", "AbortError"));
-      const id = ++nextId;
-      return new Promise((resolve, reject) => {
-        pending.set(id, { resolve, reject });
-        channel.postMessage({ id, method, detail });
+      return ready.then(() => {
+        if (ready !== host.ready || !channel)
+          throw new DOMException("sample unavailable", "AbortError");
+        const id = ++nextId;
+        return new Promise((resolve, reject) => {
+          pending.set(id, { resolve, reject });
+          channel.postMessage({ id, method, detail });
+        });
       });
     },
     on(type, callback) {

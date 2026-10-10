@@ -113,6 +113,21 @@ def rendering_job_binding_source():
     });"""
 
 
+def document_port_binding_source():
+    """Enroll only endpoints their owner declares as private document channels."""
+    return """(() => {
+      const ports = new WeakMap();
+      Object.defineProperty(HTMLScriptElement.prototype, 'lfDocumentPort', {
+        configurable: true,
+        get() { return ports.get(this); },
+        set(port) {
+          ports.set(this, port);
+          lfInputWork.observeDocumentPort(port);
+        },
+      });
+    })();"""
+
+
 @cache
 def shift_watch_source():
     """Bind the sensor to the runtime's control, clipping, and scroll-space readings."""
@@ -1394,6 +1409,8 @@ def watched(page, *, java_script_enabled=True):
         )
         + "\n"
         + rendering_job_binding_source()
+        + "\n"
+        + document_port_binding_source()
     )
     if _TEST is None or watches_shifts(_TEST):
         page.add_init_script(script=shift_watch_source())

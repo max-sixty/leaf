@@ -1,7 +1,11 @@
 """Opaque samples use ordinary native delivery and reconnect after a reload."""
 
+import re
+
+import pytest
+from leaf.render_checks import HANDOVER_DEADLINE_MS
 from playwright.sync_api import expect
-from render_harness import open_page
+from render_harness import consume_browser_errors, holding, open_page
 from test_render_controls import leaf_page
 
 
@@ -61,7 +65,7 @@ document.querySelector('#popup').addEventListener('click', () => {
     sample.locator("iframe").wait_for(state="attached")
     child = sample.locator("iframe").element_handle().content_frame()
     child.wait_for_function(
-        "document.body?.hasAttribute('data-lf-presented')", timeout=20000
+        "document.body?.hasAttribute('data-lf-presented')", timeout=HANDOVER_DEADLINE_MS
     )
     sample.evaluate("async sample => await sample.ready")
     child.wait_for_function("!!window.nativeXhr")
@@ -90,8 +94,10 @@ document.querySelector('#popup').addEventListener('click', () => {
       });
       if (!response.ok) throw new Error(await response.text());
     }""")
-    with child.expect_navigation(wait_until="domcontentloaded"):
-        child.evaluate("location.reload()")
+    # Reload again as soon as parsing finishes, before waiting for presentation.
+    for _ in range(2):
+        with child.expect_navigation(wait_until="domcontentloaded"):
+            child.evaluate("location.reload()")
     child.wait_for_function("document.body?.hasAttribute('data-lf-presented')")
     expect(child.locator("h1").first).to_have_text("Practice page")
     child.wait_for_function("!!window.nativeXhr")
@@ -101,3 +107,127 @@ document.querySelector('#popup').addEventListener('click', () => {
       const state = await (await fetch('api/state')).json();
       return state.events.some(event => event.text === 'Keep through reload');
     }""")
+
+
+@pytest.mark.parametrize("status", [404, 200])
+@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
+def test_sample_document_without_bootstrap_retires_and_can_reset(
+    request, serve, status, engine
+):
+    """Initial admission rejects a non-Leaf response and permits immediate Reset."""
+    url = serve(
+        leaf_page(
+            "Sample document failure",
+            '<h1>Sample document failure</h1><lf-sample id="practice">'
+            '<template id="practice-source" data-sample><h1>Practice</h1></template>'
+            "</lf-sample>",
+        )
+    )
+    page = request.getfixturevalue(engine).new_page()
+    held = []
+    navigation = re.compile(r"/api/samples/[^/]+/$")
+    page.route(navigation, lambda route: held.append(route))
+    page.goto(url, wait_until="domcontentloaded")
+    sample = page.locator("#practice")
+    holding(page, held, 1, "the failed sample document")
+    failed_url = held[0].request.url
+    held[0].fulfill(
+        status=status,
+        content_type="text/html",
+        body="<html><body>Unavailable</body></html>",
+    )
+    expect(sample.locator(".lf-sample-status")).to_have_text(
+        "The sample document did not start Leaf"
+    )
+    assert (
+        sample.evaluate(
+            "sample => sample.ready.then(() => null, error => error.message)"
+        )
+        == "The sample document did not start Leaf"
+    )
+    reset = sample.get_by_role("button", name="Reset", exact=True)
+    expect(reset).to_be_enabled()
+    assert page.request.get(failed_url + "api/state").status == 404
+    page.unroute(navigation)
+    reset.click()
+    sample.evaluate("async sample => await sample.ready")
+    expect(sample.frame_locator("iframe").get_by_role("heading")).to_have_text(
+        "Practice"
+    )
+    if status == 404:
+        consume_browser_errors(page, "404", "The sample document did not start Leaf")
+
+
+@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
+@pytest.mark.parametrize("navigation", ["form", "script"])
+def test_sample_native_departure_keeps_destination_and_reset(
+    request, serve, engine, navigation
+):
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Native departure",
+                """
+<h1>Containing page</h1>
+<lf-sample id="practice" label="Practice" window>
+  <template id="practice-source" data-sample>
+    <h1>Practice page</h1>
+    <form action="https://docs.example.invalid/reference.html" method="get">
+      <input name="q" value="term"><button>Search docs</button>
+    </form>
+  </template>
+</lf-sample>
+""",
+            )
+        ),
+    )
+    page.route(
+        "https://docs.example.invalid/**",
+        lambda route: route.fulfill(
+            content_type="text/html", body="<!doctype html><h1>External reference</h1>"
+        ),
+    )
+    sample = page.locator("#practice")
+    sample.evaluate("async sample => await sample.ready")
+    child = sample.locator("iframe").element_handle().content_frame()
+    child.evaluate("""async () => {
+      const {registerSampleCommand} = await __lfRuntimeImport('/runtime/sample-child.js');
+      registerSampleCommand('thread', () => {
+        window.waitingCommand = true;
+        return new Promise(() => {});
+      });
+    }""")
+    sample.evaluate("""sample => {
+      window.departedCall = sample.showThread('pending').then(
+        () => 'completed', error => error.name);
+    }""")
+    child.wait_for_function("window.waitingCommand")
+    if navigation == "form":
+        child.get_by_role("button", name="Search docs").click()
+    else:
+        child.evaluate("location.assign('https://docs.example.invalid/reference.html')")
+    expect(child.get_by_role("heading")).to_have_text("External reference")
+    assert page.evaluate("window.departedCall") == "AbortError"
+    assert (
+        sample.evaluate(
+            "sample => sample.ready.then(() => 'ready', error => error.name)"
+        )
+        == "AbortError"
+    )
+    assert (
+        sample.evaluate(
+            "sample => sample.showThread('departed').then(() => 'completed', error => error.name)"
+        )
+        == "AbortError"
+    )
+    reset = sample.get_by_role("button", name="Reset", exact=True)
+    expect(reset).to_be_enabled()
+    sample.get_by_role("button", name="Full view", exact=True).click()
+    expect(child.get_by_role("heading")).to_have_text("External reference")
+    sample.get_by_role("button", name="Return to page", exact=True).click()
+    reset.click()
+    sample.evaluate("async sample => await sample.ready")
+    expect(sample.frame_locator("iframe").get_by_role("heading")).to_have_text(
+        "Practice page"
+    )

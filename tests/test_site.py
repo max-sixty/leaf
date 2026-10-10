@@ -1810,6 +1810,7 @@ def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
     page = open_page(browser, f"{url}#bg-interactions", context=context)
     gallery = page.locator("#bg-interactions")
     gallery.get_by_role("tab", name="Send a comment").click()
+    previous_sample = sample_address(gallery.locator("#bg-interaction-comment iframe"))
     held = []
     held_once = False
 
@@ -1819,6 +1820,7 @@ def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
             route.request.url.startswith(
                 sample_address(page.locator("#bg-interaction-comment iframe"))
             )
+            and not route.request.url.startswith(previous_sample)
             and not held_once
         ):
             held_once = True
@@ -1832,6 +1834,7 @@ def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
             request.url.startswith(
                 sample_address(page.locator("#bg-interaction-comment iframe"))
             )
+            and not request.url.startswith(previous_sample)
             and "/api/state" in request.url
         ),
         timeout=HANDOVER_DEADLINE_MS,
@@ -1917,7 +1920,7 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
         storage = contained_document.evaluate(
             """async () => {
                 const {LIVE_ROOT, PAGE_SCOPE, tabStore, draftStore, userStore} =
-                    await import('leaf:/runtime/storage.js');
+                    await window.__lfRuntimeImport('/runtime/storage.js');
                 for (const [name, store] of Object.entries({tabStore, draftStore, userStore})) {
                     if (!store.set('isolation-test', name) || store.get('isolation-test') !== name)
                         throw new Error(`${name} did not retain sample working state`);
@@ -1932,9 +1935,20 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
         )
         assert storage["liveRoot"] is True
         assert "/api/samples/" in storage["pageScope"]
-        contained_document.evaluate(
-            "dispatchEvent(new PageTransitionEvent('pagehide'))"
-        )
+        interaction_url = f"{sample_address(gallery.locator('iframe[data-interaction-ready]').first)}api/interaction"
+        with page.expect_response(
+            lambda response: (
+                response.url == interaction_url
+                and any(
+                    entry["type"] == "pagehide"
+                    for entry in response.request.post_data_json["entries"]
+                )
+            )
+        ) as departure:
+            contained_document.evaluate(
+                "dispatchEvent(new PageTransitionEvent('pagehide'))"
+            )
+        assert departure.value.ok
         assert page.evaluate("sessionStorage.getItem('lf-view')") == "outer reading"
         assert (
             page.evaluate(
@@ -1962,9 +1976,9 @@ def test_a_sample_keeps_ephemeral_storage_and_presents_uploaded_media(serve, bro
     assert frame.evaluate("frame => frame.contentDocument === null")
     result = child.evaluate(
         """async () => {
-          const {tabStore, draftStore, userStore} = await import('leaf:/runtime/storage.js');
-          const {uploadMedia} = await import('leaf:/runtime/layer-client.js');
-          const {scopedMediaUrl} = await import('leaf:/runtime/media.js');
+          const {tabStore, draftStore, userStore} = await window.__lfRuntimeImport('/runtime/storage.js');
+          const {uploadMedia} = await window.__lfRuntimeImport('/runtime/layer-client.js');
+          const {scopedMediaUrl} = await window.__lfRuntimeImport('/runtime/media.js');
           const denied = ['localStorage', 'sessionStorage'].every(name => {
             try { window[name]; return false; } catch { return true; }
           });
@@ -1983,17 +1997,18 @@ def test_a_sample_keeps_ephemeral_storage_and_presents_uploaded_media(serve, bro
           image.src = scopedMediaUrl(path);
           document.body.append(image);
           await image.decode();
-          return {denied, retained, path, shown: image.src.startsWith('blob:')
-            && image.naturalWidth === 2 && image.naturalHeight === 2};
+          return {denied, retained, path, url: image.src,
+            shown: image.naturalWidth === 2 && image.naturalHeight === 2};
         }"""
     )
     assert result["denied"] and result["retained"] and result["shown"]
     assert result["path"].startswith("/media/")
+    assert result["url"].startswith(f"{sample_address(frame)}media/")
     sample.get_by_role("button", name="Reset", exact=True).click()
     sample.evaluate("async sample => { await sample.ready; }")
     assert child.evaluate(
         """async () => {
-          const {tabStore, draftStore, userStore} = await import('leaf:/runtime/storage.js');
+          const {tabStore, draftStore, userStore} = await window.__lfRuntimeImport('/runtime/storage.js');
           return [tabStore, draftStore, userStore].every(store => store.get('isolation-test') === null);
         }"""
     )

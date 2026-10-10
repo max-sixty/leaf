@@ -2004,10 +2004,12 @@ def test_the_live_root_places_its_delivery_at_the_parsers_head_boundary(
     assert "<title>Backfill plan\u2028Q3</title>" in body
     # The old splice corrupted this tag while leaving the page renderable.
     artifact_root = "/revisions/" + files_model.revision_path(page_dir, 1).stem
-    assert (
-        f'<link rel="stylesheet" href="{artifact_root}/theme.css" data-lf-runtime>'
-        in body
+    theme = structure_model.SourceDocument(body).tree.find(
+        "link", attrs={"href": f"{artifact_root}/theme.css"}
     )
+    assert theme is not None
+    assert theme.attrs["rel"] == ["stylesheet"]
+    assert "data-lf-runtime" in theme.attrs
 
 
 def test_a_revision_s_resources_are_cached_and_its_document_is_not(server, page_dir):

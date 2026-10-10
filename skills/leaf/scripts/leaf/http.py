@@ -851,7 +851,9 @@ class PageEndpoint:
             registry=artifact.registry,
             delivery=self._delivery(artifact, revision),
         )
-        return self._content(200, "text/html; charset=utf-8", projected.encode())
+        response = self._content(200, "text/html; charset=utf-8", projected.encode())
+        response.headers["Leaf-Document"] = str(revision)
+        return response
 
     def _delivery(self, artifact: RevisionArtifact, revision: int) -> Delivery:
         """How this transport delivers a document; a transport adds its own marks."""

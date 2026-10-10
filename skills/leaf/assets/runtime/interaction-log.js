@@ -224,7 +224,7 @@ function enqueue(entry) {
     nextSequence++;
     append([row]);
   } else {
-    // Split large pastes and drafts into pieces that fit a pagehide Beacon and
+    // Split large pastes and drafts into pieces that fit a pagehide request and
     // the hosted Worker's record limit, subject to the tab's backlog bound.
     const partOf = nextSequence + 1;
     const parts = Math.ceil(serialized.length / 8_000);
@@ -275,19 +275,25 @@ function batch(start, maxBytes) {
   return { entries, body };
 }
 
+function post(body) {
+  // Beacon always includes credentials; explicit fetch semantics also work from
+  // an opaque sample, whose capability URL is its authority rather than cookies.
+  return fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body,
+    credentials: "same-origin",
+    keepalive: encoder.encode(body).length < 60_000,
+  });
+}
+
 async function flush() {
   if (sending || !queue.length) return;
   sending = true;
   const { entries, body } = batch(0, 100_000);
   inFlightCount = entries.length;
   try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body,
-      credentials: "same-origin",
-      keepalive: encoder.encode(body).length < 60_000,
-    });
+    const response = await post(body);
     if (response.status >= 400 && response.status < 500) {
       // A rejected batch cannot become valid by retrying. Its sequence gap is
       // visible in later batches, and the console carries the immediate fault.
@@ -425,19 +431,7 @@ if (enabled) {
       for (let start = 0; start < queue.length;) {
         const { entries, body } = batch(start, 48_000);
         start += entries.length;
-        if (
-          !navigator.sendBeacon(
-            url,
-            new window.Blob([body], { type: "application/json" }),
-          )
-        )
-          void fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body,
-            credentials: "same-origin",
-            keepalive: encoder.encode(body).length < 60_000,
-          }).catch(() => {});
+        void post(body).catch(() => {});
       }
     },
     true,

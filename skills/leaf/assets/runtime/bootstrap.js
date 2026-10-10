@@ -98,6 +98,8 @@
         window.removeEventListener("message", connect);
         settings = event.data.settings;
         port = event.ports[0];
+        // The bootstrap element owns diagnostic readings before the entry starts.
+        script.lfDocumentPort = port;
         port.onmessage = ({ data }) => {
           if (data.type === "dress") dress(data.detail);
           else for (const callback of listeners) callback(data);
@@ -110,6 +112,7 @@
       };
       window.addEventListener("message", connect);
       window.parent.postMessage({ type: "leaf-sample-connect", sample, nonce }, "*");
+      window.addEventListener("pagehide", () => send({ type: "departed" }));
     }
     window.addEventListener("lf-startup-failed", () =>
       root.lfSample.send({
@@ -303,9 +306,12 @@
       const paint = performance
         .getEntriesByName("first-contentful-paint", "paint")
         .at(0);
-      navigator.sendBeacon(
-        new URL("api/performance", pageRoot),
-        JSON.stringify({
+      void fetch(new URL("api/performance", pageRoot), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        keepalive: true,
+        body: JSON.stringify({
           version: 2,
           loadId: crypto.randomUUID(),
           release,
@@ -322,7 +328,7 @@
           firstStateResponseMs,
           presentedMs,
         }),
-      );
+      }).catch(() => {});
     };
     const observer = new MutationObserver(() => {
       readMilestones();

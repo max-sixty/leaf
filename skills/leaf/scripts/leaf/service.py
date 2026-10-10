@@ -163,15 +163,13 @@ def claim_is_active(claim: dict | None) -> bool:
     above that writes what this reads."""
     if not claim or claim["released"] is not None:
         return False
-    record = None
-    if "generation" in claim:
-        record = session_record(claim["id"])
-        if (
-            not record
-            or record["generation"] != claim["generation"]
-            or record["ended"] is not None
-        ):
-            return False
+    record = session_record(claim["id"])
+    if (
+        not record
+        or record["generation"] != claim["generation"]
+        or record["ended"] is not None
+    ):
+        return False
     if "job" in claim:
         return (Path(claim["job"]) / "state.json").is_file()
     if claim.get("chat") is True:

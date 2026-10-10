@@ -10,7 +10,7 @@ leaf file bind PAGE notes ./research-notes.md
 ```
 
 ```html
-<lf-file id="notes-file" binding="notes"></lf-file>
+<lf-file-editor id="notes-file" binding="notes"></lf-file-editor>
 ```
 
 Tell the reader that edits save automatically. Keep the surrounding page quiet:

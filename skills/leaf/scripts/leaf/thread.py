@@ -412,9 +412,10 @@ def post_reply(
                 if when_settled == "skip":
                     return None
                 if when_settled != "post":
+                    held = logged_id(events, for_event, responses)
                     sys.exit(
                         f"event {for_event!r} no longer requires a reply to {to!r}; "
-                        "read the current delivery or thread state"
+                        + (held or "read the current delivery or thread state")
                     )
             elif ephemeral:
                 in_hand = for_event

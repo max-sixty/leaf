@@ -14,15 +14,15 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     url = serve(
         leaf_page(
             "Notes",
-            '<h1>Notes</h1><p>Changes save automatically.</p><lf-file id="notes-file" binding="notes"></lf-file>',
+            '<h1>Notes</h1><p>Changes save automatically.</p><lf-file-editor id="notes-file" binding="notes"></lf-file-editor>',
         ),
         packages=["file-editor"],
     )
     bind_file(serve.page_dir, "notes", file)
     page = open_page(primed(browser, lambda page: page.clock.install()), live_url(url))
-    widget = page.locator("lf-file")
+    widget = page.locator("lf-file-editor")
     editor = widget.get_by_role("textbox", name="File contents", exact=True)
-    status = widget.locator(".lf-file-status")
+    status = widget.locator(".lf-file-editor-status")
     expect(editor).to_have_attribute("aria-readonly", "false")
     expect(widget.get_by_role("button")).to_have_count(0)
 
@@ -46,11 +46,11 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     def caret_visible():
         page.wait_for_function(
             """() => {
-              const root = document.querySelector('lf-file').shadowRoot;
-              const caret = root.querySelector('.lf-file-edit .cm-cursor');
+              const root = document.querySelector('lf-file-editor').shadowRoot;
+              const caret = root.querySelector('.lf-file-editor-edit .cm-cursor');
               if (!caret) return false;
               const cursor = caret.getBoundingClientRect();
-              const port = root.querySelector('.lf-file-edit .cm-scroller').getBoundingClientRect();
+              const port = root.querySelector('.lf-file-editor-edit .cm-scroller').getBoundingClientRect();
               return cursor.top >= port.top && cursor.bottom <= port.bottom;
             }"""
         )

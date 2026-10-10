@@ -622,7 +622,7 @@ def test_a_visual_review_states_where_its_pair_differs_in_every_view(browser, se
     """lf-shot's rail is hidden outside Flip, and the default focus crop hides the
     outlines, since it shows one part of the frame. A focus authored on an area that
     did not change would then show nothing, so the case's position line states the
-    reading, with the strong changes the focus leaves out, and the full frame outlines
+    reading, with groups that extend beyond the focus, and the full frame outlines
     every region."""
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     widget = page.locator("#visual-review-run")
@@ -634,8 +634,8 @@ def test_a_visual_review_states_where_its_pair_differs_in_every_view(browser, se
     case.get_by_text("Capture details", exact=True).click()
     expect(case.locator(".lf-vr-analysis")).to_have_text(
         re.compile(
-            r"Case 1 of 3 · Changed · [1-9]\d* changed areas "
-            r"\([1-9]\d* outside the focus\)"
+            r"Case 1 of 3 · Changed · [1-9]\d* changed areas? "
+            r"\([1-9]\d* beyond the focus\)"
         )
     )
     expect(marks.first).to_be_hidden()

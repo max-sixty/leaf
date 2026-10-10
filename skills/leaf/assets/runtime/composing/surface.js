@@ -578,8 +578,9 @@ export function createResponseSurface({
   // carries the same trusted notification for a script's endpoint write. It can offer
   // the current passage, but cannot authorize replacing a composer or its draft.
   // That menu can stand on either side of the words; never compete with it by raising
-  // a second adjacent surface. Capture the passage for the banner's explicit action.
-  let offeredSelectionAnchor = null;
+  // a second adjacent surface. The banner offers the current selection; its explicit
+  // press captures it, after any source refresh that preserved those native endpoints.
+  let selectionOffered = false;
   const selectionComment = document.createElement("button");
   selectionComment.className = "lf-btn primary";
   selectionComment.type = "button";
@@ -592,16 +593,17 @@ export function createResponseSurface({
     present: false,
   });
   const offerSelection = (anchor) => {
-    offeredSelectionAnchor = anchor;
-    showBannerControl(selectionComment, Boolean(anchor));
+    selectionOffered = Boolean(anchor);
+    showBannerControl(selectionComment, selectionOffered);
   };
   const commentOnOfferedSelection = () => {
-    const anchor = offeredSelectionAnchor;
-    if (!anchor) return;
+    const selection = anchoringIsReady() ? pageSelection() : null;
+    const anchor = selection ? selectionAnchor(selection) : null;
+    offerSelection(null);
+    if (!hasQuote(anchor)) return;
     dismissBannerControls();
     cancelRender(selectionUpdate);
     selectionUpdate = null;
-    offerSelection(null);
     openComment(anchor, "");
   };
 
@@ -837,9 +839,9 @@ export function createResponseSurface({
         actionPress = false;
       });
     // Opening or acting in chrome is a route away from the page, not a new selection
-    // gesture. Keep the already-captured touch passage verbatim while focus moves
+    // gesture. Keep the native touch passage verbatim while focus moves
     // through the banner, its sibling popovers, and their controls.
-    if (offeredSelectionAnchor && inChrome(ev.composedPath()[0])) {
+    if (selectionOffered && inChrome(ev.composedPath()[0])) {
       primaryPointerPressed = false;
       pointerSelecting = false;
       selectionGestureClaimed = false;
@@ -967,7 +969,7 @@ export function createResponseSurface({
         if (selection && pageRange(selection).intersectsNode(target))
           rememberPointerSelection();
         actionPress =
-          (offeredSelectionAnchor && inChrome(target)) ||
+          (selectionOffered && inChrome(target)) ||
           target === selectionComment ||
           Boolean(target.closest?.(".lf-react-surface, .lf-composer"));
       },
@@ -1015,6 +1017,16 @@ export function createResponseSurface({
       if (coarsePointer.matches && selection && !automatic)
         rememberSelection(selection);
       observeSelection();
+      // A bare selected passage only stands while the browser still holds it.
+      // Focusing Comment captures that passage, and a written draft keeps it even
+      // after focus moves elsewhere; neither belongs to the native selection now.
+      if (
+        !selection &&
+        fabAnchor?.quote &&
+        !fabHoldsCapturedPassage() &&
+        !composerHolds()
+      )
+        putAwayFab();
       reflectSelectionStanding();
     });
     document.addEventListener("mouseup", (ev) => {
@@ -1185,7 +1197,7 @@ export function createResponseSurface({
     title: `comment on the ${word}`,
   });
   function commentDestination() {
-    if (offeredSelectionAnchor)
+    if (selectionOffered)
       return {
         ...commenting("selection"),
         box: selectionComment,

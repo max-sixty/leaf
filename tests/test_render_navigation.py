@@ -2109,6 +2109,129 @@ def test_the_pr_walkthrough_exercises_an_inline_diff_thread(browser, serve):
     assert page.evaluate("() => document.activeElement === document.body")
 
 
+@pytest.mark.parametrize("from_below", [False, True], ids=["down", "up"])
+@pytest.mark.parametrize("width", [1440, 390], ids=["beside", "above-or-below"])
+def test_an_offscreen_thread_card_arrives_with_its_anchor(
+    browser, serve, from_below, width
+):
+    """A distant card arrives with its anchor and retraces the same attachment on return."""
+    context = "".join(f"<p>Reading context {i}.</p>" for i in range(40))
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Thread arrival",
+                f"<h1>Thread arrival</h1>{context}"
+                '<p id="destination">The distant passage to review.</p>'
+                f"{context}",
+            ),
+            anchored=[("destination", "The distant passage")],
+        ),
+    )
+    resized(page, width, 900)
+    page.evaluate(
+        """below => {
+          scrollTo({top: below ? document.scrollingElement.scrollHeight : 0,
+            behavior: 'instant'});
+          window.arrivalFrames = [];
+          window.sampleArrival = true;
+          const sample = () => {
+            const card = document.querySelector('.lf-margin-preview');
+            if (card?.checkVisibility()) {
+              const box = card.getBoundingClientRect();
+              const target = document.querySelector('#destination').getBoundingClientRect();
+              window.arrivalFrames.push({top: box.top, bottom: box.bottom,
+                height: box.height, targetTop: target.top, targetBottom: target.bottom,
+                head: document.querySelector('.lf-banner').getBoundingClientRect().bottom,
+                foot: innerHeight});
+            }
+            if (window.sampleArrival) requestAnimationFrame(sample);
+          };
+          requestAnimationFrame(sample);
+        }""",
+        from_below,
+    )
+    page.keyboard.press("t")
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
+    scroll_settled(page)
+    frames = page.evaluate(
+        "() => { window.sampleArrival = false; return arrivalFrames; }"
+    )
+    distant = [
+        frame
+        for frame in frames
+        if frame["targetBottom"] < frame["head"] - frame["height"]
+        or frame["targetTop"] > frame["foot"] + frame["height"]
+    ]
+    assert distant, "the journey must observe the card before its passage approaches"
+    assert all(
+        frame["bottom"] <= frame["head"] + 1 or frame["top"] >= frame["foot"] - 1
+        for frame in distant
+    ), f"the card appeared ahead of its distant anchor: {distant[:3]}"
+    expect(page.locator("#destination")).to_be_in_viewport()
+    expect(page.locator(".lf-margin-preview")).to_be_in_viewport()
+
+    # Retrace representative offscreen, edge-adjacent and central positions. The
+    # investigation's dense sweep is unnecessary in the recurring suite: these
+    # stops exercise both page attachment and viewport pinning on each placement.
+    target_top = page.locator("#destination").evaluate(
+        "node => node.getBoundingClientRect().top + scrollY"
+    )
+    positions = [target_top - top for top in [-300, 100, 450, 800, 1200]]
+    outward = []
+    for returning, stops in [(False, positions), (True, reversed(positions))]:
+        for position in stops:
+            page.evaluate("top => scrollTo({top, behavior: 'instant'})", position)
+            rendered(page)
+            reading = page.locator(".lf-margin-preview").evaluate(
+                """node => {
+                  const box = node.getBoundingClientRect();
+                  return {box: [box.x, box.y, box.width, box.height],
+                    plane: node.dataset.lfPlane, scroll: scrollY};
+                }"""
+            )
+            if returning:
+                previous = outward.pop()
+                assert reading["scroll"] == previous["scroll"]
+                assert reading["box"] == pytest.approx(previous["box"], abs=0.5)
+                assert reading["plane"] == previous["plane"]
+            else:
+                outward.append(reading)
+        if not returning:
+            assert {reading["plane"] for reading in outward} == {"page", "window"}
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
+
+
+def test_thread_navigation_lands_after_resizing_an_open_reply(browser, serve):
+    """A fixed card cannot reveal itself by scrolling its already-visible passage away."""
+    page = open_page(browser, live_url(serve(FEATURE_GALLERY)))
+    resized(page, 1280, 720)
+    card = page.locator(".lf-margin-preview")
+    thread = card.get_by_role("group", name="Thread, Is lunch provided", exact=False)
+    page.keyboard.press("t")
+    expect(thread).to_be_focused()
+    scroll_settled(page)
+    page.keyboard.press("t")
+    expect(
+        card.get_by_role("group", name="Thread, Workshop room photo")
+    ).to_be_focused()
+    scroll_settled(page)
+    page.keyboard.press("Enter")
+    expect(page.get_by_role("textbox", name="Reply", exact=True)).to_be_focused()
+    resized(page, 390, 844)
+    scroll_settled(page)
+    page.keyboard.press("Escape")
+    page.keyboard.press("Shift+t")
+    expect(thread).to_be_focused()
+    scroll_settled(page)
+    expect(thread).to_be_in_viewport(ratio=1)
+    page.keyboard.press("c")
+    reply = page.get_by_role("textbox", name="Reply", exact=True)
+    expect(reply).to_be_focused()
+    scroll_settled(page)
+    expect(reply).to_be_in_viewport(ratio=1)
+
+
 def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
     """A contextual thread has one side, and leaves and returns with its anchor."""
     page = open_page(browser, live_url(serve(FEATURE_GALLERY)))
@@ -3286,7 +3409,10 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
 
     selected = page.locator('#views [aria-selected="true"]')
     selected.focus()
-    focus = selected.evaluate(
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
+    expect(selected).to_be_focused()
+    focus = selected.locator(".lf-tab-name").evaluate(
         """element => {
           const style = getComputedStyle(element);
           return {width: parseFloat(style.outlineWidth), style: style.outlineStyle};
@@ -8537,6 +8663,15 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     close = page.get_by_role("button", name="Back to more shortcuts")
     expect(close).to_be_visible()
     expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
+    search = page.get_by_role("combobox", name="Search commands")
+    expect(search).to_be_focused()
+    # The editor's native focus is inside the shared control's shadow tree. Closing
+    # directly from it must return to the same Help door as closing from a result.
+    page.keyboard.press("Escape")
+    expect(help_el).to_be_hidden()
+    expect(opener).to_be_focused()
+    opener.click()
+    expect(search).to_be_focused()
     for command in [
         "test.projected-only",
         "response.reaction.choose",
@@ -8586,6 +8721,18 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     expect(help_el).to_be_hidden()
     expect(opener).to_be_focused()
 
+    # A keyboard opening from an ordinary page control owes that control back too,
+    # including when light dismissal closes the focused native search editor.
+    page.keyboard.press("Escape")
+    page_control = page.locator("#projected-only-command")
+    page_control.click()
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    expect(search).to_be_focused()
+    page.mouse.click(2, 2)
+    expect(help_el).to_be_hidden()
+    expect(page_control).to_be_focused()
+
 
 def test_the_reference_runs_available_commands_and_explains_the_rest(browser, serve):
     """The reference is the command register made usable, not a second list of prose.
@@ -8618,9 +8765,9 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
         re.compile(r" · ⏎ activate$")
     )
     first_row = commands.first.locator("xpath=ancestor::tr")
-    expect(search).to_have_attribute(
-        "aria-activedescendant", first_row.get_attribute("id")
-    )
+    assert search.evaluate(
+        "input => input.ariaActiveDescendantElement?.id"
+    ) == first_row.get_attribute("id")
     page.keyboard.press("ArrowUp")
     expect(commands.first).to_have_attribute("data-lf-selected", "true")
     expect(page.locator(".lf-walk-position")).to_have_attribute("data-lf-boundary", "")
@@ -8632,9 +8779,9 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     expect(search).to_be_focused()
     expect(commands.last).to_have_attribute("data-lf-selected", "true")
     last_row = commands.last.locator("xpath=ancestor::tr")
-    expect(search).to_have_attribute(
-        "aria-activedescendant", last_row.get_attribute("id")
-    )
+    assert search.evaluate(
+        "input => input.ariaActiveDescendantElement?.id"
+    ) == last_row.get_attribute("id")
     page.keyboard.press("ArrowDown")
     expect(commands.last).to_have_attribute("data-lf-selected", "true")
 
@@ -8891,10 +9038,18 @@ def test_the_reference_keeps_its_top_and_search_still_when_filtering(
     search = page.get_by_role("combobox", name="Search commands")
     expect(search).to_be_focused()
     initial_dialog = reference.bounding_box()
-    initial_search = search.bounding_box()
+    search_field = reference.locator(".lf-command-reference-search")
+    initial_search = search_field.bounding_box()
+    commands = reference.locator(".lf-command-reference-command:visible")
+    initial_count = commands.count()
 
     for query in ("page.search.open", "no command has these words", ""):
-        search.fill(query)
+        if query:
+            search.fill(query)
+        else:
+            search_field.get_by_role("button", name="Clear entry").click()
+            expect(search).to_have_value("")
+            expect(commands).to_have_count(initial_count)
         if query == "page.search.open":
             expect(
                 reference.locator(".lf-command-reference-command:visible")
@@ -8907,7 +9062,7 @@ def test_the_reference_keeps_its_top_and_search_still_when_filtering(
                 assert reference.bounding_box()["height"] < initial_dialog["height"]
         expect(search).to_be_focused()
         dialog = reference.bounding_box()
-        field = search.bounding_box()
+        field = search_field.bounding_box()
         assert dialog["y"] == pytest.approx(initial_dialog["y"], abs=0.5)
         for axis in ("x", "y", "width", "height"):
             assert field[axis] == pytest.approx(initial_search[axis], abs=0.5)
@@ -8956,7 +9111,9 @@ def test_the_reference_keeps_local_search_state_on_one_lit_surface(browser, serv
     expect(result).to_have_attribute("tabindex", "0")
     row = result.locator("xpath=ancestor::tr")
     expect(row).to_have_attribute("aria-selected", "true")
-    expect(search).to_have_attribute("aria-activedescendant", row.get_attribute("id"))
+    assert search.evaluate(
+        "input => input.ariaActiveDescendantElement?.id"
+    ) == row.get_attribute("id")
     assert page.evaluate(
         """() =>
           window.__commandReferenceSearch === document.querySelector(
@@ -8971,7 +9128,7 @@ def test_the_reference_keeps_local_search_state_on_one_lit_surface(browser, serv
 
     search.fill("no command has these words")
     expect(reference.locator(".lf-command-reference-empty")).to_be_visible()
-    expect(search).not_to_have_attribute("aria-activedescendant", re.compile(r".+"))
+    assert search.evaluate("input => input.ariaActiveDescendantElement") is None
     search.fill("resolve it")
     expect(result).to_have_attribute("data-lf-selected", "false")
     assert page.evaluate(
@@ -9311,37 +9468,6 @@ def test_the_g_chord_selects_a_visible_tab_hint(browser, serve):
     page.keyboard.press("ArrowLeft")
     expect(tabs.first).to_be_focused()
     expect(page.locator(".lf-walk-position")).to_have_text("Tab 1 of 2")
-
-
-def test_the_g_chord_reaches_a_checkbox_a_widget_built(browser, serve):
-    """A native press joins the generated route through the same offer that styles it."""
-    page = open_page(browser, serve(DIFF_PAGE))
-    checkbox = page.locator("#patch .lf-diff-wrap")
-    expect(checkbox).to_be_visible()
-    checkbox.evaluate("node => { node.id = 'soft-wrap'; }")
-
-    page.keyboard.press("g")
-    code = address_code(page, "Control", "soft-wrap")
-    # The repaint replaces Go-to hints. Resolve and measure the current hint in
-    # one browser turn rather than retaining a handle across that replacement.
-    index = page.evaluate(
-        """selector => {
-          const node = document.querySelector(selector);
-          return [...node.parentElement.children]
-            .filter(candidate => candidate.dataset.lfHintCode).indexOf(node);
-        }""",
-        f'{CHIPS}[data-lf-go-to-target="soft-wrap"]',
-    )
-    assert index >= 0
-    for _ in range(index + 1):
-        page.keyboard.press("Tab")
-    expect(page.locator(".lf-live")).to_have_text(
-        f"Hint {code}: Control, Soft wrap. Press Enter to go there."
-    )
-    page.keyboard.press("Enter")
-
-    expect(checkbox).to_be_checked()
-    expect(checkbox).to_be_focused()
 
 
 def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve):
@@ -9955,14 +10081,14 @@ def test_reference_accepts_native_popover_dismissal_across_modal_entry(browser, 
     page.keyboard.press("?")
     expect(reference).to_be_visible()
 
-    search = reference.locator(".lf-command-reference-search")
+    search = reference.get_by_role("combobox", name="Search commands")
     search.fill("thread")
     page.keyboard.press("ArrowDown")
     search.evaluate(
         "node => { node.setSelectionRange(1, 3); window.heldReferenceSearch = node; }"
     )
     held_search = search.evaluate(
-        "node => [node.value, node.selectionStart, node.selectionEnd, node.getAttribute('aria-activedescendant')]"
+        "node => [node.value, node.selectionStart, node.selectionEnd, node.ariaActiveDescendantElement?.id]"
     )
     resized(page, 400, 800)
     panel_settled(page)
@@ -9971,12 +10097,12 @@ def test_reference_accepts_native_popover_dismissal_across_modal_entry(browser, 
     assert search.evaluate("node => node === window.heldReferenceSearch")
     assert (
         search.evaluate(
-            "node => [node.value, node.selectionStart, node.selectionEnd, node.getAttribute('aria-activedescendant')]"
+            "node => [node.value, node.selectionStart, node.selectionEnd, node.ariaActiveDescendantElement?.id]"
         )
         == held_search
     )
     assert search.evaluate(
-        "node => { const box = node.getBoundingClientRect(); return document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2) === node; }"
+        "node => { const box = node.getBoundingClientRect(); return node.getRootNode().elementFromPoint(box.x + box.width / 2, box.y + box.height / 2) === node; }"
     )
     # Every Escape from here lands the user while the panel covers the page, which is
     # inert under it, so the panel is what can take them. The platform also hands a

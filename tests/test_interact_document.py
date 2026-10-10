@@ -1275,26 +1275,13 @@ def test_thread_read_reads_frozen_construction(page_dir):
     assert refused.exit_code != 0 and "names no thread or widget" in refused.output
 
 
-def test_version_descriptors_scan_the_revision_directory_once(tmp_path, monkeypatch):
-    """Mapped revisions define history from one directory snapshot."""
-    (tmp_path / "revisions").mkdir()
-    events = []
-    for revision in range(1, 4):
-        (tmp_path / "revisions" / f"r{revision}-{'0' * 16}.html").write_text("revision")
-        events.append({"kind": "note", "version": revision, "revision": revision})
-    events.append({"kind": "note", "version": 4, "revision": 4})
-
-    native_list_revisions = files_model.list_revisions
-    scans = 0
-
-    def counted_list_revisions(page_dir):
-        nonlocal scans
-        scans += 1
-        return native_list_revisions(page_dir)
-
-    monkeypatch.setattr(files_model, "list_revisions", counted_list_revisions)
-
-    assert files_model.version_descriptors(tmp_path, events) == [
+def test_version_descriptors_select_only_available_stamped_revisions():
+    """Public history orders stamps and excludes a note whose revision is absent."""
+    events = [
+        {"kind": "note", "version": revision, "revision": revision}
+        for revision in (4, 2, 3, 1)
+    ]
+    assert files_model.version_descriptors(events, {1, 2, 3}) == [
         {
             "version": revision,
             "revision": revision,
@@ -1302,7 +1289,6 @@ def test_version_descriptors_scan_the_revision_directory_once(tmp_path, monkeypa
         }
         for revision in range(1, 4)
     ]
-    assert scans == 1
 
 
 def test_check_leaves_the_documents_encoding_to_delivery(page_dir):

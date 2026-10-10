@@ -9,6 +9,7 @@ import {
   BANNER_CONTROL_RANK,
   bannerActions,
   markBannerControl,
+  overflowMenu,
   registerBannerControl,
   showBannerControl,
   showNews,
@@ -32,6 +33,7 @@ import { declareBanner } from "./geometry.js";
 import { agentName, watchSemantic } from "./semantic-state.js";
 import { taskNoun } from "./queues.js";
 import { readQueues } from "./queue-api.js";
+import { SHARE_ROOT, shareUrl } from "./storage.js";
 
 export const banner = el("header", "lf-ui lf-banner");
 banner.id = "lf-banner";
@@ -77,6 +79,8 @@ export function setThreadCounts(open, unread) {
   paintThreadCounts();
 }
 const approveBtn = el("button", "lf-btn primary lf-signoff");
+// The queue arrives at the one approval control, including its overflow seat.
+export const approvalTarget = () => (signoff ? approveBtn : null);
 approveBtn.title = "Approve this work; the page stays open for follow-up";
 // The page's decision is not actionable until the page itself is present. Discussion chrome
 // stays live during replay, but approving hidden authored content would decide a version
@@ -271,6 +275,7 @@ let saidActionableWork;
 const QUEUE_WORDS = Object.freeze({
   ask: ["Ask", "Asks"],
   question: ["question", "questions"],
+  approval: ["approval", "approvals"],
   recovery: ["update to send again", "updates to send again"],
   answer: ["answer", "answers"],
   reply: ["reply", "replies"],
@@ -361,6 +366,43 @@ function copyControl(trigger, success, error) {
   copy.addEventListener("wa-error", () => notice(error, { announce: false }));
   copy.append(trigger);
   return copy;
+}
+
+if (SHARE_ROOT) {
+  const details = el("details", "lf-share");
+  const share = el("summary", "lf-btn", "Share");
+  share.title = "Show this page's access link";
+  const panel = el("div", "lf-share-panel");
+  const label = el("label", "", "Share link");
+  const link = offer("input", "lf-share-link");
+  link.id = "lf-share-link";
+  link.type = "url";
+  link.readOnly = true;
+  link.addEventListener("focus", () => link.select());
+  label.append(link);
+  const copyButton = el("button", "lf-btn", "Copy link");
+  copyButton.type = "button";
+  const copy = copyControl(copyButton, "Link copied", "Select and copy the link above");
+  copy.copyLabel = "Copy link";
+  copy.hidden = !navigator.clipboard?.writeText;
+  panel.append(
+    el("p", "", "Grants access to all Leaf pages on this machine."),
+    label,
+    copy,
+  );
+  details.append(share, panel);
+  details.addEventListener("toggle", () => {
+    if (details.open) link.value = copy.value = shareUrl();
+  });
+  overflowMenu.addEventListener("beforetoggle", (event) => {
+    if (event.newState === "closed") details.open = false;
+  });
+  registerBannerControl({
+    key: "share",
+    control: details,
+    focusTarget: share,
+    rank: BANNER_CONTROL_RANK.share,
+  });
 }
 
 // How old a Leaf payload is, so a user who meets a problem can tell whether it

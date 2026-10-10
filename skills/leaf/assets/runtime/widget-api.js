@@ -9,6 +9,7 @@
    question is the browser gate, which fails to parse every probe module at once. */
 export { LitElement, html, repeat } from "../vendor/browser-runtime.js";
 export { keyed, unsafeHTML } from "../vendor/lit.js";
+export { iconElement, iconTemplate } from "./icons.js";
 export { widgetController } from "./widget-controller.js";
 export { initialRender } from "./initial-render.js";
 export { watchOwner } from "./arrivals.js";

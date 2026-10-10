@@ -2158,8 +2158,8 @@ def test_a_comment_hidden_by_narrowing_is_revealed_in_the_open_panel(
         expect(thread.locator(":scope > .lf-thread-summary")).to_be_focused()
 
 
-def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, serve):
-    """An untouched reply is not a draft; an edit to empty is."""
+def test_an_untouched_and_an_emptied_reply_follow_live_revisions(browser, serve):
+    """Emptying a reply keeps its editing session while unrelated revisions arrive."""
     page = open_page(browser, live_url(serve(NOTED_PAGE)))
     resized(page, 1440, 900)
     select_words(page, "#p1")
@@ -2202,8 +2202,7 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
     )
     stamp_page(d, v3, "v3")
     told(page)
-    expect_banner_control_offered(page.locator(".lf-latest-chip"))
-    expect(page.locator(".lf-version")).to_contain_text("v2")
+    expect(page.locator(".lf-version")).to_contain_text("v3")
     expect(reply).to_have_js_property("value", "")
     expect(reply).to_be_focused()
 

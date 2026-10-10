@@ -402,7 +402,10 @@ A mechanical surface that must stop motion before a review gesture is handled us
 `onUserInput(callback)`. The shared input owner calls it synchronously during capture
 for pointer, key, input, wheel, touch and window blur events; the callback observes and
 does not claim the event. Filter the events belonging to the surface and release the
-returned subscription when it disconnects. Keyboard commands still use `commands()`.
+returned subscription when it disconnects. Keyboard commands still use `commands()`. A drawing stroke dispatches the bubbling,
+composed `lf-inspect` event on its semantic target before reading its coordinate frame.
+A moving visual handles that event to freeze the evidence being drawn on; entering
+Draw mode alone does not inspect a visual.
 
 A module implementing its own navigation captures `retainUserIntent()` in the gesture
 that starts it, before its
@@ -546,6 +549,13 @@ does not carry it. A widget whose parts have a face of their own styles
 `[data-lf-indicated]` on them; the default is an accent outline. A target that re-renders
 what a key addresses calls `layoutChanged(this)`, and every standing indication resolves
 again.
+
+## Icons
+
+`iconElement(name, className)` and `iconTemplate(name, className)` draw Leaf's shared
+icons through `/runtime/widget-api.js`. Use `"comment"` for a thread control, with
+`lf-action-icon` inside an `lf-icon-action` button for the inherited stroke and
+hit area. The icon is decorative; the button supplies its accessible label.
 
 ## Commands and keyboard routes
 
@@ -724,6 +734,10 @@ owner. They coalesce reads at the script's microtask checkpoint, pause while the
 is absent, and read the latest projection when it returns, even when unchanged.
 Moving the owner within one mutation batch retains its subscription. Their returned
 cleanup permanently retires the subscription, including queued reads and clock paints.
+Its `refresh()` reruns the same clock-tracked reading synchronously while the owner
+is connected, retaining the watcher's readiness proof. Use it when a mechanical
+change, such as revealing held news or entering print, needs to repaint; calling
+the renderer directly would leave its new time readings outside the subscription.
 
 ## Page history
 
@@ -759,6 +773,9 @@ Register once for the element. Leaf pauses the subscription when its owner leave
 delivers the newest snapshot when it returns, even if its revision is unchanged.
 Moving the owner within one DOM mutation batch retains the subscription. The returned
 cleanup function ends it permanently when the module explicitly stops watching.
+Its `refresh()` repaints the last delivered snapshot through the same clock
+tracking. It neither delivers a pending source reading nor revives an absent or
+retired subscription.
 The callback must state the whole rendering and remain idempotent.
 
 Use `watchOwner(element, {connect, disconnect})` for other resources that follow the
@@ -1012,7 +1029,8 @@ Questions, including rows whose obligation record carries no explicit title.
 arrival, including completed Asks and tasks. It resolves to `false` for an unavailable
 row. `queueActions.done(key)` returns an admission promise only for a current
 `onYou` task with `ends === "done"`; otherwise it returns `null`. An Ask ends through
-its widget and a question through a reply. Done removes its task optimistically,
+its widget, a conversational question through a reply, and required sign-off through
+its version's banner approval. Done removes its task optimistically,
 a duplicate cannot send again, and refusal restores the authoritative reading.
 The server remains final for all actions. Collections retain their shape while
 `phase` is `waiting`, `ready`, or `offline`; activate only a ready collection.

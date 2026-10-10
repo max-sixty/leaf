@@ -90,7 +90,8 @@
             >Worktrunk PR #3865</a
           >
           adds a unified-diff preview for the switch picker. The captured revision is
-          awaiting a merge decision; its exact 46-file patch closes the review.
+          awaiting a merge decision. Its complete 46-file patch appears below for
+          review.
         </p>
         <p id="pr-tags">
           <span class="tag ok">Safe to approve</span>
@@ -330,7 +331,7 @@ flowchart TB
             This exact hunk from <code>src/summary.rs</code> replaces direct Git
             argument assembly with the repository’s <code>PreparedDiff</code> API.
           </p>
-          <lf-diff id="pr-key-hunk" data-height="539" review>
+          <lf-diff id="pr-key-hunk" data-height="539">
             <pre>
 diff --git a/src/summary.rs b/src/summary.rs
 --- a/src/summary.rs
@@ -438,9 +439,7 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
                     >
                   </td>
                   <td><span class="tag ok">passed</span></td>
-                  <td>
-                    Also makes glob escaping load-bearing through a bracketed path.
-                  </td>
+                  <td>Also tests glob escaping with a bracketed path.</td>
                 </tr>
                 <tr>
                   <th scope="row">Off-screen worktrees are demand-loaded</th>

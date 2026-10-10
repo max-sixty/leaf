@@ -4105,6 +4105,37 @@ def test_a_reaction_list_closes_once_its_trigger_is_out_of_sight(browser, serve)
     expect(page.locator(".lf-react-palette:popover-open")).to_have_count(0)
 
 
+def test_a_reaction_list_opens_from_a_trigger_under_the_thread_panel(browser, serve):
+    """The reaction list stands in the top layer, above the thread panel, so `e` on a
+    reply whose trigger the panel stands over opens it and leaves it open."""
+    url, root = long_diff_thread(serve)
+    append_agent_reply(
+        serve.page_dir, root, "The guard now covers the replacement path."
+    )
+    page = open_page(browser, url)
+    resized(page, 1280, 800)
+    thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    expect(thread).to_be_visible()
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    message = thread.locator(".lf-msg.agent")
+    covered = message.locator(".lf-react-trigger").evaluate(
+        """trigger => {
+          const box = trigger.getBoundingClientRect();
+          const at = document.elementFromPoint((box.left + box.right) / 2,
+            (box.top + box.bottom) / 2);
+          return Boolean(at?.closest('.lf-thread-panel'));
+        }"""
+    )
+    assert covered, "the panel does not stand over the trigger, so this proves nothing"
+    thread.locator(".lf-msg").first.click()
+    page.keyboard.press("e")
+    strip = message.locator(":scope > .lf-react-strip")
+    expect(strip).to_contain_class("lf-react-open")
+    rendered(page)
+    expect(strip).to_contain_class("lf-react-open")
+
+
 @pytest.mark.watch_shifts
 @pytest.mark.parametrize("replies", [3, 14])
 def test_a_summary_from_elsewhere_moves_nothing_in_an_open_panel_card(

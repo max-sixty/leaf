@@ -1015,6 +1015,9 @@ export function rightCover() {
 // the page can show while that surface stands.
 const PAST = Symbol("past");
 export const clipsPast = (surfaces) => new Map([[PAST, new Set(surfaces)]]);
+// A clip pass that reads past every occluder, for what stands above them all: a list in
+// the top layer still hangs from a trigger the thread panel stands over.
+export const clipsPastSurfaces = () => clipsPast(occluders);
 // Whether an occluder hides a destination, an element or a Range, wherever travel lands
 // it: whether it stands over most of it, more than half its width. A block the width of
 // the column keeps most of itself clear of the thread panel at a desktop window and is

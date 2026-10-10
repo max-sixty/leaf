@@ -1,7 +1,7 @@
 {
   "producer": {
-    "commit": "63e5e49d085c",
-    "committed": "2026-10-09T22:16:25-07:00",
+    "commit": "d21b6c8a59a9",
+    "committed": "2026-10-09T22:23:23-07:00",
     "dirty": false
   },
   "runtime_paths": [
@@ -148,6 +148,7 @@
     "queue-api.js",
     "queue-list.js",
     "queue-panel.js",
+    "queue-title.js",
     "queue-walk.js",
     "queued-work.js",
     "queues.js",
@@ -204,7 +205,6 @@
     "thread/panel.js",
     "thread/placement.js",
     "thread/presentation.js",
-    "thread/reaction-model.js",
     "thread/reaction-strips.js",
     "thread/read.js",
     "thread/replies.js",

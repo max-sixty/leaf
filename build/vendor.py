@@ -380,6 +380,10 @@ def build_floating_ui(work: Path) -> list[Path]:
             work / "node_modules/@floating-ui" / package,
         )
     run("git", "apply", str(ROOT / "build/floating-ui-zoom.patch"), cwd=work)
+    # Local completion of the same platform conversion: relative CSS zoom scales
+    # positioning pixels; parent borders cross into viewport pixels with its scale.
+    # Keep that adaptation separate from the verbatim upstream backport above.
+    run("git", "apply", str(ROOT / "build/floating-ui-element-zoom.patch"), cwd=work)
     out = ASSETS / "vendor/floating-ui.esm.js"
     (work / "entry.mjs").write_text(
         "export { autoUpdate, getOverflowAncestors, computePosition, flip, limitShift, offset, shift, size } "

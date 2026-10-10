@@ -3280,8 +3280,7 @@ def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
     panel_settled(page)
     status = page.locator(".lf-status-detail")
     port = serve.httpd.server_address[1]
-    serve.httpd.shutdown()
-    serve.httpd.server_close()
+    next(server for server in serve.servers if server.httpd is serve.httpd).close()
     expect(status).to_have_text(
         "Server offline — reconnecting. Keep this page open so pending changes can send."
     )

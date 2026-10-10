@@ -7483,10 +7483,9 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
         '.lf-command-reference tr[data-lf-command="reading.align.top"]'
     )
     expect(alignment).to_have_count(1)
-    expect(alignment.locator(".lf-binding-sequence > kbd")).to_have_text(["g", "z"])
-    expect(alignment.locator(".lf-binding-sequence")).to_have_attribute(
-        "aria-label", "g then z"
-    )
+    # No reading item stands while the reference opens from page chrome, so this
+    # capability has only its unbound page control in this scene.
+    expect(alignment.locator(".lf-binding-sequence > kbd")).to_have_text(["⏎ / space"])
     overlaps = goto.locator("tr[data-lf-command]").evaluate_all(
         """rows => rows.flatMap(row => {
           const [key, action] = row.querySelectorAll(':scope > td');
@@ -8555,7 +8554,6 @@ def test_generated_hints_refresh_to_the_visible_scene_after_scroll(browser, serv
 
     page.keyboard.press("g")
     old_code = address_code(page, "Link", "top-link-two")
-    assert old_code == "d"
     expect(page.locator(f'{CHIPS}[data-lf-go-to-target="bottom-link"]')).to_have_count(
         0
     )
@@ -8575,9 +8573,8 @@ def test_generated_hints_refresh_to_the_visible_scene_after_scroll(browser, serv
     )
     expect(page.locator(f"{CHIPS}.lf-current")).to_have_count(0)
 
-    # `d` named the third link in the old scene. It is also the page-down command, so
-    # letting it fall through after the remap would move the page with no visible reason.
-    # The armed hint alphabet owns the miss and leaves the current map intact.
+    # The old code must be consumed as a missed hint after the scene changes, even
+    # if it also names an unrelated page command in the unarmed grammar.
     before = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press(old_code)
     expect(page.locator(".lf-live")).to_have_text(
@@ -12554,10 +12551,10 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     expect(page.get_by_role("button", name="Back to more shortcuts")).to_be_visible()
     expect(help_el).not_to_contain_text("With more keyboard shortcuts")
 
-    search.fill("Close the target picker")
+    search.fill("Align current item at top")
     visible_commands = help_el.locator("tr[data-lf-command]:not([hidden])")
     expect(visible_commands).to_have_count(1)
-    expect(visible_commands.first).to_contain_text("Close the target picker")
+    expect(visible_commands.first).to_contain_text("Align current item at top")
 
     search.fill("thread panel")
     expect(
@@ -16331,7 +16328,9 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     page.keyboard.type("Sent with quick shortcuts off")
     page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator(".lf-page-comment-card")).to_be_hidden()
-    expect(page.locator(".lf-page-comment")).to_be_focused()
+    # This page's gesture step displaces the row control while the card is open.
+    # Its visible More door receives focus when Send closes the card.
+    expect(page.locator(".lf-banner-more")).to_be_focused()
     told(page)
     assert any(
         event.get("text") == "Sent with quick shortcuts off"

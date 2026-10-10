@@ -112,9 +112,6 @@
   </head>
   <body class="site-page">
     <main class="layout-column">
-      <!-- TODO: rewrite this page in the third person. It describes how Leaf works,
-           not instructions for the reader, so "you" and "your" become the user, the
-           page, or the system named directly. -->
       <header id="top">
         <nav class="sitenav" aria-label="Site">
           <a class="brand" href="/">leaf</a>
@@ -132,12 +129,12 @@
           <section id="architecture">
             <h2>Architecture</h2>
             <p id="loop-lede">
-              Three parts carry a page between the agent and you. The agent runs in a
-              harness, such as Claude Code or Codex. Leaf's Python code runs as the
-              <code>leaf</code> commands the agent calls and as the page server your
-              browser talks to; both read and write the page directory. Leaf's browser
-              runtime draws the page and sends your comments, picks, and drags back to
-              the server.
+              Three parts carry a page between the agent and the user. The agent runs in
+              a harness, such as Claude Code or Codex. Leaf's Python code runs as the
+              <code>leaf</code> commands the agent calls and as the page server the
+              user's browser talks to; both read and write the page directory. Leaf's
+              browser runtime draws the page and sends the user's comments, picks, and
+              drags back to the server.
             </p>
 
             <lf-diagram
@@ -158,7 +155,7 @@ flowchart TD
     Server["page server"]
     Dir[("page directory")]
   end
-  Browser["your browser"]
+  Browser["user's browser"]
   Agent -- "runs" --&gt; CLI
   Browser &lt;-- "HTTP" --&gt; Server
   Leaf -- "new moves" --&gt; Watcher
@@ -173,11 +170,9 @@ flowchart TD
             <ul id="architecture-parts">
               <li id="architecture-door">
                 <strong>One path into the log.</strong> The page server, for a move from
-                your browser, and a <code>leaf</code> command, for the agent's reply or
-                report, append to the page's event log through the same validation (<a
-                  href="#data-fold"
-                  >Current state</a
-                >).
+                the user's browser, and a <code>leaf</code> command, for the agent's
+                reply or report, append to the page's event log through the same
+                validation (<a href="#data-fold">Current state</a>).
               </li>
               <li id="architecture-reading">
                 <strong>One reading of the page.</strong> From the directory and the
@@ -189,9 +184,9 @@ flowchart TD
               </li>
               <li id="architecture-browser">
                 <strong>Browser runtime.</strong> The runtime combines that reading with
-                the authored defaults and with your moves still on their way to the
-                server, and draws the result. It does not age the agent's activity on
-                its own clock; where the reading says the activity will change at a
+                the authored defaults and with the user's moves still on their way to
+                the server, and draws the result. It does not age the agent's activity
+                on its own clock; where the reading says the activity will change at a
                 given time, the browser reads again then (<a href="#runtime">Runtime</a
                 >).
               </li>
@@ -650,8 +645,8 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
                   <li id="turn-end-watch">
                     <strong>Between turns, a page needs a watcher.</strong> Without
                     Claude Code's or Pi's watch hook, a <code>leaf wait</code>, or
-                    Codex's adapter, your next move waits in the event log until the
-                    agent's next turn; in Claude Code, Leaf starts that turn by
+                    Codex's adapter, the user's next move waits in the event log until
+                    the agent's next turn; in Claude Code, Leaf starts that turn by
                     messaging the session. A closed page or a developer's preview needs
                     no watcher.
                   </li>
@@ -801,12 +796,12 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
             <h2>Harness differences</h2>
             <p id="wait-trick">
               In Claude Code, a Leaf hook watches the page in the background from the
-              end of each turn and wakes the agent when you send a move, and Leaf's
-              prompt hook puts the move into the turn that opens. In Codex, a detached
-              adapter queues the move as the task's next message or, where Leaf is a
-              client of the task's Codex App Server, starts a turn with it. In Pi, an
-              experimental integration, Leaf's extension runs inside the Pi process and
-              does what Claude Code's hooks do. Every transport hands the agent a
+              end of each turn and wakes the agent when the user sends a move, and
+              Leaf's prompt hook puts the move into the turn that opens. In Codex, a
+              detached adapter queues the move as the task's next message or, where Leaf
+              is a client of the task's Codex App Server, starts a turn with it. In Pi,
+              an experimental integration, Leaf's extension runs inside the Pi process
+              and does what Claude Code's hooks do. Every transport hands the agent a
               delivery of the same shape, which says who confirms receipt.
             </p>
             <p id="wait-ack">
@@ -995,24 +990,25 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
             </p>
             <ol id="updates-timeline">
               <li id="updates-sent">
-                <time>0s</time> <small>observation</small> <strong>Sent</strong> You
-                comment on the lede. The page shows your comment at once, marked Sent.
+                <time>0s</time> <small>observation</small> <strong>Sent</strong> The
+                user comments on the lede. The page shows the comment at once, marked
+                Sent.
               </li>
               <li id="updates-picked">
                 <time>1s</time> <small>observation</small>
-                <strong>Picked up</strong> Leaf's hook puts your comment in the agent's
-                turn and confirms receipt. Your comment reads Picked up, and until the
+                <strong>Picked up</strong> Leaf's hook puts the comment in the agent's
+                turn and confirms receipt. The comment reads Picked up, and until the
                 agent writes its own words the banner reads
                 <em>Claude working — picked up your comment</em>.
               </li>
               <li id="updates-reply">
                 <time>5s</time> <small>intervention</small>
                 <strong>The work is named</strong> Before doing the work, the agent
-                replies in your thread with what it will do,
+                replies in the user's thread with what it will do,
                 <code
                   >leaf response reply &lt;answer.ref&gt; --ephemeral --text "Cutting
                   the lede to two sentences."</code
-                >, which also puts that line in the banner, and your comment reads
+                >, which also puts that line in the banner, and the comment reads
                 Working.
               </li>
               <li id="updates-phase">
@@ -1033,12 +1029,12 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
           <section id="stages">
             <h2>Stages of a move</h2>
             <p id="stages-lede">
-              Select a passage and comment on it, pick an option, or drag a card, and
-              the page shows your move at once. A label beside the move then shows how
-              far the agent has got with it, and clears when a reply or a revision
-              answers it. Leaf changes the label only on evidence it records. Each
-              harness reports different steps; the explanations name those differences.
-              A harness skips any stage it never reports.
+              When the user comments on a passage, picks an option, or drags a card, the
+              page shows the move at once. A label beside the move then shows how far
+              the agent has got with it, and clears when a reply or a revision answers
+              it. Leaf changes the label only on evidence it records. Each harness
+              reports different steps; the explanations name those differences. A
+              harness skips any stage it never reports.
             </p>
             <table id="stages-table">
               <thead>
@@ -1050,7 +1046,7 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
               <tbody>
                 <tr id="stages-sending">
                   <td>Sending</td>
-                  <td>Your browser is still sending the move to the server.</td>
+                  <td>The user's browser is still sending the move to the server.</td>
                 </tr>
                 <tr id="stages-sent">
                   <td>Sent</td>
@@ -1123,7 +1119,7 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
                 </tr>
                 <tr id="stages-pickup-late">
                   <td>Waiting for pickup</td>
-                  <td>The move is still Sent two minutes after you sent it.</td>
+                  <td>The move is still Sent two minutes after the user sent it.</td>
                 </tr>
                 <tr id="stages-ended">
                   <td>Turn ended</td>
@@ -1165,7 +1161,7 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
               on a draft edit or a card move clears once a version records or replaces
               the change; in a widget inside a thread message, it clears once the agent
               next writes in that thread or the thread is resolved. In a Question with a
-              Done button, a pick has no label until you press Done, because the
+              Done button, a pick has no label until the user presses Done, because the
               Question is not answered until then.
             </p>
           </section>
@@ -1192,16 +1188,16 @@ flowchart LR
     Stamp["agent: leaf page stamp"]
     Report["agent: leaf page report"]
     Status["agent: leaf task start · leaf status"]
-    Pickup["Leaf: how far your move got"]
+    Pickup["Leaf: how far the user's move got"]
     Turn["Leaf: the agent's turn and watcher"]
   end
-  subgraph Reads["Where you read it"]
+  subgraph Reads["Where the user reads it"]
     Thread["the thread"]
     Queue["the Questions panel"]
     Versions["the page and its versions menu"]
     Widget["the widget"]
     Banner["the banner, tab icon and Pages drawer"]
-    Beside["the label beside your comment or widget"]
+    Beside["the label beside the user's comment or widget"]
   end
   Reply --&gt; Thread
   Awaits --&gt; Queue
@@ -1225,8 +1221,8 @@ flowchart LR
                     >leaf response reply &lt;answer.ref&gt; --ephemeral</code
                   ></strong
                 >
-                What it is about to do, in your thread, before it reads or edits
-                anything. The line also stands in the banner, your comment reads
+                What it is about to do, in the user's thread, before it reads or edits
+                anything. The line also stands in the banner, the user's comment reads
                 Working, and the update folds under <em>Previous updates</em> once the
                 answer arrives.
               </li>
@@ -1241,9 +1237,10 @@ flowchart LR
               </li>
               <li id="updates-written-waiting">
                 <strong><code>leaf status … waiting "…"</code></strong> What it wants
-                from you, as in <em>Claude awaits — pick one of the two layouts</em>,
-                shown while a watcher or agent turn runs. This clears current starts;
-                tasks remain open. With no sentence the banner invites a comment:
+                from the user, as in
+                <em>Claude awaits — pick one of the two layouts</em>, shown while a
+                watcher or agent turn runs. This clears current starts; tasks remain
+                open. With no sentence the banner invites a comment:
                 <em>Claude awaits — select text to comment</em>.
               </li>
               <li id="updates-written-idle">
@@ -1256,9 +1253,9 @@ flowchart LR
               </li>
               <li id="updates-written-reply">
                 <strong><code>leaf response reply &lt;answer.ref&gt;</code></strong> An
-                answer in your thread, which clears the label beside your comment. It
-                says what it leaves: <code>--done</code> when it delivers what you
-                asked, <code>--question</code> when it asks you back, or
+                answer in the user's thread, which clears the label beside their
+                comment. It says what it leaves: <code>--done</code> when it delivers
+                what they asked, <code>--question</code> when it asks them back, or
                 <code>--task</code> when it promises work, which stays among the
                 agent's Tasks until the agent ends it.
               </li>
@@ -1269,17 +1266,17 @@ flowchart LR
               </li>
               <li id="updates-written-question">
                 <strong><code>leaf response reply … --question</code></strong> A prose
-                Question for you, which stays open until you reply or settle it with a
-                reaction. The thread reads <em>On you to answer</em>, and the question
-                joins your Questions, in the Questions panel.
+                Question for the user, which stays open until they reply or settle it
+                with a reaction. The thread reads <em>On you to answer</em>, and the
+                question joins the user's Questions, in the Questions panel.
               </li>
               <li id="updates-written-on-you">
                 <strong><code>leaf task open … --on user</code></strong> Something the
-                agent needs you to do that no question or widget answers, such as trying
-                a build, as a To do under your Questions, where <code>q</code> reaches
-                it. Its <em>Done</em>, on its row or <kbd>x</kbd> where
-                <code>q</code> lands, ends it and tells the agent. A question in a
-                thread has no Done: your reply answers it.
+                agent needs the user to do that no question or widget answers, such as
+                trying a build, as a To do under the user's Questions, where
+                <code>q</code> reaches it. Its <em>Done</em>, on its row or
+                <kbd>x</kbd> where <code>q</code> lands, ends it and tells the agent. A
+                question in a thread has no Done: the user's reply answers it.
               </li>
               <li id="updates-written-comment">
                 <strong
@@ -1293,8 +1290,8 @@ flowchart LR
                 <strong><code>leaf page stamp --text "…"</code></strong> A named version
                 and its change note. The page updates in place, the status line says
                 <em>Updated to v4</em>, and the text joins the versions menu as that
-                revision's note. While you read an earlier revision, a chip offers the
-                new one: <em>New page available → open v4</em>.
+                revision's note. While the user reads an earlier revision, a chip offers
+                the new one: <em>New page available → open v4</em>.
               </li>
             </ul>
             <p id="updates-written-report">
@@ -1308,10 +1305,10 @@ flowchart LR
             <h2>When the agent writes an update</h2>
             <ul id="updates-moments">
               <li id="updates-on-input">
-                <strong>When your move arrives.</strong> Your move comes before the work
-                in hand: the agent names the work it asks for before starting it, or
-                answers at once when it asks for none. Each delivery repeats these steps
-                to the agent beside the events they apply to.
+                <strong>When a user move arrives.</strong> The user's move comes before
+                the work in hand: the agent names the work it asks for before starting
+                it, or answers at once when it asks for none. Each delivery repeats
+                these steps to the agent beside the events they apply to.
               </li>
               <li id="updates-on-phase">
                 <strong>When the work changes.</strong> A new subject, or a new phase
@@ -1321,7 +1318,7 @@ flowchart LR
               </li>
               <li id="updates-on-long-work">
                 <strong>During long work.</strong> Work longer than a few minutes goes
-                to background workers, so the agent stays free to answer your next
+                to background workers, so the agent stays free to answer the user's next
                 comment. Its start names what is still running, beside the move the work
                 answers, and it starts the move again when a worker reports (<a
                   href="#turn-end-claim"
@@ -1329,8 +1326,9 @@ flowchart LR
                 >).
               </li>
               <li id="updates-on-handoff">
-                <strong>When it is your move.</strong> A waiting status names the answer
-                or decision the agent wants, rather than saying that it is waiting.
+                <strong>When the user has the next move.</strong> A waiting status names
+                the answer or decision the agent wants, rather than saying that it is
+                waiting.
               </li>
             </ul>
             <p id="updates-reference">
@@ -1418,23 +1416,24 @@ flowchart TD
                 <tr id="updates-reading-held">
                   <td>Claude working — picked up your comment</td>
                   <td>
-                    The agent's running turn picked up your comment, or your answer to a
-                    Question, and the agent has not yet said what it is doing.
+                    The agent's running turn picked up the user's comment, or their
+                    answer to a Question, and the agent has not yet said what it is
+                    doing.
                   </td>
                 </tr>
                 <tr id="updates-reading-steps">
                   <td>Codex thinking, Codex using a tool, Claude waiting for you</td>
                   <td>
-                    The harness reports the session's current activity. Waiting for you,
-                    for input, or for approval refers to a dialog in the harness's own
-                    window; Leaf announces that wait on the page.
+                    The harness reports the session's current activity. Waiting for the
+                    user, for input, or for approval refers to a dialog in the harness's
+                    own window; Leaf announces that wait on the page.
                   </td>
                 </tr>
                 <tr id="updates-reading-awaits">
                   <td>Claude awaits — pick a layout</td>
                   <td>
                     The agent is taking input, and its last status says what it wants
-                    from you. While your move is on its way to the agent it reads
+                    from the user. While a user move is on its way to the agent it reads
                     <em>Claude listening · 1 waiting</em> instead.
                   </td>
                 </tr>
@@ -1504,7 +1503,9 @@ flowchart TD
                     Claude replied, Claude commented, Claude updated a reply, 3 replies
                     in 2 threads
                   </td>
-                  <td>An agent message you haven't read arrives, or one is edited.</td>
+                  <td>
+                    An agent message the user hasn't read arrives, or one is edited.
+                  </td>
                 </tr>
                 <tr id="updates-notice-input">
                   <td>Input needed, 2 items need your input</td>
@@ -2634,13 +2635,13 @@ flowchart TD
               <em>chrome</em>: the top banner, bottom bar, comment and decision markers,
               thread panels, and Questions panel. A Question contains a request for user
               input, its answer, and its lifecycle; widgets own their typed answer
-              values. The Questions panel lists what each side has to act on. Your queue
-              holds widget and prose Questions, stamped-version sign-off, and explicit
-              work the agent put on you. The agent’s Tasks hold unanswered moves and its
-              open tasks. The banner's Questions door, beside Threads, counts yours, and
-              the Tasks count after the status counts the agent's; either opens the
-              panel. Opening these controls preserves the page's text wrapping and
-              reading position.
+              values. The Questions panel lists what each side has to act on. The user's
+              queue holds widget and prose Questions, stamped-version sign-off, and
+              explicit work the agent put on them. The agent’s Tasks hold unanswered
+              moves and its open tasks. The banner's Questions door, beside Threads,
+              counts the user's, and the Tasks count after the status counts the
+              agent's; either opens the panel. Opening these controls preserves the
+              page's text wrapping and reading position.
             </p>
             <p id="chrome-bars">
               The banner and bottom bar have fixed heights, and the page scrolls between
@@ -3297,8 +3298,8 @@ flowchart TD
                     <td>
                       A reply leaves focus on its conversation card or title on every
                       surface. Sending a page comment closes its card and returns focus
-                      to its banner control. Press <kbd>c</kbd> to write again; Escape
-                      closes an unfinished comment, keeping its draft.
+                      to its banner control. <kbd>c</kbd> writes again; Escape closes an
+                      unfinished comment, keeping its draft.
                     </td>
                   </tr>
                   <tr>
@@ -3318,8 +3319,8 @@ flowchart TD
             <p id="navigation-history-rule">
               A trip to a destination that is not fully readable adds a return stop
               after it succeeds. Consecutive trips share that stop while any of the
-              preceding landing remains visible and you have not clicked or Tabbed onto
-              a different passage. Back returns to where that journey began. A
+              preceding landing remains visible and the user has not clicked or Tabbed
+              onto a different passage. Back returns to where that journey began. A
               destination already fully readable needs no new stop.
             </p>
             <details id="navigation-history-cases">
@@ -3491,7 +3492,7 @@ flowchart TD
   accDescr: Authored edits create immutable revisions, browser and command actions append to the event log, and external processes replace source files. Their combined reading supplies the browser and agent; view state and drafts remain local to the browser.
   subgraph Writers["Who writes"]
     Agent["agent edits index.html"]
-    You["you, in the browser"]
+    You["user, in the browser"]
     Cmd["agent commands"]
     Proc["any process"]
   end
@@ -3507,7 +3508,7 @@ flowchart TD
   Rev -- "markup" --&gt; Read["current state, computed on every read"]
   Log -- "apply recorded actions" --&gt; Read
   Data -- "values" --&gt; Read
-  Read --&gt; Browser["your browser"]
+  Read --&gt; Browser["user's browser"]
   Read --&gt; PageState["agent: leaf page state"]
   Browser -.- Local["this browser only: view state, drafts"]
   classDef computed fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)
@@ -3622,7 +3623,7 @@ flowchart TD
               </thead>
               <tbody>
                 <tr id="survives-sent">
-                  <td>Picks, drags, and comments you have sent</td>
+                  <td>Picks, drags, and comments the user has sent</td>
                   <td class="kept">✓</td>
                   <td class="kept">✓</td>
                   <td class="kept">✓</td>
@@ -3636,7 +3637,7 @@ flowchart TD
                   <td class="kept">✓</td>
                 </tr>
                 <tr id="survives-drafts">
-                  <td>Words you have typed and not sent</td>
+                  <td>Words the user has typed and not sent</td>
                   <td class="kept">✓</td>
                   <td class="kept">✓</td>
                   <td class="kept">✓</td>

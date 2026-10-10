@@ -26,7 +26,7 @@
    instead (`landing.js`): a visible pinned row or a separate transcript keeps
    the turn the user was reading, even when it is not the latest one. A separate
    transcript opened for reading shows its latest turn (`showLatestTurn`). */
-import { seenRect } from "../geometry.js";
+import { seenRect, stuckBox } from "../geometry.js";
 import { focused } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
@@ -53,16 +53,9 @@ const replyRowOf = (held, control) => {
 };
 // A reply row pinned to its scroller's foot (a panel card's) stands in the band
 // while the thread's end lies below it, so aiming a scroll at it moves nothing: its place
-// in the transcript is the thread's end.
-export function replyPinned(reply) {
-  if (!reply || getComputedStyle(reply).position !== "sticky") return false;
-  const scroller = scrollerFor(reply);
-  const floor =
-    scroller.getBoundingClientRect().bottom -
-    parseFloat(getComputedStyle(scroller).paddingBottom) -
-    parseFloat(getComputedStyle(reply).bottom);
-  return Math.abs(reply.getBoundingClientRect().bottom - floor) < 1;
-}
+// in the transcript is the thread's end. Pinned is the row itself stuck, which includes
+// the row standing on its foot line at the thread's very end (geometry.js, `stuckBox`).
+export const replyPinned = (reply) => Boolean(reply) && stuckBox(reply) === reply;
 // The common transcript is a separate reading region only when its container bounds it.
 const separateTranscript = (held) => {
   const transcript = held.querySelector(":scope > .lf-thread-transcript");
@@ -205,10 +198,31 @@ const revealWritingArea = (held, input, reply) => {
   const target = reply && fitsWhole(reply) ? reply : input;
   scrollIntoReadingBand(target, target, "nearest", "instant");
 };
+// A rewrite opening in its message shows the message whole, its head with Cancel and
+// Save above the words, where the band holds it, and otherwise the line its caret stands
+// on, where the next key types. A reply row pinned at the scroller's foot covers what
+// stands behind it, so the box's foot clears it too.
+export function revealEditor(message, caretLine) {
+  const held = message.closest(SAYS_IN);
+  if (!held) return;
+  bringBackSurfaceOf(held, "instant");
+  const target = fitsWhole(message) ? message : caretLine;
+  scrollIntoReadingBand(target, target, "nearest", "instant");
+  const reply = replyRowOf(held, held);
+  if (!replyPinned(reply)) return;
+  const margin = parseFloat(getComputedStyle(message).scrollMarginBlockEnd) || 0;
+  const over =
+    target.getBoundingClientRect().bottom + margin - reply.getBoundingClientRect().top;
+  if (over > 0) moveScrollerBy(scrollerFor(reply), over);
+}
 export function followBoxGrowth(input) {
   const held = input.closest(SAYS_IN);
   if (!held) return;
   const reply = replyRowOf(held, input);
+  // A box standing in the transcript rather than its reply row, as a rewrite stands in
+  // its message, keeps its caret in view itself: aimed at the whole box, a landing here
+  // pulled a long one's top into view on every key.
+  if (!reply) return;
   // A separate transcript gives up height rather than being covered by the editor.
   // A reader at its tail keeps the turn beside the growing box; someone reading back
   // keeps their own offset. The editor's before-edit reading precedes its layout.
@@ -239,9 +253,11 @@ export function followBoxGrowth(input) {
 export function readBoxPlace(input) {
   const held = input.closest(SAYS_IN);
   const reply = held && replyRowOf(held, input);
+  // A box in the transcript has no row to hold nor a tail to keep beside it.
+  if (!reply) return;
   // The edit may be the one that takes a natural row to its sticky floor.
-  if (reply) rowHeights.set(input, reply.getBoundingClientRect().height);
-  const transcript = held && separateTranscript(held);
+  rowHeights.set(input, reply.getBoundingClientRect().height);
+  const transcript = separateTranscript(held);
   if (transcript)
     transcriptPlaces.set(input, {
       transcript,

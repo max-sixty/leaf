@@ -14,6 +14,16 @@ export const isThreadEvent = (event) =>
 /** @param {import("../../../../../build/browser/domain.ts").Command} event */
 export const isMessageEvent = (event) => isThreadEvent(event) && !event.token;
 
+// A gesture that speaks in a thread, so hands it to the agent: words, or the user
+// rewriting words of theirs (`events.exchange`).
+/** @param {import("../../../../../build/browser/domain.ts").Command} event */
+export const isTurnEvent = (event) => isMessageEvent(event) || event.kind === "edit";
+
+// The message a turn shows on: a rewrite's message, else its own (`events.turn_message`).
+/** @param {{kind: string, id: string, message?: string}} turn @returns {string} */
+export const turnMessage = (turn) =>
+  turn.kind === "edit" && turn.message ? turn.message : turn.id;
+
 /** @param {Extract<import("../../../../../build/browser/domain.ts").Command, {kind: "comment" | "reply"}>} event
  * @param {string} timestamp
  */
@@ -23,6 +33,19 @@ export const threadForAttempt = (event, timestamp) => ({
   author: "user",
   ts: timestamp,
   pending: /** @type {const} */ (true),
+});
+
+// A rewrite as this tab draws it on its message before the log has it.
+/** @param {Extract<import("../../../../../build/browser/domain.ts").Command, {kind: "edit"}>} event
+ * @param {string} timestamp
+ * @returns {import("../../../../../build/browser/domain.ts").LocalEdit}
+ */
+export const editForAttempt = (event, timestamp) => ({
+  ...event,
+  id: `${PENDING}${event.attempt}`,
+  author: "user",
+  ts: timestamp,
+  pending: true,
 });
 
 /** @template {{event: import("../../../../../build/browser/domain.ts").Command, namedParent?: string}} T

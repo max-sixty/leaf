@@ -229,6 +229,10 @@ line each, as `leaf page events` prints them. A first `--title` travels in the s
 message record; an explicit `leaf thread edit <page> <thread-id> --title` is a separate naming gesture.
 A refusal lists the ids it knows.
 
+The user can rewrite their own messages the same way. Their rewrite is a turn rather
+than a correction: it arrives as an `edit` event, with the message's new `text` and
+the `was` it replaced, and you owe it an answer like any reply.
+
 An ordinary reply leaves the thread open, or reopens a resolved thread, so the user
 can inspect the answer or revised page. Reactions, ephemeral updates and failure receipts do not reopen it. The user closes it by default. Resolve it yourself only when the
 user asks, when a delivered event's handling says to, as for a reaction or a

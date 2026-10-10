@@ -1,8 +1,9 @@
 /** Durable page records and their Python-produced, dormant delivery publication.
  *
  * Python uploads content-addressed, bounded chunks before atomically publishing
- * the record manifest and matching HTTP responses. This owner stores opaque bytes;
- * it never interprets the log, computes widget state, or infers agent activity.
+ * the record manifest and matching HTTP responses. This owner stores publication
+ * bytes and dates state delivery; it never interprets the log, computes widget
+ * state, or infers agent activity.
  * An interrupted upload leaves the last complete publication readable.
  */
 
@@ -32,6 +33,16 @@ export function readPublication(value: unknown): PagePublication {
 
 export function readDigests(value: unknown): string[] {
   return z.strictObject({ digests: chunks }).parse(value).digests;
+}
+
+/** Date a captured Python reading for delivery, preserving all folded content.
+ * Browser clock calibration and response ordering describe this delivery, while
+ * event timestamps and Python's already-folded activity stay captured.
+ */
+export function dateStateDelivery(state: Record<string, unknown>): void {
+  const delivered = new Date();
+  state.now = delivered.toISOString();
+  state.taken = delivered.getTime() / 1000;
 }
 
 export class PageStore {
@@ -125,10 +136,8 @@ export class PageStore {
     }
     const body = this.body(JSON.parse(response.chunks));
     if (path === "api/state" || path.startsWith("api/state?")) {
-      // Date this delivery so a tab can adopt its dormant reading after a live one;
-      // Python's semantic clock and folded facts remain captured.
       const state = await new Response(body).json() as Record<string, unknown>;
-      state.taken = Date.now() / 1000;
+      dateStateDelivery(state);
       headers.delete("Content-Length");
       return Response.json(state, { status: response.status, headers });
     }

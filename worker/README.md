@@ -33,8 +33,9 @@ without buffering the page's complete media history. Unchanged transactions make
 storage request.
 A failed publication fails the request; an idempotent browser retry
 can finish it. Dormant activity is computed in Python without process evidence, and
-immutable publications schedule no activity transitions. Delivery stamps `taken`
-when reading the stored state so an existing tab can adopt it after a live response.
+immutable publications schedule no activity transitions. Delivery dates `now` and
+`taken` together so browser clocks and response ordering reflect the fresh read;
+Python's event timestamps and folded activity remain captured.
 
 Sessions remain keyed by browser identity and site release. Container replacement
 preserves saved content; a new deployment deliberately selects a new record instead

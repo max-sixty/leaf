@@ -36,7 +36,10 @@ describe("durable website page records", () => {
       };
       const manifestBytes = new TextEncoder().encode(JSON.stringify(manifest));
       expect(manifestBytes.byteLength).toBeGreaterThan(2 * 1024 * 1024);
-      const state = await upload(store, new TextEncoder().encode('{"saved":"choice","taken":1}'));
+      const state = await upload(store, new TextEncoder().encode(JSON.stringify({
+        saved: "choice", taken: 1, now: "1970-01-01T00:00:01.000Z",
+        activity: { status: "waiting", since: "1970-01-01T00:00:01.000Z" },
+      })));
       const entry = await upload(store, new TextEncoder().encode('import "./runtime/private.js";'));
       const publication = {
         root: "/examples/board", release: "release", record: { chunks: await upload(store, manifestBytes) },
@@ -62,9 +65,18 @@ describe("durable website page records", () => {
       expect(await restored.response("/", "api/state", false)).toBeNull();
       expect(await (await restored.response("/examples/board", "media/private.png", true))!.text()).toBe("");
       expect(await (await restored.response("/examples/board", "revisions/leaf.js", false))!.text()).toBe('import "./runtime/private.js";');
+      const requestedAt = Date.now();
       const savedState = (await restored.response("/examples/board", "api/state", false))!;
       expect(savedState.headers.has("Content-Length")).toBe(false);
-      expect(await savedState.json()).toMatchObject({ saved: "choice" });
+      const delivered = await savedState.json() as {
+        saved: string; taken: number; now: string; activity: { status: string; since: string };
+      };
+      expect(delivered).toMatchObject({
+        saved: "choice", activity: { status: "waiting", since: "1970-01-01T00:00:01.000Z" },
+      });
+      // A saved response must not pull the browser's clock back to publication.
+      expect(Date.parse(delivered.now)).toBe(delivered.taken * 1000);
+      expect(Date.parse(delivered.now)).toBeGreaterThanOrEqual(requestedAt);
 
       // Unfinished uploads cannot replace either the record or its delivery.
       expect(() => restored.publish({

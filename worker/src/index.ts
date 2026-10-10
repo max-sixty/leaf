@@ -22,7 +22,7 @@ import {
 export { ContainerProxy } from "@cloudflare/containers";
 import { type DurableObject } from "cloudflare:workers";
 import * as z from "zod/mini";
-import { CHUNK_BYTES, PageStore, readDigests, readPublication, type PagePublication } from "./storage";
+import { CHUNK_BYTES, PageStore, dateStateDelivery, readDigests, readPublication, type PagePublication } from "./storage";
 
 import {
   activeCookie,
@@ -973,9 +973,7 @@ async function staticState(
   const response = await env.ASSETS.fetch(new Request(url));
   if (!response.ok) return new Response("state unavailable", { status: 503 });
   const state = (await response.json()) as Record<string, unknown>;
-  const now = new Date();
-  state.now = now.toISOString();
-  state.taken = now.getTime() / 1000;
+  dateStateDelivery(state);
   return Response.json(state, {
     headers: {
       "Cache-Control": "no-store",

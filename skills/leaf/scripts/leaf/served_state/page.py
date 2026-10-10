@@ -72,21 +72,20 @@ def read_served_page(
     )
     state = {
         "layer": identity,
-        # The clock every timestamp below was written by. A seat dating one reads
-        # `Date.now()`, which is the user's own machine: a laptop an hour out
-        # calls a claim made this minute an hour stale, on every seat at once, and
-        # neither side can tell from the timestamp alone. Sent so the reading is
-        # against the writer's clock rather than the user's.
+        # The server clock used to calibrate browser timestamps and relative ages.
+        # A laptop an hour out would otherwise date new comments an hour out too.
+        # An edge host refreshes this and `taken` together at delivery; captured
+        # event timestamps and already-folded activity retain their original dates.
         "now": context.now,
         # How long working may go unheard before it reads as quiet, measured on that
-        # clock. Activity below is already read against it; a package dating a
+        # clock. Activity below is already folded; a package dating a
         # worker's own reports asks `quietSince`, which reads this rather than a copy.
         "working_grace_ms": WORKING_GRACE // timedelta(milliseconds=1),
         # The moment this answer was taken, for a tab holding two. Answers cross — two
         # sockets, one held by a proxy or a test while a later one lands, a POST's
         # answer beside a read — and the log's sequence orders everything in a state
         # but the reading and its data, which are hashes with no order of their own.
-        # Live answers are stamped inside their page transaction; a durable host
+        # Live answers are stamped inside their page transaction; an edge host
         # dates a fresh read of its atomic stored publication at delivery. This
         # orders the readings whichever order they land. The wall clock rather
         # than a counter: a counter starts over

@@ -2501,8 +2501,8 @@ def test_opening_the_panel_stands_down_the_field_without_losing_its_draft(
 
 def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, serve):
     """A draft survives the version it was written against even when that version's
-    replacement removes its passage. With no detached composer card, the compact field
-    stands down on the new page and the words return when the original passage does."""
+    replacement removes its passage. The editor stays available without attaching to
+    the rewritten words, and the draft returns to its passage when that version does."""
     url = serve(INLINE_PAGE)
     page = open_page(browser, url)
 
@@ -2530,7 +2530,11 @@ def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, se
     banner_control(page, ".lf-latest-chip").click()
     wait_for_revision(page, 2)
     expect(page).not_to_have_url(re.compile("/versions/"))
-    expect(page.locator(".lf-composer")).to_be_hidden()
+    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(page.locator(".lf-fab-input")).to_have_js_property(
+        "value", "half-written when the version turned over"
+    )
+    expect(page.locator("#lf-composer-quote")).to_have_text(f"“{passage}”")
     assert pending_text(page) == "", (
         "v2 rewrote the passage and the page marked it anyway"
     )

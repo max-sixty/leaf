@@ -1719,11 +1719,6 @@ export function createVersionController({
   // left to keep: its reading goes when the next reading is taken, so a page whose
   // blocks come and go carries only the regions it has.
   const regionViews = new Map();
-  // A native clamp may emit scroll after a region reports its new geometry but
-  // before the deferred restore. Keep the intact reading through that handover.
-  let pendingShiftRestores = 0;
-  const canRecordRegions = () =>
-    !compositionChanges.size && !pendingShiftRestores && regionsSettled();
   const dropGoneRegions = () => {
     const standing = new Set(readingRegions().map(({ id }) => id));
     for (const id of regionViews.keys()) if (!standing.has(id)) regionViews.delete(id);
@@ -1758,7 +1753,7 @@ export function createVersionController({
       recordQueued = false;
       const moved = scrolled.has(undefined) ? null : new Set(scrolled);
       scrolled.clear();
-      if (canRecordRegions()) recordRegions(moved);
+      if (!compositionChanges.size && regionsSettled()) recordRegions(moved);
     });
   };
 
@@ -1790,14 +1785,19 @@ export function createVersionController({
   // that a box two regions share lands where that one left it. Inside a composition,
   // only the composition's own scrollers are restored: document travel belongs to the
   // navigation that changed it, including native history.
-  function restoreRegions(candidates, currentIntent, owner = null) {
+  function restoreRegions(
+    candidates,
+    currentIntent,
+    owner = null,
+    views = regionViews,
+  ) {
     const active = activeReadingRegion(candidates);
     const ordered = active
       ? [active, ...candidates.filter(({ id }) => id !== active.id)]
       : candidates;
     const restored = new Set();
     for (const region of ordered) {
-      const reading = regionViews.get(region.id);
+      const reading = views.get(region.id);
       const box = effectiveScroller(region);
       if (owner && !under(box, owner)) continue;
       if (!reading || restored.has(box)) continue;
@@ -1812,13 +1812,14 @@ export function createVersionController({
   // restores that reading. A visible focused element is itself a live reading landmark;
   // focus retained on an element the reader scrolled past is not.
   // A composition change in progress owns any shift inside it.
-  function restoreShifted(shifted, currentIntent) {
+  function restoreShifted(shifted, currentIntent, views) {
     if (compositionChanges.size) return;
     if (!currentIntent()) return;
     const candidates = shifted
       .map(({ region }) => region)
       .filter((region) => shownRegionBounds(region));
-    restoreRegions(candidates, currentIntent);
+    restoreRegions(candidates, currentIntent, null, views);
+    recordRegions();
   }
 
   function readingRegionTransition({
@@ -1833,12 +1834,10 @@ export function createVersionController({
     // region and resize what the observer watches, so it waits for the next frame.
     if (phase === "shift") {
       const currentIntent = retainUserIntent();
-      pendingShiftRestores += 1;
-      nextRender(() => {
-        pendingShiftRestores -= 1;
-        restoreShifted(shifted, currentIntent);
-        if (canRecordRegions()) recordRegions();
-      });
+      // A resize can cause a scroll event before this frame. Keep the pre-shift
+      // reading now, so that event cannot replace it with the moved geometry.
+      const views = new Map(regionViews);
+      nextRender(() => restoreShifted(shifted, currentIntent, views));
       return;
     }
     // A composition change captures the intact view before hiding any region, and its
@@ -1892,7 +1891,7 @@ export function createVersionController({
     const recordStanding = () => {
       const at = focused();
       if (at && under(at, document.querySelector("body > main"))) {
-        if (canRecordRegions()) recordRegions();
+        if (!compositionChanges.size && regionsSettled()) recordRegions();
         queueRecord();
       }
     };

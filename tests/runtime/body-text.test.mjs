@@ -35,6 +35,7 @@ test("a rendered Markdown caret keeps its exact source position in long and stru
     "A **bold &amp; repeated word300** and `one & two`.",
     "- [x] **word300**\n- [ ] Next",
     "https://example.com before reader@example.com and word300.",
+    "AGENTS.md and CLAUDE.md before **word300** and https://AGENTS.md.",
     "<div>\n**word300**\n</div>",
     "| First | Second |\n| --- | --- |\n| other | **word300** |",
     "\\* literal, &amp; then word300 and *later*.",
@@ -85,12 +86,23 @@ test("Markdown body readings share file dialect, safe destinations and native st
   const cases = JSON.parse(
     readFileSync(new URL("../markdown_body_cases.json", import.meta.url)),
   );
-  for (const { source, words } of cases)
+  for (const { source, words, links } of cases) {
+    const body = document.createElement("div");
+    body.innerHTML = renderMarkdown(source);
+    assert.deepEqual(
+      [...body.querySelectorAll("a")].map((link) => ({
+        text: link.textContent,
+        href: link.getAttribute("href"),
+      })),
+      links,
+      source,
+    );
     assert.equal(
-      renderedWords(renderMarkdown(source)).replace(/\s+/g, " ").trim(),
+      renderedWords(body.innerHTML).replace(/\s+/g, " ").trim(),
       words,
       source,
     );
+  }
   const body = document.createElement("div");
   body.innerHTML = renderMarkdown("<div>\n**bold**\n</div>\n\n<div>\nHeading\n---");
   assert.equal(
@@ -155,10 +167,10 @@ test("editor tokens retain native constructs and exact source syntax after parse
   );
   for (const automatic of [
     "reader@example.com",
-    "www.example.com",
+    "https://example.com",
     "before reader@example.com",
     "**one** and reader@example.com",
-    "**one** and www.example.com",
+    "**one** and https://example.com",
     "***one*** and reader@example.com",
     "*one* and reader@example.com",
     "~~one~~ and reader@example.com",
@@ -174,7 +186,7 @@ test("editor tokens retain native constructs and exact source syntax after parse
   }
   for (const automatic of [
     "**one** and reader@example.com foo@example.com",
-    "**one** www.example.com **two**",
+    "**one** https://example.com **two**",
   ]) {
     const links = placedMarkdownTokens(automatic).filter(
       ({ token }) => token.type === "link_open",
@@ -183,7 +195,7 @@ test("editor tokens retain native constructs and exact source syntax after parse
       const words = automatic.slice(link.contentFrom, link.contentTo);
       assert.match(
         words,
-        /^(?:reader@example\.com|foo@example\.com|www\.example\.com)$/,
+        /^(?:reader@example\.com|foo@example\.com|https:\/\/example\.com)$/,
       );
       assert.equal(link.contentFrom, automatic.indexOf(words));
       assert.equal(link.contentTo, link.contentFrom + words.length);
@@ -191,17 +203,17 @@ test("editor tokens retain native constructs and exact source syntax after parse
     assert.equal(links.length, automatic.includes("foo@example.com") ? 2 : 1);
   }
   for (const [automatic, expected] of [
-    ["**one** and www.xn--9ca.com", "www.xn--9ca.com"],
+    ["**one** and https://xn--9ca.com", "https://xn--9ca.com"],
     ["**one** and reader@xn--9ca.com", "reader@xn--9ca.com"],
     ["**one** and http://example.com/%E2%9C%93", "http://example.com/%E2%9C%93"],
     ["- [x] reader@example.com", "reader@example.com"],
     ["- [ ] reader@example.com", "reader@example.com"],
-    ["- [ ] www.example.com", "www.example.com"],
+    ["- [ ] https://example.com", "https://example.com"],
     ["https://example.com/a%20b", "https://example.com/a%20b"],
-    ["&amp; www.example.com tail", "www.example.com"],
-    ["\\* www.example.com tail", "www.example.com"],
-    ["**one** &amp; www.xn--9ca.com tail", "www.xn--9ca.com"],
-    ["- [x] **one** www.example.com", "www.example.com"],
+    ["&amp; https://example.com tail", "https://example.com"],
+    ["\\* https://example.com tail", "https://example.com"],
+    ["**one** &amp; https://xn--9ca.com tail", "https://xn--9ca.com"],
+    ["- [x] **one** https://example.com", "https://example.com"],
   ]) {
     const link = placedMarkdownTokens(automatic).find(
       ({ token }) => token.type === "link_open",

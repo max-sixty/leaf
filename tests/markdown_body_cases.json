@@ -1,74 +1,142 @@
 [
   {
     "source": "**Keep** `--dry-run`.\n\n- One\n- Two",
-    "words": "Keep --dry-run. One Two"
+    "words": "Keep --dry-run. One Two",
+    "links": []
   },
   {
     "source": "- [x] Done\n- [ ] Todo",
-    "words": "Done Todo"
+    "words": "Done Todo",
+    "links": []
   },
   {
     "source": "https://example.com and reader@example.com",
-    "words": "https://example.com and reader@example.com"
+    "words": "https://example.com and reader@example.com",
+    "links": [
+      {
+        "text": "https://example.com",
+        "href": "https://example.com"
+      },
+      {
+        "text": "reader@example.com",
+        "href": "mailto:reader@example.com"
+      }
+    ]
   },
   {
     "source": "<div>\n**bold**\n</div>",
-    "words": "<div> bold </div>"
+    "words": "<div> bold </div>",
+    "links": []
   },
   {
     "source": "<div>\nHeading\n---",
-    "words": "<div> Heading"
+    "words": "<div> Heading",
+    "links": []
   },
   {
     "source": "<span>**bold**</span>",
-    "words": "<span>bold</span>"
+    "words": "<span>bold</span>",
+    "links": []
   },
   {
     "source": "| Column | Count |\n| --- | --- |\n| **Ready** | 2 |",
-    "words": "Column Count Ready 2"
+    "words": "Column Count Ready 2",
+    "links": []
   },
   {
     "source": "~~gone~~ and H~2~O",
-    "words": "gone and H~2~O"
+    "words": "gone and H~2~O",
+    "links": []
   },
   {
     "source": "[unsafe label](javascript:alert(1)) ![unsafe alt](data:text/html,boom)",
-    "words": "unsafe label unsafe alt"
+    "words": "unsafe label unsafe alt",
+    "links": []
   },
   {
     "source": "first  \nsecond",
-    "words": "first second"
+    "words": "first second",
+    "links": []
   },
   {
     "source": "```html\n<div>**literal**</div>\n```",
-    "words": "<div>**literal**</div>"
+    "words": "<div>**literal**</div>",
+    "links": []
   },
   {
     "source": "> **Quoted** words\n>\n> - One\n> - Two",
-    "words": "Quoted words One Two"
+    "words": "Quoted words One Two",
+    "links": []
   },
   {
     "source": "www.example.com and reader@example.com",
-    "words": "www.example.com and reader@example.com"
+    "words": "www.example.com and reader@example.com",
+    "links": [
+      {
+        "text": "reader@example.com",
+        "href": "mailto:reader@example.com"
+      }
+    ]
   },
   {
     "source": "![**alt**](data:text/html,unsafe)",
-    "words": "alt"
+    "words": "alt",
+    "links": []
   },
   {
     "source": "![`alt`](javascript:boom)",
-    "words": "alt"
+    "words": "alt",
+    "links": []
   },
   {
     "source": "![alt &amp; more](javascript:boom)",
-    "words": "alt & more"
+    "words": "alt & more",
+    "links": []
   },
   {
     "source": "![*alt*](data:x)",
-    "words": "alt"
+    "words": "alt",
+    "links": []
   },
   {
     "source": "![A ![B &amp; `code`](https://example.com/b.svg) C](data:text/html,unsafe)",
-    "words": "A B & code C"
+    "words": "A B & code C",
+    "links": []
+  },
+  {
+    "source": "AGENTS.md CLAUDE.md main.rs config.json widget.name www.example.com https://AGENTS.md reader@example.com [instructions](CLAUDE.md)",
+    "words": "AGENTS.md CLAUDE.md main.rs config.json widget.name www.example.com https://AGENTS.md reader@example.com instructions",
+    "links": [
+      {
+        "text": "https://AGENTS.md",
+        "href": "https://AGENTS.md"
+      },
+      {
+        "text": "reader@example.com",
+        "href": "mailto:reader@example.com"
+      },
+      {
+        "text": "instructions",
+        "href": "CLAUDE.md"
+      }
+    ]
+  },
+  {
+    "source": "Read //example.com, <https://example.com>, or [AGENTS.md](AGENTS.md).",
+    "words": "Read //example.com, https://example.com, or AGENTS.md.",
+    "links": [
+      {
+        "text": "//example.com",
+        "href": "//example.com"
+      },
+      {
+        "text": "https://example.com",
+        "href": "https://example.com"
+      },
+      {
+        "text": "AGENTS.md",
+        "href": "AGENTS.md"
+      }
+    ]
   }
 ]

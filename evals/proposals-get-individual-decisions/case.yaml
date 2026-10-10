@@ -186,7 +186,9 @@ variants:
         the workstreams rather than carry their case. Fail if #11 or #12 is
         decided only inside a batch with the clear-cut workstreams.
   # Guardrail for dispatch-from-sections: a capacity limit ties the items together,
-  # so the answer is genuinely one set. Both arms passed 3/3 at e1c3d2b3d.
+  # so the answer is genuinely one set. Both arms passed 3/3 at e1c3d2b3d. A
+  # blunter rule (one Question per item, never a multi-select across items)
+  # passed 0/4, posing six separate Asks; the dependence wording passed 4/4.
   dispatch-two-of-six:
     metadata:
       purpose: 'Asks: a choice constrained across items stays one Question whose answer is the set.'

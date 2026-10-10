@@ -769,7 +769,7 @@ STATES = (
         "drawing-photo-comment",
         "developer/feature-gallery",
         drawing_photo_comment,
-        region=".lf-composer-media",
+        region=".lf-composer-media:visible",
     ),
     State(
         "share-link", "developer/feature-gallery", share_link, region=".lf-share-panel"

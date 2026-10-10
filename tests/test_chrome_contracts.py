@@ -1944,7 +1944,7 @@ def test_a_compact_comment_reserves_only_the_room_send_occupies(browser, serve):
             leaf_page("Compact comment", '<p id="passage">A passage to comment on.</p>')
         ),
     )
-    resized(page, 362, 900)
+    resized(page, 346, 900)
     page.locator("#passage").click(modifiers=["Alt"])
     field = page.locator(".lf-fab-input")
     expect(field).to_be_focused()

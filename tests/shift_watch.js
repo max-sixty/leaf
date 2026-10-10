@@ -2070,11 +2070,10 @@
   checkpoint();
   const drawing = () => {
     if (document.hidden) return false;
-    // The driver sees owners across origins; an opaque child cannot. Read it
-    // again while draining because an ancestor can hide after judgement starts.
+    // Frame-owner visibility belongs to the driver, which can read across
+    // origins and refreshes this fact while draining. A document's ancestor
+    // window walk can lose access when a same-origin blank frame is sandboxed.
     if (window.lfWatchJudgement?.ancestorsDrawn === false) return false;
-    for (let view = window; view.frameElement; view = view.parent)
-      if (!view.frameElement.checkVisibility()) return false;
     return true;
   };
   // The fixture awaits actual paint and observer drainage. An outer hang watchdog

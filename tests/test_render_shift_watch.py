@@ -1188,6 +1188,11 @@ def test_a_hidden_frame_judges_existing_records_without_awaiting_paint(browser, 
         window.lfWatchPlatform.frame = nativeFrame;
         for (const callback of held.splice(0)) nativeFrame(callback);
       };
+      // The driver publishes owner visibility; this sensor-level fixture supplies
+      // the same fact while holding paint. Opaque-frame integration is above.
+      window.lfWatchJudgement = {
+        ancestorsDrawn: window.frameElement.checkVisibility(),
+      };
       window.hiddenJudged = false;
       window.lfShiftsJudged().then(() => window.hiddenJudged = true);
     }""")
@@ -1202,10 +1207,13 @@ def test_a_hidden_frame_judges_existing_records_without_awaiting_paint(browser, 
                 )
             else:
                 page.evaluate("document.querySelector('iframe').style.display = 'none'")
+        frame.evaluate(
+            "lfWatchJudgement.ancestorsDrawn = frameElement.checkVisibility()"
+        )
         frame.wait_for_function("window.hiddenJudged === true", polling=100)
         assert frame.evaluate("window.frameElement.checkVisibility()") is False
     finally:
-        frame.evaluate("window.restoreFrame()")
+        frame.evaluate("window.restoreFrame(); delete window.lfWatchJudgement")
 
 
 @pytest.mark.parametrize(

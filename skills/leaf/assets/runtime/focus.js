@@ -121,8 +121,15 @@ export const tabStops = (root) =>
 export const canPlaceFocus = () =>
   !document.documentElement.lfSample || document.hasFocus();
 const CAUSES = new Set(["move", "step", "return", "press"]);
-export function focusDestination(destination, cause, { caret = null } = {}) {
+export function focusDestination(
+  destination,
+  cause,
+  { caret = null, ...unknown } = {},
+) {
   if (!CAUSES.has(cause)) throw new TypeError(`focusDestination: no cause ${cause}`);
+  const unexpected = Object.keys(unknown);
+  if (unexpected.length)
+    throw new TypeError(`focusDestination: unknown options ${unexpected.join(", ")}`);
   if (!canPlaceFocus()) return;
   placed(cause, () => {
     destination.focus({ preventScroll: true });

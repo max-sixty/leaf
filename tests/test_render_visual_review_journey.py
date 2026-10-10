@@ -890,6 +890,28 @@ def test_visual_review_case_navigation_keeps_equal_stable_step_targets(
     assert nav.evaluate(reading) == baseline
 
 
+def test_visual_review_verdict_navigation_reveals_a_taller_case(browser, serve):
+    """A short case's bottom-edge verdict can route to a taller case's verdict."""
+    context = browser.new_context(viewport={"width": 390, "height": 520})
+    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY), context=context)
+    widget = page.locator("#visual-review-run")
+    selected = widget.locator(".lf-vr-case-select")
+    first_id = selected.evaluate("node => node.value")
+    verdict = widget.locator(".lf-vr-case:not([hidden])").get_by_role(
+        "button", name="Looks right", exact=True
+    )
+    verdict.focus()
+    page.keyboard.press("ArrowDown")
+    page.keyboard.press("ArrowDown")
+    expect(selected).not_to_have_js_property("value", first_id)
+    verdict.evaluate("node => node.scrollIntoView({block: 'end'})")
+    verdict.focus()
+    page.keyboard.press("ArrowDown")
+    expect(selected).to_have_js_property("value", first_id)
+    expect(verdict).to_be_focused()
+    expect(verdict).to_be_in_viewport(ratio=1)
+
+
 def test_visual_review_leads_with_evidence_and_walks_only_remaining_cases(
     browser, serve
 ):

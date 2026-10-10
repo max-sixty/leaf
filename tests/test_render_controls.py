@@ -4313,6 +4313,85 @@ def test_the_banner_rows_follow_the_window_independently_of_sign_off(
     assert read["height"] == pytest.approx(row + (36 if wrapped else 0), abs=1), read
 
 
+def test_stylesheet_motion_inputs_drive_css_and_web_animations(browser, serve):
+    """A theme's time expressions reach both consumers through native CSS resolution."""
+    source = leaf_page(
+        "Motion inputs",
+        '<h1>Motion inputs</h1><p id="subject">A visible arrival.</p>'
+        '<lf-suggestion id="edit"><lf-old>Before</lf-old>'
+        "<lf-new>After</lf-new></lf-suggestion>",
+        head="""<style>:root {
+          --lf-motion-flash: calc(.7s + 30ms);
+          --lf-motion-fold: 170ms;
+          --lf-motion-agent-arrival: .91s;
+        }</style>""",
+    )
+    context = browser.new_context(reduced_motion="no-preference")
+    page = open_page(browser, serve(source), context=context)
+    result = page.evaluate("""async () => {
+      const owner = await __lfRuntimeImport('/runtime/motion.js');
+      const chrome = document.querySelector('.lf-chrome');
+      const cue = document.createElement('div');
+      cue.className = 'lf-msg flash';
+      const arrival = document.createElement('button');
+      arrival.className = 'lf-margin-entry';
+      arrival.dataset.lfAgentArrival = '1';
+      chrome.append(cue, arrival);
+      const cssFlash = getComputedStyle(cue).animationDuration;
+      const cssArrival = getComputedStyle(arrival).animationDuration;
+      const cssFold = getComputedStyle(document.querySelector('lf-old')).transitionDuration;
+      const animation = owner.backgroundFlash(document.querySelector('#subject'),
+        owner.flashDuration());
+      const played = animation.effect.getTiming().duration;
+      animation.finish();
+      cue.remove(); arrival.remove();
+      return {cssFlash, cssArrival, cssFold, played,
+        fold: owner.foldDuration(), agent: owner.agentArrivalDuration()};
+    }""")
+    assert result == {
+        "cssFlash": "0.73s",
+        "cssArrival": "0.91s",
+        "cssFold": "0.17s",
+        "played": 730,
+        "fold": 170,
+        "agent": 910,
+    }
+
+
+def test_a_panel_uses_the_stylesheet_default_until_the_user_draws_it(browser, serve):
+    """The default is a theme input; a retained user choice is a separate authority."""
+    source = leaf_page(
+        "Panel width input",
+        "<h1>Panel width input</h1><p>Keep the chosen edge.</p>",
+        head="<style>:root {--lf-thread-panel-default-width:calc(30rem + 16px)}</style>",
+    )
+    page = open_page(browser, serve(source))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    panel = page.locator(".lf-thread-panel")
+    initial = page.evaluate("""() => parseFloat(getComputedStyle(document.documentElement)
+      .getPropertyValue('--lf-thread-panel-default-width'))""")
+    assert initial > 480
+    assert panel.bounding_box()["width"] == pytest.approx(initial)
+    page.evaluate("""() => {
+      document.documentElement.style.setProperty('--lf-thread-panel-default-width','508px');
+      dispatchEvent(new Event('resize'));
+    }""")
+    assert panel.bounding_box()["width"] == pytest.approx(508)
+    edge = panel.get_by_role("separator")
+    edge.focus()
+    edge.press("ArrowLeft")
+    assert panel.bounding_box()["width"] == pytest.approx(532)
+    page.evaluate("""() => {
+      document.documentElement.style.setProperty('--lf-thread-panel-default-width','600px');
+      dispatchEvent(new Event('resize'));
+    }""")
+    assert panel.bounding_box()["width"] == pytest.approx(532)
+    page.reload()
+    wait_until_ready(page)
+    assert panel.bounding_box()["width"] == pytest.approx(532)
+
+
 def test_a_finger_s_steps_keep_the_banner_s_rows(browser, serve):
     """A step a finger takes on the banner, here page search's, stands in the reading
     loop's place on the row the banner already has. Just wider than a phone's upright
@@ -7869,6 +7948,17 @@ def test_the_page_comment_card_keeps_its_send_inside_the_side_safe_area(browser,
         page.keyboard.press("Escape")
         expect(page.locator(".lf-page-comment-card")).to_be_hidden()
 
+    # The banner declares its face once; the page comment card follows that face
+    # even when its declaration changes independently of the viewport width.
+    resized(page, 1000, 700)
+    page.evaluate(
+        "document.documentElement.style.setProperty('--lf-banner-face', 'phone')"
+    )
+    page_comment(page)
+    box = page.locator(".lf-page-comment-card").bounding_box()
+    assert box["x"] == pytest.approx(23 + 8)
+    assert box["x"] + box["width"] == pytest.approx(1000 - 31 - 8)
+
 
 # A page holding a paragraph and one control, for the readings below that plant the
 # shape they are about rather than finding it in the product: which of the layer's
@@ -8575,7 +8665,7 @@ RING_CASES = (
     (
         "an inline response",
         (),
-        {"pr-walkthrough": (("leaf-text.lf-fab-input", "inline-response"),)},
+        {"pr-walkthrough": (("leaf-text.lf-fab-input", "response-control"),)},
     ),
     # The list holds focus itself only while it shows no thread, so the sample finds
     # nothing and backs out of the find box onto the emptied list.

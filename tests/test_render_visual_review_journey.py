@@ -663,9 +663,7 @@ def test_a_visual_review_states_where_its_pair_differs_in_every_view(browser, se
     widget.get_by_text("Inspect comparison", exact=True).click()
     widget.get_by_role("radio", name="Full frame").click()
     expect(widget).to_have_attribute("data-inspection-scope", "full")
-    expect(case.locator(".lf-vr-shot-host")).to_have_attribute(
-        "data-focus-active", "false"
-    )
+    expect(case.locator("lf-shot")).to_have_attribute("data-lf-shot-crop", "false")
     expect(marks.first).to_be_visible()
     # Below the compare view's frame label, where the image starts.
     image_top, first_mark_top = case.locator(".lf-shotframe").first.evaluate(

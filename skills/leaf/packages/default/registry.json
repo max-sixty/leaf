@@ -375,7 +375,7 @@
     "x-example": "<lf-chart id=\"review-latency\"><pre>\n{\n  ariaLabel: \"Hours to first review by week: backend fell from 31 to 12, frontend from 18 to 11\",\n  x: {type: \"utc\", ticks: \"monday\", label: null},\n  y: {grid: true, label: \"hours to first review\"},\n  color: {legend: true, range: [\"var(--series-1)\", \"var(--series-2)\"]},\n  marks: [\n    Plot.lineY(\n      [\n        {week: \"2026-05-04\", team: \"backend\", hours: 31},\n        {week: \"2026-05-11\", team: \"backend\", hours: 26},\n        {week: \"2026-05-18\", team: \"backend\", hours: 12},\n        {week: \"2026-05-04\", team: \"frontend\", hours: 18},\n        {week: \"2026-05-11\", team: \"frontend\", hours: 21},\n        {week: \"2026-05-18\", team: \"frontend\", hours: 11},\n      ],\n      {x: \"week\", y: \"hours\", stroke: \"team\", marker: true},\n    ),\n  ],\n}\n</pre></lf-chart>"
   },
   "lf-shot": {
-    "description": "A before-and-after screenshot comparison with an operable divider and optional change outlines.",
+    "description": "A before-and-after screenshot pair with an operable divider, optional change outlines, and component-owned comparison, overlay, scaling and focus-crop presentation.",
     "x-instructions": "Use served image paths printed by leaf page media for before and after, and describe the pair in alt. Read authoring-evidence.md, Source files and media, for captures and when to use outlines. Write explanations in surrounding prose rather than element content. When a decision turns on the change, put the pair inside the proposing option.",
     "type": "object",
     "properties": {

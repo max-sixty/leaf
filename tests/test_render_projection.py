@@ -1255,7 +1255,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(opacity).to_be_hidden()
 
     expect(widget).to_have_attribute("data-compare-layout", "stack")
-    assert first.locator(".lf-vr-frame-label").evaluate_all(
+    assert first.locator(".lf-shot-frame-label").evaluate_all(
         "nodes => nodes.map(node => node.dataset.label)"
     ) == ["Base · Candidate below", "Candidate"]
     expect(first.locator("lf-shot")).to_have_attribute("data-lf-shot-controls", "off")
@@ -1270,11 +1270,11 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     assert after_box["top"] >= before_box["bottom"]
 
     shot_host = first.locator(".lf-vr-shot-host")
-    expect(shot_host).to_have_attribute("data-focus-active", "true")
+    expect(first.locator("lf-shot")).to_have_attribute("data-lf-shot-crop", "true")
     crop = frames.first.evaluate(
         """frame => {
           const box = frame.getBoundingClientRect();
-          const label = frame.querySelector('.lf-vr-frame-label').getBoundingClientRect();
+          const label = frame.querySelector('.lf-shot-frame-label').getBoundingClientRect();
           const imageNode = frame.querySelector('img');
           const image = imageNode.getBoundingClientRect();
           const labelHit = document.elementFromPoint(
@@ -1287,7 +1287,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
             image,
             objectViewBox: getComputedStyle(imageNode).objectViewBox,
             transform: getComputedStyle(imageNode).transform,
-            labelVisible: labelHit?.closest('.lf-vr-frame-label') === frame.querySelector('.lf-vr-frame-label'),
+            labelVisible: labelHit?.closest('.lf-shot-frame-label') === frame.querySelector('.lf-shot-frame-label'),
           };
         }"""
     )
@@ -1326,7 +1326,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
 
     widget.get_by_role("radio", name="Full frame").click()
     expect(widget).to_have_attribute("data-inspection-scope", "full")
-    expect(shot_host).to_have_attribute("data-focus-active", "false")
+    expect(first.locator("lf-shot")).to_have_attribute("data-lf-shot-crop", "false")
     marker = frames.first.evaluate(
         "frame => getComputedStyle(frame, '::after').getPropertyValue('content')"
     )
@@ -1348,7 +1348,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     focus_button.press("Enter")
     expect(focus_button).to_be_focused()
     expect(widget).to_have_attribute("data-inspection-scope", "focus")
-    expect(shot_host).to_have_attribute("data-focus-active", "true")
+    expect(first.locator("lf-shot")).to_have_attribute("data-lf-shot-crop", "true")
     focused_width = frames.first.evaluate(
         "frame => frame.getBoundingClientRect().width"
     )
@@ -1357,7 +1357,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     widget.get_by_role("radio", name="Fit").click()
     widget.get_by_role("radio", name="Flip").click()
     expect(first.locator("lf-shot[data-lf-shot-controls]")).to_have_count(0)
-    expect(first.locator(".lf-vr-frame-label")).to_have_count(0)
+    expect(first.locator(".lf-shot-frame-label")).to_have_count(0)
     widget.get_by_role("radio", name="Overlay").click()
     expect(widget).to_have_attribute("data-inspection-mode", "overlay")
     expect(opacity).to_be_enabled()
@@ -1474,7 +1474,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     assert root_overflow(page) == 0
     widget.get_by_role("radio", name="Compare").click()
     expect(
-        widget.locator(".lf-vr-case:not([hidden]) .lf-vr-frame-label").first
+        widget.locator(".lf-vr-case:not([hidden]) .lf-shot-frame-label").first
     ).to_be_visible()
     page.emulate_media(media="print")
     expect(first).to_be_visible()
@@ -1482,7 +1482,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(widget.locator(".lf-vr-queue-region")).to_be_hidden()
     expect(widget.locator(".lf-vr-dispositions").first).to_be_hidden()
     expect(widget.locator(".lf-vr-inspector")).to_be_hidden()
-    expect(widget.locator(".lf-vr-frame-label").first).to_be_hidden()
+    expect(widget.locator(".lf-shot-frame-label").first).to_be_hidden()
     before_box, after_box = first.locator(".lf-shotframe").evaluate_all(
         "nodes => nodes.map(node => node.getBoundingClientRect())"
     )
@@ -1505,7 +1505,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     )
     consume_browser_errors(
         page,
-        "<lf-visual-review id=\"visual-run\"> failed: case 'run-list' focus 120,300",
+        "focus 120,300 640×220 CSS px falls outside its captured images",
     )
     expect(case_select).to_be_visible()
     unequal_pair = changed | {
@@ -1550,10 +1550,10 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
         "captured CSS coordinates must render against the decoded image, not stale viewport metadata"
     )
     assert (
-        shot_host.evaluate(
-            "node => getComputedStyle(node).getPropertyValue('--lf-vr-capture-width').trim()"
+        first.locator("lf-shot").evaluate(
+            "shot => shot.captureGeometry.images[0].width / 2"
         )
-        == f"{decoded_css_width}px"
+        == decoded_css_width
     )
     with sending(page, "a corrected visual disposition"):
         first.get_by_role("button", name="Needs work").click()
@@ -1715,7 +1715,6 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
               replacement.setAttribute('after', '/media/4f465a0582ab00fe.png');
               replacement.setAttribute('alt', 'Replacement evidence');
               node.replaceChildren(replacement);
-              node.style.setProperty('--lf-vr-capture-width', '390px');
             }"""
         )
         expect(host.locator("lf-shot img")).to_have_count(2)
@@ -1723,10 +1722,10 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
             "naturalWidth", 780
         )
         assert (
-            host.evaluate(
-                "node => getComputedStyle(node).getPropertyValue('--lf-vr-capture-width').trim()"
+            host.locator("lf-shot").evaluate(
+                "shot => shot.captureGeometry.images[0].width"
             )
-            == "390px"
+            == 780
         )
 
         stale_svg = (
@@ -1738,10 +1737,10 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
             "() => window.oldVisualReviewImages.every(image => image.naturalWidth === 1800)"
         )
         assert (
-            host.evaluate(
-                "node => getComputedStyle(node).getPropertyValue('--lf-vr-capture-width').trim()"
+            host.locator("lf-shot").evaluate(
+                "shot => shot.captureGeometry.images[0].width"
             )
-            == "390px"
+            == 780
         )
     finally:
         while held:
@@ -1886,15 +1885,15 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     shot_host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
     assert shot_host.evaluate("node => node.scrollWidth == node.clientWidth")
     expect(widget).to_have_attribute("data-compare-layout", "side")
-    widget.locator(".lf-vr-shot-host").evaluate_all(
-        "nodes => nodes.forEach(node => node.style.setProperty('--lf-vr-capture-width', '300px'))"
-    )
+
     page.emulate_media(media="print")
     print_widths = widget.locator(".lf-vr-case lf-shot img").evaluate_all(
         "images => images.map(image => image.getBoundingClientRect().width)"
     )
     assert len(print_widths) == 6
-    assert max(print_widths) <= 301
+    assert widget.locator(".lf-vr-case lf-shot img").evaluate_all(
+        "images => images.every(image => image.getBoundingClientRect().width <= image.naturalWidth / 2 + 1)"
+    )
     expect(widget.locator(".lf-vr-focus").first).to_be_visible()
     page.emulate_media(media="screen")
 
@@ -1999,8 +1998,8 @@ def test_visual_review_discloses_focus_without_distorting_unsupported_browsers(
     host = case.locator(".lf-vr-shot-host")
     expect(widget).to_have_attribute("data-inspection-scope", "full")
     expect(widget.get_by_role("radiogroup", name="Scope")).to_be_hidden()
-    expect(host).to_have_attribute("data-focus-authored", "true")
-    expect(host).to_have_attribute("data-focus-active", "false")
+    expect(host.locator("lf-shot")).to_have_attribute("data-lf-shot-focus", "true")
+    expect(host.locator("lf-shot")).to_have_attribute("data-lf-shot-crop", "false")
     image = case.locator(".lf-shotframe img").first.evaluate(
         """node => ({
           renderedRatio: node.getBoundingClientRect().width / node.getBoundingClientRect().height,

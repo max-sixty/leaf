@@ -1,0 +1,248 @@
+/* Response composition owns the shared field, actions and attachment shelf.
+ * Presentation owners allocate and position this control, in the document or a
+ * declared shadow tree; they do not restate its typography, focus or face. */
+/* An icon action's hit box, and the height of an empty composer field, which stands
+   that action inside it with 6px of room either side. Stated at the root, where a widget
+   that seats a composer in its own content reads the height to hold its room before the
+   composer is drawn, and again on each field and action, so a field whose context sizes
+   its action (lf-options' Add row) derives its height from that size. */
+:root, .lf-compose-field, .lf-icon-action { --lf-icon-action-hit: max(28px, var(--aim-floor)); }
+:root, .lf-compose-field { --lf-compose-h: calc(var(--lf-icon-action-hit) + 12px); }
+.lf-compose-field { --lf-compose-pad-block: 8px; --lf-compose-pad-inline-start: 10px;
+          position: relative; display: grid; grid-template-columns: minmax(0, 1fr);
+          flex: 1; min-width: 0; }
+.lf-compose-field > leaf-text { grid-area: 1 / 1; }
+/* One line whatever its key badge's box: the badge paints into the field's padding, so
+   the hint stands where the words will and sizes nothing. A narrow field shortens the
+   label and keeps the key. It is apparatus, so the field's selectable text stops at it. */
+.lf-compose-placeholder { display: flex; align-items: baseline; gap: 0.25em;
+          block-size: 1lh; white-space: nowrap; user-select: none; -webkit-user-select: none; }
+.lf-compose-placeholder > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.lf-compose-placeholder > kbd { flex: none; }
+.lf-compose-placeholder .lf-key-badge { background: transparent; color: var(--muted); }
+.lf-compose-field > leaf-text:not(.lf-fab-input) { display: block; box-sizing: border-box;
+          width: 100%; min-width: 0; min-height: var(--lf-compose-h);
+          padding-inline-end: var(--lf-compose-pad-inline-start);
+          --lf-field-end-room: calc(var(--lf-icon-action-hit) + 12px
+            - var(--lf-compose-pad-inline-start)); }
+.lf-icon-action { box-sizing: border-box; width: var(--lf-icon-action-hit);
+          height: var(--lf-icon-action-hit); min-width: var(--lf-icon-action-hit);
+          min-height: var(--lf-icon-action-hit); padding: 0; display: grid;
+          place-items: center; border-radius: var(--r); }
+.lf-icon-action[hidden] { display: none; }
+.lf-action-icon { position: relative; z-index: 1; inline-size: 16px; block-size: 16px;
+          overflow: visible; pointer-events: none; fill: none; stroke: currentColor; stroke-width: 1.6;
+          stroke-linecap: round; stroke-linejoin: round; }
+/* Closing changes the view; resolving changes durable thread state. */
+.lf-close-action { border: 0; background: transparent;
+          color: var(--muted); }
+.lf-close-action:hover { background: var(--chip); color: var(--ink); }
+/* Send and resolve are the two glyph actions: a bare glyph in the action's own ink,
+   whose ::before is a 28px disc that stays clear at rest and takes the action's tint
+   on hover. The hit box around the disc is the icon-action floor above. The glyph's
+   ink outranks the .lf-ui face by coming later. */
+.lf-compose-submit, .lf-resolve.lf-icon-action { border: 0; background: transparent;
+          box-shadow: none; }
+:is(.lf-compose-submit, .lf-resolve.lf-icon-action)::before { content: "";
+          position: absolute; box-sizing: border-box; inline-size: 28px; block-size: 28px;
+          border-radius: var(--r); background: transparent; }
+:is(.lf-compose-submit, .lf-resolve.lf-icon-action):hover { background: transparent;
+          box-shadow: none; }
+.lf-compose-submit { position: absolute; z-index: 1; inset-inline-end: 6px;
+          inset-block-end: 6px; color: var(--accent); }
+.lf-compose-submit:not(:disabled, [aria-disabled="true"]):hover::before {
+          background: var(--accent-tint); }
+.lf-compose-submit:is(:disabled, [aria-disabled="true"]) { opacity: 1; color: var(--muted); }
+.lf-resolve.lf-icon-action { position: relative; flex: none; margin-inline-start: auto;
+          color: var(--ink); }
+.lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover { color: var(--ok-ink); }
+.lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover::before {
+          background: var(--ok-tint); }
+.lf-resolve.lf-icon-action .lf-action-icon { inline-size: 15px; block-size: 15px; }
+/* Every composition input renders the same attachment shelf, including inputs seated
+   in widget shadow trees. Surfaces set its allocation and thumbnail size; the shelf
+   owns its controls, image inspection face, and drawing paint here. */
+:is(.lf-thread-reply, .lf-say):has(> .lf-composer-media:not([hidden])) {
+  flex-wrap: wrap; }
+.lf-composer-media {
+  display: flex; flex: 1 0 100%; gap: 6px; min-width: 0; overflow-x: auto;
+  padding: 2px; box-sizing: border-box; }
+.lf-composer-media[hidden] { display: none !important; }
+.lf-composer-media-item { flex: none; display: flex; align-items: stretch;
+  box-sizing: border-box; border: 1px solid var(--border-2);
+  border-radius: var(--r); background: var(--paper); overflow: hidden; }
+.lf-media-open { display: block; width: fit-content; max-width: 100%; padding: 0;
+  border: 0; border-radius: var(--r); background: transparent; color: inherit;
+  font: inherit; }
+button.lf-media-open { cursor: zoom-in; }
+.lf-media-open:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+  --lf-focus-ring: media; outline-offset: 2px; }
+.lf-composer-media-open { width: 68px; height: 52px; overflow: hidden;
+  border: 0; border-radius: 0; align-self: center; }
+.lf-composer-media-open img { display: block; width: 100%; height: 100%;
+  object-fit: cover; }
+/* Controls stay inside each tile, so the scrolling shelf never cuts their hit area.
+   Images and drawings keep their own thumbnail dimensions beside full-height presses. */
+.lf-composer-drawing > .lf-composer-media-open { padding: 0;
+  box-sizing: border-box; position: relative; }
+.lf-drawing-context-status { position: absolute; inset-inline: 0; inset-block-end: 0;
+  padding: 2px; font: 10px/1.2 var(--sans); background: var(--paper); color: var(--ink-2); }
+.lf-composer-drawing > .lf-composer-media-open > canvas { display: block; width: 100%;
+  height: 100%; object-fit: contain; }
+.lf-composer-media-item > button:not(.lf-media-open) { flex: none; display: grid; place-items: center;
+  inline-size: max(26px, var(--aim-floor)); min-block-size: var(--aim-floor);
+  padding: 0; border: 0; font: inherit;
+  border-inline-start: 1px solid var(--border-2); background: transparent;
+  color: var(--ink-2); cursor: pointer; }
+.lf-composer-media-item > button:not(.lf-media-open):hover { color: var(--accent); background: var(--chip); }
+.lf-composer-media-item > button:not(.lf-media-open):is(:focus-visible, .lf-focus-visible) {
+  outline: var(--focus-ring); --lf-focus-ring: composer-media;
+  outline-offset: calc(-1 * var(--focus-ring-w)); }
+.lf-composer-media-item > button:not(.lf-media-open) > svg { inline-size: 14px; block-size: 14px; }
+.lf-composer-media-item > .lf-media-open:is(:focus-visible, .lf-focus-visible) {
+  outline-offset: calc(-1 * var(--focus-ring-w)); }
+
+/* Standard comment boxes share one frame around their editor and Send. Other
+   uses of the shared editor plumbing, such as option entry and the extended
+   anchored response control, supply their own face. Containers place comment
+   boxes; they do not supply a second frame. */
+.lf-comment-box > .lf-compose-field {
+          border: 1px solid var(--border-2);
+          border-radius: var(--r); background: var(--card); }
+.lf-comment-box > .lf-compose-field:has(> leaf-text:is(:focus, .lf-focus)) {
+          outline: var(--focus-ring); --lf-focus-ring: text-box;
+          outline-offset: 0; border-color: transparent; }
+.lf-comment-box > .lf-compose-field > leaf-text {
+          padding: var(--lf-compose-pad-block) var(--lf-compose-pad-inline-start);
+          border: 0; border-radius: 0; background: transparent;
+          color: var(--ink); font: var(--t-5)/1.5 var(--sans);
+          max-height: 50vh; overflow-y: auto; }
+.lf-comment-box > .lf-compose-field > leaf-text:is(:focus, .lf-focus) { outline: none; }
+.lf-thread-reply { display: block; margin-top: var(--sp-3); min-width: 0; }
+:is(.lf-thread-reply, .lf-fab-bar) .lf-compose-field {
+          --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px); }
+
+
+  :is(.lf-fab-bar, .lf-margin-preview) { --lf-response-height: max(32px, var(--aim-floor)); }
+  /* The anchored draft and its retained sent message share one writing inset and
+     trailing action room in either root. The editor spends one pixel of that
+     inset on its frame; Send removes the frame, retaining the complete inset. */
+  :is(.lf-fab-bar, .lf-margin-preview) {
+    --lf-thread-text-pad-block: calc((var(--lf-response-height) - 1lh) / 2);
+    --lf-comment-text-pad-end: var(--lf-thread-text-inset);
+    --lf-comment-send-room: var(--lf-icon-action-hit);
+  }
+  .lf-fab-bar .lf-compose-field, .lf-response-control {
+    --lf-compose-pad-block: calc(var(--lf-thread-text-pad-block) - 1px);
+  }
+  /* The field and its choices are one anchored response control. This primitive owns
+     their height, vertical padding, type, border, corners, and elevation. Tab extends
+     the control at its trailing edge without replacing or moving the field.
+     The field can grow with its words without changing its corner. The shared UI
+     supplies the thread’s 14px face and line height; vertical padding keeps
+     that face in the 32px resting box. */
+  .lf-response-control { box-sizing: border-box; min-height: var(--lf-response-height);
+    border: 1px solid var(--border-2); background: var(--card);
+    border-radius: var(--r);
+    color: var(--ink-2); font-weight: 400; line-height: inherit;
+    padding-block: var(--lf-compose-pad-block);
+    box-shadow: 0 2px 8px var(--shade); }
+  /* The bar keeps one silhouette through every state it has, so the focus ring is cast
+     as a shadow beside the lift rather than drawn as an outline the corner would have
+     to be re-stated for. It is still the layer's band (--focus-shadow, theme.css), and
+     the name goes with it: this rule takes the outline off the pressables the bar holds,
+     so without one they would credit the floor's `pressable` for a ring the floor is no
+     longer drawing. */
+  .lf-response-control:is(:focus, :focus-visible, .lf-focus, .lf-focus-visible) {
+    outline: none; --lf-focus-ring: response-control;
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
+    box-shadow: var(--focus-shadow), 0 2px 8px var(--shade); }
+  /* The physical response presentation allocates the field's box. The host is
+     the editor's scrollport; its content-sized editor keeps native caret reveals. */
+  leaf-text.lf-fab-input { width: 100%; min-width: 0;
+    padding-inline: var(--lf-compose-pad-inline-start) calc(var(--lf-comment-text-pad-end) - 1px);
+    --lf-field-end-room: var(--lf-comment-send-room);
+    overflow-y: auto; }
+  .lf-fab-bar .lf-compose-submit {
+    inset-inline-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2);
+    inset-block-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2); }
+  /* The field keeps its full box while both actions occupy its trailing corner. */
+  .lf-fab-bar[data-lf-other-responses] .lf-compose-field {
+    --lf-comment-send-room: calc(2 * var(--lf-icon-action-hit)); }
+  .lf-fab-bar[data-lf-other-responses] .lf-compose-submit {
+    inset-inline-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2 + var(--lf-icon-action-hit)); }
+  .lf-fab-more { position: absolute; border: 0; background: transparent; color: var(--muted);
+    inset-inline-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2);
+    inset-block-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2); }
+  .lf-fab-more:hover { color: var(--ink); background: var(--chip); }
+  .lf-response-action { min-width: max(30px, var(--aim-floor)); padding-inline: 9px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 0;
+    white-space: nowrap; cursor: pointer; }
+  .lf-response-action[hidden] { display: none; }
+  .lf-response-action:hover {
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
+    background: var(--card); }
+  .lf-response-action-glyph { line-height: 1; }
+  .lf-response-action-space { white-space: pre; }
+  .lf-response-action[data-lf-collapse] > :is(.lf-response-action-space,
+    .lf-response-action-label) { display: none; }
+  .lf-fab-bar:not([data-lf-target-only]) > .lf-fab,
+  .lf-fab-bar:not(.lf-response-open) > .lf-response-options {
+    display: none !important;
+  }
+  .lf-fab-bar.lf-response-open { flex-wrap: wrap; }
+  /* A side is chosen for the field, which can be narrower than Suggest and six
+     reactions at their resting 38px. The reactions give up spare inline padding
+     before the choices wrap; each response action keeps its minimum width. */
+  .lf-fab-bar.lf-response-open > .lf-response-options {
+    display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px;
+    max-width: 100%;
+  }
+  .lf-response-options .lf-response-action {
+    min-height: var(--lf-response-height);
+  }
+  .lf-response-options .lf-react.lf-response-action {
+    flex: 1 1 max(30px, var(--aim-floor)); max-width: max-content; }
+  /* The reaction vocabulary is shadow.css's, where a thread seated in a widget tree
+     reads it too. A panel message and the response bar add only what is theirs. */
+  .lf-response-options > .lf-react-palette { flex: 1 1 auto; min-width: 0;
+    flex-wrap: wrap; }
+
+/* Core may seat its one response bar in a widget's exact-datum Thread outlet. The
+   widget supplies only the layout location; these rules carry the canonical composer
+   into the same trees as the Thread view around it. */
+.lf-fab-bar { font: var(--t-5)/1.5 var(--sans); }
+.lf-fab-bar[data-lf-presentation="inline"] { display: inline-flex; position: static;
+          box-sizing: border-box; align-items: flex-end; gap: 4px; width: 100%;
+          max-width: 760px; white-space: nowrap; color: var(--ink); }
+.lf-fab-bar[data-lf-presentation="inline"] *,
+.lf-fab-bar[data-lf-presentation="inline"] *::before,
+.lf-fab-bar[data-lf-presentation="inline"] *::after { box-sizing: inherit; }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-composer { display: contents; }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-composer
+          > :not(.lf-compose-field, .lf-composer-media) { display: none !important; }
+.lf-fab-bar[data-lf-presentation="inline"] leaf-text.lf-fab-input {
+  display: block; max-width: none; max-height: 50vh; margin: 0; }
+.lf-fab-bar[data-lf-presentation="inline"].lf-response-open > .lf-response-options {
+  flex-basis: 100%; }
+.lf-fab-bar .lf-composer-media {
+          flex: none; max-width: 148px; padding: 0; }
+.lf-fab-bar .lf-composer-media:has(> .lf-composer-drawing) {
+          --lf-drawing-preview-width: 96px;
+          max-width: calc(var(--lf-drawing-preview-width) + 2 * max(26px, var(--aim-floor)) + 2px); }
+.lf-fab-bar .lf-composer-media-open {
+          width: 42px; height: 34px; }
+.lf-fab-bar .lf-composer-drawing > .lf-composer-media-open {
+          width: var(--lf-drawing-preview-width); height: 64px; }
+@media print {
+  .lf-fab-bar[data-lf-presentation="inline"] { display: none !important; }
+}
+
+
+/* Forced-colour palettes suppress elevation shadows. The same control keeps a
+ * visible platform ring when seated outside the private chrome scope as well. */
+@media (forced-colors: active) {
+  .lf-response-control:is(:focus, :focus-visible, .lf-focus, .lf-focus-visible) {
+    outline: var(--focus-ring-w) solid Highlight; outline-offset: 2px; box-shadow: none;
+  }
+}

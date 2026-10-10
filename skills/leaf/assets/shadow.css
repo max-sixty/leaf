@@ -1,1116 +1,1588 @@
-/* The rules that dress both sides of a shadow boundary. A widget declaring x-shadow
- * renders into a tree no document selector reaches (runtime/shadow-stage.js), and the
- * controls, threads and composer a widget seats there are the layer's own. So what they
- * need is stated here, once: the stage copies the composed shadow.css into each declared
- * root, and the document reads the same rules at the head of this root's part of
- * /theme.css. A rule belongs here when a declared tree has to see it too. */
-/* Reduced motion: the shared sheet guards CSS animations and transitions in the
- * document and every declared shadow stage (!important outranks inline styles, so
- * JS-driven transitions stop too). JS-driven motion goes through the runtime's
- * motion() and the live motion readings, which answer the same preference themselves.
- *
- * The two halves are not written alike, because a duration is a way of keeping
- * an animation and no way at all of keeping a transition. An animation is
- * declared and named, and `animationend` is how the layer knows one has run —
- * the thread list takes `grow` off a card that way — so the near-zero duration
- * keeps that event and spends no time on it. It runs once, since an endless
- * animation at that duration repeats on every frame, showing a different point
- * of its keyframes each time: a pulse becomes a flicker, and the page never
- * rests. A transition is declared by
- * nobody: `transition-property` is `all` until something says otherwise, so a
- * duration on every element makes a transition out of every property that
- * changes, on every element, and none of them is a transition this theme
- * wrote. Nothing listens for `transitionend`, so they were kept for no one and
- * were not free: a running transition's animated value is what the platform
- * reports for the property, so for the frames one of these took, every reading
- * of a box's style — the render gate's included — was told the value the
- * property was leaving rather than the one on screen. */
+/* Generated from skills/leaf/assets/styles/shadow.css by npm run build:styles. */
+/* skills/leaf/assets/styles/components/surfaces.css */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: .01ms !important;
     animation-iteration-count: 1 !important;
     transition: none !important;
   }
 }
-
-/* The default face of native widget-injected controls. `offer()` writes `lf-ui-face` on each one it
- * builds, so this is the layer's answer for a control standing in the page's own prose:
- * the chrome's family, size and ink rather than the document's serif. The separate
- * lf-ui identity still marks custom-element apparatus, but its component owns its
- * face: an outer host declaration would outrank even its internal state rules.
- *
- * It is a default, and three things make it behave like one. It stands at this sheet's
- * head, which composes ahead of theme.css and every package sheet, so each component rule
- * that names the same property wins on ordinary cascade order; stated in theme.css, after
- * this sheet, it beat them, and .lf-compose-submit drew near-black on Send and on Add
- * option instead of the accent. It keeps a class's specificity, so the page's own element
- * rules lose to it: a page dressing its `button` and `a` is dressing its prose, and at no
- * specificity those rules took the family and ink of 131 of corpus.html's 264 widget
- * controls. And it matches only under the document's root: a declared tree copies this
- * sheet, but no element in a shadow tree descends from `:root`, so what a widget draws
- * there keeps its host's face. lf-diff marks its line numbers and hunk separators `lf-ui`,
- * and a plain `.lf-ui` repainted them at the control's size and ink.
- *
- * It cannot live in runtime/chrome.css, which is adopted and so cascades after all of
- * them: the same declarations there beat every component's own rule, and .lf-ref drew
- * ink at 14px where it asked for muted at 11.5px while a widget
- * asking for mono drew sans. Nothing catches that, because
- * no test and no browser gate reads a rule that never applied.
- *
- * The rest of the face is stated too, at no weight at all. A page's own rules select no
- * control unless they name its widget (runtime/page-sheets.js), and inheritance is the
- * route that leaves open: a page that set its body bold, italic, small-capped, spaced
- * or in capitals set every control standing in it so too. The `font` shorthand resets
- * every font property it has, weight, slant, variants and stretch among them. Any declared value beats an inherited one,
- * so a rule that weighs nothing is enough to stop that, and it leaves every rule that
- * sets these on purpose winning: at a class's weight it took the pane header's 600 off
- * each playground's presets. */
-:where(:root) :is(.lf-ui-face, .button, .field) { font-family: var(--sans); font-size: var(--t-5);
-    line-height: var(--lf-ui-lh); color: var(--ink); }
-:where(:root .lf-ui-face, :root .button, :root .field) { font: var(--t-5) / var(--lf-ui-lh) var(--sans);
-    font-feature-settings: normal; font-variation-settings: normal;
-    letter-spacing: normal; word-spacing: normal; text-transform: none; }
-/* Words for a user listening, silent on screen: real text, the one thing every
-   screen reader announces in every mode, clipped to nothing where paint already says
-   the same fact to the eye (renderQuiet, lf-code's highlighted lines, the status word
-   x-paints writes). Worn with
-   .lf-ui, since an invisible word is apparatus the anchor pass must not offer — a
-   quote resolved into a clipped box would paint a mark nobody can see. Out of flow,
-   so it holds no room; the covered-words gate skips this class.
-
-   And out of the selection, which the clip does not do on its own: a word standing
-   among the page's own words is inside any selection drawn across them, so the
-   runtime's reading skipped it and the user's clipboard did not — a copied task line
-   came away carrying the word "done", and a copied code block would carry
-   "highlighted" into whatever editor it was bound for.
-
-   No offsets, so the box keeps the static position its holder gives it. That place is
-   read: shownBox reads it for a wrapper that draws no box of its own, and everything
-   asking where such an element is asks through that. What the box must not do is
-   escape the box it sits in, which it did — an out-of-flow box with no positioned
-   ancestor is positioned against the page, so a word on a cell of a table scrolling
-   inside itself stood three hundred pixels past the window with the page scrolling
-   sideways to reach it. The scroller answers for it, and the runtime sees to that:
-   reachScrollers marks every static box that scrolls, and the theme positions the
-   mark ([data-lf-holds]).
-
-   Here and not in runtime/chrome.css, because content widgets write it into the page
-   and into declared trees, and the chrome's sheet is the one an exported page never
-   adopts: every quiet word stood on screen in a file `leaf page export` wrote. */
-.lf-quiet { position: absolute; width: 1px; height: 1px; overflow: hidden;
-    clip-path: inset(50%); white-space: nowrap;
-    user-select: none; -webkit-user-select: none; }
-/* A pending suggestion still has to say it is proposed when generated controls are
- * absent. On screen the ✓/✗ row carries that fact and this word stays clipped for
- * whoever is listening. Paper exposes the word #voice already writes
- * in each slot, so the proposal remains distinguishable from settled content without
- * adding another label or moving it elsewhere.
- *
- * The page the markup describes is the base, and the live page's clipped version goes
- * inside the screen guard. `user-select` is not touched: this is the runtime's reading
- * of the paint rather than authored prose, so copying a published paragraph must not
- * carry the word with it.
- *
- * inline-block, because lf-old is struck and CSS runs a decoration through every
- * in-flow inline descendant — a descendant cannot cancel it, and `text-decoration:
- * none` here is inert. Unclipped as a plain inline, the one word saying the change has
- * *not* been made was itself painted struck in the deletion's red, which is the reading
- * this whole rule exists to prevent. An atomic inline is where the line stops.
- *
- * Here beside `.lf-quiet`, because the two must meet in one cascade layer. */
+:where(:root) :is(.lf-ui-face, .button, .field) {
+  font-family: var(--sans);
+  font-size: var(--t-5);
+  line-height: var(--lf-ui-lh);
+  color: var(--ink);
+}
+:where(:root .lf-ui-face, :root .button, :root .field) {
+  font: var(--t-5) / var(--lf-ui-lh) var(--sans);
+  font-feature-settings: normal;
+  font-variation-settings: normal;
+  letter-spacing: normal;
+  word-spacing: normal;
+  text-transform: none;
+}
+.lf-quiet {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  user-select: none;
+  -webkit-user-select: none;
+}
 lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
-  position: static; width: auto; height: auto; overflow: visible; clip-path: none;
-  display: inline-block; margin-right: 5px; }
+  position: static;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip-path: none;
+  display: inline-block;
+  margin-right: 5px;
+}
 @media screen {
   html:root lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
-    position: absolute; width: 1px; height: 1px; overflow: hidden;
-    clip-path: inset(50%); margin-right: 0; }
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    margin-right: 0;
+  }
 }
-/* A key badge has one face in the document, in the chrome, and in declared shadow
-   trees: a binding's steps, a transient hint code, and a control's binding seat all
-   wear it. Where it stands is each surface's. A seat a widget builds empty draws
-   nothing until a binding is written into it. */
-.lf-key-badge { box-sizing: border-box;
-    min-width: var(--lf-key-badge-size); height: var(--lf-key-badge-size); padding: 0 4px;
-    border: 1px solid var(--border-2); border-radius: 4px; background: var(--chip);
-    color: var(--ink-2); font-family: var(--mono); font-size: var(--t-6);
-    line-height: 1.478; text-align: center; white-space: nowrap;
-    display: inline-flex; align-items: center; justify-content: center;
-    user-select: none; -webkit-user-select: none; }
-.lf-key-badge:empty { display: none; }
-/* A lent command hint never participates in flow, whether empty, filled or restored.
-   Its widget positions the external seat beside the control it labels. */
-.lf-binding-seat { position: absolute; }
-.lf-external-mark { display: inline-block; width: .75em; height: .75em;
-                    margin-inline-start: .24em; vertical-align: .03em;
-                    fill: none; stroke: currentColor; stroke-width: 1.5;
-                    stroke-linecap: round; stroke-linejoin: round;
-                    overflow: visible; user-select: none; -webkit-user-select: none; }
-/* Pressable, said once per layer, and .tag (theme.css) is what it is said against. A
- * chip that opens a section and a badge that counts something were the same object at
- * rest — one ground, one ink, one corner, one size — and the only page that said which
- * was which said it in prose. The user had to press one to find out.
- *
- * The marker is the runtime's own, not a new one: `offer` and `selectableOffer` write
- * data-lf-offer on everything a widget builds to be worked, and three passes already
- * asked it before this one (print, the drag guard, the render gate). So the hand, the ground under the
- * aim, and the focus ring are stated once against that attribute rather than restated by
- * each widget's rules — which is what makes them a layer fact. A widget family that
- * joins tomorrow wears all three with its entry and its module, having written no CSS,
- * and a family that wants its own says so in its own theme rules, which come after this
- * file in the merged sheet and outrank it at equal specificity.
- *
- * .tag takes none of it, and needs no exclusion to be left out: no `offer` made it. That
- * is the line the rule draws — not "does this look like a control" but "did a widget
- * build this to be worked", which is a fact the runtime holds rather than a judgement
- * a stylesheet re-makes.
- *
- * The ground and not the ink, because ink is what a widget spends on its own meaning:
- * an operation's press is inked by whether it is live, a pick's mark by whether it is
- * taken. A wash toward the ink leaves both of those readable and reads the same way on
- * the paper-white palette and the dark one — the joined option group's own answer to
- * this question, arrived at there for the same reason (packages/default/theme.css).
- *
- * An inset shadow rather than a background, because it composes instead of competing.
- * `background` is the one property a control's own dress is written in, and every layer
- * writes it: a chip states a fill, chrome's .lf-btn swaps one on hover, a package restates
- * both. A shared rule setting `background` has to out-specify all of them to be seen and
- * then wins against the ones that should have won — the aim wash landed on nothing at
- * all against `.lf-command-facts > [role="button"]`, which ties it exactly. The shadow is
- * painted over whatever fill the control wears, so the chip keeps its ground, the .lf-btn
- * keeps its swap, and both deepen by the same amount under the pointer. It is inset, so
- * it paints inside the padding box, follows the corner the control already has, and adds
- * nothing outside a rectangle the movement tests are watching.
- *
- * A spent press keeps its shape and gives up its opacity. That is the layer's one cue
- * for "there is nothing left to do here", and it is stated with the hand it withdraws so
- * the two cannot come apart: a press that had been used up once still wore the
- * full-strength border of a live one and differed only in ink, which greyscale drops and
- * a user scanning a column of eight of them never sees. Chrome's own .lf-btn says the
- * same pair for the same reason (chrome.css); this reaches the controls that are
- * not one.
- *
- * The ring is the fallback rather than the rule: every control with a ring of its own
- * outranks this, and what is left is the controls that were wearing the platform's
- * outline or, where a widget had restyled them, nothing at all. Named like every other
- * ring the layer draws, so the suite's ring samples can credit it (--lf-focus-ring,
- * theme.css).
- *
- * Every rule here is written to be outranked. The value guard sits in :where() so it
- * costs nothing, which leaves each rule at the weight of the thing it is answering — the
- * ring at a plain attribute and a state, so lf-option's own pick ring and chrome's .lf-btn
- * ring both still win and keep their names. A floor is only a floor if what is built on
- * it comes out on top.
- *
- * The value and not the bare attribute, because `offer` writes two different facts into
- * one dataset key: "button" or a native choice's input type for a press it built, the
- * role for a `selectableOffer`, and the empty string for everything else it makes — the
- * draft's controls row, its history
- * disclosure, its edit box, a generated form. Those are chrome a widget injected, not
- * things to press, and the bare attribute put the hand on a textarea and a wrapper div.
- * The distinction is the one `offer` already draws; this reads it rather than keeping a
- * list of the tags and roles that count, so a role a widget reaches for next year is a
- * pressable the day its module names it.
- *
- * In this file, because a widget declaring x-shadow builds its controls in a tree the
- * document's stylesheet does not reach, and a floor that stopped at the light DOM would
- * be a floor the newest kind of widget is the one to fall through. */
-/* Every keyboard target no rule rings, the page's own among them — a link, a summary, a
-   block the runtime lands the user on — wears the layer's band. At no weight, so each
-   rule that rings its own control still wins. Left to the browser these drew its 1px
-   auto ring flush against the words, beside the 2px band on every Leaf control. */
-:where(:focus-visible) { outline: var(--focus-ring); --lf-focus-ring: focus;
-  outline-offset: var(--focus-ring-gap); }
-/* Where the user stands wears a ring outside its box, so a scroll that brings the focus
-   into view, the browser's or a landing's (anchor-travel.js reads it), keeps the ring's
-   room at the scroller's edge: an Ask landed at the top of a scrolling pane stood flush
-   with it, the top of its ring cut off under the pane's header rule. At no weight, like
-   the ring. */
-:where(:focus) { scroll-margin-block: var(--focus-ring-room); }
-/* A control in a sticky header stands where the header sticks, which a scroller's
-   landing band can count as covered: the root's band starts `--lf-landing-room` below
-   the banner, where a header sticks. The browser then scrolls toward the control on
-   every focus, and a stuck header never comes out from under the band, so each Tab
-   crept the page by the difference, and one standing wholly inside the band, a page
-   tab strip, was centred, 403px a key. A header says how far below the slot it sticks
-   against (`--lf-top`) its controls stand when stuck (`--lf-head-inset`), and the
-   margin takes the band's room back from that, so a focused control where its header
-   sticks is shown, and one revealed from elsewhere lands exactly there.
-   `--lf-landing-room` is the scroller's own: 12px on the root (theme.css), none where
-   a box that scrolls restarts the slot (state.css), and a list that pads its edge for the
-   ring says so (chrome.css). */
+.lf-key-badge {
+  box-sizing: border-box;
+  min-width: var(--lf-key-badge-size);
+  height: var(--lf-key-badge-size);
+  padding: 0 4px;
+  border: 1px solid var(--border-2);
+  border-radius: 4px;
+  background: var(--chip);
+  color: var(--ink-2);
+  font-family: var(--mono);
+  font-size: var(--t-6);
+  line-height: 1.478;
+  text-align: center;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.lf-key-badge:empty {
+  display: none;
+}
+.lf-binding-seat {
+  position: absolute;
+}
+.lf-external-mark {
+  display: inline-block;
+  width: .75em;
+  height: .75em;
+  margin-inline-start: .24em;
+  vertical-align: .03em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  overflow: visible;
+  user-select: none;
+  -webkit-user-select: none;
+}
+:where(:focus-visible) {
+  outline: var(--focus-ring);
+  --lf-focus-ring: focus;
+  outline-offset: var(--focus-ring-gap);
+}
 :where(:focus) {
-  scroll-margin-top: calc(var(--lf-head-inset, calc(var(--focus-ring-room)
-    + var(--lf-landing-room, 0px))) - var(--lf-landing-room, 0px)); }
-[data-lf-offer]:where(:not([data-lf-offer=""])) { cursor: pointer; }
-[data-lf-offer]:where(:not([data-lf-offer=""])):hover:where(:not([aria-disabled="true"], :disabled)) {
-  box-shadow: var(--offer-hover-shadow); }
-[data-lf-offer]:where(:not([data-lf-offer=""])):is([aria-disabled="true"], :disabled) {
-  cursor: default; opacity: .55; }
-[data-lf-offer]:where(:not([data-lf-offer=""])):is(:focus-visible, .lf-focus-visible) {
-  outline: var(--focus-ring); --lf-focus-ring: pressable;
-  outline-offset: var(--focus-ring-gap); }
-/* The floor under every aim the layer offers, stated once for all of them rather
-   than left to whatever each control's type and padding happened to add up to.
-   Measured before it existed: a thread's Reopen and the panel's reaction chips stood
-   at 20 and 22 pixels, a version's Compare and a command in the reference at about seven —
-   all of them presses a user has to land on with a mouse, and none of them a
-   control anybody chose the size of.
-
-   --aim-floor is the length, and theme.css asks the pointer query that sets it once,
-   so a control cannot reach one floor without reaching the other. It is stated in this file because a button, a chip, a
-   reaction and a margin entry stand in the page and in declared widget trees as well
-   as in the chrome, and a floor written inside the chrome's scope left every one of
-   them outside it at whatever size it happened to be.
-
-   A floor and not a size: every one of these is free to be bigger, and most are. It
-   is written on both axes because a target is a box and a control that is tall and two
-   pixels wide is as hard to hit as a short one. Margin entries centre their own label,
-   so nothing here has to say where the words go. A plain list rather than one :is(), so
-   each member keeps its own weight; a rule that states a minimum of its own for one of
-   these folds the floor into it with max(), so which of the two stands later decides
-   nothing.
-
-   The block floor never takes away a control's content minimum. A min-height on a flex
-   or grid item stands in for the automatic one, the item's own content, so a menu
-   capped at the window's height crushed its 30px .lf-btn rows to the 24px floor rather
-   than scrolling. A control that stands in such a container states its block floor as
-   padding instead, max(its padding, (the floor - 1lh) / 2), less its border, in the
-   rule that gives it its padding: .lf-btn below, the version menu's rows and Compare
-   (chrome.css). A one-line control rests at the same height either way, and one whose
-   words run longer keeps them. The members left on min-height stand in rows or in
-   flow, or state their own height.
-
-   Declared pressables join by their offer, rather than by adding their class here.
-   A resting skip control is transparent and has no pointer route; it takes its aim
-   size from chrome.css only when focus reveals it.
-   Native and selectable choice marks keep their enclosing labelled target; squeezing-prone button
-   faces and version rows keep the padding floor described above. Inline offered words
-   remain inline: like links in prose, their words determine their target.
-
-   .lf-outline-chip is halved on how it is spelled, because the class dresses a standing
-   chip as well as a press and a chip is not something to aim at. */
-[data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer="checkbox"], [data-lf-offer="radio"], .lf-skip)),
-.lf-btn, .button, .lf-outline-chip:is(button, [role="button"]), .lf-thread-notice:is(button), .lf-react, .lf-react-trigger,
-.lf-margin-entry,
-.lf-thread-action, .lf-preview, .lf-layer-reference, .lf-version-diff, .lf-version-row,
-.lf-command-reference-command, .lf-quote {
-  min-width: var(--aim-floor); }
-[data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer="checkbox"], [data-lf-offer="radio"], .lf-skip, .lf-btn, .lf-version-row, .lf-version-diff)),
-.lf-outline-chip:is(button, [role="button"]), .lf-thread-notice:is(button), .lf-react, .lf-react-trigger,
-.lf-margin-entry, .lf-thread-action, .lf-command-reference-command, .lf-quote {
-  min-height: var(--aim-floor); }
-/* A native summary retains its list marker and centers its content within the
-   target floor. Extra hit area surrounds the label rather than trailing it. */
-summary { align-content: center; }
-/* --entry-floor under every field, beside --aim-floor under every aim. iOS Safari zooms
-   the page onto a text field set under 16px as the field takes focus, and leaves the page
-   zoomed once it is done: tapping the comment field jumped the view, then left the user
-   panning sideways across a page wider than the screen. The zoom answers the field's
-   computed size, so the floor outranks every face a field is given — the layer's own
-   13px find box and 14px response field among them — and 1em keeps a field no smaller
-   than the type around it. The query gates the rule rather than leaving it to the token,
-   because at a zero floor the rule would still pull every field to its surroundings. */
-@media (pointer: coarse) {
-  :is(input, textarea, leaf-text, select) { font-size: max(var(--entry-floor), 1em) !important; }
+  scroll-margin-block: var(--focus-ring-room);
 }
-/* The shared boxes of a registry-declared widget thread. The widget places it.
-   The same Thread view may be seated inside an x-thread-surface shadow tree, so this
-   whole vocabulary is in this file. */
-.lf-thread-seat { display: none; margin-top: var(--sp-2); overflow-wrap: anywhere; }
-.lf-page-thread { box-sizing: border-box; min-width: 0; position: relative;
-          padding: var(--sp-1);
-          font-family: var(--sans); font-size: var(--t-5); line-height: var(--lf-ui-lh);
-          color: var(--ink); overflow-wrap: anywhere; }
+:where(:focus) {
+  scroll-margin-top: calc(var(--lf-head-inset, calc(var(--focus-ring-room) + var(--lf-landing-room, 0px))) - var(--lf-landing-room, 0px));
+}
+[data-lf-offer]:where(:not([data-lf-offer=""])) {
+  cursor: pointer;
+}
+[data-lf-offer]:where(:not([data-lf-offer=""])):hover:where(:not([aria-disabled=true], :disabled)) {
+  box-shadow: var(--offer-hover-shadow);
+}
+[data-lf-offer]:where(:not([data-lf-offer=""])):is([aria-disabled=true], :disabled) {
+  cursor: default;
+  opacity: .55;
+}
+[data-lf-offer]:where(:not([data-lf-offer=""])):is(:focus-visible, .lf-focus-visible) {
+  outline: var(--focus-ring);
+  --lf-focus-ring: pressable;
+  outline-offset: var(--focus-ring-gap);
+}
+[data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer=checkbox], [data-lf-offer=radio], .lf-skip)),
+.lf-btn,
+.button,
+.lf-outline-chip:is(button, [role=button]),
+.lf-thread-notice:is(button),
+.lf-react,
+.lf-react-trigger,
+.lf-margin-entry,
+.lf-thread-action,
+.lf-preview,
+.lf-layer-reference,
+.lf-version-diff,
+.lf-version-row,
+.lf-command-reference-command,
+.lf-quote {
+  min-width: var(--aim-floor);
+}
+[data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer=checkbox], [data-lf-offer=radio], .lf-skip, .lf-btn, .lf-version-row, .lf-version-diff)),
+.lf-outline-chip:is(button, [role=button]),
+.lf-thread-notice:is(button),
+.lf-react,
+.lf-react-trigger,
+.lf-margin-entry,
+.lf-thread-action,
+.lf-command-reference-command,
+.lf-quote {
+  min-height: var(--aim-floor);
+}
+summary {
+  align-content: center;
+}
+@media (pointer: coarse) {
+  :is(input, textarea, leaf-text, select) {
+    font-size: max(var(--entry-floor), 1em) !important;
+  }
+}
+.lf-thread-seat {
+  display: none;
+  margin-top: var(--sp-2);
+  overflow-wrap: anywhere;
+}
+.lf-page-thread {
+  box-sizing: border-box;
+  min-width: 0;
+  position: relative;
+  padding: var(--sp-1);
+  font-family: var(--sans);
+  font-size: var(--t-5);
+  line-height: var(--lf-ui-lh);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
 .lf-page-thread:is(:focus-within, .lf-focus-within) {
-          outline: none; border-radius: var(--r); background: var(--focus-surface); }
-/* The thread itself holding the keyboard's focus wears the ring, inset over the quiet
-   ground its containing state paints; chrome.css says the same of the panel's card.
-   It is drawn on a pseudo-element over the thread's contents rather than as the
-   thread's own outline, which paints with the thread's in-flow content: a positioned
-   row inside the thread paints after that, over the ring's bottom run. The
-   pseudo-element is positioned too and comes after every row in tree order, so it
-   paints over them without a z-index that would also lift it over the page. */
-.lf-page-thread:is(:focus-visible, .lf-focus-visible) { outline: none; }
-.lf-page-thread:is(:focus-visible, .lf-focus-visible)::after { content: "";
-          position: absolute; inset: 0; pointer-events: none;
-          border-radius: inherit;
-          outline: var(--focus-ring); --lf-focus-ring: page-thread;
-          outline-offset: calc(-1 * var(--focus-ring-w)); }
+  outline: none;
+  border-radius: var(--r);
+  background: var(--focus-surface);
+}
+.lf-page-thread:is(:focus-visible, .lf-focus-visible) {
+  outline: none;
+}
+.lf-page-thread:is(:focus-visible, .lf-focus-visible)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  outline: var(--focus-ring);
+  --lf-focus-ring: page-thread;
+  outline-offset: calc(-1 * var(--focus-ring-w));
+}
 @media (forced-colors: active) {
   .lf-page-thread:is(:focus-within, .lf-focus-within) {
-          outline: 2px solid Highlight; outline-offset: -2px; box-shadow: none; }
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+    box-shadow: none;
+  }
 }
-.lf-say { display: none; align-items: flex-end;
-          gap: var(--sp-2); margin-top: var(--sp-3); }
-.lf-say leaf-text { flex: 1; min-width: 0; }
-.lf-page-thread-resolved { display: flex;
-          align-items: center; justify-content: space-between; gap: var(--sp-2);
-          /* Reopen inherits this row's line, 4px padding and a 1px border on each side.
-             Its compact news replacement retains that room under either pointer. */
-          min-height: max(calc(1lh + 10px), var(--aim-floor)); }
-.lf-thread-seat > .lf-say { margin-top: 0; }
-.lf-page-thread + .lf-page-thread { margin-top: calc(2 * var(--sp-3)); }
-.lf-page-thread + .lf-page-thread::before { content: "";
-          position: absolute; inset-inline: var(--sp-1); inset-block-start: calc(-1 * var(--sp-3));
-          border-top: 1px solid var(--rule); pointer-events: none; }
-/* Every conversation shares its reading edge, including a floating draft. The
-   field subtracts its border; messages and metadata take the full inset. */
-:root, .lf-page-thread, .lf-thread {
-          --lf-thread-text-inset: 13px;
-          --lf-msg-head-height: max(28px, var(--aim-floor));
-          --lf-msg-body-gap: 4px; }
-.lf-thread-transcript { min-width: 0; padding-inline: var(--lf-thread-text-inset) 0; }
-/* Conversation flow is separate from the outer flex body that retains reply room. */
-.lf-thread-content { display: flow-root; min-width: 0;
-          anchor-scope: --lf-thread-headline;
-          --lf-thread-action-room: var(--lf-msg-head-height);
-          --lf-thread-notice-room: var(--lf-msg-head-height);
-          --lf-thread-reaction-room: 0px; }
-/* A semantic separator draws its boundary without sizing the transcript. */
-.lf-read-boundary { height: 0; }
-/* One animated phase feeds every painted part of a message. Animating the
-   background itself lets Firefox's compositor leave an inheriting sticky head
-   behind; a typed inherited ground keeps both paints on the same frame. */
+.lf-say {
+  display: none;
+  align-items: flex-end;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+.lf-say leaf-text {
+  flex: 1;
+  min-width: 0;
+}
+.lf-page-thread-resolved {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  min-height: max(calc(1lh + 10px), var(--aim-floor));
+}
+.lf-thread-seat > .lf-say {
+  margin-top: 0;
+}
+.lf-page-thread + .lf-page-thread {
+  margin-top: calc(2 * var(--sp-3));
+}
+.lf-page-thread + .lf-page-thread::before {
+  content: "";
+  position: absolute;
+  inset-inline: var(--sp-1);
+  inset-block-start: calc(-1 * var(--sp-3));
+  border-top: 1px solid var(--rule);
+  pointer-events: none;
+}
+:root,
+.lf-page-thread,
+.lf-thread,
+.lf-fab-bar {
+  --lf-thread-text-inset: 13px;
+  --lf-msg-head-height: max(28px, var(--aim-floor));
+  --lf-msg-body-gap: 4px;
+}
+.lf-thread-transcript {
+  min-width: 0;
+  padding-inline: var(--lf-thread-text-inset) 0;
+}
+.lf-thread-content {
+  display: flow-root;
+  min-width: 0;
+  anchor-scope: --lf-thread-headline;
+  --lf-thread-action-room: var(--lf-msg-head-height);
+  --lf-thread-notice-room: var(--lf-msg-head-height);
+  --lf-thread-reaction-room: 0px;
+}
+.lf-read-boundary {
+  height: 0;
+}
 @property --lf-msg-ground { syntax: "<color>"; inherits: true; initial-value: transparent; }
 @property --lf-msg-arrival { syntax: "<number>"; inherits: false; initial-value: 0; }
-.lf-msg { margin: 16px 0 0; --lf-msg-rest-ground: transparent;
-          --lf-msg-ground: color-mix(in srgb,
-            var(--hi-tint) calc(var(--lf-msg-arrival) * 100%), var(--lf-msg-rest-ground));
-          background-color: var(--lf-msg-ground); }
-.lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) { margin-top: 0; }
-/* Every message header holds the same control-height row, including sticky margin
-   heads. Thread actions and reactions must not change its metadata-to-body gap.
-   An author may ellipsize while time and receipt use their own intrinsic room. */
-.lf-msg-head { display: flex; align-items: center; gap: var(--sp-2);
-          min-block-size: var(--lf-msg-head-height); box-sizing: border-box;
-          min-width: 0; overflow: hidden; white-space: nowrap;
-          font-size: var(--t-6); --lf-msg-name-size: 13px; }
-.lf-msg-head .lf-msg-meta { flex: 0 1 auto; overflow: hidden; }
-.lf-primary-message > .lf-msg-head { position: relative; padding-inline-end: 5rem; }
-.lf-primary-part { position: relative; }
-.lf-primary-part[data-lf-part="reply"] { padding-block-start: max(28px, var(--aim-floor)); }
-.lf-primary-news { position: absolute; inset-block-start: 0; inset-inline-end: 0;
-          max-inline-size: 5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lf-msg-head .lf-msg-sending { min-width: 0; overflow: hidden;
-          text-overflow: ellipsis; }
-.lf-msg-head b { flex: 0 1 auto; min-width: 0; overflow: hidden;
-          text-overflow: ellipsis; font-size: var(--lf-msg-name-size);
-          font-weight: 600; color: var(--ink); }
-/* A checkpoint is agent-written reading context, followed by the retained originals
-   it covers. One disclosure beside that context controls the entire range. */
-.lf-thread-checkpoint { margin-block: 16px; }
-.lf-thread-checkpoint[hidden] { display: none; }
-/* An inset border groups the retained messages without changing their headers
-   or giving progress a separate background. Collapsed disclosures stay inline. */
-.lf-thread-checkpoint[data-expanded="true"] { margin-block: 12px;
-  border: 1px solid var(--rule); border-radius: 5px; padding: 6px 12px; }
-.lf-summary-checkpoint { padding-block: 4px; }
-/* Keep the context label readable when the disclosure needs another line. */
-.lf-summary-header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
-.lf-summary-label { min-width: 0; overflow-wrap: anywhere; color: var(--muted); font: 500 11px/1.3 var(--sans); }
-.lf-summary-text { color: var(--ink-2); font-size: var(--t-5); line-height: 1.5;
-  overflow-wrap: anywhere; user-select: text; }
-.lf-summary-text > :first-child { margin-top: 0; }
-.lf-summary-text > :last-child { margin-bottom: 0; }
-.lf-thread-disclosure { min-height: var(--aim-floor); max-inline-size: 100%; flex-shrink: 0; border: 0;
-  padding: 4px 0; background: transparent; color: var(--accent); font: 600 11px/1.4 var(--sans);
-  cursor: pointer; }
-/* Progress belongs to the completing reply's metadata, with no summary row.
-   Flex wrapping keeps its complete label and hit target at narrow widths. */
-.lf-msg-head:has(> .lf-summary-expand) { flex-wrap: wrap; overflow: visible;
-  white-space: normal; row-gap: 0; }
-.lf-msg-head > .lf-thread-disclosure { padding-block: 0; }
-.lf-thread-disclosure:hover { text-decoration: underline; text-underline-offset: 3px; }
-.lf-summary-required { margin-top: 6px; color: var(--turn-ink); font: 600 11px/1.4 var(--sans); }
-.lf-summary-originals { min-width: 0; }
-.lf-summary-originals[hidden] { display: none; }
-.lf-summary-originals > .lf-msg { margin-block: 8px; }
+.lf-msg {
+  margin: 16px 0 0;
+  --lf-msg-rest-ground: transparent;
+  --lf-msg-ground: color-mix(in srgb, var(--hi-tint) calc(var(--lf-msg-arrival) * 100%), var(--lf-msg-rest-ground));
+  background-color: var(--lf-msg-ground);
+}
+.lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) {
+  margin-top: 0;
+}
+.lf-msg-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-block-size: var(--lf-msg-head-height);
+  box-sizing: border-box;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: var(--t-6);
+  --lf-msg-name-size: 13px;
+}
+.lf-msg-head .lf-msg-meta {
+  flex: 0 1 auto;
+  overflow: hidden;
+}
+.lf-primary-message > .lf-msg-head {
+  position: relative;
+  padding-inline-end: 5rem;
+}
+.lf-primary-part {
+  position: relative;
+}
+.lf-primary-part[data-lf-part=reply] {
+  padding-block-start: max(28px, var(--aim-floor));
+}
+.lf-primary-news {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  max-inline-size: 5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lf-msg-head .lf-msg-sending {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lf-msg-head b {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--lf-msg-name-size);
+  font-weight: 600;
+  color: var(--ink);
+}
+.lf-thread-checkpoint {
+  margin-block: 16px;
+}
+.lf-thread-checkpoint[hidden] {
+  display: none;
+}
+.lf-thread-checkpoint[data-expanded=true] {
+  margin-block: 12px;
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  padding: 6px 12px;
+}
+.lf-summary-checkpoint {
+  padding-block: 4px;
+}
+.lf-summary-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+.lf-summary-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font: 500 11px/1.3 var(--sans);
+}
+.lf-summary-text {
+  color: var(--ink-2);
+  font-size: var(--t-5);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.lf-summary-text > :first-child {
+  margin-top: 0;
+}
+.lf-summary-text > :last-child {
+  margin-bottom: 0;
+}
+.lf-thread-disclosure {
+  min-height: var(--aim-floor);
+  max-inline-size: 100%;
+  flex-shrink: 0;
+  border: 0;
+  padding: 4px 0;
+  background: transparent;
+  color: var(--accent);
+  font: 600 11px/1.4 var(--sans);
+  cursor: pointer;
+}
+.lf-msg-head:has(> .lf-summary-expand) {
+  flex-wrap: wrap;
+  overflow: visible;
+  white-space: normal;
+  row-gap: 0;
+}
+.lf-msg-head > .lf-thread-disclosure {
+  padding-block: 0;
+}
+.lf-thread-disclosure:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.lf-summary-required {
+  margin-top: 6px;
+  color: var(--turn-ink);
+  font: 600 11px/1.4 var(--sans);
+}
+.lf-summary-originals {
+  min-width: 0;
+}
+.lf-summary-originals[hidden] {
+  display: none;
+}
+.lf-summary-originals > .lf-msg {
+  margin-block: 8px;
+}
 .lf-thread-disclosure:is(:focus-visible, .lf-focus-visible) {
-  outline: var(--focus-ring); --lf-focus-ring: summary-fold;
-  outline-offset: calc(-1 * var(--focus-ring-w)); }
-/* Held news and header words spend separate retained allocations. A receipt may
-   change inside its metadata box, but cannot grow underneath the notice. */
+  outline: var(--focus-ring);
+  --lf-focus-ring: summary-fold;
+  outline-offset: calc(-1 * var(--focus-ring-w));
+}
 .lf-msg-head > .lf-held-header-item {
-          flex: 0 0 var(--lf-held-header-width);
-          max-inline-size: var(--lf-held-header-width);
-          box-sizing: border-box; overflow: hidden; }
-.lf-msg-meta.lf-held-header-item > time { flex-shrink: 0; }
-/* Independent controls overlay the first header's line outside message folds.
-   The line has a stationary box, and its notice begins at the metadata edge
-   ThreadView retains while news waits. Neither arrival nor changing words sizes
-   a message header, its reaction control, or the full-width body below it. */
-.lf-thread-controls { position: absolute; position-anchor: --lf-thread-headline;
-          inset-inline-start: anchor(left); inset-block-start: anchor(center); translate: 0 -50%;
-          inline-size: calc(anchor-size(width) + var(--lf-thread-action-room) + var(--sp-2));
-          block-size: var(--lf-thread-action-room);
-          display: flex; align-items: center; pointer-events: none;
-          font-size: var(--t-6); }
-.lf-thread-controls > * { pointer-events: auto; }
-.lf-thread-content:has(> .lf-thread-controls) > .lf-thread-transcript
-  > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-msg-head {
-          anchor-name: --lf-thread-headline;
-          margin-inline-end: calc(var(--lf-thread-action-room) + var(--sp-2));
-          padding-inline-end: calc(var(--lf-thread-notice-room) + var(--sp-2) + var(--lf-thread-reaction-room)); }
-.lf-thread-content:has(> .lf-thread-controls) > .lf-thread-transcript
-  > .lf-thread-checkpoint:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
-  > .lf-summary-checkpoint > .lf-summary-header {
-          anchor-name: --lf-thread-headline;
-          min-height: var(--lf-thread-action-room); box-sizing: border-box;
-          margin-inline-end: calc(var(--lf-thread-action-room) + var(--sp-2));
-          padding-inline-end: calc(var(--lf-thread-notice-room) + var(--sp-2)); }
-.lf-thread-content:has(> .lf-thread-controls):has(> .lf-thread-transcript
-  > .lf-msg.agent:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-react-strip) {
-          --lf-thread-reaction-room: calc(max(26px, var(--aim-floor)) + var(--sp-2)); }
-.lf-thread-content:has(> .lf-thread-controls) > .lf-thread-transcript
-  > .lf-msg.agent:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-msg-head {
-          anchor-name: --lf-thread-headline, --lf-msg-head; }
-.lf-thread-meta-actions { display: inline-flex; flex: none; align-items: center;
-          gap: 4px; margin-inline-start: auto; }
+  flex: 0 0 var(--lf-held-header-width);
+  max-inline-size: var(--lf-held-header-width);
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.lf-msg-meta.lf-held-header-item > time {
+  flex-shrink: 0;
+}
+.lf-thread-controls {
+  position: absolute;
+  position-anchor: --lf-thread-headline;
+  inset-inline-start: anchor(left);
+  inset-block-start: anchor(center);
+  translate: 0 -50%;
+  inline-size: calc(anchor-size(width) + var(--lf-thread-action-room) + var(--sp-2));
+  block-size: var(--lf-thread-action-room);
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+  font-size: var(--t-6);
+}
+.lf-thread-controls > * {
+  pointer-events: auto;
+}
+.lf-thread-content:has(> .lf-thread-controls) > .lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-msg-head {
+  anchor-name: --lf-thread-headline;
+  margin-inline-end: calc(var(--lf-thread-action-room) + var(--sp-2));
+  padding-inline-end: calc(var(--lf-thread-notice-room) + var(--sp-2) + var(--lf-thread-reaction-room));
+}
+.lf-thread-content:has(> .lf-thread-controls) > .lf-thread-transcript > .lf-thread-checkpoint:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-summary-checkpoint > .lf-summary-header {
+  anchor-name: --lf-thread-headline;
+  min-height: var(--lf-thread-action-room);
+  box-sizing: border-box;
+  margin-inline-end: calc(var(--lf-thread-action-room) + var(--sp-2));
+  padding-inline-end: calc(var(--lf-thread-notice-room) + var(--sp-2));
+}
+.lf-thread-content:has(> .lf-thread-controls):has(> .lf-thread-transcript > .lf-msg.agent:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-react-strip) {
+  --lf-thread-reaction-room: calc(max(26px, var(--aim-floor)) + var(--sp-2));
+}
+.lf-thread-content:has(> .lf-thread-controls) > .lf-thread-transcript > .lf-msg.agent:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-msg-head {
+  anchor-name: --lf-thread-headline, --lf-msg-head;
+}
+.lf-thread-meta-actions {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  margin-inline-start: auto;
+}
 .lf-thread-controls > .lf-thread-meta-actions {
-          min-height: var(--lf-thread-action-room); }
+  min-height: var(--lf-thread-action-room);
+}
 .lf-thread-controls > .lf-thread-news {
-          position: absolute;
-          inset-inline-start: calc(var(--lf-thread-news-start, 0px) + var(--sp-2));
-          inline-size: var(--lf-reserved-width, max-content);
-          max-inline-size: max(0px, min(
-            calc(100% - var(--lf-thread-news-start, 0px) - 2 * var(--sp-2) - var(--lf-thread-action-room) - var(--lf-thread-reaction-room)),
-            calc(var(--lf-thread-news-visible-end, 100%) - var(--lf-thread-news-start, 0px) - var(--sp-2))));
-          box-sizing: border-box; min-width: 0;
-          min-height: var(--lf-thread-action-room);
-          overflow: hidden; text-overflow: ellipsis;
-          white-space: nowrap; text-align: start; }
-/* Unread and held news share one text face in chrome and declared widget trees.
-   Their color says whether the conversation can be opened normally or is waiting
-   behind a deliberate reveal. A notice button keeps its aim floor without a chip's
-   border, fill or padding; a label inside a disclosure keeps the disclosure's hit box.
-   Both use an underline on hover, declining the generic pressable's inset wash. */
-.lf-thread-notice { color: var(--accent); font: 700 10px/14px var(--sans);
-          white-space: nowrap; }
-.lf-thread-notice-news { color: var(--danger); }
-button.lf-thread-notice { appearance: none; margin: 0; padding: 0;
-          border: 0; background: none; cursor: pointer; }
-.lf-thread-notice:hover { box-shadow: none; text-decoration: underline;
-          text-underline-offset: 3px; }
-button.lf-thread-notice:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
-          --lf-focus-ring: thread-notice; outline-offset: 1px; }
-/* What a seat holds while it would move the page under the reader (thread/held-news.js).
-   The rows it appears in already stand at the height of a control beside it: the head
-   controls row's Resolve, the resolved row's Reopen. Centred rather than on the row's baseline,
-   it asks for none of the depth below the words; in the resolved row it stands at the
-   end, beside Reopen, or in Reopen's place where it holds the reopening. A seat
-   that draws no thread shows it in its controls row's place, at the height the
-   runtime measured that row at. */
-.lf-thread-news { flex: none; align-self: center; }
-.lf-page-thread-resolved > .lf-thread-news { margin-inline-start: auto; }
-.lf-seat-news { display: flex; align-items: center; box-sizing: border-box; }
-.lf-msg-head time { color: var(--muted-2); }
-.lf-msg-head .lf-edited { color: var(--muted-2); }
-/* A thread projected inline uses the same receipt emphasis as the panel. */
-.lf-msg-head .lf-msg-failure { color: var(--warn-ink); font-weight: 600; }
-/* Prose faces reach the document and the layer's reading regions in declared
- * shadow trees. A widget's own source or controls keep its own sheet. */
-:where(:root, .lf-thread-transcript) a { color: var(--accent); text-underline-offset: var(--link-underline-offset);
-    text-decoration-color: var(--link-underline); }
-:where(:root, .lf-thread-transcript) a:hover { text-decoration-color: currentColor; }
-/* An identifier breaks where it must. A test name or a path is one word to the line
- * breaker, and a word a box cannot hold is either drawn past the box or holds the
- * box to its own width — in a table cell the latter: a column of 79-character test
- * names beside a column of prose held its column at 583px of the 720px measure, the
- * prose was squeezed to 118px and a few words a line, and the table ran 3174px tall
- * and scrolled 83px sideways for the rest. `anywhere` rather than `break-word`
- * because only `anywhere` counts the break when a box's minimum is measured, and a
- * table's columns are sized from exactly that: with it the same table stood
- * 112/352/256 and 1047px tall, scrolling nothing. On code and not on every cell,
- * because a cell's minimum is its longest word, and that is what keeps a column of
- * row names from being squeezed under the prose beside it — with every cell
- * breakable the same table's row names measured 55px. The minimum is what every
- * shrinking box is sized from, so a flex item or a grid track holding a long name
- * hands room to its neighbour the same way (a flex item measured 691px to 359px).
- * A block (pre) wraps nothing, so this reaches nothing there.
- *
- * Slice the decoration across lines so side padding belongs only to the span's
- * start and end. Cloning each fragment adds padding after line breaking and can
- * paint past the column. */
-/* Inline code keeps the line's flow and can fragment with its words. Declared
-   widget trees may carry a source renderer's bare code reset (Pierre's base layer
-   sets block display, content containment and isolation); this reading face owns
-   those properties too. */
-:where(:root, .lf-thread-transcript) code { background: var(--code-bg); border-radius: var(--code-inline-r);
-       padding: var(--code-inline-pad); font-size: var(--code-inline-size);
-       font-family: var(--mono); overflow-wrap: anywhere;
-       box-decoration-break: slice; display: inline; contain: none; isolation: auto; }
-/* A code block is sized by how many characters it takes across, which is why its size
- * is off the serif ladder above. At --code-size, the column keeps comfortably more
- * than the 80 characters most source is written to.
- *
- * The size and leading are tokens because plain blocks, upgraded widgets, and the diff's
- * shadow tree must keep one density through upgrade. */
-:where(:root, .lf-thread-transcript) pre { background: var(--pre-bg); border: 1px solid var(--code-border); border-radius: var(--r);
-      padding: 12px var(--pre-inset); overflow-x: auto; font-size: var(--code-size);
-      line-height: var(--code-line); font-family: var(--mono); color: var(--code-ink);
-      font-variant-ligatures: none;
-      /* A block that scrolls its own lines never sizes what holds it: without this a
-       * long line is every flex item's and grid track's minimum up the tree. */
-      contain: inline-size; container-type: scroll-state; }
-:where(:root, .lf-thread-transcript) pre > code { background: none; padding: 0; font-size: 100%; }
-/* An overlay scrollbar paints over the scroller's own block end, and macOS widens it to
- * a 15px track under the pointer: a thread's code block, 8px of padding under its last
- * line, lost half that line to the bar the moment the user reached for it. So a box of
- * text that scrolls sideways adds room below its content for the track. A box a widget
- * makes scroll text sideways says so with `lf-text-scroller`, as lf-diff's file and
- * lf-call-diff's call group do, is made a scroll-state container here, and adds the
- * whole track, since nothing here knows how close its last line sits to its edge. A code
- * block and a table are such boxes wherever they stand, and their own padding already
- * holds part of the track, so they add 8px, enough over the smallest inset either keeps,
- * a thread's code block or a cell's padding. The room is added only while the box
- * scrolls, since a box that fits has no bar to make room for, and asked of the engine
- * rather than of the runtime's sideways mark, which arrives after first paint and would
- * move the page under the reader. A classic scrollbar stands below the box instead, so
- * there the room is only a little more air above it. An engine without scroll-state
- * queries keeps the box as it was.
- *
- * A float and not a block: a block child wraps the lines in an anonymous block, whose
- * overflow the scroller no longer pads at its inline end, so the last character sat
- * against the edge and a block that overflowed by less than its inset stopped
- * scrolling, which removed the room, which made it scroll again, a ResizeObserver loop
- * in the command hub's ask. A float leaves the lines where they were, and at the box's
- * full width it can only stand below the last of them. In a grid, which ignores the
- * float, it takes a row of its own across every track. */
-.lf-text-scroller { container-type: scroll-state; }
+  position: absolute;
+  inset-inline-start: calc(var(--lf-thread-news-start, 0px) + var(--sp-2));
+  inline-size: var(--lf-reserved-width, max-content);
+  max-inline-size: max(0px, min(calc(100% - var(--lf-thread-news-start, 0px) - 2 * var(--sp-2) - var(--lf-thread-action-room) - var(--lf-thread-reaction-room)), calc(var(--lf-thread-news-visible-end, 100%) - var(--lf-thread-news-start, 0px) - var(--sp-2))));
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: var(--lf-thread-action-room);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: start;
+}
+.lf-thread-notice {
+  color: var(--accent);
+  font: 700 10px/14px var(--sans);
+  white-space: nowrap;
+}
+.lf-thread-notice-news {
+  color: var(--danger);
+}
+button.lf-thread-notice {
+  appearance: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.lf-thread-notice:hover {
+  box-shadow: none;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+button.lf-thread-notice:is(:focus-visible, .lf-focus-visible) {
+  outline: var(--focus-ring);
+  --lf-focus-ring: thread-notice;
+  outline-offset: 1px;
+}
+.lf-thread-news {
+  flex: none;
+  align-self: center;
+}
+.lf-page-thread-resolved > .lf-thread-news {
+  margin-inline-start: auto;
+}
+.lf-seat-news {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+}
+.lf-msg-head time {
+  color: var(--muted-2);
+}
+.lf-msg-head .lf-edited {
+  color: var(--muted-2);
+}
+.lf-msg-head .lf-msg-failure {
+  color: var(--warn-ink);
+  font-weight: 600;
+}
+
+/* skills/leaf/assets/styles/components/reading.css */
+:where(:root, .lf-thread-transcript) a {
+  color: var(--accent);
+  text-underline-offset: var(--link-underline-offset);
+  text-decoration-color: var(--link-underline);
+}
+:where(:root, .lf-thread-transcript) a:hover {
+  text-decoration-color: currentColor;
+}
+:where(:root, .lf-thread-transcript) code {
+  background: var(--code-bg);
+  border-radius: var(--code-inline-r);
+  padding: var(--code-inline-pad);
+  font-size: var(--code-inline-size);
+  font-family: var(--mono);
+  overflow-wrap: anywhere;
+  box-decoration-break: slice;
+  display: inline;
+  contain: none;
+  isolation: auto;
+}
+:where(:root, .lf-thread-transcript) pre {
+  background: var(--pre-bg);
+  border: 1px solid var(--code-border);
+  border-radius: var(--r);
+  padding: 12px var(--pre-inset);
+  overflow-x: auto;
+  font-size: var(--code-size);
+  line-height: var(--code-line);
+  font-family: var(--mono);
+  color: var(--code-ink);
+  font-variant-ligatures: none;
+  contain: inline-size;
+  container-type: scroll-state;
+}
+:where(:root, .lf-thread-transcript) pre > code {
+  background: none;
+  padding: 0;
+  font-size: 100%;
+}
+.lf-text-scroller {
+  container-type: scroll-state;
+}
 @container scroll-state(scrollable: inline) {
-  .lf-text-scroller::after, :where(:root, .lf-thread-transcript) :is(pre, table)::after {
-    content: ""; float: inline-start; inline-size: 100%; block-size: 15px;
-    grid-column: 1 / -1; }
-  :where(:root, .lf-thread-transcript) :is(pre, table)::after { block-size: 8px; }
+  .lf-text-scroller::after,
+  :where(:root, .lf-thread-transcript) :is(pre, table)::after {
+    content: "";
+    float: inline-start;
+    inline-size: 100%;
+    block-size: 15px;
+    grid-column: 1 / -1;
+  }
+  :where(:root, .lf-thread-transcript) :is(pre, table)::after {
+    block-size: 8px;
+  }
 }
-/* Paper has no scrollbar, so a line past the column is not a scroll away but gone. Code
-   wraps on the sheet whatever it does on screen, the trade lf-diff's own sheet already
-   makes for its rows. `anywhere` because what runs long in source is paths, URLs and
-   minified data, none of which offer the line box a break to find. `overflow-x` is left
-   alone: once the line wraps there is nothing to scroll, and releasing the clip would
-   only let what cannot wrap paint out through the block's own border. A rule that
-   restates `white-space` for its own box states the paper half beside itself, because
-   naming that box here would tie on specificity and lose on source order, and `@media`
-   contributes nothing to break the tie. */
 @media print {
-  :where(:root, .lf-thread-transcript) pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+  :where(:root, .lf-thread-transcript) pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
 }
-:where(:root, .lf-thread-transcript) blockquote { margin: 18px 0; padding: 2px var(--quote-inset);
-             border-left: var(--quote-rule); color: var(--muted);
-             font-style: var(--quote-style); --lf-block-frame: 1; }
-/* One owner for message type and spacing on every surface, including widget shadow
-   trees. The editor and messages share the theme's entry-size floor. A contextual
-   card supplies its editor's vertical inset; retaining its viewport never changes
-   these rules.
-   Paragraphs keep the editor's whitespace and a blank line between them through
-   send, replies and reopening. */
-  :is(.lf-thread-transcript, .lf-thread-reply, .lf-general) { --quote-inset: 10px; --pre-inset: 10px; }
-  leaf-text.lf-fab-input, .lf-msg-body {
-          font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans); color: var(--ink); }
-  .lf-msg-body { min-width: 0; margin: var(--lf-msg-body-gap) 0 0; overflow-wrap: anywhere; }
-  .lf-msg-text { display: block; padding-block: var(--lf-thread-text-pad-block, 0px); }
-  .lf-msg-text > :first-child { margin-top: 0; }
-  .lf-msg-body > :last-child, .lf-msg-text > :last-child { margin-bottom: 0; }
-  .lf-msg-body :is(p, ul, ol, pre, blockquote, table, hr) { margin: 6px 0; }
-  .lf-msg-text > p { font: inherit; white-space: break-spaces; margin-block: 1lh; }
-  /* Prose here breaks anywhere, because the thing a reply overflows on is a URL
-     no wrap can help. A table is the one block in a reply with somewhere else to
-     put the width — the theme makes it scroll inside itself — so breaking its
-     cells to save that room spends the alignment the table was written for:
-     "12,000" arrived as "12,0" over "00", in a column of figures to compare. */
-  .lf-msg-body :is(th, td) { overflow-wrap: normal; }
-  .lf-msg-body :is(h1, h2, h3, h4, h5, h6) { margin: 8px 0 4px;
-          font-size: inherit; line-height: inherit; }
-  .lf-msg-body li { margin: 2px 0; }
-  .lf-msg-body pre { padding-block: 8px; }
-.lf-drawing-reference { display: block; margin-top: 2px; color: var(--muted-2);
-          font: 500 var(--t-6)/1.35 var(--sans); }
-.lf-page-thread-open { margin-top: var(--sp-2); }
-.lf-page-thread-resolved { margin-top: var(--sp-2); color: var(--ok); }
-.lf-page-thread-summary { padding: 8px 10px; color: var(--ok); cursor: pointer;
-          font-weight: 600; }
-.lf-page-thread[open] > .lf-page-thread-summary { margin-bottom: var(--sp-2);
-          border-bottom: 1px solid var(--rule); }
-.lf-page-thread > .lf-page-thread-summary[hidden] { display: none; }
-.lf-page-thread .lf-btn { font: inherit; }
+:where(:root, .lf-thread-transcript) blockquote {
+  margin: 18px 0;
+  padding: 2px var(--quote-inset);
+  border-left: var(--quote-rule);
+  color: var(--muted);
+  font-style: var(--quote-style);
+  --lf-block-frame: 1;
+}
+:where(:root, .lf-thread-transcript) table {
+  display: block;
+  overflow-x: auto;
+  container-type: inline-size scroll-state;
+  --lf-top: 0px;
+  border-collapse: collapse;
+  font: var(--t-5)/1.5 var(--sans);
+  margin: 18px 0;
+  font-variant-numeric: tabular-nums;
+}
+@property --lf-fills-frame { syntax: "<integer>"; inherits: false; initial-value: 0; }
+:where(:root, .lf-thread-transcript) table:where([data-lf-space], [data-lf-space] *) {
+  --lf-fills-frame: 1;
+}
+@container style(--lf-block-frame: 1) {
+  :where(:root, .lf-thread-transcript) table {
+    --lf-fills-frame: 1;
+  }
+}
+@container style(--lf-fills-frame: 1) {
+  :where(:root, .lf-thread-transcript) table::before {
+    content: "";
+    display: table-caption;
+    min-inline-size: 100cqi;
+  }
+}
+:where(:root, .lf-thread-transcript) :is(th, td) code:not(pre code) {
+  padding: 0;
+  background: none;
+  font-size: 0.9em;
+}
+:where(:root, .lf-thread-transcript) caption {
+  text-align: left;
+  font-size: var(--t-6);
+  color: var(--muted);
+  margin-bottom: 6px;
+  position: sticky;
+  left: 0;
+  max-inline-size: 100cqi;
+}
+:where(:root, .lf-thread-transcript) :is(th, td) {
+  text-align: left;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+  --lf-block-frame: 1;
+}
+:where(:root, .lf-thread-transcript) tr > :first-child {
+  padding-left: 0;
+}
+:where(:root, .lf-thread-transcript) tr > :last-child {
+  padding-right: 0;
+}
+:where(:root, .lf-thread-transcript) :where(th, td):focus-visible {
+  outline-offset: calc(-1 * var(--focus-ring-w));
+}
+:where(:root, .lf-thread-transcript) th:not([scope=row]) {
+  font-size: var(--t-working-label);
+  color: var(--muted);
+  font-weight: 600;
+  border-bottom-color: var(--border-2);
+}
+:where(:root, .lf-thread-transcript) th[scope=row] {
+  font-weight: 600;
+}
+:where(:root, .lf-thread-transcript) :is(ul, ol) {
+  margin: 10px 0;
+  padding-left: 24px;
+}
+:where(:root, .lf-thread-transcript) li {
+  margin: 6px 0;
+}
+:where(:root, .lf-thread-transcript) hr {
+  border: none;
+  border-top: 1px solid var(--rule);
+  margin: 40px 0;
+}
+:is(.lf-thread-transcript, .lf-thread-reply, .lf-general) {
+  --quote-inset: 10px;
+  --pre-inset: 10px;
+}
+leaf-text.lf-fab-input,
+.lf-fab-bar .lf-compose-placeholder,
+.lf-msg-body {
+  font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans);
+  color: var(--ink);
+}
+.lf-msg-body {
+  min-width: 0;
+  margin: var(--lf-msg-body-gap) 0 0;
+  overflow-wrap: anywhere;
+}
+.lf-msg-text {
+  display: block;
+  padding-block: var(--lf-thread-text-pad-block, 0px);
+}
+.lf-msg-text > :first-child {
+  margin-top: 0;
+}
+.lf-msg-body > :last-child,
+.lf-msg-text > :last-child {
+  margin-bottom: 0;
+}
+.lf-msg-body :is(p, ul, ol, pre, blockquote, table, hr) {
+  margin: 6px 0;
+}
+.lf-msg-text > p {
+  font: inherit;
+  white-space: break-spaces;
+  margin-block: 1lh;
+}
+.lf-msg-body :is(th, td) {
+  overflow-wrap: normal;
+}
+.lf-msg-body :is(h1, h2, h3, h4, h5, h6) {
+  margin: 8px 0 4px;
+  font-size: inherit;
+  line-height: inherit;
+}
+.lf-msg-body li {
+  margin: 2px 0;
+}
+.lf-msg-body pre {
+  padding-block: 8px;
+}
+:where([data-lf-content=data]:not([data-lf-verbatim])) {
+  display: block;
+  margin: 14px 0;
+}
+:where([data-lf-content=data]:not([data-lf-verbatim]):not(.lf-rendered)) {
+  font-family: var(--mono);
+  font-size: var(--code-size);
+  line-height: var(--code-line);
+  font-variant-ligatures: none;
+  color: var(--code-muted);
+  overflow-x: auto;
+}
+:where([data-lf-content=data]:not([data-lf-verbatim]):not(.lf-rendered)) > pre {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  line-height: inherit;
+  overflow: visible;
+}
+
+/* skills/leaf/assets/styles/components/controls.css */
+.lf-drawing-reference {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted-2);
+  font: 500 var(--t-6)/1.35 var(--sans);
+}
+.lf-page-thread-open {
+  margin-top: var(--sp-2);
+}
+.lf-page-thread-resolved {
+  margin-top: var(--sp-2);
+  color: var(--ok);
+}
+.lf-page-thread-summary {
+  padding: 8px 10px;
+  color: var(--ok);
+  cursor: pointer;
+  font-weight: 600;
+}
+.lf-page-thread[open] > .lf-page-thread-summary {
+  margin-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--rule);
+}
+.lf-page-thread > .lf-page-thread-summary[hidden] {
+  display: none;
+}
+.lf-page-thread .lf-btn {
+  font: inherit;
+}
 .lf-page-thread :is(.lf-btn, summary):is(:focus-visible, .lf-focus-visible) {
-          outline: var(--focus-ring); outline-offset: 1px; --lf-focus-ring: thread; }
+  outline: var(--focus-ring);
+  outline-offset: 1px;
+  --lf-focus-ring: thread;
+}
 @media print {
   .lf-page-thread,
   .lf-page-thread :is(.lf-msg, .lf-page-thread-resolved) {
-          display: block !important; }
+    display: block !important;
+  }
   .lf-page-thread :is(.lf-thread-reply, .lf-say, button, .lf-msg-sending) {
-          display: none !important; }
+    display: none !important;
+  }
 }
-/* The outline chip: the kernel's chip geometry (the chip tokens in theme.css's :root)
-   with a hairline edge on the card, the compact label the chrome and the thread
-   surfaces share, stated here and nowhere else. It is not the default package's
-   a label, whose face is the filled .tag, so it is named for the edge it adds. It
-   stands in this file because a thread seated in a declared widget tree is out of
-   every document selector's reach, and drew the platform's button instead: on the
-   dark scheme its ButtonFace grey put the muted word at 1.86:1.
-
-   The family is spelled rather than inherited. `font: inherit` clears the UA's button
-   face, which is all a chip inside a thread ever needed, but it also hands the chip
-   whatever family its holder has — the thread's sans in a widget tree, and the
-   document's serif for a chip standing in the page's own prose. */
-.lf-outline-chip { appearance: none; margin: 0; padding: var(--chip-pad);
-          white-space: nowrap;
-          border: 1px solid var(--border-2); border-radius: var(--chip-r);
-          background: var(--card); color: var(--ink-2);
-          font: inherit; font-family: var(--sans);
-          font-size: var(--t-6); line-height: var(--chip-lh); }
-.lf-outline-chip:is(button, [role="button"]) { cursor: pointer; }
-.lf-outline-chip:is(button, [role="button"]):hover { background: var(--chip); }
-/* A finger's floor is taller than a chip's line, so a pressed chip centres its words
-   in the room the floor gives it. */
+.lf-outline-chip {
+  appearance: none;
+  margin: 0;
+  padding: var(--chip-pad);
+  white-space: nowrap;
+  border: 1px solid var(--border-2);
+  border-radius: var(--chip-r);
+  background: var(--card);
+  color: var(--ink-2);
+  font: inherit;
+  font-family: var(--sans);
+  font-size: var(--t-6);
+  line-height: var(--chip-lh);
+}
+.lf-outline-chip:is(button, [role=button]) {
+  cursor: pointer;
+}
+.lf-outline-chip:is(button, [role=button]):hover {
+  background: var(--chip);
+}
 @media (pointer: coarse) {
-  .lf-outline-chip:is(button, [role="button"]) { display: inline-flex;
-          align-items: center; }
+  .lf-outline-chip:is(button, [role=button]) {
+    display: inline-flex;
+    align-items: center;
+  }
 }
-.lf-outline-chip:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
-          --lf-focus-ring: chip; outline-offset: 1px; }
-/* Reaction controls own their resting, selected and interactive appearance together.
-   A surface places and reveals them without restating their ink, border or fill.
-   Margin reactions wear the margin-entry family (theme.css); response actions keep
-   an opaque resting surface because they float over page content. */
-.lf-react-trigger { color: var(--muted); border: 1px solid transparent;
-          background: transparent; }
-.lf-react-trigger:is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"]) {
-          color: var(--ink-2); border-color: var(--border-2); background: var(--chip); }
-.lf-react { display: inline-flex; align-items: center; justify-content: center; gap: 4px;
-          min-width: max(26px, var(--aim-floor)); }
-.lf-react:not(.lf-margin-entry) { color: var(--muted);
-          border-color: transparent; background: transparent; }
-.lf-react:not(.lf-margin-entry):is([aria-pressed="true"], :hover, :focus-visible,
-          .lf-focus-visible, [aria-busy="true"]) {
-          color: var(--ink-2); border-color: var(--border-2); background: var(--chip); }
-.lf-react.lf-response-action:not([aria-pressed="true"]) { background: var(--card); }
-.lf-react[aria-busy="true"] { opacity: .55; }
-/* A reaction's word, while a press on it is held or the keyboard stands on it
-   (held-word.js): the finger's and the keyboard's reading of a face that is
-   otherwise one glyph. The word is the choice's own name, so it says what the accessible
-   name says, and it stands above the choice, where the finger pressing it does not cover
-   it. The press owns the gesture, so it neither scrolls nor opens the platform's
-   long-press menu; a margin choice says its word through its own label (theme.css). */
-.lf-react { touch-action: none; -webkit-touch-callout: none;
-          user-select: none; -webkit-user-select: none; }
-.lf-react:not(.lf-margin-entry) { position: relative; }
+.lf-outline-chip:is(:focus-visible, .lf-focus-visible) {
+  outline: var(--focus-ring);
+  --lf-focus-ring: chip;
+  outline-offset: 1px;
+}
+.lf-react-trigger {
+  color: var(--muted);
+  border: 1px solid transparent;
+  background: transparent;
+}
+.lf-react-trigger:is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded=true]) {
+  color: var(--ink-2);
+  border-color: var(--border-2);
+  background: var(--chip);
+}
+.lf-react {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: max(26px, var(--aim-floor));
+}
+.lf-react:not(.lf-margin-entry) {
+  color: var(--muted);
+  border-color: transparent;
+  background: transparent;
+}
+.lf-react:not(.lf-margin-entry):is([aria-pressed=true], :hover, :focus-visible, .lf-focus-visible, [aria-busy=true]) {
+  color: var(--ink-2);
+  border-color: var(--border-2);
+  background: var(--chip);
+}
+.lf-react.lf-response-action:not([aria-pressed=true]) {
+  background: var(--card);
+}
+.lf-react[aria-busy=true] {
+  opacity: .55;
+}
+.lf-react {
+  touch-action: none;
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.lf-react:not(.lf-margin-entry) {
+  position: relative;
+}
 .lf-react:not(.lf-margin-entry):is([data-lf-held-word], :focus-visible, .lf-focus-visible)::after {
-          content: attr(aria-label); position: absolute; z-index: 5;
-          inset-block-end: calc(100% + 6px); inset-inline-start: 50%; translate: -50% 0;
-          width: max-content; max-width: 220px; padding: 4px 7px; border-radius: 4px;
-          background: var(--ink); color: var(--paper); box-shadow: 0 2px 8px var(--shade);
-          font: 500 var(--t-6)/1.2 var(--sans); white-space: nowrap; pointer-events: none; }
-/* A reaction surface offers one quiet trigger. It disappears when its list opens;
-   a standing token remains visible in a closed message strip as the user's receipt
-   and eraser. */
-.lf-react-palette { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; }
-.lf-react-open > .lf-react-trigger { display: none; }
-.lf-react-surface .lf-react-palette:not(:popover-open) > .lf-react:not([aria-pressed="true"]) {
-          display: none; }
-.lf-react-strip > .lf-react-palette:not(:popover-open, :has(> [aria-pressed="true"])) {
-          display: none; }
-/* A reply with no feedback keeps no row. Its add control follows the message
-   header's right edge and centre, including when thread actions narrow that header;
-   the full-width message body does not place it. It appears only for the message
-   under pointer or keyboard focus.
-   The picker is an overlaid menu below that control; opening it never moves this
-   message or the threads after it. At rest only feedback already left earns
-   flow space. */
-.lf-msg.agent { anchor-scope: --lf-msg-head; }
-.lf-msg.agent > .lf-msg-head { anchor-name: --lf-msg-head; }
-.lf-msg.agent:has(> .lf-react-strip) > .lf-msg-head {
-          --lf-react-row: max(26px, var(--aim-floor));
-          padding-inline-end: var(--lf-react-row); }
-.lf-react-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
-          margin-top: 0; anchor-scope: --lf-react-trigger; }
-.lf-react-strip:has(.lf-react[aria-pressed="true"]) { margin-top: 4px; }
-.lf-react-strip > .lf-react-trigger {
-          appearance: none; position: absolute; z-index: 2; anchor-name: --lf-react-trigger;
-          position-anchor: --lf-msg-head;
-          inset-block-start: anchor(center); inset-inline-end: anchor(right); translate: 0 -50%;
-          box-sizing: border-box; inline-size: 26px; block-size: 26px; padding: 0;
-          display: inline-flex; align-items: center; justify-content: center;
-          border-radius: var(--r);
-          opacity: 0; cursor: pointer; }
-.lf-react-strip.lf-react-open > .lf-react-trigger { display: inline-flex; }
-.lf-react-trigger-icon { inline-size: 16px; block-size: 16px; overflow: visible;
-          fill: none; stroke: currentColor; stroke-width: 1.6;
-          stroke-linecap: round; stroke-linejoin: round; }
-.lf-msg.agent:is(:hover, :focus-within)
-          > .lf-react-strip > .lf-react-trigger,
-.lf-react-strip > .lf-react-trigger:is(:focus-visible, .lf-focus-visible) {
-          opacity: 1; }
-/* The list is an auto popover, in the top layer: open, it stands over everything in
-   the thread, the sticky title and reply row included, so its message is never raised
-   among the rows to carry it, and closing it hands focus back to where the user opened
-   it from, the platform's return. Its trigger is its source, so a press on the trigger
-   is not a press outside it, and its anchor, named here since a source sets none. Hung
-   below the trigger, or above where the window has no room below, it follows the
-   message as the list scrolls, and closes once the trigger is out of view
-   (reactions.js). Closed, it is the strip's own row of standing reactions, in flow,
-   so the popover's UA box is taken off; whether it is open is read off the popover
-   alone, so a light dismiss leaves no frame between. */
-.lf-react-strip > .lf-react-palette[popover] {
-          position: static; margin: 0; padding: 0; border: 0;
-          width: auto; height: auto; overflow: visible; color: inherit;
-          background: none; }
-.lf-react-strip > .lf-react-palette:popover-open {
-          position: fixed; position-anchor: --lf-react-trigger;
-          position-visibility: anchors-visible;
-          position-try-fallbacks: flip-block;
-          top: calc(anchor(bottom) + 4px); right: anchor(right); left: auto; bottom: auto;
-          width: max-content; max-width: calc(100vw - 16px);
-          padding: 4px;
-          border: 1px solid var(--border-2); border-radius: var(--r);
-          background: var(--card); box-shadow: 0 4px 12px var(--shade); }
-:where(.lf-react-strip > .lf-react-palette:popover-open) > .lf-react {
-          box-sizing: border-box; inline-size: 32px; block-size: 32px; padding: 0;
-          font-size: 16px; }
-@media (hover: none) {
-  .lf-react-strip > .lf-react-trigger { opacity: 1; }
+  content: attr(aria-label);
+  position: absolute;
+  z-index: 5;
+  inset-block-end: calc(100% + 6px);
+  inset-inline-start: 50%;
+  translate: -50% 0;
+  width: max-content;
+  max-width: 220px;
+  padding: 4px 7px;
+  border-radius: 4px;
+  background: var(--ink);
+  color: var(--paper);
+  box-shadow: 0 2px 8px var(--shade);
+  font: 500 var(--t-6)/1.2 var(--sans);
+  white-space: nowrap;
+  pointer-events: none;
 }
-/* Under a finger the always-visible reaction takes the aim floor. The common
-   header row already holds its height; reserve its inline room here too. */
+.lf-react-palette {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.lf-react-open > .lf-react-trigger {
+  display: none;
+}
+.lf-react-surface .lf-react-palette:not(:popover-open) > .lf-react:not([aria-pressed=true]) {
+  display: none;
+}
+.lf-react-strip > .lf-react-palette:not(:popover-open, :has(> [aria-pressed=true])) {
+  display: none;
+}
+.lf-msg.agent {
+  anchor-scope: --lf-msg-head;
+}
+.lf-msg.agent > .lf-msg-head {
+  anchor-name: --lf-msg-head;
+}
+.lf-msg.agent:has(> .lf-react-strip) > .lf-msg-head {
+  --lf-react-row: max(26px, var(--aim-floor));
+  padding-inline-end: var(--lf-react-row);
+}
+.lf-react-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 0;
+  anchor-scope: --lf-react-trigger;
+}
+.lf-react-strip:has(.lf-react[aria-pressed=true]) {
+  margin-top: 4px;
+}
+.lf-react-strip > .lf-react-trigger {
+  appearance: none;
+  position: absolute;
+  z-index: 2;
+  anchor-name: --lf-react-trigger;
+  position-anchor: --lf-msg-head;
+  inset-block-start: anchor(center);
+  inset-inline-end: anchor(right);
+  translate: 0 -50%;
+  box-sizing: border-box;
+  inline-size: 26px;
+  block-size: 26px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r);
+  opacity: 0;
+  cursor: pointer;
+}
+.lf-react-strip.lf-react-open > .lf-react-trigger {
+  display: inline-flex;
+}
+.lf-react-trigger-icon {
+  inline-size: 16px;
+  block-size: 16px;
+  overflow: visible;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.lf-msg.agent:is(:hover, :focus-within) > .lf-react-strip > .lf-react-trigger,
+.lf-react-strip > .lf-react-trigger:is(:focus-visible, .lf-focus-visible) {
+  opacity: 1;
+}
+.lf-react-strip > .lf-react-palette[popover] {
+  position: static;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  color: inherit;
+  background: none;
+}
+.lf-react-strip > .lf-react-palette:popover-open {
+  position: fixed;
+  position-anchor: --lf-react-trigger;
+  position-visibility: anchors-visible;
+  position-try-fallbacks: flip-block;
+  top: calc(anchor(bottom) + 4px);
+  right: anchor(right);
+  left: auto;
+  bottom: auto;
+  width: max-content;
+  max-width: calc(100vw - 16px);
+  padding: 4px;
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--card);
+  box-shadow: 0 4px 12px var(--shade);
+}
+:where(.lf-react-strip > .lf-react-palette:popover-open) > .lf-react {
+  box-sizing: border-box;
+  inline-size: 32px;
+  block-size: 32px;
+  padding: 0;
+  font-size: 16px;
+}
+@media (hover: none) {
+  .lf-react-strip > .lf-react-trigger {
+    opacity: 1;
+  }
+}
 @media (pointer: coarse), (hover: none) {
   .lf-msg.agent > .lf-msg-head {
-          --lf-react-row: max(26px, var(--aim-floor));
-          padding-inline-end: var(--lf-react-row); }
-}
-.lf-msg-meta { display: flex; align-items: baseline; gap: var(--sp-2); min-width: 0; }
-.lf-msg-sending { color: var(--muted); font-weight: 600; white-space: nowrap; }
-.lf-msg-sending::before { content: "\00b7"; margin-inline-end: 6px;
-          color: var(--muted-2); }
-.lf-msg-meta > time { flex: none; }
-/* The runtime's mark on a static box whose computed overflow scrolls (reachScrollers,
- * for what escaped such a box and why the mark is read from the composed page rather
- * than declared here beside each overflow), so no rule in this file or a package's
- * states a position for its scroller's sake. In this file because the sweep enters
- * every declared tree, and a diff's lines scroll in one. No offsets: relative moves
- * nothing. */
-[data-lf-holds] { position: relative; }
-/* The layer's marks for a box that shows less than it holds across (reachScrollers, for
- * why the sweep and not a rule beside each overflow decides who wears them). Scrolling
- * is the honest answer when the room ran short, and on a platform drawing overlay
- * scrollbars it is an answer the user is never given: a flowchart cut 356px of 1026
- * inside a tab panel read as a finished graph at every width from 1200 to 1920. A cut
- * line of code announces itself by being a line; a drawing announces nothing, so the box
- * says it.
- *
- * The visible content fades at each edge that has more beyond it. The fade follows the
- * scroll position: inline end at the start, both edges in the middle, and inline start
- * at the end. Masking the box makes the content itself recede instead of casting an
- * unexplained shadow behind it. That is right for text, where a word fading at the edge
- * reads as cut. A widget whose content reads otherwise states how wide the fade is
- * (--lf-more-fade, 24px) and how much of the content is left at the edge
- * (--lf-more-fade-to, none); lf-diagram's theme does, for a drawing. Focus within
- * removes the mask so the scroller's complete ring and controls painted outside its box
- * remain visible; the user standing there already has the platform's scroll affordance.
- *
- * Neither the mask nor its attributes affect layout, so observing the scroller cannot
- * feed the measurement back into itself. Screen only, because a mark whose whole
- * meaning is "scroll to see the rest" says nothing on a sheet nobody can scroll. The
- * page writes its reading on each scroll. */
-@media screen {
-  [data-lf-more-after]:where(
-      [data-lf-scroll-direction="ltr"]:not([data-lf-more-before])
-    ),
-  [data-lf-more-before]:where(
-      [data-lf-scroll-direction="rtl"]:not([data-lf-more-after])
-    ) {
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - var(--lf-more-fade, 24px)), var(--lf-more-fade-to, transparent));
-    mask-image: linear-gradient(to right, #000 calc(100% - var(--lf-more-fade, 24px)), var(--lf-more-fade-to, transparent));
+    --lf-react-row: max(26px, var(--aim-floor));
+    padding-inline-end: var(--lf-react-row);
   }
-  [data-lf-more-before]:where(
-      [data-lf-scroll-direction="ltr"]:not([data-lf-more-after])
-    ),
-  [data-lf-more-after]:where(
-      [data-lf-scroll-direction="rtl"]:not([data-lf-more-before])
-    ) {
-    -webkit-mask-image: linear-gradient(to right, var(--lf-more-fade-to, transparent), #000 var(--lf-more-fade, 24px));
-    mask-image: linear-gradient(to right, var(--lf-more-fade-to, transparent), #000 var(--lf-more-fade, 24px));
+}
+.lf-msg-meta {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.lf-msg-sending {
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.lf-msg-sending::before {
+  content: "·";
+  margin-inline-end: 6px;
+  color: var(--muted-2);
+}
+.lf-msg-meta > time {
+  flex: none;
+}
+[data-lf-holds] {
+  position: relative;
+}
+@media screen {
+  [data-lf-more-after]:where([data-lf-scroll-direction=ltr]:not([data-lf-more-before])),
+  [data-lf-more-before]:where([data-lf-scroll-direction=rtl]:not([data-lf-more-after])) {
+    -webkit-mask-image:
+      linear-gradient(
+        to right,
+        #000 calc(100% - var(--lf-more-fade, 24px)),
+        var(--lf-more-fade-to, transparent));
+    mask-image:
+      linear-gradient(
+        to right,
+        #000 calc(100% - var(--lf-more-fade, 24px)),
+        var(--lf-more-fade-to, transparent));
+  }
+  [data-lf-more-before]:where([data-lf-scroll-direction=ltr]:not([data-lf-more-after])),
+  [data-lf-more-after]:where([data-lf-scroll-direction=rtl]:not([data-lf-more-before])) {
+    -webkit-mask-image:
+      linear-gradient(
+        to right,
+        var(--lf-more-fade-to, transparent),
+        #000 var(--lf-more-fade, 24px));
+    mask-image:
+      linear-gradient(
+        to right,
+        var(--lf-more-fade-to, transparent),
+        #000 var(--lf-more-fade, 24px));
   }
   [data-lf-more-before][data-lf-more-after] {
-    -webkit-mask-image: linear-gradient(
-      to right,
-      var(--lf-more-fade-to, transparent),
-      #000 var(--lf-more-fade, 24px),
-      #000 calc(100% - var(--lf-more-fade, 24px)),
-      var(--lf-more-fade-to, transparent)
-    );
-    mask-image: linear-gradient(
-      to right,
-      var(--lf-more-fade-to, transparent),
-      #000 var(--lf-more-fade, 24px),
-      #000 calc(100% - var(--lf-more-fade, 24px)),
-      var(--lf-more-fade-to, transparent)
-    );
+    -webkit-mask-image:
+      linear-gradient(
+        to right,
+        var(--lf-more-fade-to, transparent),
+        #000 var(--lf-more-fade, 24px),
+        #000 calc(100% - var(--lf-more-fade, 24px)),
+        var(--lf-more-fade-to, transparent));
+    mask-image:
+      linear-gradient(
+        to right,
+        var(--lf-more-fade-to, transparent),
+        #000 var(--lf-more-fade, 24px),
+        #000 calc(100% - var(--lf-more-fade, 24px)),
+        var(--lf-more-fade-to, transparent));
   }
-  :is([data-lf-more-before], [data-lf-more-after]):is(
-      :focus-visible,
-      .lf-focus-visible,
-      :has(:is(:focus-visible, .lf-focus-visible))
-    ) {
+  :is([data-lf-more-before], [data-lf-more-after]):is(:focus-visible, .lf-focus-visible, :has(:is(:focus-visible, .lf-focus-visible))) {
     -webkit-mask-image: none;
     mask-image: none;
   }
-  /* A registered reading region with more below it gets the same edge vocabulary on
-   * its block end. This shadow is paint behind descendants rather than an overlay over
-   * their words or controls. The runtime removes it at the end and in flow posture,
-   * and the `@media screen` above already keeps it off a printed sheet. */
   [data-lf-more-below] {
     box-shadow: inset 0 -8px 8px -8px var(--shade);
   }
 }
 @media print {
-  /* A shut disclosure on paper is a summary and a stub: the words are in the document,
-     nothing on the sheet says they are there, and there is no press to open them with.
-     Six of them printed that way on the corpus, one of them holding 3270px of an exact
-     source. The layer already takes this line for the other two ways a page puts
-     content behind a gesture — a settled group's cards and an inactive tab both print
-     open (packages/default) — and <details> was the one that was missed.
-
-     `::details-content` is what the browser hides the body with, so it is what says
-     otherwise; the marker goes because paper has nothing to turn. A page that means a
-     disclosure to stay shut on paper says so in its own stylesheet, at a weight this
-     does not contest. */
-  details:not([open])::details-content { content-visibility: visible; }
-  details > summary { list-style: none; }
-  details > summary::-webkit-details-marker { display: none; }
+  details:not([open])::details-content {
+    content-visibility: visible;
+  }
+  details > summary {
+    list-style: none;
+  }
+  details > summary::-webkit-details-marker {
+    display: none;
+  }
 }
-/* Ordinary action buttons share their face across document and shadow trees.
- * Authored .button controls use the same face as runtime-owned .lf-btn controls.
- * Packages may adjust placement and density; margin entries and reaction chips
- * retain their separate forms. The block padding carries the aim floor (above), less
- * the 1px border, so a rule restating it restates the floor with it. */
-:is(.lf-btn, .button) { width: var(--lf-reserved-width, auto);
-  padding: max(4px, (var(--aim-floor) - 1lh) / 2 - 1px) 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--card); cursor: pointer; white-space: nowrap; color: var(--ink); display: inline-block; }
-:is(.lf-btn, .button)[hidden]:not([hidden="until-found"]) { display: none; }
-:is(.lf-btn, .button):not(:disabled, [aria-disabled="true"]):hover { background: var(--chip); }
-/* The committing action carries the accent as ink on the ordinary card, under a
-   softened accent hairline, with the tint rising on hover. The selected face below is its
-   neighbour — a full accent border on the chip ground — so a toggle and a commitment
-   never read as one. */
-:is(.lf-btn, .button).primary { color: var(--accent);
-          border-color: color-mix(in srgb, var(--accent) 45%, var(--card)); }
-:is(.lf-btn, .button).primary:not(:disabled, [aria-disabled="true"]):hover { background: var(--accent-tint); }
-/* Two selectors, two mechanisms, one look: the platform's own on the banner's real
-   buttons, and the attribute wireInput sets, which is the only one a span press can
-   wear. */
-:is(.lf-btn, .button):disabled, :is(.lf-btn, .button)[aria-disabled="true"] { opacity: .55; cursor: default; }
-:is(.lf-btn, .button).primary:is(:disabled, [aria-disabled="true"]) {
-          opacity: 1; color: var(--muted); background: var(--paper);
-          border-color: var(--border-2); }
-/* Standing on a press, in the band everything else the user stands on is drawn in
-   (--focus-ring). This was the last place on the product still wearing the browser's own
-   ring: a user who backed out of the panel landed on Threads in Chrome's blue, beside
-   a decision wearing the page's accent, with nothing saying the two rectangles meant
-   one thing.
+:is(.lf-btn, .button) {
+  width: var(--lf-reserved-width, auto);
+  padding: max(4px, (var(--aim-floor) - 1lh) / 2 - 1px) 10px;
+  border: 1px solid var(--border-2);
+  border-radius: 6px;
+  background: var(--card);
+  cursor: pointer;
+  white-space: nowrap;
+  color: var(--ink);
+  display: inline-block;
+}
+:is(.lf-btn, .button)[hidden]:not([hidden=until-found]) {
+  display: none;
+}
+:is(.lf-btn, .button):not(:disabled, [aria-disabled=true]):hover {
+  background: var(--chip);
+}
+:is(.lf-btn, .button).primary {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
+}
+:is(.lf-btn, .button).primary:not(:disabled, [aria-disabled=true]):hover {
+  background: var(--accent-tint);
+}
+:is(.lf-btn, .button):disabled,
+:is(.lf-btn, .button)[aria-disabled=true] {
+  opacity: .55;
+  cursor: default;
+}
+:is(.lf-btn, .button).primary:is(:disabled, [aria-disabled=true]) {
+  opacity: 1;
+  color: var(--muted);
+  background: var(--paper);
+  border-color: var(--border-2);
+}
+:is(.lf-btn, .button):is(:focus-visible, .lf-focus-visible) {
+  outline: var(--focus-ring);
+  --lf-focus-ring: btn;
+  outline-offset: 2px;
+}
 
-   The gap is its own, because these shapes stand at different densities and the ring
-   may not reach its neighbour: the standing gap is what a box with room around it
-   takes, the composer's row puts 6px between two buttons, a chip takes 1px below, and
-   margin entries sit 4px apart out in the margin.
-
-   Beside the face above it, so a button inside a declared widget tree wears this ring
-   too. In chrome.css, where it was, it reached neither that button nor a
-   package wanting to answer it. */
-:is(.lf-btn, .button):is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
-          --lf-focus-ring: btn; outline-offset: 2px; }
-/* An icon action's hit box, and the height of an empty composer field, which stands
-   that action inside it with 6px of room either side. Stated at the root, where a widget
-   that seats a composer in its own content reads the height to hold its room before the
-   composer is drawn, and again on each field and action, so a field whose context sizes
-   its action (lf-options' Add row) derives its height from that size. */
-:root, .lf-compose-field, .lf-icon-action { --lf-icon-action-hit: max(28px, var(--aim-floor)); }
-:root, .lf-compose-field { --lf-compose-h: calc(var(--lf-icon-action-hit) + 12px); }
-.lf-compose-field { --lf-compose-pad-block: 8px; --lf-compose-pad-inline-start: 10px;
-          position: relative; display: grid; grid-template-columns: minmax(0, 1fr);
-          flex: 1; min-width: 0; }
-.lf-compose-field > leaf-text { grid-area: 1 / 1; }
-/* One line whatever its key badge's box: the badge paints into the field's padding, so
-   the hint stands where the words will and sizes nothing. A narrow field shortens the
-   label and keeps the key. It is apparatus, so the field's selectable text stops at it. */
-.lf-compose-placeholder { display: flex; align-items: baseline; gap: 0.25em;
-          block-size: 1lh; white-space: nowrap; user-select: none; -webkit-user-select: none; }
-.lf-compose-placeholder > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.lf-compose-placeholder > kbd { flex: none; }
-.lf-compose-placeholder .lf-key-badge { background: transparent; color: var(--muted); }
-.lf-compose-field > leaf-text:not(.lf-fab-input) { display: block; box-sizing: border-box;
-          width: 100%; min-width: 0; min-height: var(--lf-compose-h);
-          padding-inline-end: var(--lf-compose-pad-inline-start);
-          --lf-field-end-room: calc(var(--lf-icon-action-hit) + 12px
-            - var(--lf-compose-pad-inline-start)); }
-.lf-icon-action { box-sizing: border-box; width: var(--lf-icon-action-hit);
-          height: var(--lf-icon-action-hit); min-width: var(--lf-icon-action-hit);
-          min-height: var(--lf-icon-action-hit); padding: 0; display: grid;
-          place-items: center; border-radius: var(--r); }
-.lf-icon-action[hidden] { display: none; }
-.lf-action-icon { position: relative; z-index: 1; inline-size: 16px; block-size: 16px;
-          overflow: visible; pointer-events: none; fill: none; stroke: currentColor; stroke-width: 1.6;
-          stroke-linecap: round; stroke-linejoin: round; }
-/* Closing changes the view; resolving changes durable thread state. */
-.lf-close-action { border: 0; background: transparent;
-          color: var(--muted); }
-.lf-close-action:hover { background: var(--chip); color: var(--ink); }
-/* Send and resolve are the two glyph actions: a bare glyph in the action's own ink,
-   whose ::before is a 28px disc that stays clear at rest and takes the action's tint
-   on hover. The hit box around the disc is the icon-action floor above. The glyph's
-   ink outranks the .lf-ui face by coming later. */
-.lf-compose-submit, .lf-resolve.lf-icon-action { border: 0; background: transparent;
-          box-shadow: none; }
-:is(.lf-compose-submit, .lf-resolve.lf-icon-action)::before { content: "";
-          position: absolute; box-sizing: border-box; inline-size: 28px; block-size: 28px;
-          border-radius: var(--r); background: transparent; }
-:is(.lf-compose-submit, .lf-resolve.lf-icon-action):hover { background: transparent;
-          box-shadow: none; }
-.lf-compose-submit { position: absolute; z-index: 1; inset-inline-end: 6px;
-          inset-block-end: 6px; color: var(--accent); }
-.lf-compose-submit:not(:disabled, [aria-disabled="true"]):hover::before {
-          background: var(--accent-tint); }
-.lf-compose-submit:is(:disabled, [aria-disabled="true"]) { opacity: 1; color: var(--muted); }
-.lf-resolve.lf-icon-action { position: relative; flex: none; margin-inline-start: auto;
-          color: var(--ink); }
-.lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover { color: var(--ok-ink); }
-.lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover::before {
-          background: var(--ok-tint); }
-.lf-resolve.lf-icon-action .lf-action-icon { inline-size: 15px; block-size: 15px; }
-/* Every composition input renders the same attachment shelf, including inputs seated
-   in widget shadow trees. Surfaces set its allocation and thumbnail size; the shelf
-   owns its controls, image inspection face, and drawing paint here. */
+/* skills/leaf/assets/styles/components/response.css */
+:root,
+.lf-compose-field,
+.lf-icon-action {
+  --lf-icon-action-hit: max(28px, var(--aim-floor));
+}
+:root,
+.lf-compose-field {
+  --lf-compose-h: calc(var(--lf-icon-action-hit) + 12px);
+}
+.lf-compose-field {
+  --lf-compose-pad-block: 8px;
+  --lf-compose-pad-inline-start: 10px;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  flex: 1;
+  min-width: 0;
+}
+.lf-compose-field > leaf-text {
+  grid-area: 1 / 1;
+}
+.lf-compose-placeholder {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25em;
+  block-size: 1lh;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.lf-compose-placeholder > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lf-compose-placeholder > kbd {
+  flex: none;
+}
+.lf-compose-placeholder .lf-key-badge {
+  background: transparent;
+  color: var(--muted);
+}
+.lf-compose-field > leaf-text:not(.lf-fab-input) {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--lf-compose-h);
+  padding-inline-end: var(--lf-compose-pad-inline-start);
+  --lf-field-end-room: calc(var(--lf-icon-action-hit) + 12px - var(--lf-compose-pad-inline-start));
+}
+.lf-icon-action {
+  box-sizing: border-box;
+  width: var(--lf-icon-action-hit);
+  height: var(--lf-icon-action-hit);
+  min-width: var(--lf-icon-action-hit);
+  min-height: var(--lf-icon-action-hit);
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r);
+}
+.lf-icon-action[hidden] {
+  display: none;
+}
+.lf-action-icon {
+  position: relative;
+  z-index: 1;
+  inline-size: 16px;
+  block-size: 16px;
+  overflow: visible;
+  pointer-events: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.lf-close-action {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+}
+.lf-close-action:hover {
+  background: var(--chip);
+  color: var(--ink);
+}
+.lf-compose-submit,
+.lf-resolve.lf-icon-action {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+:is(.lf-compose-submit, .lf-resolve.lf-icon-action)::before {
+  content: "";
+  position: absolute;
+  box-sizing: border-box;
+  inline-size: 28px;
+  block-size: 28px;
+  border-radius: var(--r);
+  background: transparent;
+}
+:is(.lf-compose-submit, .lf-resolve.lf-icon-action):hover {
+  background: transparent;
+  box-shadow: none;
+}
+.lf-compose-submit {
+  position: absolute;
+  z-index: 1;
+  inset-inline-end: 6px;
+  inset-block-end: 6px;
+  color: var(--accent);
+}
+.lf-compose-submit:not(:disabled, [aria-disabled=true]):hover::before {
+  background: var(--accent-tint);
+}
+.lf-compose-submit:is(:disabled, [aria-disabled=true]) {
+  opacity: 1;
+  color: var(--muted);
+}
+.lf-resolve.lf-icon-action {
+  position: relative;
+  flex: none;
+  margin-inline-start: auto;
+  color: var(--ink);
+}
+.lf-resolve.lf-icon-action:not([aria-disabled=true]):hover {
+  color: var(--ok-ink);
+}
+.lf-resolve.lf-icon-action:not([aria-disabled=true]):hover::before {
+  background: var(--ok-tint);
+}
+.lf-resolve.lf-icon-action .lf-action-icon {
+  inline-size: 15px;
+  block-size: 15px;
+}
 :is(.lf-thread-reply, .lf-say):has(> .lf-composer-media:not([hidden])) {
-  flex-wrap: wrap; }
-.lf-composer-media {
-  display: flex; flex: 1 0 100%; gap: 6px; min-width: 0; overflow-x: auto;
-  padding: 2px; box-sizing: border-box; }
-.lf-composer-media[hidden] { display: none !important; }
-.lf-composer-media-item { flex: none; display: flex; align-items: stretch;
-  box-sizing: border-box; border: 1px solid var(--border-2);
-  border-radius: var(--r); background: var(--paper); overflow: hidden; }
-.lf-media-open { display: block; width: fit-content; max-width: 100%; padding: 0;
-  border: 0; border-radius: var(--r); background: transparent; color: inherit;
-  font: inherit; }
-button.lf-media-open { cursor: zoom-in; }
-.lf-media-open:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
-  --lf-focus-ring: media; outline-offset: 2px; }
-.lf-composer-media-open { width: 68px; height: 52px; overflow: hidden;
-  border: 0; border-radius: 0; align-self: center; }
-.lf-composer-media-open img { display: block; width: 100%; height: 100%;
-  object-fit: cover; }
-/* Controls stay inside each tile, so the scrolling shelf never cuts their hit area.
-   Images and drawings keep their own thumbnail dimensions beside full-height presses. */
-.lf-composer-drawing > .lf-composer-media-open { padding: 0;
-  box-sizing: border-box; position: relative; }
-.lf-drawing-context-status { position: absolute; inset-inline: 0; inset-block-end: 0;
-  padding: 2px; font: 10px/1.2 var(--sans); background: var(--paper); color: var(--ink-2); }
-.lf-composer-drawing > .lf-composer-media-open > canvas { display: block; width: 100%;
-  height: 100%; object-fit: contain; }
-.lf-composer-media-item > button:not(.lf-media-open) { flex: none; display: grid; place-items: center;
-  inline-size: max(26px, var(--aim-floor)); min-block-size: var(--aim-floor);
-  padding: 0; border: 0; font: inherit;
-  border-inline-start: 1px solid var(--border-2); background: transparent;
-  color: var(--ink-2); cursor: pointer; }
-.lf-composer-media-item > button:not(.lf-media-open):hover { color: var(--accent); background: var(--chip); }
-.lf-composer-media-item > button:not(.lf-media-open):is(:focus-visible, .lf-focus-visible) {
-  outline: var(--focus-ring); --lf-focus-ring: composer-media;
-  outline-offset: calc(-1 * var(--focus-ring-w)); }
-.lf-composer-media-item > button:not(.lf-media-open) > svg { inline-size: 14px; block-size: 14px; }
-.lf-composer-media-item > .lf-media-open:is(:focus-visible, .lf-focus-visible) {
-  outline-offset: calc(-1 * var(--focus-ring-w)); }
-/* Sent media can live in chrome-owned threads or page-owned widget threads.
-   Scale the complete image in both surfaces; a tall capture must not become the whole
-   thread, and nothing is cropped. */
-.lf-message-media img { display: block;
-  max-width: 100%; max-height: min(60vh, 480px); border-radius: var(--r); }
-/* Core may seat its one response bar in a widget's exact-datum Thread outlet. The
-   widget supplies only the layout location; these rules carry the canonical composer
-   into the same trees as the Thread view around it. */
-.lf-fab-bar[data-lf-presentation="inline"] { display: inline-flex; position: static;
-          box-sizing: border-box; align-items: flex-end; gap: 4px; width: 100%;
-          max-width: 760px; white-space: nowrap; color: var(--ink);
-          font: var(--t-5)/var(--lf-ui-lh) var(--sans); }
-.lf-fab-bar[data-lf-presentation="inline"] *,
-.lf-fab-bar[data-lf-presentation="inline"] *::before,
-.lf-fab-bar[data-lf-presentation="inline"] *::after { box-sizing: inherit; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-composer { display: contents; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-composer
-          > :not(.lf-compose-field, .lf-composer-media) { display: none !important; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-compose-field {
-          --lf-compose-pad-block: 6px; --lf-compose-pad-inline-start: 12px;
-          flex: 1 1 auto; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-response-control {
-          min-height: 32px; margin: 0; border: 1px solid var(--border-2);
-          border-radius: var(--r); background: var(--card); color: var(--ink-2);
-          font: inherit; line-height: 1.3; box-shadow: 0 2px 8px var(--shade); }
-.lf-fab-bar[data-lf-presentation="inline"] leaf-text.lf-fab-input {
-          display: block; width: 100%; min-width: 0; max-width: none; max-height: 50vh;
-          padding: var(--lf-compose-pad-block) var(--lf-compose-pad-inline-start);
-          --lf-field-end-room: calc(max(40px, calc(var(--aim-floor) + 12px))
-            - var(--lf-compose-pad-inline-start));
-          overflow-y: auto; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-compose-placeholder { line-height: 1.3; }
-.lf-fab-bar[data-lf-presentation="inline"] leaf-text.lf-fab-input:is(:focus, .lf-focus) {
-          outline: var(--focus-ring); outline-offset: 0; border-color: transparent;
-          --lf-focus-ring: inline-response; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-compose-submit {
-          inset-inline-end: 2px; inset-block-end: 2px; }
-.lf-fab-more { position: absolute; border: 0; background: transparent; color: var(--muted);
-          inset-inline-end: calc((var(--lf-response-height, 32px) - var(--lf-icon-action-hit)) / 2);
-          inset-block-end: calc((var(--lf-response-height, 32px) - var(--lf-icon-action-hit)) / 2); }
-.lf-fab-more:hover { color: var(--ink); background: var(--chip); }
-.lf-fab-bar[data-lf-presentation="inline"][data-lf-other-responses] leaf-text.lf-fab-input {
-          --lf-field-end-room: calc(max(40px, calc(var(--aim-floor) + 12px))
-            - var(--lf-compose-pad-inline-start) + var(--lf-icon-action-hit)); }
-.lf-fab-bar[data-lf-presentation="inline"][data-lf-other-responses] .lf-compose-submit {
-          inset-inline-end: calc(2px + var(--lf-icon-action-hit)); }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-fab-more {
-          inset-inline-end: 2px; inset-block-end: 2px; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-response-action {
-          min-width: 30px; padding-inline: 9px; display: inline-flex;
-          align-items: center; justify-content: center; gap: 0; white-space: nowrap;
-          cursor: pointer; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-response-action[hidden],
-.lf-fab-bar[data-lf-presentation="inline"]:not([data-lf-target-only]) > .lf-fab,
-.lf-fab-bar[data-lf-presentation="inline"]:not(.lf-response-open)
-          > .lf-response-options { display: none !important; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-response-action[data-lf-collapse]
-          > :is(.lf-response-action-space, .lf-response-action-label) {
-          display: none; }
-.lf-fab-bar[data-lf-presentation="inline"].lf-response-open { flex-wrap: wrap; }
-.lf-fab-bar[data-lf-presentation="inline"].lf-response-open
-          > .lf-response-options { display: inline-flex; align-items: center;
-          flex-basis: 100%; flex-wrap: wrap; gap: 4px; max-width: 100%; }
-.lf-fab-bar .lf-composer-media {
-          flex: none; max-width: 148px; padding: 0; }
-.lf-fab-bar .lf-composer-media:has(> .lf-composer-drawing) {
-          --lf-drawing-preview-width: 96px;
-          max-width: calc(var(--lf-drawing-preview-width) + 2 * max(26px, var(--aim-floor)) + 2px); }
-.lf-fab-bar .lf-composer-media-open {
-          width: 42px; height: 34px; }
-.lf-fab-bar .lf-composer-drawing > .lf-composer-media-open {
-          width: var(--lf-drawing-preview-width); height: 64px; }
-@media print {
-  .lf-fab-bar[data-lf-presentation="inline"] { display: none !important; }
+  flex-wrap: wrap;
 }
-:is(.lf-btn, .button):is(.on, [aria-pressed="true"]) { border-color: var(--accent); color: var(--accent); background: var(--chip); }
-/* Draw mode takes page-word presses while offered controls keep their gestures.
-   Document selectors do not cross a declared shadow root. */
-:host-context(html[data-lf-draw-mode]):host-context(main) * { cursor: crosshair !important; }
+.lf-composer-media {
+  display: flex;
+  flex: 1 0 100%;
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 2px;
+  box-sizing: border-box;
+}
+.lf-composer-media[hidden] {
+  display: none !important;
+}
+.lf-composer-media-item {
+  flex: none;
+  display: flex;
+  align-items: stretch;
+  box-sizing: border-box;
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--paper);
+  overflow: hidden;
+}
+.lf-media-open {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+button.lf-media-open {
+  cursor: zoom-in;
+}
+.lf-media-open:is(:focus-visible, .lf-focus-visible) {
+  outline: var(--focus-ring);
+  --lf-focus-ring: media;
+  outline-offset: 2px;
+}
+.lf-composer-media-open {
+  width: 68px;
+  height: 52px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  align-self: center;
+}
+.lf-composer-media-open img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.lf-composer-drawing > .lf-composer-media-open {
+  padding: 0;
+  box-sizing: border-box;
+  position: relative;
+}
+.lf-drawing-context-status {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  padding: 2px;
+  font: 10px/1.2 var(--sans);
+  background: var(--paper);
+  color: var(--ink-2);
+}
+.lf-composer-drawing > .lf-composer-media-open > canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.lf-composer-media-item > button:not(.lf-media-open) {
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: max(26px, var(--aim-floor));
+  min-block-size: var(--aim-floor);
+  padding: 0;
+  border: 0;
+  font: inherit;
+  border-inline-start: 1px solid var(--border-2);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.lf-composer-media-item > button:not(.lf-media-open):hover {
+  color: var(--accent);
+  background: var(--chip);
+}
+.lf-composer-media-item > button:not(.lf-media-open):is(:focus-visible, .lf-focus-visible) {
+  outline: var(--focus-ring);
+  --lf-focus-ring: composer-media;
+  outline-offset: calc(-1 * var(--focus-ring-w));
+}
+.lf-composer-media-item > button:not(.lf-media-open) > svg {
+  inline-size: 14px;
+  block-size: 14px;
+}
+.lf-composer-media-item > .lf-media-open:is(:focus-visible, .lf-focus-visible) {
+  outline-offset: calc(-1 * var(--focus-ring-w));
+}
+.lf-comment-box > .lf-compose-field {
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--card);
+}
+.lf-comment-box > .lf-compose-field:has(> leaf-text:is(:focus, .lf-focus)) {
+  outline: var(--focus-ring);
+  --lf-focus-ring: text-box;
+  outline-offset: 0;
+  border-color: transparent;
+}
+.lf-comment-box > .lf-compose-field > leaf-text {
+  padding: var(--lf-compose-pad-block) var(--lf-compose-pad-inline-start);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  font: var(--t-5)/1.5 var(--sans);
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.lf-comment-box > .lf-compose-field > leaf-text:is(:focus, .lf-focus) {
+  outline: none;
+}
+.lf-thread-reply {
+  display: block;
+  margin-top: var(--sp-3);
+  min-width: 0;
+}
+:is(.lf-thread-reply, .lf-fab-bar) .lf-compose-field {
+  --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px);
+}
+:is(.lf-fab-bar, .lf-margin-preview) {
+  --lf-response-height: max(32px, var(--aim-floor));
+}
+:is(.lf-fab-bar, .lf-margin-preview) {
+  --lf-thread-text-pad-block: calc((var(--lf-response-height) - 1lh) / 2);
+  --lf-comment-text-pad-end: var(--lf-thread-text-inset);
+  --lf-comment-send-room: var(--lf-icon-action-hit);
+}
+.lf-fab-bar .lf-compose-field,
+.lf-response-control {
+  --lf-compose-pad-block: calc(var(--lf-thread-text-pad-block) - 1px);
+}
+.lf-response-control {
+  box-sizing: border-box;
+  min-height: var(--lf-response-height);
+  border: 1px solid var(--border-2);
+  background: var(--card);
+  border-radius: var(--r);
+  color: var(--ink-2);
+  font-weight: 400;
+  line-height: inherit;
+  padding-block: var(--lf-compose-pad-block);
+  box-shadow: 0 2px 8px var(--shade);
+}
+.lf-response-control:is(:focus, :focus-visible, .lf-focus, .lf-focus-visible) {
+  outline: none;
+  --lf-focus-ring: response-control;
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
+  box-shadow: var(--focus-shadow), 0 2px 8px var(--shade);
+}
+leaf-text.lf-fab-input {
+  width: 100%;
+  min-width: 0;
+  padding-inline: var(--lf-compose-pad-inline-start) calc(var(--lf-comment-text-pad-end) - 1px);
+  --lf-field-end-room: var(--lf-comment-send-room);
+  overflow-y: auto;
+}
+.lf-fab-bar .lf-compose-submit {
+  inset-inline-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2);
+  inset-block-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2);
+}
+.lf-fab-bar[data-lf-other-responses] .lf-compose-field {
+  --lf-comment-send-room: calc(2 * var(--lf-icon-action-hit));
+}
+.lf-fab-bar[data-lf-other-responses] .lf-compose-submit {
+  inset-inline-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2 + var(--lf-icon-action-hit));
+}
+.lf-fab-more {
+  position: absolute;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  inset-inline-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2);
+  inset-block-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2);
+}
+.lf-fab-more:hover {
+  color: var(--ink);
+  background: var(--chip);
+}
+.lf-response-action {
+  min-width: max(30px, var(--aim-floor));
+  padding-inline: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.lf-response-action[hidden] {
+  display: none;
+}
+.lf-response-action:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
+  background: var(--card);
+}
+.lf-response-action-glyph {
+  line-height: 1;
+}
+.lf-response-action-space {
+  white-space: pre;
+}
+.lf-response-action[data-lf-collapse] > :is(.lf-response-action-space, .lf-response-action-label) {
+  display: none;
+}
+.lf-fab-bar:not([data-lf-target-only]) > .lf-fab,
+.lf-fab-bar:not(.lf-response-open) > .lf-response-options {
+  display: none !important;
+}
+.lf-fab-bar.lf-response-open {
+  flex-wrap: wrap;
+}
+.lf-fab-bar.lf-response-open > .lf-response-options {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 100%;
+}
+.lf-response-options .lf-response-action {
+  min-height: var(--lf-response-height);
+}
+.lf-response-options .lf-react.lf-response-action {
+  flex: 1 1 max(30px, var(--aim-floor));
+  max-width: max-content;
+}
+.lf-response-options > .lf-react-palette {
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.lf-fab-bar {
+  font: var(--t-5)/1.5 var(--sans);
+}
+.lf-fab-bar[data-lf-presentation=inline] {
+  display: inline-flex;
+  position: static;
+  box-sizing: border-box;
+  align-items: flex-end;
+  gap: 4px;
+  width: 100%;
+  max-width: 760px;
+  white-space: nowrap;
+  color: var(--ink);
+}
+.lf-fab-bar[data-lf-presentation=inline] *,
+.lf-fab-bar[data-lf-presentation=inline] *::before,
+.lf-fab-bar[data-lf-presentation=inline] *::after {
+  box-sizing: inherit;
+}
+.lf-fab-bar[data-lf-presentation=inline] .lf-composer {
+  display: contents;
+}
+.lf-fab-bar[data-lf-presentation=inline] .lf-composer > :not(.lf-compose-field, .lf-composer-media) {
+  display: none !important;
+}
+.lf-fab-bar[data-lf-presentation=inline] leaf-text.lf-fab-input {
+  display: block;
+  max-width: none;
+  max-height: 50vh;
+  margin: 0;
+}
+.lf-fab-bar[data-lf-presentation=inline].lf-response-open > .lf-response-options {
+  flex-basis: 100%;
+}
+.lf-fab-bar .lf-composer-media {
+  flex: none;
+  max-width: 148px;
+  padding: 0;
+}
+.lf-fab-bar .lf-composer-media:has(> .lf-composer-drawing) {
+  --lf-drawing-preview-width: 96px;
+  max-width: calc(var(--lf-drawing-preview-width) + 2 * max(26px, var(--aim-floor)) + 2px);
+}
+.lf-fab-bar .lf-composer-media-open {
+  width: 42px;
+  height: 34px;
+}
+.lf-fab-bar .lf-composer-drawing > .lf-composer-media-open {
+  width: var(--lf-drawing-preview-width);
+  height: 64px;
+}
+@media print {
+  .lf-fab-bar[data-lf-presentation=inline] {
+    display: none !important;
+  }
+}
+@media (forced-colors: active) {
+  .lf-response-control:is(:focus, :focus-visible, .lf-focus, .lf-focus-visible) {
+    outline: var(--focus-ring-w) solid Highlight;
+    outline-offset: 2px;
+    box-shadow: none;
+  }
+}
+
+/* skills/leaf/assets/styles/components/integration.css */
+.lf-message-media img {
+  display: block;
+  max-width: 100%;
+  max-height: min(60vh, 480px);
+  border-radius: var(--r);
+}
+:is(.lf-btn, .button):is(.on, [aria-pressed=true]) {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--chip);
+}
+:host-context(html[data-lf-draw-mode]):host-context(main) * {
+  cursor: crosshair !important;
+}
 :host-context(html[data-lf-draw-mode]):host-context(main) .lf-thread-seat,
 :host-context(html[data-lf-draw-mode]):host-context(main) .lf-thread-seat *,
 :host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-offer],
 :host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-offer] * {
-  cursor: auto !important; }
-/* Copy floats over the code's corner without changing its box or scrolling text.
-   Pointer and keyboard intent reveal it; touch keeps the control available. */
+  cursor: auto !important;
+}
 :root {
   --lf-code-copy-size: max(32px, var(--aim-floor));
 }
 .lf-code-copy {
   position: absolute;
-  /* Hidden sources have no anchor; their chrome controls stay outside the window. */
   top: calc(anchor(top, -9999px) + 4px);
   left: calc(anchor(right, -9999px) - var(--lf-code-copy-size) - 4px);
   width: var(--lf-code-copy-size);
@@ -1121,15 +1593,24 @@ button.lf-media-open { cursor: zoom-in; }
   line-height: 0;
   opacity: 0;
 }
-.lf-code-copy.lf-code-copy-away { display: none; }
+.lf-code-copy.lf-code-copy-away {
+  display: none;
+}
 pre:hover + .lf-code-copy,
 .lf-code-copy-hover,
 .lf-code-copy-focused,
-.lf-code-copy:is(:hover, :focus-within) { opacity: 1; }
+.lf-code-copy:is(:hover, :focus-within) {
+  opacity: 1;
+}
 @media (pointer: coarse), (hover: none) {
-  .lf-code-copy { opacity: 1; }
+  .lf-code-copy {
+    opacity: 1;
+  }
   pre:focus + .lf-code-copy,
-  .lf-code-copy.lf-code-copy-focused { opacity: 0; pointer-events: none; }
+  .lf-code-copy.lf-code-copy-focused {
+    opacity: 0;
+    pointer-events: none;
+  }
 }
 .lf-code-copy::part(button) {
   width: var(--lf-code-copy-size);
@@ -1142,46 +1623,45 @@ pre:hover + .lf-code-copy,
   display: flex;
   font-size: var(--t-5);
 }
-.lf-code-copy::part(button):hover { color: var(--ink); }
+.lf-code-copy::part(button):hover {
+  color: var(--ink);
+}
 .lf-code-copy::part(button):focus-visible {
   outline: var(--focus-ring);
   --lf-focus-ring: code-copy;
 }
 @media print {
-  .lf-code-copy { display: none; }
+  .lf-code-copy {
+    display: none;
+  }
+}
+.lf-msg-body a.detached {
+  color: var(--muted-2);
+  text-decoration: underline dashed;
+  cursor: default;
+}
+.lf-msg-body.lf-suggest-body {
+  white-space: pre-wrap;
+}
+.lf-suggest-label {
+  color: var(--muted-2);
+}
+.lf-react-said {
+  font-family: var(--sans);
+  color: var(--mark-ink);
+}
+.lf-reply-continuity[open]::details-content,
+.lf-reply-continuity:not(details) {
+  display: flex;
+  flex-direction: column;
+  min-block-size: var(--lf-thread-body-extent, 0px);
+}
+.lf-reply-space {
+  flex: 1 0 0;
+  min-block-size: 0;
+}
+.lf-reply-continuity > .lf-thread-reply leaf-text:not(:state(placeholder-shown)) {
+  block-size: var(--lf-reply-writing-room, auto);
 }
 
-/* Standard comment boxes share one frame around their editor and Send. Other
-   uses of the shared editor plumbing, such as option entry and the extended
-   anchored response control, supply their own face. Containers place comment
-   boxes; they do not supply a second frame. */
-.lf-comment-box > .lf-compose-field {
-          border: 1px solid var(--border-2);
-          border-radius: var(--r); background: var(--card); }
-.lf-comment-box > .lf-compose-field:has(> leaf-text:is(:focus, .lf-focus)) {
-          outline: var(--focus-ring); --lf-focus-ring: text-box;
-          outline-offset: 0; border-color: transparent; }
-.lf-comment-box > .lf-compose-field > leaf-text {
-          padding: 8px var(--lf-compose-pad-inline-start);
-          border: 0; border-radius: 0; background: transparent;
-          color: var(--ink); font: var(--t-5)/1.5 var(--sans);
-          max-height: 50vh; overflow-y: auto; }
-.lf-comment-box > .lf-compose-field > leaf-text:is(:focus, .lf-focus) { outline: none; }
-.lf-thread-reply { display: block; margin-top: var(--sp-3); min-width: 0; }
-.lf-thread-reply .lf-compose-field {
-          --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px); }
-
-.lf-msg-body a.detached { color: var(--muted-2); text-decoration: underline dashed; cursor: default; }
-.lf-msg-body.lf-suggest-body { white-space: pre-wrap; }
-
-.lf-suggest-label { color: var(--muted-2); }
-
-.lf-react-said { font-family: var(--sans); color: var(--mark-ink); }
-/* The response foot sits after flexible mechanical space in a retained flow body.
-   Details' summary is its own disclosure outside that body. */
-.lf-reply-continuity[open]::details-content,
-.lf-reply-continuity:not(details) { display: flex; flex-direction: column;
-  min-block-size: var(--lf-thread-body-extent, 0px); }
-.lf-reply-space { flex: 1 0 0; min-block-size: 0; }
-.lf-reply-continuity > .lf-thread-reply leaf-text:not(:state(placeholder-shown)) {
-  block-size: var(--lf-reply-writing-room, auto); }
+/* skills/leaf/assets/styles/shadow.css */

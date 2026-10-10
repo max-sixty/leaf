@@ -461,6 +461,8 @@ ATTRIBUTE_KEYS = (
 # paint from the author's attributes (`isPagePaint`). The paint names are also the
 # theme's contract: the stylesheets that read them spell them out.
 DECLARED_MARKS = {
+    "x-content": {"paint": "data-lf-content", "message": True},
+    "x-verbatim": {"paint": "data-lf-verbatim", "message": True},
     "x-space": {
         "paint": "data-lf-space",
         "authored": "data-width",

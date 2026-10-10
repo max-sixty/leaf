@@ -31,7 +31,7 @@ import { textField } from "../composing/text-field.js";
 import { closeLayer, focusDestination } from "../focus.js";
 import { retainUserIntent } from "../user-intent.js";
 import { loadDraft, mirrorDraft, saveDraft, sendMessage } from "../drafts.js";
-import { FLASH_MS, backgroundFlash } from "../motion.js";
+import { flashDuration, backgroundFlash } from "../motion.js";
 import { keys } from "../keyboard/scopes.js";
 import { commandShortcut } from "../keyboard/control-keys.js";
 import { keeps } from "../keeps.js";
@@ -164,7 +164,7 @@ export function createPageComment({
         // Open, Threads shows the thread where it lands, as it does an anchored comment's
         // (composing/selection.js); the user returns to the banner door.
         if (panelIsOpen()) void showThread(handle.id, { focus: false, flash: false });
-        backgroundFlash(threadsToggle, FLASH_MS);
+        backgroundFlash(threadsToggle, flashDuration());
         // Delivery may refuse long after Send. Restore text entry only while the user
         // still stands at the door; a later gesture owns its focus and disclosure.
         void Promise.resolve(flight).then((accepted) => {

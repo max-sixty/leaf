@@ -1,6 +1,7 @@
 """Authenticated website-journey proof for the visual-review package."""
 
 import hashlib
+import json
 import re
 import shutil
 
@@ -10,6 +11,7 @@ from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import hosting as hosting_model
 from leaf import media as media_model
+from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_layout import (
     ring_faults,
@@ -18,13 +20,16 @@ from render_cases_layout import (
 from render_harness import (
     CORPUS_SOURCES,
     consume_browser_errors,
+    holding,
     leaf_page,
     open_page,
+    refuse,
     resized,
     scroll_settled,
     sending,
     stamp_page,
     told,
+    undo,
 )
 
 pytestmark = pytest.mark.nightly
@@ -62,6 +67,7 @@ def test_a_visual_review_in_flow_takes_its_evidence_height(browser, serve):
       return node.scrollHeight <= node.clientHeight + 1
         && shot.bottom <= stage.bottom + 1;
     }"""
+    widget.get_by_text("Inspect comparison", exact=True).click()
     widget.get_by_role("radio", name="Full frame").click()
     for scale in ("Fit", "100%"):
         widget.get_by_role("radio", name=scale).click()
@@ -197,7 +203,7 @@ def test_visual_review_keeps_its_inline_comment_editor_in_view_after_phone_resiz
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     resized(page, 1366, 768)
     widget = page.locator("#visual-review-run")
-    widget.get_by_role("button", name="Next").click()
+    widget.get_by_role("button", name="Next", exact=True).click()
     expect(widget.locator(".lf-vr-case-select")).to_have_js_property(
         "value", "keep-mobile-destinations"
     )
@@ -347,6 +353,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
         for name, path in capture_files.items()
     }
     conditions = {
+        "observedAt": "2026-09-11T19:00:00-07:00",
         "browser": "Chromium",
         "browserVersion": browser.version,
         "viewport": {"width": 900, "height": 600},
@@ -357,7 +364,6 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     }
     record = {
         "title": "Release navigation through a protected preview",
-        "observedAt": "2026-09-11T19:00:00-07:00",
         "base": {"revision": "northstar-16", "url": target_base},
         "candidate": {"revision": "northstar-17", "url": target_candidate},
         "cases": [
@@ -410,6 +416,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     expect(details).to_have_attribute("open", "")
     user.keyboard.press("Enter")
     expect(details).not_to_have_attribute("open", "")
+    widget.get_by_text("Inspect comparison", exact=True).click()
     overlay = widget.get_by_role("radio", name="Overlay")
     go_to(user, overlay)
     assert_keyboard_focus(user, overlay)
@@ -439,6 +446,8 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     )
     expect(second).to_have_attribute("aria-label", "Visual review case 2 of 2")
     second_looks_right = second.get_by_role("button", name="Looks right")
+    # Case browsing from a verdict reveals its counterpart. Evidence navigation
+    # has its own heading destination, covered by the Next unreviewed journey.
     assert_keyboard_focus(user, second_looks_right)
     assert second.locator("lf-shot img").evaluate_all(
         "images => images.every(image => image.complete && image.naturalWidth > 0)"
@@ -448,6 +457,10 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
         go_to(user, second_needs_work)
     assert_keyboard_focus(user, second_needs_work)
 
+    # Case verdicts follow their captures; bring its heading back into view before
+    # choosing that case through the visible keyboard target map.
+    second.locator(".lf-vr-case-title").scroll_into_view_if_needed()
+    scroll_settled(user)
     comment_on_target(user, second)
     field = user.locator(".lf-fab-input")
     expect(field).to_be_focused()
@@ -609,23 +622,25 @@ def test_a_visual_review_states_where_its_pair_differs_in_every_view(browser, se
     """lf-shot's rail is hidden outside Flip, and the default focus crop hides the
     outlines, since it shows one part of the frame. A focus authored on an area that
     did not change would then show nothing, so the case's position line states the
-    reading, with the strong changes the focus leaves out, and the full frame outlines
+    reading, with groups that extend beyond the focus, and the full frame outlines
     every region."""
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     widget = page.locator("#visual-review-run")
     case = widget.locator(".lf-vr-case:not([hidden])")
     marks = case.locator(".lf-shotframe").first.locator(".lf-shotdiff > span")
     expect(widget).to_have_attribute("data-inspection-scope", "focus")
-    # Region segmentation changes with the capture; the reader needs the
-    # difference and the fact that this focus omits some of it.
-    expect(case.locator(".lf-vr-case-position")).to_have_text(
+    # Computed analysis belongs in the disclosed capture facts; it cannot grow
+    # the heading after presentation and move the evidence the reader is viewing.
+    case.get_by_text("Capture details", exact=True).click()
+    expect(case.locator(".lf-vr-analysis")).to_have_text(
         re.compile(
-            r"Case 1 of 3 · Changed · [1-9]\d* changed areas "
-            r"\([1-9]\d* outside the focus\)"
+            r"Case 1 of 3 · Changed · [1-9]\d* changed areas? "
+            r"\([1-9]\d* beyond the focus\)"
         )
     )
     expect(marks.first).to_be_hidden()
 
+    widget.get_by_text("Inspect comparison", exact=True).click()
     widget.get_by_role("radio", name="Full frame").click()
     expect(widget).to_have_attribute("data-inspection-scope", "full")
     expect(case.locator(".lf-vr-shot-host")).to_have_attribute(
@@ -713,3 +728,368 @@ def test_a_visual_review_keeps_its_own_frame_where_a_pane_grid_meets_at_hairline
     for pane in ("#queue", "#detail"):
         ring = page.locator(pane).evaluate("node => getComputedStyle(node).boxShadow")
         assert ring == f"{frame['rule']} 0px 0px 0px 1px", (pane, ring)
+
+
+def test_visual_review_allocates_focused_evidence_before_images_decode(browser, serve):
+    """The declared focus sizes the first comparison, even over a slow media load."""
+    url = serve(VISUAL_REVIEW_GALLERY)
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True
+    )
+    held = []
+    context.route("**/media/*.png", lambda route: held.append(route))
+    page = context.new_page()
+    page.goto(url, wait_until="domcontentloaded")
+    widget = page.locator("#visual-review-run")
+    expect(widget.locator(".lf-vr-case-title").first).to_be_visible()
+    expect(widget).to_have_attribute("data-compare-layout", "stack")
+    host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
+    geometry = """node => ({
+      host: node.getBoundingClientRect().toJSON(),
+      frames: [...node.querySelectorAll('.lf-shotframe')]
+        .map(frame => frame.getBoundingClientRect().toJSON()),
+    })"""
+    before = host.evaluate(geometry)
+    assert before["frames"][0]["height"] > 500, before
+    assert before["frames"][1]["top"] >= before["frames"][0]["bottom"], before
+    assert host.locator("img").evaluate_all(
+        "images => images.every(image => image.naturalWidth === 0)"
+    )
+    for route in held:
+        route.continue_()
+    context.unroute("**/media/*.png")
+    expect(host.locator("img").first).to_have_js_property("naturalWidth", 780)
+    expect(host.locator("img").last).to_have_js_property("naturalWidth", 780)
+    page.wait_for_function("document.body.hasAttribute('data-lf-presented')")
+    after = host.evaluate(geometry)
+    assert after == before, {"before": before, "after": after}
+
+
+def test_visual_review_reports_an_image_failure_after_its_peer_has_loaded(
+    browser, serve
+):
+    """A late decode failure replaces reserved focus geometry with a visible error."""
+    url = serve(VISUAL_REVIEW_GALLERY)
+    run = json.loads(
+        data_model.source_file(serve.page_dir, "gallery-visual-run").read_text()
+    )
+    failed_source = run["cases"][0]["after"]
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True
+    )
+    held = []
+    context.route(f"**{failed_source}", lambda route: held.append(route))
+    page = context.new_page()
+    page.goto(url, wait_until="domcontentloaded")
+    host = page.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
+    images = host.locator("img")
+    expect(images.first).to_have_js_property("naturalWidth", 780)
+    holding(page, held, 1, "the second selected capture")
+    # Finish the first image's layout while its peer is still pending. The
+    # later failure cannot borrow that load's invalidation or a stage resize.
+    rendered(page)
+    expect(images.last).to_have_js_property("complete", False)
+    assert host.evaluate("node => node.clientHeight") > 1000
+    expect(host.locator(".lf-error")).to_have_count(0)
+    refuse(held[0])
+    expect(host.locator(".lf-error")).to_contain_text("focus needs two decoded images")
+    expect(host.locator("img")).to_have_count(0)
+    consume_browser_errors(page, "focus needs two decoded images")
+
+
+@pytest.mark.parametrize("width,touch", [(320, True), (390, True), (1440, False)])
+def test_visual_review_case_navigation_keeps_equal_stable_step_targets(
+    browser, serve, width, touch
+):
+    """Case labels, focus and disabled states cannot resize the paired navigation."""
+    context = browser.new_context(
+        viewport={"width": width, "height": 844},
+        is_mobile=touch,
+        has_touch=touch,
+    )
+    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY), context=context)
+    widget = page.locator("#visual-review-run")
+    nav = widget.get_by_role("navigation", name="Visual review cases")
+    previous = nav.get_by_role("button", name="Previous", exact=True)
+    next_button = nav.get_by_role("button", name="Next", exact=True)
+    selected = nav.locator(".lf-vr-case-select")
+    reading = """node => {
+      const nav = node.getBoundingClientRect();
+      return ['.lf-vr-previous', '.lf-vr-case-select', '.lf-vr-next'].map(selector => {
+        const box = node.querySelector(selector).getBoundingClientRect();
+        return {left: box.left - nav.left, top: box.top - nav.top,
+                width: box.width, height: box.height};
+      });
+    }"""
+    baseline = nav.evaluate(reading)
+    assert baseline[0]["width"] == baseline[2]["width"], baseline
+    assert baseline[1]["width"] > 0, baseline
+    if touch:
+        assert all(box["width"] >= 44 and box["height"] >= 44 for box in baseline)
+    assert page.evaluate(
+        "document.documentElement.scrollWidth <= document.documentElement.clientWidth"
+    )
+    record = json.loads(
+        data_model.source_file(serve.page_dir, "gallery-visual-run").read_text()
+    )
+    for index in range(3):
+        next_button.click()
+        expect(selected).to_have_js_property(
+            "value", record["cases"][(index + 1) % 3]["id"]
+        )
+        assert nav.evaluate(reading) == baseline
+    previous.focus()
+    page.keyboard.press("Shift+Tab")
+    expect(nav.get_by_role("combobox")).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(previous).to_be_focused()
+    assert nav.evaluate(reading) == baseline
+    page.keyboard.press("Tab")
+    expect(next_button).to_be_focused()
+    assert nav.evaluate(reading) == baseline
+    for key, case_record in zip(("Enter", "Space"), record["cases"][1:], strict=True):
+        page.keyboard.press(key)
+        expect(selected).to_have_js_property("value", case_record["id"])
+        assert nav.evaluate(reading) == baseline
+    # One remaining case disables both step controls and gives the picker a much
+    # longer label. The navigation owns their allocation throughout the refresh.
+    single = record | {
+        "cases": [record["cases"][0] | {"title": "A very long visual case title " * 8}]
+    }
+    data_model.cmd_data_set(serve.page_dir, "gallery-visual-run", single)
+    told(page)
+    expect(previous).to_be_disabled()
+    expect(next_button).to_be_disabled()
+    assert nav.evaluate(reading) == baseline
+    data_model.cmd_data_set(serve.page_dir, "gallery-visual-run", record)
+    told(page)
+    expect(previous).to_be_enabled()
+    expect(next_button).to_be_enabled()
+    assert nav.evaluate(reading) == baseline
+
+
+def test_visual_review_leads_with_evidence_and_walks_only_remaining_cases(
+    browser, serve
+):
+    """Reviewing and browsing are distinct: judgments stay put, remaining navigation
+    lands on the next evidence, and the picker can revisit completed cases."""
+    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
+    resized(page, 390, 844)
+    widget = page.locator("#visual-review-run")
+    selected = widget.locator(".lf-vr-case-select")
+    first_id = selected.evaluate("node => node.value")
+    case = widget.locator(".lf-vr-case:not([hidden])")
+    expect(widget.locator(".lf-vr-inspection")).not_to_have_attribute("open", "")
+    geometry = case.evaluate("""node => {
+      const box = selector => node.querySelector(selector).getBoundingClientRect();
+      return {evidence: box('.lf-vr-shot-host'), verdict: box('.lf-vr-review')};
+    }""")
+    assert geometry["evidence"]["top"] < 450
+    assert geometry["verdict"]["top"] >= geometry["evidence"]["bottom"]
+    # Moving the shared inspector preserves the focused native disclosure header.
+    inspector = widget.get_by_text("Inspect comparison", exact=True)
+    inspector.click()
+    page.keyboard.press("ArrowDown")
+    expect(inspector).to_be_focused()
+    expect(selected).not_to_have_js_property("value", first_id)
+    page.keyboard.press("ArrowUp")
+    expect(inspector).to_be_focused()
+    expect(selected).to_have_js_property("value", first_id)
+    inspector.click()
+    # Browsing from a verdict moves to the matching action in the next case,
+    # revealing it even when returning from a short capture to a tall one.
+    verdict = case.get_by_role("button", name="Needs work")
+    verdict.focus()
+    page.keyboard.press("ArrowDown")
+    expect(selected).not_to_have_js_property("value", first_id)
+    expect(verdict).to_be_focused()
+    expect(verdict).to_be_in_viewport(ratio=1)
+    page.keyboard.press("ArrowUp")
+    expect(selected).to_have_js_property("value", first_id)
+    expect(verdict).to_be_focused()
+    expect(verdict).to_be_in_viewport(ratio=1)
+    with sending(page, "first visual verdict"):
+        case.get_by_role("button", name="Looks right").click()
+    expect(selected).to_have_js_property("value", first_id)
+    expect(case).to_have_attribute("data-disposition", "looks-right")
+    # A recorded article shares the disposition value with its verdict control.
+    # Navigation lands on the matching native button, not that container.
+    page.keyboard.press("ArrowDown")
+    expect(selected).not_to_have_js_property("value", first_id)
+    expect(case.get_by_role("button", name="Looks right")).to_be_focused()
+    expect(case.get_by_role("button", name="Looks right")).to_be_in_viewport(ratio=1)
+    page.keyboard.press("ArrowUp")
+    expect(selected).to_have_js_property("value", first_id)
+    expect(case.get_by_role("button", name="Looks right")).to_be_focused()
+    expect(case.get_by_role("button", name="Looks right")).to_be_in_viewport(ratio=1)
+    case.get_by_role("button", name="Next unreviewed").click()
+    expect(selected).not_to_have_js_property("value", first_id)
+    second_id = selected.evaluate("node => node.value")
+    expect(case.locator(".lf-vr-case-title")).to_be_focused()
+    expect(case.locator(".lf-vr-case-title")).to_be_in_viewport()
+    expect(case.locator(".lf-vr-case-position")).to_be_in_viewport()
+    with sending(page, "mobile navigation needs correction"):
+        case.get_by_role("button", name="Needs work").click()
+    # The all-case keyboard route also returns to evidence, including when it
+    # starts deep in the previous case's metadata.
+    case.get_by_text("Capture details", exact=True).click()
+    page.keyboard.press("ArrowDown")
+    expect(case.locator(".lf-vr-case-title")).to_be_focused()
+    expect(case.locator(".lf-vr-case-title")).to_be_in_viewport()
+    expect(case.locator(".lf-vr-case-position")).to_be_in_viewport()
+    widget.get_by_role("button", name="Previous", exact=True).click()
+    expect(selected).to_have_js_property("value", second_id)
+    # All-case browsing can return to the completed first case.
+    widget.get_by_role("button", name="Previous", exact=True).click()
+    expect(selected).to_have_js_property("value", first_id)
+    expect(case).to_have_attribute("data-disposition", "looks-right")
+    case.get_by_role("button", name="Next unreviewed").focus()
+    page.keyboard.press("Enter")
+    expect(selected).not_to_have_js_property("value", first_id)
+    expect(selected).not_to_have_js_property("value", second_id)
+    with sending(page, "last visual verdict"):
+        case.get_by_role("button", name="Looks right").click()
+    expect(case.locator(".lf-vr-review-status")).to_have_text(
+        "All cases reviewed · revisit any case above"
+    )
+    expect(case.get_by_role("button", name="Next unreviewed")).to_be_disabled()
+    page.reload()
+    expect(widget.locator(".lf-vr-progress")).to_have_text("3 of 3 cases reviewed")
+    expect(widget.get_by_role("button", name="Next unreviewed")).to_be_disabled()
+    undo(page)
+    expect(widget.locator(".lf-vr-progress")).to_have_text("2 of 3 cases reviewed")
+    expect(widget.get_by_role("button", name="Next unreviewed")).to_be_enabled()
+    widget.get_by_role("button", name="Next unreviewed").click()
+    expect(selected).not_to_have_js_property("value", first_id)
+    expect(selected).not_to_have_js_property("value", second_id)
+    expect(case).to_have_attribute("data-disposition", "")
+
+
+def test_visual_review_refresh_hands_focus_across_replaced_evidence(browser, serve):
+    """The data owner takes its focus hold before replacing comparisons or cases."""
+    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
+    widget = page.locator("#visual-review-run")
+    case = widget.locator(".lf-vr-case:not([hidden])")
+    widget.get_by_text("Inspect comparison", exact=True).click()
+    widget.get_by_role("radio", name="Flip", exact=True).click()
+    case.locator(".lf-shotcap").first.focus()
+    expect(case.locator(".lf-shotcap").first).to_be_focused()
+    record = json.loads(VISUAL_REVIEW_GALLERY.with_suffix(".data.json").read_text())[
+        "gallery-visual-run"
+    ]
+    changed = record | {
+        "cases": [
+            record["cases"][0]
+            | {
+                "before": record["cases"][0]["after"],
+                "after": record["cases"][0]["before"],
+            },
+            *record["cases"][1:],
+        ]
+    }
+    data_model.cmd_data_set(serve.page_dir, "gallery-visual-run", changed)
+    told(page)
+    expect(case.locator(".lf-vr-case-title")).to_be_focused()
+    expect(case.locator(".lf-vr-case-title")).to_be_in_viewport()
+    case.locator(".lf-shotcap").first.focus()
+    expect(case.locator(".lf-shotcap").first).to_be_focused()
+    data_model.cmd_data_set(
+        serve.page_dir, "gallery-visual-run", record | {"cases": record["cases"][1:]}
+    )
+    told(page)
+    expect(case.locator(".lf-vr-case-title")).to_be_focused()
+    expect(case.locator(".lf-vr-case-title")).to_have_text(record["cases"][1]["title"])
+    expect(case.locator(".lf-vr-case-title")).to_be_in_viewport()
+
+
+@pytest.mark.parametrize("viewport", [(390, 844), (1366, 768)])
+def test_visual_review_refresh_keeps_the_focused_verdict_in_place(
+    browser, serve, viewport
+):
+    """A source revision reflows reading content without moving the aimed action."""
+    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
+    resized(page, *viewport)
+    widget = page.locator("#visual-review-run")
+    case = widget.locator(".lf-vr-case:not([hidden])")
+    verdict = case.get_by_role("button", name="Looks right")
+    verdict.scroll_into_view_if_needed()
+    verdict.focus()
+    scroll_settled(page)
+    before = verdict.bounding_box()
+    record = json.loads(VISUAL_REVIEW_GALLERY.with_suffix(".data.json").read_text())[
+        "gallery-visual-run"
+    ]
+    result = (
+        "Updated observation with enough reading text to occupy several lines. " * 8
+    )
+    changed = record | {
+        "cases": [record["cases"][0] | {"result": result}, *record["cases"][1:]]
+    }
+    data_model.cmd_data_set(serve.page_dir, "gallery-visual-run", changed)
+    told(page)
+    expect(case.locator(".lf-vr-result")).to_contain_text(result.strip())
+    expect(verdict).to_be_focused()
+    after = verdict.bounding_box()
+    assert abs(after["y"] - before["y"]) <= 1, (before, after)
+    assert abs(after["x"] - before["x"]) <= 1, (before, after)
+
+
+def test_visual_review_text_refresh_retains_comparison_choice_and_focus(browser, serve):
+    """An accessible description change does not replace the aligned image pair."""
+    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
+    widget = page.locator("#visual-review-run")
+    case = widget.locator(".lf-vr-case:not([hidden])")
+    widget.get_by_text("Inspect comparison", exact=True).click()
+    widget.get_by_role("radio", name="Flip", exact=True).click()
+    caption = case.locator('.lf-shotcap[data-lf-state="before"]')
+    caption.click()
+    expect(caption).to_have_attribute("aria-pressed", "true")
+    caption.focus()
+    old_caption = caption.element_handle()
+    before = caption.bounding_box()
+    record = json.loads(VISUAL_REVIEW_GALLERY.with_suffix(".data.json").read_text())[
+        "gallery-visual-run"
+    ]
+    result = "The accessible description changes without replacing captured evidence."
+    changed = record | {
+        "cases": [record["cases"][0] | {"result": result}, *record["cases"][1:]]
+    }
+    data_model.cmd_data_set(serve.page_dir, "gallery-visual-run", changed)
+    told(page)
+    expect(caption).to_be_focused()
+    assert caption.evaluate("(node, old) => node === old", old_caption)
+    expect(caption).to_have_attribute("aria-pressed", "true")
+    expect(caption).to_have_attribute(
+        "aria-label", f"before — {record['cases'][0]['title']}. {result}"
+    )
+    expect(case.locator("lf-shot img").first).to_have_attribute(
+        "alt", f"before: {record['cases'][0]['title']}. {result}"
+    )
+    expect(case.locator(".lf-shotflip")).to_have_attribute(
+        "aria-label",
+        f"Compare before and after — {record['cases'][0]['title']}. {result}",
+    )
+    after = caption.bounding_box()
+    assert abs(after["y"] - before["y"]) <= 1, (before, after)
+
+
+def test_visual_review_selected_caption_owns_its_activation_keys(browser, serve):
+    """A selectable caption keeps Space as activation after reaching its endpoint."""
+    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
+    widget = page.locator("#visual-review-run")
+    case = widget.locator(".lf-vr-case:not([hidden])")
+    widget.get_by_text("Inspect comparison", exact=True).click()
+    widget.get_by_role("radio", name="Flip", exact=True).click()
+    for state in ("before", "after"):
+        caption = case.locator(f'.lf-shotcap[data-lf-state="{state}"]')
+        caption.click()
+        caption.focus()
+        expect(caption).to_have_attribute("aria-pressed", "true")
+        scroll_settled(page)
+        before = page.evaluate("scrollY")
+        for key in ("Space", "Space", "Enter"):
+            page.keyboard.press(key)
+            scroll_settled(page)
+            expect(caption).to_be_focused()
+            expect(caption).to_have_attribute("aria-pressed", "true")
+            assert abs(page.evaluate("scrollY") - before) <= 1

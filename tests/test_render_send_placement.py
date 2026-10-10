@@ -1357,7 +1357,7 @@ def test_send_grows_thread_around_the_words(
         const card = document.querySelector('.lf-margin-preview');
         const body = card?.querySelector('.lf-msg-body');
         if (body && card.checkVisibility()) {
-          window.sendFrames.push({rects:rects(body), scroll:body.scrollTop, pageScroll:scrollY,
+          window.sendFrames.push({rects:rects(body), scroll:body.querySelector('.lf-msg-text').scrollTop, pageScroll:scrollY,
             frame:card.getBoundingClientRect().toJSON()});
         }
         window.sampling = requestAnimationFrame(sample);
@@ -1406,7 +1406,7 @@ def test_send_grows_thread_around_the_words(
     expect(card.locator('leaf-text[name="reply"]')).to_be_visible()
 
     if long is True:
-        body = card.locator(".lf-msg-body").first
+        body = card.locator(".lf-msg-text").first
         body.hover()
         page.mouse.wheel(0, -300)
         expect(body).not_to_have_js_property("scrollTop", reading["scroll"])

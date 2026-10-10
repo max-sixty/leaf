@@ -1182,6 +1182,33 @@ def test_page_state_names_each_bound_source_and_its_failures(page_dir):
     assert "builds" in error
 
 
+def test_sample_templates_bind_the_parents_producer_sources(page_dir):
+    """A disposable child's data consumers remain visible to its parent producer."""
+    declare_data_input(page_dir, "builds", {"type": "array"}, activate=False)
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text().replace(
+            '<lf-test-data id="test-data" source="builds"></lf-test-data>',
+            '<lf-sample id="live-builds" window><template id="builds-page" data-sample>'
+            '<lf-test-data id="child-builds" source="builds"></lf-test-data>'
+            "</template></lf-sample>",
+        )
+    )
+    publish(page_dir)
+    data_model.cmd_data_set(page_dir, "builds", ["passing"])
+    state = state_json(page_dir)
+    assert read_page_data(page_dir)["sources"]["builds"]["value"] == ["passing"]
+    binding = state["data_bindings"]["builds"]
+    assert binding["contract"] == "test-data"
+    assert binding["consumers"] == [
+        {
+            "widget": "child-builds",
+            "input": "data",
+            "document": "revision r1 sample 'builds-page'",
+        }
+    ]
+
+
 def test_thread_read_reads_frozen_construction(page_dir):
     (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
@@ -1223,7 +1250,7 @@ def test_thread_read_reads_frozen_construction(page_dir):
     }
     assert message["source"]["event"] == root["id"]
     drawing = {
-        "format": "leaf-drawing/2",
+        "format": "leaf-drawing/3",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
         "box": [640.5, 96],
         "viewport": [1200, 900],
@@ -1248,26 +1275,13 @@ def test_thread_read_reads_frozen_construction(page_dir):
     assert refused.exit_code != 0 and "names no thread or widget" in refused.output
 
 
-def test_version_descriptors_scan_the_revision_directory_once(tmp_path, monkeypatch):
-    """Mapped revisions define history from one directory snapshot."""
-    (tmp_path / "revisions").mkdir()
-    events = []
-    for revision in range(1, 4):
-        (tmp_path / "revisions" / f"r{revision}-{'0' * 16}.html").write_text("revision")
-        events.append({"kind": "note", "version": revision, "revision": revision})
-    events.append({"kind": "note", "version": 4, "revision": 4})
-
-    native_list_revisions = files_model.list_revisions
-    scans = 0
-
-    def counted_list_revisions(page_dir):
-        nonlocal scans
-        scans += 1
-        return native_list_revisions(page_dir)
-
-    monkeypatch.setattr(files_model, "list_revisions", counted_list_revisions)
-
-    assert files_model.version_descriptors(tmp_path, events) == [
+def test_version_descriptors_select_only_available_stamped_revisions():
+    """Public history orders stamps and excludes a note whose revision is absent."""
+    events = [
+        {"kind": "note", "version": revision, "revision": revision}
+        for revision in (4, 2, 3, 1)
+    ]
+    assert files_model.version_descriptors(events, {1, 2, 3}) == [
         {
             "version": revision,
             "revision": revision,
@@ -1275,7 +1289,6 @@ def test_version_descriptors_scan_the_revision_directory_once(tmp_path, monkeypa
         }
         for revision in range(1, 4)
     ]
-    assert scans == 1
 
 
 def test_check_leaves_the_documents_encoding_to_delivery(page_dir):
@@ -1308,11 +1321,10 @@ def test_check_rejects_widget_violations(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace(
             '<a href="https://example.test/jobs/backfill.py#L88"><code>jobs/backfill.py:88</code></a>',
-            '<lf-metric id="bad-metric" value="1"/>'
+            '<lf-gloss tip="A short explanation"/>'
             "<figure/>"
             "<lf-bogus></lf-bogus>"
-            '<lf-chronology id="bad-chronology">'
-            '<lf-chronology-entry id="stray-chronology-entry" kind="medium">S</lf-chronology-entry></lf-chronology>'
+            '<lf-column id="bad-tone" label="S" tone="medium"></lf-column>'
             '<lf-option id="stray"><strong>S</strong></lf-option>'
             '<lf-diagram id="Bad_ID"><pre>graph LR</pre><em>x</em></lf-diagram>'
             '<lf-diagram id="bare-body">graph LR</lf-diagram>',
@@ -1325,7 +1337,8 @@ def test_check_rejects_widget_violations(page_dir):
     # any non-void tag, not only on the vocabulary's.
     assert out.count("self-closing") == 2
     assert "unknown widget" in out
-    assert '"medium" is not one of' in out
+    assert '<lf-column tone="medium">' in out
+    assert "not a tone this page's layer paints" in out
     assert "must be a direct member of <lf-options>" in out
     assert "'id' is a required property" in out
     assert "does not match" in out  # id pattern
@@ -1359,18 +1372,18 @@ def test_a_widget_that_declares_a_language_is_checked_by_that_alone(page_dir):
     $languages on the strength of the declaration. A thirteenth widget that colors
     something — a terminal transcript, a diff — is covered without the lint moving."""
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-tree"]["properties"]["dialect"] = {"type": "string"}
-    registry["lf-tree"]["x-language"] = "dialect"
+    registry["lf-gloss"]["properties"]["dialect"] = {"type": "string"}
+    registry["lf-gloss"]["x-language"] = "dialect"
     (page_dir / "registry.json").write_text(json.dumps(registry))
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
-            '<h2>Plan</h2>\n<lf-tree id="t" dialect="lisp"><pre>\nfeeders/\n</pre></lf-tree>',
+            '<h2>Plan</h2>\n<lf-gloss tip="Feeder layout" dialect="lisp">feeders</lf-gloss>',
         )
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert '<lf-tree dialect="lisp">' in result.output
+    assert '<lf-gloss dialect="lisp">' in result.output
     assert "not a language this page's layer speaks" in result.output
 
 
@@ -1553,15 +1566,12 @@ def test_the_block_a_text_node_sits_in_is_one_list_on_both_sides():
     assert set(found.group(1).split(",")) == passages_model.TEXT_BLOCK_TAGS
 
 
-def test_the_context_an_anchor_stores_is_one_number_on_both_sides():
-    """CONTEXT (the file side) and the capture's own CONTEXT are how much of a passage's
-    surroundings an anchor writes down, and both sides must mean the same by it: the
-    browser writes the prefix and suffix, and `leaf thread open` writes them from a version
-    file, so a file-side capture storing a different amount makes an anchor the browser
-    would never have made — and the resolver demands a full contextual match before it
-    calls two identical quotes apart.
+def test_anchor_capture_starts_with_the_same_context_on_both_sides():
+    """Unique quotes share the initial width; repeated browser selections may grow it.
 
-    The quote itself is uncapped on both sides. This is the neighbourhood only."""
+    File capture requires a unique quote. The browser knows which occurrence the user
+    selected, so it widens context to identify that span, up to semantic fences.
+    """
     _, found = _sole_definition(r"const CONTEXT = (\d+);", "the captured context width")
     assert int(found.group(1)) == anchor_capture_model.CONTEXT
 
@@ -1608,19 +1618,15 @@ def test_a_tone_the_layer_cannot_paint_is_refused_where_the_author_can_still_fix
     page_dir,
 ):
     """The same failure a misspelt language has, and caught for the same reason: a
-    tone nothing matches paints nothing, so the chip renders neutral on a page that
+    tone nothing matches paints nothing, so the column renders neutral on a page that
     otherwise looks perfectly well. The user cannot see it — they never knew it
     was meant to be red — so the only party who can still fix it is whoever wrote
     the word, and the lint is where they are told. This is the whole difference
     between the attribute and a class, which nothing checks.
 
-    Every widget taking a tone reads it from the one list: a board column as well as
-    a chip."""
+    Every widget taking a tone reads it from the one list."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
-            '<lf-option id="flag-first">',
-            '<lf-option id="flag-first"><lf-chip tone="dangre">risk: high</lf-chip>',
-        ).replace(
             "</section>",
             '<lf-board id="board"><lf-column id="blocked" label="Blocked"'
             ' tone="dangre"></lf-column></lf-board></section>',
@@ -1634,8 +1640,7 @@ def test_a_tone_the_layer_cannot_paint_is_refused_where_the_author_can_still_fix
         for line in output.splitlines()
         if "not a tone this page's layer paints" in line
     ]
-    assert len(refused) == 2
-    assert any("<lf-chip" in line for line in refused)
+    assert len(refused) == 1
     assert any("<lf-column" in line for line in refused)
     assert "'ok', 'warn', 'danger'" in output
 
@@ -1647,26 +1652,40 @@ def test_a_tone_the_layer_cannot_paint_is_refused_where_the_author_can_still_fix
     assert check(page_dir).exit_code == 0
 
 
-def test_a_chip_is_admissible_in_both_its_owners(page_dir):
-    """x-owners is a list because one element can belong to two owners, and a chip
-    is written in a lf-option and in a lf-variant — the same shape either side of the
-    decision. Neither is special-cased anywhere: the nesting check reads the list."""
+def test_a_member_is_admissible_in_each_declared_owner(page_dir):
+    """A package member can belong to different families without validator changes."""
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["lf-label"] = {
+        "description": "A package's shared label.",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": False,
+        "x-content": "markup",
+        "x-upgrade": False,
+        "x-owners": ["lf-option", "lf-card"],
+    }
+    registry_path.write_text(json.dumps(registry))
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<lf-options>",
-            '<lf-compare id="cmp"><lf-variant id="v-a"><lf-chip tone="ok">cheap</lf-chip>'
-            "<strong>A</strong> One.</lf-variant></lf-compare>\n  <lf-options>",
+            '<lf-board id="labels"><lf-column id="labels-column" label="Ideas">'
+            '<lf-card id="labels-card"><lf-label>cheap</lf-label>A</lf-card>'
+            "</lf-column></lf-board><lf-options>",
+        ).replace(
+            '<lf-option id="flag-first">',
+            '<lf-option id="flag-first"><lf-label>small</lf-label>',
         )
     )
     assert check(page_dir).exit_code == 0, check(page_dir).output
 
     # And refused where neither holder is its parent, naming both.
     (page_dir / "index.html").write_text(
-        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2><lf-chip>stray</lf-chip>")
+        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2><lf-label>stray</lf-label>")
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert "must be a direct member of <lf-option> or <lf-variant>" in result.output
+    assert "must be a direct member of <lf-option> or <lf-card>" in result.output
 
 
 def test_pane_grammar_follows_the_declared_role_across_packages(page_dir):
@@ -1769,37 +1788,6 @@ def test_check_rejects_loose_content_in_items_container(page_dir):
     assert "loose text" in result.output
 
 
-def test_check_requires_one_child_for_each_declared_role(page_dir):
-    registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-milestones"]["x-required-members"] = {
-        "lf-milestone": {"one-each": "status"}
-    }
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-    version = page_dir / "index.html"
-    version.write_text(
-        version.read_text().replace(
-            "<lf-options>",
-            """<lf-milestones>
-  <lf-milestone id="role-planned" status="planned">Planned</lf-milestone>
-  <lf-milestone id="role-active" status="active">Active</lf-milestone>
-  <lf-milestone id="role-done" status="done">Done</lf-milestone>
-  <lf-milestone id="role-blocked" status="blocked">Blocked</lf-milestone>
-</lf-milestones>
-<lf-options>""",
-        )
-    )
-    assert check(page_dir).exit_code == 0, check(page_dir).output
-
-    version.write_text(
-        version.read_text().replace('status="blocked"', 'status="planned"')
-    )
-    result = check(page_dir)
-
-    assert result.exit_code != 0
-    assert "exactly one direct <lf-milestone> for each `status` value" in result.output
-    assert 'missing ["blocked"], repeated ["planned"]' in result.output
-
-
 def test_flag_attribute_accepts_both_html_spellings(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace('id="backfill-first">', 'id="backfill-first" chosen="">')
@@ -1826,31 +1814,11 @@ def test_retired_question_and_recommendation_attributes_are_rejected(page_dir):
     assert "'recommended' was unexpected" in result.output
 
 
-def test_milestones_compose(page_dir):
-    nested = """<lf-milestones>
-    <lf-milestone id="m-one" status="done" when="week 1"><strong>Survey</strong> Sites.</lf-milestone>
-    <lf-milestone id="m-two" status="active" tags="wood,solar"><strong>Build</strong></lf-milestone>
-  </lf-milestones>
-<lf-options>"""
-    (page_dir / "index.html").write_text(PAGE.replace("<lf-options>", nested))
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<lf-options>",
-            '<lf-milestone id="m-stray" status="done"><strong>X</strong></lf-milestone><lf-options>',
-        )
-    )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "must be a direct member of <lf-milestones>" in result.output
-
-
 def test_tabs_validate_and_compose(page_dir):
     tabs = """<lf-tabs id="ws">
   <lf-tab id="ws-ingest" label="Ingest"><p>Pipeline notes.</p></lf-tab>
   <lf-tab id="ws-search" label="Search">
-    <lf-metric id="k-lat" value="118 ms"></lf-metric>
+    <dl id="k-lat" class="panel"><dt></dt><dd><strong>118 ms</strong></dd></dl>
   </lf-tab>
 </lf-tabs>
 <lf-options>"""
@@ -2604,7 +2572,7 @@ def test_check_rejects_an_id_containing_whitespace(page_dir):
 def test_unreferenced_ids_and_widget_items_may_leave_the_page(page_dir):
     publish(page_dir)
     without_item = PAGE.replace(
-        '      <lf-option id="backfill-first"><lf-chip>effort: med</lf-chip><lf-chip>risk: low</lf-chip>\n'
+        '      <lf-option id="backfill-first"><small class="tag">effort: med</small><small class="tag">risk: low</small>\n'
         "        <strong>Backfill first</strong> Verify, then flip. <em>My take: do this first.</em>\n"
         "      </lf-option>\n",
         "",
@@ -4308,27 +4276,27 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
 
 
 def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
-    tasks = """<lf-tasks id="work">
-      <lf-task id="vendor" status="blocked"><strong>Vendor fix</strong></lf-task>
-      <lf-task id="copy" status="review"><strong>Copy review</strong></lf-task>
-      <lf-task id="future" status="active"><strong>Future review</strong>
+    tasks = """<lf-test-tasks id="work">
+      <lf-test-task id="vendor" status="blocked"><strong>Vendor fix</strong></lf-test-task>
+      <lf-test-task id="copy" status="review"><strong>Copy review</strong></lf-test-task>
+      <lf-test-task id="future" status="active"><strong>Future review</strong>
         <lf-ask id="future-decision"><h3>Review it now?</h3>
           <lf-options id="future-review" choose>
             <lf-option id="future-yes">Yes</lf-option><lf-option id="future-no">No</lf-option>
           </lf-options>
         </lf-ask>
-      </lf-task>
-      <lf-task id="decision" status="blocked"><strong>User decision</strong>
+      </lf-test-task>
+      <lf-test-task id="decision" status="blocked"><strong>User decision</strong>
         <lf-ask id="decision-decision"><h3>Which way out?</h3>
           <lf-options id="decision-options" choose>
             <lf-option id="decision-a">A</lf-option><lf-option id="decision-b">B</lf-option>
           </lf-options>
         </lf-ask>
-      </lf-task>
-      <lf-task id="release" status="review"><strong>Release review</strong>
-        <lf-task id="release-build" status="done"><strong>Build release</strong></lf-task>
-      </lf-task>
-    </lf-tasks>"""
+      </lf-test-task>
+      <lf-test-task id="release" status="review"><strong>Release review</strong>
+        <lf-test-task id="release-build" status="done"><strong>Build release</strong></lf-test-task>
+      </lf-test-task>
+    </lf-test-tasks>"""
     (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + tasks)
     )
@@ -4357,8 +4325,8 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
     the canonical update feed, and remains there as settled history when a note
     absorbs it."""
     tasks = (
-        '<lf-tasks id="work"><lf-task id="t-parser" status="review">'
-        "<strong>Parser</strong> Ready for eyes.</lf-task></lf-tasks>"
+        '<lf-test-tasks id="work"><lf-test-task id="t-parser" status="review">'
+        "<strong>Parser</strong> Ready for eyes.</lf-test-task></lf-test-tasks>"
     )
     (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + tasks)
@@ -4441,8 +4409,8 @@ def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
     """Reports are ordered by the log, so equal second-precision timestamps cannot
     reverse their known causal order."""
     task = (
-        '<lf-tasks id="work"><lf-task id="t-parser" status="review">'
-        "<strong>Parser</strong></lf-task></lf-tasks>"
+        '<lf-test-tasks id="work"><lf-test-task id="t-parser" status="review">'
+        "<strong>Parser</strong></lf-test-task></lf-test-tasks>"
     )
     (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + task)
@@ -4533,15 +4501,15 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
 
 def test_a_quoted_ask_does_not_hide_a_real_request_in_the_same_goal(page_dir):
     markup = (
-        '<lf-command id="hub">'
-        '<lf-task id="goal" status="blocked"><strong>Blocked goal</strong>'
+        '<lf-test-plan id="hub">'
+        '<lf-test-task id="goal" status="blocked"><strong>Blocked goal</strong>'
         '<lf-sample id="sample"><lf-options id="example" choose>'
         '<lf-option id="example-a"><strong>Example only</strong></lf-option>'
         "</lf-options></lf-sample>"
         '<lf-ask id="real-decision"><h3>What next?</h3>'
         '<lf-options id="real" choose><lf-option id="real-a">A</lf-option>'
         '<lf-option id="real-b">B</lf-option></lf-options></lf-ask>'
-        "</lf-task></lf-command>"
+        "</lf-test-task></lf-test-plan>"
     )
     (page_dir / "index.html").write_text(
         PAGE.replace("</section>", markup + "</section>")
@@ -4565,10 +4533,10 @@ def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
     def command(status, needed, body):
         flag = " needed" if needed else ""
         return (
-            '<lf-command id="hub">'
-            f'<lf-task id="goal" status="{status}"><strong>Import</strong>'
+            '<lf-test-plan id="hub">'
+            f'<lf-test-task id="goal" status="{status}"><strong>Import</strong>'
             f'<lf-draft id="cargo"{flag}><pre>\n{body}\n</pre></lf-draft>'
-            "</lf-task></lf-command>"
+            "</lf-test-task></lf-test-plan>"
         )
 
     version = page_dir / "index.html"
@@ -4719,14 +4687,21 @@ def test_page_inspection_places_cards_among_identified_siblings(page_dir):
     """A layer can add idless column content without changing card indexes."""
     registry_file = page_dir / "registry.json"
     registry = json.loads(registry_file.read_text())
-    registry["lf-chip"]["x-owners"].append("lf-column")
+    registry["lf-label"] = {
+        "description": "An inline label.",
+        "type": "object",
+        "properties": {},
+        "x-content": "markup",
+        "x-upgrade": False,
+        "x-owners": ["lf-column"],
+    }
     registry_file.write_text(json.dumps(registry))
     board = (
         '<lf-board id="reading-board">'
         '<lf-column id="reading-todo" label="To do">'
         '<lf-card id="reading-a">A</lf-card></lf-column>'
         '<lf-column id="reading-done" label="Done">'
-        "<lf-chip>Already reviewed</lf-chip>"
+        "<lf-label>Already reviewed</lf-label>"
         '<lf-card id="reading-b">B</lf-card></lf-column></lf-board>'
     )
     (page_dir / "index.html").write_text(before_choice(PAGE, board))
@@ -5198,7 +5173,8 @@ def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
         },
     )
     edited = live.replace(
-        "Fastest to ship.", "A revised recommendation. <lf-chip>Recommended</lf-chip>"
+        "Fastest to ship.",
+        'A revised recommendation. <small class="tag">Recommended</small>',
     ).replace('id="o-stage"', 'id="o-stage" chosen')
     source.write_text(PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + edited))
     assert stamp(page_dir, "revise recommendation").exit_code == 0

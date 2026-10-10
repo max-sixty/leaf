@@ -193,8 +193,8 @@ def test_typing_in_a_visible_inline_reply_keeps_the_reading_position(
     """Keeping a reply's controls visible does not reveal its already-scrolled-past turns."""
     content = """
 <div style="height:900px"></div>
-<lf-command id="hub" label="Tasks"><lf-task id="jobs" status="active" talk>
-What should we do next?</lf-task></lf-command>
+<lf-test-plan id="hub" label="Tasks"><lf-test-task id="jobs" status="active" talk>
+What should we do next?</lf-test-task></lf-test-plan>
 <div style="height:900px"></div>
 """
     if bounded:
@@ -2158,8 +2158,8 @@ def test_a_comment_hidden_by_narrowing_is_revealed_in_the_open_panel(
         expect(thread.locator(":scope > .lf-thread-summary")).to_be_focused()
 
 
-def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, serve):
-    """An untouched reply is not a draft; an edit to empty is."""
+def test_an_untouched_and_an_emptied_reply_follow_live_revisions(browser, serve):
+    """Emptying a reply keeps its editing session while unrelated revisions arrive."""
     page = open_page(browser, live_url(serve(NOTED_PAGE)))
     resized(page, 1440, 900)
     select_words(page, "#p1")
@@ -2202,8 +2202,7 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
     )
     stamp_page(d, v3, "v3")
     told(page)
-    expect_banner_control_offered(page.locator(".lf-latest-chip"))
-    expect(page.locator(".lf-version")).to_contain_text("v2")
+    expect(page.locator(".lf-version")).to_contain_text("v3")
     expect(reply).to_have_js_property("value", "")
     expect(reply).to_be_focused()
 
@@ -5293,7 +5292,7 @@ def test_the_draft_box_is_its_own_door(browser, serve):
 
 # Generated editors carry native editing under their existing durable draft identity.
 def editing_revision_source(mode):
-    body = '<h1 id="subject">Editor continuity</h1><p id="passage">A stable passage stays exact across the revision.</p><textarea id="authored-draft" aria-label="Authored draft" style="height:80px"></textarea><lf-draft id="draft-root"><pre>Standing editable text.</pre></lf-draft><lf-ask id="choice-root"><h2>Which choice?</h2><lf-options id="options-root" choose><lf-option id="initial">Initial choice</lf-option></lf-options></lf-ask><lf-command id="command-root" label="Tasks"><lf-task id="seat-root" status="active" talk>What should we do?</lf-task></lf-command>'
+    body = '<h1 id="subject">Editor continuity</h1><p id="passage">A stable passage stays exact across the revision.</p><textarea id="authored-draft" aria-label="Authored draft" style="height:80px"></textarea><lf-draft id="draft-root"><pre>Standing editable text.</pre></lf-draft><lf-ask id="choice-root"><h2>Which choice?</h2><lf-options id="options-root" choose><lf-option id="initial">Initial choice</lf-option></lf-options></lf-ask><lf-test-plan id="command-root" label="Tasks"><lf-test-task id="seat-root" status="active" talk>What should we do?</lf-test-task></lf-test-plan>'
     module = """<script type="module">
 window.__rendererLifetime={birth:performance.timeOrigin,hits:0,version:'MODE'};
 addEventListener('renderer-lifetime-probe',()=>window.__rendererLifetime.hits++);

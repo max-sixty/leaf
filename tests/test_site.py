@@ -49,7 +49,7 @@ from playwright.sync_api import expect
 from render_cases_layout import banner_control
 
 # The suite's own page primitives, so a navigation here waits on what every other
-# navigation waits on. tests/AGENTS.md, "A wait consumes a fact the system states".
+# navigation waits on. tests/AGENTS.md, "Waits".
 from render_harness import (
     consume_browser_errors,
     displayed,
@@ -87,8 +87,7 @@ def pages_under(directory):
     """The pages a sweep walks, proved to exist before it walks them. Four of the
     checks below are loops over a glob and nothing else, so a directory that moved or
     was renamed turns every one of them into a sweep that pressed nothing — green, and
-    for the wrong reason (tests/AGENTS.md, "A sweep that walks controls by index must
-    prove it pressed them")."""
+    for the wrong reason (tests/AGENTS.md, "Sweeps over controls")."""
     pages = sorted(directory.glob("*.html"))
     assert pages, f"no pages under {directory}"
     return pages
@@ -138,7 +137,7 @@ def published_pages():
 def site(tmp_path_factory):
     """One build for the module: it vendors a layer and checks every published page."""
     out = tmp_path_factory.mktemp("published") / "site"
-    site_build.build(out)
+    site_build.build(out, site_build.checkout_leaf())
     return out
 
 
@@ -1154,7 +1153,7 @@ def test_an_invalid_product_document_stops_the_build(tmp_path, monkeypatch):
     monkeypatch.setattr(site_build, "DOCS", staged_docs)
 
     with pytest.raises(SystemExit) as stopped:
-        site_build.build(tmp_path / "invalid-site")
+        site_build.build(tmp_path / "invalid-site", site_build.checkout_leaf())
     assert "<base>" in str(stopped.value)
 
 
@@ -2196,7 +2195,11 @@ def test_shipped_data_opens_in_its_package_projection(site, served_example, brow
     snapshot = page.locator('#tree-w-1 [data-lf-datum="tree-w-1"]')
     expect(snapshot).to_have_count(1)
     expect(snapshot).to_contain_text("atlas/xml-declarations")
-    expect(snapshot).to_contain_text("tests running")
+    expect(
+        snapshot.locator("dt", has_text="Tests").locator(
+            "xpath=following-sibling::dd[1]"
+        )
+    ).to_have_text("running")
 
 
 def test_a_comment_persists_without_inventing_an_agent_reply(served_example, browser):

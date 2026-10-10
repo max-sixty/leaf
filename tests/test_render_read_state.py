@@ -18,6 +18,7 @@ from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_cases_navigation import source_revision
 from render_cases_widgets import LONG_LINE_DIFF_PAGE, MULTI_HUNK_PATCH
 from render_harness import (
+    CutOff,
     Traffic,
     _traffic,
     heard_back,
@@ -70,15 +71,12 @@ def _select_new_route(page):
     select(page, *points)
 
 
-def _agent_metric_reply(page_dir, root, number, for_event=None):
+def _agent_update_reply(page_dir, root, number, for_event=None):
     return thread_model.post_reply(
         page_dir,
         root,
-        f"Update {number}.",
-        (
-            f'<lf-metric id="read-update-{number}" value="{number}">'
-            "Completed steps</lf-metric>"
-        ),
+        f"Update {number}.\n\nCompleted steps: {number}.",
+        None,
         for_event=for_event,
         when_settled="post",
     )["id"]
@@ -87,13 +85,13 @@ def _agent_metric_reply(page_dir, root, number, for_event=None):
 def test_unread_summary_keeps_hidden_original_unread(browser, serve):
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Can we review this?", author="user")
-    first = _agent_metric_reply(serve.page_dir, root, 1, for_event=root)
+    first = _agent_update_reply(serve.page_dir, root, 1, for_event=root)
     user = append_carried_log_record(
         serve.page_dir,
         {"kind": "reply", "author": "user", "parent": root, "text": "One more detail."},
     )["id"]
-    middle = _agent_metric_reply(serve.page_dir, root, 2, for_event=user)
-    _agent_metric_reply(serve.page_dir, root, 3)
+    middle = _agent_update_reply(serve.page_dir, root, 2, for_event=user)
+    _agent_update_reply(serve.page_dir, root, 3)
     accepted, _ = endpoint_model.accept_event(
         serve.page_dir,
         {
@@ -125,10 +123,10 @@ def test_unread_summary_keeps_hidden_original_unread(browser, serve):
 
 def test_first_unread_reveals_resolved_summary_original(browser, serve):
     url = serve(PANEL_PAGE)
-    root = panel_comment(serve.page_dir, "Is this metric settled?", author="user")
-    answer = _agent_metric_reply(serve.page_dir, root, 4, for_event=root)
+    root = panel_comment(serve.page_dir, "Is this progress settled?", author="user")
+    answer = _agent_update_reply(serve.page_dir, root, 4, for_event=root)
     thread_model.cmd_summarize(
-        serve.page_dir, root, answer, "The earlier metric discussion."
+        serve.page_dir, root, answer, "The earlier progress discussion."
     )
     append_carried_log_record(
         serve.page_dir, {"kind": "resolve", "author": "agent", "parent": root}
@@ -495,6 +493,7 @@ def test_automatic_read_refusal_keeps_message_unread(browser, serve):
         "</lf-options></lf-ask>",
     )["id"]
     page = open_page(browser, url)
+    cut = CutOff().hold(page)
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.locator(".lf-threads-toggle").click()
@@ -502,17 +501,28 @@ def test_automatic_read_refusal_keeps_message_unread(browser, serve):
     card = page.locator(f'.lf-thread[data-id="{root}"]')
     holding(page, held, 1, "automatic read")
     request = held.pop()
-    request.fulfill(
-        status=400,
-        json={"ok": False, "final": True, "error": "refused before append"},
+    response = request.fetch(
+        post_data=json.dumps(
+            {"kind": "read", "messages": [{"message": "missing", "version": "missing"}]}
+        )
     )
+    assert response.status == 400 and response.json()["final"] is True
+    request.fulfill(response=response)
     expect(card.locator(f'.lf-msg[data-mid="{root}"]')).to_have_class(
         re.compile(r"(^|\s)lf-unread(\s|$)")
     )
     expect(card.locator(".lf-mark-read")).to_have_count(0)
     assert _read_events(serve.page_dir) == []
+    assert (
+        page.evaluate("""async () => {
+      const {readApplication} = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+      return readApplication().authoritative.taken;
+    }""")
+        == response.json()["state"]["taken"]
+    )
     assert take_browser_errors(page) == [f"400 {request.request.url}"]
     page.unroute("**/api/event")
+    cut.restore()
     with sending(page, "read on a new visit"):
         page.evaluate("""() => {
           window.dispatchEvent(new Event('blur'));
@@ -1021,9 +1031,9 @@ def _seat_filler(name):
 
 TASK_SEAT_PAGE = leaf_page(
     "seat",
-    f"<h1 id='h'>Three jobs</h1>{_seat_filler('lead')}<lf-command id='hub' "
-    "label='Before the frost'><lf-task id='jobs' status='active' talk>"
-    f"<strong>Which jobs are worth starting?</strong></lf-task></lf-command>"
+    f"<h1 id='h'>Three jobs</h1>{_seat_filler('lead')}<lf-test-plan id='hub' "
+    "label='Before the frost'><lf-test-task id='jobs' status='active' talk>"
+    f"<strong>Which jobs are worth starting?</strong></lf-test-task></lf-test-plan>"
     f"{_seat_filler('tail')}",
 )
 
@@ -1747,17 +1757,17 @@ def test_reading_a_thread_moves_nothing_in_it(browser, serve):
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir,
-        "Review this metric.\n\n" + "The complete context matters. " * 250,
+        "Review this progress.\n\n" + "The complete context matters. " * 250,
         author="agent",
     )
-    second = _agent_metric_reply(serve.page_dir, root, 2)
+    second = _agent_update_reply(serve.page_dir, root, 2)
     accepted, _ = endpoint_model.accept_event(
         serve.page_dir,
         {"kind": "read", "messages": [{"message": second, "version": second}]},
         dict,
     )
     assert accepted == 200
-    third = _agent_metric_reply(serve.page_dir, root, 3)
+    third = _agent_update_reply(serve.page_dir, root, 3)
     page = open_page(browser, url)
     page.set_viewport_size({"width": 1440, "height": 1000})
     page.locator(".lf-threads-toggle").click()

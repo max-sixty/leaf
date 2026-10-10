@@ -179,38 +179,6 @@ def _validate_widget_structure(
             raise RegistryError(
                 f"{path}: <{tag}> x-reading-role pane instances require a string label"
             )
-    required_members = entry.get("x-required-members", {})
-    if required_members and entry.get("x-content") != "members":
-        raise RegistryError(
-            f"{path}: <{tag}> x-required-members requires x-content: members"
-        )
-    for member_tag, constraint in required_members.items():
-        member = declarations.get(member_tag)
-        if member is None:
-            raise RegistryError(
-                f"{path}: <{tag}> x-required-members names unknown member "
-                f"declaration <{member_tag}>"
-            )
-        if tag not in member.get("x-owners", []):
-            raise RegistryError(
-                f"{path}: <{tag}> x-required-members names <{member_tag}>, but that member "
-                "does not name it in x-owners"
-            )
-        attribute = constraint["one-each"]
-        attribute_schema = member.get("properties", {}).get(attribute, {})
-        values = (
-            attribute_schema.get("enum") if isinstance(attribute_schema, dict) else None
-        )
-        if (
-            attribute not in member.get("required", [])
-            or not isinstance(values, list)
-            or not values
-            or any(not isinstance(value, str) or not value for value in values)
-        ):
-            raise RegistryError(
-                f"{path}: <{tag}> x-required-members <{member_tag}> one-each `{attribute}` "
-                "must name a required, non-empty string enum on the member"
-            )
     for input_name, spec in entry.get("x-data", {}).items():
         contract = spec["contract"]
         source_attr = spec["source"]

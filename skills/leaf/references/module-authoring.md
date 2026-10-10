@@ -232,9 +232,10 @@ such as a tab switch, runs the change through `preserveReadingRegions(owner, cha
 which awaits the change's returned layout promise before restoring the visible regions'
 scrollers. `runtime/reading-regions.js` describes the region model.
 
-A widget that re-renders or resizes content inside a scroller of its own holds the
-user's place with `placeKeeper(scroller, {items, identity})` rather than by restoring a
-`scrollTop`; `runtime/user-place.js` describes it.
+A widget that re-renders or resizes content holds the user's place with
+`placeKeeper(scroller, {items, identity})` rather than by restoring a `scrollTop`.
+This includes synchronous changes in the platform page scroller when native anchoring
+does not retain the focused control; `runtime/user-place.js` describes the hold.
 
 A widget that remembers where the user was reading, in a view it hides and shows again,
 keeps a place rather than an offset: `capturePlace()` reads the page's place as a
@@ -328,6 +329,14 @@ reached by its own arrows offers one Tab stop with `rove(items, stop)`. `standin
 says whether the user stands in a scope, across shadow trees, and `whenLeft(element, leave)`
 runs `leave` once when they move off an element.
 
+Generated native controls can give themselves a stable `data-lf-carry` key inside
+their nearest named owner. That owner must match authored markup by id and tag;
+another named wrapper establishes its own scope. Live document replacement carries
+focus and caret by owner id, key and native tag, once the generated control is visible
+after upgrade. Authored inputs retain focus immediately so typing continues during
+startup. The widget owns its drawing and values. An initial renderer keeps retained
+view geometry from the first frame. Keys are unique within their named owner.
+
 A module that takes the user to a thread calls `openThread(id, {focus})`
 with the Thread's `id`. It opens the thread where the page shows it, inline beside
 its passage or widget, and in Threads when it has no place on the page, the same choice a
@@ -393,7 +402,10 @@ A mechanical surface that must stop motion before a review gesture is handled us
 `onUserInput(callback)`. The shared input owner calls it synchronously during capture
 for pointer, key, input, wheel, touch and window blur events; the callback observes and
 does not claim the event. Filter the events belonging to the surface and release the
-returned subscription when it disconnects. Keyboard commands still use `commands()`.
+returned subscription when it disconnects. Keyboard commands still use `commands()`. A drawing stroke dispatches the bubbling,
+composed `lf-inspect` event on its semantic target before reading its coordinate frame.
+A moving visual handles that event to freeze the evidence being drawn on; entering
+Draw mode alone does not inspect a visual.
 
 A module implementing its own navigation captures `retainUserIntent()` in the gesture
 that starts it, before its
@@ -538,6 +550,13 @@ does not carry it. A widget whose parts have a face of their own styles
 what a key addresses calls `layoutChanged(this)`, and every standing indication resolves
 again.
 
+## Icons
+
+`iconElement(name, className)` and `iconTemplate(name, className)` draw Leaf's shared
+icons through `/runtime/widget-api.js`. Use `"comment"` for a thread control, with
+`lf-action-icon` inside an `lf-icon-action` button for the inherited stroke and
+hit area. The icon is decorative; the button supplies its accessible label.
+
 ## Commands and keyboard routes
 
 A widget contributes each command once with `commands(source, title, rows, options)`.
@@ -554,25 +573,25 @@ Declare ordinary local bindings in `keys` and explicitly forwardable aliases in
 the enclosing Ask's opening and its associated margin controls and threads. A route can
 declare its own `contextKeys`; an ordinary key on another route is never forwarded.
 Numbers are widget choices, not an Ask allocation: options own their stable numeric
-assignments, and a swipe deck declares Pass as `1` and Keep as `2`. The page owns `q`
+assignments, and a classifier declares Pass as `1` and Keep as `2`. The page owns `q`
 and `Shift+q` navigation between Asks. Do not assign numbers based on currently available
 actions: disabling `1` must not turn `2` into a different action.
 
 ```javascript
-const actions = commandScope("In a swipe deck", [
+const actions = commandScope("In a classifier", [
   {
-    id: "swipe.pass",
+    id: "classify.pass",
     title: "Pass",
     keys: ["ArrowLeft"],
     contextKeys: ["1"],
     decision: true,
     control: passButton,
     bindingBadge: passHint,
-    when: canSwipe,
-    run: () => swipe("pass"),
+    when: canClassify,
+    run: () => classify("pass"),
   },
 ]);
-commands(deck, actions);
+commands(classifier, actions);
 ```
 
 For a native button, `control` and `run` declare one activation path: Leaf invokes
@@ -715,6 +734,10 @@ owner. They coalesce reads at the script's microtask checkpoint, pause while the
 is absent, and read the latest projection when it returns, even when unchanged.
 Moving the owner within one mutation batch retains its subscription. Their returned
 cleanup permanently retires the subscription, including queued reads and clock paints.
+Its `refresh()` reruns the same clock-tracked reading synchronously while the owner
+is connected, retaining the watcher's readiness proof. Use it when a mechanical
+change, such as revealing held news or entering print, needs to repaint; calling
+the renderer directly would leave its new time readings outside the subscription.
 
 ## Page history
 
@@ -722,7 +745,10 @@ A widget that renders the page's history declares `x-history` and reads it throu
 `watchHistory(owner, callback)`: the server's rows, newest first, each already
 carrying its thread, whether it was undone, the name an agent's row is shown under
 as `agent`, and a gesture's words as the document it was made in had them. The
-widget words those facts; it does not fold the log.
+widget words those facts; it does not fold the log. The callback also receives
+`{ready}`: whether the authoritative application is ready. A widget that restores a
+tab-local retained reading keeps it through preparation, then compares it with the
+ready history; a preparation reading is not a new history baseline.
 
 ## Data subscriptions and projections
 
@@ -747,6 +773,9 @@ Register once for the element. Leaf pauses the subscription when its owner leave
 delivers the newest snapshot when it returns, even if its revision is unchanged.
 Moving the owner within one DOM mutation batch retains the subscription. The returned
 cleanup function ends it permanently when the module explicitly stops watching.
+Its `refresh()` repaints the last delivered snapshot through the same clock
+tracking. It neither delivers a pending source reading nor revives an absent or
+retired subscription.
 The callback must state the whole rendering and remain idempotent.
 
 Use `watchOwner(element, {connect, disconnect})` for other resources that follow the
@@ -952,6 +981,19 @@ feature gallery switches Conversation, Shelf and Feed with these APIs.
 
 ## Reading Asks and obligation queues
 
+`readWork(scope)` projects a page-owned work hierarchy from the current application
+publication. Declare `$work.widgets` roles: `scope` bounds one hierarchy; `goal`
+names a recorded `state` attribute, `done` values and `stopped` values; `worker`
+names its recorded `state`, `running` and `retired` values and optional assignment
+attribute `on`; `evidence` declares an observed-data seat. The returned `goals`,
+`workers`, terminal `leaves`, `done`, `stopped`, `liveWorkers`, `running` and `quiet`
+readings retain their authored `element` identities. Stopped goals include held
+threads and outstanding interventions; worker reports retain last-heard time and
+respect the closest scope and goal's remit. No dashboard stores another copy.
+`workRole`, `workElements`, `directWorkElements` and `workAncestor` read the same
+role declaration for page-owned adapters. Atlas demonstrates native composition
+in `examples/command-hub.page/`; these domain tags are owned by that page.
+
 `readAsks()` returns the publisher's immutable `{phase, all, user, unanswered}`.
 `all` is the complete standing Ask inventory, `user` is the set currently on the
 user, and `unanswered` retains every standing unanswered Ask, including those held
@@ -971,7 +1013,8 @@ workflow or `null`, plus `offers: {open, done}` for current command availability
 arrival, including completed Asks and tasks. It resolves to `false` for an unavailable
 row. `queueActions.done(key)` returns an admission promise only for a current
 `onYou` task with `ends === "done"`; otherwise it returns `null`. An Ask ends through
-its widget and a question through a reply. Done removes its task optimistically,
+its widget, a conversational question through a reply, and required sign-off through
+its version's banner approval. Done removes its task optimistically,
 a duplicate cannot send again, and refusal restores the authoritative reading.
 The server remains final for all actions. Collections retain their shape while
 `phase` is `waiting`, `ready`, or `offline`; activate only a ready collection.

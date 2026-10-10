@@ -15,6 +15,7 @@ from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as files_model
+from leaf import passages as passages_model
 from leaf import service as service_model
 from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
@@ -183,7 +184,9 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
     wait_until_ready(page)
     result = page.evaluate(
         """async () => {
-        const {TEXT_BLOCK, pageRange} = await window.__lfRuntimeImport('/runtime/passages.js');
+        const {TEXT_BLOCK, pageRange, pageText} = await window.__lfRuntimeImport('/runtime/passages.js');
+        const {anchorForRange, resolveAnchor} =
+            await window.__lfRuntimeImport('/runtime/anchor-resolution.js');
         const {nextRender, renderingSettled} =
             await window.__lfRuntimeImport('/runtime/rendering.js');
         const tick = () => new Promise(r => setTimeout(r, 0));
@@ -208,10 +211,10 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
             const near = el.closest('.lf-ui, [data-lf-said]');
             return !near || near.matches('[data-lf-said]');
         };
-        // Native passage blocks come from the runtime. The four composite roots are
+        // Native passage blocks come from the runtime. The composite roots are
         // representative widgets whose direct prose otherwise has no native block;
         // data-lf-said is the runtime's marker for generated words the page still says.
-        const compositeSelector = 'lf-metric,lf-milestone,lf-option,lf-variant';
+        const compositeSelector = 'lf-option,lf-sample';
         const blocks = [...document.querySelectorAll(
             `${TEXT_BLOCK},${compositeSelector},[data-lf-said]`)]
           .filter(b => speaks(b) && b.checkVisibility()
@@ -235,8 +238,8 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
                 drags.set(join, drags.get(join) ?? [block, next]);
             }
         });
-        const missed = [], skipped = [], astray = [];
-        let attempted = 0;
+        const missed = [], skipped = [], astray = [], nonexact = [];
+        let attempted = 0, detached = 0, fallback = 0;
         for (const [start, end] of drags.values()) {
             attempted++;
             // A mouse selection starts in page words and ends with the native
@@ -260,6 +263,22 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
             // a passage silently outside this sweep, and the sweep is the coverage.
             if (fab.style.display !== 'block') {
                 skipped.push(range.toString().replace(/\\s+/g, ' ').trim().slice(0, 70));
+                continue;
+            }
+            const anchor = anchorForRange(range);
+            const resolved = resolveAnchor(anchor, pageText());
+            // A cross-cell selection remains a real native selection and a writable
+            // comment. It must not acquire an exact semantic highlight by ignoring
+            // the same fences file capture respects. Generated wordless faces and
+            // identified data can also retain an element fallback.
+            if (!resolved?.exact || resolved.kind !== 'passage') {
+                nonexact.push(anchor);
+                if (anchor.detached) detached++;
+                else fallback++;
+                if (range.collapsed || !range.toString().trim() || fab.disabled)
+                    missed.push('unusable native selection: ' + range.toString().slice(0, 70));
+                sel.removeAllRanges();
+                await rendered();
                 continue;
             }
             const painted = CSS.highlights.get('lf-pending');
@@ -290,9 +309,20 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
             sel.removeAllRanges();
             await rendered();
         }
-        return {attempted, missed, skipped, astray};
+        return {attempted, detached, fallback, missed, skipped, astray, nonexact};
     }"""
     )
+    # Refusing a highlight needs evidence independent of browser resolution. A
+    # regression that detaches ordinary file-readable prose must fail this sweep.
+    passages = passages_model.page_passages(
+        structure_model.SourceDocument((serve.page_dir / "index.html").read_text()),
+        json.loads((serve.page_dir / "registry.json").read_text()),
+    )
+    for anchor in result["nonexact"]:
+        located = {key: value for key, value in anchor.items() if key != "detached"}
+        assert anchor_capture_model.resolve_quote(passages, located) is None, (
+            f"{source.stem}: browser detached a file-readable passage: {anchor}"
+        )
     assert result["attempted"] > 0, f"{source.stem}: the passage sweep found nothing"
     assert result["missed"] == [], (
         f"{len(result['missed'])} passages in {source.stem} quote text the page "
@@ -474,11 +504,11 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
     if revision == 2:
         source = FENCED_CAPTURE_PAGE.replace("</title>", " revised</title>")
     elif revision == 3:
-        source = FENCED_CAPTURE_PAGE.replace('when="week-1"', 'when="week-2"')
+        source = FENCED_CAPTURE_PAGE.replace("week-1", "week-2")
     if revision != 1:
         stamp_page(serve.page_dir, source, "Refresh the document")
         wait_for_revision(page, 2)
-    expect(page.locator("#gate-milestone .lf-chips")).to_have_count(1)
+    expect(page.locator('#gate-milestone [data-lf-said="label"]')).to_have_count(1)
     registry = json.loads((serve.page_dir / "registry.json").read_text())
     cases = [
         ("#gate-milestone strong", "Build feeders", "gate-milestone"),
@@ -486,7 +516,7 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
         ("#after-milestone", "Ready next.", "after-milestone"),
         # One chip out of a band of them: authored markup, so both readings hold it
         # for the same reason they hold the title beside it.
-        ("#fence-option > lf-chip", "effort: low", "fence-option"),
+        ("#fence-option > small.tag", "effort: low", "fence-option"),
     ]
 
     for index, (selector, quote, section) in enumerate(cases, 1):
@@ -876,6 +906,32 @@ def test_every_suggestion_activation_dismisses_a_standing_selection(
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
     expect(page.locator(".lf-composer")).to_be_hidden()
     assert page.evaluate("getSelection().isCollapsed")
+
+
+def test_focusing_a_selected_comment_field_keeps_its_captured_passage(browser, serve):
+    """The field survives the native selection collapse caused by entering it."""
+    page = open_page(browser, serve(SUGGESTION_PAGE))
+    box = page.locator("#replace").bounding_box()
+    select(
+        page,
+        (box["x"] + 4, box["y"] + 6),
+        (box["x"] + box["width"] - 8, box["y"] + box["height"] - 6),
+        steps=16,
+    )
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_visible()
+    field.focus()
+    expect(field).to_be_focused()
+    assert page.evaluate("getSelection().isCollapsed")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    write(page.locator(".lf-composer leaf-text"), "Keep this note")
+    page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").focus()
+    page.locator("#replace").select_text()
+    page.evaluate("getSelection().removeAllRanges()")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(page.locator(".lf-composer leaf-text")).to_have_js_property(
+        "value", "Keep this note"
+    )
 
 
 def test_the_floating_response_bar_has_one_compact_face(browser, serve):
@@ -2968,12 +3024,16 @@ def test_tab_between_two_staged_controls_turns_the_shortcut_bar_over(browser, se
 
     Such a move reaches the document as no focus event at all, so a repaint that waits
     for one leaves the line naming the keys of the control the user left, until the
-    heartbeat or a resize repaints it. A file's title and its Reviewed button make
+    heartbeat or a resize repaints it. A file's title and its comment button make
     different presses, and the line names them differently."""
-    page = open_page(
-        browser,
-        serve(DIFF_PAGE.replace('<lf-diff id="patch">', '<lf-diff id="patch" review>')),
+    url = serve(
+        DIFF_PAGE.replace(
+            '<lf-diff id="patch">', '<lf-diff id="patch" source="review-patch">'
+        )
     )
+    patch = DIFF_PAGE.split("<pre>", 1)[1].split("</pre>", 1)[0]
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
+    page = open_page(browser, url)
     page.keyboard.press("Tab")  # keyboard modality, as a user reaching the title has
     title = page.locator("lf-diff summary.lf-diff-head").first
     title.scroll_into_view_if_needed()
@@ -2983,7 +3043,7 @@ def test_tab_between_two_staged_controls_turns_the_shortcut_bar_over(browser, se
     assert "hide this file" in on_title, on_title
 
     page.keyboard.press("Tab")
-    expect(page.locator("lf-diff .lf-diff-review:focus")).to_have_count(1)
+    expect(page.locator("lf-diff .lf-diff-file-comment:focus")).to_have_count(1)
     said = shortcut_bar_text(page)
     assert "next hunk" in said, said
     assert "this file" not in said, said
@@ -6411,7 +6471,7 @@ def test_a_hunk_step_waiting_on_a_file_leaves_a_user_who_moved_on(browser, serve
     page.locator("lf-diff summary").first.click()
     first = page.locator('lf-diff [data-lf-datum=\'["first.py","new",1]\']')
     expect(first).to_have_count(1)
-    page.locator("lf-diff .lf-diff-wrap").focus()
+    page.locator("lf-diff").evaluate("node => { node.tabIndex = -1; node.focus(); }")
     page.keyboard.press("]")
     expect(page.locator(".lf-walk-position")).to_have_text("Hunk 1 of 1")
 
@@ -6725,7 +6785,7 @@ def test_passage_range_spanning_shadow_root_children_reads_the_stage(browser, se
     result = page.evaluate(
         """async () => {
           const {shadowStage} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const {rangeAnchor} = await window.__lfRuntimeImport('/runtime/composing/capture.js');
+          const {anchorForRange} = await window.__lfRuntimeImport('/runtime/anchor-resolution.js');
           const host = document.querySelector('lf-diff');
           const first = document.createElement('p');
           first.textContent = 'first';
@@ -6735,7 +6795,7 @@ def test_passage_range_spanning_shadow_root_children_reads_the_stage(browser, se
           const range = document.createRange();
           range.setStart(first.firstChild, 0);
           range.setEnd(last.firstChild, last.firstChild.length);
-          return rangeAnchor(range);
+          return anchorForRange(range);
         }"""
     )
     assert result["section"] == "patch"

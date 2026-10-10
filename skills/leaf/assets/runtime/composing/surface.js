@@ -53,6 +53,7 @@ import {
   visualAt,
 } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
+import { WORKS } from "../control-selectors.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import {
   BANNER_CONTROL_RANK,
@@ -68,7 +69,7 @@ import {
   targetSegments,
   targetRange,
 } from "../resolved-target.js";
-import { composerOpen, fab, fabBar, fabInput } from "./selection.js";
+import { composerOpen, fab, fabBar, fabInput, pendingAbout } from "./selection.js";
 
 import {
   closeCommandReference,
@@ -88,6 +89,7 @@ import {
 
 import {
   elementById,
+  closestAcross,
   inChrome,
   pageRange,
   pageText,
@@ -316,6 +318,7 @@ export function createResponseSurface({
   const placement =
     createPlacement?.({
       bar: fabBar,
+      input: fabInput,
       response: {
         get anchor() {
           return fabAnchor;
@@ -419,7 +422,7 @@ export function createResponseSurface({
     // chosen, the button is the affordance; once Comment is open, the input replaces it.
     fab.style.display = fabAnchor ? "" : "none";
     if (fabAnchor) {
-      const label = anchorLabel(fabAnchor).replace(/^§\s*/, "");
+      const label = anchorLabel(fabAnchor, pendingAbout).replace(/^§\s*/, "");
       keeps(fabBar, "aria-label", label ? `Respond to ${label}` : "Respond");
       keeps(fabInput, "aria-label", label ? `Comment on ${label}` : "Comment");
       // The tokens already standing on this very anchor read pressed, and a press on one
@@ -432,7 +435,10 @@ export function createResponseSurface({
       // is for opening: the bar already standing on this anchor, placed again, is
       // withheld rather than put away (standFab).
       if (place && usesPlacement && placement && !placement.place()) {
-        if (sameAnchor(previous, fabAnchor) && anchorStands(fabAnchor))
+        if (
+          sameAnchor(previous, fabAnchor) &&
+          (placement.stands() ?? anchorStands(fabAnchor))
+        )
           placement?.withhold();
         else {
           fabAnchor = null;
@@ -476,7 +482,7 @@ export function createResponseSurface({
   // draft, anchor and all, and the next
   // placement that finds room stands it again.
   function standFab() {
-    if (!anchorStands(fabAnchor)) {
+    if (!(placement?.stands() ?? anchorStands(fabAnchor))) {
       letGoOfFab();
       return false;
     }
@@ -572,8 +578,9 @@ export function createResponseSurface({
   // carries the same trusted notification for a script's endpoint write. It can offer
   // the current passage, but cannot authorize replacing a composer or its draft.
   // That menu can stand on either side of the words; never compete with it by raising
-  // a second adjacent surface. Capture the passage for the banner's explicit action.
-  let offeredSelectionAnchor = null;
+  // a second adjacent surface. The banner offers the current selection; its explicit
+  // press captures it, after any source refresh that preserved those native endpoints.
+  let selectionOffered = false;
   const selectionComment = document.createElement("button");
   selectionComment.className = "lf-btn primary";
   selectionComment.type = "button";
@@ -586,17 +593,17 @@ export function createResponseSurface({
     present: false,
   });
   const offerSelection = (anchor) => {
-    offeredSelectionAnchor = anchor;
-    showBannerControl(selectionComment, Boolean(anchor));
+    selectionOffered = Boolean(anchor);
+    showBannerControl(selectionComment, selectionOffered);
   };
   const commentOnOfferedSelection = () => {
-    const anchor = offeredSelectionAnchor;
-    if (!anchor) return;
+    const selection = anchoringIsReady() ? pageSelection() : null;
+    const anchor = selection ? selectionAnchor(selection) : null;
+    offerSelection(null);
+    if (!hasQuote(anchor)) return;
     dismissBannerControls();
     cancelRender(selectionUpdate);
     selectionUpdate = null;
-    getSelection()?.removeAllRanges();
-    offerSelection(null);
     openComment(anchor, "");
   };
 
@@ -832,9 +839,9 @@ export function createResponseSurface({
         actionPress = false;
       });
     // Opening or acting in chrome is a route away from the page, not a new selection
-    // gesture. Keep the already-captured touch passage verbatim while focus moves
+    // gesture. Keep the native touch passage verbatim while focus moves
     // through the banner, its sibling popovers, and their controls.
-    if (offeredSelectionAnchor && inChrome(ev.composedPath()[0])) {
+    if (selectionOffered && inChrome(ev.composedPath()[0])) {
       primaryPointerPressed = false;
       pointerSelecting = false;
       selectionGestureClaimed = false;
@@ -962,7 +969,7 @@ export function createResponseSurface({
         if (selection && pageRange(selection).intersectsNode(target))
           rememberPointerSelection();
         actionPress =
-          (offeredSelectionAnchor && inChrome(target)) ||
+          (selectionOffered && inChrome(target)) ||
           target === selectionComment ||
           Boolean(target.closest?.(".lf-react-surface, .lf-composer"));
       },
@@ -1010,6 +1017,16 @@ export function createResponseSurface({
       if (coarsePointer.matches && selection && !automatic)
         rememberSelection(selection);
       observeSelection();
+      // A bare selected passage only stands while the browser still holds it.
+      // Focusing Comment captures that passage, and a written draft keeps it even
+      // after focus moves elsewhere; neither belongs to the native selection now.
+      if (
+        !selection &&
+        fabAnchor?.quote &&
+        !fabHoldsCapturedPassage() &&
+        !composerHolds()
+      )
+        putAwayFab();
       reflectSelectionStanding();
     });
     document.addEventListener("mouseup", (ev) => {
@@ -1131,6 +1148,9 @@ export function createResponseSurface({
         if (design) openOnDesign(design);
         return;
       }
+      // A painted owner may contain working controls or editing regions. Their
+      // native click keeps its meaning even when an annotation covers the owner.
+      if (closestAcross(target, WORKS)) return;
       // The record rather than this event's own coordinates, for the reason the record is
       // kept from a pointer event at all (pointer.js): `click` is a legacy mouse event and
       // carries the pointer's place rounded to a whole pixel, while markAt measures against
@@ -1177,7 +1197,7 @@ export function createResponseSurface({
     title: `comment on the ${word}`,
   });
   function commentDestination() {
-    if (offeredSelectionAnchor)
+    if (selectionOffered)
       return {
         ...commenting("selection"),
         box: selectionComment,
@@ -1365,7 +1385,6 @@ export function createResponseSurface({
     beginFabFocus,
     endFabFocus,
     landFabFocus,
-    anchorStands,
     showFab,
     putAwayFab,
     letGoOfFab,

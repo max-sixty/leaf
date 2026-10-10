@@ -6,11 +6,14 @@
 # loading the first instruction draft. The final direct obligation passed 2/2,
 # as did the paired baseline; the case does not establish a causal improvement.
 # Both arms also passed drafted-report 2/2 at the source's high effort.
+# queue-handoff comes from 01a12209-ecff-7132-8615-f7d8ada34ddb: the first
+# paired run missed required approval on baseline and registered it on candidate.
+# A later pair passed both arms; the evidence is illustrative, not a failure rate.
 description: assessment-surfaces-pending-decisions
 metadata:
-  purpose: 'Asks: an assessment exposes decisions waiting on the user while informational findings remain findings.'
+  purpose: "Asks: an assessment exposes decisions waiting on the user while informational findings remain findings."
   tags:
-  - asks
+    - asks
 vars:
   prompt: |
     I asked you to survey common but non-obvious navigation interactions, explain
@@ -41,20 +44,52 @@ vars:
     collapsed. The page directory is not reachable here, so reply with the
     complete <main> HTML rather than writing a file.
 assert:
-- type: llm-rubric
-  metric: pending-decisions
-  value: |
-    Pass only if scrolling and history each have a separate lf-ask with a direct
-    question heading and one operable answering widget. Each offers the proposed
-    change and keeping the current behavior, begins undecided, and can be answered
-    independently. The premise and tradeoff needed to decide are inside each Ask.
-    Escape stays an informational finding, without an Ask requesting a decision
-    or confirmation of already verified behavior. Fail prose-only recommendations,
-    a batch choice for both changes, or automatic selection of the author's pick.
+  - type: llm-rubric
+    metric: pending-decisions
+    value: |
+      Pass only if scrolling and history each have a separate lf-ask with a direct
+      question heading and one operable answering widget. Each offers the proposed
+      change and keeping the current behavior, begins undecided, and can be answered
+      independently. The premise and tradeoff needed to decide are inside each Ask.
+      Escape stays an informational finding, without an Ask requesting a decision
+      or confirmation of already verified behavior. Fail prose-only recommendations,
+      a batch choice for both changes, or automatic selection of the author's pick.
 variants:
+  queue-handoff:
+    metadata:
+      purpose: "Questions: user actions are registered, authorized agent work remains on the agent, and zero Questions does not imply all work is finished."
+    vars:
+      prompt: |
+        You drive a Leaf page at ~/.local/state/leaf/pages/release. You have finished
+        the release assessment. I authorized finishing the CI wait; it is running
+        in the background. The CI task is already open on you as ci-work.
+        I still need to try the build on my phone; only I can do that. The page's
+        latest valid stamped version is v6 and includes a required banner approval.
+        You need my review and approval of that version before publishing.
+        There is also an optional color explorer on the page; no work depends on
+        its settings. Before the latest stamp the queue had no user items; you have
+        not inspected it since.
+
+        Your drafted handoff is "Waiting for phone testing and approval. Feel free
+        to play with the colors." Write the commands and short handoff you would
+        use now. Files and services are unreachable; do not actually run them.
+    assert:
+      - type: llm-rubric
+        metric: complete-queue
+        value: |
+          Pass only if the agent registers the phone test as a user request in
+          Leaf's Questions and inspects the canonical lists using page state. The
+          required review/approval of v6 must appear in Questions:
+          recognize its automatically derived approval Question, or register an
+          explicit request on a runtime without that capability. A status line or
+          bare prose alone fails. CI stays
+          agent work, with no request for authorization to continue an authorized
+          wait. The optional explorer creates no required request. The handoff does
+          not equate zero Questions with all work done. Do not require exact
+          wording or a particular number of user tasks.
   drafted-report:
     metadata:
-      purpose: 'Asks: completing an assessment replaces prose requests for decisions with independently answerable Asks.'
+      purpose: "Asks: completing an assessment replaces prose requests for decisions with independently answerable Asks."
     vars:
       prompt: |
         I asked for a survey of common but non-obvious navigation interactions,

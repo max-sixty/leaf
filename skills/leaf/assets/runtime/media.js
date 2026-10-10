@@ -7,8 +7,9 @@
    separator; removing that suffix preserves every newline the user wrote.
    Draft, sent-message, and authored links to their own image open one native modal
    viewer. PhotoSwipe supplies image zoom, pan, and touch gestures on demand; native
-   modality, retained controls, and focus return remain Leaf's. Links to other
-   destinations and modified link presses keep their authored meaning. The document
+   modality, retained controls, and focus return remain Leaf's. An authored figure
+   caption stays outside the image in a readable footer; alt text stays with the image.
+   Links to other destinations and modified link presses keep their authored meaning. The document
    declares its public page root because a website module may live under an immutable
    release URL shared with a sample. All three resolve
    the same canonical `/media/…` text without rewriting durable content. The viewer's
@@ -28,7 +29,7 @@ import {
 import { closeControl, offered } from "./widget-elements.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import { nativeLayers } from "./keyboard/layer-stack.js";
-import { keeps, keepsText } from "./keeps.js";
+import { keeps, keepsHidden, keepsText } from "./keeps.js";
 import { reducedMotion, FOLD_MS } from "./motion.js";
 
 // Page media is whatever a reference names under this directory. The name a file there
@@ -171,10 +172,10 @@ const open = (url, alt, from) => {
   openLayer(mediaViewer, from);
   presentViewer({ url, alt });
   render(html`<img src=${url} alt=${alt} />`, stage);
-  keepsText(
-    caption,
-    from.closest("figure")?.querySelector("figcaption")?.textContent || alt,
-  );
+  const description =
+    from.closest("figure")?.querySelector("figcaption")?.textContent.trim() || "";
+  keepsText(caption, description);
+  keepsHidden(caption, !description);
   keepsText(viewerZoom, "100%");
   if (!mediaViewer.open) mediaViewer.showModal();
   focusDestination(viewerClose, "move");
@@ -247,6 +248,7 @@ const open = (url, alt, from) => {
         caption,
         `Image controls unavailable: ${error.message}. Open Original to inspect the file.`,
       );
+      keepsHidden(caption, false);
     },
   );
 };
@@ -295,7 +297,9 @@ document.addEventListener("click", (event) => {
     event.preventDefault();
     open(
       trigger?.dataset.lfMediaUrl || link.href,
-      (trigger?.querySelector("img") || image)?.alt || "Image",
+      trigger?.dataset.lfMediaAlt ||
+        (trigger?.querySelector("img") || image)?.alt ||
+        "Image",
       trigger || link,
     );
   }

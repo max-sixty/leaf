@@ -3037,10 +3037,9 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
 
           <lf-playground-preview id="notification-preview">
             <p>
-              Drag event pressure from a routine release to a burst. Both formats
-              receive the same updates, so their scan cost stays comparable. The Format
-              control selects the requested output while leaving both candidates visible
-              for comparison.
+              Increase Concurrent release events to compare both formats with more
+              notifications. Both show the same events. The Format control selects the
+              requested output while leaving both candidates visible for comparison.
             </p>
             <notification-simulator
               id="notification-simulator"
@@ -3113,8 +3112,9 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
 <lf-tab id="corpus-code-comparison" label="Code comparison">
 <h1>Compare built code readers</h1>
       <p class="lede">
-        Both candidates are the shipped <code>lf-code</code> widget. One width gesture
-        reaches both; candidate settings stay explicit and copyable.
+        Both examples use Leaf's <code>lf-code</code> widget. Comparison viewport
+        changes both widths. The density controls change each example separately. Copy A
+        to B and Copy B to A copy the density and line-wrapping settings.
       </p>
       <lf-ask id="code-comparison-ask" data-width="available">
         <h2>Which built code-reader treatment should the agent keep?</h2>
@@ -4012,7 +4012,8 @@ export const summarize = checks =>
             >Worktrunk PR #3865</a
           >
           adds a unified-diff preview for the switch picker. The captured revision is
-          awaiting a merge decision; its exact 46-file patch closes the review.
+          awaiting a merge decision. Its complete 46-file patch appears below for
+          review.
         </p>
         <p id="pr-tags">
           <span class="tag ok">Safe to approve</span>
@@ -4249,7 +4250,7 @@ flowchart TB
             This exact hunk from <code>src/summary.rs</code> replaces direct Git
             argument assembly with the repository’s <code>PreparedDiff</code> API.
           </p>
-          <lf-diff id="pr-key-hunk" data-height="539" review>
+          <lf-diff id="pr-key-hunk" data-height="539">
             <pre>
 diff --git a/src/summary.rs b/src/summary.rs
 --- a/src/summary.rs
@@ -4357,9 +4358,7 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
                     >
                   </td>
                   <td><span class="tag ok">passed</span></td>
-                  <td>
-                    Also makes glob escaping load-bearing through a bracketed path.
-                  </td>
+                  <td>Also tests glob escaping with a bracketed path.</td>
                 </tr>
                 <tr>
                   <th scope="row">Off-screen worktrees are demand-loaded</th>
@@ -4487,7 +4486,7 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
           <lf-merge-film id="merge-film"></lf-merge-film>
         </lf-pane>
         <lf-pane id="merge-steps-pane" label="Steps">
-          <header><h2>The steps, as this run takes them</h2></header>
+          <header><h2>Steps in the selected run</h2></header>
           <div>
             <p id="lede">
               Worktrunk's <code>wt merge</code> takes a finished branch to main in one
@@ -5062,9 +5061,7 @@ flowchart LR
         </section>
 
         <section id="security-states">
-          <h2 id="security-states-heading">
-            The job has an irreversible handoff, not a hand-back
-          </h2>
+          <h2 id="security-states-heading">Sandbox execution and cleanup</h2>
           <lf-diagram
             id="security-proposed-states"
             parts="node:S0 node:S1 node:S2 node:S3 node:S4 node:S5 node:S6 node:S7 node:F"
@@ -5187,7 +5184,7 @@ stateDiagram-v2
         </section>
 
         <section id="security-bottlenecks">
-          <h2 id="security-bottlenecks-heading">Put policy at four bottlenecks</h2>
+          <h2 id="security-bottlenecks-heading">Boundary enforcement</h2>
           <table id="security-bottleneck-table">
             <thead>
               <tr>
@@ -5270,9 +5267,7 @@ stateDiagram-v2
         </section>
 
         <section id="security-vendor-sandboxes">
-          <h2 id="security-vendor-heading">
-            One outer sandbox is the enforcement seam for both harnesses
-          </h2>
+          <h2 id="security-vendor-heading">Shared sandbox for Claude and Codex</h2>
           <table id="security-vendor-table">
             <thead>
               <tr>
@@ -5342,7 +5337,7 @@ stateDiagram-v2
         </section>
 
         <section id="security-contracts">
-          <h2 id="security-contracts-heading">Setup becomes a clean ownership seam</h2>
+          <h2 id="security-contracts-heading">Runner setup and sandbox setup</h2>
           <table id="security-setup-contract">
             <thead>
               <tr>
@@ -5403,9 +5398,7 @@ stateDiagram-v2
         </section>
 
         <section id="security-implementation">
-          <h2 id="security-implementation-heading">
-            The proposal cut the work into three slices
-          </h2>
+          <h2 id="security-implementation-heading">Implementation steps</h2>
           <ol class="steps" id="security-implementation-steps">
             <li>
               <strong>Prove one shared outer adapter.</strong> On
@@ -5449,7 +5442,7 @@ stateDiagram-v2
         </section>
 
         <section id="security-proof">
-          <h2 id="security-proof-heading">Acceptance is end-to-end and adversarial</h2>
+          <h2 id="security-proof-heading">Integration and adversarial tests</h2>
           <table id="security-proof-table">
             <thead>
               <tr>
@@ -5798,7 +5791,7 @@ stateDiagram-v2
 
 <lf-tab id="corpus-command-hub" label="Command">
 <header>
-        <p class="eyebrow">command hub · the plan is the interface</p>
+        <p class="eyebrow">command hub · importer rewrite</p>
         <h1>Atlas importer rewrite</h1>
         <p class="lede" id="hub-lede">
           Get the new importer through one shadow week with no unexplained variance. The
@@ -5822,13 +5815,13 @@ stateDiagram-v2
           <lf-atlas-worker id="atlas-lead" state="working"
             ><details>
               <summary>
-                <strong>atlas-lead</strong><output class="atlas-worker-state"></output>
+                <strong>atlas-lead</strong
+                ><span class="atlas-worker-state" role="status"></span>
               </summary>
               <div class="atlas-worker-body">
                 <p class="atlas-worker-report"></p>
-                Coordinates the whole rewrite: routes decisions, watches progress, and
-                changes focus wherever the tree needs it. Its placement is the
-                project-wide remit; it does not pretend to have one leaf assignment.
+                Coordinates the whole rewrite by routing decisions, monitoring progress,
+                and choosing which tasks to focus on.
               </div>
             </details></lf-atlas-worker
           >
@@ -5851,12 +5844,12 @@ stateDiagram-v2
           <lf-atlas-task id="goal-parser" status="active" when="week 3" talk>
             <strong>Replace the XML parser</strong>
             Two workers own separate worktrees; open each worker to inspect its
-            evidence. The stalled dedupe leaf filed itself around this goal rather than
-            turning a worker into a pet.
+            evidence. The stalled deduplication task appears under this goal.
             <lf-atlas-worker id="w-1" state="working" on="parser-declarations"
               ><details>
                 <summary>
-                  <strong>w-1</strong><output class="atlas-worker-state"></output>
+                  <strong>w-1</strong
+                  ><span class="atlas-worker-state" role="status"></span>
                 </summary>
                 <div class="atlas-worker-body">
                   <p class="atlas-worker-report"></p>
@@ -5875,7 +5868,8 @@ stateDiagram-v2
                 <lf-atlas-worker id="w-2" state="working" on="parser-cdata"
                   ><details>
                     <summary>
-                      <strong>w-2</strong><output class="atlas-worker-state"></output>
+                      <strong>w-2</strong
+                      ><span class="atlas-worker-state" role="status"></span>
                     </summary>
                     <div class="atlas-worker-body">
                       <p class="atlas-worker-report"></p>
@@ -5899,7 +5893,8 @@ stateDiagram-v2
               <lf-atlas-worker id="w-5" state="reaped" on="parser-dedupe"
                 ><details>
                   <summary>
-                    <strong>w-5</strong><output class="atlas-worker-state"></output>
+                    <strong>w-5</strong
+                    ><span class="atlas-worker-state" role="status"></span>
                   </summary>
                   <div class="atlas-worker-body">
                     <p class="atlas-worker-report"></p>
@@ -5959,8 +5954,8 @@ stateDiagram-v2
           </lf-atlas-task>
 
           <lf-atlas-task id="goal-schema" status="active" when="week 3" talk>
-            <strong>Reconcile schema and ledger</strong> Two goals and the nightly wait
-            behind the schema choice.
+            <strong>Reconcile schema and ledger</strong> The schema decision blocks the
+            backfill, ledger fixture, and nightly variance report.
             <lf-atlas-task
               id="schema-choice"
               status="review"
@@ -5971,7 +5966,8 @@ stateDiagram-v2
               <lf-atlas-worker id="w-8" state="waiting" on="schema-choice"
                 ><details>
                   <summary>
-                    <strong>w-8</strong><output class="atlas-worker-state"></output>
+                    <strong>w-8</strong
+                    ><span class="atlas-worker-state" role="status"></span>
                   </summary>
                   <div class="atlas-worker-body">
                     <p class="atlas-worker-report"></p>
@@ -6008,9 +6004,10 @@ stateDiagram-v2
               needs="schema-choice"
               stopped-at="2026-08-21T09:04:00-07:00"
             >
-              <strong>Bring one replica-only ledger fixture</strong> Run the exact
-              credentialed command, inspect the full cargo below, trim it, then save the
-              draft. The edit receipt tells the orchestrator that w-8 can resume.
+              <strong>Bring one replica-only ledger fixture</strong> Run the command
+              below, paste its CSV output into the draft, and remove
+              <code>customer_name</code> and <code>billing_email</code> before saving.
+              Saving the draft tells the orchestrator that w-8 can resume.
               <lf-ask id="decision-ledger-fixture-region">
                 <h3>Which replica-only ledger fixture should the worker use?</h3>
                 <pre><code class="language-bash">psql "$ATLAS_REPLICA" -c "\copy (select * from ledger_entry
@@ -6026,15 +6023,15 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
               status="planned"
               needs="schema-choice ledger-fixture"
             >
-              <strong>Nightly variance report</strong> Unreachable until both inputs
-              stand.
+              <strong>Nightly variance report</strong> Waiting for the schema decision
+              and ledger fixture.
             </lf-atlas-task>
           </lf-atlas-task>
 
           <lf-atlas-task id="goal-api" status="active" when="week 4" talk>
-            <strong>Publish the parser contract</strong> Review the branch, not its
-            author. A line comment routes to a fresh evidence worker and stays anchored
-            here.
+            <strong>Publish the parser contract</strong> Review the public API branch. A
+            line comment goes to a new evidence worker and stays attached to the source
+            line.
             <lf-atlas-task
               id="api-shape"
               status="review"
@@ -6044,7 +6041,8 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
               <lf-atlas-worker id="w-3" state="waiting" on="api-shape"
                 ><details>
                   <summary>
-                    <strong>w-3</strong><output class="atlas-worker-state"></output>
+                    <strong>w-3</strong
+                    ><span class="atlas-worker-state" role="status"></span>
                   </summary>
                   <div class="atlas-worker-body">
                     <p class="atlas-worker-report"></p>
@@ -6143,10 +6141,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
         </section>
         <section class="panel" id="hub-record">
           <h2>Record</h2>
-          <p>
-            Every consequential gesture, newest first. Each row leads back to what it
-            moved.
-          </p>
+          <p>Recent actions, newest first. Each row links to the affected item.</p>
           <lf-activity id="atlas-record"></lf-activity>
         </section>
       </aside>
@@ -6956,16 +6951,18 @@ observe --cohort staff</code></pre>
               agent's Tasks count follows its status. Press either, or press
               <kbd>g</kbd> then <kbd>Shift+Q</kbd>, to see both lists in the panel
               Threads also opens in, with answered Asks and finished tasks folded under
-              Done; Enter on a row goes where <kbd>q</kbd> would. The Questions panel is
-              experimental. Within a view, <kbd>q</kbd> scrolls to the question. When it
-              opens another view, the question appears immediately and its tab name
-              briefly highlights. <kbd>Shift+Q</kbd> walks back. Reduced motion removes
-              the glide and highlight. When <kbd>q</kbd> reaches a commented Ask, its
-              discussion stays closed while you read and choose, including when Tab
-              enters its controls. Press <kbd>c</kbd> to reply in that existing
-              discussion, <kbd>t</kbd> to read it, or its Thread marker to open it under
-              a finger. Returning to an Ask you have answered also keeps its controls
-              clear.
+              Done; Enter on a row goes where <kbd>q</kbd> would. A stamped page asking
+              for sign-off also lists its version approval as a Question. That row
+              reaches the banner's Approve control; approving ends it, and Undo brings
+              it back. The Questions panel is experimental. Within a view,
+              <kbd>q</kbd> scrolls to the question. When it opens another view, the
+              question appears immediately and its tab name briefly highlights.
+              <kbd>Shift+Q</kbd> walks back. Reduced motion removes the glide and
+              highlight. When <kbd>q</kbd> reaches a commented Ask, its discussion stays
+              closed while you read and choose, including when Tab enters its controls.
+              Press <kbd>c</kbd> to reply in that existing discussion, <kbd>t</kbd> to
+              read it, or its Thread marker to open it under a finger. Returning to an
+              Ask you have answered also keeps its controls clear.
             </p>
             <lf-ask id="bg-choice-ask">
               <h3>Which map should the sample team carry?</h3>
@@ -7022,6 +7019,13 @@ observe --cohort staff</code></pre>
               quiet status line at the bottom right reports the current keyboard walk or
               a useful command result. It moves above the bottom-left shortcuts when
               room is tight.
+            </p>
+            <p id="bg-share-guide">
+              On a local server, open <strong>More → Share</strong> and copy the link,
+              then open it in a fresh browser profile. The link keeps the current
+              address and passage and includes the access key even after a reload. The
+              Share panel states that the key grants access to every Leaf page served by
+              the same machine. Sample windows and the public website omit Share.
             </p>
             <p id="bg-history-return-guide">
               Follow
@@ -7194,13 +7198,13 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <p id="bg-page-comment-card-guide">
                 With Threads shut, press the comment symbol beside Threads on the
                 banner, or press <kbd>c</kbd> with nothing selected. A card hangs from
-                the symbol; write a sentence and send it. Focus stays on the open card
-                and Threads flashes yellow, its count one higher, while the panel stays
-                shut; the new thread is in Threads. Press <kbd>c</kbd> to write again.
-                <kbd>Escape</kbd> or a click elsewhere puts the card away, keeping what
-                you wrote for the next time it opens. With Threads open, the same press
-                goes to its own “Comment on the page” box. On a phone, “Comment on the
-                page” is in “More page controls”.
+                the symbol; write a sentence and send it. The card closes and focus
+                returns to the symbol. Threads flashes yellow, its count one higher,
+                while the panel stays shut; the new thread is in Threads. Press
+                <kbd>c</kbd> to write again. <kbd>Escape</kbd> or a click elsewhere puts
+                the card away, keeping what you wrote for the next time it opens. With
+                Threads open, the same press opens the same card over the panel. On a
+                phone, “Comment on the page” is in “More page controls”.
               </p>
             </section>
 
@@ -7458,15 +7462,18 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <p id="bg-threads-guide">
               With Threads closed, a Thread control or marked passage opens the thread
               inline; <kbd>t</kbd> moves to the next inline card and <kbd>T</kbd> to the
-              previous one. Open Threads while one is focused, including with
-              <kbd>g</kbd> then <kbd>T</kbd>, and the same thread stays focused in the
-              panel. Under “View”, filters narrow the list to “Open”, “On you”, “On
-              agent”, or “Resolved”, and combine “Page” or “Anchored” with “Content” or
-              “Layer”. “Order” switches the list from the page's order to “Recent”,
-              which puts the thread spoken in last first under its day. Collapsed titles
-              retain their message count, last message activity, and current status; “On
-              you” also names the action owed. Each thread has a short title chosen by
-              the agent; open one to read the full messages beneath it. Reply follows a
+              previous one. Scroll far from a commented passage, then press
+              <kbd>t</kbd>: the card enters with its passage as the page approaches it.
+              Scroll away and back; it leaves and returns by the same attachment rule.
+              Open Threads while one is focused, including with <kbd>g</kbd> then
+              <kbd>T</kbd>, and the same thread stays focused in the panel. Under
+              “View”, filters narrow the list to “Open”, “On you”, “On agent”, or
+              “Resolved”, and combine “Page” or “Anchored” with “Content” or “Layer”.
+              “Order” switches the list from the page's order to “Recent”, which puts
+              the thread spoken in last first under its day. Collapsed titles retain
+              their message count, last message activity, and current status; “On you”
+              also names the action owed. Each thread has a short title chosen by the
+              agent; open one to read the full messages beneath it. Reply follows a
               short conversation directly; in a long conversation it stays visible while
               you scroll. Send a reply: focus stays on the conversation card or its
               title, including in the floating card. Press <kbd>c</kbd> to write again;
@@ -8521,13 +8528,15 @@ gallery/
                 This embedded sample is a framed tabbed section. The browser test also
                 presents this same tab set at the root of a page, where it becomes
                 borderless top navigation for page-scale views. Both forms remember the
-                selected panel after reload. At page level, scroll a view and switch
-                away and back: an unread view opens below the tab strip, and a view you
-                already read returns to its place. The strip stays put even when the
-                next view is shorter than the window. Browser Back and Forward return to
-                the corresponding views. Narrow the window until the gallery’s own tab
-                names overflow, then page them with the edge arrows. Reduced motion
-                makes that move immediate.
+                selected panel after reload. Horizontal tab strips stay at the top of
+                the view while their panel is being read, below any enclosing tabs.
+                Switching a pinned embedded strip opens its new panel at the start. At
+                page level, scroll a view and switch away and back: an unread view opens
+                below the tab strip, and a view you already read returns to its place.
+                The strip stays put even when the next view is shorter than the window.
+                Browser Back and Forward return to the corresponding views. Narrow the
+                window until the gallery’s own tab names overflow, then page them with
+                the edge arrows. Reduced motion makes that move immediate.
               </p>
               <lf-tabs id="bg-tabs">
                 <lf-tab id="bg-tab-current" label="Current">
@@ -8787,7 +8796,9 @@ gallery/
                 Sample labels invented content. Choose “Before” or “After” above the
                 image, or press the Shot control or image to flip. The selected label is
                 red for Before and green for After; a split colors both labels without
-                selecting either. This pair carries
+                selecting either. Scroll through a tall pair: the Before/After rail
+                stays at the top of the view until the pair ends, below any page tabs.
+                This pair carries
                 <code>outlines</code>, so outlines mark each region where the two images
                 differ, on both sides of the divider, and the rail counts them.
               </p>
@@ -9290,6 +9301,12 @@ switch --readers checkout-api,orders-api</code></pre>
             Select Documentation reviewed or API reviewed on the timeline. Hover or
             focus each number to read its name and time; close moments stay separate.
             Zoom in to spread their times and Whole recording to restore the overview.
+          </li>
+          <li>
+            Start playback and scroll down over the captured image until the controls
+            leave the screen. Playback continues during wheel scrolling and vertical
+            touch swipes. Return to the controls to pause, or tap the image to inspect
+            it.
           </li>
           <li>
             Use Fit image, Actual size, or image zoom to inspect captured pixels. Drag

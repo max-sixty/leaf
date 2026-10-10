@@ -44,8 +44,8 @@
     }
   },
   "lf-diff": {
-    "description": "A unified patch with per-file navigation, commentable source lines, and optional durable review marks.",
-    "x-instructions": "Add review when the user needs to inspect every file and retain review progress, and collapsed when every file should start closed. Bind source to a page-owned patch feed or files manifest; the bound form keeps an empty pre. With no source, write the exact patch in pre at column 0. Keep file headers so languages and line targets can be identified. Each changed file needs an @@ header whose old and new counts match its lines. A hunkless path-only rename uses exactly diff --git, similarity index 100%, rename from, and rename to, with matching nonempty paths; a rename with edits needs ordinary hunks. State binary, mode-only, empty added/deleted, and copy entries separately in prose. For an edited copy destination, omit copy metadata and include its textual hunks. Preserve context-line leading spaces; encode a space-only context line as &#32; so HTML parsing keeps it. HTML-escape an inline patch, & before < and >, or entity text in the source will change silently.",
+    "description": "A unified patch with per-file navigation and commentable source lines.",
+    "x-instructions": "Add collapsed when every file should start closed. Bind source to a page-owned patch feed or files manifest; the bound form keeps an empty pre. With no source, write the exact patch in pre at column 0. Keep file headers so languages and line targets can be identified. Each changed file needs an @@ header whose old and new counts match its lines. A hunkless path-only rename uses exactly diff --git, similarity index 100%, rename from, and rename to, with matching nonempty paths; a rename with edits needs ordinary hunks. State binary, mode-only, empty added/deleted, and copy entries separately in prose. For an edited copy destination, omit copy metadata and include its textual hunks. Preserve context-line leading spaces; encode a space-only context line as &#32; so HTML parsing keeps it. HTML-escape an inline patch, & before < and >, or entity text in the source will change silently.",
     "type": "object",
     "properties": {
       "id": {
@@ -58,9 +58,6 @@
       },
       "collapsed": {
         "type": "boolean"
-      },
-      "review": {
-        "type": "boolean"
       }
     },
     "required": [
@@ -72,28 +69,6 @@
       "document": {
         "contract": "unified-diff",
         "source": "source"
-      }
-    },
-    "x-state": {
-      "review": {
-        "detail": {
-          "type": "object",
-          "properties": {
-            "file": {
-              "type": "string",
-              "minLength": 1
-            },
-            "reviewed": {
-              "type": "boolean"
-            }
-          },
-          "required": [
-            "file",
-            "reviewed"
-          ],
-          "additionalProperties": false
-        },
-        "unit": "file"
       }
     },
     "x-upgrade": true,

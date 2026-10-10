@@ -153,8 +153,9 @@ and the transcript.
 
 `event_contracts.append_admitted` admits every writer's event under the page
 transaction's lease. It returns an accepted retry without repeating the gesture;
-otherwise it reads the named revision's vocabulary, checks that the kind is
-declared, allocates the event's unique identity, runs its gates against the page
+otherwise it reads the named revision's vocabulary and checks the command against
+its kernel record schema before kind-specific gates consume the fields, allocates the
+event's unique identity, and runs its gates against the page
 and standing log, derives server-owned
 meaning and `attention`, and validates the record against its stored-record contract.
 Using the event's revision keeps re-vendoring from reinterpreting an open document.
@@ -171,7 +172,13 @@ page widgets; user actions may also name widgets in frozen thread markup.
 
 Browser POSTs are commands. The append transaction stamps the accepted event with
 server-owned `meaning`; callers cannot send it, and retry identity
-compares the original command fields rather than this enrichment. Meaning holds
+compares the original command fields rather than this enrichment. The fixed
+`$events.ownership` declaration names `derived` fields that admission alone supplies
+and `browser_discard` fields removed before browser validation and attempt identity.
+Ownership describes the running kernel's fixed transport boundary; event kinds
+and meaning remain captured per revision.
+Generated browser command types exclude both groups; layers cannot change ownership.
+Meaning holds
 only what a reader without the sending registry cannot recover from the event
 itself. Every widget event records `scope`, `page` or `thread`, and its document
 identity is read from that scope and the event's revision (`events.event_document`):

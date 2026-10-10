@@ -351,7 +351,7 @@ def isolated_session(tmp_path_factory, monkeypatch):
     serves is claimed under that pid, and leaf stops a claimed page's server once
     its claimant is gone — the one reaper that reaches a server spawned into a
     session of its own, and so the only thing that ends one when a run is killed
-    outright (tests/AGENTS.md, "A process the suite starts ends with the run"). A
+    outright (tests/AGENTS.md, "Processes and servers"). A
     run started from a background job leaves that job's directory behind too, as
     it would any other fact about the developer's session. A test about a
     command run from outside a harness session strips the identity:
@@ -360,7 +360,7 @@ def isolated_session(tmp_path_factory, monkeypatch):
     The state home is the fixture's value, for `_no_page_outlives_its_test`:
     the sweep takes its root from here rather than from the environment, which
     it would read before this fixture sets it and after `monkeypatch` unsets it
-    (tests/AGENTS.md, "A process the suite starts ends with the run")."""
+    (tests/AGENTS.md, "Processes and servers")."""
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path_factory.mktemp("state")))
     monkeypatch.setenv("CODEX_HOME", str(tmp_path_factory.mktemp("codex")))
     monkeypatch.delenv(codex_model.APP_SERVER_ENV, raising=False)

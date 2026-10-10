@@ -1,8 +1,7 @@
 /* Where two images differ: the one rule every reader of a before/after pair shares.
  *
- * Experimental. The reading below is our own, tuned by eye on about 56 pairs of Leaf
- * captures and not yet tried on other screenshots (another site, a terminal, a plot).
- * We looked for a dependency first and found none that reads moves: pixelmatch, odiff,
+ * Experimental. Block detection and movement matching are our own; final changed
+ * outlines use density-clustering's DBSCAN. Pixelmatch, odiff,
  * BlazeDiff and looks-same compare pixels in place; lcs-image-diff aligns rows, so it
  * follows content pushed down but not a move across columns, and returns an image
  * rather than regions; x-img-diff-js, the one built for moved regions, took 7 s on a
@@ -56,9 +55,16 @@
  * outlined whole. Any other gives way to what it holds: its contents are outlined, and
  * its own changed squares that no outline covers widen the outline within ABSORB of
  * them, as a card's edge does below the text that grew it, or stand alone. A frame
- * alone that moved, and a move inside a change, are not outlined. Outlines of one kind
- * that would touch as drawn join, and moves that share a displacement join within
- * MOVED_REACH.
+ * alone that moved, and a move inside a change, are not outlined. Moves that share
+ * a displacement join within MOVED_REACH. Changed fragments join through DBSCAN
+ * using the gap between their original rectangles, never newly enclosed whitespace.
+ * Fragments within eight pixels also join, preserving the touching-outline rule
+ * for thin marks. The minimum
+ * population is one, so even an isolated edit survives. The radius grows with the
+ * square root of fragment count, capped at two median fragment thicknesses: crowded
+ * comparisons consolidate more, while distant edits stay separate. Thickness and gap exclude
+ * the one-pixel edge on each side, so capture density scales their ratio. These
+ * presentation groups form after matching and do not reclassify pixels or moves.
  *
  * A strong change over most of the image, such as a photo turned black and white, has
  * no place to point to: where squares COARSE pixels on a side holding a pixel that moved
@@ -67,7 +73,8 @@
  *
  * A before/after widget states the reading and, when asked, draws each frame's outlines,
  * and `leaf-dev stills` loads this module into its browser on its own and crops a
- * changed state to them, so the module imports nothing and touches no document. */
+ * changed state to them. The clustering dependency loads only when a comparison
+ * needs regions, after page presentation; this module touches no document. */
 
 const SLIGHT = 48;
 const STEP = 4;
@@ -76,7 +83,6 @@ const CELL = 4;
 const SPACING = 1;
 const COARSE = 8;
 const THROUGHOUT = 0.5;
-const PAD = 4;
 const ABSORB = 16;
 const MOVED_REACH = 32;
 
@@ -85,8 +91,9 @@ const MOVED_REACH = 32;
  * side, kind}`: an outline on the `side` ("before" for `a`, "after" for `b`) around
  * content that `kind` "changed" or "moved", in that image's own pixels, in reading order.
  * `a` and `b` are ImageData, or `width`, `height`, and RGBA bytes in a `data` array of
- * their own, which each pixel is read from as one 32-bit word. */
-export function differingRegions(a, b) {
+ * their own, which each pixel is read from as one 32-bit word. Returns a promise
+ * so loading the clustering library can wait until a pair needs it. */
+export async function differingRegions(a, b) {
   const width = Math.max(a.width, b.width);
   const height = Math.max(a.height, b.height);
   const columns = Math.ceil(width / CELL);
@@ -117,6 +124,7 @@ export function differingRegions(a, b) {
   // A block changed only where a square was struck, so with none, none did.
   if (!struck.includes(1))
     return { width, height, changed, throughout: false, regions: [] };
+  const { DBSCAN } = await import("/vendor/density-clustering.esm.js");
   const before = blocksOf(a, one, columns);
   const after = blocksOf(b, other, columns);
   const touched = (block) => block.cells.some((cell) => struck[cell]);
@@ -189,8 +197,8 @@ export function differingRegions(a, b) {
     }),
   );
   const regions = [
-    ...outlines(before, readBefore, struck, columns, "before", unowned),
-    ...outlines(after, readAfter, struck, columns, "after", unowned),
+    ...outlines(before, readBefore, struck, "before", unowned, DBSCAN),
+    ...outlines(after, readAfter, struck, "after", unowned, DBSCAN),
   ]
     .sort((p, q) => p.y - q.y || p.x - q.x)
     .map(({ x, y, width, height, side, kind }) => ({
@@ -206,7 +214,7 @@ export function differingRegions(a, b) {
 
 /* One image's outlines from its blocks and their readings, joined with the changes on
  * its side that lie in no block (`bare`), so content inside added ground is one area. */
-function outlines(blocks, states, struck, columns, side, bare) {
+function outlines(blocks, states, struck, side, bare, DBSCAN) {
   const marks = [];
   for (const [i, block] of blocks.entries()) {
     const { state, d } = states[i];
@@ -242,7 +250,7 @@ function outlines(blocks, states, struck, columns, side, bare) {
       else shown.push({ ...group, side, kind: "changed" });
     }
   }
-  const joined = join([...shown, ...bare.filter((box) => box.side === side)]);
+  const joined = join([...shown, ...bare.filter((box) => box.side === side)], DBSCAN);
   return joined.filter(
     (mark) =>
       mark.kind !== "moved" ||
@@ -505,17 +513,38 @@ function merged(items, joins) {
   return list;
 }
 
-// Outlines of one kind that would touch as drawn become one, and moves that share a
-// displacement join within MOVED_REACH.
-const join = (marks) =>
-  merged(
-    marks,
-    (p, q) =>
-      p.kind === q.kind &&
-      (p.kind === "moved"
-        ? p.d.join() === q.d.join() && near(p, q, MOVED_REACH)
-        : near(p, q, 2 * PAD)),
+// Movement keeps its correspondence; changed fragments cluster by original gaps.
+function join(marks, DBSCAN) {
+  const moves = merged(
+    marks.filter((mark) => mark.kind === "moved"),
+    (p, q) => p.d.join() === q.d.join() && near(p, q, MOVED_REACH),
   );
+  const changed = marks.filter((mark) => mark.kind === "changed");
+  if (changed.length < 2) return [...moves, ...changed];
+  const sizes = changed
+    .map((mark) => Math.max(1, Math.min(mark.width, mark.height) - 2))
+    .sort((a, b) => a - b);
+  const scale = sizes[Math.floor(sizes.length / 2)];
+  const radius = scale * Math.min(2, Math.sqrt(changed.length) / 2);
+  const gap = (p, q) =>
+    near(p, q, 8)
+      ? 0
+      : Math.max(
+          0,
+          p.x - q.x - q.width + 2,
+          q.x - p.x - p.width + 2,
+          p.y - q.y - q.height + 2,
+          q.y - p.y - p.height + 2,
+        );
+  const groups = new DBSCAN().run(changed, radius, 1, gap);
+  return [
+    ...moves,
+    ...groups.map((indices) => ({
+      ...changed[indices[0]],
+      ...indices.map((i) => changed[i]).reduce(union),
+    })),
+  ];
+}
 
 function words(image) {
   return new Uint32Array(
@@ -581,8 +610,8 @@ export function countAreas(regions) {
   };
 }
 
-/* `differingRegions` for two decoded images: HTMLImageElements, ImageBitmaps, or any
- * other canvas image source, read at their natural size. */
+/* `differingRegions`' promise for two decoded images: HTMLImageElements, ImageBitmaps,
+ * or any other canvas image source, read at their natural size. */
 export function compareImages(a, b) {
   return differingRegions(pixels(a), pixels(b));
 }

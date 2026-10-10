@@ -7549,6 +7549,46 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </template>
               </lf-sample>
             </section>
+            <section id="bg-native-replies">
+              <h3>Native HTML in replies</h3>
+              <p>
+                Open Threads in the sample. Read the checks table, then open Deploy log
+                by click or keyboard. Both are ordinary HTML carried by the reply,
+                without a widget wrapper.
+              </p>
+              <script id="bg-native-reply-history" type="application/json">
+                [
+                  {
+                    "id": "deploy-question",
+                    "kind": "comment",
+                    "author": "user",
+                    "text": "Did the deploy pass?"
+                  },
+                  {
+                    "id": "deploy-answer",
+                    "kind": "reply",
+                    "author": "agent",
+                    "parent": "deploy-question",
+                    "text": "The deploy passed both checks.",
+                    "markup": "<table><caption>Deploy checks</caption><thead><tr><th scope=\"col\">Check</th><th scope=\"col\">Result</th></tr></thead><tbody><tr><td>Build</td><td>Passed</td></tr><tr><td>Smoke test</td><td>Passed</td></tr></tbody></table><details><summary>Deploy log</summary><pre>Build complete&#10;Smoke test passed&#10;Ready</pre></details>"
+                  }
+                ]
+              </script>
+              <lf-sample
+                id="bg-native-reply-sample"
+                label="Native reply evidence"
+                window
+              >
+                <template
+                  id="bg-native-reply-page"
+                  data-sample
+                  data-sample-events="bg-native-reply-history"
+                >
+                  <h1>Deploy review</h1>
+                  <p>The release is ready. Open Threads to read the checks and log.</p>
+                </template>
+              </lf-sample>
+            </section>
             <p id="bg-thread-notices">
               <strong>New information.</strong> Have the agent add a message after the
               page opens: its status-line notice also reaches the live region without

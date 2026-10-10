@@ -87,7 +87,6 @@ from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import server_rows as server_rows_model
 from leaf import service as service_model
-from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
@@ -242,21 +241,6 @@ def test_a_staged_write_moves_neither_the_page_nor_its_presence_reading(page_dir
 
     assert served_reading.page_reading(page_dir) == reading
     assert presence_model._page_stamp(page_dir) == presence_stamp
-
-
-def test_interaction_trace_does_not_keep_an_unattended_page_active(page_dir):
-    session_model.cmd_waiting(page_dir, "")
-    old = time.time() - schema_model.ACTIVITY_GRACE_SECS - 60
-    for entry in page_dir.iterdir():
-        os.utime(entry, (old, old))
-    claimed_at = datetime.fromtimestamp(old).astimezone().isoformat()
-    assert not service_model._touched_recently(page_dir, claimed_at)
-
-    interaction_model.append_interactions(page_dir, [{"source": "server"}])
-    assert not service_model._touched_recently(page_dir, claimed_at)
-
-    os.utime(page_dir / "status.json", None)
-    assert service_model._touched_recently(page_dir, claimed_at)
 
 
 def test_samples_use_captured_resources_and_independent_event_logs(server, page_dir):

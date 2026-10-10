@@ -2001,8 +2001,8 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 :scope:is(lf-annotation-rail) .lf-ar-notice { block-size: 32px; max-inline-size: 100%;
   overflow: hidden; white-space: nowrap; }
 :scope:is(lf-annotation-rail) .lf-ar-action-row { display: flow-root; }
-:scope:is(lf-annotation-rail) .lf-ar-action-controls { display: flex; flex-wrap: nowrap;
-  gap: var(--sp-2); align-items: center; overflow-x: auto; }
+:scope:is(lf-annotation-rail) .lf-ar-action-controls { display: flex; flex-wrap: wrap;
+  gap: var(--sp-2); align-items: center; }
 :scope:is(lf-annotation-rail) .lf-ar-slot { display: inline-flex; flex: none;
   block-size: 32px; max-inline-size: 100%; min-inline-size: 0; }
 :scope:is(lf-annotation-rail) .lf-ar-item { block-size: 32px; inline-size: 100%; min-inline-size: 0; text-align: start;

@@ -2735,6 +2735,37 @@ def test_the_gallery_tab_set_uses_the_boundary_of_its_composition(
         )
 
 
+def test_the_gallery_overflow_tabs_reveal_and_open_review_sections(browser, serve):
+    """The gallery offers overflowing tabs at desktop, with working pointer and key routes."""
+    page = open_page(browser, live_url(serve(FEATURE_GALLERY)) + "#bg-tab-set")
+    resized(page, 1200, 900)
+    tabs = page.locator("#bg-rollout-tabs")
+    strip = tabs.locator(":scope > .lf-tabstrip")
+    tabs.scroll_into_view_if_needed()
+    choices = tabs.get_by_role("tab")
+    expect(choices).to_have_count(6)
+    expect(choices.first).to_have_attribute("aria-selected", "true")
+    assert strip.evaluate("el => el.scrollWidth > el.clientWidth")
+
+    strip.locator('.lf-tabstrip-scroll[data-to="end"] > span').click()
+    page.wait_for_function(
+        "document.querySelector('#bg-rollout-tabs > .lf-tabstrip').scrollLeft > 0"
+    )
+    expect(choices.first).to_have_attribute("aria-selected", "true")
+    # The keyboard reaches a tab from the pointer control without requiring that
+    # control to take a separate stop; End then brings the last section into view.
+    choices.first.click()
+    page.keyboard.press("End")
+    expect(choices.last).to_be_focused()
+    expect(choices.last).to_have_attribute("aria-selected", "true")
+    expect(page.locator("#bg-rollout-handoff-text")).to_be_visible()
+    page.keyboard.press("Home")
+    page.keyboard.press("ArrowRight")
+    expect(choices.nth(1)).to_be_focused()
+    expect(choices.nth(1)).to_have_attribute("aria-selected", "true")
+    expect(page.locator("#bg-rollout-scope-text")).to_be_visible()
+
+
 def color_cue_markup():
     return leaf_page(
         "Color cue surfaces",

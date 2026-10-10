@@ -3873,8 +3873,17 @@ customElements.define("lf-conditional", class extends HTMLElement {
         if count:
             expect_asks_answered(page, "0/1")
             banner_control(page, ".lf-queue").click()
-        # The phase move is the agent's to answer, so only the Ask's row is counted.
-        expect(page.locator(".lf-queue-row[data-lf-kind='ask']")).to_have_count(count)
+        # The phase move is the agent's to answer. The Question leaves the user's
+        # queue when its condition closes, retaining its withdrawn inventory row.
+        expect(
+            page.locator("[data-lf-queue='you'] .lf-queue-row[data-lf-kind='question']")
+        ).to_have_count(count)
+        withdrawn = page.locator(
+            "[data-lf-queue='done'] .lf-queue-row[data-lf-kind='question']"
+        )
+        expect(withdrawn).to_have_count(1 - count)
+        if not count:
+            expect(withdrawn).to_contain_text("Withdrawn")
 
 
 def test_a_live_revision_reapplies_the_authored_thread_seat_predicate(browser, serve):

@@ -69,6 +69,7 @@ export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // user standing in a node it moves.
 export { render, setChildren, setRenderedChildren } from "./dom-children.js";
 export { readQuestions, watchQuestions } from "./questions/model.js";
+export { questionWords } from "./questions/answer.js";
 export {
   readWork,
   workRole,

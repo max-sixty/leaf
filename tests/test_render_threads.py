@@ -4085,7 +4085,7 @@ def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination
         page.evaluate(
             """async id => {
               const {openThread} = await window.__lfRuntimeImport('/runtime/application.js');
-              await openThread(id, {focus: 'message'});
+              await openThread(id, {part: 'message'});
             }""",
             reply["id"],
         )
@@ -5101,12 +5101,8 @@ def test_two_standard_thread_lists_share_updates_but_not_local_state(browser, se
     ).to_have_count(1)
     expect(a.locator("#two-panel-window")).to_have_count(0)
     expect(b.locator("#two-panel-window")).to_have_count(0)
-    expect(
-        a.get_by_role("button", name="Open interactive reply in Threads")
-    ).to_have_count(1)
-    expect(
-        b.get_by_role("button", name="Open interactive reply in Threads")
-    ).to_have_count(1)
+    expect(a.get_by_role("button", name="Open interactive reply")).to_have_count(1)
+    expect(b.get_by_role("button", name="Open interactive reply")).to_have_count(1)
     a.get_by_role("searchbox", name="Find in threads").fill("Alpha")
     expect(a.locator(f'.lf-thread[data-id="{second_id}"]')).to_be_hidden()
     expect(b.locator(f'.lf-thread[data-id="{second_id}"]')).to_be_visible()
@@ -6841,7 +6837,7 @@ def test_an_inline_reply_link_finishes_a_resolution_fold(browser, serve):
     round_trip(page)
     expect(page.locator(f'.lf-going[data-id="{root}"]')).to_have_count(1)
 
-    inline.get_by_role("button", name="Open interactive reply in Threads").click()
+    inline.get_by_role("button", name="Open interactive reply").click()
     expect(page.locator(f'.lf-going[data-id="{root}"]')).to_have_count(0)
     message = page.locator(
         f'.lf-thread:not([hidden]) .lf-msg[data-mid="{reply["id"]}"]'
@@ -10131,7 +10127,7 @@ def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface
                 """async id => {
                   const {surfaceFocusTarget} = await window.__lfRuntimeImport(
                     '/runtime/thread/surfaces.js');
-                  return surfaceFocusTarget(id, {focus: 'message'}) === null;
+                  return surfaceFocusTarget(id, {part: 'message'}) === null;
                 }""",
                 sent["id"],
             )

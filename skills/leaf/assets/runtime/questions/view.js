@@ -19,10 +19,11 @@
    exact control retention to the widget that replaces that control.
 
    Every widget arrival shares the same retained-intent travel. Frozen thread sources
-   are materialized through the thread owner. A page source arrives below the banner,
-   at its declared context region or the nearest fitting heading/text block supplied
-   by its document. A destination already readable on every clipped edge keeps its
-   scroll position. DOM measurements and renderer nodes never enter the Question record.
+   are materialized at their exact owning message through the thread owner. A page
+   source arrives below the banner, at its declared context region or the nearest
+   fitting heading/text block supplied by its document. A destination already readable
+   on every clipped edge keeps its scroll position. DOM measurements and renderer
+   nodes never enter the Question record.
 
    Blanket actions come from x-awaits.all and invoke each source's declared decision
    method. They preserve one admitted action per widget rather than recording a second
@@ -108,7 +109,8 @@ export function createQuestionView({
     (!target || !source) && question.thread;
   async function materializeQuestion(question, intent = null) {
     reachQuestion(question);
-    await openPageThread(question.thread, {
+    await openPageThread(question.message, {
+      part: "message",
       focus: false,
       travel: false,
       ...(intent && { intent }),
@@ -445,7 +447,13 @@ export function createQuestionView({
   // that fits keeps the landing this walk always gave it. That bound is what lets the
   // widest candidate go first: a heading a long way up fails to fit, rather than needing a
   // rule about how far up is too far.
-  function arrivalRegion(question, box, context) {
+  function arrivalRegion(question, box, context, standing) {
+    // A unique declared context names the region even when taller than the screen:
+    // the reader arrives at its opening and reads down to the answering controls.
+    // Shared context must fit above this source; otherwise use its nearby words.
+    // With only the default source target, infer the words preceding it instead.
+    const declared = context && registry[context.localName]?.["x-question-context"];
+    if (declared && context === standing) return context;
     // The screen the user can use is the scroller's landing band: clear of the banner
     // over its top and the bottom bar over its bottom, so a question's foot that fits is one
     // the user can read rather than one under the shortcut bar.
@@ -514,9 +522,11 @@ export function createQuestionView({
     });
     const heading = before.findLast((block) => block.matches(HEADING));
     return (
-      [context, heading, closestAcross(question, TEXT_BLOCK) ?? before.at(-1)].find(
-        fits,
-      ) ?? question
+      [
+        declared ? context : null,
+        heading,
+        closestAcross(question, TEXT_BLOCK) ?? before.at(-1),
+      ].find(fits) ?? question
     );
   }
 
@@ -576,7 +586,12 @@ export function createQuestionView({
       const { node: target, source, context } = questionPlace(next);
       if (!target || !source) return null;
       const box = !inChrome(target) && scrollerFor(target);
-      return { target, box, region: box && arrivalRegion(source, box, context) };
+      return {
+        target,
+        source,
+        box,
+        region: box && arrivalRegion(source, box, context, target),
+      };
     };
     const initial = destination();
     if (!initial) return false;
@@ -587,6 +602,7 @@ export function createQuestionView({
     const moving = Boolean(
       initial.box &&
       departure.plan(initial.target, {
+        required: [initial.source],
         there: (readable) =>
           framed(next, initial.region, initial.target, initial.box, readable),
       }),

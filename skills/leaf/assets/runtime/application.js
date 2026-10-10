@@ -221,7 +221,7 @@ export function mountApplication(dependencies) {
   };
   const read = createReadTracking({
     markRead,
-    showThread: (...args) => threadDestinations.openPageThread(...args),
+    openThread: (...args) => threadDestinations.openPageThread(...args),
     firstUnreadBtn: dependencies.firstUnreadBtn,
   });
 
@@ -256,7 +256,7 @@ export function mountApplication(dependencies) {
     settlement: settlementView,
     reaction: reactionView,
     read,
-    showThread: (...args) => threadDestinations.openPageThread(...args),
+    openThread: (...args) => threadDestinations.openPageThread(...args),
     landInThread: dependencies.landInThread,
   };
   const cardView = {
@@ -264,6 +264,7 @@ export function mountApplication(dependencies) {
     settlement: settlementView,
     reaction: reactionView,
     read,
+    openThread: inlineView.openThread,
     anchors: {
       placedAt: dependencies.anchorPlacement.placedAt,
     },
@@ -283,7 +284,7 @@ export function mountApplication(dependencies) {
     inlineComparison: dependencies.annotationCommands.inlineComparison,
     toggleInlineComparison: dependencies.annotationCommands.toggleInlineComparison,
     placedAt: dependencies.anchorPlacement.placedAt,
-    showThread: (...args) => threadDestinations.openPageThread(...args),
+    openThread: (...args) => threadDestinations.openPageThread(...args),
     goToQuestion: dependencies.annotationCommands.goToQuestion,
     scrollToElement: dependencies.anchorTravel.scrollToElement,
   });
@@ -342,6 +343,8 @@ export function mountApplication(dependencies) {
     panelIsOpen: dependencies.panelIsOpen,
     showThread: dependencies.showThread,
     scrollToThread: dependencies.anchorTravel.scrollToThread,
+    arrive: dependencies.anchorTravel.arrive,
+    prepareTrip: dependencies.anchorTravel.prepareTrip,
     preview: overlay?.threadPreview,
   });
 
@@ -365,6 +368,7 @@ export function mountApplication(dependencies) {
     // A native Tab visit outside a displaced row retains editing without taking focus.
     continueThread: (id, intent) =>
       threadDestinations.openPageThread(id, {
+        part: "reply",
         focus: false,
         travel: false,
         flash: false,
@@ -384,7 +388,6 @@ export function mountApplication(dependencies) {
           ...cardView,
           nativeAuthored: (message) =>
             required && !threadPresenter.primaryOwnsMessage(message),
-          showThread: view.travel.showThread,
           travel: { ...cardView.travel, ...view.travel },
         },
         placedAt: dependencies.anchorPlacement.placedAt,
@@ -579,8 +582,8 @@ export function mountApplication(dependencies) {
         return queueActions.open(JSON.stringify(["question", question.id]));
       if (question.source.kind === "reply") {
         showHeld(question.thread);
-        return threadDestinations.openPageThread(question.source.id, {
-          focus: "message",
+        return threadDestinations.openPageThread(question.message, {
+          part: "message",
         });
       }
       return dependencies.annotationCommands.goToQuestion(

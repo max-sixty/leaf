@@ -12274,18 +12274,27 @@ def test_back_returns_from_an_ask_the_walk_travelled_to(browser, serve):
     )
 
 
-@pytest.mark.parametrize(("width", "clears"), [(1280, False), (820, True)])
+@pytest.mark.parametrize(
+    ("width", "clears", "side_track"),
+    [(1280, False, False), (820, True, False), (1440, True, True)],
+)
 def test_an_ask_under_the_open_panel_is_shown_beside_it_or_by_clearing_it(
-    browser, serve, width, clears
+    browser, serve, width, clears, side_track
 ):
     """The open thread panel stands over the right of the page, and what it stands over
     is not on screen. At 1280px an Ask in the window reaches a little under it and is
     seen where it stands: `q` leaves the panel and the page alone, and the Ask's badges
     label only the controls that show, rather than floating over the panel's threads. At 820px
-    the panel stands over most of the same Ask, so `q` clears it. Either way the page,
+    the panel stands over most of the same Ask, so `q` clears it. A wide context can
+    remain mostly clear while its answer list stands under the panel: that list is
+    also part of the promised destination. Either way the page,
     which had the Ask in view, does not move and records no departure."""
     filler = "".join(
         f"<p>Filler paragraph {n}. " + "Words. " * 20 + "</p>" for n in range(30)
+    )
+    context_width = ' data-width="wide"' if side_track else ""
+    evidence = (
+        "<figure><p>The hedge shelters the feeders.</p></figure>" if side_track else ""
     )
     url = serve(
         leaf_page(
@@ -12293,7 +12302,8 @@ def test_an_ask_under_the_open_panel_is_shown_beside_it_or_by_clearing_it(
             f"""
 <h1 id="h">Under the panel</h1>
 <section id="above">{filler}</section>
-<lf-ask id="decision"><h2>Where should the feeders go?</h2>
+<lf-ask id="decision"{context_width}><h2>Where should the feeders go?</h2>
+{evidence}
 <lf-options id="spot" choose>
   <lf-option id="sp-hedge"><strong>Along the hedge</strong></lf-option>
   <lf-option id="sp-lawn"><strong>Out on the lawn</strong></lf-option>
@@ -12324,7 +12334,13 @@ def test_an_ask_under_the_open_panel_is_shown_beside_it_or_by_clearing_it(
     ask = page.locator("#decision").bounding_box()
     under = ask["x"] + ask["width"] - panel_left
     assert 0 < under, "the Ask must reach under the panel"
-    assert (under > ask["width"] / 2) == clears, (under, ask)
+    if side_track:
+        assert under < ask["width"] / 2, "the context itself must remain mostly clear"
+        source = page.locator("#spot").bounding_box()
+        source_under = source["x"] + source["width"] - panel_left
+        assert source_under > source["width"] / 2, (source_under, source)
+    else:
+        assert (under > ask["width"] / 2) == clears, (under, ask)
     page.evaluate("document.activeElement.blur()")
     reading = page.evaluate("document.scrollingElement.scrollTop")
     entries = page.evaluate("history.length")
@@ -12350,6 +12366,9 @@ def test_an_ask_under_the_open_panel_is_shown_beside_it_or_by_clearing_it(
         )
     assert page.evaluate("document.scrollingElement.scrollTop") == reading
     assert page.evaluate("history.length") == entries
+    if side_track:
+        page.locator("#sp-lawn .lf-pick").click()
+        expect(page.locator("#sp-lawn")).to_have_attribute("chosen", "")
 
 
 def test_back_returns_from_an_ask_whose_context_the_arrival_brings_in(browser, serve):

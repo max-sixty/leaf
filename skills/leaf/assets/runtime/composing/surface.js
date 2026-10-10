@@ -1165,7 +1165,7 @@ export function createResponseSurface({
       const threadId = markAt?.(point.x, point.y);
       if (threadId)
         return void openPageThread(threadId, {
-          focus: panel.classList.contains("open") ? "reply" : "thread",
+          part: panel.classList.contains("open") ? "reply" : "thread",
           travel: false,
         });
     });
@@ -1263,7 +1263,7 @@ export function createResponseSurface({
         box: null,
         go: async () => {
           const destination = await openPageThread(threadId, {
-            focus: "reply",
+            part: "reply",
             travel: false,
           });
           if (!destination) return;

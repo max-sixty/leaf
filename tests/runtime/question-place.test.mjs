@@ -8,6 +8,8 @@ test("shared context keeps placement and containment specific to each Question",
     '<section id="context"><div id="first"><button>One</button></div><div id="second"><button>Two</button></div></section>';
   const question = (id) => ({
     id: `widget:${id}`,
+    thread: null,
+    message: null,
     source: { kind: "widget", id },
     prompt: { target: "context" },
   });

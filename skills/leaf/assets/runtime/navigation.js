@@ -98,7 +98,7 @@ function threadFrom(threads, place, dir, threadTarget) {
 async function arriveAtThread(next, destinations, panelIsOpen, threadsBox, intent) {
   const { openPageThread, scrollToThread } = destinations;
   if (!panelIsOpen())
-    return Boolean(await openPageThread(next.dataset.id, { focus: "thread", intent }));
+    return Boolean(await openPageThread(next.dataset.id, { part: "thread", intent }));
   if (!intent()) return false;
   threadsBox.revealNavigation(next.dataset.id);
   const standing = next.contains(document.activeElement);

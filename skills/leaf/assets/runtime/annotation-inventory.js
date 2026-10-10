@@ -45,7 +45,7 @@ export function createAnnotationInventory({
   inlineComparison,
   toggleInlineComparison,
   placedAt,
-  showThread,
+  openThread,
   goToQuestion,
   scrollToElement,
 }) {
@@ -316,7 +316,7 @@ export function createAnnotationInventory({
           // Work decorates the thread control; it never replaces the control's
           // comment face or its disclosure action.
           workflowReceipt: onUser ? null : attention?.workflow,
-          activate: () => showThread(id),
+          activate: () => openThread(id),
         },
         pointed,
       );

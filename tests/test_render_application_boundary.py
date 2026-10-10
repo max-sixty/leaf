@@ -17,6 +17,7 @@ from render_cases_interaction import (
     LIVE_V2,
     SEATED_ASK_ENTRY,
     SEATED_ASK_MODULE,
+    SEATED_QUESTION_PAGE,
     live_url,
 )
 from render_harness import (
@@ -2307,7 +2308,196 @@ def test_package_thread_actions_share_core_admission_and_current_availability(
     ] == ["reply", "resolve", "reply", "reply", "undo"]
 
 
-def package_workspace(serve):
+@pytest.mark.parametrize("surface", ["margin", "outlet"])
+def test_compact_reader_opens_the_native_interactive_message(browser, serve, surface):
+    """A compact reader's button addresses message content, not its own reply row."""
+    target = "jobs" if surface == "outlet" else "notes"
+    source = (
+        SEATED_QUESTION_PAGE
+        if surface == "outlet"
+        else leaf_page("Native reply", '<h1>Native reply</h1><p id="notes">Notes</p>')
+    )
+    url = serve(source)
+    for event in [
+        {
+            "id": "native-thread",
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Which channel?",
+            "anchor": {"section": target},
+        },
+        {
+            "id": "native-message",
+            "kind": "reply",
+            "author": "agent",
+            "revision": 1,
+            "parent": "native-thread",
+            "text": "Choose a channel.",
+            "markup": '<lf-options id="native-channel" choose><lf-option id="native-email">Email</lf-option></lf-options>',
+        },
+    ]:
+        append_carried_log_record(serve.page_dir, event)
+    page = open_page(browser, url)
+    if surface == "margin":
+        page.get_by_role(
+            "button", name=re.compile("Thread, On you to answer")
+        ).first.click()
+        compact = page.locator(".lf-margin-thread")
+    else:
+        compact = page.locator('#jobs .lf-page-thread[data-thread="native-thread"]')
+    panel = page.locator(".lf-thread-panel")
+    expect(panel).not_to_have_class(re.compile(r"\bopen\b"))
+    button = compact.get_by_role("button", name="Open interactive reply")
+    expect(button).to_be_visible()
+    button.focus()
+    button.press("Enter")
+    panel_settled(page)
+    expect(panel).to_have_class(re.compile(r"\bopen\b"))
+    message = panel.locator('.lf-msg[data-mid="native-message"]')
+    expect(message).to_be_focused()
+    email = message.locator("#native-email")
+    expect(email).to_be_in_viewport()
+    with sending(page, "answer the native interactive reply"):
+        email.click()
+    expect(email.get_by_role("checkbox")).to_be_checked()
+
+
+@pytest.mark.parametrize("width", [693, 1440])
+def test_panel_authored_message_button_reaches_primary_reader(browser, serve, width):
+    """The panel's compact message routes to the primary that owns its widget."""
+    page = open_page(browser, package_workspace(serve))
+    page.set_viewport_size({"width": width, "height": 900})
+    workspace = page.locator("#workspace")
+    page.evaluate("window.nativeEmail = document.querySelector('#email')")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    panel = page.locator(".lf-thread-panel")
+    panel.get_by_role("button", name="Open interactive reply", exact=True).click()
+    message = workspace.locator('.lf-msg[data-event="channel-question"]')
+    expect(message).to_be_focused()
+    email = message.locator("#email")
+    expect(email).to_be_in_viewport()
+    assert email.evaluate("node => node === nativeEmail")
+    with sending(page, "answer in the primary reader reached from Threads"):
+        email.click()
+    expect(email.get_by_role("checkbox")).to_be_checked()
+
+
+@pytest.mark.parametrize("owner", ["root", "middle"])
+def test_frozen_question_reveals_its_exact_message_in_a_selective_primary(
+    browser, serve, owner
+):
+    """A message-only primary materializes the widget's turn, including later replies."""
+    module = """
+    import {registerThreadPresentation, threadTurns} from '/runtime/widget-api.js';
+    customElements.define('lf-message-reader', class extends HTMLElement {
+      connectedCallback() {
+        this.outlet = document.createElement('section');
+        this.append(this.outlet);
+        this.presentation = registerThreadPresentation(this, {
+          render: (collection, parts) => {
+            const thread = collection.threads[0];
+            if (!thread) return;
+            const message = threadTurns(thread).find(message =>
+              message.key === (this.message ?? thread.root.key));
+            parts.message(thread.key, message.key, this.outlet);
+          },
+          reveal: (key, request) => { this.message = request.message; },
+        });
+      }
+      disconnectedCallback() { this.presentation.unregister(); }
+    });
+    """
+    url = serve(
+        leaf_page(
+            "Selective message reader",
+            '<h1>Selective message reader</h1><lf-message-reader id="reader"></lf-message-reader>',
+        ),
+        layer_registry={
+            "lf-message-reader": {
+                **THREAD_READER_DECLARATION,
+                "x-example": '<lf-message-reader id="reader-example"></lf-message-reader>',
+            }
+        },
+        layer_widgets={"lf-message-reader.js": module},
+    )
+    for message in ["root", "middle", "last"]:
+        event = {
+            "id": message,
+            "attempt": f"key-{message}",
+            "kind": "comment" if message == "root" else "reply",
+            "author": "agent",
+            "revision": 1,
+            "text": f"The {message} turn.",
+            **({"parent": "root"} if message != "root" else {}),
+        }
+        if message == owner:
+            event["markup"] = (
+                '<lf-options id="channel" choose>'
+                '<lf-option id="email">Email</lf-option></lf-options>'
+            )
+        append_carried_log_record(serve.page_dir, event)
+    page = open_page(browser, url)
+    reader = page.locator("#reader")
+    expect(reader.locator('.lf-msg[data-event="root"]')).to_be_visible()
+    if owner == "middle":
+        expect(reader.locator("#channel")).to_have_count(0)
+    assert page.evaluate("""async () => {
+      const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      return await api.questionActions.open('widget:channel');
+    }""")
+    assert reader.evaluate("node => node.message") == f"key-{owner}"
+    expect(reader.locator(f'.lf-msg[data-event="{owner}"]')).to_be_visible()
+    email = reader.locator("#email")
+    expect(email).to_be_in_viewport()
+    with sending(page, "answer the Question in its addressed native turn"):
+        email.click()
+    expect(email.get_by_role("checkbox")).to_be_checked()
+
+
+@pytest.mark.parametrize("travel", [True, False])
+def test_primary_arrival_records_a_return_place_only_when_travelling(
+    browser, serve, travel
+):
+    """Back restores the working place left by a jump to the primary reader."""
+    page = open_page(
+        browser,
+        package_workspace(
+            serve,
+            before_reader='<p style="min-height:1600px">Earlier page context.</p>',
+        ),
+    )
+    page.set_viewport_size({"width": 1440, "height": 320})
+    heading = page.locator("h1")
+    heading.evaluate("""node => {
+      node.tabIndex = -1;
+      node.focus({preventScroll:true});
+      window.scrollTo({top:0, behavior:'instant'});
+    }""")
+    entries = page.evaluate("history.length")
+    assert page.evaluate(
+        """async travel => {
+          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const thread = api.readThreads().threads.find(thread => thread.id === 'opening');
+          return Boolean(await api.threadActions.open(thread.key, {part:'reply', travel}));
+        }""",
+        travel,
+    )
+    expect(
+        page.locator("#workspace").get_by_role("textbox", name="Reply", exact=True)
+    ).to_be_focused()
+    assert page.evaluate("history.length") == entries + int(travel)
+    if travel:
+        page.wait_for_function("scrollY > 0")
+        page.go_back()
+        page.wait_for_function("scrollY === 0")
+        expect(heading).to_be_focused()
+    else:
+        assert page.evaluate("scrollY") == 0
+
+
+def package_workspace(serve, *, before_reader=""):
     """Run the shipped package example against real event admission."""
     from render_harness import ROOT
 
@@ -2315,7 +2505,9 @@ def package_workspace(serve):
     url = serve(
         leaf_page(
             "Package reader",
-            '<h1>Package reader</h1><p id="notes">Announcement notes</p><lf-conversation-workspace id="workspace"></lf-conversation-workspace>',
+            '<h1>Package reader</h1><p id="notes">Announcement notes</p>'
+            + before_reader
+            + '<lf-conversation-workspace id="workspace"></lf-conversation-workspace>',
         ),
         layer_registry=json.loads((companion / "registry.json").read_text()),
         layer_widgets={
@@ -2363,6 +2555,33 @@ def package_workspace(serve):
     return url
 
 
+def test_package_answer_summary_waits_for_widget_completion(browser, serve):
+    """A selected value remains partial until the multiple-choice Question is done."""
+    url = package_workspace(serve)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "id": "partial-question",
+            "kind": "comment",
+            "author": "agent",
+            "revision": 1,
+            "text": "Which extras?",
+            "markup": '<lf-options id="extras" choose multiple><lf-option id="extra-chat" chosen>Chat</lf-option></lf-options>',
+        },
+    )
+    page = open_page(browser, url)
+    workspace = page.locator("#workspace")
+    counts = workspace.locator(".counts")
+    workspace.get_by_role("button", name="Which extras? Chat", exact=True).click()
+    expect(workspace.locator("#extra-chat").get_by_role("checkbox")).to_be_checked()
+    expect(counts).to_have_text("2 Questions on you")
+    with sending(page, "complete the selected extras"):
+        workspace.locator("#extras").get_by_role(
+            "button", name="Done: my picks here are complete", exact=True
+        ).click()
+    expect(counts).to_have_text("1 Questions on you · 1 answered · Chat")
+
+
 @pytest.mark.parametrize("width", [1440, 390])
 def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
     browser, serve, width
@@ -2372,7 +2591,24 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
         has_touch=width < 500,
         is_mobile=width < 500,
     )
-    page = open_page(browser, package_workspace(serve), context=context)
+    url = package_workspace(serve)
+    for question_id, text in [
+        ("tone-question", "Should it stay concise?"),
+        ("followup-question", "When should it send?"),
+    ]:
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "id": question_id,
+                "kind": "reply",
+                "author": "agent",
+                "revision": 1,
+                "parent": "opening",
+                "text": text,
+                "awaits": True,
+            },
+        )
+    page = open_page(browser, url, context=context)
     workspace = page.locator("#workspace")
     email = workspace.locator("lf-option#email")
     expect(email).to_be_visible()
@@ -2399,6 +2635,11 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
             "Control+Enter"
         )
     expect(workspace.get_by_text("A shared draft", exact=True)).to_be_visible()
+    # One reply answers both prose Questions. Counts include them, while the
+    # compact answer summary names only widget choices instead of repeating prose.
+    expect(workspace.locator(".counts")).to_have_text(
+        "0 Questions on you · 3 answered · Email"
+    )
     with sending(page, "create a real conversation from a package"):
         workspace.get_by_role("textbox", name="New conversation").fill(
             "New package conversation"
@@ -2860,6 +3101,43 @@ def test_primary_navigation_cancels_while_waiting_for_presentation(browser, serv
       blocked.resolve();
       unregister();
       return result === null;
+    }""")
+
+
+def test_cancelled_primary_travel_adds_no_return_checkpoint(browser, serve):
+    """A newer Tab keeps its focus and history while a primary layout completes."""
+    page = open_page(browser, package_workspace(serve))
+    entries = page.evaluate("history.length")
+    page.evaluate("""async () => {
+      const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const workspace = document.querySelector('#workspace');
+      const present = workspace.present.bind(workspace);
+      const reached = Promise.withResolvers();
+      const blocked = Promise.withResolvers();
+      workspace.present = (...args) => {
+        workspace.present = present;
+        reached.resolve();
+        return blocked.promise.then(() => present(...args));
+      };
+      window.releasePrimaryLayout = blocked.resolve;
+      window.cancelledPrimaryTravel = api.threadActions.open('opening', {part:'reply'});
+      await reached.promise;
+    }""")
+    page.keyboard.press("Tab")
+    page.evaluate("""() => {
+      let active = document.activeElement;
+      while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+      window.newerTabTarget = active;
+    }""")
+    assert page.evaluate("""async () => {
+      releasePrimaryLayout();
+      return await cancelledPrimaryTravel === null;
+    }""")
+    assert page.evaluate("history.length") == entries
+    assert page.evaluate("""() => {
+      let active = document.activeElement;
+      while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+      return active === newerTabTarget;
     }""")
 
 

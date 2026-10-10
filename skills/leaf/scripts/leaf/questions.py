@@ -1,7 +1,8 @@
 """Canonical Questions from widget state, conversations and stamped page sign-off.
 
-One record contains its prompt, typed answer, completion and next actor. A widget
-source owns identity; context wrappers contribute only prompt words and arrival.
+One record contains its prompt, typed answer, completion and next actor. Its thread
+and exact owning message locate frozen sources without depending on a live renderer.
+A widget source owns identity; context wrappers contribute only prompt words and arrival.
 The inventory is complete even when a work queue hides a resolved thread or an
 older prompt. Tasks never stand in for these records."""
 
@@ -29,6 +30,7 @@ from leaf.projection import (
 )
 from leaf.read_state import content_version
 from leaf.structure import review_mode
+from leaf.thread_context import widget_messages
 
 
 def local_question_entry(entry: dict) -> bool:
@@ -106,6 +108,7 @@ def approval_question(document, revision: int, events: list) -> dict | None:
         "id": f"approval:v{version}",
         "source": {"kind": "approval", "version": version},
         "thread": None,
+        "message": None,
         "prompt": {"text": f"Approve v{version}?", "target": "lf-approve"},
         "answer": {"value": True, "event": event_reference(approved)}
         if approved
@@ -171,6 +174,7 @@ def thread_questions(
                     "version": content_version(message),
                 },
                 "thread": thread_id,
+                "message": message["id"],
                 "prompt": {
                     "text": message.get("text") or None,
                     "target": message["id"],
@@ -713,6 +717,7 @@ class _QuestionReducer:
                     "id": "widget:" + unit,
                     "source": {"kind": "widget", "id": unit, "tag": record["tag"]},
                     "thread": None,
+                    "message": None,
                     "prompt": {"text": text, "target": surface["attrs"]["id"]},
                     "answer": {"value": value, "event": event_reference(provenance)}
                     if has_content
@@ -770,8 +775,11 @@ def thread_question_readings(
         events=events,
     )
     records = reducer.inventory(set(), set())
+    message_by_widget = widget_messages(reading.structure)
     for record in records:
-        record["thread"] = reading.thread_by_widget[record["source"]["id"]]
+        source = record["source"]["id"]
+        record["thread"] = reading.thread_by_widget[source]
+        record["message"] = message_by_widget[source]
         if record["thread"] in settled:
             record["next_actor"] = None
     return collection(records)

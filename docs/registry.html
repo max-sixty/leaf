@@ -571,10 +571,12 @@
                 </summary>
                 <p>
                   It never replaces a Question identity, changes its answer or
-                  completion, or deduplicates sources. The nearest context is used.
-                  lf-ask is one widget declaring this adapter; standalone question
-                  sources need no wrapper. A context may frame several sources, each
-                  retaining its widget:&lt;source-id&gt; identity.
+                  completion, or deduplicates sources. The nearest context is used. Leaf
+                  calls the context a question when referring to its type, unless its
+                  declared x-word module returns another label. lf-ask is one widget
+                  declaring this adapter; standalone question sources need no wrapper. A
+                  context may frame several sources, each retaining its
+                  widget:&lt;source-id&gt; identity.
                 </p>
               </details>
             </div>
@@ -994,11 +996,12 @@
                   "deletion", or "rewrite" according to its children. Leaf uses this
                   label when referring to the widget in a panel row or comment anchor.
                   If the widget has not upgraded, returns no label, or does not declare
-                  x-word, Leaf uses the tag name without its prefix. The same
-                  declaration lets the module supply descriptive text through
-                  <code>lfSays()</code>, for widgets whose text nodes alone do not
-                  convey their structure, such as a rewrite's old and new text. If no
-                  description is returned, Leaf reads the element's text.
+                  x-word, Leaf calls an x-question-context widget a question; otherwise
+                  it uses the tag name without its prefix. The same declaration lets the
+                  module supply descriptive text through <code>lfSays()</code>, for
+                  widgets whose text nodes alone do not convey their structure, such as
+                  a rewrite's old and new text. If no description is returned, Leaf
+                  reads the element's text.
                 </p>
               </details>
             </div>

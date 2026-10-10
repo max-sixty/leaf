@@ -302,7 +302,10 @@ Question withdraws that request; its outcome is no user answer.
 
 `work_reading.WorkReading.all_questions` combines page widgets, frozen widgets and
 prose into one canonical inventory. Every record carries stable `id`, `source`,
-`thread`, `prompt`, `answer`, `status` and `next_actor`. Widget identities are
+`thread`, `message`, `prompt`, `answer`, `status` and `next_actor`. A frozen widget's
+`message` names the exact message whose markup owns it, independently of the thread's
+root; a prose Question names its source message. Page widgets and approval have no
+owning message and carry `null`. Widget identities are
 `widget:<source-id>` and prose identities `reply:<message-id>`. Prompt context
 changes the words and arrival target without replacing source identity. Answers
 select typed canonical widget values or the settling user reply/reaction, with

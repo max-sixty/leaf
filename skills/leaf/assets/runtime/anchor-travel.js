@@ -275,8 +275,14 @@ export function createAnchorTravel({
     };
     let moving;
     return {
-      plan(where, { there = (readable) => readable(where) } = {}) {
-        if (where && !keep) intent.handoff(() => surfaces.clearFor(where));
+      plan(where, { there = (readable) => readable(where), required = [] } = {}) {
+        // A compound destination promises its answering or editing surface as well
+        // as the context the reader lands on. Apply the same clearance policy to
+        // each; a broad context can remain visible while its narrow control is hidden.
+        if (where && !keep)
+          intent.handoff(() => {
+            for (const place of new Set([where, ...required])) surfaces.clearFor(place);
+          });
         moving = !(where && there(readableDestination));
         return moving;
       },
@@ -497,7 +503,7 @@ export function createAnchorTravel({
 
   async function scrollToThread(
     id,
-    { focus = null, keep = false, presented = null, intent } = {},
+    { part = null, focus = true, keep = false, presented = null, intent } = {},
   ) {
     const mayArrive = retainTravel(intent);
     const thread = threadNames(currentThreads()).get(id);
@@ -531,7 +537,7 @@ export function createAnchorTravel({
       () => {
         const where = threadDestination(id);
         if (!where) return null;
-        const target = focus && threadFocusTarget(id, { focus });
+        const target = focus && part && threadFocusTarget(id, { part });
         return {
           where,
           focus: target,

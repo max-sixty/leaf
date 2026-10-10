@@ -33,10 +33,16 @@ const thread = (id, msgs, attention = null, userPrompt = null) =>
         .map((item) => ({ message: item.id, version: item.edited?.id ?? item.id })),
     },
   );
-const ask = (id, thread = null) => ({ id, thread, source: { kind: "widget", id } });
+const ask = (id, thread = null) => ({
+  id,
+  thread,
+  message: thread,
+  source: { kind: "widget", id },
+});
 const replyQuestion = (id, version = id) => ({
   id,
   thread: "t",
+  message: id,
   source: { kind: "reply", id, version },
 });
 const activity = (kind = "away", extra = {}) => ({

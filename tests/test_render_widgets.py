@@ -9738,8 +9738,8 @@ def test_ask_rows_keep_identity_and_publisher_order_when_the_live_dom_moves(
     page.locator(".lf-queue-done > summary").click()
     page.locator('.lf-queue-row[data-lf-at="widget:honored"]').click()
     expect(page.locator("#honored-decision")).to_be_focused()
-    expect(page.locator(".lf-live")).to_have_text("Question 1 of 1 done")
-    assert "Question 1 of 1 done" in page.evaluate("window.__lfLiveRegionChanges")
+    expect(page.locator(".lf-live")).to_have_text("Options 1 of 1 done")
+    assert "Options 1 of 1 done" in page.evaluate("window.__lfLiveRegionChanges")
 
 
 def test_pending_action_waits_for_the_ask_list_paint_before_retiring(

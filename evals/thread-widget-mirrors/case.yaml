@@ -36,7 +36,7 @@ assert:
     `surfaces.thread(thread.key, outlet)` for matching Threads. It must unregister on
     disconnect, and must not create another Leaf instance, post raw Thread events, or
     use `placeThreads` (which would take a Thread away from its margin position).
-    The continuation must await `threadActions.open(thread.key, {focus: "reply"})`, use its
+    The continuation must await `threadActions.open(thread.key, {part: "reply"})`, use its
     actual returned element for selection, and check that it still holds focus.
     It must not search for any visible mirrored editor or focus again after awaiting.
     A separate button-source intent predicate checked after `threadActions.open` rejects the

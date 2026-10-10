@@ -11,6 +11,7 @@ import {
   queueItemKey,
   queueTitle,
   readQuestions,
+  questionWords,
   readQueues,
   readThreads,
   registerThreadPresentation,
@@ -189,7 +190,7 @@ customElements.define(
           const node = offer("li");
           const button = offer("button", "lf-btn");
           button.addEventListener("click", () => {
-            void threadActions.open(key, { focus: "thread" });
+            void threadActions.open(key, { part: "thread" });
           });
           node.append(button);
           row = { node, button };
@@ -262,12 +263,24 @@ customElements.define(
     }
     paintObligations() {
       const questions = readQuestions();
-      const answers = questions.all.filter(
+      const answered = questions.all.filter(
         (question) => question.status === "answered",
       );
+      // Counts cover every Question; this summary lists completed widget choices.
+      const labels = questions.all
+        .filter(
+          (question) =>
+            question.source.kind === "widget" && question.status === "answered",
+        )
+        .map(questionWords)
+        .filter(Boolean);
       keepsText(
         this.counts,
-        `${questions.user.length} Questions on you${answers.length ? ` · ${answers.length} answered` : ""}`,
+        [
+          `${questions.user.length} Questions on you`,
+          ...(answered.length ? [`${answered.length} answered`] : []),
+          ...labels,
+        ].join(" · "),
       );
       const queues = readQueues();
       const layout = this.indexLayout();

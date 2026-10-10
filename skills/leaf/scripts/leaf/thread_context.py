@@ -172,6 +172,15 @@ def thread_structure(events: list) -> ThreadStructure:
     return ThreadStructure(ids, by_id, fragments)
 
 
+def widget_messages(structure: ThreadStructure) -> dict:
+    """Widget id → the message whose immutable markup declares it."""
+    return {
+        widget: message
+        for message, fragment in structure.fragments.items()
+        for widget in fragment.by_id
+    }
+
+
 def thread_widgets(structure: ThreadStructure, names: dict) -> dict:
     """Widget id → the thread whose frozen markup holds it.
 
@@ -181,10 +190,9 @@ def thread_widgets(structure: ThreadStructure, names: dict) -> dict:
     rather than the log, so the caller that already holds them does not parse
     every fragment a second time."""
     return {
-        widget: names[event_id]
-        for event_id, fragment in structure.fragments.items()
-        if event_id in names
-        for widget in fragment.by_id
+        widget: names[message]
+        for widget, message in widget_messages(structure).items()
+        if message in names
     }
 
 

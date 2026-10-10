@@ -41,10 +41,12 @@ const wireQuestion = (
   source = target,
   sourceTag = tag,
   thread = null,
+  message = thread,
 ) => ({
   id: `widget:${source}`,
   source: { kind: "widget", id: source, tag: sourceTag },
   thread,
+  message,
   prompt: { text: null, target },
   answer: null,
   status: "open",
@@ -1683,6 +1685,76 @@ test("empty completed answer and wrapper changes preserve Question identity", ()
   assert.equal(app.read().effective.questions.all[0].prompt.target, "new-context");
 });
 
+test("pending undo removes completed empty Question values and refusal restores them", () => {
+  for (const [record, value] of [
+    [{ kind: "attribute", attr: "chosen" }, []],
+    [{ kind: "body" }, ""],
+  ]) {
+    const choose = { unit: "widget", record };
+    const answer = { unit: "widget" };
+    const declared = {
+      ...descriptor,
+      declaration: {
+        "x-state": { choose, answer },
+        "x-awaits": { value: "choose", answered: { answer: {} } },
+      },
+    };
+    const app = capture(
+      [[declared.id, declared]],
+      [
+        [
+          declared.id,
+          {
+            tag: declared.tag,
+            specs: new Map([
+              ["choose", choose],
+              ["answer", answer],
+            ]),
+            state: {
+              choose: { action: null, value, detail: { value } },
+              answer: { action: null, value: null, detail: {} },
+            },
+          },
+        ],
+      ],
+    );
+    const accepted = {
+      ...action("empty-answer"),
+      action: "answer",
+      detail: {},
+      id: "e1",
+      seq: 1,
+    };
+    const reading = state(2, [accepted]);
+    const entry = reading.browser.views[1].document.projection.entries[0];
+    entry.spec = answer;
+    entry.event.meaning.state = stateDefinition(
+      declared.tag,
+      declared.declaration,
+      answer,
+    );
+    const question = {
+      ...wireQuestion("choice", "lf-choice"),
+      status: "answered",
+      next_actor: null,
+      answer: { value, event: accepted },
+    };
+    reading.browser.views[1].document.questions = {
+      all: [question],
+      user: [],
+      unanswered: [],
+    };
+    app.adopt(reading);
+    assert.deepEqual(app.read().effective.questions.all[0].answer.value, value);
+    app.enqueue({ kind: "undo", undoes: accepted.id, attempt: "undo-empty" }, "now");
+    assert.equal(app.read().effective.questions.all[0].status, "answered");
+    assert.equal(app.read().effective.questions.all[0].answer, null);
+    assert.equal(app.read().effective.queues.done[0].question.answer, null);
+    app.refuse("undo-empty");
+    assert.deepEqual(app.read().effective.questions.all[0].answer.value, value);
+  }
+});
+
 test("pending undo removes a custom Question answer before authoritative completion changes", () => {
   const declared = {
     ...descriptor,
@@ -1742,6 +1814,7 @@ test("pending prose answer changes next actor without suppressing inventory or s
     id: `reply:${message.id}`,
     source: { kind: "reply", id: message.id },
     thread: root.id,
+    message: message.id,
     prompt: { text: message.text, target: message.id },
     answer: null,
     status: "open",

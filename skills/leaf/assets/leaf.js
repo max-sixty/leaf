@@ -802,7 +802,7 @@ const writingResume = createWritingResume({
   revealReply: (key, intent) => {
     const thread = allThreads().find((thread) => threadKey(thread) === key);
     return thread
-      ? app.threadDestinations.openPageThread(thread.id, { focus: "reply", intent })
+      ? app.threadDestinations.openPageThread(thread.id, { part: "reply", intent })
       : null;
   },
 });

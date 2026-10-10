@@ -1450,7 +1450,7 @@ export function createMarginProjection({
       intent.handoff(closePreview);
       void held.presented.then(() =>
         openPageThread(held.id, {
-          focus: "thread",
+          part: "thread",
           travel: false,
           intent,
         }),

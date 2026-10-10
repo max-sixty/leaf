@@ -56,6 +56,7 @@ import {
   HIDDEN,
   PRESS,
   readQuestions,
+  questionWords,
   elementById,
   under,
   backgroundFlash,
@@ -399,11 +400,7 @@ customElements.define(
           questions.length > 0 &&
           questions.every((question) => question.status === "answered");
         const only = questions.length === 1 ? questions[0] : null;
-        const source = only && elementById(only.source.id);
-        const answer =
-          answered && only?.answer && source
-            ? (source.constructor.answerWords?.(only.answer.value, source) ?? "")
-            : "";
+        const answer = answered && only ? questionWords(only) : "";
         if (slot) {
           keeps(slot, "data-lf-answered", answered ? "" : null);
           keepsText(slot.firstElementChild, answer);

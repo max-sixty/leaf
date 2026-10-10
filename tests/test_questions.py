@@ -42,6 +42,54 @@ def test_context_changes_prompt_target_without_changing_question_identity_or_val
     assert state["tasks"] == []
 
 
+def test_questions_name_their_exact_owning_message_without_conflating_thread_identity():
+    document = page().replace(
+        "</head>", '<meta name="lf-review" content="sign-off"></head>'
+    )
+    events = [
+        {
+            "kind": "note",
+            "id": "stamp",
+            "author": "agent",
+            "version": 1,
+            "text": "Ready",
+        },
+        {
+            "kind": "comment",
+            "id": "thread",
+            "author": "agent",
+            "text": "Choose the first route.",
+            "markup": OPTIONS.format(attrs="choose").replace('id="', 'id="root-'),
+        },
+        {
+            "kind": "reply",
+            "id": "later",
+            "author": "agent",
+            "parent": "thread",
+            "text": "Choose the later route too.",
+            "markup": OPTIONS.format(attrs="choose").replace('id="', 'id="later-'),
+        },
+        {
+            "kind": "comment",
+            "id": "prompt",
+            "author": "agent",
+            "text": "Is this useful?",
+        },
+    ]
+    state = model.reading(document, events)
+    inventory = {
+        question["id"]: (question["thread"], question["message"])
+        for question in [*questions(state)["all"], *state["thread"]["questions"]["all"]]
+    }
+    assert inventory == {
+        "widget:choice": (None, None),
+        "approval:v1": (None, None),
+        "widget:root-choice": ("thread", "thread"),
+        "widget:later-choice": ("thread", "later"),
+        "reply:prompt": ("prompt", "prompt"),
+    }
+
+
 def test_partial_and_completed_empty_values_are_distinct_from_no_answer_and_undo_reopens():
     document = page("choose multiple")
     events = [

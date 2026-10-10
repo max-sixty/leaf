@@ -5655,7 +5655,7 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     assert page.evaluate(
         """async id => {
           const {openThread} = await window.__lfRuntimeImport('/runtime/application.js');
-          return Boolean(await openThread(id, {focus: 'thread'}));
+          return Boolean(await openThread(id, {part: 'thread'}));
         }""",
         second["id"],
     )
@@ -8418,9 +8418,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(preview).to_be_visible()
     expect(preview).to_have_attribute("aria-label", "Thread for iOS reconnect stall")
     expect(thread.locator(".lf-msg.user").first).to_be_visible()
-    expect(
-        thread.get_by_role("button", name="Open interactive reply in Threads")
-    ).to_have_count(1)
+    expect(thread.get_by_role("button", name="Open interactive reply")).to_have_count(1)
     expect(thread.locator(".lf-page-thread")).to_be_focused()
     geometry = marker.evaluate(
         """markerNode => {
@@ -8520,7 +8518,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(preview).to_be_visible()
     expect(thread.locator(".lf-page-thread")).to_be_focused()
 
-    open_full = thread.get_by_role("button", name="Open interactive reply in Threads")
+    open_full = thread.get_by_role("button", name="Open interactive reply")
     open_full.focus()
     expect(open_full).to_be_focused()
     page.keyboard.press("Enter")
@@ -11418,7 +11416,7 @@ def test_rail_native_comment_and_retained_reply(browser, serve):
     expect(card).to_have_count(1)
     expect(card).to_be_visible()
     page.evaluate(
-        """async () => {const {openThread}=await __lfRuntimeImport('/runtime/application.js'); await openThread(document.querySelector('.lf-page-thread').dataset.thread,{focus:'reply',travel:false});}"""
+        """async () => {const {openThread}=await __lfRuntimeImport('/runtime/application.js'); await openThread(document.querySelector('.lf-page-thread').dataset.thread,{part:'reply',travel:false});}"""
     )
     reply = card.locator("leaf-text")
     expect(reply).to_be_focused()

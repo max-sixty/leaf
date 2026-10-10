@@ -346,13 +346,18 @@ after upgrade. Authored inputs retain focus immediately so typing continues duri
 startup. The widget owns its drawing and values. An initial renderer keeps retained
 view geometry from the first frame. Keys are unique within their named owner.
 
-A module that takes the user to a thread calls `threadActions.open(key, {focus})`
+A module that takes the user to a thread calls `threadActions.open(key, {part, focus})`
 with the Thread's stable `key`. It opens the thread where the page shows it, inline beside
 its passage or widget, and in Threads when it has no place on the page, the same choice a
-mark and `t` make. `focus: "thread"` lands on the card or native summary;
-`focus: "reply"` reveals its available reply editor. Omitting `focus` follows the
+mark and `t` make. `part: "thread"` lands on the card or native summary;
+`part: "reply"` reveals its available reply editor. `part: "message"` requests the
+reader that renders native authored message content: the registered primary reader,
+then Threads. Omitting `part` follows the
 surface's ordinary route: a compact passage card starts at the card, while a widget
-conversation or Threads starts at its reply. The call returns a `Promise<Element|null>`:
+conversation or Threads starts at its reply. A focused jump that moves the page records
+a return place for Back. `travel: false` keeps the page in place and adds no return
+checkpoint. `focus` is a boolean, true by default;
+`focus: false` reveals the addressed part without taking focus. The call returns a `Promise<Element|null>`:
 the actual destination after reveal and placement, or `null` when the Thread no longer
 stands or newer input has superseded the move. Leaf owns the original gesture's
 continuity inside this route. The returned, still-focused destination is the capability
@@ -361,7 +366,7 @@ route's own move to that editor. A continuation uses the returned element only w
 it still holds focus:
 
 ```js
-const editor = await threadActions.open(thread.key, {focus: "reply"});
+const editor = await threadActions.open(thread.key, {part: "reply"});
 if (editor?.matches(":focus") && editor.setSelectionRange) {
   editor.setSelectionRange(0, editor.value.length);
 }
@@ -892,7 +897,7 @@ and Leaf's optimistic event path:
 
 ```js
 threadActions.create({text, anchor, attempt});
-threadActions.open(thread.key, {focus: "thread"});
+threadActions.open(thread.key, {part: "thread"});
 threadActions.reply(thread.key, text);
 threadActions.resolve(thread.key);
 threadActions.reopen(thread.key);
@@ -944,7 +949,8 @@ containers, filters, and order. Several widgets may render the same Thread, and
 removing one does not remove another's view. These are mirrors: they do not take the
 Thread away from its page or margin position. Leaf renders the messages, reply editor,
 reactions, resolution controls, and receipts. An authored message's interactive
-widgets open in the Threads panel, as they do from other inline Thread views.
+widgets open in the registered primary reader or the fallback Threads panel, as
+they do from other inline Thread views.
 
 ```js
 this.threads = mountThreadViews(this, (collection, surfaces) => {
@@ -994,10 +1000,15 @@ The handle supplies `update()` and `unregister()`. Await `update()` after local 
 changes; ordinary updates preserve held news. A deliberate view change calls
 `update({release: true})` to show the current reading. `reveal(key, request)` selects
 and reveals the package's layout, returning its asynchronous layout work when needed.
-Return `false` to use core fallback. The request carries `message`, `focus`, `signal`,
-and `current()`; asynchronous work checks cancellation before changing layout.
+Return `false` to use core fallback. The reveal request carries `part` (message,
+thread, reply, or null for the surface default), `message` (the addressed stable
+message key, or null), boolean `focus`, `signal`, and `current()`. Addressed part
+and focus are independent: a message can be materialized without taking focus.
+Asynchronous work checks cancellation before changing layout.
 Leaf releases held news, awaits presentation, resolves the retained destination, and
 owns intent, focus, scrolling, first-unread navigation, and Question arrival.
+Focused arrivals clear a Leaf panel that covers the native reader before taking
+focus. Materializing a message without focus leaves clearance to its later arrival.
 Whole conversations include settlement controls; a fragment feed supplies
 Resolve/Reopen through `threadActions`. Unregister on disconnect. The worked `lf-conversation-workspace` in the
 feature gallery switches Conversation, Shelf and Feed with these APIs.
@@ -1028,6 +1039,7 @@ or hidden behind a later prompt. Each record contains:
   id: "widget:release-disposition", // or "reply:<agent-message-id>"
   source: {kind: "widget", id: "release-disposition", tag: "lf-options"},
   thread: null,
+  message: null,
   prompt: {text: "When should this ship?", target: "release-context"},
   answer: {value: ["release-later"], event: null},
   status: "answered", // open | answered | withdrawn
@@ -1038,6 +1050,11 @@ or hidden behind a later prompt. Each record contains:
 An approval Question has `source.kind === "approval"`, `source.version` naming the
 stamped version and id `approval:v<version>`. Its answer is `null` until that
 version's approval settles it with typed `answer.value === true`; undo reopens it. Its arrival reaches the banner's Approve control.
+
+`thread` and `message` identify a frozen widget Question's owning Thread and exact
+message. A prose Question names its Thread and source message. Both are null for
+page-widget and approval Questions. Message provenance lets the native reader
+reveal the turn containing the Question, including one inside a hidden summary.
 
 A prose Question has `source.kind === "reply"` and its agent message's id as
 `source.id`. Its answer contains the settling user message or reaction and its
@@ -1053,6 +1070,9 @@ answer content exists. Partial values can appear while `status` is `open`, and a
 completed empty selection has `answer.value === []`. `answer.event` identifies the
 admitted answering action, or is `null` for authored or carried state. Formatting
 belongs to the widget family; display words are not canonical answer data.
+`questionWords(question)` formats the answer of one widget, prose or approval
+Question, using the widget family's formatter where declared. It may return empty
+display wording and owns no answer state or lifecycle.
 
 `watchQuestions(owner, callback)` receives this same collection. Widget membership
 and completion change when an authoritative reading is adopted; pending widget

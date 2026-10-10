@@ -165,6 +165,7 @@ export interface QuestionRecord {
   source: { kind: "widget" | "reply"; id: string; tag?: string }
     | { kind: "approval"; version: number };
   thread: string | null;
+  message: string | null;
   prompt: { text: string | null; target: string };
   answer: { value: unknown; event: Event | null } | null;
   status: "open" | "answered" | "withdrawn";
@@ -429,7 +430,9 @@ function normalizedQuestions(
         { value?: string } | undefined;
       const verb = declaration?.value;
       if (!verb || !widget) return question;
-      const { value, present } = questionValue(widget, verb, question.status === "answered");
+      const completed = question.status === "answered" &&
+        !(question.answer?.event && projection.pendingWithdrawals.has(question.answer.event.id));
+      const { value, present } = questionValue(widget, verb, completed);
       const pendingValue = (widget.entries as { e: Event }[]).some(({ e }) =>
         e.action === verb && !Number.isInteger(e.seq)) ||
         [...projection.pendingWithdrawals.values()].some(({ e }) =>

@@ -56,7 +56,8 @@ test("Thread destinations without a page preview retain canonical targets and sh
   assert.equal(await destinations.openPageThread("detached", { intent }), control);
   assert.equal(arrivals[0].id, "detached");
   assert.equal(arrivals[0].options.intent, intent);
-  assert.equal(arrivals[0].options.focus, "reply");
+  assert.equal(arrivals[0].options.part, "reply");
+  assert.equal(arrivals[0].options.focus, true);
   window.dispatchEvent(new Event("input"));
   assert.equal(await destinations.openPageThread("detached", { intent }), null);
   assert.equal(arrivals.length, 1);

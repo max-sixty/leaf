@@ -315,7 +315,6 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
         expect(capture.locator("body")).to_have_attribute("data-lf-presented", "1")
         capture.evaluate("window.scrollTo(0, 0)")
         capture.wait_for_function("window.scrollY === 0")
-        assert capture_key not in capture.content()
         path = tmp_path / f"{name}.png"
         path.write_bytes(capture.screenshot())
         capture_files[name] = path
@@ -391,6 +390,9 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
             },
         ],
     }
+    # The capture page retains its share link, but the reviewer receives only the
+    # recorded stills and metadata, never the capture browser's access link.
+    assert capture_key not in json.dumps(record)
     data_model.cmd_data_set(review_dir, "journey-run", record)
     # The draft begun on this value keeps its revision across the replacement below.
     drafted_revision = hashlib.sha256(

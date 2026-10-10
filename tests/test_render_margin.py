@@ -2884,14 +2884,20 @@ def test_page_map_filtering_keeps_search_and_close_in_place(browser, serve, view
     groups = dialog.locator(".lf-page-map-group:visible")
     expect(groups).to_have_count(12)
     expect(search).to_be_focused()
-    before = {"search": search.bounding_box(), "close": close.bounding_box()}
+    search_field = dialog.locator(".lf-page-map-search")
+    before = {"search": search_field.bounding_box(), "close": close.bounding_box()}
     top = dialog.bounding_box()["y"]
 
     for query, count in [("Map note 12", 1), ("No such map entry", 0), ("", 12)]:
-        search.fill(query)
+        if query:
+            search.fill(query)
+        else:
+            search_field.get_by_role("button", name="Clear entry").click()
+            expect(search).to_have_value("")
+            expect(search).to_be_focused()
         expect(groups).to_have_count(count)
         rendered(page)
-        assert search.bounding_box() == before["search"]
+        assert search_field.bounding_box() == before["search"]
         assert close.bounding_box() == before["close"]
         assert dialog.bounding_box()["y"] == top
         assert (
@@ -7631,6 +7637,29 @@ def send_anchored_comment(page, text):
     for actual, expected in zip(accepted, lines, strict=True):
         assert actual == pytest.approx(expected, abs=0.5), (lines, accepted)
     return frame["x"], len(lines)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "better; is there a way of shortening? or maybe we just remove it??",
+        "Check the January failure mode before accepting this design. " * 3,
+    ],
+)
+@pytest.mark.parametrize("zoom", [1, 1.1])
+def test_a_sent_comment_keeps_its_text_viewport(browser, serve, text, zoom):
+    """Carrying the editor's measure leaves the sent words inside their scrollport."""
+    page = open_page(browser, serve(ASK_PAGE), init_script=MARGIN_EDITOR_ROOTS)
+    resized(page, 1200, 900)
+    page.evaluate("zoom => document.documentElement.style.zoom = zoom", zoom)
+    send_anchored_comment(page, text.rstrip())
+    reading = page.locator(".lf-margin-preview")
+    overflow = reading.evaluate("""card => [...card.querySelectorAll('*')]
+        .filter(node => node.clientWidth && /auto|scroll/.test(getComputedStyle(node).overflow))
+        .filter(node => node.scrollWidth > node.clientWidth || node.scrollHeight > node.clientHeight)
+        .map(node => ({class: node.className, width: node.clientWidth,
+            scrollWidth: node.scrollWidth, height: node.clientHeight, scrollHeight: node.scrollHeight}))""")
+    assert not overflow, overflow
 
 
 @pytest.mark.parametrize("wrapping", [False, True])

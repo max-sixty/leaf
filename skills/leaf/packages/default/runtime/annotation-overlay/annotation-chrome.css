@@ -190,7 +190,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   }
   .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body {
     display: flex; flex-direction: column; min-height: 0;
-    box-sizing: border-box; width: min(100%, calc(var(--lf-comment-message-width) - var(--lf-thread-text-inset)));
+    box-sizing: border-box; width: min(100%, calc(var(--lf-comment-message-measure) + var(--lf-comment-text-pad-end)));
   }
   /* Only the submitted words inherit the editor's viewport. Message metadata,
      such as the drawing reference, is added after Send and keeps its own room.

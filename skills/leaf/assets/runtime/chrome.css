@@ -1468,10 +1468,7 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   .lf-command-reference-preference input { margin: 0; }
   .lf-command-reference-preference small { grid-column: 2; color: var(--muted);
     font-size: var(--t-6); }
-  .lf-command-reference-search { width: 100%; box-sizing: border-box; font: inherit; padding: 7px 9px;
-    border: 1px solid var(--border-2); border-radius: var(--r); background: var(--paper);
-    color: var(--ink); }
-  .lf-command-reference-search:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: help-search; outline-offset: 1px; }
+  .lf-search-field { width: 100%; min-width: 0; }
   /* The results are the one part of the column that gives up height when the window is
      short; the head, the search and this line keep their own. As a shrinkable flex item
      the line was squeezed to its 1.2em floor, 13.8px under a 16.7px line, and the results
@@ -1790,16 +1787,9 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   .lf-page-search { position: fixed; z-index: var(--lf-z-page-search); pointer-events: auto;
     top: calc(var(--lf-banner-h) + 10px); left: 50%; transform: translateX(-50%);
     width: min(390px, calc(100vw - 28px)); box-sizing: border-box;
-    display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;
-    gap: 10px; padding: 7px; border: 1px solid var(--border-2);
-    border-radius: var(--r); background: var(--card);
+    border-radius: var(--r);
     box-shadow: 0 8px 24px var(--shade); }
   .lf-page-search[hidden] { display: none; }
-  .lf-page-search-box { min-width: 0; box-sizing: border-box; font: inherit;
-    padding: 6px 8px; border: 1px solid var(--border-2); border-radius: 5px;
-    background: var(--paper); color: var(--ink); }
-  .lf-page-search-box:focus-visible { outline: var(--focus-ring);
-    --lf-focus-ring: target-search; outline-offset: 1px; }
   .lf-page-search-status { min-width: 0; min-height: 1lh; width: var(--lf-reserved-width, 0px); color: var(--muted);
     font-size: var(--t-6); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
   .lf-legend-box { position: absolute; pointer-events: none;

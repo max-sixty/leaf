@@ -159,6 +159,21 @@ def threads_panel(page: Page) -> None:
     )
 
 
+def page_search(page: Page) -> None:
+    """A focused page query and its match count inside the search frame."""
+    page.keyboard.press("Tab")
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill("review")
+
+
+def command_reference_search(page: Page) -> None:
+    """Help's focused query above its filtered command results."""
+    page.keyboard.press("Tab")
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    page.get_by_role("combobox", name="Search commands").fill("comment")
+
+
 def retained_quote(page: Page) -> None:
     """A detached passage's compact reading inside its native sample thread."""
     page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
@@ -283,6 +298,22 @@ def composer_sent(page: Page) -> None:
         ).tap()
     else:
         page.keyboard.press("Enter")
+    page.locator(".lf-margin-preview[data-lf-comment-frame]").wait_for()
+    page.wait_for_function(
+        "() => !document.querySelector('.lf-margin-preview [aria-busy=\"true\"]')"
+    )
+    page.mouse.move(0, 0)
+
+
+def composer_sent_zoomed(page: Page) -> None:
+    """A short sent comment at fractional zoom must keep its one-line viewport."""
+    page.evaluate("document.documentElement.style.zoom = '1.1'")
+    page.locator("#plan-lede").click(click_count=3)
+    page.locator(".lf-fab-input").click()
+    page.keyboard.insert_text(
+        "better; is there a way of shortening? or maybe we just remove it??"
+    )
+    page.keyboard.press("Enter")
     page.locator(".lf-margin-preview[data-lf-comment-frame]").wait_for()
     page.wait_for_function(
         "() => !document.querySelector('.lf-margin-preview [aria-busy=\"true\"]')"
@@ -590,6 +621,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         composer,
         composer_long,
         composer_sent,
+        composer_sent_zoomed,
         card_reply_long,
         panel_reply_long,
         page_comment_long,
@@ -843,6 +875,15 @@ STATES = (
     ),
     State("gallery-multiline-passage", "developer/feature-gallery", multiline_passage),
     State("plan", "review-a-plan", at_rest),
+    State("page-search", "review-a-plan", page_search),
+    State("page-search-phone", "review-a-plan", page_search, viewport=(390, 844)),
+    State("command-reference-search", "review-a-plan", command_reference_search),
+    State(
+        "command-reference-search-dark",
+        "review-a-plan",
+        command_reference_search,
+        scheme="dark",
+    ),
     State("plan-dark", "review-a-plan", at_rest, scheme="dark"),
     State("plan-beside", "review-a-plan", at_rest, viewport=BESIDE),
     State("plan-card", "review-a-plan", card_by_pointer),
@@ -909,6 +950,12 @@ STATES = (
         touch=True,
     ),
     State("triage-composer-sent", "triage-board", composer_sent),
+    State(
+        "plan-composer-sent-zoomed",
+        "review-a-plan",
+        composer_sent_zoomed,
+        viewport=(1200, 900),
+    ),
     State("triage-composer-sent-dark", "triage-board", composer_sent, scheme="dark"),
     State(
         "triage-composer-sent-beside", "triage-board", composer_sent, viewport=BESIDE

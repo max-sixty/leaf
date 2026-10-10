@@ -154,7 +154,7 @@ export function createThreadPreview({
       top: box.top,
       width: box.width,
       height: box.height,
-      messageWidth: parseFloat(style.width),
+      messageMeasure: element.writingInlineSize,
       messageHeight: parseFloat(style.height),
       endRoom: element.endRoom ?? "none",
       scroll: element.scrollTop,
@@ -213,8 +213,8 @@ export function createThreadPreview({
     );
     const properties = {
       "--lf-comment-width": previewSession.messageViewport && `${origin.frame.width}px`,
-      "--lf-comment-message-width":
-        previewSession.messageViewport && `${origin.messageWidth}px`,
+      "--lf-comment-message-measure":
+        previewSession.messageViewport && `${origin.messageMeasure}px`,
       "--lf-comment-message-height":
         previewSession.messageViewport && `${origin.messageHeight}px`,
     };

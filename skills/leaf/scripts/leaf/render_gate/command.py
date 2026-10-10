@@ -94,7 +94,7 @@ def page_code_check(
             file=sys.stderr,
         )
         for error in errors:
-            print(f"  - {error}", file=sys.stderr)
+            print("  - " + error.replace("\n", "\n    "), file=sys.stderr)
         return 1
     print(f"✓ page code: no errors in {browser_name}")
     return 0
@@ -162,7 +162,7 @@ def render_check(
             file=sys.stderr,
         )
         for f in reading.failures:
-            print(f"  - {f}", file=sys.stderr)
+            print("  - " + f.replace("\n", "\n    "), file=sys.stderr)
         for line in reading.advice:
             print(f"  · {line}", file=sys.stderr)
         return 1

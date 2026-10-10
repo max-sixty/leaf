@@ -138,7 +138,7 @@ def _picture(browser, url: str, comment: dict, out: Path) -> str | None:
         return str(error)
     except PlaywrightError as error:
         # A wait that timed out names what never arrived.
-        return str(error).strip().splitlines()[0]
+        return str(error).strip()
     finally:
         page.close()
 

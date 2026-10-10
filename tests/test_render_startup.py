@@ -6050,15 +6050,17 @@ def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(
     assert page.evaluate("window.healthyClock") == 2
     assert _traffic(page).asked == asked
     consume_browser_errors(page, "clock paint failed:")
-    assert {
+    errors = [
         e["text"]
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "error"
-    } == {
+    ]
+    assert {error.splitlines()[0] for error in errors} == {
         "clock paint failed: read broke",
         "clock paint failed: paint broke",
         "clock paint failed: async broke",
     }
+    assert all("\n" in error for error in errors), errors
 
 
 def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
@@ -6121,23 +6123,52 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
     assert result["throwingDeliveries"] == 2, result
     assert result["afterMount"] == result["before"], result
     assert result["afterUpdate"] == result["version"], result
-    errors = consume_browser_errors(
-        page,
-        "data subscriber failed: mount projection failed",
-        "data subscriber failed: update projection failed",
-        "data subscriber failed: synchronous update projection failed",
+    errors = consume_browser_errors(page, "data subscriber failed")
+    assert {error.splitlines()[0] for error in errors} == {
+        "leaf: data subscriber failed for lf-feed#deployments input rows source deployments: "
+        + f"{message} projection failed"
+        for message in ("mount", "update", "synchronous update")
+    }
+    assert len(errors) == 3 and all("\n" in error for error in errors), errors
+    told(page)
+    agent_errors = [
+        event["text"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "error"
+    ]
+    assert set(agent_errors) == {error.removeprefix("leaf: ") for error in errors}
+
+
+def test_widget_errors_keep_exception_evidence(browser, serve):
+    """The user sees a short error while the agent retains the actual throw site."""
+    page = open_page(browser, data_projection_page(serve))
+    page.evaluate(
+        """async () => {
+          const {failSoft} = await window.__lfRuntimeImport('/runtime/widget-upgrade.js');
+          const widget = document.querySelector('lf-feed');
+          function widgetProjection() { throw new TypeError('projection rejected'); }
+          let error;
+          try { widgetProjection(); } catch (caught) { error = caught; }
+          failSoft(widget, error);
+        }"""
     )
-    assert (
-        sum("data subscriber failed: mount projection failed" in e for e in errors) == 1
+    expect(page.locator("lf-feed .lf-error")).to_have_text(
+        "<lf-feed> failed: projection rejected"
     )
-    assert any("data subscriber failed: update projection failed" in e for e in errors)
-    assert (
-        sum(
-            "data subscriber failed: synchronous update projection failed" in e
-            for e in errors
-        )
-        == 1
-    )
+    errors = consume_browser_errors(page, "projection rejected")
+    assert len(errors) == 1, errors
+    assert any(
+        error.startswith('leaf: <lf-feed id="deployments"> failed: projection rejected')
+        and "widgetProjection" in error
+        for error in errors
+    ), errors
+    told(page)
+    agent_errors = [
+        event["text"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "error"
+    ]
+    assert any("widgetProjection" in error for error in agent_errors), agent_errors
 
 
 def test_unchanged_source_waits_for_its_inflight_render(browser, serve):

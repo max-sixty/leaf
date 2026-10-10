@@ -8,11 +8,11 @@
  * `capturePlace` reads one, of the page or of a reading region, and `restorePlace`
  * returns the user to it: the passage is found again by its words, so a place survives
  * what moved the pixels under it — a new revision, a resize, a view that was hidden
- * while its width changed. A visible focused destination is the live place while that
- * gesture still holds focus in this region. Focus on the reading surface itself keeps
- * its passage as the place. The destination's DOM identity stays local;
- * serialized places and replaced elements use the ordinary passage reading. A restore
- * jumps rather than glides.
+ * while its width changed. A focused destination in view (user-place.js,
+ * `focusedInView`) is the live place while that gesture still holds focus in this
+ * region. Focus on the reading surface itself keeps its passage as the place. The
+ * destination's DOM identity stays local; serialized places and replaced elements use
+ * the ordinary passage reading. A restore jumps rather than glides.
  *
  * Whoever remembers a place owns when to take it and where to keep it: version
  * continuity (version.js) across revisions and reading-region shifts, a root tab set
@@ -27,7 +27,6 @@
 import {
   clippedContents,
   landingBand,
-  seenRect,
   shownBox,
   shownWindow,
   skipped,
@@ -57,6 +56,7 @@ import { moveScrollerBy, pageScroller, scrollToEnd } from "./scrolling.js";
 import { renderedParent, under, upFrom } from "./shadow.js";
 import { retainUserIntent } from "./user-intent.js";
 import { recentPlaceInput, focused } from "./focus.js";
+import { focusedInView } from "./user-place.js";
 import { reveal } from "./widget-elements.js";
 import { scrollIntoReadingBand } from "./landing-scroll.js";
 import { union } from "./rect.js";
@@ -235,7 +235,7 @@ export function capturePlace(region = null, blocks = textBlocks()) {
   const landmarkTop = (top, block, blockTop = top) =>
     block?.matches(HEADING) ? top + Math.max(0, -blockTop) : top;
   const view = { y: box.scrollTop, scroller: scrollerIdentity(box) };
-  const standing = focused();
+  const standing = focusedInView();
   const body = region?.body ?? document.querySelector("body > main");
   const standingBody = readingRegionFor(standing)?.body ?? body;
   if (
@@ -243,8 +243,7 @@ export function capturePlace(region = null, blocks = textBlocks()) {
     standing &&
     under(standing, body) &&
     // Focus on the reading surface itself names its contents, not a landmark.
-    !under(standingBody, standing) &&
-    seenRect(standing, new Map())
+    !under(standingBody, standing)
   )
     view[FOCUSED_PLACE] = {
       node: standing,

@@ -1289,25 +1289,17 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
      so it cannot rely on a hairline to separate it from whatever it happens to cover. */
   :is(.lf-fab-bar, .lf-margin-preview) {
     --lf-comment-inset: 12px;
-    --lf-comment-text-size: var(--t-5);
-    --lf-comment-text-pad-block: calc((var(--lf-response-height) - 1lh) / 2);
+    --lf-thread-text-pad-block: calc((var(--lf-response-height) - 1lh) / 2);
     --lf-comment-text-pad-end: var(--lf-thread-text-inset);
-    --lf-comment-send-room: max(28px, var(--aim-floor));
-    --lf-comment-head: max(28px, var(--aim-floor));
-    --lf-comment-body-gap: 4px;
+    --lf-comment-send-room: var(--lf-icon-action-hit);
     --lf-comment-foot-gap: var(--sp-3);
-    --lf-comment-frame-top: calc(1px + var(--lf-comment-inset) + var(--lf-comment-head) + var(--lf-comment-body-gap));
+    --lf-comment-frame-top: calc(1px + var(--lf-comment-inset) + var(--lf-msg-head-height) + var(--lf-msg-body-gap));
     /* The card's reply row at rest, which the editor's frame reserves beneath the words,
        so a box that fills the window becomes a card of the same height. */
     --lf-comment-reply-row: calc(var(--lf-comment-foot-gap) + var(--lf-compose-h) + 2px);
     --lf-comment-frame-bottom: calc(var(--lf-comment-reply-row) + var(--lf-comment-inset) + 1px);
   }
   :is(.lf-fab-bar, .lf-margin-preview, .lf-response-control) { --lf-response-height: 32px; }
-  /* The editor and its sent message share text metrics. The borderless message uses
-     the full inset; the field subtracts its border. */
-  leaf-text.lf-fab-input,
-  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body {
-    font: var(--lf-comment-text-size)/1.5 var(--sans); color: var(--ink-2); }
   .lf-fab-bar { display: none; }
   /* The field and its choices are one anchored response control. This primitive owns
      their height, vertical padding, type, border, corners, and elevation. Tab extends
@@ -1338,7 +1330,7 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
     --lf-field-end-room: var(--lf-comment-send-room);
     overflow-y: auto; }
   .lf-fab-bar .lf-compose-field {
-    --lf-compose-pad-block: calc(var(--lf-comment-text-pad-block) - 1px);
+    --lf-compose-pad-block: calc(var(--lf-thread-text-pad-block) - 1px);
     --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px); }
   .lf-fab-bar .lf-compose-placeholder { line-height: 1.5; }
   .lf-fab-bar .lf-compose-submit {
@@ -1904,8 +1896,6 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
     /* What is left here is what a finger changes besides the floor, which reads
        --aim-floor (shadow.css) and so needs no rule here. */
     :is(.lf-fab-bar, .lf-margin-preview, .lf-response-control) { --lf-response-height: 44px; }
-    :is(.lf-fab-bar, .lf-margin-preview) {
-      --lf-comment-text-size: max(var(--entry-floor), var(--t-5)); }
     .lf-shortcut-more { min-width: 44px; min-height: 44px; align-items: center; }
     .lf-edge { width: 44px; }
     .lf-edge[data-lf-side="right"] { left: var(--focus-ring-w); }

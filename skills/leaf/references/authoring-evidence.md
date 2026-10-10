@@ -130,7 +130,7 @@ A patch goes through the `diff` package's producer script; the contract's
 instructions give the command:
 
 ```bash
-leaf page instructions <page> producer --contract unified-diff
+leaf page instructions <page> --contract unified-diff | jq -er '.producer'
 ```
 
 A bound widget shows its source's current value, in every version and thread that
@@ -158,8 +158,12 @@ subject. Show a browser journey recorded with Playwright as its trace in `lf-tra
 rather than as its video, so the user can step through each recorded action and
 comment on its screenshots and saved page elements. `lf-trace` travels in the `playwright` package; after
 `leaf page init --package playwright <page>`,
-`leaf page instructions <page> producer --contract playwright-trace` gives the
-import command. Give native `<video>` and `<audio>` elements `controls`, label their
+the producer instructions give the import command:
+
+```bash
+leaf page instructions <page> --contract playwright-trace | jq -er '.producer'
+```
+ Give native `<video>` and `<audio>` elements `controls`, label their
 content, and give a video a `poster` image. MP4 and WebM video, and MP3, M4A,
 Ogg, and WAV audio are admitted; codec playback is the browser's. Export embeds
 the complete recording for offline playback with no size cap or omissions: base64

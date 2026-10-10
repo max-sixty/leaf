@@ -343,23 +343,22 @@ def media(dir: str, files) -> None:
         print(json.dumps({"path": url, "source": str(src)}, ensure_ascii=False))
 
 
-@page.command(short_help="Read instructions for selected components and audience.")
+@page.command(short_help="Read selected-component instructions by audience as JSON.")
 @click.argument("dir", metavar="PAGE")
-@click.argument("audience", required=False, metavar="AUDIENCE")
-@click.option("--widget", "widgets", multiple=True, metavar="TAG")
+@click.option("--use", "entries", multiple=True, metavar="ENTRY")
 @click.option("--contract", "contracts", multiple=True, metavar="ID")
 def instructions(
-    dir: str, audience: str | None, widgets: tuple[str, ...], contracts: tuple[str, ...]
+    dir: str, entries: tuple[str, ...], contracts: tuple[str, ...]
 ) -> None:
-    """List audiences, or print AUDIENCE's selected-component instructions.
+    """Print a JSON object mapping each audience to its composed instructions.
 
     With no component selection, read only shared package instructions. Select
-    widgets before writing markup; their examples, required members, and data
+    vocabulary entries before writing markup; their examples and data
     contracts bring their own instructions into the same reading.
     """
     from leaf.page import cmd_instructions
 
-    cmd_instructions(resolve_dir(dir), audience, widgets=widgets, contracts=contracts)
+    cmd_instructions(resolve_dir(dir), entries=entries, contracts=contracts)
 
 
 @page.command(short_help="Print where the page, a thread, or a widget stands.")

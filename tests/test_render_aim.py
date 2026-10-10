@@ -174,7 +174,7 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
     Drive that example itself through the whole gesture, from outline to anchored
     composer."""
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
-    sidenote = registry["$idioms"]["aside.sidenote"]["example"]
+    sidenote = registry["aside.sidenote"]["x-example"]
     html = LONG_PAGE.replace(
         '<h1 id="t">Long</h1>', f'<h1 id="t">Long</h1>\n{sidenote}'
     )

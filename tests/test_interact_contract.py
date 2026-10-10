@@ -2785,15 +2785,14 @@ def test_an_agent_verb_declaration_is_checked_whole(page_dir, mutate, message):
 
 
 @pytest.mark.parametrize("tag", ["lf-options[", "LF-options", "lf_options"])
-def test_check_refuses_a_widget_name_that_cannot_form_a_selector(page_dir, tag):
+def test_check_refuses_element_schemas_under_selector_names(page_dir, tag):
     registry = json.loads((page_dir / "registry.json").read_text())
     registry[tag] = registry.pop("lf-options")
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
     assert result.exit_code != 0
-    assert f'invalid element declaration names ["{tag}"]' in result.output
-    assert "an element name is `lf-` followed by" in result.output
+    assert f"idiom {tag!r}" in result.output
 
 
 def test_check_refuses_an_invalid_action_detail_schema(page_dir):

@@ -5,7 +5,12 @@ import re
 from leaf.passages import COLLAPSE_CHARS
 from leaf.projection import enclosing_widgets
 from leaf.questions import asking
-from leaf.registry.contract import registry_path, retirement_slots, visual_parts
+from leaf.registry.contract import (
+    is_element_name,
+    registry_path,
+    retirement_slots,
+    visual_parts,
+)
 from leaf.registry.schema import json_validator, json_value, schema_error_message
 from leaf.structure import AUTHORED_ALLOCATIONS, SourceDocument
 
@@ -33,7 +38,7 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
     # Member containers admit exactly the tags that declare them as x-owners.
     members_of = {}
     for tag, entry in registry.items():
-        if not tag.startswith("lf-"):
+        if not is_element_name(tag):
             continue
         for owner in entry.get("x-owners", []):
             members_of.setdefault(owner, set()).add(tag)
@@ -269,7 +274,7 @@ def reference_errors(lf_elements: list, registry: dict, ids: set, by_id: dict) -
     owned = [
         (tag, attr, reference)
         for tag, entry in registry.items()
-        if not tag.startswith("$")
+        if is_element_name(tag)
         for attr, reference in entry.get("x-refers", {}).items()
         if reference.get("owns")
     ]

@@ -3,12 +3,14 @@
  * markup without executing a widget and ignores inert template contents, just as
  * querySelectorAll does. An arriving scope may itself be the widget being loaded.
  */
+import { isElementName } from "./registry-contract.js";
+
 export function registeredTags(scope, registry) {
   const tags = new Set([
     ...(scope.localName ? [scope.localName] : []),
     ...[...scope.querySelectorAll("*")].map((element) => element.localName),
   ]);
-  return [...tags].filter((tag) => Object.hasOwn(registry, tag));
+  return [...tags].filter((tag) => isElementName(tag) && Object.hasOwn(registry, tag));
 }
 
 export function widgetImports(scope, registry) {

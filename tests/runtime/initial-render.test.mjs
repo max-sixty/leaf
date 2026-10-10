@@ -114,6 +114,25 @@ test("a runtime arrival uses the same producer and preserves the frozen source",
   );
 });
 
+test("native idioms never become widget descriptors or authored widget ancestors", () => {
+  document.body.innerHTML =
+    '<main><table id="native"><tbody><tr><td><lf-nested id="nested">Value</lf-nested></td></tr></tbody></table></main>';
+  adoptRegistry({
+    "lf-nested": {},
+    table: { description: "A table idiom.", "x-example": "<table></table>" },
+    "lf-nested.selected": {
+      description: "A selected widget idiom.",
+      "x-example": '<lf-nested class="selected"></lf-nested>',
+    },
+  });
+  const staged = stageWidgetDescriptors(document.querySelector("main"), {
+    kind: "page",
+    revision: 2,
+  });
+  assert.deepEqual([...staged.descriptors.keys()], ["nested"]);
+  assert.deepEqual(staged.descriptors.get("nested").ancestors, []);
+});
+
 test("an arriving source root keeps its declared parent and exhibit fence", () => {
   adoptRegistry({
     $layer: { generation: "initial-arrival" },

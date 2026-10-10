@@ -12,9 +12,9 @@ from .markup import id_errors
 def validate_registry_examples(registry: dict, source) -> dict:
     """Validate each independent catalog example where registry layers become one."""
     for tag, entry in registry.items():
-        if not tag.startswith("lf-") or (example := entry.get("x-example")) is None:
+        if tag.startswith("$") or (example := entry.get("x-example")) is None:
             continue
-        parser = SourceDocument(example)
+        parser = SourceDocument(example, fragment=True)
         errors = fragment_errors(parser, registry) + id_errors(parser)
         if errors:
             raise RegistryError(f"{source}: <{tag}> x-example is invalid: {errors[0]}")

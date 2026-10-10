@@ -34,7 +34,7 @@ from pathlib import Path
 
 from leaf.layer import LayerComposition, checked_layer_inputs, compose_layer
 from leaf.packages import package_layer_inputs
-from leaf.registry.contract import read_registry_declarations
+from leaf.registry.contract import element_declarations, read_registry_declarations
 from leaf.registry.storage import read_page_registry
 from leaf.render_checks import (
     RENDER_VIEWPORT,
@@ -79,7 +79,7 @@ class UnreadablePage(Exception):
 def own_tags(package: Path) -> list[str]:
     """The widget tags the package's own `registry.json` declares, in its order."""
     declarations = read_registry_declarations(package / "registry.json") or {}
-    return [tag for tag in declarations if tag.startswith("lf-")]
+    return list(element_declarations(declarations))
 
 
 def example_pages(registry: dict, tags: list[str]) -> list[str]:
@@ -89,7 +89,7 @@ def example_pages(registry: dict, tags: list[str]) -> list[str]:
     for tag in tags:
         if (example := registry[tag].get("x-example")) is None:
             continue
-        own = SourceDocument(example).ids
+        own = SourceDocument(example, fragment=True).ids
         if not pages or own & ids:
             pages.append([])
             ids = set()

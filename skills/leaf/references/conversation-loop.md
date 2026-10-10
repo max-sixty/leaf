@@ -178,7 +178,7 @@ You drive the page and your workers do not. The server, the watcher and its
 acknowledgements, replies, starts and status, edits to `index.html`, and stamps stay
 with you, and a worker returns its result to you. A worker touches the page only in a
 role Leaf's instructions give it, and only as those instructions direct: a command hub worker
-(`leaf page instructions <page> worker`), or a Codex watcher task
+(the `worker` value returned by `leaf page instructions <page>`), or a Codex watcher task
 (`references/codex-watcher.md`). Put this in each worker's brief, because a worker that
 inherits your conversation inherits the page with it and may otherwise treat the page
 as its own. Work that needs its own conversation with the user belongs to a session

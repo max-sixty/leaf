@@ -38,7 +38,7 @@ Max's real tasks.
 
   The optional `code-review` package already suggests behavior comparisons; whether
   a cold author discovers and uses those instructions remains unmeasured. Test discovery
-  before package selection and through `leaf page instructions PAGE author`. Compare
+  before package selection and through the `author` value from `leaf page instructions PAGE`. Compare
   process simplification, structural change and an unchanged system: judge whether
   the user can identify the differences, rather than requiring a diagram everywhere.
 

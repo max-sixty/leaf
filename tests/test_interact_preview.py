@@ -356,7 +356,7 @@ def test_product_previews_prepare_the_authored_layer_and_media(
         for reference in SourceDocument(source.read_text()).media_refs
     )
     registry = json.loads((page / "registry.json").read_text())
-    assert "nav.sitenav" in registry["$idioms"]
+    assert "nav.sitenav" in registry
     assert (ROOT / "docs" / "package" / "theme.css").read_text().rstrip() in (
         page / "theme.css"
     ).read_text()

@@ -85,7 +85,7 @@ Commands:
   events        Print the event log as JSON lines.
   export        Export a stamped version to one HTML file.
   init          Create or re-vendor a page directory.
-  instructions  Read instructions for selected components and audience.
+  instructions  Read selected-component instructions by audience as JSON.
   interactions  Read browser interactions and request diagnostics.
   media         Add images, video, or audio and print their page paths.
   picture       Picture a drawing comment as the user saw it.

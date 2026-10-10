@@ -750,7 +750,9 @@ STATES = (
     State("plan-touch", "review-a-plan", at_rest, viewport=(390, 844), touch=True),
     State("plan-more", "review-a-plan", more_menu),
     State("plan-capture", "review-a-plan", capture_area),
-    State("plan-capture-drag", "review-a-plan", capture_small_drag),
+    State(
+        "plan-capture-drag", "review-a-plan", capture_small_drag, viewport=(390, 740)
+    ),
     State("plan-capture-dark", "review-a-plan", capture_area, scheme="dark"),
     State(
         "plan-capture-touch",

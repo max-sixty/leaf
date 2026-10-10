@@ -27,6 +27,7 @@
 import {
   clippedContents,
   landingBand,
+  seenRect,
   shownBox,
   shownWindow,
   skipped,

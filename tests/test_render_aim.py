@@ -1059,7 +1059,7 @@ def test_a_long_comment_stays_in_view_when_its_target_fills_the_viewport(
 
 TALL_ROWS_PAGE = leaf_page(
     "A tall section",
-    '<h1>Review</h1><p>These rows are commented on as one section.</p>'
+    "<h1>Review</h1><p>These rows are commented on as one section.</p>"
     '<section id="whole"><h2>Rows</h2>'
     + "".join(f"<p>Row {n}: compute({n});</p>" for n in range(80))
     + "</section><p>After the rows.</p>",
@@ -1235,11 +1235,9 @@ def test_a_pointed_comment_finds_its_row_again_after_a_revision_replaces_it(
     rendered(page)
     page.evaluate("() => { window.__row = document.querySelectorAll('#whole p')[50]; }")
     (serve.page_dir / "index.html").write_text(
-        TALL_ROWS_PAGE.replace("A tall section", "A tall section, revised").replace(
-            '<section id="whole">', '<article id="whole">'
-        ).replace(
-            "</section>", "</article>"
-        )
+        TALL_ROWS_PAGE.replace("A tall section", "A tall section, revised")
+        .replace('<section id="whole">', '<article id="whole">')
+        .replace("</section>", "</article>")
     )
     told(page)
     expect(page).to_have_title("A tall section, revised")

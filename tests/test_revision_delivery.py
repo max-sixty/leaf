@@ -606,7 +606,9 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         "lf-plot": {"x-height": 400},
         "lf-meter": {"x-prepaint": '<span class="lf-meter-face">0 left</span>'},
         "lf-gauge": {"x-prepaint": {"as": "lf-meter"}},
-        "$idioms": {"description": "Shapes.", ".callout": {"x-space": "column"}},
+        ".callout": {"x-space": "column"},
+        "table": {"x-space": "wide"},
+        "lf-feed.selected": {"x-space": "column"},
     }
     source = (
         "<!doctype html><html><head><title>T</title></head><body><main>"
@@ -614,7 +616,8 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         '<aside class="callout" id="chart-note" data-width="wide">Chart.</aside>'
         '<lf-zone id="queue" label="Queue"><div><lf-label>new</lf-label></div></lf-zone>'
         '<lf-board id="board" data-width="column"></lf-board>'
-        '<lf-feed id="feed"></lf-feed><section id="wide" data-width="wide"></section>'
+        '<lf-feed id="feed" class="selected"></lf-feed><section id="wide" data-width="wide"></section>'
+        '<table id="native"></table>'
         '<pre data-bound="start">log</pre>'
         '<lf-plot id="plot"></lf-plot><lf-plot id="tall" data-height="240"></lf-plot>'
         '<lf-pair id="pair" before="/media/a.png" after="/media/b.png"></lf-pair>'
@@ -649,7 +652,11 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     assert marks[("lf-board", "board")] == {"data-lf-space": "column"}
     assert marks[("aside", "note")] == {"data-lf-space": "column"}
     assert marks[("aside", "chart-note")] == {"data-lf-space": "wide"}
-    assert marks[("lf-feed", "feed")] == {"data-lf-bound": "end"}
+    assert marks[("lf-feed", "feed")] == {
+        "data-lf-bound": "end",
+        "data-lf-space": "column",
+    }
+    assert marks[("table", "native")] == {"data-lf-space": "wide"}
     assert marks[("section", "wide")] == {"data-lf-space": "wide"}
     assert marks[("pre", None)] == {"data-lf-bound": "start"}
     assert marks[("lf-plot", "plot")] == {"data-lf-height": "400"}
@@ -679,6 +686,8 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         ' data-lf-inline=""',
         ' data-lf-space="column"',
         ' data-lf-bound="end"',
+        ' data-lf-space="column"',
+        ' data-lf-space="wide"',
         ' data-lf-space="wide"',
         ' data-lf-bound="start"',
         ' data-lf-height="400"',

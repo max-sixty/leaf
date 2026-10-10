@@ -4548,6 +4548,8 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     page.locator(".lf-fab-input").click()
     quote = composer_quote(page)
     assert quote["shown"], "a selection across option cells cannot paint one passage"
+    assert "Keep the store" in quote["text"]
+    assert "Signed tokens" in quote["text"]
     assert chrome not in quote["text"], (
         f"the detached quote included the widget's own {chrome!r} control"
     )

@@ -1,5 +1,5 @@
 {
-  "lf-file": {
+  "lf-file-editor": {
     "description": "An automatically saved editor for one explicitly bound UTF-8 file on the serving machine. CodeMirror owns editing and inline conflict comparison; the file is external state, outside Leaf's action log.",
     "x-instructions": "Author an empty element and bind its binding id to a real file with leaf file bind PAGE BINDING PATH. Tell the reader that edits save automatically. Ordinary typing is visually quiet; delayed saves, errors and external conflicts explain themselves. A page without a local binding shows an unavailable diagnostic: use lf-code when the reader should see a portable snapshot instead.",
     "type": "object",
@@ -13,7 +13,7 @@
     "x-upgrade": true,
     "x-shadow": true,
     "x-height": true,
-    "x-example": "<lf-file id=\"notes-file\" binding=\"notes\"></lf-file>",
-    "x-prepaint": "<p class=\"lf-file-opening\">Opening file…</p>"
+    "x-example": "<lf-file-editor id=\"notes-file\" binding=\"notes\"></lf-file-editor>",
+    "x-prepaint": "<p class=\"lf-file-editor-opening\">Opening file…</p>"
   }
 }

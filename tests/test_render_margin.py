@@ -10653,7 +10653,12 @@ def test_a_row_follows_its_target_through_a_scroller_inside_a_shadow_tree(
         page.evaluate("() => { window.__deep.target.slot = 'deep'; }")
         rendered(page)
         assert page.evaluate(offset) == before
-    page.evaluate("() => { window.__deep.inner.scrollTop = 20; }")
+    # A mutation remeasures placement in the scroll's own task, before another
+    # frame can sample its native translation. The row must keep following.
+    page.evaluate("""() => {
+      window.__deep.inner.scrollTop = 20;
+      window.__deep.target.classList.add('after-scroll');
+    }""")
     rendered(page)
     after = page.evaluate(offset)
     assert after["offset"] == pytest.approx(before["offset"], abs=1), (before, after)

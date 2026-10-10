@@ -4,7 +4,10 @@
  * other block and focus moves into it the way it moves into any iframe. A `window`
  * sample is instead a whole Leaf window at the frame's own height, chrome included,
  * and scrolls inside itself. The child's
- * final Escape brings focus back to this element. Each presented child announces
+ * final Escape brings focus back to this element. Full view promotes the same frame
+ * into a native modal dialog, keeping its document, gestures, and drafts alive. The
+ * sample retains its embedded allocation while the dialog fills the viewport; Return
+ * to page and the child's final Escape restore the Full view button. Each child announces
  * lf-sample-ready with its Document, on first mount and Reset. Reset stays focusable
  * while loading but accepts no new press, preserving the parent's keyboard position.
  * Ordinary children remain static
@@ -19,6 +22,8 @@ import {
   offer,
   widgetController,
   focusDestination,
+  closeLayer,
+  handBack,
 } from "/runtime/widget-api.js";
 
 customElements.define(
@@ -34,6 +39,8 @@ customElements.define(
     #ready;
     #mounting = false;
     #viewOperation;
+    #view;
+    #full;
 
     get ready() {
       return this.#ready;
@@ -41,11 +48,18 @@ customElements.define(
 
     connectedCallback() {
       if (once(this)) this.#build();
+      // Removal ends native modality even when a retained widget reconnects before
+      // its host is retired. Reconcile the presentation with that platform state.
+      if (
+        this.#view?.getAttribute("role") === "dialog" &&
+        !this.#view.matches(":modal")
+      )
+        this.#embed();
       if (!this.#frame || this.#host || this.#mounting) return;
       this.#mounting = true;
       const ready = mountSample(this.#frame, {
         template: this.#template.id,
-        window: this.hasAttribute("window"),
+        window: this.hasAttribute("window") || this.#view.matches(":modal"),
       }).then(
         async (host) => {
           this.#mounting = false;
@@ -69,6 +83,7 @@ customElements.define(
     disconnectedCallback() {
       queueMicrotask(() => {
         if (this.isConnected) return;
+        if (this.#view?.getAttribute("role") === "dialog") this.#embed();
         this.#viewOperation?.abort();
         if (!this.#host) return;
         const host = this.#host;
@@ -86,7 +101,17 @@ customElements.define(
       this.#frame.className = "lf-sample-frame";
       this.#frame.title = this.getAttribute("label") || "Leaf sample";
       this.#frame.addEventListener("lf-sample-return", () => {
-        focusDestination(this, "return");
+        if (this.#view.matches(":modal")) this.#return();
+        else focusDestination(this, "return");
+      });
+
+      this.#view = document.createElement("dialog");
+      this.#view.className = "lf-sample-view";
+      this.#view.setAttribute("open", "");
+      this.#view.setAttribute("role", "presentation");
+      this.#view.addEventListener("cancel", (event) => {
+        event.preventDefault();
+        this.#return();
       });
 
       const controls = document.createElement("div");
@@ -100,9 +125,51 @@ customElements.define(
       });
       this.#status = offer("span", "lf-sample-status");
       this.#status.setAttribute("role", "status");
-      actions.append(this.#reset, this.#status);
+      this.#full = offer("button", "lf-btn", "Full view");
+      this.#full.addEventListener("click", () => {
+        if (this.#view.matches(":modal")) this.#return();
+        else {
+          // The frame never moves in the DOM: reparenting it destroys its browsing
+          // context. Native modality supplies focus containment and parent isolation.
+          // The label stays in flow; reserve only the controls and frame leaving it.
+          const height =
+            this.#frame.getBoundingClientRect().bottom -
+            controls.getBoundingClientRect().top;
+          this.style.setProperty("--lf-sample-height", `${height}px`);
+          this.#view.close();
+          this.#view.setAttribute("role", "dialog");
+          this.#view.setAttribute("aria-label", this.#frame.title);
+          this.#full.textContent = "Return to page";
+          this.#view.showModal();
+          this.#host?.setWindow(true);
+          focusDestination(this.#full, "move");
+        }
+      });
+      actions.append(this.#reset, this.#full, this.#status);
       controls.append(actions);
-      this.append(controls, this.#frame);
+      this.#view.append(controls, this.#frame);
+      this.append(this.#view);
+    }
+
+    #return() {
+      closeLayer(
+        () => this.#embed(),
+        () => handBack(this.#full),
+      );
+      if (!this.hasAttribute("window") && this.#frame.contentDocument?.body)
+        this.#follow(this.#frame.contentDocument);
+    }
+
+    #embed() {
+      this.#view.close();
+      // Initial open markup keeps the embedded group visible without the native
+      // focusing steps of show(), which could scroll the containing page.
+      this.#view.setAttribute("open", "");
+      this.#view.setAttribute("role", "presentation");
+      this.#view.removeAttribute("aria-label");
+      this.style.removeProperty("--lf-sample-height");
+      this.#full.textContent = "Full view";
+      this.#host?.setWindow(this.hasAttribute("window"));
     }
 
     // The frame's height follows its child's page, so nothing scrolls inside it. It
@@ -119,6 +186,7 @@ customElements.define(
       const frame = this.#frame;
       const view = doc.defaultView;
       const fit = () => {
+        if (this.#view.matches(":modal")) return;
         const border = frame.offsetHeight - frame.clientHeight;
         const height = `${Math.ceil(doc.body.getBoundingClientRect().height) + border}px`;
         if (frame.style.height !== height) frame.style.height = height;
@@ -144,7 +212,10 @@ customElements.define(
         if (this.#ready !== ready) return doc;
         keeps(this.#reset, "aria-disabled", null);
         this.#status.textContent = "";
-        if (doc.documentElement.hasAttribute("data-lf-sample-block")) this.#follow(doc);
+        this.#host.setWindow(
+          this.hasAttribute("window") || this.#view.matches(":modal"),
+        );
+        if (!this.hasAttribute("window")) this.#follow(doc);
         this.dispatchEvent(
           new CustomEvent("lf-sample-ready", {
             bubbles: true,

@@ -4302,7 +4302,9 @@ def test_ask_repaints_keep_the_queues_reading_until_an_explicit_arrival(browser,
         "</lf-options></lf-ask>"
         for index in range(30)
     )
-    page = open_page(browser, serve(leaf_page("Reading the Ask inventory", questions)))
+    page = open_page(
+        browser, serve(leaf_page("Reading the Question inventory", questions))
+    )
     resized(page, 1200, 900)
     page.keyboard.press("g")
     page.keyboard.press("Shift+q")
@@ -9246,7 +9248,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     )
     stamp_page(d, honoring, "input absorbed")
     wait_for_revision(page, 2)
-    # The saved answer remains in the reviewable Ask inventory after the source
+    # The saved answer remains in the reviewable Question inventory after the source
     # drops `needed`; it is completed, not newly owed to the user.
     expect_asks_answered(page, "1/5")
     expect(page.locator(".lf-queue")).not_to_have_text("Questions: 0")

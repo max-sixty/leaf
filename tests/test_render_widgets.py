@@ -1430,9 +1430,9 @@ def test_side_tabs_distinguish_withdrawn_questions_from_answers(browser, serve):
 
 
 def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, serve):
-    """An Ask answered before the page loads is named once the page presents, however
+    """A Question answered before the page loads is named once the page presents, however
     late the answering widget's module arrives: startup imports every module the
-    document names before the first reading brings the Ask inventory."""
+    document names before the first reading brings the Question inventory."""
     url = serve(
         leaf_page(
             "a late queue",
@@ -8976,7 +8976,7 @@ def test_an_ask_already_in_front_of_the_user_is_not_travelled_to(browser, serve)
     held = page.evaluate("() => document.scrollingElement.scrollTop")
     assert held == arrived - 40, "the page did not take the user's own adjustment"
 
-    # The press's own announcement is the edge this absence stands behind. `goToAsk`
+    # The press's own announcement is the edge this absence stands behind. `goToQuestion`
     # travels before it announces, so a live region that has spoken again is a press whose
     # travel has already been decided and begun. Waiting on the scroll alone cannot say
     # that: frames held still before a glide starts read the same as a page that never

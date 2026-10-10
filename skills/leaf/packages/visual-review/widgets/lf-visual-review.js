@@ -1,7 +1,7 @@
 /* A visual run is external evidence: one source supplies its cases, while Leaf's event
  * log owns case dispositions and threads. The module keeps browsing and inspection
  * choices local, projects each case with source provenance, and reshapes the existing
- * aligned lf-shot comparison without introducing another evidence model. Evidence
+ * lf-shot inspection API without owning the pair's frame markup or styles. Evidence
  * precedes judgment; inspection is a local disclosure. Remaining-case navigation
  * reads the same projected dispositions as their buttons, while the case picker
  * retains every case so a reviewer can revisit a judgment. */
@@ -73,13 +73,6 @@ const SCOPE = {
   focus: "Focus change",
   full: "Full frame",
 };
-
-// The object-view-box crop keeps the image itself at the focused size without an
-// overflowing render surface. Browsers that do not ship it still show the complete
-// evidence and the authored region, rather than presenting a distorted full image as
-// a focused crop.
-const FOCUS_CROP_SUPPORTED =
-  globalThis.CSS?.supports?.("object-view-box", "inset(0px)") === true;
 
 function make(tag, className, text = null, says = true) {
   const element = document.createElement(tag);
@@ -281,7 +274,9 @@ customElements.define(
       if (!(scope in SCOPE) || scope === this.#scope) return;
       if (
         scope === "focus" &&
-        (!FOCUS_CROP_SUPPORTED || !this.#caseEntries.get(this.#selected)?.record.focus)
+        (!this.#caseEntries.get(this.#selected)?.shotHost.querySelector("lf-shot")
+          ?.supportsCrop ||
+          !this.#caseEntries.get(this.#selected)?.record.focus)
       )
         return;
       this.#scope = scope;
@@ -309,9 +304,17 @@ customElements.define(
       this.#paintInspector();
     }
 
-    // A shot offers its own flip controls only in Flip.
-    #paintShotControls(shot) {
-      keeps(shot, "data-lf-shot-controls", this.#mode === "flip" ? null : "off");
+    #inspectShot(shot, record, allocation = {}) {
+      shot.inspect({
+        mode: this.#mode,
+        pixelRatio: record.capture.deviceScaleFactor,
+        captureWidth: record.capture.viewport.width,
+        focus: record.focus,
+        crop: this.#scope === "focus",
+        opacity: this.#opacity / 100,
+        labels: { before: "Base", after: "Candidate" },
+        ...allocation,
+      });
     }
 
     #paintInspector() {
@@ -319,10 +322,13 @@ customElements.define(
       keeps(this, "data-inspection-mode", this.#mode);
       keeps(this, "data-inspection-scale", this.#scale);
       const focus = this.#caseEntries.get(this.#selected)?.record?.focus;
-      const focusAvailable = Boolean(focus && FOCUS_CROP_SUPPORTED);
+      const focusAvailable = Boolean(
+        focus &&
+        this.#caseEntries.get(this.#selected)?.shotHost.querySelector("lf-shot")
+          ?.supportsCrop,
+      );
       const scope = focusAvailable ? this.#scope : "full";
       keeps(this, "data-inspection-scope", scope);
-      this.style.setProperty("--lf-vr-opacity", String(this.#opacity / 100));
       const scopeGroup = this.#inspector.querySelector(".lf-vr-scope-group");
       keepsHidden(scopeGroup, !focusAvailable);
       scopeGroup.value = scope;
@@ -337,21 +343,10 @@ customElements.define(
       const readout = opacity.querySelector(".lf-vr-opacity-value");
       const percent = `${this.#opacity}%`;
       relabel(readout, percent, { says: false });
-      for (const shot of this.querySelectorAll("lf-shot")) {
-        this.#paintShotControls(shot);
-        for (const frame of shot.querySelectorAll(".lf-shotframe")) {
-          const oldLabel = frame.querySelector(":scope > .lf-vr-frame-label");
-          if (this.#mode !== "compare") {
-            oldLabel?.remove();
-            continue;
-          }
-          if (oldLabel) continue;
-          const label = make("span", "lf-vr-frame-label lf-ui", null, false);
-          label.dataset.label =
-            frame.dataset.lfState === "before" ? "Base" : "Candidate";
-          label.setAttribute("aria-hidden", "true");
-          frame.prepend(label);
-        }
+      for (const entry of this.#caseEntries.values()) {
+        const shot = entry.shotHost.querySelector("lf-shot");
+        if (shot && entry.record.id !== this.#selected)
+          this.#inspectShot(shot, entry.record);
       }
       // The selected case already declares its focus geometry. Allocate it in
       // this paint, before an undecoded shot can draw the wrong comparison shape.
@@ -371,54 +366,25 @@ customElements.define(
     #paintEvidenceLayout() {
       const entry = this.#caseEntries.get(this.#selected);
       const shot = entry?.shotHost.querySelector("lf-shot");
-      const frames = shot ? [...shot.querySelectorAll(".lf-shotframe")] : [];
-      if (!entry?.record || frames.length !== 2 || !entry.shotHost.clientWidth) return;
+      const geometry = shot?.captureGeometry;
+      if (
+        !entry?.record ||
+        geometry?.images.length !== 2 ||
+        !entry.shotHost.clientWidth
+      )
+        return;
 
       const { capture } = entry.record;
       const ratio = capture.deviceScaleFactor;
-      const fallbackHeight = capture.viewport.height;
-      const images = frames.map((frame) => frame.querySelector("img"));
-      const heights = images.map((image) => {
-        if (!image.complete) {
-          image.addEventListener("load", this.#onGeometryChange, { once: true });
-          image.addEventListener("error", this.#onGeometryChange, { once: true });
-        }
-        return image.naturalHeight ? image.naturalHeight / ratio : fallbackHeight;
-      });
-      const widths = images.map((image) =>
-        image.naturalWidth ? image.naturalWidth / ratio : capture.viewport.width,
+      const heights = geometry.images.map((image) =>
+        image.height ? image.height / ratio : capture.viewport.height,
+      );
+      const widths = geometry.images.map((image) =>
+        image.width ? image.width / ratio : capture.viewport.width,
       );
       const focus = entry.record.focus;
-      const decoded = images.every(
-        (image) => image.naturalWidth && image.naturalHeight,
-      );
-      if (focus && !decoded && images.every((image) => image.complete)) {
-        failSoft(
-          entry.shotHost,
-          new Error(`case '${entry.record.id}' focus needs two decoded images`),
-        );
-        return;
-      }
-      if (
-        focus &&
-        decoded &&
-        images.some(
-          (image) =>
-            focus.x + focus.width > image.naturalWidth / ratio ||
-            focus.y + focus.height > image.naturalHeight / ratio,
-        )
-      ) {
-        failSoft(
-          entry.shotHost,
-          new Error(
-            `case '${entry.record.id}' focus ${focus.x},${focus.y} ${focus.width}×${focus.height} ` +
-              "CSS px falls outside its captured images",
-          ),
-        );
-        return;
-      }
       const activeFocus =
-        focus && FOCUS_CROP_SUPPORTED && this.#scope === "focus" ? focus : null;
+        focus && shot.supportsCrop && this.#scope === "focus" ? focus : null;
       // Focus coordinates name captured CSS pixels, so the decoded capture and the
       // rendered source must share one width authority. The recorded viewport remains
       // provenance; using it here could silently shift a valid focus when they differ.
@@ -441,13 +407,8 @@ customElements.define(
           (entry.shotHost.offsetHeight - entry.shotHost.clientHeight)
         : shownWindow({ viewport: "layout" }).height;
 
-      const stageStyle = getComputedStyle(entry.shotHost);
-      const gap = parseFloat(stageStyle.getPropertyValue("--lf-vr-gap"));
-      const frameBorder =
-        2 * parseFloat(stageStyle.getPropertyValue("--lf-vr-frame-border"));
-      const labelHeight = parseFloat(
-        stageStyle.getPropertyValue("--lf-vr-label-height"),
-      );
+      const { gap, labelHeight } = geometry;
+      const frameBorder = 2 * geometry.frameBorder;
       const sideWidthScale = (stageWidth - gap - 2 * frameBorder) / (2 * width);
       const sideContainScale = Math.min(
         sideWidthScale,
@@ -471,10 +432,7 @@ customElements.define(
             : sideWidthScale
           : (stageWidth - frameBorder) / width;
       // Flip shows one frame under lf-shot's rail of controls.
-      const rail =
-        this.#mode === "flip"
-          ? (shot.querySelector(".lf-shotrail")?.offsetHeight ?? 0)
-          : 0;
+      const rail = this.#mode === "flip" ? geometry.railHeight : 0;
       const containScale =
         this.#mode === "compare"
           ? compareLayout === "stack"
@@ -493,41 +451,10 @@ customElements.define(
         bounded && containScale >= READABLE_SCALE ? containScale : widthScale;
       const scale = this.#scale === "actual" ? 1 : Math.min(1, fitScale);
       keeps(this, "data-compare-layout", compareLayout);
-      keeps(entry.shotHost, "data-focus-authored", Boolean(focus));
-      keeps(entry.shotHost, "data-focus-active", Boolean(activeFocus));
-      if (focus) {
-        entry.shotHost.style.setProperty("--lf-vr-focus-x", `${focus.x * scale}px`);
-        entry.shotHost.style.setProperty("--lf-vr-focus-y", `${focus.y * scale}px`);
-        entry.shotHost.style.setProperty(
-          "--lf-vr-focus-width",
-          `${focus.width * scale}px`,
-        );
-        entry.shotHost.style.setProperty(
-          "--lf-vr-focus-height",
-          `${focus.height * scale}px`,
-        );
-        frames.forEach((frame, index) => {
-          frame.style.setProperty(
-            "--lf-vr-focus-view",
-            `inset(${focus.y * ratio}px ${(widths[index] - focus.x - focus.width) * ratio}px ` +
-              `${(heights[index] - focus.y - focus.height) * ratio}px ${focus.x * ratio}px)`,
-          );
-        });
-      }
-      const beforeLabel = frames[0].querySelector(".lf-vr-frame-label");
-      keeps(
-        beforeLabel,
-        "data-label",
-        compareLayout === "stack" ? "Base · Candidate below" : "Base",
-      );
-      // The frames take their width from here a pass after the host took its own, so
-      // the host keeps its box while what it holds resizes: say so, or a reading made
-      // of the host at its resize (reach.js) keeps the frames' old width.
-      const frameWidth = `${Math.max(1, width * scale)}px`;
-      if (entry.shotHost.style.getPropertyValue("--lf-vr-frame-width") !== frameWidth) {
-        entry.shotHost.style.setProperty("--lf-vr-frame-width", frameWidth);
-        layoutChanged(this);
-      }
+      this.#inspectShot(shot, entry.record, {
+        layout: compareLayout,
+        scale,
+      });
     }
 
     #registerCommands() {
@@ -660,7 +587,6 @@ customElements.define(
       }
       setChildren(this.#queue, options);
       setChildren(this.#casesBody, articles);
-      for (const entry of this.#caseEntries.values()) this.#syncCaptureWidth(entry);
       projectData(
         this,
         cases.map((record, index) => ({
@@ -843,6 +769,7 @@ customElements.define(
       const after = scopedMediaUrl(record.after);
       if (
         !current ||
+        !current.captureGeometry.images.length ||
         current.getAttribute("before") !== before ||
         current.getAttribute("after") !== after
       ) {
@@ -857,7 +784,8 @@ customElements.define(
         shot.setAttribute("alt", alt);
         shot.toggleAttribute("outlines", true);
         // Before the shot connects, so it declares its keys once, for this mode.
-        this.#paintShotControls(shot);
+        this.#inspectShot(shot, record);
+        shot.addEventListener("captureload", this.#onGeometryChange);
         entry.shotHost.replaceChildren(shot);
         entry.difference = undefined;
         this.#paintPosition(entry);
@@ -908,29 +836,6 @@ customElements.define(
         `${parts.slice(0, 2).join(" · ")}${record.focus ? " · Focused capture" : ""}`,
       );
       setText(entry.article.querySelector(".lf-vr-analysis"), parts.join(" · "));
-    }
-
-    #syncCaptureWidth(entry) {
-      const shot = entry.shotHost.querySelector("lf-shot");
-      const images = shot ? [...shot.querySelectorAll("img")] : [];
-      if (images.length !== 2) return;
-      const ratio = entry.record.capture.deviceScaleFactor;
-      const paint = () => {
-        // A source update replaces the lf-shot. A load event from the detached pair
-        // must not project its dimensions through the new record.
-        if (entry.shotHost.querySelector("lf-shot") !== shot) return false;
-        const currentImages = [...shot.querySelectorAll("img")];
-        const widths = currentImages.map((image) => image.naturalWidth / ratio);
-        if (widths.some((width) => !width)) return false;
-        entry.shotHost.style.setProperty(
-          "--lf-vr-capture-width",
-          `${Math.max(1, widths[0])}px`,
-        );
-        return true;
-      };
-      if (paint()) return;
-      for (const image of images)
-        if (!image.complete) image.addEventListener("load", paint, { once: true });
     }
 
     #select(id, land = false, restoreFocus = holdFocus(this)) {

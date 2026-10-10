@@ -33,8 +33,8 @@
  *   return once the selection goes.
  *
  * A contribution whose seat differs by face names one per face (`{ desk, phone }`). The
- * face is the window's, the same query that gives the banner its phone face in theme.css
- * and chrome.css, so the partition changes only when the window crosses that width.
+ * face is the window's, the stylesheet-owned --lf-banner-face that also dresses
+ * the banner, so the partition changes only when the window crosses that width.
  */
 import { html, render, repeat } from "../vendor/browser-runtime.js";
 import { el } from "./widget-elements.js";
@@ -83,8 +83,12 @@ overflowMenu.setAttribute("role", "group");
 overflowMenu.setAttribute("aria-label", "More page controls");
 
 const SEATS = ["row", "menu", "gesture"];
-// The banner's phone face; theme.css and chrome.css state the same query.
-const phone = matchMedia("screen and (width <= 480px)");
+// The render-blocking theme decides posture once, before the banner arrives.
+const bannerFace = () =>
+  getComputedStyle(document.documentElement)
+    .getPropertyValue("--lf-banner-face")
+    .trim();
+let face = bannerFace();
 
 const controls = new Map();
 let sequence = 0;
@@ -93,8 +97,7 @@ let menu = EMPTY;
 let openSeats = null;
 
 const perFace = (entry) => typeof entry.seat !== "string";
-const seatOf = (entry) =>
-  perFace(entry) ? entry.seat[phone.matches ? "phone" : "desk"] : entry.seat;
+const seatOf = (entry) => (perFace(entry) ? entry.seat[face] : entry.seat);
 const ordered = () =>
   [...controls.values()].sort(
     (left, right) => left.rank - right.rank || left.sequence - right.sequence,
@@ -261,7 +264,10 @@ function seatControls() {
 }
 
 // Crossing the phone width moves a per-face control between the row and More.
-phone.addEventListener("change", () => {
+addEventListener("resize", () => {
+  const next = bannerFace();
+  if (next === face) return;
+  face = next;
   seatControls();
   if (openSeats !== null) openSeats = currentMenuSeats();
   paint();

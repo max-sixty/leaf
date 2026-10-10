@@ -7,6 +7,15 @@ owns its local contract. Page-authoring rules live in
 `../references/module-authoring.md`, package contracts in `../references/packages.md`,
 and rules shared with Python in root `AGENTS.md`, "Cross-runtime invariants".
 
+Shared stylesheet owners live under `styles/`: `styles/shadow.css` composes
+`styles/components/` into the shared root sheet. Document composition loads that
+sheet before the theme, and declared shadow roots adopt it too. Edit these sources
+and `styles/theme.css` / `styles/chrome.css`, not generated `theme.css`, `shadow.css`
+or `runtime/chrome.css`.
+`build/AGENTS.md`, “Committed bundles”, owns rebuilding and checking them, including
+bundled package entrypoints. Custom package authors supply complete sheets under
+`../references/packages.md`, “Styles and composition”.
+
 ## Layout and motion
 
 Leaf's current product focus is desktop; judge layout first at a representative
@@ -250,8 +259,9 @@ state that is already true, and motion that must finish before the result can be
 read is a pause. A motion the user waits on stays under 300ms; one that moves
 nothing, such as a landing flash, may run longer. A delay may withhold a flicker
 but never adds a minimum spinner time or a staged reveal. `runtime/motion.js` owns
-the shared gate, ease, reduced-motion answer, and every duration two motions
-share; the theme's guard answers for CSS.
+the shared gate, ease, and reduced-motion answer. Typed `--lf-motion-*` properties
+in the theme own shared durations; its readers resolve the live document-root
+values for JavaScript. The theme's guard answers for CSS.
 
 ## Runtime ownership
 

@@ -52,9 +52,7 @@ import { keeps } from "../keeps.js";
 import { flashDuration, motion } from "../motion.js";
 
 export const loadMessageMarkdown = () =>
-  loadMarkdown((error) =>
-    reportPageError(`markdown renderer failed to load: ${error?.message ?? error}`),
-  );
+  loadMarkdown((error) => reportPageError(error, `markdown renderer failed to load`));
 
 // Prose parsing is shared across descriptor passes and surfaces. Its value changes
 // with admission, edits, stream text, or the lazy Markdown renderer becoming ready;

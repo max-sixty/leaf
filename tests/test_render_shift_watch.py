@@ -1,6 +1,7 @@
 """The browser fixture fails the layout shifts the "Stability" rule forbids
 (`shift_watch.js`): a shift without input, and typing that carries its field."""
 
+import json
 from datetime import UTC, datetime, timedelta
 from html import escape
 from urllib.parse import quote
@@ -69,11 +70,41 @@ def field_page(browser, key=""):
     return page
 
 
+def shift_evidence(error):
+    """Every reported credit is explained by the terms its owner accepted."""
+    evidence = json.loads(error.split("\nshift evidence: ", 1)[1])
+    assert evidence["comparisons"], evidence
+    for comparison in evidence["comparisons"]:
+        for axis in ["left", "top"]:
+            for kind in ["scroll", "animation"]:
+                terms = comparison[kind + "_terms"]
+                assert all(term["branch"] and term["owner"] for term in terms), terms
+                assert sum(
+                    term["amount"] for term in terms if term["axis"] == axis
+                ) == pytest.approx(comparison[kind + "_credit"][axis]), comparison
+            assert comparison["residual"][axis] == pytest.approx(
+                comparison["observed"][axis]
+                - comparison["scroll_credit"][axis]
+                - comparison["animation_credit"][axis]
+            ), comparison
+    return evidence
+
+
 def test_typing_that_carries_its_field_fails_at_the_last_keystroke(browser):
     page = field_page(browser, "carry")
     page.locator("#field").fill("a")
     judge_watches()
-    consume_browser_errors(page, "typing in textarea#field moved textarea#field")
+    errors = consume_browser_errors(
+        page, "typing in textarea#field moved textarea#field"
+    )
+    evidence = shift_evidence(errors[0])
+    assert evidence["kind"] == "typing"
+    comparison = evidence["comparisons"][0]
+    assert comparison["observed"] == {"left": 0, "top": 59}
+    assert comparison["scroll_credit"] == {"left": 0, "top": 0}
+    assert comparison["animation_credit"] == {"left": 0, "top": 0}
+    assert comparison["residual"] == comparison["observed"]
+    assert comparison["before"]["at"] < comparison["after"]["at"]
 
 
 def test_typing_may_grow_its_field(browser):
@@ -1589,7 +1620,17 @@ STARTUP</script></body>""".replace(
     assert after["x"] - before["x"] == (80 if local_motion and scale == 1 else 0)
     judge_watches()
     if local_motion:
-        consume_browser_errors(page, "textarea#field moved without input")
+        errors = consume_browser_errors(page, "textarea#field moved without input")
+        evidence = shift_evidence(errors[0])
+        assert any(
+            term["branch"]
+            == ("animation" if timeline == "document" else "scroll_animation")
+            and term["owner"] == "div#attachment"
+            and term["axis"] == "top"
+            and term["amount"] < 0
+            for comparison in evidence["comparisons"]
+            for term in comparison["animation_terms"]
+        ), evidence
     else:
         assert take_browser_errors(page) == []
 
@@ -2121,7 +2162,21 @@ const scroller=host.shadowRoot.getElementById('scroller');</script>"""
     page.screenshot()
     judge_watches()
     if carry:
-        consume_browser_errors(page, "typing in textarea#field moved textarea#field")
+        errors = consume_browser_errors(
+            page, "typing in textarea#field moved textarea#field"
+        )
+        evidence = shift_evidence(errors[0])
+        if sticky:
+            assert any(
+                term["branch"] == "sticky_scroll"
+                and term["axis"] == "top"
+                and any(
+                    source["after"]["top"] - source["before"]["top"] == 6
+                    for source in term["inputs"]["sources"]
+                )
+                for comparison in evidence["comparisons"]
+                for term in comparison["scroll_terms"]
+            ), evidence
 
 
 @pytest.mark.parametrize("carry", [False, True])
@@ -2551,7 +2606,32 @@ def test_real_floating_plane_retains_local_motion(
         else "textarea#field moved without input"
     )
     if fault:
-        assert any(expected in error for error in errors), (fault, errors)
+        error = next(error for error in errors if expected in error)
+        evidence = shift_evidence(error)
+        assert evidence["kind"] == guard_mode
+        comparisons = evidence["comparisons"]
+        assert comparisons
+        terms = [
+            term for comparison in comparisons for term in comparison["scroll_terms"]
+        ]
+        assert any(
+            term["branch"] == "floating_plane"
+            and term["owner"] == "div#holder"
+            and term["inputs"]["before"]["plane"] == initial
+            and term["inputs"]["after"]["plane"] == destination
+            and term["inputs"]["same_attachment"]
+            and not term["inputs"]["crosses_fixed"]
+            and term["inputs"][
+                "before_origin" if initial == "page" else "after_origin"
+            ]["camera"]["left"]
+            is not None
+            for term in terms
+        ), terms
+        assert any(
+            abs(comparison["scroll_credit"][axis]) >= 1
+            for comparison in comparisons
+            for axis in ["left", "top"]
+        ), comparisons
     else:
         assert errors == [], errors
 
@@ -3036,7 +3116,20 @@ def test_long_held_native_anchor_keeps_complete_history(browser, fault):
     assert after["width"] == initial["width"] and after["height"] == initial["height"]
     if fault:
         assert page.evaluate("nativeEntries.length") > 0
-        assert any("textarea#field moved without input" in e for e in errors), errors
+        error = next(e for e in errors if "textarea#field moved without input" in e)
+        evidence = shift_evidence(error)
+        comparisons = evidence["comparisons"]
+        assert any(
+            term["branch"] == "native_anchor"
+            and term["owner"] == "textarea#field"
+            and term["inputs"]["anchor"] == "div#target"
+            and term["inputs"]["after"]["top"] - term["inputs"]["before"]["top"] == -20
+            and term["inputs"]["layout_stable"]
+            and term["axis"] == "top"
+            and term["amount"] == -20
+            for comparison in comparisons
+            for term in comparison["scroll_terms"]
+        ), comparisons
         assert all("moved without input" in error for error in errors), errors
     else:
         assert not errors, errors
@@ -3112,9 +3205,19 @@ def test_owned_native_finish_records_the_applied_endpoint(browser, fault, fill):
     judge_watches()
     errors = take_browser_errors(page)
     if fault:
-        assert any("textarea#field moved without input" in error for error in errors), (
-            errors
-        )
+        error = next(e for e in errors if "textarea#field moved without input" in e)
+        evidence = shift_evidence(error)
+        if fault == "child":
+            assert any(
+                abs(comparison["animation_credit"]["left"]) >= 1
+                and any(
+                    term["owner"] == "div#panel"
+                    and term["inputs"]["before"]["values"]
+                    != term["inputs"]["after"]["values"]
+                    for term in comparison["animation_terms"]
+                )
+                for comparison in evidence["comparisons"]
+            ), evidence
         assert all("moved without input" in error for error in errors), errors
     else:
         assert not errors, errors
@@ -3227,7 +3330,19 @@ def test_observed_attachment_credits_only_the_measured_scroll_placement(
         before["y"] + delta, abs=1
     )
     if case.endswith("fault"):
-        consume_browser_errors(page, "textarea#field moved without input")
+        errors = consume_browser_errors(page, "textarea#field moved without input")
+        evidence = shift_evidence(errors[0])
+        assert any(
+            term["branch"] == "observed_attachment"
+            and term["owner"] == "div#holder"
+            and term["axis"] == "top"
+            and term["amount"] == term["inputs"]["placed"]
+            and term["inputs"]["before"]["plane"] == "window"
+            and term["inputs"]["after"]["plane"] == "window"
+            and not term["inputs"]["crosses_fixed"]
+            for comparison in evidence["comparisons"]
+            for term in comparison["scroll_terms"]
+        ), evidence
 
 
 FRAMES = """count => new Promise((done) => {

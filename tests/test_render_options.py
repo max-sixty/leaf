@@ -2159,7 +2159,7 @@ def test_a_pick_states_the_whole_set(browser, serve):
     ]
     expect(
         page.locator('[data-lf-margin-for="bracket-decision"] .lf-margin-marker')
-    ).to_have_attribute("data-lf-kinds", "ask")
+    ).to_have_attribute("data-lf-kinds", "question")
 
 
 def test_a_send_waits_for_the_send_before_it(browser, serve):

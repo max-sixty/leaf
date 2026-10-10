@@ -119,6 +119,7 @@ customElements.define(
 
       this.#view = document.createElement("dialog");
       this.#view.className = "lf-sample-view";
+      this.#view.dataset.lfGen = "1";
       this.#view.setAttribute("open", "");
       this.#view.setAttribute("role", "presentation");
       this.#view.addEventListener("cancel", (event) => {

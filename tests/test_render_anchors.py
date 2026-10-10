@@ -2498,7 +2498,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
       };
     }""")
     assert reading["segmentCount"] > 0, "the passage assertion read no diff text"
-    assert reading["saysPath"] and reading["wrotePath"], reading
+    # The parser supplies the visible file path; it was not written into the page.
+    assert reading["saysPath"] and not reading["wrotePath"], reading
     assert reading["saysStat"] and not reading["wroteStat"], reading
     assert reading["lineNumberWords"] == [], (
         f"line number chrome entered the page reading: {reading}"
@@ -5930,7 +5931,7 @@ def test_a_drag_across_a_written_diff_line_is_the_passage_c_comments_on(browser,
     the host, and `isCollapsed` says nothing is selected while the words are painted
     selected. Read that way, no Comment field rose over the drag and `c` opened a comment
     on the page with no passage at all. The passage is the composed range the user drew,
-    so the comment carries the words and their neighbours."""
+    so the comment carries those words at the diff line's exact coordinate."""
     patch = (
         "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
         "@@ -1,2 +1,2 @@\n def route(request):\n"
@@ -5990,7 +5991,7 @@ def test_a_drag_across_a_written_diff_line_is_the_passage_c_comments_on(browser,
     ]
     assert comment["anchor"]["section"] == "patch", comment
     assert comment["anchor"]["quote"] == "request.token.id", comment
-    assert comment["anchor"].get("prefix", "").endswith("tok:{"), comment
+    assert comment["anchor"]["datum"] == '["app.py","new",2]', comment
 
 
 @pytest.mark.parametrize("arrived", ["", "#title"], ids=["plain", "fragment"])

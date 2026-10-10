@@ -51,6 +51,7 @@ from leaf.http import page_delivery
 from leaf.leases import take_lease, waiter_lease_path
 from leaf.machine import pid_alive
 from leaf.packages import cmd_package_install
+from leaf.registry.storage import layer_packages
 from leaf.render_checks import rendered
 from leaf.revision_artifact import capture_artifact
 from leaf.revision_delivery import compose_document
@@ -498,6 +499,20 @@ def test_saved_website_record_restores_an_installed_layer(
         with PageTransaction(recovered):
             pass
         assert not previous.intersection(stored["uploads"][uploads:])
+        # Package contract: delivery is self-contained, but rebuilding a selected
+        # package on another machine requires installing its original source there.
+        # Refusal must leave the already-restored layer usable.
+        registry = (recovered / "registry.json").read_bytes()
+        with pytest.raises(SystemExit, match="unknown package 'saved-widget'"):
+            cmd_init(recovered, tuple(layer_packages(recovered)))
+        assert (recovered / "registry.json").read_bytes() == registry
+        assert latest_revision(recovered) == revision
+        assert (
+            website_server.initial_state(
+                recovered, "/example", "example", manifest["release"]
+            )["source_error"]
+            is None
+        )
 
 
 def hosted_follower(

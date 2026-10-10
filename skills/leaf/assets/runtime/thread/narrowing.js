@@ -26,8 +26,9 @@
    page should not silently hide thread. Cards remain in the document while
    filtered so reply widgets keep their identity and the rest of the runtime can still
    read them by id. The list captures one immutable user intent and checkpoints the
-   resulting summary and facets with its rows; repainting that reading does not change
-   native editing or disclosure state. An explicit narrowing resets the list after its
+   resulting summary and facets with its rows; a no-op keeps that intent's identity.
+   Repainting that reading does not change native editing or disclosure state.
+   An explicit narrowing resets the list after its
    presentation only while no newer user gesture has chosen another reading place. */
 import { anchorLabel } from "./messages.js";
 import { awaitsAgent, awaitsUser } from "./model.js";
@@ -313,7 +314,10 @@ export function createThreadNarrowing({ view, listRoot, readThreads, ready, repa
   }
 
   function replaceIntent(changes) {
+    if (Object.entries(changes).every(([key, value]) => intent[key] === value))
+      return false;
     intent = Object.freeze({ ...intent, ...changes });
+    return true;
   }
 
   function chooseFacet(kind, value) {
@@ -347,8 +351,7 @@ export function createThreadNarrowing({ view, listRoot, readThreads, ready, repa
 
   // Order is the user's view of the list; it hides nothing and survives a reset.
   function clearNarrowing(nextStatus = "open") {
-    const changed = narrowed() || intent.status !== nextStatus;
-    intent = Object.freeze({
+    const changed = replaceIntent({
       ...DEFAULT_INTENT,
       status: nextStatus,
       order: intent.order,

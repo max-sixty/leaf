@@ -50,3 +50,48 @@ assert:
     source stays uncolored or keeps several distinct object fields crammed onto
     each line. The diagnostic output remains uncolored and preserves its lines
     and exact values; it must not be mistaken for source code or rewritten.
+
+# Text-edit reconstruction: source chat 01a122c3-94c8-71a3-84df-9bf04006bc08,
+# report revision r8. Original guidance passed 1/2; clarifying its existing diff
+# paragraph in place passed 2/2. Require the binding that supplies line controls.
+variants:
+  text-edit:
+    metadata:
+      purpose: A report reviewing a wording change lets the reader see and comment on the exact
+        edit.
+    vars:
+      prompt: |
+        You are finishing a Leaf report about whether our test guidance should change. The session diagnosis, comparison trials and checks are complete. Current guidance reproduced the dense scroll grid in 0/2 successful decisions; the revised guidance chose representative states in 2/2. The source code is changed locally. Keep the explanation short and give the user the completed repair section of the report.
+
+        The draft section is:
+
+        <section id="repair"><h2>Added work must buy added coverage</h2><p>The existing rule asks whether an important contract warrants an expensive test. That does not resolve how much repeated evidence of the same contract to retain. The revised paragraph keeps the browser-boundary rule and asks which additional failure the additional work exposes.</p><details><summary>Current paragraph</summary><pre id="current-paragraph">Prove each contract at the lowest boundary that preserves it, and keep a browser test
+        only where it proves boundaries working together. Every run of the suite pays for each
+        test&#x27;s compute, so weigh that cost against how much the protected behavior matters
+        before adding or keeping an expensive test: a long browser journey, a sweep across
+        pages or widths, or a wide parametrization needs a contract important enough to pay
+        for it. When a high-level browser test is slow, or fails on timing or geometry outside
+        its contract, repair its arrangement or move its contract to the lower boundary.
+        </pre></details><details open><summary>Revised paragraph — applied locally</summary><pre id="candidate-paragraph">Prove each contract at the lowest boundary that preserves it, and keep a browser test
+        only where it proves boundaries working together. Before adding cases or steps, choose
+        the smallest set that exposes distinct plausible failures beyond existing coverage.
+        Retain a broad sweep only when its extra samples catch a failure that representative
+        states or transitions miss; an investigation&#x27;s sampling grid is not itself a regression
+        requirement. Every run pays for the test&#x27;s compute, so weigh the additional cost against
+        the additional coverage. When a high-level browser test is slow, or fails on timing or
+        geometry outside its contract, repair its arrangement or move its contract to the lower
+        boundary.
+        </pre></details><p>The local edit replaces one paragraph in tests/AGENTS.md.</p></section>
+
+        The page directory is unavailable here. Reply with the final section HTML and any page setup commands it needs.
+    assert:
+    - type: regex
+      metric: commentable-edit
+      value: <lf-diff\b[^>]*\bsource=
+    - type: llm-rubric
+      metric: exact-edit
+      value: The report presents the change to tests/AGENTS.md as an exact unified patch through
+        a source-bound lf-diff with commands supplying the patch. It captures the real Git diff
+        for that file or supplies the exact removed and added text. A short explanation
+        accompanies the evidence. Fail if it only displays two full paragraphs, invents a different
+        edit, or adds an approval request not in the task.

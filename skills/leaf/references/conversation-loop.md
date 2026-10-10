@@ -16,7 +16,7 @@ The user follows your work on the page:
 | Page | the revised content in place, and a stamp's changelog | saving `index.html`, `leaf page stamp` |
 
 Leaf itself marks each user move **Sent**, **Queued**, and **Picked up**, including
-a move that owes you nothing, such as a moved card. A pick before the Done its Ask
+a move that owes you nothing, such as a moved card. A pick before the Done its Question
 waits for is marked with that Done. Your harness
 contract may add its own current step to the banner.
 
@@ -127,14 +127,14 @@ check the main skill's "Operate", step 3, asks before a reply.
 
 ## Status and handoff
 
-Before a handoff, run:
+Before a handoff, reconcile Questions and Tasks as described below, then run:
 
 ```bash
 leaf status <page> waiting "<what you want back>"
 ```
 
 The detail names the concrete answer or decision, not the fact that you are
-waiting. For an informational page with no concrete ask, leave it empty; the
+waiting. For an informational page with no Question, leave it empty; the
 banner then invites the user to select text to comment. Name the gesture available
 to the user and hand over by the selected harness contract. From the first handoff
 on, include
@@ -148,7 +148,7 @@ you until you end it.
 
 What ends a start depends on its item. Your reply answering a move ends that
 move's start, and so does a stamped version whose markup records a press on an
-answered Ask. A task's start ends with the task: `leaf task end`, or a stamped
+answered Question. A task's start ends with the task: `leaf task end`, or a stamped
 version that completes its widget, once per completed widget:
 
 ```bash
@@ -178,7 +178,7 @@ You drive the page and your workers do not. The server, the watcher and its
 acknowledgements, replies, starts and status, edits to `index.html`, and stamps stay
 with you, and a worker returns its result to you. A worker touches the page only in a
 role Leaf's instructions give it, and only as those instructions direct: a command hub worker
-(`leaf page instructions <page> worker`), or a Codex watcher task
+(the `worker` value returned by `leaf page instructions <page>`), or a Codex watcher task
 (`references/codex-watcher.md`). Put this in each worker's brief, because a worker that
 inherits your conversation inherits the page with it and may otherwise treat the page
 as its own. Work that needs its own conversation with the user belongs to a session
@@ -205,20 +205,73 @@ in the banner, through the user resolving it and the end of your session. When t
 result lands, write its outcome with `leaf task end <page> <task> done "<where the
 result is>"`, or `failed` or `dropped` with the reason, beside the reply that links
 it. While you work on it, start it, so the banner and the thread show your line.
-Work on a move that finishes inside the turn needs no task. `leaf page state` lists the
-open `tasks` with their `owner`: yours, and the user's, which include each open Ask
-and each question a thread leaves them. Its `queues` say what is on the user
-(`on_you`) and on you (`on_agent`).
+Work on a move that finishes inside the turn needs no task.
 
-## Tasks on the user
+## Questions and Tasks
 
-A task can also be on the user. An Ask is one, under the Ask's id, until its widget
-answers it, and a reply with `--awaits` is one, under the reply's id, until they
-answer in the thread or settle it with a reaction. When you need the user to do
-something neither answers, such as trying a build or following new steps on their
-phone, put a task on them: `leaf task open <page> <id> "<what you need>" --on user`,
-where `<id>` names the widget or section it concerns, or `page`. A thread takes no
-such task: ask there with `--awaits`. It waits on their queue until they press its
-Done, which reaches you like any move. When one no longer needs them, end it yourself
-with `leaf task end`, as you can a question by its reply's id. An Ask's task ends
-only at its answer; retire an Ask in a version (`authoring-asks.md`).
+Everything you need from the user belongs in **Questions**, whether an answer,
+decision, permission, review, or action elsewhere. Ask a direct question and register
+it by one of the routes below. Prose in the page, a status line, and a question in
+chat alone do not register it. A recommendation leaves its decision open. An
+optional invitation to comment creates no obligation; if you need feedback before
+continuing, make it a Question.
+
+The banner's Questions count and the Questions panel show the user's queue;
+**Tasks** shows yours. The user can open either list and press `q` to reach their
+next item. Questions contains these requests and any failed send that needs the
+user to send again. Done holds ended items.
+
+| Request | Register it | What answers it |
+| --- | --- | --- |
+| A decision or input recorded by a widget | Author a decision widget (`authoring-questions.md`); optional `lf-ask` frames its question and evidence | The widget's declared answer; a multiple-choice Question also needs the user's Done |
+| A conversational answer | Open an agent thread with the question, or add `--awaits` to a reply (`threads.md`) | The user's next reply there or a settling reaction |
+| Required version sign-off | Declare sign-off and stamp the version (`authoring-questions.md`, "Questions and sign-off") | That version's banner approval |
+| An action neither route records, such as trying a build or connecting a browser | `leaf task open <page> <id> "<direct question naming the action>" --on user`, on its widget, section, or `page` | The user's Done; end it yourself when their action is established or no longer needed |
+
+A widget Question has id `widget:<widget-id>`, a prose Question has
+`reply:<message-id>`, and a stamped version's sign-off has `approval:v<version>`.
+Explicit user work keeps the id printed by `task open`. A thread takes no explicit
+user task; ask there with `--awaits`.
+Keep independently answerable decisions in separate widgets or threads. A thread
+can retain several prose Questions; its latest unanswered one is the current request,
+and the next user reply settles preceding unanswered prose Questions there. Publish
+a dependent question once its prerequisite is answered. A user task's Done reports
+completion; it supplies no permission or choice that its question did not state.
+
+Read the lists before a handoff, before waiting for the user, and after taking in
+an answer:
+
+```bash
+leaf page state <page> | jq '{source, questions, tasks, queues}'
+```
+
+Page state contains separate canonical `questions` and explicit `tasks`; its
+`queues.on_you` and `queues.on_agent` select those records with response obligations
+and delivery retries for the panel. `jq` only selects these fields; do not reconstruct
+membership from events or widget state. Each queue item names its `id`, `kind`,
+`subject`, and `thread`; work items also say how they end (`ends`). A Question contains
+its prompt, typed answer and lifecycle; widget state owns its answer. Read a thread
+with `leaf page state <page> <message-id>` for its messages. For a page widget, read
+`leaf page state <page>`'s `active.file` and the identified widget in that HTML;
+the widget-specific state command reports its state and metadata. The reading
+covers the active document and admitted log, not unsent browser drafts or a tab
+pinned to an older version. Check `source` for an invalid or missing draft before
+treating an empty list as a successful handoff.
+
+Reconcile the lists with what you still need and owe. Zero Questions says that
+you need nothing from the user **now**; Tasks may still contain your work or a wait
+on an external result. Complete authorized work without asking for permission
+again. A paused project needs a Question only when its disposition or resumption
+needs the user's decision; after they choose to keep it paused, that decision is
+settled. A blocked action belongs on the user only when they can take the step
+that unblocks it. Work owned by another session stays there; ask here only for the
+decision this page needs.
+
+An answer in chat or another surface still settles the real question. Incorporate
+it and retire its page Question in a revision (`authoring-revisions.md`), or end
+explicit user work with `leaf task end`. Withdraw a prose Question that no longer
+applies with `leaf task end <page> reply:<message-id> dropped "<why>"`; this records
+withdrawal, not a user answer. Keep finished requests out of the user's queue;
+answered and withdrawn Question records remain available in the complete reading.
+A page declaring required banner sign-off adds a Question for its stamped version automatically; its approval answers that
+Question, and undo reopens it. Stamp a draft before requesting its sign-off.

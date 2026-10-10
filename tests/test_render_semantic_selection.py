@@ -259,7 +259,7 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     banner_control(page, ".lf-banner-menu .lf-btn:text-is('Search page')").tap()
     expect(next_match).to_be_visible()
     expect(exit_draw).to_be_hidden()
-    expect(row.locator(".lf-btn:visible").filter(has_not_text="⋯")).to_have_text(
+    expect(row.locator(".lf-btn:visible:not(.lf-banner-more)")).to_have_text(
         ["Select", "Previous", "Next", "Close search"]
     )
     row.get_by_role("button", name="Close search", exact=True).tap()
@@ -320,14 +320,18 @@ def test_target_picker_takes_a_margin_press_as_the_target_it_stands_by(browser, 
 
 
 def test_select_element_obeys_covering_surfaces_and_pointer_modes(browser, serve):
+    """The picker shares Design targets, while Draw mode and covering panels own input."""
     context = browser.new_context(has_touch=True)
     page = open_page(browser, serve(TARGETS_PAGE), context=context)
     select = page.get_by_role(
         "button", name="Select element", exact=True, include_hidden=True
     )
-    for key in ("l", "w"):
+    for key, available in (("l", True), ("w", False)):
         page.keyboard.press(key)
-        expect(select).to_be_disabled()
+        if available:
+            expect(select).to_be_enabled()
+        else:
+            expect(select).to_be_disabled()
         # Text search remains available inside these pointer modes.
         page.keyboard.press("/")
         page.get_by_role("searchbox", name="Search page text").fill("paragraph")
@@ -339,19 +343,21 @@ def test_select_element_obeys_covering_surfaces_and_pointer_modes(browser, serve
     expect(select).to_be_disabled()
 
 
-def test_selection_banner_controls_follow_the_primary_pointer(browser, serve):
-    """Touch selection controls retire when a fine pointer takes over; keyboard aim stays."""
+def test_selection_banner_controls_stay_available_across_pointer_changes(
+    browser, serve
+):
+    """Selection controls remain usable as the primary pointer changes."""
     page = open_page(browser, serve(TARGETS_PAGE))
     select = page.get_by_role("button", name="Select element", exact=True)
     cancel = page.get_by_role("button", name="Cancel selection", exact=True)
     page.get_by_role("button", name="More page controls", exact=True).click()
     expect(page.locator(".lf-banner-menu")).to_be_visible()
-    expect(select).to_be_hidden()
+    expect(select).to_be_visible()
     page.keyboard.press("Escape")
     page.keyboard.press("s")
     expect(page.locator(".lf-target-picker-hint")).to_have_count(3)
     page.get_by_role("button", name="More page controls", exact=True).click()
-    expect(cancel).to_have_count(0)
+    expect(cancel).to_be_visible()
 
     cdp = page.context.new_cdp_session(page)
     cdp.send("Emulation.setTouchEmulationEnabled", {"enabled": True})
@@ -364,8 +370,8 @@ def test_selection_banner_controls_follow_the_primary_pointer(browser, serve):
     expect(cancel).to_be_visible()
     cdp.send("Emulation.setTouchEmulationEnabled", {"enabled": False})
     expect(page.locator(".lf-banner-menu")).to_be_visible()
-    expect(cancel).to_have_count(0)
-    expect(select).to_be_hidden()
+    expect(cancel).to_be_visible()
+    expect(select).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-target-picker-hint")).to_have_count(0)
 
@@ -651,7 +657,7 @@ def test_nested_target_hints_show_containment_without_covering_each_other(
     browser, serve
 ):
     """A container and its first child may paint the same box corner. Both remain
-    reachable, while the enclosed target steps right to show which hint names it."""
+    reachable, with separate chips outside their targets and each other."""
     html = leaf_page(
         "nested targets",
         '<section id="outer"><p id="inner">The child fills its parent.</p></section>',
@@ -674,7 +680,7 @@ def test_nested_target_hints_show_containment_without_covering_each_other(
     )
     boxes = geometry["hints"]
     assert abs(geometry["targetLefts"][0] - geometry["targetLefts"][1]) < 0.5
-    assert boxes[1]["centre"] - boxes[0]["centre"] >= 9, geometry
+    assert all(box["right"] <= geometry["targetLefts"][0] for box in boxes), geometry
     assert not (
         boxes[0]["left"] < boxes[1]["right"]
         and boxes[1]["left"] < boxes[0]["right"]
@@ -743,7 +749,7 @@ def test_target_hints_name_only_addressable_elements_shown_by_a_disclosure(
     expect(hints).to_have_count(2)  # heading and disclosure
 
     page.keyboard.press("Escape")
-    page.locator("summary").click()
+    page.locator("#evidence > summary").click()
     page.keyboard.press("s")
     expect(hints).to_have_count(32)
 
@@ -758,7 +764,7 @@ def test_target_hints_name_only_addressable_elements_shown_by_a_disclosure(
         "keys => keys.map(key => [key.textContent, key.dataset.lfSequenceStepState])"
     ) == [[tail[0], "pressed"], [tail[1], "neutral"]]
     expect(continued).to_have_css("gap", "1px")
-    page.locator("summary").click()
+    page.locator("#evidence > summary").click()
     expect(hints).to_have_count(0)
 
 
@@ -848,20 +854,39 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     expect(search).to_be_focused()
     status = page.locator(".lf-page-search-status")
     expect(status).to_be_empty()
-    search_box = search.bounding_box()
+    search_field = page.locator(".lf-page-search-box")
+    search_box = search_field.bounding_box()
     search.fill("words absent from this page")
     expect(status).to_have_text("No matches")
-    assert search.bounding_box() == pytest.approx(search_box, abs=0.5)
-    search.fill("")
+    assert search_field.bounding_box() == pytest.approx(search_box, abs=0.5)
+    # The query and its count share the search's only frame, with no padded card
+    # between the field boundary and the search surface.
+    frame = search.evaluate("""input => {
+      const field = input.getRootNode().querySelector('[part~="base"]') ?? input;
+      const box = field.getBoundingClientRect();
+      const surface = document.querySelector('.lf-page-search').getBoundingClientRect();
+      const status = document.querySelector('.lf-page-search-status').getBoundingClientRect();
+      return {
+        edges: [box.left - surface.left, box.right - surface.right,
+                box.top - surface.top, box.bottom - surface.bottom],
+        statusInside: status.left >= box.left && status.right <= box.right &&
+          status.top >= box.top && status.bottom <= box.bottom,
+      };
+    }""")
+    assert frame["edges"] == pytest.approx([0, 0, 0, 0], abs=0.5), frame
+    assert frame["statusInside"], frame
+    search_field.get_by_role("button", name="Clear entry").click()
+    expect(search).to_have_value("")
+    expect(search).to_be_focused()
     expect(status).to_be_empty()
-    assert search.bounding_box() == pytest.approx(search_box, abs=0.5)
+    assert search_field.bounding_box() == pytest.approx(search_box, abs=0.5)
     page.keyboard.type("b")
     expect(status).to_have_text(re.compile(r"\d+ of \d+"))
-    assert search.bounding_box() == pytest.approx(search_box, abs=0.5)
+    assert search_field.bounding_box() == pytest.approx(search_box, abs=0.5)
     expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
     search.fill("button the key")
     expect(status).to_have_text("1 of 1")
-    assert search.bounding_box() == pytest.approx(search_box, abs=0.5)
+    assert search_field.bounding_box() == pytest.approx(search_box, abs=0.5)
     expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("select match")
     page.keyboard.press("Tab")
@@ -1270,10 +1295,8 @@ def test_an_open_search_mark_follows_the_page_it_marks(browser, serve):
     page.wait_for_function(f"() => Math.abs(({gap})() - {seated}) < 6")
 
 
-def test_a_nested_target_restates_its_indent_when_the_nesting_changes(browser, serve):
-    """A chip enclosed by another steps right once per box around it. That step and the
-    box it starts from are one measurement: read a paint apart, they put the chip where
-    neither reading said."""
+def test_a_nested_target_hint_follows_when_the_nesting_changes(browser, serve):
+    """A nested target's chip keeps its offset outside the target when layout moves it."""
     html = leaf_page(
         "nested targets",
         '<section id="outer"><p id="inner">The child fills its parent.</p></section>',
@@ -1292,6 +1315,9 @@ def test_a_nested_target_restates_its_indent_when_the_nesting_changes(browser, s
     page.keyboard.press("s")
     expect(page.locator(".lf-target-picker-hint")).to_have_count(2)
     indented = page.evaluate(step)
+    chip_left = page.locator('.lf-target-picker-hint[data-lf-hint-code="s"]').evaluate(
+        "chip => Math.round(chip.getBoundingClientRect().left)"
+    )
 
     # Break the containment and ask for a frame, without scrolling or resizing the window.
     page.evaluate(
@@ -1300,8 +1326,12 @@ def test_a_nested_target_restates_its_indent_when_the_nesting_changes(browser, s
           document.querySelector('.lf-shortcut-bar').style.height = '80px';
         }"""
     )
-
-    page.wait_for_function(f"() => ({step})() === {indented - 10}")
+    page.wait_for_function(
+        "left => Math.round(document.querySelector('[data-lf-hint-code=\"s\"]')"
+        ".getBoundingClientRect().left) === left - 60",
+        arg=chip_left,
+    )
+    assert page.evaluate(step) == indented
 
 
 def test_a_letter_naming_no_target_leaves_the_hints_standing(browser, serve):

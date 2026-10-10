@@ -7,7 +7,9 @@
    readable value. Subscriptions pause while their owner is absent and resume with
    its newest snapshot. Contract, byte revision, or validity changes redeliver; overlapping
    reads await the same in-flight rendering before stamping the version presented. Its
-   synchronous time readings refresh independently of data delivery. Modules project the
+   synchronous time readings refresh independently of data delivery. The returned
+   cleanup's `refresh()` repaints the last delivered reading through the same clock
+   tracking, without admitting or delivering a newer source. Modules project the
    result into the authored seat; they do not fetch it, mutate the accepted copy, or keep a
    hidden current-value map of their own.*/
 
@@ -99,6 +101,7 @@ export function watchData(element, input, callback) {
   // attribute mutation into an unvalidated rebind. Version activation mounts a new
   // element and therefore establishes a new subscription when authored markup changes.
   const source = element.getAttribute(declaration.source);
+  const failureContext = `data subscriber failed for ${element.localName}#${element.id} input ${input} source ${source}`;
   const paint = clocked(element, callback);
   const selectedSource = applicationState.select((root) =>
     source && Object.hasOwn(root.data.sources, source)
@@ -150,7 +153,7 @@ export function watchData(element, input, callback) {
       const mount = presentation;
       const rendering = paint(structuredClone(snapshot));
       completion = Promise.resolve(rendering).catch((error) => {
-        reportPageError(`data subscriber failed: ${error?.message ?? error}`);
+        reportPageError(error, failureContext);
         if (mounting && presentation === mount) stop();
       });
     }
@@ -184,7 +187,7 @@ export function watchData(element, input, callback) {
     try {
       return update(sourceStore);
     } catch (error) {
-      reportPageError(`data subscriber failed: ${error?.message ?? error}`);
+      reportPageError(error, failureContext);
     }
   };
   const stage = (sourceStore) => {
@@ -244,6 +247,9 @@ export function watchData(element, input, callback) {
     subscriptions.add(subscription);
   }
   stopLifetime = watchOwner(element, { connect, disconnect });
+  stop.refresh = () => {
+    if (!stopped && element.isConnected && delivered) return paint.refresh();
+  };
   return stop;
 }
 

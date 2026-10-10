@@ -4,7 +4,6 @@ from copy import deepcopy
 
 from interact_support import append_carried_log_record, published
 from leaf import codex as codex_model
-from leaf import codex_adapter as adapter_model
 from leaf.delivery import batch_data, freeze_delivery
 from leaf.service import PageTransaction
 from leaf.state import write_json
@@ -25,17 +24,16 @@ def test_live_and_archived_readers_ignore_records_with_missing_fields(
     )
     with PageTransaction(page) as transaction:
         captured = batch_data(page, transaction, [event])
-    captured.update(session="concurrent-task", receipted=True)
+    captured.update(session="concurrent-task")
     accepted = {
         "format": codex_model.RECORD_FORMAT,
-        "state": "accepted",
+        "state": "queued",
         "created_at": 1,
-        "transport": {"phase": "queued", "turn": None},
+        "pending": [0],
         "batches": [
             {
                 "page": str(page),
                 "session": "concurrent-task",
-                "receipted": True,
                 "events": [{"id": event["id"], "seq": event["seq"]}],
             }
         ],
@@ -49,13 +47,13 @@ def test_live_and_archived_readers_ignore_records_with_missing_fields(
         record = deepcopy(accepted)
         del record["batches"][0][field]
         unreadable.append(record)
-    for field in accepted["transport"]:
-        record = deepcopy(accepted)
-        del record["transport"][field]
-        unreadable.append(record)
+    for pending in (None, [True], [-1], [1], [0, 0]):
+        unreadable.append({**accepted, "pending": pending})
+    for state in ("hook", "opened"):
+        unreadable.append({**accepted, "state": state})
     collecting = deepcopy(accepted)
     collecting["state"] = "collecting"
-    collecting.pop("transport")
+    collecting.pop("pending")
     collecting["batches"] = [deepcopy(captured)]
     for field in ("through_seq", "threads"):
         record = deepcopy(collecting)
@@ -94,7 +92,7 @@ def test_live_and_archived_readers_ignore_records_with_missing_fields(
         archived.parent.mkdir(parents=True, exist_ok=True)
         write_json(live, record)
         write_json(archived, record)
-        assert codex_model.delivery_record_state("concurrent-task", identity) is None
+        assert codex_model.read_task_delivery("concurrent-task", identity) is None
         assert (
             codex_model.delivery_stream_reply_target("concurrent-task", identity)
             is None
@@ -110,7 +108,7 @@ def test_live_and_archived_readers_ignore_records_with_missing_fields(
         write_json(archived, gone)
 
     assert codex_model.delivery_records("concurrent-task") == []
-    assert not adapter_model._recover_receipt("concurrent-task")
+    assert not codex_model.recover_codex_receipt("concurrent-task")
     codex_model.retire_gone_task_records()
     assert len(
         list(
@@ -132,11 +130,16 @@ def test_live_and_archived_readers_ignore_records_with_missing_fields(
     freeze_delivery([captured], delivery_id="ffffffff")
     valid = codex_model.record_path("concurrent-task", "ffffffff")
     write_json(valid, accepted)
-    assert codex_model.delivery_records("concurrent-task") == [(valid, accepted)]
-    assert (
-        codex_model.delivery_record_state("concurrent-task", "ffffffff") == "accepted"
+    assert codex_model.delivery_records("concurrent-task") == [
+        (valid, codex_model.read_record(valid))
+    ]
+    assert isinstance(
+        codex_model.read_task_delivery("concurrent-task", "ffffffff"),
+        codex_model.Accepted,
     )
     collecting["batches"][0]["threads"][0]["title"] = None
     current = codex_model.record_path("concurrent-task", "fffffffe")
     write_json(current, collecting)
-    assert codex_model.read_record(current) == collecting
+    assert codex_model.read_record(current) == codex_model.Collecting(
+        1, (collecting["batches"][0],)
+    )

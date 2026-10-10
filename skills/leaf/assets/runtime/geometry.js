@@ -20,7 +20,7 @@ import { overlaps, overlapsAcross, union, clippingAxes } from "./rect.js";
    that holds the Range and counting that element's own clip. Use:
 
    - `shownBox` for travel, bounds, and reading-position landmarks;
-   - `shownParts` for Ask rings and element-anchor outlines;
+   - `shownParts` for Question rings and element-anchor outlines;
    - `shownExtent` for what stands beside a target's parts: a margin row, the
      response field's room;
    - `shownRect` for visible placement of floating chrome and key badges;
@@ -468,6 +468,48 @@ export function visibleBand(scroller, item = null) {
   const top = band.top + headerInset(item, scroller);
   const bottom = band.bottom - footerInset(item, scroller);
   return bottom > top ? { ...band, top, bottom } : null;
+}
+// The sticky box holding `node` while it is stuck, else null. A stuck box stands at the
+// edge of the scroller it sticks in, or is pushed past it by its holder's end, rather
+// than at its own place in its holder, whose edge has scrolled beyond it: a page tab
+// strip over its panel's sixtieth paragraph, an open thread's title over the turns read
+// below it, a reply row pinned at the foot of a long thread. It rides along with every
+// scroll, so being in view says nothing about where in its holder the user is.
+export function stuckBox(node) {
+  let sticky = null;
+  let scroller = null;
+  // A sticky box that clips what it holds, as a tab strip does, still sticks in the
+  // scroller around it.
+  for (let el = node; el?.nodeType === 1; el = renderedParent(el)) {
+    if (!sticky && getComputedStyle(el).position === "sticky") sticky = el;
+    else if (el !== node && holdsHeaders(el)) {
+      scroller = el;
+      break;
+    }
+  }
+  if (!sticky || !scroller) return null;
+  const band = shownBand(scroller);
+  if (!band) return null;
+  const style = getComputedStyle(sticky);
+  const room = getComputedStyle(scroller);
+  const padTop = Number.parseFloat(room.paddingTop) || 0;
+  const padBottom = Number.parseFloat(room.paddingBottom) || 0;
+  const box = sticky.getBoundingClientRect();
+  // The holder is the box the sticky stands in: past any `display: contents` wrapper,
+  // and where that is the scroller itself, its scrolled content rather than its frame.
+  let parent = renderedParent(sticky);
+  while (parent !== scroller && getComputedStyle(parent).display === "contents")
+    parent = renderedParent(parent);
+  const content = band.top - scroller.scrollTop;
+  const holder =
+    parent === scroller
+      ? { top: content + padTop, bottom: content + scroller.scrollHeight - padBottom }
+      : shownBox(parent);
+  const topLine = band.top + padTop + Number.parseFloat(style.top);
+  const footLine = band.bottom - padBottom - Number.parseFloat(style.bottom);
+  if (box.top <= topLine + 1 && holder.top < box.top - 1) return sticky;
+  if (box.bottom >= footLine - 1 && holder.bottom > box.bottom + 1) return sticky;
+  return null;
 }
 export function landingBand(scroller) {
   const band = shownBand(scroller);

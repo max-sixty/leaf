@@ -22,12 +22,12 @@ from interact_support import (
     COMPOSITE_TIMEOUT,
     STATED_TIMEOUT,
     append_carried_log_record,
-    consume_pending_input,
     install_payload,
     wait_for,
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
+from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import files as files_model
@@ -854,7 +854,7 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
     # what the browser says inside one is the fetch that was in flight rather than
     # the condition: a refused resource, a connection to a server that has gone, a
     # decoding that stopped halfway. The span is bracketed rather than the wordings
-    # listed (tests/AGENTS.md, "A test cannot assert over noise it makes itself").
+    # listed (tests/AGENTS.md, "Test-made noise").
     with restarting(page):
         page.goto(url, wait_until="load")
         status = page.get_by_text(
@@ -1117,8 +1117,12 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
         },
     )
     assert waiter.wait(timeout=STATED_TIMEOUT) == 0, waited.read_text()
-    assert "has new input" in waited.read_text()
-    [batch] = consume_pending_input(session)["batches"]
+    lines = waited.read_text().splitlines()
+    start = next(i for i, line in enumerate(lines) if line.startswith("{"))
+    payload = json.loads("\n".join(lines[start:]))
+    assert f"leaf wait --ack {payload['id']}" in payload["acknowledge"]
+    delivery_model.receive(payload, session)
+    [batch] = payload["batches"]
     assert [event["text"] for event in batch["events"]] == ["still there?"]
 
 
@@ -1134,10 +1138,9 @@ def test_a_user_preview_brings_back_a_service_that_is_down_but_wanted(
     port = server_model.running_server(directory)["port"]
     claim = service_model.page_claim(directory)
     events = (directory / "events.jsonl").read_bytes()
-    # Hold the watcher while taking the stopped server's port. The first revival
-    # must refuse, then recover after that condition clears without a source edit.
+    # Hold the watcher while taking the stopped server's port. Revival waits for
+    # native availability, then recovers without a source edit.
     with socket.socket() as occupied:
-        occupied.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         os.killpg(process.pid, signal.SIGSTOP)
         try:
             killed = subprocess.run(
@@ -1154,10 +1157,11 @@ def test_a_user_preview_brings_back_a_service_that_is_down_but_wanted(
         finally:
             os.killpg(process.pid, signal.SIGCONT)
         wait_for(
-            log.read_text,
-            lambda output: "can't serve" in output,
-            failure="the occupied preview address was not reported",
+            lambda: leases_model.lock_is_held(directory / "server.lock"),
+            bool,
+            failure="the preview did not prepare a replacement server",
         )
+        assert server_model.running_server(directory) is None
         assert files_model.read_json(directory / "service.json")["enabled"]
 
     wait_for(
@@ -1625,7 +1629,7 @@ def test_playground_examples_keep_their_offline_interaction_mode(
         live.locator('.query-row[data-filter-id="filter-2"] input').fill("80")
         submit = playground.get_by_role("button", name="Build query")
     else:
-        playground.get_by_role("button", name="Wrapped reader").click()
+        playground.get_by_role("button", name="B at 320px").click()
         submit = playground.get_by_role("button", name="Apply treatment")
     with sending(live, f"the {stem} configuration"):
         submit.click()

@@ -32,21 +32,13 @@
           if (loading === current) current.probes = probes;
         },
         (error) => {
-          if (loading === current)
-            current.error = {
-              name: error?.name ?? "Error",
-              message: error?.message ?? String(error),
-            };
+          if (loading === current) current.error = { reason: error };
         },
       );
     }
-    if (loading.error) {
-      const error = new Error(
-        `Leaf browser probes failed to load from ${href}: ${loading.error.message}`,
-      );
-      error.name = loading.error.name;
-      throw error;
-    }
+    // No runtime formatter can load when the probe module itself failed. Preserve
+    // the native import exception, whose stack names the actual failing module.
+    if (loading.error) throw loading.error.reason;
     return loading.probes !== null;
   };
 

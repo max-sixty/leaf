@@ -78,11 +78,11 @@ export class ReactionStripView {
 
   #press(name) {
     const model = this.#model;
-    const sent = this.#commands.actions.toggleReaction(
-      model.key,
-      model.parent,
+    const sent = this.#commands.actions.setReaction(
+      model.thread,
+      model.message,
       name,
-      Boolean(model.choices.find((choice) => choice.name === name).standing),
+      !model.choices.find((choice) => choice.name === name).standing,
     );
     this.#registration.close();
     this.#commands.pressed();

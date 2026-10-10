@@ -34,7 +34,8 @@ import { scrollerFor, scrollersOf } from "../reading-regions.js";
 import { renderedParent, under } from "../shadow.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { retainUserIntent } from "../user-intent.js";
-import { scrollIntoReadingBand } from "../landing-scroll.js";
+import { focusedInView } from "../user-place.js";
+import { scrollIntoReadingBand, scrollIntoView } from "../landing-scroll.js";
 import { atScrollEnd, moveScrollerBy, scrollToEnd } from "../scrolling.js";
 import { SAYS_IN, SAY_ROW } from "./selectors.js";
 
@@ -129,11 +130,11 @@ function landThread(held, control, behavior, block) {
     return;
   }
   if (transcript?.contains(control)) {
-    control.scrollIntoView({ behavior, block });
+    scrollIntoView(control, { behavior, block });
     return;
   }
   const target = landingTarget(held, control);
-  target.node?.scrollIntoView({ behavior, block: target.block ?? block });
+  scrollIntoView(target.node, { behavior, block: target.block ?? block });
 }
 
 // A geometry owner can fit a thread after its landing has already scrolled. Keep the
@@ -259,15 +260,13 @@ export function readBoxPlace(input) {
 // turn above the box they are writing in, moves it by what it inserted; an agent's turn
 // arriving there waits behind its thread's notice instead (held-news.js). `holdBox`
 // reads where the focused control stands and returns the step that puts it back, so
-// news moves no control under the user's hands. Only one on screen is under their hands: a user who
-// has scrolled away from it is reading something else, which the news must not move. A
-// pinned row stands still by itself, and a control the render replaced has nothing to
-// hold. The box scrolling the control takes the move first and the boxes around it
-// whatever it cannot: a bounded block not yet full grows in the page instead.
+// news moves no control under the user's hands. Only one in view is under their hands
+// (user-place.js, `focusedInView`). A control the render replaced has nothing to hold. The box scrolling the control takes the move
+// first and the boxes around it whatever it cannot: a bounded block not yet full grows
+// in the page instead.
 export function holdBox(control) {
   const held = control?.closest?.(SAYS_IN);
-  if (!held || replyPinned(replyRowOf(held, control)) || !onScreen(control))
-    return () => {};
+  if (!held || control !== focusedInView()) return () => {};
   const top = control.getBoundingClientRect().top;
   return () => {
     if (focused() !== control || !control.isConnected) return;

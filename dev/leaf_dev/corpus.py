@@ -18,6 +18,7 @@ import shutil
 import sys
 
 import click
+from leaf.registry.contract import is_element_name
 from leaf.registry.layer import merge_layer_declarations
 from leaf.structure import SourceDocument
 from leaf.thread_context import sample_events, thread_ids
@@ -54,6 +55,8 @@ PUBLIC_TABS = [
 # Focused chrome galleries with several live child pages stay separate; their
 # underlying widget and thread states already stand in the feature gallery.
 DEVELOPER_TABS = [
+    (EXAMPLES_DIR / "developer" / "file-editor.html", "File editor package"),
+    (EXAMPLES_DIR / "developer" / "diff-thread-gallery.html", "Diff conversations"),
     (EXAMPLES_DIR / "developer" / "feature-gallery.html", "Core features"),
     (
         EXAMPLES_DIR / "developer" / "visual-review-gallery.html",
@@ -214,14 +217,14 @@ def build_page() -> dict[str, bytes]:
         owned = {
             tag: entry
             for tag, entry in registry.items()
-            if (page / "widgets" / f"{tag}.js").is_file()
+            if is_element_name(tag) and (page / "widgets" / f"{tag}.js").is_file()
         }
-        if not owned:
+        shared = {
+            key: entry for key, entry in registry.items() if not is_element_name(key)
+        }
+        if not owned and not shared:
             continue
-        merge_layer_declarations(
-            declarations,
-            {key: entry for key, entry in registry.items() if key.startswith("$")},
-        )
+        merge_layer_declarations(declarations, shared)
         for tag, entry in owned.items():
             if tag in declarations:
                 sys.exit(f"corpus examples both declare {tag!r}")

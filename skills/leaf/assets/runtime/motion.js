@@ -79,10 +79,20 @@ export function motion(el, keyframes, ms) {
   return played;
 }
 
-// How long an arrival flash lasts: a thread revealed in Threads, and Threads itself
-// once the page comment card has sent a thread there. chrome.css's `.flash` animation
-// states the same length.
-export const FLASH_MS = 1200;
+// CSS owns the document-wide durations shared with stylesheet motion. Registered
+// <time> values resolve variables and calculations before this read; each call reads the live
+// cascade, so a revision or theme override changes CSS and Web Animations together.
+const time = (property) => {
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue(property)
+    .trim();
+  return parseFloat(value) * (value.endsWith("ms") ? 1 : 1000);
+};
+
+// A thread's arrival tint and the navigation flash on the surface it revealed.
+export const flashDuration = () => time("--lf-motion-flash");
+// Independently rendered carriers join the same finite agent-work arrival window.
+export const agentArrivalDuration = () => time("--lf-motion-agent-arrival");
 
 // A cue supplies only its starting tint. Its target's live CSS owns the endpoint,
 // so hover, theme changes and transparent surfaces never snap back when it ends.
@@ -97,7 +107,7 @@ export function backgroundFlash(el, ms) {
 // makes this motion twice for one reason — a decided suggestion's retired slot and a
 // resolved thread's place in the list are both room the user watches come back —
 // and two numbers would be that reason written down twice, free to disagree.
-export const FOLD_MS = 220;
+export const foldDuration = () => time("--lf-motion-fold");
 
 // An edge-held auxiliary surface slides in from the edge it is held to, the drawers from the
 // left and the thread panel from the right, and a drawer slides back out to it. It stands over the page, so the

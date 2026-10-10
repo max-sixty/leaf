@@ -89,13 +89,13 @@
           <a href="https://github.com/max-sixty/worktrunk/pull/3865"
             >Worktrunk PR #3865</a
           >
-          adds a unified-diff preview for the switch picker. The captured revision is
-          awaiting a merge decision; its exact 46-file patch closes the review.
+          added a unified-diff preview for the switch picker. Review this merged change
+          as if the decision were still open, using its exact 46-file patch and the
+          evidence below.
         </p>
         <p id="pr-tags">
           <span class="tag ok">Safe to approve</span>
           <span class="tag warn">2 follow-ups</span>
-          <span class="tag ok">5 checks passed</span>
           <span class="tag">46 files · +1,567 −701</span>
         </p>
       </header>
@@ -330,9 +330,10 @@ flowchart TB
             This exact hunk from <code>src/summary.rs</code> replaces direct Git
             argument assembly with the repository’s <code>PreparedDiff</code> API.
           </p>
-          <lf-diff id="pr-key-hunk" data-height="539" review>
+          <lf-diff id="pr-key-hunk" data-height="521">
             <pre>
 diff --git a/src/summary.rs b/src/summary.rs
+index b856171b57..cfa4f0448e 100644
 --- a/src/summary.rs
 +++ b/src/summary.rs
 @@ -258,16 +256,14 @@ pub(crate) fn compute_combined_diff(
@@ -363,25 +364,108 @@ diff --git a/src/summary.rs b/src/summary.rs
         <section class="panel" id="pr-invariants">
           <h2>Review invariants</h2>
           <p id="pr-invariant-intro">
-            The implementation is expected to preserve these three properties.
+            Exact excerpts from revision <code>9ca8f78b</code> show the byte-equality
+            and scheduling tests, followed by the temporary-index implementation.
           </p>
-          <lf-code id="pr-review-invariants" language="rust" hi="1-3">
+          <h3>Real index byte equality</h3>
+          <p id="pr-review-invariants-source">
+            <code>src/commands/picker/items.rs</code> ·
+            <code
+              >unified_diff_is_net_change_and_subsidiary_diffs_include_untracked</code
+            >
+          </p>
+          <lf-code
+            id="pr-review-invariants"
+            language="rust"
+            lines="3018-3023,3041-3044"
+            hi="3041-3044"
+          >
             <pre>
-assert_eq!(repo.read_index_bytes(&amp;worktree)?, index_before_preview, "preview preparation rewrote {worktree:?}");
-assert!(temp_index.is_operation_scoped());
-assert!(offscreen_worktree_preview.is_demand_loaded());
+        let real_index = repo.current_worktree().git_dir().unwrap().join("index");
+        let index_before = std::fs::read(&amp;real_index).unwrap();
+        let unified = PickerRow::compute_unified_diff_preview(&amp;repo, &amp;item, 80);
+        let working = PickerRow::compute_working_tree_preview(&amp;repo, &amp;item, 80);
+        let committed = PickerRow::compute_branch_diff_preview(&amp;repo, &amp;item, 80);
+        let index_after = std::fs::read(&amp;real_index).unwrap();
+        assert_eq!(
+            index_after, index_before,
+            "preview computation must leave the real index byte-identical"
+        );
 </pre>
-            <lf-note id="pr-note-real-index" at="1"
-              >A clean status is insufficient: preview preparation must preserve the
-              real index byte for byte.</lf-note
+            <lf-note id="pr-note-real-index" at="3044"
+              >The test reads the real index around all three preview computations and
+              requires its bytes to match exactly.</lf-note
             >
-            <lf-note id="pr-note-temp-index" at="2"
-              >Random, exclusive temporary files prevent concurrent previews from
-              sharing or replacing one another’s index.</lf-note
+          </lf-code>
+          <h3>Off-screen worktree scheduling</h3>
+          <p id="pr-demand-evidence-source">
+            <code>src/commands/picker/preview_orchestrator.rs</code> ·
+            <code>initial_precompute_skips_offscreen_worktrees_but_warms_branches</code>
+          </p>
+          <lf-code
+            id="pr-demand-evidence"
+            language="rust"
+            lines="1230-1248"
+            hi="1238-1248"
+          >
+            <pre>
+        orch.spawn_initial_precompute(
+            &amp;orch.generation(),
+            &amp;[first, Arc::clone(&amp;offscreen), Arc::clone(&amp;branch)],
+            (80, 24),
+            None,
+        );
+        orch.wait_for_idle();
+
+        assert!(
+            !orch
+                .cache
+                .contains_key(&amp;("offscreen".to_string(), PreviewMode::UnifiedDiff)),
+            "off-screen worktree should wait for selected-row demand"
+        );
+        assert!(
+            orch.cache
+                .contains_key(&amp;("branch-only".to_string(), PreviewMode::UnifiedDiff)),
+            "branch-only default should be prewarmed from the committed diff"
+        );
+</pre>
+            <lf-note id="pr-note-demand-load" at="1248"
+              >After prewarm finishes, the off-screen worktree has no cached unified
+              diff and the branch-only row does. This checks scheduling; selected-row
+              latency remains unmeasured.</lf-note
             >
-            <lf-note id="pr-note-demand-load" at="3"
-              >Moving off-screen worktrees out of prewarm protects startup, but leaves
-              selected-row latency as a separate measurement question.</lf-note
+          </lf-code>
+          <h3>Temporary-index implementation evidence</h3>
+          <p id="pr-temp-index-evidence-source">
+            <code>src/git/repository/working_tree.rs</code> ·
+            <code>WorkingTree::temp_index</code>
+          </p>
+          <lf-code
+            id="pr-temp-index-evidence"
+            language="rust"
+            lines="843-856"
+            hi="843-846,852-856"
+          >
+            <pre>
+        let mut temp_file = tempfile::Builder::new()
+            .prefix(TEMP_INDEX_PREFIX)
+            .tempfile()
+            .context("Failed to create temporary index")?;
+        let mut real_index_file = match std::fs::File::open(&amp;real_index) {
+            Ok(file) =&gt; Some(file),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound =&gt; None,
+            Err(error) =&gt; return Err(error).context("Failed to open index file"),
+        };
+        if let Some(real_index_file) = &amp;mut real_index_file {
+            std::io::copy(real_index_file, temp_file.as_file_mut())
+                .context("Failed to copy index file")?;
+        }
+        let temp = temp_file.into_temp_path();
+</pre>
+            <lf-note id="pr-note-temp-index" at="856"
+              >Each call creates a temporary file, copies the real index through its
+              open handle when present, and transfers ownership to a
+              <code>TempPath</code>.</lf-note
             >
           </lf-code>
         </section>
@@ -438,9 +522,7 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
                     >
                   </td>
                   <td><span class="tag ok">passed</span></td>
-                  <td>
-                    Also makes glob escaping load-bearing through a bracketed path.
-                  </td>
+                  <td>Also tests glob escaping with a bracketed path.</td>
                 </tr>
                 <tr>
                   <th scope="row">Off-screen worktrees are demand-loaded</th>
@@ -505,7 +587,7 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
           </p>
           <lf-diff
             id="pr-exact-patch"
-            data-height="2126"
+            data-height="2108"
             source="pr-review-patch"
             collapsed
           >

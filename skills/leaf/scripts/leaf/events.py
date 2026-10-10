@@ -1,5 +1,7 @@
 """Pure folds over the append-only event model."""
 
+from itertools import groupby
+
 from leaf.schema import MESSAGE_KINDS, UNDOABLE_KINDS
 
 
@@ -219,7 +221,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     leave its closure standing. A later resolution closes it again.
 
     Each thread is keyed by, and carries as ``id``, the id of the message that
-    opened it: the name every Ask, workflow, summary, and title uses for it.
+    opened it: the name every Question, workflow, summary, and title uses for it.
     ``root`` is the first message the log still holds. The two differ only where
     a torn line lost the opening message, and then ``root`` is the surviving
     reply that opens the thread now, under its own id, so a reply or resolve
@@ -365,43 +367,58 @@ def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:
     return result
 
 
-def _ephemeral_ranges(thread: dict, covered: set) -> list[dict]:
-    """Completed contiguous runs of progress, preserving intervening conversation.
+def progress_completions(thread: dict) -> dict[str, dict]:
+    """The ordinary agent reply that supersedes each completed progress message.
 
-    A user message breaks a run but does not complete progress. The next ordinary
-    agent reply completes all pending runs. Its identity is also the presentation
-    dependency: a renderer holding that reply must hold its folds with it.
+    The next non-failure agent reply completes all pending progress in its thread.
+    Reactions and user messages do not complete it. Presentation and unread share
+    this relation independently of explicit summaries and read acknowledgements.
     """
     pending = []
-    run = []
-    ranges = []
+    completed = {}
     for message in spoken_turns(thread):
-        if message.get("ephemeral") and message["id"] not in covered:
-            run.append(message)
+        if message.get("ephemeral"):
+            pending.append(message["id"])
             continue
-        if run:
-            pending.append(run)
-            run = []
         if (
-            message.get("ephemeral")
-            or message["kind"] != "reply"
+            message["kind"] != "reply"
             or message["author"] != "agent"
             or message.get("failure")
         ):
             continue
-        for group in pending:
-            ranges.append(
-                {
-                    "id": f"ephemeral:{group[0]['id']}:{message['id']}",
-                    "seq": message["seq"],
-                    "from": group[0]["id"],
-                    "through": group[-1]["id"],
-                    "text": "",
-                    "label": "Previous updates",
-                    "trigger": message["id"],
-                }
-            )
+        completed.update((identity, message) for identity in pending)
         pending = []
+    return completed
+
+
+def _ephemeral_ranges(thread: dict, covered: set) -> list[dict]:
+    """Contiguous completed progress outside explicit summaries, split by conversation.
+
+    The completing reply is also the presentation dependency: a renderer holding
+    that reply must hold its folds with it.
+    """
+    completed = progress_completions(thread)
+    ranges = []
+    for reply, messages in groupby(
+        spoken_turns(thread),
+        key=lambda message: (
+            None if message["id"] in covered else completed.get(message["id"])
+        ),
+    ):
+        if reply is None:
+            continue
+        group = list(messages)
+        ranges.append(
+            {
+                "id": f"ephemeral:{group[0]['id']}:{reply['id']}",
+                "seq": reply["seq"],
+                "from": group[0]["id"],
+                "through": group[-1]["id"],
+                "text": "",
+                "label": "Previous updates",
+                "trigger": reply["id"],
+            }
+        )
     return ranges
 
 
@@ -534,9 +551,9 @@ def awaits_agent(thread: dict) -> bool:
 
     This reading says nothing about whether the user owes a word: an ordinary agent
     reply may leave the open thread awaiting nobody, while an agent comment, an
-    explicit prose question, or a structured widget Ask awaits the user. The browser
+    explicit prose question, or a structured widget Question awaits the user. The browser
     does not receive it: each browser Thread's `attention` aggregates this turn with
-    the workflows and Asks standing on the thread, so the panel, its filters and the
+    the workflows and Questions standing on the thread, so the panel, its filters and the
     margin read one answer to whose turn it is."""
     return bool(not thread["resolved"] and unanswered_turns(thread))
 
@@ -562,11 +579,11 @@ def seat_root(thread: dict) -> str | None:
 def seats_with_agent(threads: dict) -> set[str]:
     """Widget ids whose own seat holds a thread now waiting on the agent.
 
-    An Ask whose own thread is with the agent is not one the user has to
-    deal with, so an Ask projection reading their list subtracts these. It is not an
+    An Question whose own thread is with the agent is not one the user has to
+    deal with, so a Question projection reading their list subtracts these. It is not an
     answer — the widget's state is untouched — which is why the reading that asks
-    whether an Ask is answered passes an empty set instead. The browser receives
-    the Asks this subtraction leaves rather than subtracting again, so the banner's
+    whether a Question is answered passes an empty set instead. The browser receives
+    the Questions this subtraction leaves rather than subtracting again, so the banner's
     count and `page state` cannot disagree about whose turn it is.
 
     Whose thread it is does not enter into it: the agent may open one in the seat too,

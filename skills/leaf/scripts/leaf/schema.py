@@ -9,10 +9,6 @@ from .state import EVENTS_FILE
 # claim the page before it closes. The external claim record is the ownership
 # source; a standing lifetime ignores it and remains enabled until `server stop`.
 ORPHAN_GRACE_SECS = 1
-# Activity-backed claims must survive time in a background tab, which stops
-# renewing viewed.json. Four hours permits those gaps while retiring abandoned
-# session pages. Claim renewal and service lifetime: session-lifetime.md.
-ACTIVITY_GRACE_SECS = 4 * 60 * 60
 # The harness-neutral name of an agent nothing names: a page's when no claimant
 # supplies one, and an agent-authored event's that carries no `agent` (`agent_name`).
 UNNAMED_AGENT = "Agent"
@@ -90,7 +86,7 @@ _RECORD_VALUE = {
 }
 
 # A `when` predicate selects instances by attribute values (or by a flag's being
-# present or absent). One condition shape serves Asks and threads because they
+# present or absent). One condition shape serves Questions and threads because they
 # ask the same question of the same authored attributes.
 AWAITING_CONDITION = {
     "type": "object",
@@ -103,7 +99,7 @@ AWAITING_CONDITION = {
     },
 }
 
-# When a local Ask is answered: a map from each answering x-state verb to the
+# When a local Question is answered: a map from each answering x-state verb to the
 # condition its standing state meets. An empty condition means the verb's state stands
 # (a non-empty attribute or value record, otherwise a standing action). `when` narrows
 # the verb to instances whose attributes match; `empty` holds when the one member
@@ -228,9 +224,11 @@ AWAITS_SCHEMA = {
     "type": "object",
     "properties": {
         "when": AWAITING_CONDITION,
+        "value": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "answered": ANSWERED_SCHEMA,
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     },
+    "required": ["value", "answered"],
     "additionalProperties": False,
 }
 # Package and data-contract instructions address their declared audiences. Widget
@@ -278,7 +276,7 @@ _ATTRIBUTE_NAME = {"type": "string", "pattern": f"^{HTML_NAME}$"}
 EXTENSION_SCHEMA = {
     "type": "object",
     "properties": {
-        "x-ask-surface": {"const": True},
+        "x-question-context": {"const": True},
         "x-awaits": AWAITS_SCHEMA,
         "x-thread-seat": {
             "type": "object",
@@ -451,10 +449,10 @@ ATTRIBUTE_KEYS = (
 # whether the mark holds in a thread's message too:
 # each is the element's own fact wherever it renders, except the room, which is the
 # document's to hand out; a message renders in the panel, whose width bounds it.
-# `idiom` says an `$idioms` entry may declare the mark for the elements its selector
+# `idiom` says a selector entry may declare the mark for the elements its selector
 # matches, as `.callout` declares the room: the mark's every reader reads its paint and
 # nothing paints it in a message, so delivery's paint is the whole of it. The others
-# are also read by tag (the asks fold, the render checks, the runtime's descriptors).
+# are also read by tag (the Questions fold, the render checks, the runtime's descriptors).
 #
 # Delivery paints a page's document from this (`revision_delivery.mark_declared`).
 # Composition stamps it into the vocabulary as `$marks` (`registry.layer.
@@ -462,6 +460,8 @@ ATTRIBUTE_KEYS = (
 # paint from the author's attributes (`isPagePaint`). The paint names are also the
 # theme's contract: the stylesheets that read them spell them out.
 DECLARED_MARKS = {
+    "x-content": {"paint": "data-lf-content", "message": True},
+    "x-verbatim": {"paint": "data-lf-verbatim", "message": True},
     "x-space": {
         "paint": "data-lf-space",
         "authored": "data-width",
@@ -516,6 +516,7 @@ MEDIA_TYPES = {
 MEDIA_DIGEST = 16
 NO_KEY = "open the link leaf printed; it carries the key"
 DATA_FILE = "data.json"
+FILE_BINDINGS_FILE = "files.json"
 DATA_DIR = "data"
 # The diagnostic request and interaction trace (`interaction_log.py`).
 INTERACTIONS_FILE = "interactions.jsonl"
@@ -549,7 +550,13 @@ SESSION_FILES = (
 )
 # The files Leaf writes in a page directory as it runs. With the author's index.html,
 # the vendored files, and PAGE_OWNED_DIRS, the whole of page-storage.md's "Files".
-PAGE_STATE_FILES = (EVENTS_FILE, INTERACTIONS_FILE, DATA_FILE, *SESSION_FILES)
+PAGE_STATE_FILES = (
+    EVENTS_FILE,
+    INTERACTIONS_FILE,
+    DATA_FILE,
+    FILE_BINDINGS_FILE,
+    *SESSION_FILES,
+)
 PAGE_OWNED_FILES = ("index.html", *VENDORED_FILES, *PAGE_STATE_FILES)
 PAGE_OWNED_DIRS = ("revisions", *PACKAGE_DIRS, MEDIA_DIR, DATA_DIR, "page")
 # A revision's and a version's file name, without `.html`.

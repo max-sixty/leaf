@@ -25,6 +25,7 @@ from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
+    PANEL_PAGE,
     SUGGESTION_PAGE,
     THREAD_ASKS,
     live_url,
@@ -355,7 +356,7 @@ def test_a_block_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
     expect(field).to_be_visible()
     expect(field).to_be_focused()
     label = field.get_attribute("aria-label")
-    assert label and label.startswith("Comment on “4 of 5 checks passing")
+    assert label and label.startswith("Comment on “checks passing 4 of 5")
     draft = "Why does the remaining check need a decision?"
     write(field, draft)
     resized(page, 420, 850)
@@ -627,7 +628,8 @@ def test_gallery_revision_preserves_every_open_quoted_thread(browser, serve):
         expect(thread.locator(".lf-quote")).to_contain_text(
             f"“{root['anchor']['quote']}” Changed"
         )
-        expect(thread.locator(".lf-quote")).to_have_attribute("aria-disabled", "false")
+        expect(thread.locator(".lf-quote")).to_have_attribute("role", "button")
+        expect(thread.locator(".lf-quote")).to_have_attribute("tabindex", "0")
         expect(thread.locator(".lf-quote.detached")).to_have_count(0)
         expect(thread.locator(".lf-msg")).to_have_count(1)
     moves = [
@@ -810,8 +812,10 @@ def test_a_selection_around_a_targets_buttons_does_not_deaden_them(browser, serv
         (end["x"] + end["width"] - 6, end["y"] + end["height"] - 6),
         steps=16,
     )
-    wait_for_pending_mark(page)
-    assert "Refill" in pending_text(page)
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    quote = composer_quote(page)
+    assert quote["shown"] and "Refill" in quote["text"]
+    assert "Refill" in page.evaluate("getSelection().toString()")
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
     assert not page.evaluate("getSelection().isCollapsed")
 
@@ -906,6 +910,32 @@ def test_every_suggestion_activation_dismisses_a_standing_selection(
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
     expect(page.locator(".lf-composer")).to_be_hidden()
     assert page.evaluate("getSelection().isCollapsed")
+
+
+def test_focusing_a_selected_comment_field_keeps_its_captured_passage(browser, serve):
+    """The field survives the native selection collapse caused by entering it."""
+    page = open_page(browser, serve(SUGGESTION_PAGE))
+    box = page.locator("#replace").bounding_box()
+    select(
+        page,
+        (box["x"] + 4, box["y"] + 6),
+        (box["x"] + box["width"] - 8, box["y"] + box["height"] - 6),
+        steps=16,
+    )
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_visible()
+    field.focus()
+    expect(field).to_be_focused()
+    assert page.evaluate("getSelection().isCollapsed")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    write(page.locator(".lf-composer leaf-text"), "Keep this note")
+    page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").focus()
+    page.locator("#replace").select_text()
+    page.evaluate("getSelection().removeAllRanges()")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(page.locator(".lf-composer leaf-text")).to_have_js_property(
+        "value", "Keep this note"
+    )
 
 
 def test_the_floating_response_bar_has_one_compact_face(browser, serve):
@@ -1602,7 +1632,7 @@ def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, hold
     )
 
     opener = (
-        page.locator("summary")
+        page.locator("main summary")
         if holder == "disclosure"
         else page.get_by_role("tab", name="Code", exact=True)
     )
@@ -2095,7 +2125,7 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
         "the tinted line is the one that says it, and it says it once"
     )
 
-    appearance = page.evaluate("""() => {
+    appearance = page.evaluate(r"""() => {
       const channels = value => value.match(/[0-9.]+/g).slice(0, 3).map(Number);
       const block = document.querySelector('#walk-code pre');
       const line = document.querySelector('#walk-code .lf-code-line');
@@ -2113,7 +2143,7 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
         noteRadius: noteStyle.borderRadius,
         noteFont: noteStyle.fontFamily,
         sansFont: getComputedStyle(document.documentElement)
-          .getPropertyValue('--sans').trim(),
+          .getPropertyValue('--sans').trim().replace(/\s+/g, ' '),
         noteInset: {
           left: noteRect.left - blockRect.left,
           right: blockRect.right - noteRect.right,
@@ -2468,7 +2498,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
       };
     }""")
     assert reading["segmentCount"] > 0, "the passage assertion read no diff text"
-    assert reading["saysPath"] and reading["wrotePath"], reading
+    # The parser supplies the visible file path; it was not written into the page.
+    assert reading["saysPath"] and not reading["wrotePath"], reading
     assert reading["saysStat"] and not reading["wroteStat"], reading
     assert reading["lineNumberWords"] == [], (
         f"line number chrome entered the page reading: {reading}"
@@ -2998,12 +3029,16 @@ def test_tab_between_two_staged_controls_turns_the_shortcut_bar_over(browser, se
 
     Such a move reaches the document as no focus event at all, so a repaint that waits
     for one leaves the line naming the keys of the control the user left, until the
-    heartbeat or a resize repaints it. A file's title and its Reviewed button make
+    heartbeat or a resize repaints it. A file's title and its comment button make
     different presses, and the line names them differently."""
-    page = open_page(
-        browser,
-        serve(DIFF_PAGE.replace('<lf-diff id="patch">', '<lf-diff id="patch" review>')),
+    url = serve(
+        DIFF_PAGE.replace(
+            '<lf-diff id="patch">', '<lf-diff id="patch" source="review-patch">'
+        )
     )
+    patch = DIFF_PAGE.split("<pre>", 1)[1].split("</pre>", 1)[0]
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
+    page = open_page(browser, url)
     page.keyboard.press("Tab")  # keyboard modality, as a user reaching the title has
     title = page.locator("lf-diff summary.lf-diff-head").first
     title.scroll_into_view_if_needed()
@@ -3013,7 +3048,7 @@ def test_tab_between_two_staged_controls_turns_the_shortcut_bar_over(browser, se
     assert "hide this file" in on_title, on_title
 
     page.keyboard.press("Tab")
-    expect(page.locator("lf-diff .lf-diff-review:focus")).to_have_count(1)
+    expect(page.locator("lf-diff .lf-diff-file-comment:focus")).to_have_count(1)
     said = shortcut_bar_text(page)
     assert "next hunk" in said, said
     assert "this file" not in said, said
@@ -3656,7 +3691,8 @@ def test_a_removed_subject_keeps_its_thread_open_and_detached(browser, serve):
     quote = page.locator(f'.lf-thread[data-id="{root["id"]}"] .lf-quote')
     expect(quote).to_contain_text("The version stamp never lands")
     expect(quote).to_have_class(re.compile(r"\bdetached\b"))
-    expect(quote).to_have_attribute("aria-disabled", "true")
+    expect(quote).not_to_have_attribute("role", "button")
+    expect(quote).not_to_have_attribute("tabindex", "0")
     expect(quote).to_have_attribute("title", re.compile("no longer"))
 
 
@@ -5895,7 +5931,7 @@ def test_a_drag_across_a_written_diff_line_is_the_passage_c_comments_on(browser,
     the host, and `isCollapsed` says nothing is selected while the words are painted
     selected. Read that way, no Comment field rose over the drag and `c` opened a comment
     on the page with no passage at all. The passage is the composed range the user drew,
-    so the comment carries the words and their neighbours."""
+    so the comment carries those words at the diff line's exact coordinate."""
     patch = (
         "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
         "@@ -1,2 +1,2 @@\n def route(request):\n"
@@ -5955,7 +5991,7 @@ def test_a_drag_across_a_written_diff_line_is_the_passage_c_comments_on(browser,
     ]
     assert comment["anchor"]["section"] == "patch", comment
     assert comment["anchor"]["quote"] == "request.token.id", comment
-    assert comment["anchor"].get("prefix", "").endswith("tok:{"), comment
+    assert comment["anchor"]["datum"] == '["app.py","new",2]', comment
 
 
 @pytest.mark.parametrize("arrived", ["", "#title"], ids=["plain", "fragment"])
@@ -6441,7 +6477,7 @@ def test_a_hunk_step_waiting_on_a_file_leaves_a_user_who_moved_on(browser, serve
     page.locator("lf-diff summary").first.click()
     first = page.locator('lf-diff [data-lf-datum=\'["first.py","new",1]\']')
     expect(first).to_have_count(1)
-    page.locator("lf-diff .lf-diff-wrap").focus()
+    page.locator("lf-diff").evaluate("node => { node.tabIndex = -1; node.focus(); }")
     page.keyboard.press("]")
     expect(page.locator(".lf-walk-position")).to_have_text("Hunk 1 of 1")
 
@@ -6770,6 +6806,29 @@ def test_passage_range_spanning_shadow_root_children_reads_the_stage(browser, se
     )
     assert result["section"] == "patch"
     assert result["quote"] == "first last"
+
+
+def test_passage_at_either_shadow_host_edge_excludes_its_words(browser, serve):
+    page = open_page(browser, serve(PANEL_PAGE))
+    quotes = page.evaluate(
+        """async () => {
+          const {anchorForRange} = await window.__lfRuntimeImport('/runtime/anchor-resolution.js');
+          const paragraph = document.querySelector('#how-cap').firstChild;
+          const diff = document.querySelector('#how-patch');
+          const range = document.createRange();
+          range.setStart(paragraph, 0);
+          range.setEnd(diff, 0);
+          const before = anchorForRange(range).quote;
+          const afterParagraph = document.querySelector('#merge-both').firstChild;
+          range.setStart(diff, diff.childNodes.length);
+          range.setEnd(afterParagraph, afterParagraph.length);
+          return [before, anchorForRange(range).quote];
+        }"""
+    )
+    assert quotes == [
+        "The store is capped at forty megabytes a workspace.",
+        "The merge rule Two people editing one document offline is the case to answer.",
+    ]
 
 
 def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):

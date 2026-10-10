@@ -24,7 +24,7 @@ import {
 import { reportPageError } from "../layer-client.js";
 import { isReaction, moved } from "./model.js";
 import { tokenEntry } from "../registry.js";
-import { readPastedMedia, writePastedMedia } from "../media.js";
+import { readAttachedMedia, writeAttachedMedia } from "../media.js";
 import {
   rememberAuthoredParents,
   stageAuthoredStates,
@@ -49,12 +49,10 @@ import {
 import { rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";
 import { keeps } from "../keeps.js";
-import { motion } from "../motion.js";
+import { flashDuration, motion } from "../motion.js";
 
 export const loadMessageMarkdown = () =>
-  loadMarkdown((error) =>
-    reportPageError(`markdown renderer failed to load: ${error?.message ?? error}`),
-  );
+  loadMarkdown((error) => reportPageError(error, `markdown renderer failed to load`));
 
 // Prose parsing is shared across descriptor passes and surfaces. Its value changes
 // with admission, edits, stream text, or the lazy Markdown renderer becoming ready;
@@ -73,9 +71,9 @@ function proseReading(message) {
     reading.text !== text ||
     reading.markdown !== markdown
   ) {
-    const pasted = readPastedMedia(text);
+    const pasted = readAttachedMedia(text);
     const html = renderMarkdown(pasted.text);
-    const mediaHtml = renderMarkdown(writePastedMedia("", pasted.paths));
+    const mediaHtml = renderMarkdown(writeAttachedMedia("", pasted.paths));
     reading = Object.freeze({
       id: message.id,
       edited,
@@ -90,6 +88,7 @@ function proseReading(message) {
   return reading;
 }
 
+/** @param {import("../../../../../build/browser/domain.ts").Message | Extract<import("../../../../../build/browser/domain.ts").Command, {kind: "comment" | "reply"}>} message @returns {string} */
 export function messageText(message) {
   if (message.token) {
     const token = tokenEntry(message.token);
@@ -296,9 +295,9 @@ export class MessageView {
                 class="lf-btn lf-page-thread-open lf-ui"
                 data-lf-gen="1"
                 data-lf-offer="button"
-                @click=${() => this.#commands.showThread(this.#model.id)}
+                @click=${() => this.#commands.openThread(this.#model.id, { part: "message" })}
               >
-                Open interactive reply in Threads
+                Open interactive reply
               </button>`
             : nothing
         }
@@ -327,7 +326,7 @@ export class MessageView {
       this.#arrivalMotion = motion(
         this.node,
         [{ "--lf-msg-arrival": 1, offset: 0 }],
-        1200,
+        flashDuration(),
       );
     }
     return this.node;

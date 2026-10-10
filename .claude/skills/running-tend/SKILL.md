@@ -74,15 +74,13 @@ the test without changing that behavior.
 
 Two test-owned failures recur:
 
-- **A read or press before the page said it was ready**, which a re-run hides.
-  State the ordering (`tests/AGENTS.md`, **State races are arrangements, not
-  probabilities** and **A state the page passes through is not a state to poll
-  for**); don't repeat the gesture until it happens to hold.
+- **A read or press before the page said it was ready**, which a re-run hides. State the
+  ordering (`tests/AGENTS.md`, **State races are arrangements, not probabilities** and **Transient states**); don't repeat the
+  gesture until it happens to hold.
 - **A reading that has been widened before.** When the fix that presents itself
   is one more member of an accepted set, allowlist, or tolerance, read the line's
   history (`git log -L`); a set that keeps growing describes the suite's own
-  noise, and the fix is against the test (`tests/AGENTS.md`, **A test cannot
-  assert over noise it makes itself**).
+  noise, and the fix is against the test (`tests/AGENTS.md`, **Test-made noise**).
 
 ## Fix every failure in a red run
 
@@ -178,18 +176,8 @@ run report.
 
 ## Weekly: vendored browser dependencies
 
-Dependabot's weekly grouped PR moves the root `package.json` and
-`package-lock.json` but not the committed bundles built from them, so its
-`check:browser` and vendored-bundle steps stay red until the output is rebuilt.
-On that PR's branch:
-
-```bash
-npm ci
-npm run build:browser
-uv run build/vendor.py
-```
-
-Commit the result to the same branch. Read each `*.LICENSES.txt` diff: a package
+Dependency automation rebuilds committed browser bundles on Dependabot's PR.
+Read each `*.LICENSES.txt` diff: a package
 listed at two versions means the bump split a closure (Shiki's packages pin each
 other exactly); `npm update <package>` moves a locked dependency within its dependant's
 range. Drop a Lit bump the Web Awesome build refuses. `esbuild` is left to move

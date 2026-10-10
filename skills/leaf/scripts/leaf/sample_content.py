@@ -14,11 +14,11 @@ from pathlib import Path
 
 from .anchor_capture import capture_anchor
 from .data_contracts import data_document_errors, initial_data_document_readings
-from .event_contracts import admitted_event, command_record_schema
+from .event_contracts import admitted_event, command_error
 from .event_meaning import AdmissionReadings
 from .page_view import InitialPageView
 from .projection import generated_children, retirement_outcomes, rewritten_bodies
-from .registry.schema import aware_instant, json_value, schema_error
+from .registry.schema import aware_instant, json_value
 from .state import now_iso
 from .structure import SourceDocument
 from .thread_context import sample_events, thread_structure
@@ -151,10 +151,8 @@ def initial_sample_events(
             event["seq"] = seq
             if "revision" in spec["properties"]:
                 event["revision"] = 1
-            # Commands carry no server-derived meaning; validate their remaining
-            # shape before admission reads any kind-specific fields.
-            if error := schema_error(command_record_schema(kinds[kind]), event):
-                raise ValueError(f"{kind} event is invalid: {error}")
+            if error := command_error(event, kinds):
+                raise ValueError(error)
             if aware_instant(event["ts"]) is None:
                 raise ValueError("ts must be an ISO timestamp with a time zone")
             if any(logged["id"] == event["id"] for logged in events):

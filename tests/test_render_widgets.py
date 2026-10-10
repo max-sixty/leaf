@@ -126,6 +126,108 @@ DRAG_HELD = (
 pytestmark = pytest.mark.nightly
 
 
+def test_a_source_widget_releases_its_fallback_face_when_it_renders(browser, serve):
+    """A data package needs no rendered reset, in the document or a shadow stage."""
+    source = {
+        "description": "Source that a reader draws.",
+        "type": "object",
+        "properties": {"id": {"type": "string"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "data",
+        "x-upgrade": True,
+    }
+    stage = {**source, "x-content": "markup", "x-shadow": True}
+    url = serve(
+        leaf_page(
+            "Source states",
+            '<h1>Source states</h1><p id="document-face">Document words.</p>'
+            '<lf-source-view id="document"><pre>source data</pre></lf-source-view>'
+            '<lf-source-stage id="stage"><p id="stage-face">Stage words.</p>'
+            '<lf-source-view id="nested"><pre>source data</pre></lf-source-view>'
+            "</lf-source-stage>"
+            '<lf-code id="code" language="python"><pre>print(1)</pre></lf-code>'
+            '<lf-diagram id="diagram"><pre>flowchart LR\nA --> B</pre></lf-diagram>'
+            '<lf-diff id="diff"><pre>--- a/a.py\n+++ b/a.py\n'
+            "@@ -1 +1 @@\n-old\n+new\n</pre></lf-diff>",
+        ),
+        layer_registry={"lf-source-view": source, "lf-source-stage": stage},
+        layer_widgets={
+            "lf-source-view.js": """
+customElements.define('lf-source-view', class extends HTMLElement {
+  connectedCallback() {
+    if (this.querySelector('button')) return;
+    const button = document.createElement('button');
+    button.textContent = 'Draw source';
+    button.addEventListener('click', () => {
+      const drawing = document.createElement('span');
+      drawing.textContent = 'Rendered evidence';
+      this.replaceChildren(drawing);
+      this.classList.add('lf-rendered');
+    });
+    this.querySelector('pre').append(button);
+  }
+});
+""",
+            "lf-source-stage.js": """
+import {shadowStage} from '/runtime/widget-api.js';
+customElements.define('lf-source-stage', class extends HTMLElement {
+  connectedCallback() {
+    if (!this.shadowRoot) shadowStage(this, [...this.childNodes]);
+  }
+});
+""",
+        },
+    )
+    face = """el => {
+      const style = getComputedStyle(el);
+      return {font: style.fontFamily, size: style.fontSize,
+        line: style.lineHeight, color: style.color, overflow: style.overflowX};
+    }"""
+    page = browser.new_page()
+    boot = []
+    page.route("**/leaf.js", lambda route: boot.append(route))
+    try:
+        with page.expect_request("**/leaf.js"):
+            page.goto(url, wait_until="commit")
+        displayed(page)
+        fallback = page.locator("#document").evaluate(face)
+        for widget_id in ("code", "diagram", "diff"):
+            widget = page.locator(f"#{widget_id}")
+            expect(widget).not_to_have_class(re.compile("lf-rendered"))
+            assert widget.evaluate(face) == fallback
+        assert len(boot) == 1, "the preview runtime was not held before widget upgrade"
+    finally:
+        for route in boot:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+    wait_until_ready(page)
+    expect(page.locator("#diff")).to_have_class(re.compile("lf-rendered"))
+    expect(page.locator("#diff")).to_have_css("font-family", fallback["font"])
+    for widget_id in ("code", "diagram"):
+        assert (
+            page.locator(f"#{widget_id}").evaluate(face)["font"]
+            == page.locator("#document-face").evaluate(face)["font"]
+        )
+    drawings = {}
+    references = {}
+    for widget_id, reference_id in (
+        ("document", "document-face"),
+        ("nested", "stage-face"),
+    ):
+        widget = page.locator(f"#{widget_id}")
+        reference = page.locator(f"#{reference_id}").evaluate(face)
+        fallback = widget.evaluate(face)
+        assert fallback["font"] != reference["font"], fallback
+        assert fallback["color"] != reference["color"], fallback
+        assert fallback["overflow"] == "auto", fallback
+        widget.get_by_role("button", name="Draw source").click()
+        expect(widget).to_have_class("lf-rendered")
+        drawings[widget_id] = widget.evaluate(face)
+        references[widget_id] = reference
+    assert drawings == references
+
+
 def observe_live_region(page):
     """Record announcements without disturbing the renderer-owned live region."""
     page.evaluate(
@@ -632,13 +734,13 @@ def _stacked_headers(browser, serve):
             leaf_page(
                 "Stacked headers",
                 '<h1>Stacked</h1><lf-tabs id="root-tabs">'
-                '<lf-tab id="diff-tab" label="Diff"><lf-diff id="patch" review><pre>'
+                '<lf-tab id="diff-tab" label="Diff"><lf-diff id="patch"><pre>'
                 + patch
                 + '</pre></lf-diff><lf-diff id="wide"><pre>'
                 + short
                 + '</pre></lf-diff></lf-tab><lf-tab id="notes-tab" label="Notes">'
                 "<p>Notes.</p></lf-tab></lf-tabs>"
-                '<lf-diff id="after-tabs" review><pre>' + patch + "</pre></lf-diff>",
+                '<lf-diff id="after-tabs"><pre>' + patch + "</pre></lf-diff>",
             )
         ),
     )
@@ -692,8 +794,8 @@ def test_sticky_headers_stack_so_a_diff_in_a_page_tab_pins_under_the_strip(
 def test_focus_in_a_stuck_header_leaves_the_page_where_it_is(browser, serve):
     """A control in a stuck sticky header stands inside the root's landing band, so the
     browser scrolled toward it on every focus and the header never came out from under
-    the band: the page crept 17px a focus under a diff's file header and 12px under its
-    file action, and was centred, hundreds of pixels a key, under a page tab strip.
+    the band: the page crept 17px a focus under a diff's file header and was centred,
+    hundreds of pixels a key, under a page tab strip.
     Each header says where its controls stand (`--lf-head-inset`), so focusing one where
     it sticks scrolls nothing: in a page tab, where the strip stands over it, and after
     the tabs, where the root's band still counts the strip. Focus moving on from the
@@ -708,7 +810,6 @@ def test_focus_in_a_stuck_header_leaves_the_page_where_it_is(browser, serve):
         await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
         const controls = {
             file: diff.shadowRoot.querySelector('.lf-diff-file > details > summary'),
-            action: diff.shadowRoot.querySelector('.lf-diff-file-actions button'),
         };
         if (id === 'patch')
             controls.tab = document.querySelector(
@@ -722,8 +823,8 @@ def test_focus_in_a_stuck_header_leaves_the_page_where_it_is(browser, serve):
         }
         return moved;
     }"""
-    assert page.evaluate(focus_in, "patch") == {"file": 0, "action": 0, "tab": 0}
-    assert page.evaluate(focus_in, "after-tabs") == {"file": 0, "action": 0}
+    assert page.evaluate(focus_in, "patch") == {"file": 0, "tab": 0}
+    assert page.evaluate(focus_in, "after-tabs") == {"file": 0}
     # Tab from a stuck file header into its code, scrolled partly past above it.
     page.evaluate(
         """async () => {
@@ -1400,10 +1501,39 @@ def test_a_side_list_workspace_scrolls_its_list_and_its_item_apart(browser, serv
     assert stacked["page"] <= 0 and stacked["item"][1] > 0, stacked
 
 
+def test_side_tabs_distinguish_withdrawn_questions_from_answers(browser, serve):
+    """Withdrawal retires a request without claiming the user answered it."""
+    source = leaf_page(
+        "Question outcomes",
+        '<lf-tabs id="queue" list="side">'
+        '<lf-tab id="only" label="Only withdrawn">'
+        '<lf-options id="only-options" choose><lf-option id="only-pick">Only</lf-option></lf-options>'
+        '</lf-tab><lf-tab id="mixed" label="Answer and withdrawal">'
+        '<lf-options id="answered-options" choose><lf-option id="answered-pick" chosen>Keep</lf-option></lf-options>'
+        '<lf-options id="withdrawn-options" choose><lf-option id="withdrawn-pick">Retire</lf-option></lf-options>'
+        "</lf-tab></lf-tabs>",
+    )
+    page = open_page(browser, live_url(serve(source)))
+    marks = page.locator("#queue .lf-tab-answer")
+    expect(marks.nth(0)).not_to_have_attribute("data-lf-answered", "")
+    expect(marks.nth(1)).not_to_have_attribute("data-lf-answered", "")
+    stamp_page(
+        serve.page_dir,
+        source.replace('id="only-options" choose', 'id="only-options"').replace(
+            'id="withdrawn-options" choose', 'id="withdrawn-options"'
+        ),
+        "Retire unanswered requests",
+    )
+    wait_for_revision(page, 2)
+    expect(marks.nth(0)).not_to_have_attribute("data-lf-answered", "")
+    expect(marks.nth(1)).to_have_attribute("data-lf-answered", "")
+    expect(marks.nth(1)).to_have_text("Keep")
+
+
 def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, serve):
-    """An Ask answered before the page loads is named once the page presents, however
+    """A Question answered before the page loads is named once the page presents, however
     late the answering widget's module arrives: startup imports every module the
-    document names before the first reading brings the Ask inventory."""
+    document names before the first reading brings the Question inventory."""
     url = serve(
         leaf_page(
             "a late queue",
@@ -2510,7 +2640,7 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
             '<dl id="lp-k-traffic" class="panel"><dt>target traffic</dt><dd><strong>100%</strong></dd></dl>',
         ),
         (
-            '<dl id="lp-k-checks" class="panel"><dt>checks passing</dt><dd><strong>4 of 5</strong> <small>change: -1</small></dd></dl>',
+            '<dl id="lp-k-checks" class="panel"><dt>checks passing</dt><dd><strong>4 of 5</strong></dd></dl>',
             '<dl id="lp-k-checks" class="panel"><dt>checks passing</dt><dd><strong>5 of 5</strong></dd></dl>',
         ),
         (
@@ -3134,7 +3264,7 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
         verify_geometry
     )
 
-    details = page.locator("details")
+    details = page.locator("main details")
     expect(details).not_to_have_attribute("open", "")
     toc.get_by_role("link", name="Move the readers").click()
     expect(details).to_have_attribute("open", "")
@@ -3158,7 +3288,7 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
     # On first parse this id does not exist yet. The shared arrival pass runs after every
     # widget settles, so a copied link still reveals and reaches the heading it names.
     direct = open_page(browser, url + hrefs[1])
-    expect(direct.locator("details")).to_have_attribute("open", "")
+    expect(direct.locator("main details")).to_have_attribute("open", "")
     expect(direct).to_have_url(re.compile(f"{re.escape(hrefs[1])}$"))
     direct.wait_for_function(
         "heading => { const box = heading.getBoundingClientRect(); "
@@ -5542,8 +5672,8 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
         controlsSize: [controls.clientHeight, controls.scrollHeight],
         pageScrolls: document.scrollingElement.scrollHeight > innerHeight,
         askDisplay: getComputedStyle(document.querySelector('#notification-ask')).display,
-        authoredWords: leaf.wrote(playground).includes('Drag event pressure'),
-        spokenWords: leaf.says(playground).includes('Drag event pressure'),
+        authoredWords: leaf.wrote(playground).includes('Concurrent release events'),
+        spokenWords: leaf.says(playground).includes('Concurrent release events'),
       };
     }"""
 
@@ -5821,10 +5951,10 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
         "contributor bad-date must be JSON-safe",
         "playground already has an instruction provider",
     ]
-    expect(page.locator(".query-result-count")).to_have_text("2 matching releases")
+    expect(page.locator(".query-result-count")).to_have_text("2 releases shown")
 
     rows.nth(1).get_by_label("Value").fill("80")
-    expect(page.locator(".query-result-count")).to_have_text("1 matching release")
+    expect(page.locator(".query-result-count")).to_have_text("1 release shown")
     rows.nth(1).get_by_role("button", name="Move filter 2 up").click()
     assert playground.evaluate("root => root.values.filters.order") == [
         "filter-2",
@@ -5834,20 +5964,20 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
     expect(rows).to_have_count(3)
     expect(rows.nth(2).get_by_label("Value")).to_be_focused()
     rows.nth(2).get_by_label("Value").fill("risk")
-    expect(page.locator(".query-result-count")).to_have_text("1 matching release")
+    expect(page.locator(".query-result-count")).to_have_text("1 release shown")
     rows.nth(2).get_by_role("button", name="Remove filter 3").click()
     expect(rows).to_have_count(2)
 
-    playground.get_by_role("button", name="Broad query").click()
+    playground.get_by_role("button", name="Up to 6 results").click()
     expect(
         playground.locator('lf-playground-control[name="limit"]').get_by_role("slider")
     ).to_have_value("6")
-    playground.get_by_role("button", name="Focused query").click()
+    playground.get_by_role("button", name="Up to 4 results").click()
     expect(
         playground.locator('lf-playground-control[name="limit"]').get_by_role("slider")
     ).to_have_value("4")
     instruction = page.locator("#release-query-instruction")
-    expect(instruction).to_contain_text("risk above 80, then region is europe")
+    expect(instruction).to_contain_text("risk above 80 and region is europe")
     playground.get_by_role("button", name="Copy instruction").click()
     copied = page.evaluate("navigator.clipboard.readText()")
     assert copied == instruction.inner_text()
@@ -5859,25 +5989,25 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
         "filter-2",
         "filter-1",
     ]
-    expect(instruction).to_contain_text("risk above 80, then region is europe")
+    expect(instruction).to_contain_text("risk above 80 and region is europe")
     playground.get_by_role("button", name="Reset").click()
     assert playground.evaluate("root => root.values.filters.order") == [
         "filter-1",
         "filter-2",
     ]
-    expect(instruction).to_contain_text("region is europe, then risk above 40")
+    expect(instruction).to_contain_text("region is europe and risk above 40")
     rows.nth(1).get_by_role("button", name="Remove filter 2").click()
     rows.first.get_by_role("button", name="Remove filter 1").click()
     expect(rows).to_have_count(0)
     expect(instruction).to_contain_text("Apply no filters")
-    expect(page.locator(".query-result-count")).to_have_text("4 matching releases")
-    playground.get_by_role("button", name="Broad query").click()
-    expect(page.locator(".query-result-count")).to_have_text("6 matching releases")
-    playground.get_by_role("button", name="Focused query").click()
-    expect(page.locator(".query-result-count")).to_have_text("4 matching releases")
+    expect(page.locator(".query-result-count")).to_have_text("4 releases shown")
+    playground.get_by_role("button", name="Up to 6 results").click()
+    expect(page.locator(".query-result-count")).to_have_text("6 releases shown")
+    playground.get_by_role("button", name="Up to 4 results").click()
+    expect(page.locator(".query-result-count")).to_have_text("4 releases shown")
     playground.get_by_role("button", name="Reset").click()
     rows.first.get_by_label("Value").fill("asia")
-    expect(instruction).to_contain_text("region is asia, then risk above 40")
+    expect(instruction).to_contain_text("region is asia and risk above 40")
 
     with sending(page, "the release query"):
         playground.get_by_role("button", name="Build query").click()
@@ -5893,10 +6023,10 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
     page.reload()
     wait_until_ready(page)
     expect(rows.first.get_by_label("Value")).to_have_value("asia")
-    expect(instruction).to_contain_text("region is asia, then risk above 40")
+    expect(instruction).to_contain_text("region is asia and risk above 40")
     undo(page)
     expect(rows.first.get_by_label("Value")).to_have_value("europe")
-    expect(instruction).to_contain_text("region is europe, then risk above 40")
+    expect(instruction).to_contain_text("region is europe and risk above 40")
     resized(page, 480, 760)
     assert page.evaluate("document.documentElement.scrollWidth") == 480
     resized(page, 1100, 320)
@@ -5996,12 +6126,12 @@ def test_built_code_comparison_drives_both_candidates(browser, serve):
         "candidateB": {"density": "compact", "wrap": False},
     }
 
-    playground.get_by_role("button", name="Wrapped reader").click()
+    playground.get_by_role("button", name="B at 320px").click()
     expect(
         playground.locator('lf-playground-control[name="width"]').get_by_role("slider")
     ).to_have_value("320")
     expect(playground.get_by_role("radio", name="B", exact=True)).to_be_checked()
-    playground.get_by_role("button", name="Compact reader").click()
+    playground.get_by_role("button", name="A at 420px").click()
     expect(
         playground.locator('lf-playground-control[name="width"]').get_by_role("slider")
     ).to_have_value("420")
@@ -6068,7 +6198,7 @@ def test_built_code_reader_design_comment_keeps_its_identity_after_revision(
                 expect(spoken).to_have_text(
                     re.compile(r"^Hint .*Press Enter to choose\.$")
                 )
-                if "heading: Built reader treatment" in spoken.text_content():
+                if "heading: Reader sample" in spoken.text_content():
                     break
             else:
                 pytest.fail("The built reader heading was absent from the target walk")
@@ -6092,7 +6222,7 @@ def test_built_code_reader_design_comment_keeps_its_identity_after_revision(
     assert not [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
     ]
-    revised = source.replace("Built reader treatment", "Revised reader treatment")
+    revised = source.replace("Reader sample", "Revised reader treatment")
     stamp = stamp_page(serve.page_dir, revised, "Align the reader treatment")
     wait_for_revision(page, stamp["revision"])
     expect(page.locator("#target-reader-heading")).to_have_text(
@@ -6955,7 +7085,7 @@ def test_clearing_an_answer_reopens_its_ask_and_shuts_the_approval_gate(browser,
     expect_asks_answered(page, "0/1")
     expect(approve).to_be_disabled()
     expect(approve).to_have_attribute(
-        "title", "Answer every Ask before approving this work"
+        "title", "Answer every Question before approving this work"
     )
 
 
@@ -7210,7 +7340,11 @@ def test_suggestion_emphasis_skips_generated_interface_between_changed_words(
     """A changed span may cross a nested widget without painting its generated UI."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     page.locator('[data-lf-margin-for="bg-route-ask"] .lf-margin-marker').click()
+    page.locator("#bg-route .lf-pick").first.focus()
     badges = page.locator("#bg-route > lf-option > .lf-key-badge")
+    expect(
+        page.locator("#bg-route > lf-option > .lf-key-badge[data-lf-binding-badge]")
+    ).to_have_count(2)
     expect(badges).to_have_text(["1", "2"])
 
     assert page.locator("#bg-nested-change > lf-new > p").evaluate(
@@ -7274,10 +7408,10 @@ def test_the_ask_walk_lands_on_a_suggestion_the_reveal_just_opened(browser, serv
     had already seen."""
     page = open_page(browser, serve(COLLAPSED_PAGE))
     page.keyboard.press("q")
-    expect(page.locator("#sug-now[data-lf-ask]")).to_have_count(1)
+    expect(page.locator("#sug-now[data-lf-question]")).to_have_count(1)
     page.keyboard.press("q")
     expect(page.locator("#later")).to_have_attribute("open", "")
-    expect(page.locator("#sug-boxes[data-lf-ask]")).to_have_count(1)
+    expect(page.locator("#sug-boxes[data-lf-question]")).to_have_count(1)
     # The arrival stands on the suggestion; what the reveal has to have done is leave the
     # control that answers it a thing the user can reach, which a display:none control
     # is not.
@@ -7985,7 +8119,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
         # The ring is painted from the focus, in the frame after the press, so waiting
         # for it on the Ask this press stepped to is both the wait and the assertion —
         # a bare count would pass on the ring an earlier press left standing.
-        expect(page.locator(f"#{expected}[data-lf-ask]")).to_have_count(1)
+        expect(page.locator(f"#{expected}[data-lf-question]")).to_have_count(1)
         # And exactly one decision wears it, the user standing in one place at a time.
         expect(page.locator(STANDING_ASK)).to_have_count(1)
         # Walking changes the ring and not the durable progress count.
@@ -8003,7 +8137,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     # standing on.
     for expected in [*reversed(ASKS_IN_ORDER[:-1]), ASKS_IN_ORDER[0]]:
         page.keyboard.press("Shift+q")
-        expect(page.locator(f"#{expected}[data-lf-ask]")).to_have_count(1)
+        expect(page.locator(f"#{expected}[data-lf-question]")).to_have_count(1)
         expect(page.locator(STANDING_ASK)).to_have_count(1)
         expect_asks_answered(page, "1/5")
 
@@ -8017,7 +8151,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
         page.evaluate(
             "ids => ids.filter(id => {"
             "  const ask = document.getElementById(id);"
-            "  return ask.hasAttribute('tabindex') && !ask.hasAttribute('data-lf-ask');"
+            "  return ask.hasAttribute('tabindex') && !ask.hasAttribute('data-lf-question');"
             "})",
             ASKS_IN_ORDER,
         )
@@ -8046,7 +8180,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
     expect_asks_answered(page, "2/5")
     page.keyboard.press("q")
-    expect(page.locator("#t-baffles-decision[data-lf-ask]")).to_have_count(1)
+    expect(page.locator("#t-baffles-decision[data-lf-question]")).to_have_count(1)
     expect(page.locator("#t-baffles-decision")).to_be_focused()
     expect_asks_answered(page, "2/5")
 
@@ -8120,8 +8254,10 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
 
     page.keyboard.press("q")
     expect(page.locator("#storage-decision")).to_be_focused()
-    expect(page.locator("#storage-decision")).to_have_attribute("data-lf-ask", "1")
-    expect(page.locator("#storage-options")).not_to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("#storage-decision")).to_have_attribute("data-lf-question", "1")
+    expect(page.locator("#storage-options")).not_to_have_attribute(
+        "data-lf-question", "1"
+    )
     scroll_settled(page)
     # Where the user was left is on the screen the walk has just arranged, and the pick
     # the walk used to stand them on is the measurement that says the two cannot both be.
@@ -8710,7 +8846,7 @@ def test_an_ask_that_cannot_name_itself_arrives_on_the_words_that_explain_it(
 ):
     """A change to a phrase has no region to declare, so the document supplies one.
 
-    An x-ask-surface widget states its own arrival region: a heading, the context, then the
+    An x-question-context widget states its own arrival region: a heading, the context, then the
     control. A suggestion can stand mid-sentence, so it can never satisfy "an ask must
     name itself without context outside the ask" and no region can be written round it.
     Arriving on the change alone put its own top edge under the banner and took the
@@ -8945,7 +9081,7 @@ def test_an_ask_already_in_front_of_the_user_is_not_travelled_to(browser, serve)
     held = page.evaluate("() => document.scrollingElement.scrollTop")
     assert held == arrived - 40, "the page did not take the user's own adjustment"
 
-    # The press's own announcement is the edge this absence stands behind. `goToAsk`
+    # The press's own announcement is the edge this absence stands behind. `goToQuestion`
     # travels before it announces, so a live region that has spoken again is a press whose
     # travel has already been decided and begun. Waiting on the scroll alone cannot say
     # that: frames held still before a glide starts read the same as a page that never
@@ -8989,7 +9125,9 @@ def test_the_ask_walk_starts_from_where_the_user_is(browser, serve):
     # why it is the decision they step off rather than the one they step to.
     page.locator("#refill-now").evaluate("el => el.scrollIntoView({block: 'center'})")
     page.keyboard.press("q")
-    expect(page.locator("#t-baffles-decision")).to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("#t-baffles-decision")).to_have_attribute(
+        "data-lf-question", "1"
+    )
 
     # The banner's press opens the drawer and keeps the focus, so the walk after it
     # measures from where the user stands in the page and steps on rather than
@@ -9002,7 +9140,7 @@ def test_the_ask_walk_starts_from_where_the_user_is(browser, serve):
     # walk's, so the helper opens the door where it has to.
     banner_control(page, ".lf-queue").click()
     page.keyboard.press("q")
-    expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-question", "1")
 
 
 def test_the_questions_panel_names_an_ask_a_message_carries(browser, serve):
@@ -9058,16 +9196,15 @@ def test_the_questions_panel_names_an_ask_a_message_carries(browser, serve):
     # an answer, which is the agent's.
     rows = [row for row in page.evaluate(QUEUE_ROW_SAYS) if row["list"] == "you"]
     assert len(rows) == 1, rows
-    assert rows[0]["at"] == "rp-decision-region", rows
+    assert rows[0]["at"] == "widget:rp-decision", rows
     assert rows[0]["title"].startswith("Which should I write up first?"), rows
 
 
 def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, serve):
     """A measurement is a measurement wherever the widget was built, or it is a zero.
 
-    Two shipped widgets take a number off a live box at upgrade — the room a card keeps
-    clear of its grip and the width of a roster's state column — because a constant goes
-    stale in the next face. A widget
+    The shipped board takes a number off a live box at upgrade — the room a card keeps
+    clear of its grip — because a constant goes stale in the next face. A widget
     upgrades wherever the runtime connects it, and one of those places is a message body
     inside a thread panel nobody has opened: `display: none`, so every box under it is
     zero. `once` then refuses the second upgrade that would put it right and the body is
@@ -9078,8 +9215,7 @@ def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, 
     into boxes and was always right. Rooms are compared rather than named, because the
     number is the face's and this is about whether it was ever read.
 
-    Both of them, because `measure` is the primitive and each module's wiring to it is
-    its own line."""
+    The board exercises `measure` through the same module in both places."""
     url = serve(MESSAGE_ROOM_PAGE)
     d = serve.page_dir
     append_carried_log_record(
@@ -9460,20 +9596,20 @@ def test_a_change_says_which_of_the_three_it_is(browser, serve):
 
     banner_control(page, ".lf-queue").click()
     expect(page.locator(".lf-queue-panel")).to_be_visible()
-    rows = [row for row in page.evaluate(QUEUE_ROW_SAYS) if row["kind"] == "ask"]
+    rows = [row for row in page.evaluate(QUEUE_ROW_SAYS) if row["kind"] == "question"]
 
     assert {r["at"]: r["word"] for r in rows} == {
-        "sug-rewrite": "Rewrite",
-        "sug-insert": "Insertion",
-        "sug-delete": "Deletion",
-        "shapes-decision": "Ask",
+        "widget:sug-rewrite": "Rewrite",
+        "widget:sug-insert": "Insertion",
+        "widget:sug-delete": "Deletion",
+        "widget:shapes-q": "Options",
     }
     # The words beside the kind are still the element's own, and the two changes that
     # keep a current paragraph still open on it — the reading did not move, only what
     # is said about it.
     said = {r["at"]: r["title"] for r in rows}
-    assert said["sug-delete"].startswith("Retries are logged"), said
-    assert said["sug-insert"].startswith("Parked jobs"), said
+    assert said["widget:sug-delete"].startswith("Retries are logged"), said
+    assert said["widget:sug-insert"].startswith("Parked jobs"), said
 
 
 def test_the_questions_control_opens_open_and_answered_asks(browser, serve):
@@ -9498,40 +9634,52 @@ def test_the_questions_control_opens_open_and_answered_asks(browser, serve):
     expect(panel).to_be_visible()
     rows = page.evaluate(QUEUE_ROW_SAYS)
     assert [(r["at"], r["list"]) for r in rows] == [
-        *((at, "you") for at in ASKS_IN_ORDER),
-        ("honored-decision", "done"),
+        *(
+            (at, "you")
+            for at in [
+                "widget:live-question",
+                "widget:sug-refill",
+                "widget:t-baffles-review",
+                "widget:t-bath-choice",
+            ]
+        ),
+        ("widget:honored", "done"),
     ]
     for row in rows:
-        assert row["kind"] == "ask", row
-        assert row["word"] == ("Rewrite" if row["at"] == "sug-refill" else "Ask"), row
+        assert row["kind"] == "question", row
+        assert row["word"] == (
+            "Rewrite" if row["at"] == "widget:sug-refill" else "Options"
+        ), row
         if row["list"] == "you":
             assert row["w"] > 100 and row["h"] > 20, f"{row['at']}'s row has no size"
 
     # The Ask leads with its authored heading rather than the first option's answer.
     said = {r["at"]: r for r in rows}
-    assert said["live-question-decision"]["title"].startswith(
+    assert said["widget:live-question"]["title"].startswith(
         "Where should sessions live?"
     ), said
-    assert said["t-baffles-decision"]["title"].startswith("Are the baffles ready?"), (
-        said
-    )
-    assert said["honored-decision"]["where"].startswith("Answered Two-tier gates"), said
+    assert said["widget:t-baffles-review"]["title"].startswith(
+        "Are the baffles ready?"
+    ), said
+    assert said["widget:honored"]["where"].startswith("Answered Two-tier gates"), said
 
     # Answered, and the row moves to Done as the route back, saying its current answer.
     # The pick is a move the agent now owes a reply, which is its row and not the Ask's.
     page.locator("#lq-token").click()
     expect_asks_answered(page, "2/5")
-    expect(page.locator("button.lf-queue-row[data-lf-kind='ask']")).to_have_count(5)
+    expect(page.locator("button.lf-queue-row[data-lf-kind='question']")).to_have_count(
+        5
+    )
     answered = {r["at"]: r for r in page.evaluate(QUEUE_ROW_SAYS)}
-    assert answered["live-question-decision"]["list"] == "done", answered
-    assert answered["live-question-decision"]["where"].startswith(
+    assert answered["widget:live-question"]["list"] == "done", answered
+    assert answered["widget:live-question"]["where"].startswith(
         "Answered Signed tokens"
     ), answered
 
     page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
     round_trip(page)
     suggestion = next(
-        row for row in page.evaluate(QUEUE_ROW_SAYS) if row["at"] == "sug-refill"
+        row for row in page.evaluate(QUEUE_ROW_SAYS) if row["at"] == "widget:sug-refill"
     )
     assert suggestion["list"] == "done", suggestion
     assert suggestion["where"].startswith("Answered Accepted"), suggestion
@@ -9614,10 +9762,10 @@ Adds --dry-run to every mutating command.
     page.locator("#tone").get_by_role("radio", name="Banner").click()
     expect(output).to_contain_text("banner")
     answers = {
-        "note-ask": "Adds --dry-run to every command.",
-        "cache-ask": "Redis in front",
-        "tags-ask": "Alpha",
-        "tone-ask": "Build the strip one.",
+        "widget:note": "Adds --dry-run to every command.",
+        "widget:cache": "Redis in front",
+        "widget:tags": "Alpha",
+        "widget:tone": "Build the strip one.",
     }
     for at, words in answers.items():
         expect(
@@ -9643,19 +9791,24 @@ def test_ask_rows_keep_identity_and_publisher_order_when_the_live_dom_moves(
           window.__lfAskRows = new Map(rows.map(row => [row.dataset.lfAt, row]));
           const honored = document.querySelector('#honored-decision');
           document.querySelector('#live-question-decision').before(honored);
-          window.__lfAskRows.get('sug-refill').focus();
+          window.__lfAskRows.get('widget:sug-refill').focus();
           document.dispatchEvent(new Event('lf-presentation'));
         }"""
     )
     page.wait_for_function("__lfReadAskPresentation().pending.length === 0")
-    assert (
-        rows.evaluate_all("items => items.map(item => item.dataset.lfAt)")
-        == ALL_ASKS_IN_ORDER
-    )
+    assert rows.evaluate_all("items => items.map(item => item.dataset.lfAt)") == [
+        "widget:live-question",
+        "widget:sug-refill",
+        "widget:t-baffles-review",
+        "widget:t-bath-choice",
+        "widget:honored",
+    ]
     assert rows.evaluate_all(
         "items => items.every(item => window.__lfAskRows.get(item.dataset.lfAt) === item)"
     )
-    expect(page.locator('.lf-queue-row[data-lf-at="sug-refill"]')).to_be_focused()
+    expect(
+        page.locator('.lf-queue-row[data-lf-at="widget:sug-refill"]')
+    ).to_be_focused()
 
     # Removing a presentation node does not rewrite the application inventory. The
     # route and its keyed row remain exactly as they were published.
@@ -9666,11 +9819,16 @@ def test_ask_rows_keep_identity_and_publisher_order_when_the_live_dom_moves(
         }"""
     )
     page.wait_for_function("__lfReadAskPresentation().pending.length === 0")
-    expect(page.locator('.lf-queue-row[data-lf-at="sug-refill"]')).to_be_focused()
-    assert (
-        rows.evaluate_all("items => items.map(item => item.dataset.lfAt)")
-        == ALL_ASKS_IN_ORDER
-    )
+    expect(
+        page.locator('.lf-queue-row[data-lf-at="widget:sug-refill"]')
+    ).to_be_focused()
+    assert rows.evaluate_all("items => items.map(item => item.dataset.lfAt)") == [
+        "widget:live-question",
+        "widget:sug-refill",
+        "widget:t-baffles-review",
+        "widget:t-bath-choice",
+        "widget:honored",
+    ]
     assert rows.evaluate_all(
         "items => items.every(item => window.__lfAskRows.get(item.dataset.lfAt) === item)"
     )
@@ -9683,10 +9841,10 @@ def test_ask_rows_keep_identity_and_publisher_order_when_the_live_dom_moves(
     )
     observe_live_region(page)
     page.locator(".lf-queue-done > summary").click()
-    page.locator('.lf-queue-row[data-lf-at="honored-decision"]').click()
+    page.locator('.lf-queue-row[data-lf-at="widget:honored"]').click()
     expect(page.locator("#honored-decision")).to_be_focused()
-    expect(page.locator(".lf-live")).to_have_text("Ask 1 of 1 done")
-    assert "Ask 1 of 1 done" in page.evaluate("window.__lfLiveRegionChanges")
+    expect(page.locator(".lf-live")).to_have_text("Options 1 of 1 done")
+    assert "Options 1 of 1 done" in page.evaluate("window.__lfLiveRegionChanges")
 
 
 def test_pending_action_waits_for_the_ask_list_paint_before_retiring(
@@ -9696,9 +9854,9 @@ def test_pending_action_waits_for_the_ask_list_paint_before_retiring(
     browser, held = held_events
     page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
     banner_control(page, ".lf-queue").click()
-    row = page.locator('button.lf-queue-row[data-lf-at="storage-decision"]')
+    row = page.locator('button.lf-queue-row[data-lf-at="widget:storage-options"]')
     expect(row).to_have_count(1)
-    expect(row).to_have_attribute("data-lf-kind", "ask")
+    expect(row).to_have_attribute("data-lf-kind", "question")
     expect(page.locator("[data-lf-queue='you'] .lf-queue-row")).to_have_count(1)
     page.evaluate(
         """async () => {
@@ -9833,7 +9991,7 @@ def test_the_queue_clock_owns_held_paint_failure_and_retry(browser, serve):
     page.evaluate("Promise.all([queueClockTick, queueClockTickAgain])")
     expect(row.locator(".lf-queue-where")).to_contain_text("now")
     assert row.evaluate("node => node === window.queueClockRow")
-    assert take_browser_errors(page) == [
+    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
         "leaf: Presentation failed: deliberate Queue clock failure"
     ]
     page.evaluate(
@@ -9896,7 +10054,7 @@ def test_a_failed_queue_list_paint_reports_once_and_retains_the_prior_list(
     )
     rows.first.click()
     expect(page.locator("#live-question-decision")).to_be_focused()
-    assert take_browser_errors(page) == [
+    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
         "leaf: Presentation failed: deliberate Queue list failure"
     ]
     holding(page, held, 2, "the gesture and the page's report of its failure")
@@ -9928,7 +10086,7 @@ def test_a_failed_ask_banner_paint_reports_once_and_retains_prior_controls(
           window.__lfAskBulk = document.querySelector('.lf-answer-all');
           window.__lfAskRows = [
             ...document.querySelectorAll('button.lf-queue-row')];
-          const bulkFace = window.__lfAskBulk.querySelector('lf-ask-banner-face');
+          const bulkFace = window.__lfAskBulk.querySelector('lf-question-banner-face');
           const render = bulkFace.render.bind(bulkFace);
           bulkFace.render = () => {
             bulkFace.render = render;
@@ -9955,7 +10113,7 @@ def test_a_failed_ask_banner_paint_reports_once_and_retains_prior_controls(
     assert answer_all.evaluate("control => control === window.__lfAskBulk")
     rows.first.click()
     expect(page.locator("#live-question-decision")).to_be_focused()
-    assert take_browser_errors(page) == [
+    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
         "leaf: Presentation failed: deliberate Ask banner failure"
     ]
     holding(page, held, 2, "the gesture and the page's report of its failure")
@@ -9990,7 +10148,9 @@ def test_a_completed_ask_persists_and_its_done_row_can_revise_by_keyboard(
     expect(page.locator(".lf-queue-done > summary")).to_be_focused()
     page.keyboard.press("Enter")
     page.keyboard.press("ArrowDown")
-    row = page.locator('.lf-queue-done .lf-queue-row[data-lf-at="storage-decision"]')
+    row = page.locator(
+        '.lf-queue-done .lf-queue-row[data-lf-at="widget:storage-options"]'
+    )
     expect(row).to_be_focused()
     expect(row.locator(".lf-queue-where")).to_contain_text(
         "Answered Pause offline editing"
@@ -10022,7 +10182,7 @@ def test_an_answered_boxless_ask_reopens_on_its_visible_revision_control(
     expect_asks_answered(page, "1/4")
 
     banner_control(page, ".lf-queue").click()
-    row = page.locator('.lf-queue-row[data-lf-at="sug-delete"]')
+    row = page.locator('.lf-queue-row[data-lf-at="widget:sug-delete"]')
     expect(row.locator(".lf-queue-where")).to_contain_text("Answered Accepted")
     page.locator(".lf-queue-done > summary").click()
     row.click()
@@ -10114,7 +10274,7 @@ def test_a_drawer_standing_over_most_of_an_ask_clears_for_it(browser, serve):
     page = open_page(browser, serve(ASKS_PAGE))
     resized(page, 1440, 900)
     drawer = page.locator(".lf-queue-panel")
-    row = page.locator("button.lf-queue-row[data-lf-at='t-bath-decision']")
+    row = page.locator("button.lf-queue-row[data-lf-at='widget:t-bath-choice']")
     covering = page.locator("html[data-lf-covering-surface]")
 
     banner_control(page, ".lf-queue").click()
@@ -10161,17 +10321,17 @@ def test_a_row_stands_the_user_on_the_ask_it_names(browser, serve):
         "the fixture must start with #t-bath-decision off screen"
     )
 
-    page.locator("button.lf-queue-row[data-lf-at='t-bath-decision']").click()
+    page.locator("button.lf-queue-row[data-lf-at='widget:t-bath-choice']").click()
     expect(page.locator(".lf-queue-panel")).to_be_hidden()
     page.wait_for_function(on_screen)
     expect(page.locator("#t-bath-decision")).to_be_focused()
-    expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-question", "1")
     page.keyboard.press("Tab")
     expect(page.locator("#t-bath-decision .lf-pick").first).to_be_focused()
     # The covering drawer has gone, so its projected rows go with it. The page carries the
     # one standing mark rather than leaving a second, hidden authority in the closed drawer.
     marked = page.evaluate(
-        """() => [...document.querySelectorAll('[data-lf-ask]')]
+        """() => [...document.querySelectorAll('[data-lf-question]')]
              .map((e) => e.id || e.getAttribute('data-lf-at'))"""
     )
     assert sorted(set(marked)) == ["t-bath-decision"], marked
@@ -10305,7 +10465,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
 
     page.keyboard.press("q")
     expect(page.locator("#live-question-decision")).to_have_attribute(
-        "data-lf-ask", "1"
+        "data-lf-question", "1"
     )
     # Where the user now stands, which is what the next press is measured against. The
     # bug takes them to the document's origin, so a scroll that ends *below* where they
@@ -10320,7 +10480,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     assert was > 0, "the user must have somewhere to have come from"
 
     page.keyboard.press("q")
-    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-question", "1")
 
     # The condition everything below rests on, stated rather than assumed: put
     # display: contents back on the wrapper and it measures (0,0), the mark paints
@@ -10345,7 +10505,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     # asks after. Not the slots, and not the empty span the widget prepends to itself to
     # anchor its controls from — a 2px mark of its own beside the change is not the
     # promise.
-    marks = page.evaluate("""() => [...document.querySelectorAll('main [data-lf-ask]')].map(e => {
+    marks = page.evaluate("""() => [...document.querySelectorAll('main [data-lf-question]')].map(e => {
       return { what: e.id || e.tagName, fragments: e.getClientRects().length,
                ring: getComputedStyle(e).outlineStyle !== 'none' };
     })""")
@@ -10395,14 +10555,14 @@ def test_the_walk_travels_to_an_ask_a_page_left_boxless(browser, serve):
 
     page.keyboard.press("q")
     expect(page.locator("#live-question-decision")).to_have_attribute(
-        "data-lf-ask", "1"
+        "data-lf-question", "1"
     )
     scroll_settled(page)
     was = page.evaluate("() => document.scrollingElement.scrollTop")
     assert was > 0, "the user must have somewhere to have come from"
 
     page.keyboard.press("q")
-    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-question", "1")
     assert page.evaluate(
         "() => { const r = document.getElementById('sug-refill').getBoundingClientRect();"
         " return [r.width, r.height]; }"
@@ -10415,7 +10575,7 @@ def test_the_walk_travels_to_an_ask_a_page_left_boxless(browser, serve):
 
     # The decision and the boxes it shows through wear the mark, the decision outermost — one
     # place to stand, painted where the user can see it.
-    marks = page.evaluate("""() => [...document.querySelectorAll('main [data-lf-ask]')]
+    marks = page.evaluate("""() => [...document.querySelectorAll('main [data-lf-question]')]
       .map(e => e.id || e.tagName)""")
     assert marks == [
         "sug-refill",
@@ -10467,12 +10627,12 @@ def test_a_commented_ask_does_not_wear_its_ring_on_the_runtime_s_own_note(
 
     page.keyboard.press("q")
     page.keyboard.press("q")
-    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-question", "1")
 
     # By tag rather than by class: the slots are wearing the comment's own outline too,
     # this decision being the one that carries the comment, and a class would read that back
     # instead of naming the element.
-    marks = page.evaluate("""() => [...document.querySelectorAll('[data-lf-ask]')]
+    marks = page.evaluate("""() => [...document.querySelectorAll('[data-lf-question]')]
       .map(e => e.id || e.tagName)""")
     assert marks == [
         "sug-refill",
@@ -10652,6 +10812,13 @@ def test_a_chart_wears_the_page_s_colors_and_turns_over_with_the_scheme(browser,
         fills = [fill for _, fill, _ in drew["marks"]["bar"]]
         return drew["tokens"], fills
 
+    # Provider legend defaults yield to the page face without a JS inline repair.
+    page.add_style_tag(content=":root { --sans: Georgia; }")
+    legend = page.locator('#c-bars [class*="-swatches"]').first
+    expect(legend).to_have_count(1)
+    assert legend.evaluate("node => getComputedStyle(node).fontFamily") == "Georgia"
+    assert legend.evaluate("node => node.style.fontFamily") == ""
+
     tokens, fills = worn()
     assert tokens[0] != tokens[1], "two series wearing one colour proves nothing"
     assert sorted(set(fills)) == sorted(tokens), (tokens, fills)
@@ -10667,6 +10834,34 @@ def test_a_chart_wears_the_page_s_colors_and_turns_over_with_the_scheme(browser,
              .getPropertyValue('--plot-background').trim()"""
         )
         != "white"
+    )
+
+
+def test_a_chart_preserves_authored_inline_presentation_over_provider_defaults(
+    browser, serve
+):
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Authored chart",
+                "<h1>Authored chart</h1>"
+                + chart_markup(
+                    "authored-chart",
+                    """{
+      ariaLabel: "One value", style: {fontSize: "23px", background: "papayawhip"},
+      marks: [Plot.dot([{x:1,y:2}], {x:"x",y:"y"})]
+    }""",
+                ),
+            )
+        ),
+    )
+    svg = page.locator('#authored-chart svg[role="img"]')
+    expect(svg).to_be_visible()
+    assert svg.evaluate("node => getComputedStyle(node).fontSize") == "23px"
+    assert (
+        svg.evaluate("node => getComputedStyle(node).backgroundColor")
+        == "rgb(255, 239, 213)"
     )
 
 
@@ -10899,10 +11094,7 @@ def test_a_chart_in_a_closed_thread_draws_at_its_visible_width_when_opened(
 
 
 def _bound_diff(browser, serve, patch=MULTI_HUNK_PATCH):
-    """The review the four diff tests below read, with its feed in place before the page
-    loads. Bound rather than written inline because that is the form a review arrives in,
-    and the only one whose rows are commentable data — `projectData` labels each retained row by file,
-    side and source line, which is the coordinate a remark on a line is recorded at."""
+    """The review the diff tests below read, with its feed in place before the page loads."""
     url = serve(LONG_LINE_DIFF_PAGE)
     data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
     page = open_page(browser, url)
@@ -10912,18 +11104,53 @@ def _bound_diff(browser, serve, patch=MULTI_HUNK_PATCH):
     return page
 
 
-@pytest.mark.parametrize("review", [False, True])
+def test_inline_diff_lines_and_files_can_start_comments(browser, serve):
+    patch = (
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        "@@ -1 +1 @@\n-old\n+new\n"
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Inline review",
+                '<h1>Review</h1><lf-diff id="patch"><pre>' + patch + "</pre></lf-diff>",
+            )
+        ),
+    )
+    file = page.locator('lf-diff [data-lf-datum=\'["app.py","file"]\']')
+    line = page.locator('lf-diff [data-lf-datum=\'["app.py","new",1]\']')
+    expect(file.locator(".lf-diff-file-comment")).to_have_count(1)
+    expect(line).to_have_count(1)
+    expect(page.locator("lf-diff .lf-diff-line-comment")).to_have_count(2)
+    file.locator(".lf-diff-file-comment").click()
+    expect(page.locator(".lf-composer")).to_be_visible()
+    write(page.locator(".lf-composer leaf-text"), "File note")
+    with sending(page, "inline file comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    line.hover()
+    page.locator("lf-diff .lf-diff-line-comment").last.click()
+    expect(page.locator(".lf-composer")).to_be_visible()
+    write(page.locator(".lf-composer leaf-text"), "Line note")
+    with sending(page, "inline line comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    comments = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    assert [event["anchor"] for event in comments] == [
+        {"section": "patch", "datum": '["app.py","file"]'},
+        {"section": "patch", "datum": '["app.py","new",1]'},
+    ]
+
+
 @pytest.mark.parametrize("width", [390, 1280])
 def test_filtering_a_diff_keeps_its_field_and_toolbar_controls_fixed(
-    browser, serve, review, width
+    browser, serve, width
 ):
-    """The matching count must not resize the editor or wrap Soft wrap into a new row."""
-    source = (
-        MANIFEST_DIFF_PAGE.replace("<lf-diff", "<lf-diff review", 1)
-        if review
-        else MANIFEST_DIFF_PAGE
-    )
-    url = serve(source)
+    """The matching count leaves the filter field in place at every result count."""
+    url = serve(MANIFEST_DIFF_PAGE)
 
     def patch(count):
         return "".join(
@@ -10941,17 +11168,14 @@ def test_filtering_a_diff_keeps_its_field_and_toolbar_controls_fixed(
     progress = diff.locator(".lf-diff-progress")
     rows = diff.locator(".lf-diff-file:not(.lf-diff-filtered)")
     geometry = """host => Object.fromEntries(
-      ['.lf-diff-tools', '.lf-diff-search input', '.lf-diff-wrap-label', '.lf-diff-next']
+      ['.lf-diff-search', '.lf-diff-progress']
         .map(selector => {
-          const node = selector.includes(' input')
-            ? host.shadowRoot.querySelector('.lf-diff-search').shadowRoot.querySelector('input')
-            : host.shadowRoot.querySelector(selector);
+          const node = host.shadowRoot.querySelector(selector);
           if (!node) return [selector, null];
           const {x, y, width, height} = node.getBoundingClientRect();
           return [selector, {x, y, width, height}];
         }))"""
 
-    reviewed = 0
     for total in (12, 1):
         if total == 1:
             data_model.cmd_data_set(
@@ -10959,11 +11183,7 @@ def test_filtering_a_diff_keeps_its_field_and_toolbar_controls_fixed(
             )
             told(page)
         expect(rows).to_have_count(total)
-        base_label = (
-            f"{reviewed} of {total} reviewed"
-            if review
-            else f"{total} file{'s' if total != 1 else ''}"
-        )
+        base_label = f"{total} file{'s' if total != 1 else ''}"
         expect(progress).to_have_text(base_label)
         search.scroll_into_view_if_needed()
         rendered(page)
@@ -10973,37 +11193,22 @@ def test_filtering_a_diff_keeps_its_field_and_toolbar_controls_fixed(
             expect(rows).to_have_count(matches)
             expected_label = base_label
             if matches != total:
-                expected_label = (
-                    f"{base_label} · {matches} matching"
-                    if review
-                    else f"{matches} of {total}"
-                )
+                expected_label = f"{matches} of {total}"
             expect(progress).to_have_text(expected_label)
             rendered(page)
             after = diff.evaluate(geometry)
             assert after == before, (query, before, after)
             expect(search).to_be_focused()
 
-        if review and not reviewed:
-            diff.locator(".lf-diff-review").first.click()
-            round_trip(page)
-            expect(progress).to_have_text(f"1 of {total} reviewed")
-            rendered(page)
-            after_review = diff.evaluate(geometry)
-            assert after_review == before, (before, after_review)
-            reviewed = 1
-
 
 @pytest.mark.parametrize("manifest", [False, True])
 def test_a_diff_refresh_keeps_the_readers_inspection(browser, serve, manifest):
-    """A new patch changes evidence, while wrap, file disclosure and reading position
+    """A new patch changes evidence, while file disclosure and reading position
     belong to the reader inspecting the same files."""
     url = serve(LONG_LINE_DIFF_PAGE)
     value = patch_manifest if manifest else lambda patch: patch
     data_model.cmd_data_set(serve.page_dir, "review-patch", value(MULTI_HUNK_PATCH))
     page = open_page(browser, url)
-    wrap = page.locator("lf-diff .lf-diff-wrap")
-    wrap.click()
     page.locator("lf-diff summary").last.click()
     search = page.locator("lf-diff .lf-diff-search input")
     search.fill("handlers")
@@ -11012,21 +11217,13 @@ def test_a_diff_refresh_keeps_the_readers_inspection(browser, serve, manifest):
     scroll_settled(page)
     reading = """() => {
       const diff = document.querySelector('lf-diff');
-      return {scroll: scrollY, wrap: diff.wrapped(),
+      return {scroll: scrollY,
               files: diff.shownEntries().map(entry => entry.record.path),
               open: diff.fileEntries.map(entry => entry.details.open),
               focus: diff.shadowRoot.activeElement?.className,
               top: diff.lfDataDatum('[\"app/handlers.py\",\"new\",81]').getBoundingClientRect().top};
     }"""
     before = page.evaluate(reading)
-    assert before["wrap"]
-    if not manifest:
-        changed_line = page.locator(
-            'lf-diff [data-lf-datum=\'["app/routes.py","new",201]\']'
-        )
-        assert (
-            changed_line.evaluate("el => el.closest('pre').dataset.overflow") == "wrap"
-        )
     data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
@@ -11037,10 +11234,6 @@ def test_a_diff_refresh_keeps_the_readers_inspection(browser, serve, manifest):
     after = page.evaluate(reading)
     expect(search).to_have_value("handlers")
     assert after == before, (before, after)
-    if not manifest:
-        assert (
-            changed_line.evaluate("el => el.closest('pre').dataset.overflow") == "wrap"
-        )
 
 
 @pytest.mark.parametrize("manifest", [False, True])
@@ -11775,7 +11968,7 @@ def test_a_text_document_refresh_keeps_selection_in_unchanged_text(
         tag += f' language="{language}"'
     tag += "></lf-text-document>"
     source = LONG_LINE_DIFF_PAGE.replace(
-        '<lf-diff id="patch" source="review-patch" review><pre></pre></lf-diff>', tag
+        '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>', tag
     )
     url = serve(source)
     data_model.cmd_data_set(
@@ -11829,9 +12022,7 @@ def test_a_diff_refresh_leaves_an_inline_reply_to_its_thread_owner(
     url = serve(LONG_LINE_DIFF_PAGE)
     data_model.cmd_data_set(serve.page_dir, "review-patch", value(patch))
     page = open_page(browser, url)
-    row = page.locator('lf-diff [data-lf-datum=\'["a.py","new",1]\']')
-    row.hover()
-    page.get_by_title("Comment on a.py · new line 1", exact=True).click()
+    page.get_by_role("button", name="Comment on a.py · new line 1", exact=True).click()
     write(page.locator(".lf-composer leaf-text"), "Please clarify this.")
     with sending(page, "a line comment"):
         page.keyboard.press("ControlOrMeta+Enter")
@@ -12161,9 +12352,6 @@ def test_interrupted_library_popovers_finish_the_latest_request(browser, serve, 
     )
 
 
-# A phrase late in the diff's longest line: unwrapped it is off the right of the box, and
-# wrapped it is on a line box of its own — the two states the test below is about.
-_DIFF_TAIL = "whichever remote it came from"
 # The line is one row split across syntax spans inside a shadow root, so the range is built
 # over its text nodes rather than dragged: a pointer drag cannot reach words that are off
 # the box in the state this starts in.
@@ -12211,8 +12399,7 @@ def test_a_diff_row_fills_to_the_end_of_its_line_and_to_the_end_of_a_narrow_box(
     Every direction in one reading, because they are one track. The floor that carries the
     fill past the scrollport would, left alone, shrink a short file's rows to its own
     longest line and leave the rest of the box blank; and it measures whatever stands in
-    that column, so a user's own remark would size the file too. Then again with the
-    rows wrapped, where the scrollbar is gone and the room is all there is."""
+    that column, so a user's own remark would size the file too."""
     page = _bound_diff(browser, serve)
 
     filled = page.evaluate(DIFF_ROW_FILL)
@@ -12253,34 +12440,9 @@ def test_a_diff_row_fills_to_the_end_of_its_line_and_to_the_end_of_a_narrow_box(
         0,
     ), f"the rows do not fill their box with a thread among them: {remarked}"
 
-    page.locator("lf-diff .lf-diff-wrap").click()
-    wrapped = page.evaluate(DIFF_ROW_FILL)
-    assert wrapped["rows"] == filled["rows"] and wrapped["scrolls"] == 0, (
-        wrapped,
-        filled,
-    )
-    assert (wrapped["short"], wrapped["narrow"]) == (
-        0,
-        0,
-    ), f"wrapped rows do not fill the box they wrapped into: {wrapped}"
 
-
-def test_a_wrapped_diff_shows_every_line_whole_and_paper_wraps_whatever_the_switch_says(
-    browser, serve
-):
-    """A diff line is `white-space: pre` inside a box that scrolls sideways, so the only
-    way to read the end of a long one is a scrollbar at the foot of the whole file. On the
-    shipped review that bar sits about 24,000px below the line being read, which is not an
-    answer at all; on paper there is no bar and the text is simply gone — 40 of that
-    patch's 2,348 rows came out cut, the worst by 744px.
-
-    Three claims, and the middle one is why the other two are in the same test. The switch
-    wraps and unwraps: pressed off again the rows are cut again, so it is the switch doing
-    it rather than the page having settled differently. And paper wraps with the switch
-    off, because the sheet cannot be left holding an answer nobody can press.
-
-    The unwrapped reading is the population as well as the anchor: a clean wrapped result
-    means nothing unless the same reading, on the same rows, can see a cut line."""
+def test_print_wraps_diff_lines_and_keeps_file_headers_in_place(browser, serve):
+    """Paper shows the complete long lines a reader reaches on screen by scrolling."""
     page = _bound_diff(
         browser,
         serve,
@@ -12288,7 +12450,6 @@ def test_a_wrapped_diff_shows_every_line_whole_and_paper_wraps_whatever_the_swit
         "rename from old.py\nrename to new.py\n",
     )
     expect(page.locator("lf-diff .lf-diff-rename")).to_be_visible()
-    switch = page.locator("lf-diff .lf-diff-wrap")
 
     cut = page.evaluate(DIFF_CLIPPING)
     assert cut["rows"] > 20, f"nothing to read: {cut}"
@@ -12304,21 +12465,6 @@ def test_a_wrapped_diff_shows_every_line_whole_and_paper_wraps_whatever_the_swit
         f"boxes rather than their text: {cut}"
     )
 
-    switch.click()
-    wrapped = page.evaluate(DIFF_CLIPPING)
-    assert wrapped["rows"] == cut["rows"], (wrapped, cut)
-    assert wrapped["cut"] == 0, f"wrapped and still cut off: {wrapped}"
-
-    switch.click()
-    assert page.evaluate(DIFF_CLIPPING)["cut"] == cut["cut"], (
-        "unwrapping left the lines inside their box, so the switch was not what wrapped "
-        "them"
-    )
-
-    # Paper also takes the "Mark reviewed" press off each file, and the row it stood ahead
-    # of is pulled back up over where it was: with the press gone the pull has nothing to
-    # take back, and it drew every file's header 24px inside the file before it. The row
-    # starts at its wrapper's top in both media, which is where it would with no press.
     placed = page.evaluate(DIFF_ROW_PLACEMENT)
     assert placed["files"] == 3 and (placed["lift"], placed["drop"]) == (
         0,
@@ -12329,9 +12475,7 @@ def test_a_wrapped_diff_shows_every_line_whole_and_paper_wraps_whatever_the_swit
     on_paper = page.evaluate(DIFF_ROW_PLACEMENT)
     page.emulate_media(media="screen")
     assert printed["rows"] == cut["rows"], (printed, cut)
-    assert printed["cut"] == 0, (
-        f"the switch is off and paper cannot press it, so this text is gone: {printed}"
-    )
+    assert printed["cut"] == 0, f"paper clipped a diff line: {printed}"
     assert on_paper["files"] == 3 and (on_paper["lift"], on_paper["drop"]) == (
         0,
         0,
@@ -12380,14 +12524,14 @@ def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_tha
     # The press drawn onto that line came with it. It stands outside the disclosure, so
     # nothing about the summary pinning moves it; placed against the file's top it stayed
     # there and scrolled off under the banner, leaving the pinned header's column empty
-    # and "Mark reviewed" out of reach for the whole of the file it names. Reached by a
+    # and the file comment out of reach for the whole of the file it names. Reached by a
     # pointer as well as measured, because a box can stand on the line and still be
     # painted under the header.
     press = page.evaluate(DIFF_PRESS)
     assert abs(press["top"] - (press["headTop"] + 5)) <= 2, (
-        f"the review press is not on the pinned header's line: {press}"
+        f"the comment press is not on the pinned header's line: {press}"
     )
-    assert press["hit"] == "review", (
+    assert press["hit"] == "comment", (
         f"a pointer on the press reaches something else: {press}"
     )
     # And it leaves with the file. A sticky box is held inside its containing block by
@@ -12409,11 +12553,11 @@ def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_tha
         f"the file has not left the banner's edge, so nothing is being measured: {leaving}"
     )
     assert leaving["bottom"] <= leaving["fileBottom"], (
-        f"the review press outlives its file: {leaving}"
+        f"the comment press outlives its file: {leaving}"
     )
     page.evaluate("() => window.scrollTo(0, 0)")
 
-    page.locator("lf-diff .lf-diff-wrap").focus()
+    page.locator("lf-diff").evaluate("node => { node.tabIndex = -1; node.focus(); }")
     page.keyboard.press("]")
     first = page.evaluate(DIFF_LANDING)
     assert first["line"] == "1", f"the first hunk of the first file: {first}"
@@ -12434,8 +12578,8 @@ def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_tha
     )
     page.keyboard.press("}")
     expect(page.locator(".lf-walk-position")).to_have_text("File 2 of 2")
-    page.keyboard.press("Alt+ArrowDown")
-    expect(page.locator(".lf-walk-position")).to_have_text("File 1 of 2 unreviewed")
+    page.keyboard.press("{")
+    expect(page.locator(".lf-walk-position")).to_have_text("File 1 of 2")
 
 
 def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(
@@ -12474,7 +12618,7 @@ def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(
     )
     page.evaluate("() => { document.querySelector('lf-diff').scrollTop = 0; }")
 
-    page.locator("lf-diff .lf-diff-wrap").focus()
+    page.locator("lf-diff").evaluate("node => { node.tabIndex = -1; node.focus(); }")
     page.keyboard.press("]")
     page.keyboard.press("]")
     expect(page.locator(".lf-walk-position")).to_have_text("Hunk 2 of 3")
@@ -12594,7 +12738,7 @@ def test_a_diff_hunk_landing_preserves_sideways_reading_outside_its_shadow_tree(
     source = leaf_page(
         "Sideways patch",
         '<h1>Review</h1><div id="sideways">'
-        '<lf-diff id="patch" source="review-patch" review><pre></pre></lf-diff>'
+        '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>'
         "</div>",
         head="<style>#sideways { width: 500px; overflow: auto; }"
         "#patch { width: 1000px; }</style>",
@@ -12677,63 +12821,6 @@ def test_a_backward_hunk_step_from_the_diff_itself_opens_one_file_and_lands_in_i
     assert len(fetched) == 1, (
         f"one file's lines were needed, {len(fetched)} were fetched"
     )
-
-
-def test_a_comment_on_a_wrapped_diff_line_names_the_line_an_unwrapped_one_names(
-    browser, serve
-):
-    """Wrapping is a decision about line boxes; a comment's coordinate is a decision about
-    lines of the patch. A wrapped line is still one line to the anchor, so the same words
-    selected in the same row record the same coordinate either way — file, side, and
-    source line — or turning the switch on would quietly move where a remark lands.
-
-    The same row and the same phrase both times, with wrap the only difference, and the
-    row's own box is read to prove that difference was real: one line tall and running
-    past its box unwrapped, several lines tall and whole wrapped. Two identical anchors
-    off a line that never wrapped would be asserting nothing at all."""
-    page = _bound_diff(browser, serve)
-    row = page.locator('lf-diff [data-lf-datum=\'["app/handlers.py","new",81]\']')
-
-    flat = row.evaluate(_SELECT_IN_ROW, _DIFF_TAIL)
-    assert flat["text"] == _DIFF_TAIL, flat
-    assert flat["cut"], f"the words selected are inside the box already: {flat}"
-    page.get_by_role("button", name="Comment on selection").click()
-    write(
-        page.locator(".lf-composer leaf-text"), "Unwrapped, this line runs off the box."
-    )
-    with sending(page, "the comment on the unwrapped line"):
-        page.keyboard.press("ControlOrMeta+Enter")
-
-    page.locator("lf-diff .lf-diff-wrap").click()
-    folded = row.evaluate(_SELECT_IN_ROW, _DIFF_TAIL)
-    assert folded["text"] == _DIFF_TAIL, folded
-    assert folded["height"] > flat["height"] and not folded["cut"], (
-        f"the line did not wrap, so both anchors describe one geometry: {folded}"
-    )
-    page.get_by_role("button", name="Comment on selection").click()
-    write(
-        page.locator(".lf-composer leaf-text"), "Wrapped, the same words are on screen."
-    )
-    with sending(page, "the comment on the wrapped line"):
-        page.keyboard.press("ControlOrMeta+Enter")
-
-    anchors = [
-        event["anchor"]
-        for event in events_model.read_events(serve.page_dir)
-        if event.get("anchor")
-    ]
-    assert len(anchors) == 2, anchors
-    assert (
-        anchors[0]
-        == anchors[1]
-        == {
-            "section": "patch",
-            "datum": '["app/handlers.py","new",81]',
-            "quote": _DIFF_TAIL,
-            "source": "review-patch",
-            "source_revision": row.get_attribute("data-lf-source-revision"),
-        }
-    ), anchors
 
 
 def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
@@ -12871,32 +12958,6 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     )
 
 
-def test_a_phone_can_wrap_diff_lines_by_tapping_the_label(iphone, serve):
-    patch = (
-        "--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-old\n+" + "long_line " * 40 + "\n"
-    )
-    page = open_page(
-        None,
-        serve(
-            leaf_page(
-                "Phone diff",
-                '<h1>Review</h1><lf-diff id="patch"><pre>' + patch + "</pre></lf-diff>",
-            )
-        ),
-        context=iphone,
-    )
-    label = page.locator(".lf-diff-wrap-label")
-    line = page.locator("lf-diff [data-line]").last
-    expect(line).to_have_css("white-space", "pre")
-    assert label.bounding_box()["height"] >= 44
-    before = line.bounding_box()["height"]
-    label.tap()
-    expect(line).to_have_css("white-space", "pre-wrap")
-    assert line.bounding_box()["height"] > before
-    label.tap()
-    expect(line).to_have_css("white-space", "pre")
-
-
 @pytest.mark.parametrize("renamed", [False, True])
 def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(
     iphone, serve, renamed
@@ -12922,9 +12983,7 @@ def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(
         serve(
             leaf_page(
                 "Phone header",
-                '<h1>Review</h1><lf-diff id="patch" review><pre>'
-                + patch
-                + "</pre></lf-diff>",
+                '<h1>Review</h1><lf-diff id="patch"><pre>' + patch + "</pre></lf-diff>",
             )
         ),
         context=iphone,
@@ -12947,9 +13006,6 @@ def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(
                 width: base.getBoundingClientRect().width})),
             arrow: path.querySelector('.lf-diff-arrow')?.getBoundingClientRect().toJSON(),
             path: path.getBoundingClientRect().toJSON(),
-            room: parseFloat(getComputedStyle(head).paddingRight),
-            bar: head.closest('.lf-diff-file')
-                .querySelector('.lf-diff-file-actions').getBoundingClientRect().width,
         };
         return reading;
     }"""
@@ -12968,16 +13024,13 @@ def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(
     ), head
     if renamed:
         # Each basename has room before the stable arrow, even where two names
-        # cannot fit in full beside the statistics and review action.
+        # cannot fit in full beside the statistics.
         assert all(base["width"] > 40 for base in head["bases"]), head
         assert head["arrow"]["width"] > 0, head
         assert head["path"]["x"] < head["arrow"]["x"], head
         assert head["arrow"]["right"] < head["path"]["right"], head
     else:
         assert not head["bases"][0]["cut"], head
-    # An inline patch's file has its review press and no comment press, and its row
-    # holds open the bar's width and 14px beside it, inside its 10px padding.
-    assert head["room"] == pytest.approx(10 + head["bar"] + 14, abs=0.5), head
     assert head["title"] == (f"{previous} → {path}" if renamed else path), head
     assert path in said[0] and said[1] > 0, said
 
@@ -12992,7 +13045,7 @@ def test_a_narrow_rename_header_reserves_basenames_before_folders(
     url = serve(
         leaf_page(
             "Rename allocation",
-            '<h1 id="title">Review</h1><lf-diff id="patch" source="patch-data" review>'
+            '<h1 id="title">Review</h1><lf-diff id="patch" source="patch-data">'
             "<pre></pre></lf-diff>",
             layout=None,
         ),
@@ -13034,11 +13087,11 @@ def test_a_narrow_rename_header_reserves_basenames_before_folders(
       };
     }"""
     folder_states = set()
-    for width in (390, 470, 800, 1400, 390):
+    for width in (280, 390, 470, 800, 1400, 280):
         resized(page, width, 900)
         rendered(page)
         result = head.evaluate(reading)
-        assert result["actions"] == 2, result
+        assert result["actions"] == 1, result
         assert [base["text"] for base in result["bases"]] == [
             "original.py",
             "config.py",

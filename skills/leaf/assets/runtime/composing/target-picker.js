@@ -2,7 +2,7 @@
  * search marks, and status are synchronous Lit projections over native controller state. */
 import { anchoringIsReady } from "../anchor-resolution.js";
 import { bindings, bindingEnabled } from "../keyboard/bindings.js";
-import { el, LAYOUT, reserve } from "../widget-elements.js";
+import { el, LAYOUT, reserve, searchField } from "../widget-elements.js";
 import { coarsePointer } from "../pointer.js";
 import { html, nothing, render } from "../../vendor/browser-runtime.js";
 
@@ -64,18 +64,16 @@ targetPickerHintLayer.append(hintRoot, markRoot);
 export const pageSearchSurface = el("div", "lf-ui lf-page-search");
 pageSearchSurface.setAttribute("role", "search");
 pageSearchSurface.hidden = true;
-const pageSearchInput = document.createElement("input");
-pageSearchInput.className = "lf-page-search-box";
-pageSearchInput.type = "search";
-pageSearchInput.name = "page-search";
-pageSearchInput.autocomplete = "off";
-pageSearchInput.spellcheck = false;
-pageSearchInput.maxLength = 160;
-pageSearchInput.placeholder = "Search page text";
-pageSearchInput.setAttribute("aria-label", "Search page text");
+const pageSearchInput = searchField("lf-page-search-box", {
+  name: "page-search",
+  label: "Search page text",
+});
+pageSearchInput.maxlength = 160;
 const pageSearchStatus = el("span", "lf-page-search-status");
 pageSearchStatus.setAttribute("role", "status");
-pageSearchSurface.append(pageSearchInput, pageSearchStatus);
+pageSearchStatus.slot = "end";
+pageSearchInput.append(pageSearchStatus);
+pageSearchSurface.append(pageSearchInput);
 const noMatches = "No matches";
 const searchCount = (position, total) => `${position} of ${total}`;
 
@@ -84,8 +82,8 @@ const searchCount = (position, total) => `${position} of ${total}`;
 // chosen target; `/` opens the page's text search directly or from that map. The banner's
 // Select element opens this same picker, and its Cancel selection closes it. A choice
 // in Design mode keeps that mode's design intent; Draw reserves the page for ink and
-// offers no picker. While the picker stands, the page is armed as it is under a held
-// Alt (aim.js): a mouse shows the target
+// offers no picker. Area capture also claims the page until it ends. While the picker
+// stands, the page is armed as it is under a held Alt (aim.js): a mouse shows the target
 // under it, and a press, by finger or mouse, chooses that target without activating
 // authored controls. The key and the modifier are two ways into one gesture, so a press
 // means the same under either.
@@ -110,12 +108,12 @@ export function createTargetPicker({
   commentOnTarget,
   updateFab,
   fabAnchorAt,
-  drawModeActive,
+  pointerModeActive,
   readTargets,
   armChanged,
 }) {
   const canChoose = () =>
-    anchoringIsReady() && !coveringAuxiliarySurface() && !drawModeActive();
+    anchoringIsReady() && !coveringAuxiliarySurface() && !pointerModeActive();
 
   let pickerOpen = false;
   let pageSearchOpen = false;

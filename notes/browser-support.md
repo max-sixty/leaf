@@ -62,6 +62,24 @@ what fails and what still works.
 
 ## Known gaps
 
+### Back during smooth arrival
+
+- **Owner:** `runtime/history.js`. A working-place checkpoint contains the viewport
+  offset alongside focus and selection. Traversal cancels outgoing viewport and
+  nested reading-region motion before restoring that checkpoint; nested regions
+  retain their current offsets.
+- **Observed, 2026-10-10:** Playwright's Chrome for Testing 153.0.8010.12 can lose
+  native scroll restoration when Back interrupts a smooth arrival. A primary
+  reader departure at 200px returned to 0px on early Back, while Back after the
+  same arrival settled returned to 200px. A sibling reader departure at 4013px
+  showed the same distinction. An immediate explicit restoration could also be
+  overwritten by the outgoing scroll's next compositor update.
+- **Disposition:** captured checkpoints restore their own offset after a complete
+  rendering update carries cancellation to the browser. Entries without a captured
+  checkpoint retain native restoration. The immediate Back regression in
+  `test_render_application_boundary.py` exercises a nonzero departure. Current
+  stable Chrome, Firefox and Safari have not been exercised for this gap.
+
 ### Frame margin trimming
 
 - **Disposition: shared CSS retained.** Leaf trims a frame's content edges through

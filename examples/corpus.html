@@ -4266,7 +4266,7 @@ flowchart TB
             This exact hunk from <code>src/summary.rs</code> replaces direct Git
             argument assembly with the repository’s <code>PreparedDiff</code> API.
           </p>
-          <lf-diff id="pr-key-hunk" data-height="539">
+          <lf-diff id="pr-key-hunk" data-height="521">
             <pre>
 diff --git a/src/summary.rs b/src/summary.rs
 index b856171b57..cfa4f0448e 100644
@@ -4523,7 +4523,7 @@ index b856171b57..cfa4f0448e 100644
           </p>
           <lf-diff
             id="pr-exact-patch"
-            data-height="2126"
+            data-height="2108"
             source="pr-review-patch"
             collapsed
           >
@@ -7013,6 +7013,31 @@ observe --cohort staff</code></pre>
       <p id="plan">Keep the shipping order visible while we discuss this change.</p>
       <lf-diff id="journey-patch" source="review-patch"><pre></pre></lf-diff>
       <p id="tail">The rollout can proceed once the changed line is reviewed.</p>
+</lf-tab>
+
+<lf-tab id="corpus-file-editor" label="File editor package">
+<header id="file-editing">
+        <h1>Edit the file</h1>
+        <p>
+          Changes save automatically. The editor follows changes made elsewhere and asks
+          which version to keep when edits overlap.
+        </p>
+      </header>
+      <lf-file id="research-file" binding="research-notes" data-height="480"></lf-file>
+      <details id="file-editing-setup">
+        <summary>Connect a local file</summary>
+        <p>
+          This example needs a file on the machine serving the page. Bind it explicitly
+          before opening the editor:
+        </p>
+        <pre><code>leaf file bind "$PAGE" research-notes /absolute/path/research-notes.md</code></pre>
+        <p>
+          On a live page, edit a line and inspect the file on disk. A normal save leaves
+          the header still. Hold a write request open to inspect delayed saving
+          feedback; change the file externally during an unsaved edit to inspect
+          conflict recovery. Without a binding, the editor explains what is missing.
+        </p>
+      </details>
 </lf-tab>
 
 <lf-tab id="corpus-diff-thread-gallery" label="Diff conversations">

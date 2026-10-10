@@ -2,7 +2,7 @@
  * element. Its ordinary DOM can live in Leaf's declared shadow root, so the
  * rendered lines support selection anchors. A source revision updates evidence
  * under stable file owners: reader controls, disclosure and code scrollports stay
- * connected. The toolbar reserves its current source's longest count label, so
+ * connected. The search reserves its current source's longest count label, so
  * filtering files leaves its field and controls in place. A changed file
  * kind replaces only its inner presentation and hands
  * source focus to that same file; supplied thread/composer outlets keep core focus
@@ -44,6 +44,7 @@ import {
   retainUserIntent,
   scrollBehavior,
   scrollIntoReadingBand,
+  searchField,
   setChildren,
   shadowStage,
   sizeObserver,
@@ -543,23 +544,18 @@ function replaceFileContent(entry, rendered, pairs, outlets) {
 }
 
 function diffTools(host) {
-  const tools = offer("div", "lf-diff-tools");
-  const label = offer("div", "lf-diff-search-label");
-  const search = offer("wa-input", "lf-diff-search lf-label-hidden");
-  search.type = "search";
-  search.size = "s";
-  search.label = "Filter diff files";
-  search.name = "diff-search";
-  search.placeholder = "Filter files";
-  search.value = "";
-  search.setAttribute("aria-label", "Filter diff files");
+  const search = searchField("lf-diff-tools lf-diff-search", {
+    name: "diff-search",
+    label: "Filter diff files",
+    placeholder: "Filter files",
+  });
   search.addEventListener("input", () => host.filterFiles(search.value));
-  label.append(search);
   const progress = document.createElement("span");
   progress.className = "lf-diff-progress";
   progress.dataset.lfGen = "1";
-  tools.append(label, progress);
-  return { node: tools, search, progress };
+  progress.slot = "end";
+  search.append(progress);
+  return { search, progress };
 }
 
 function renameNode(file) {
@@ -837,7 +833,7 @@ customElements.define(
                 if (!search) return false;
                 return Boolean(
                   this.matches(":focus-within") &&
-                  (search.value || this.diffTools.node.matches(":focus-within")),
+                  (search.value || search.matches(":focus-within")),
                 );
               },
               title: () => (this.diffTools?.search.value ? "show all files" : "back"),
@@ -963,32 +959,30 @@ customElements.define(
           entry.details?.querySelector("pre")?.toggleAttribute("hidden", false);
           return entry;
         });
-        if (bound) for (const { node } of entries) keeps(node, "data-lf-gen", "1");
+        for (const { node } of entries) keeps(node, "data-lf-gen", "1");
         const resume = this.controller.defer();
         try {
           this.fileEntries = entries;
           this.manifestEntries = null;
           this.sharedStyles = sharedStyles;
           this.diffTools ??= diffTools(this);
-          for (const entry of fresh)
-            this.attachEntryControls(entry, { commentable: bound });
+          for (const entry of fresh) this.attachEntryControls(entry);
           for (const entry of entries) this.attachDisclosure(entry);
-          if (bound) for (const entry of entries) this.attachLineComments(entry);
+          for (const entry of entries) this.attachLineComments(entry);
           this.manifestBody ??= diffBody([]);
           setChildren(this.manifestBody, [
-            this.diffTools.node,
+            this.diffTools.search,
             ...entries.map(({ node }) => node),
           ]);
           this.replaceChildren();
           this.stageFiles();
-          if (bound)
-            projectData(
-              this,
-              entries
-                .flatMap((entry) => [fileDatum(entry), ...entry.lines])
-                .map(projectionDatum),
-              { snapshot },
-            );
+          projectData(
+            this,
+            entries
+              .flatMap((entry) => [fileDatum(entry), ...entry.lines])
+              .map(projectionDatum),
+            { snapshot },
+          );
           this.classList.toggle("lf-rendered", true);
           this.filterFiles(this.diffTools.search.value);
           for (const restore of restores) restore();
@@ -1146,15 +1140,14 @@ customElements.define(
         this.fileEntries = entries;
         this.sharedStyles = sharedStyles;
         this.diffTools ??= diffTools(this);
-        for (const entry of fresh)
-          this.attachEntryControls(entry, { commentable: true });
+        for (const entry of fresh) this.attachEntryControls(entry);
         for (const entry of entries) {
           keeps(entry.node, "data-lf-gen", "1");
           this.attachDisclosure(entry);
         }
         this.manifestBody ??= diffBody([]);
         setChildren(this.manifestBody, [
-          this.diffTools.node,
+          this.diffTools.search,
           ...entries.map(({ node }) => node),
         ]);
         this.replaceChildren();
@@ -1433,21 +1426,18 @@ customElements.define(
       entry.details.addEventListener("toggle", entry.disclose);
     }
 
-    attachEntryControls(entry, { commentable }) {
-      if (commentable) {
-        const label = entry.record.path || "file";
-        entry.fileComment = commentButton(
-          label,
-          () => this.threadSurface?.open(entry.node, { origin: entry.fileComment }),
-          "lf-diff-file-comment",
-        );
-        entry.node
-          .querySelector(":scope > .lf-diff-file-actions")
-          .prepend(entry.fileComment);
-        this.attachLineComments(entry);
-      }
+    attachEntryControls(entry) {
+      const label = entry.record.path || "file";
+      entry.fileComment = commentButton(
+        label,
+        () => this.threadSurface?.open(entry.node, { origin: entry.fileComment }),
+        "lf-diff-file-comment",
+      );
+      entry.node
+        .querySelector(":scope > .lf-diff-file-actions")
+        .prepend(entry.fileComment);
+      this.attachLineComments(entry);
     }
-
     attachLineComments(entry) {
       for (const line of entry.lines) {
         const { gutterRow } = this.threadPair(line.node);
@@ -1501,7 +1491,7 @@ customElements.define(
       const total = this.fileEntries.length;
       const all = `${total} file${total === 1 ? "" : "s"}`;
       const matching = `${shown.length} of ${total}`;
-      // Filtering changes the count inside its reserved room, never the field beside it.
+      // Filtering changes the count inside its reserved room, never its containing field.
       if (this.diffTools.progressRoom !== total) {
         this.diffTools.progressRoom = total;
         reserve(this.diffTools.progress, [all, `${total} of ${total}`]);

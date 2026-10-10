@@ -130,17 +130,11 @@
    past the frame trim, which zeroes the host's own margin at a frame's start or end but
    cannot reach into this tree, so a diff opening a column or closing a panel moved what
    followed it 8px at upgrade.
-   The filter gives up width before the bar wraps, down to the room its placeholder
-   needs, so the bar of an ordinary diff keeps one row down to a phone's full-width
-   column and the height its author states (x-height) holds there as at a desktop's. A
-   bar that wraps uses the height estimate x-height declares. */
-.lf-diff-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px;
-                 margin: 0 0 8px; padding: 8px 10px; border: 1px solid var(--code-border);
-                 border-radius: var(--r); background: var(--code-chrome);
-                 color: var(--code-muted); font: var(--t-6) var(--sans); }
-.lf-diff-search-label { flex: 1 1 6rem; min-width: 0; }
-.lf-diff-search { flex: 1 1 auto; width: 100%; }
-.lf-diff-progress { flex: none; width: var(--lf-reserved-width, auto);
+   The canonical search is the tools row itself. Its count stays inside that field's
+   end slot, so the same single frame holds at desktop and phone widths. */
+.lf-diff-tools { display: block; width: 100%; min-width: 0; margin: 0 0 8px; }
+.lf-diff-progress { width: var(--lf-reserved-width, auto);
+                    color: var(--code-muted); font: var(--t-6) var(--sans);
                     font-variant-numeric: tabular-nums; white-space: nowrap; }
 /* The file comment is a sibling of its disclosure, so each keeps its own action.
    Both follow the sticky header; the shared height reserves the comment's square. */

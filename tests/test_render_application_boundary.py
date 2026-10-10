@@ -32,6 +32,7 @@ from render_harness import (
     refuse,
     reported_browser_errors,
     round_trip,
+    scroll_settled,
     sending,
     stamp_page,
     take_browser_errors,
@@ -2456,48 +2457,70 @@ def test_frozen_question_reveals_its_exact_message_in_a_selective_primary(
     expect(email.get_by_role("checkbox")).to_be_checked()
 
 
-@pytest.mark.parametrize("travel", [True, False])
+@pytest.mark.parametrize(
+    ("primary", "travel", "source_top"),
+    [(True, True, 0), (True, True, 200), (True, False, 200), (False, True, 1000)],
+)
 def test_primary_arrival_records_a_return_place_only_when_travelling(
-    browser, serve, travel
+    browser, serve, primary, travel, source_top
 ):
     """Back restores the working place left by a jump to the primary reader."""
-    page = open_page(
-        browser,
-        package_workspace(
-            serve,
-            before_reader='<p style="min-height:1600px">Earlier page context.</p>',
-        ),
+    url = package_workspace(
+        serve,
+        before_reader='<p style="min-height:1600px">Earlier page context.</p>',
+        primary=primary,
     )
+    if not primary:
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "id": "anchored",
+                "kind": "comment",
+                "author": "agent",
+                "revision": 1,
+                "text": "Inspect this passage.",
+                "anchor": {"section": "notes"},
+            },
+        )
+    page = open_page(browser, url)
     page.set_viewport_size({"width": 1440, "height": 320})
     heading = page.locator("h1")
-    heading.evaluate("""node => {
+    heading.evaluate(
+        """(node, top) => {
       node.tabIndex = -1;
       node.focus({preventScroll:true});
-      window.scrollTo({top:0, behavior:'instant'});
-    }""")
+      window.scrollTo({top, behavior:'instant'});
+    }""",
+        source_top,
+    )
     entries = page.evaluate("history.length")
     assert page.evaluate(
-        """async travel => {
+        """async ({travel, primary}) => {
           const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const thread = api.readThreads().threads.find(thread => thread.id === 'opening');
-          return Boolean(await api.threadActions.open(thread.key, {part:'reply', travel}));
+          const thread = api.readThreads().threads.find(thread => thread.id === (primary ? 'opening' : 'anchored'));
+          window.returnTripDestination = await api.threadActions.open(thread.key, {part:'reply', travel});
+          return Boolean(returnTripDestination);
         }""",
-        travel,
+        {"travel": travel, "primary": primary},
     )
-    expect(
-        page.locator("#workspace").get_by_role("textbox", name="Reply", exact=True)
-    ).to_be_focused()
+    assert page.evaluate("""() => {
+      let active = document.activeElement;
+      while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+      return active === returnTripDestination;
+    }""")
     assert page.evaluate("history.length") == entries + int(travel)
     if travel:
-        page.wait_for_function("scrollY > 0")
+        # Back is ordinary input as soon as arrival returns, during smooth placement.
+        page.wait_for_function("top => scrollY !== top", arg=source_top)
         page.go_back()
-        page.wait_for_function("scrollY === 0")
         expect(heading).to_be_focused()
+        scroll_settled(page)
+        assert page.evaluate("scrollY") == source_top
     else:
-        assert page.evaluate("scrollY") == 0
+        assert page.evaluate("scrollY") == source_top
 
 
-def package_workspace(serve, *, before_reader=""):
+def package_workspace(serve, *, before_reader="", primary=True):
     """Run the shipped package example against real event admission."""
     from render_harness import ROOT
 
@@ -2507,7 +2530,11 @@ def package_workspace(serve, *, before_reader=""):
             "Package reader",
             '<h1>Package reader</h1><p id="notes">Announcement notes</p>'
             + before_reader
-            + '<lf-conversation-workspace id="workspace"></lf-conversation-workspace>',
+            + (
+                '<lf-conversation-workspace id="workspace"></lf-conversation-workspace>'
+                if primary
+                else ""
+            ),
         ),
         layer_registry=json.loads((companion / "registry.json").read_text()),
         layer_widgets={
@@ -2612,11 +2639,16 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
     workspace = page.locator("#workspace")
     email = workspace.locator("lf-option#email")
     expect(email).to_be_visible()
+    if width < 500:
+        # Playwright's automatic click scroll has no trusted input for the
+        # shift watcher; move the short reader with a user scroll first.
+        workspace.locator(".reader").hover()
+        page.mouse.wheel(0, 100)
     page.evaluate(
         "window.originalOption = document.querySelector('#workspace').querySelector('#email')"
     )
     with sending(page, "answer the package's native Ask"):
-        email.click()
+        email.get_by_role("checkbox").click()
     expect(workspace.locator(".counts")).to_contain_text("Email")
     workspace.get_by_role("button", name="Keep it concise.", exact=True).click()
     editor = workspace.get_by_role("textbox", name="Reply", exact=True)

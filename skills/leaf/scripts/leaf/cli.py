@@ -665,6 +665,28 @@ def thread_summarize(
     )
 
 
+@cli.group(short_help="Bind existing local files for editing on a page.")
+def file() -> None:
+    """Grant a page access to an explicitly chosen local text file."""
+
+
+@file.command("bind", short_help="Grant a page read/write access to one file.")
+@click.argument("dir", metavar="PAGE")
+@click.argument("binding", metavar="ID")
+@click.argument("path", type=click.Path(path_type=Path), metavar="PATH")
+def file_bind(dir: str, binding: str, path: Path) -> None:
+    """Use ID in <lf-file binding=\"ID\"> to edit PATH."""
+    from leaf.file_bindings import FileBindingError, bind_file
+
+    try:
+        snapshot = bind_file(resolve_dir(dir), binding, path)
+    except (FileBindingError, OSError) as error:
+        raise click.ClickException(str(error)) from error
+    click.echo(
+        f"Bound {binding} to {path.expanduser().resolve()} ({snapshot['bytes']} bytes)."
+    )
+
+
 @cli.group(short_help="Set or clear page-bound external data.")
 def data() -> None:
     """Manage each bound source's current value, one JSON file per source."""

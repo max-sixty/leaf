@@ -356,13 +356,16 @@ summary { align-content: center; }
           border-top: 1px solid var(--rule); pointer-events: none; }
 /* Every conversation shares its reading edge, including a floating draft. The
    field subtracts its border; messages and metadata take the full inset. */
-:root, .lf-page-thread, .lf-thread { --lf-thread-text-inset: 13px; }
+:root, .lf-page-thread, .lf-thread {
+          --lf-thread-text-inset: 13px;
+          --lf-msg-head-height: max(28px, var(--aim-floor));
+          --lf-msg-body-gap: 4px; }
 .lf-thread-transcript { min-width: 0; padding-inline: var(--lf-thread-text-inset) 0; }
 /* Conversation flow is separate from the outer flex body that retains reply room. */
 .lf-thread-content { display: flow-root; min-width: 0;
           anchor-scope: --lf-thread-headline;
-          --lf-thread-action-room: max(28px, var(--aim-floor));
-          --lf-thread-notice-room: max(28px, var(--aim-floor));
+          --lf-thread-action-room: var(--lf-msg-head-height);
+          --lf-thread-notice-room: var(--lf-msg-head-height);
           --lf-thread-reaction-room: 0px; }
 /* A semantic separator draws its boundary without sizing the transcript. */
 .lf-read-boundary { height: 0; }
@@ -380,7 +383,7 @@ summary { align-content: center; }
    heads. Thread actions and reactions must not change its metadata-to-body gap.
    An author may ellipsize while time and receipt use their own intrinsic room. */
 .lf-msg-head { display: flex; align-items: center; gap: var(--sp-2);
-          min-block-size: max(28px, var(--aim-floor)); box-sizing: border-box;
+          min-block-size: var(--lf-msg-head-height); box-sizing: border-box;
           min-width: 0; overflow: hidden; white-space: nowrap;
           font-size: var(--t-6); --lf-msg-name-size: 13px; }
 .lf-msg-head .lf-msg-meta { flex: 0 1 auto; overflow: hidden; }
@@ -596,21 +599,29 @@ button.lf-thread-notice:is(:focus-visible, .lf-focus-visible) { outline: var(--f
 :where(:root, .lf-thread-transcript) blockquote { margin: 18px 0; padding: 2px var(--quote-inset);
              border-left: var(--quote-rule); color: var(--muted);
              font-style: var(--quote-style); --lf-block-frame: 1; }
-/* Messages share their reading hierarchy and compact Markdown on every surface,
-   including a thread seated inside a widget's shadow tree. */
+/* One owner for message type and spacing on every surface, including widget shadow
+   trees. The editor and messages share the theme's entry-size floor. A contextual
+   card supplies its editor's vertical inset; retaining its viewport never changes
+   these rules.
+   Paragraphs keep the editor's whitespace and a blank line between them through
+   send, replies and reopening. */
   :is(.lf-thread-transcript, .lf-thread-reply, .lf-general) { --quote-inset: 10px; --pre-inset: 10px; }
-  .lf-msg-body { min-width: 0; font-size: var(--t-5); margin: 4px 0 0; line-height: 1.5; overflow-wrap: anywhere; }
-  .lf-msg-text { display: contents; }
+  leaf-text.lf-fab-input, .lf-msg-body {
+          font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans); color: var(--ink); }
+  .lf-msg-body { min-width: 0; margin: var(--lf-msg-body-gap) 0 0; overflow-wrap: anywhere; }
+  .lf-msg-text { display: block; padding-block: var(--lf-thread-text-pad-block, 0px); }
   .lf-msg-text > :first-child { margin-top: 0; }
   .lf-msg-body > :last-child, .lf-msg-text > :last-child { margin-bottom: 0; }
   .lf-msg-body :is(p, ul, ol, pre, blockquote, table, hr) { margin: 6px 0; }
+  .lf-msg-text > p { font: inherit; white-space: break-spaces; margin-block: 1lh; }
   /* Prose here breaks anywhere, because the thing a reply overflows on is a URL
      no wrap can help. A table is the one block in a reply with somewhere else to
      put the width — the theme makes it scroll inside itself — so breaking its
      cells to save that room spends the alignment the table was written for:
      "12,000" arrived as "12,0" over "00", in a column of figures to compare. */
   .lf-msg-body :is(th, td) { overflow-wrap: normal; }
-  .lf-msg-body :is(h1, h2, h3, h4, h5, h6) { margin: 8px 0 4px; font-size: var(--t-5); }
+  .lf-msg-body :is(h1, h2, h3, h4, h5, h6) { margin: 8px 0 4px;
+          font-size: inherit; line-height: inherit; }
   .lf-msg-body li { margin: 2px 0; }
   .lf-msg-body pre { padding-block: 8px; }
 .lf-drawing-reference { display: block; margin-top: 2px; color: var(--muted-2);

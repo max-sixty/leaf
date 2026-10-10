@@ -17,6 +17,8 @@ second API.
 - `locations`: filesystem path identity, containment, and overlap;
 - `file_changes`: native subscriptions shared by page, session, and preview
   maintenance, with explicit ownership and canonical reads after notifications;
+- `file_bindings`: explicit local file grants, revision-checked writes, and
+  cross-page target locks, outside the page's event log;
 - `page_memory`: how long a process keeps what it read of a page: while the page is
   among the eight it read most recently;
 - `page`: vendored page instructions;

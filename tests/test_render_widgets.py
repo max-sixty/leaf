@@ -10954,10 +10954,7 @@ def test_a_chart_in_a_closed_thread_draws_at_its_visible_width_when_opened(
 
 
 def _bound_diff(browser, serve, patch=MULTI_HUNK_PATCH):
-    """The review the four diff tests below read, with its feed in place before the page
-    loads. Bound rather than written inline because that is the form a review arrives in,
-    and the only one whose rows are commentable data — `projectData` labels each retained row by file,
-    side and source line, which is the coordinate a remark on a line is recorded at."""
+    """The review the diff tests below read, with its feed in place before the page loads."""
     url = serve(LONG_LINE_DIFF_PAGE)
     data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
     page = open_page(browser, url)
@@ -10965,6 +10962,47 @@ def _bound_diff(browser, serve, patch=MULTI_HUNK_PATCH):
         "() => document.querySelector('lf-diff.lf-rendered') !== null"
     )
     return page
+
+
+def test_inline_diff_lines_and_files_can_start_comments(browser, serve):
+    patch = (
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        "@@ -1 +1 @@\n-old\n+new\n"
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Inline review",
+                '<h1>Review</h1><lf-diff id="patch"><pre>' + patch + "</pre></lf-diff>",
+            )
+        ),
+    )
+    file = page.locator('lf-diff [data-lf-datum=\'["app.py","file"]\']')
+    line = page.locator('lf-diff [data-lf-datum=\'["app.py","new",1]\']')
+    expect(file.locator(".lf-diff-file-comment")).to_have_count(1)
+    expect(line).to_have_count(1)
+    expect(page.locator("lf-diff .lf-diff-line-comment")).to_have_count(2)
+    file.locator(".lf-diff-file-comment").click()
+    expect(page.locator(".lf-composer")).to_be_visible()
+    write(page.locator(".lf-composer leaf-text"), "File note")
+    with sending(page, "inline file comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    line.hover()
+    page.locator("lf-diff .lf-diff-line-comment").last.click()
+    expect(page.locator(".lf-composer")).to_be_visible()
+    write(page.locator(".lf-composer leaf-text"), "Line note")
+    with sending(page, "inline line comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    comments = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    assert [event["anchor"] for event in comments] == [
+        {"section": "patch", "datum": '["app.py","file"]'},
+        {"section": "patch", "datum": '["app.py","new",1]'},
+    ]
 
 
 @pytest.mark.parametrize("width", [390, 1280])
@@ -10990,11 +11028,9 @@ def test_filtering_a_diff_keeps_its_field_and_toolbar_controls_fixed(
     progress = diff.locator(".lf-diff-progress")
     rows = diff.locator(".lf-diff-file:not(.lf-diff-filtered)")
     geometry = """host => Object.fromEntries(
-      ['.lf-diff-tools', '.lf-diff-search input']
+      ['.lf-diff-search', '.lf-diff-progress']
         .map(selector => {
-          const node = selector.includes(' input')
-            ? host.shadowRoot.querySelector('.lf-diff-search').shadowRoot.querySelector('input')
-            : host.shadowRoot.querySelector(selector);
+          const node = host.shadowRoot.querySelector(selector);
           if (!node) return [selector, null];
           const {x, y, width, height} = node.getBoundingClientRect();
           return [selector, {x, y, width, height}];

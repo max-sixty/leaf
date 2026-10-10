@@ -428,7 +428,7 @@ def more_menu(page: Page) -> None:
 
 def capture_area(page: Page) -> None:
     """Select a page area, with its confirmation and cancellation controls visible."""
-    page.locator("#off-t-vendor").scroll_into_view_if_needed()
+    page.locator("#plan-context").scroll_into_view_if_needed()
     more_menu(page)
     page.get_by_role("button", name="Capture area", exact=True).click()
     page.locator(".lf-region-selection").wait_for(state="visible")

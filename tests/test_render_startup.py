@@ -96,6 +96,7 @@ from render_harness import (
     nudge,
     open_page,
     open_versions,
+    page_comment,
     panel_settled,
     primed,
     refuse,
@@ -2192,7 +2193,10 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     expect(comments).to_be_enabled()
     comments.click()
     expect(body).not_to_have_attribute("data-lf-auxiliary-surface", "queue")
-    expect(page.locator(".lf-general leaf-text")).to_be_editable()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
+    # The page's box takes words while the first state answer is still held.
+    expect(page_comment(page)).to_be_editable()
+    page.keyboard.press("Escape")
 
     held.pop(0).continue_()
     wait_until_ready(page)
@@ -2747,8 +2751,8 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
     """The chrome and initial state read do not wait behind widget startup.
 
     That interval is real state, not a missing-registry fallback: the state answer waits
-    unapplied until upgrades have captured the authored page, general Threads accepts a
-    send and paints its pending thread while holding delivery until the layer identity
+    unapplied until upgrades have captured the authored page, the page comment card accepts
+    a send and paints its pending thread while holding delivery until the layer identity
     arrives. Anchored capture waits for widget upgrade to establish the visible document.
     The explicit gate
     proves each assertion runs on the intended side of the fetch rather than racing a timer.
@@ -2772,11 +2776,8 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
     html = JOURNEY_V1.replace(
         '<h2 id="notes">',
         """
-<lf-milestones>
-  <lf-milestone id="gate-milestone" status="active" tags="wood,solar">
-    <strong>Build feeders</strong> Two classic models.
-  </lf-milestone>
-</lf-milestones>
+<lf-code id="gate-code"><pre>Build feeders
+Two classic models.</pre></lf-code>
 <h2 id="notes">""",
     )
     page = open_page(
@@ -2801,7 +2802,7 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
     )
     expect(page.locator(".lf-banner")).to_be_visible()
     expect(page.locator(".lf-threads-toggle")).to_be_enabled()
-    expect(page.locator("#gate-milestone .lf-chips")).to_have_count(0)
+    expect(page.locator("#gate-code .lf-code-line")).to_have_count(0)
     expect(page.locator("#draft-ops .lf-draft-body")).to_have_count(0)
     assert (
         page.evaluate(
@@ -2822,8 +2823,10 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     expect(page.locator(".lf-empty")).to_have_text("Loading current threads…")
     expect(page.locator(".lf-thread")).to_have_count(0)
-    write(page.locator(".lf-general leaf-text"), "General comment during startup")
-    page.locator(".lf-general").get_by_role("button", name="Send").click()
+    write(page_comment(page), "General comment during startup")
+    page.locator(".lf-page-comment-card .lf-general").get_by_role(
+        "button", name="Send"
+    ).click()
     expect(page.locator(".lf-thread")).to_have_count(1)
     expect(page.locator(".lf-thread .lf-msg-body")).to_have_text(
         "General comment during startup"
@@ -2836,11 +2839,11 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
 
     page.evaluate("window.lfReleaseRegistry()")
     expect(page.locator(".lf-thread")).to_have_count(2)
-    expect(page.locator("#gate-milestone .lf-chips")).to_have_count(1)
+    expect(page.locator("#gate-code .lf-code-line")).to_have_count(2)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     page.wait_for_function("() => document.body.dataset.lfPresented === '1'")
-    words = page.locator("#gate-milestone strong").bounding_box()
-    assert words, "the upgraded milestone never produced selectable words"
+    words = page.locator("#gate-code .lf-code-line").first.bounding_box()
+    assert words, "the upgraded code never produced selectable words"
     y = words["y"] + words["height"] / 2
     select(
         page,
@@ -2896,6 +2899,7 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
 
     modules = sorted(p for p in asked if p.startswith("/widgets/"))
     assert modules == [
+        "/widgets/activity-view.js",
         "/widgets/lf-activity.js",
         "/widgets/lf-board.js",
     ], modules
@@ -3179,9 +3183,9 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
     old_route = older[0]
     old_state = old_route.fetch().json()
 
-    write(page.locator(".lf-general leaf-text"), "Newest **snapshot**")
+    write(page_comment(page), "Newest **snapshot**")
     with sending(page, "the newer comment"):
-        page.locator(".lf-general button").click()
+        page.locator(".lf-page-comment-card .lf-general button").click()
 
     old_route.fulfill(json=old_state)
     page.title()  # let the old response join the shared import before releasing it
@@ -3308,10 +3312,9 @@ def test_more_than_six_live_documents_share_an_origin_without_stalling(browser, 
     with browser.new_context() as context:
         pages = [open_page(browser, url, context=context) for _ in range(8)]
         last = pages[-1]
-        last.locator(".lf-threads-toggle").click()
-        write(last.locator(".lf-general leaf-text"), "All eight views are live.")
+        write(page_comment(last), "All eight views are live.")
         with sending(last, "the eighth view's comment"):
-            last.locator(".lf-general button").click()
+            last.locator(".lf-page-comment-card .lf-general button").click()
         assert any(
             event.get("text") == "All eight views are live."
             for event in events_model.read_events(serve.page_dir)
@@ -4290,7 +4293,6 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         },
     )
     told(page)
-    held_thread.get_by_role("button", name="1 new reply", exact=True).click()
     followup_workflow = held_thread.locator(
         f'.lf-msg.user[data-mid="{followup["id"]}"] > .lf-msg-head .lf-msg-sending'
     )
@@ -4324,7 +4326,6 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         },
     )
     told(page)
-    held_thread.get_by_role("button", name="1 new reply", exact=True).click()
     expect(page.locator(f'.lf-thread[data-id="{held}"] .lf-msg.agent')).to_have_count(1)
     expect(held_workflow).to_have_count(0)
     expect(workflows).to_have_count(1)
@@ -6002,7 +6003,7 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
 def test_projection_subscriptions_follow_their_owner_and_cancel_queued_reads(
     browser, serve
 ):
-    """Retiring a queued read cannot revive it or its clock subscription."""
+    """Refresh acquires clock work; retiring a read cannot revive that subscription."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
     result = page.evaluate(
         """async () => {
@@ -6029,12 +6030,22 @@ def test_projection_subscriptions_follow_their_owner_and_cancel_queued_reads(
           clock += 1;
           await tickClock(message => { throw new Error(message); });
           let calls = 0;
+          let trackClock = false;
           const stop = watchProjection(owner, () => {
             calls += 1;
-            clockValue(() => clock);
+            if (trackClock) clockValue(() => clock);
           });
           await Promise.resolve();
           const initial = calls;
+          clock += 1;
+          await tickClock(message => { throw new Error(message); });
+          const untracked = calls;
+          trackClock = true;
+          stop.refresh();
+          const subscribed = calls;
+          clock += 1;
+          await tickClock(message => { throw new Error(message); });
+          const clocked = calls;
           await changed(() => { owner.remove(); document.body.append(owner); });
           const moved = calls;
           await changed(() => owner.remove());
@@ -6044,28 +6055,37 @@ def test_projection_subscriptions_follow_their_owner_and_cancel_queued_reads(
           await changed(() => document.body.append(owner));
           await Promise.resolve();
           const resumed = calls;
+          stop.refresh();
+          const refreshed = calls;
           stop();
+          stop.refresh();
           await changed(() => owner.remove());
           await changed(() => document.body.append(owner));
           clock += 1;
           await tickClock(message => { throw new Error(message); });
           owner.remove();
-          return {cancelled, initial, moved, detached, resumed, stopped: calls};
+          return {cancelled, initial, untracked, subscribed, clocked,
+            moved, detached, resumed, refreshed, stopped: calls};
         }"""
     )
     assert result == {
         "cancelled": 0,
         "initial": 1,
-        "moved": 1,
-        "detached": 1,
-        "resumed": 2,
-        "stopped": 2,
+        "untracked": 1,
+        "subscribed": 2,
+        "clocked": 3,
+        "moved": 3,
+        "detached": 3,
+        "resumed": 4,
+        "refreshed": 5,
+        "stopped": 5,
     }
 
 
 def test_data_subscriptions_follow_their_owner_and_stop_permanently(browser, serve):
     """Detachment releases data/clock work; reattachment restores the newest reading.
 
+    Refresh can acquire a clock dependency absent from the initial paint.
     A move in one mutation batch retains the original subscription. Removing an owner
     with an in-flight render also releases its presentation, so readiness can settle
     without waiting for a renderer whose owner is absent.
@@ -6089,14 +6109,24 @@ def test_data_subscriptions_follow_their_owner_and_stop_permanently(browser, ser
           });
           const deliveries = [];
           let clock = 0;
+          let trackClock = false;
           let release;
           const stop = watchData(widget, 'rows', snapshot => {
-            clockValue(() => clock);
+            if (trackClock) clockValue(() => clock);
             deliveries.push(snapshot?.revision ?? null);
             if (snapshot?.revision === 'held-owner')
               return new Promise(resolve => { release = resolve; });
           });
           const initial = deliveries.length;
+          clock += 1;
+          await tickClock(message => { throw new Error(message); });
+          const untracked = deliveries.length;
+          trackClock = true;
+          stop.refresh();
+          const subscribed = deliveries.length;
+          clock += 1;
+          await tickClock(message => { throw new Error(message); });
+          const clocked = deliveries.length;
           await changed(() => document.body.append(widget));
           const moved = deliveries.length;
           await changed(() => widget.remove());
@@ -6108,7 +6138,10 @@ def test_data_subscriptions_follow_their_owner_and_stop_permanently(browser, ser
           const next = structuredClone(runtime.data);
           next.version = 'held-owner-version';
           next.sources.deployments.revision = 'held-owner';
+          const beforeStaging = deliveries.at(-1);
           acceptData(next, runtime.state.taken);
+          stop.refresh();
+          const stagingKept = deliveries.at(-1) === beforeStaging;
           const pending = notifyDataSubscribers();
           const held = deliveries.at(-1);
           await changed(() => widget.remove());
@@ -6122,24 +6155,33 @@ def test_data_subscriptions_follow_their_owner_and_stop_permanently(browser, ser
           const absent = deliveries.length;
           await changed(() => home.append(widget));
           const restored = deliveries.at(-1);
+          stop.refresh();
+          const refreshed = deliveries.at(-1);
           stop();
+          stop.refresh();
           await changed(() => widget.remove());
           await changed(() => home.append(widget));
           clock += 1;
           await tickClock(message => { throw new Error(message); });
-          return {initial, moved, detached, resumed, held, absent, restored,
+          return {initial, untracked, subscribed, clocked,
+            moved, detached, resumed, held, absent, restored, refreshed, stagingKept,
             stopped: deliveries.length};
         }"""
     )
     assert result == {
         "initial": 1,
-        "moved": 1,
-        "detached": 1,
-        "resumed": 2,
+        "untracked": 1,
+        "subscribed": 2,
+        "clocked": 3,
+        "moved": 3,
+        "detached": 3,
+        "resumed": 4,
         "held": "held-owner",
-        "absent": 3,
+        "absent": 6,
         "restored": "newest-owner",
-        "stopped": 4,
+        "refreshed": "newest-owner",
+        "stagingKept": True,
+        "stopped": 8,
     }
 
 

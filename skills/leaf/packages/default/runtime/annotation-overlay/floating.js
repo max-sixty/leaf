@@ -1,5 +1,5 @@
 /* Floating UI for the page's floating surfaces: the response bar (composing/surface.js)
-   and the inline thread card (margin-projection.js).
+   and the inline thread card (thread-preview.js).
 
    Each places a box beside something on the page, and each leaves the browser's
    coordinate spaces to Floating UI. `computePosition` maps what the box stands against

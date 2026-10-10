@@ -1,8 +1,8 @@
 /* This module owns the target picker and whole-page text search. Its transient hints,
  * search marks, and status are synchronous Lit projections over native controller state. */
-import { aimTargets, anchoringIsReady } from "../anchor-resolution.js";
+import { anchoringIsReady } from "../anchor-resolution.js";
 import { bindings, bindingEnabled } from "../keyboard/bindings.js";
-import { el, LAYOUT, reserve } from "../widget-elements.js";
+import { el, LAYOUT, reserve, searchField } from "../widget-elements.js";
 import { coarsePointer } from "../pointer.js";
 import { html, nothing, render } from "../../vendor/browser-runtime.js";
 
@@ -17,11 +17,18 @@ import {
   segmentBlock,
 } from "../passages.js";
 import { bannerFoot, shownBox, shownParts } from "../geometry.js";
-import { focused } from "../keyboard/scopes.js";
 import { repaint } from "../repaint.js";
+import { union } from "../rect.js";
 import { anchorFor } from "../anchor-names.js";
 import { paintSet } from "../target-paint-geometry.js";
-import { handBack, releaseFocus, focusDestination } from "../focus.js";
+import {
+  handBack,
+  releaseFocus,
+  focusDestination,
+  closeLayer,
+  openLayer,
+  openerOf,
+} from "../focus.js";
 import {
   createHintSession,
   HINT_KEYS,
@@ -57,26 +64,26 @@ targetPickerHintLayer.append(hintRoot, markRoot);
 export const pageSearchSurface = el("div", "lf-ui lf-page-search");
 pageSearchSurface.setAttribute("role", "search");
 pageSearchSurface.hidden = true;
-const pageSearchInput = document.createElement("input");
-pageSearchInput.className = "lf-page-search-box";
-pageSearchInput.type = "search";
-pageSearchInput.name = "page-search";
-pageSearchInput.autocomplete = "off";
-pageSearchInput.spellcheck = false;
-pageSearchInput.maxLength = 160;
-pageSearchInput.placeholder = "Search page text";
-pageSearchInput.setAttribute("aria-label", "Search page text");
+const pageSearchInput = searchField("lf-page-search-box", {
+  name: "page-search",
+  label: "Search page text",
+});
+pageSearchInput.maxlength = 160;
 const pageSearchStatus = el("span", "lf-page-search-status");
 pageSearchStatus.setAttribute("role", "status");
-pageSearchSurface.append(pageSearchInput, pageSearchStatus);
+pageSearchStatus.slot = "end";
+pageSearchInput.append(pageSearchStatus);
+pageSearchSurface.append(pageSearchInput);
 const noMatches = "No matches";
 const searchCount = (position, total) => `${position} of ${total}`;
 
 // Target choosing and whole-page text search. `s` opens a viewport-local map of
 // the same stable addressables and visual parts Alt-click reaches, then opens Comment on the
 // chosen target; `/` opens the page's text search directly or from that map. The banner's
-// Select element opens this same picker, and its Cancel selection closes it. While it
-// stands, the page is armed as it is under a held Alt (aim.js): a mouse shows the target
+// Select element opens this same picker, and its Cancel selection closes it. A choice
+// in Design mode keeps that mode's design intent; Draw reserves the page for ink and
+// offers no picker. While the picker stands, the page is armed as it is under a held
+// Alt (aim.js): a mouse shows the target
 // under it, and a press, by finger or mouse, chooses that target without activating
 // authored controls. The key and the modifier are two ways into one gesture, so a press
 // means the same under either.
@@ -85,13 +92,8 @@ const searchCount = (position, total) => `${position} of ${total}`;
 // walk, the scroll freeze, and the paint. What this module declares is which members the
 // map holds and where each chip sits among them. An ancestor and descendant painting the
 // same visible box name one target, and the innermost remains, matching direct aim. A
-// target whose visible box is strictly smaller and fully enclosed by another steps its
-// chip right once per enclosing box, so nested corners stay apart; equal boxes outside
-// one containment chain stay at the same depth and the shared placement pass separates
-// their chips. Both the seat and that step are read off one box per paint, which is why
-// the reading here is a member's whole box rather than the corner the Go-to map hangs a
-// chip on. What either of them is left with once chrome is out of the way is one answer,
-// in key-badge-placement.js.
+// target's chip sits outside its own box, keeping controls and their labels readable. Shared hint seating separates those faces without moving page content.
+// Admission and clipping stay with key-badge-placement.js.
 //
 // `/` opens a real search input over the whole page reading, either directly from the
 // page or from the visible target hints. Tab walks repeated occurrences and Enter makes a
@@ -106,18 +108,17 @@ export function createTargetPicker({
   commentOnTarget,
   updateFab,
   fabAnchorAt,
-  pointerModeActive,
+  drawModeActive,
+  readTargets,
   armChanged,
 }) {
-  const HINT_INDENT = 10;
   const canChoose = () =>
-    anchoringIsReady() && !coveringAuxiliarySurface() && !pointerModeActive();
+    anchoringIsReady() && !coveringAuxiliarySurface() && !drawModeActive();
 
   let pickerOpen = false;
   let pageSearchOpen = false;
   let matches = [];
   let active = -1;
-  let opener = null;
   let searchReturnsToHints = false;
   let repeatedSearch = null;
   const matchNodeIds = new WeakMap();
@@ -139,10 +140,22 @@ export function createTargetPicker({
   // Chromium retains geometry for descendants suppressed by a closed disclosure. Ask
   // visibility before geometry so those descendants cost no box reads. A display: contents
   // addressable has no box of its own and stays eligible through a visible child.
-  const targetShown = ({ element }) =>
-    element.checkVisibility() ||
-    (getComputedStyle(element).display === "contents" &&
-      shownParts(element).some((part) => part.checkVisibility()));
+  const hintElement = (target) => target.controlElement ?? target.element;
+  const targetBounds = (target, reading) =>
+    union(
+      (target.controlFaces ?? [hintElement(target)])
+        .map((face) => ({ face, rect: reading.visibleBounds(face) }))
+        .filter(({ face, rect }) => reading.exposes(face, rect))
+        .map(({ rect }) => rect),
+    );
+  const targetShown = (target) => {
+    const element = hintElement(target);
+    return (
+      element.checkVisibility() ||
+      (getComputedStyle(element).display === "contents" &&
+        shownParts(element).some((part) => part.checkVisibility()))
+    );
+  };
 
   function firstShown(range, owner, reading) {
     const clip = reading.clipOver(owner);
@@ -162,14 +175,14 @@ export function createTargetPicker({
 
   function visibleTargets() {
     const reading = room();
-    const targets = aimTargets()
-      .filter(({ element }) => !inChrome(element))
+    const targets = readTargets()
+      .filter((target) => !inChrome(hintElement(target)))
       .filter(targetShown)
       .map((target) => ({
         ...target,
-        rect: reading.visibleBounds(target.element),
+        rect: targetBounds(target, reading),
       }))
-      .filter(({ element, rect }) => reading.exposes(element, rect))
+      .filter((target) => target.rect)
       .sort((a, b) => a.rect.top - b.rect.top || a.rect.left - b.rect.left);
     // Direct aiming chooses the innermost stable addressable under the pointer. When an
     // ancestor and descendant paint the same visible box, naming both would offer two
@@ -179,8 +192,8 @@ export function createTargetPicker({
         !targets.some(
           (inner) =>
             inner !== outer &&
-            outer.element !== inner.element &&
-            outer.element.contains(inner.element) &&
+            hintElement(outer) !== hintElement(inner) &&
+            hintElement(outer).contains(hintElement(inner)) &&
             sameVisibleBox(outer.rect, inner.rect),
         ),
     );
@@ -188,37 +201,27 @@ export function createTargetPicker({
     return unique.map((target, index) => ({ ...target, code: codes[index] }));
   }
 
-  // How many of the map's other members enclose this one, counted over the boxes of one
-  // paint. Two corners in the same place would name two different targets, so each
-  // enclosed chip steps right once per box around it. Strictly larger in one dimension,
-  // because an equal box is the same place rather than a box around it.
-  //
-  // TODO(2026-09-18): seat these chips outside their member's box. A nested member's
-  // corner is where its own state icon and first word are, so a chip standing there
-  // covers them; `HINT_INDENT` is half a chip wide, so one level of nesting does not
-  // clear the parent's chip either, and the placement pass then separates the two
-  // downwards onto the member's first line. Widening the step only trades the icon for
-  // the words. The left margin, where a top-level member's chip already sits, is clear
-  // of both.
-  const enclosedBy = (box, boxes) =>
-    boxes.filter(
-      (outer) =>
-        outer !== box &&
-        outer.left <= box.left &&
-        outer.top <= box.top &&
-        outer.right >= box.right &&
-        outer.bottom >= box.bottom &&
-        (outer.right - outer.left > box.right - box.left ||
-          outer.bottom - outer.top > box.bottom - box.top),
-    ).length;
-
   // `withHints` opens the shared mode without a target map: a direct slash is page
   // search over the whole document, and reading a viewport-local map it would then hide
   // is work for nobody.
+  // The picker's opener is the control the user stood on as it opened (focus.js,
+  // `openLayer`); a close that restores hands them back to it as it closes.
   function setTargetPicker(on, restore = false, withHints = true) {
     if (on && (!anchoringIsReady() || (withHints && !canChoose()))) return;
-    if (on) opener = focused();
-    const returnTo = !on && restore ? opener : null;
+    if (on) {
+      openLayer(pageSearchSurface);
+      paintTargetPicker(on, withHints);
+      return;
+    }
+    // An opener of nowhere hands back nothing, and `handBack` lets the user go.
+    const landing = restore && pickerOpen;
+    const opener = openerOf(pageSearchSurface);
+    closeLayer(
+      () => paintTargetPicker(on, withHints),
+      landing && (() => handBack(opener)),
+    );
+  }
+  function paintTargetPicker(on, withHints) {
     pickerOpen = on;
     pageSearchOpen = false;
     searchReturnsToHints = false;
@@ -235,11 +238,9 @@ export function createTargetPicker({
       );
     } else {
       hints.disarm();
-      if (!on) opener = null;
     }
     armChanged();
     repaint();
-    if (returnTo) handBack(returnTo);
   }
 
   function setPageSearch(on) {
@@ -417,7 +418,8 @@ export function createTargetPicker({
     return `${before ? `…${before} ` : ""}${phrase}${after ? ` ${after}…` : ""}`;
   }
 
-  function chooseTarget(target) {
+  function chooseTarget(candidate) {
+    const target = candidate.capture ? candidate.capture() : candidate;
     setTargetPicker(false);
     releaseFocus();
     commentOnTarget(target);
@@ -493,23 +495,22 @@ export function createTargetPicker({
     layer: hintRoot,
     walk: "target-picker",
     read: visibleTargets,
-    identity: (target) => target.element,
+    identity: hintElement,
     scene: room,
     layout: (candidates, { current, reading }) => {
       const seated = candidates
         .map((target) => [
           target,
-          targetShown(target) ? reading.visibleBounds(target.element) : null,
+          targetShown(target) ? targetBounds(target, reading) : null,
         ])
-        .filter(([target, rect]) => reading.exposes(target.element, rect));
-      const boxes = seated.map(([, rect]) => rect);
+        .filter(([, rect]) => rect);
       const top = bannerFoot();
       return seated.map(([target, rect]) => {
         const steps = [...target.code];
         return {
           candidate: target,
           model: Object.freeze({
-            key: hintRenderKey(target.element),
+            key: hintRenderKey(hintElement(target)),
             className: `lf-key-badge lf-key-hint lf-target-picker-hint${
               target === current ? " lf-current" : ""
             }${rect.clippedTop || rect.top < top ? " lf-in" : ""}`,
@@ -520,8 +521,10 @@ export function createTargetPicker({
             ),
           }),
           target: rect,
-          belowTarget: false,
-          left: Math.max(10, rect.left + enclosedBy(rect, boxes) * HINT_INDENT),
+          placement: target.controlElement ? "above" : "before",
+          // Control keys sit just outside their own upper-left corner. Owner keys
+          // stay before the owner; neither route writes a key into its target.
+          left: rect.left,
           top: Math.max(top, rect.top),
         };
       });
@@ -529,7 +532,7 @@ export function createTargetPicker({
     template: hintTemplate,
     take: chooseTarget,
     words: {
-      describe: (target) => target.label,
+      describe: (target) => (target.capture ? target.capture() : target).label,
       take: "choose",
       all: "All target hints.",
     },

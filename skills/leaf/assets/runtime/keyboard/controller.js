@@ -2,10 +2,11 @@
    page policy around a real input (transient modes and the expanded shortcut bar), and
    releases bootstrap's ordered keys as their declared input becomes available. */
 import { dispatchKey, keyReady } from "./dispatch.js";
-import { MODIFIER_KEYS, quickShortcuts } from "./bindings.js";
+import { MODIFIER_KEYS } from "../control-selectors.js";
+import { quickShortcuts } from "./bindings.js";
 import { beforeShortcutCommand } from "./shortcut-bar.js";
-import { claimsEsc, focused, paintKeys, watchCommandAvailability } from "./scopes.js";
-import { onStanding, takesLetters, typesText } from "../focus.js";
+import { claimsEsc, paintKeys, watchCommandAvailability } from "./scopes.js";
+import { onStanding, takesLetters, typesText, focused } from "../focus.js";
 import { nextFrame } from "../rendering.js";
 import { pagePresented, pageUpgraded, UPGRADE, PRESENTATION } from "../presentation.js";
 export function mountKeyboard({

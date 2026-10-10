@@ -14,6 +14,9 @@
   to start, find, and continue conversations about the whole page.
 - **Build coherent UI without repeated patches.** Improve the layout and
   interaction mechanisms so each new case does not require another fix.
+- **Reduce the burden of tests.** Tests now take long enough to meaningfully
+  slow development. Reduce their runtime and the work needed to run them while
+  preserving useful coverage.
 
 Priority runs from **Now** to **Next** to **Etc**. Themes group related work within
 each priority; bullets are outcomes, not implementation plans. Linked notes hold the
@@ -26,6 +29,12 @@ has tried; settle that before building it.
 
 ### User experience
 
+- **Verify cancellation when a browser document departs.** Reproduce navigation
+  away during registry loading, state response decoding, and presentation, plus
+  removal of a loading sample iframe. Confirm which work survives departure and
+  whether it produces errors before changing shared startup or presentation
+  lifetimes. Include real back/forward-cache restoration so cancellation cannot
+  break a returning page.
 - **#25 — Answer one decision beside its evidence and on a board.** A section's
   picker and its board card currently record independent facts. Choose the owner
   and test both views against one decision, including ordering, write-ins and
@@ -165,8 +174,8 @@ has tried; settle that before building it.
   available, such as a banner control under a coarse pointer, a reaction row on the
   sent card, or a control that keeps the field's measure
   (`skills/leaf/assets/runtime/composing/selection.js`).
-- **Give the thread panel's touch grip its own space.** Reserve room for the grip
-  and collapse inactive reply controls if more thread cards should fit.
+- **Reconsider thread navigation.** Decide how the Threads panel should change
+  before refining it (`skills/leaf/assets/AGENTS.md`, "Space and scrolling").
 
 ### Layout
 
@@ -179,12 +188,10 @@ and its chrome coordinate.
   newcomer out of view rather than pushing down the card being read. The user sees
   it only in the count; give that arrival a visible route while preserving the
   current reading.
-- **Hold the shipped workspaces to the overflow advice.** `alert-review` shows one
-  alert's decision at a time, but `page check --render` still advises that its queue
-  (`ar-queue`) runs 106px past its region at every width from 720 to 1920px, and
-  `rust-sort`'s stage pane 100px at 720px. Fit both, then make
-  `test_page_fixture_renders` fail on that advice for workspace examples, with
-  `rust-sort`'s source pane the one reader allowed to scroll; today it asserts only
+- **Hold the shipped workspaces to the overflow advice.** `page check --render` still
+  advises that `rust-sort`'s stage pane runs 100px past its region at 720px. Fit it,
+  then make `test_page_fixture_renders` fail on that advice for workspace examples,
+  with `rust-sort`'s source pane the one reader allowed to scroll; today it asserts only
   the gate's failures ([plan](notes/chrome-and-covers.md)).
 - **Decide whether the desktop bottom bar goes.** Its key hints would move behind `?`
   and its status into the banner; the bar is how a desktop user learns the keys
@@ -198,9 +205,9 @@ and its chrome coordinate.
 - **Let a block be a workspace.** `feature-gallery` shows a workspace inside a column
   page, and since `layout-workspace` works only on `main`, it restates the Layout's
   full-height switch (720px by 480px) and its pane scrolling in about 20 lines. The pane
-  rules can't simply key on `--lf-full-height`: they say which panes the workspace sizes
-  by where they stand under `main`, and the property is inherited by every descendant.
-  Taking the Layout onto a block also means the runtime's layout region
+  rules now key on `--lf-full-height`, which a box sets for the children it sizes and
+  which does not inherit, so a block workspace needs only to set it on its body and its
+  grid of panes. Taking the Layout onto a block also means the runtime's layout region
   (`syncLayoutRegion`) and the render check's held-panes reading (`heldPanes`), which
   both look only at `main`, have to look at that block too. It waits for a page that
   needs it; a workspace page's own pane grid stays plain CSS.
@@ -257,24 +264,17 @@ Boxes that still move without input, which the "Stability" rule in
 `skills/leaf/assets/AGENTS.md` forbids. `tests/known_widget_findings.py` lists each widget
 that changes size after first paint, with its cause.
 
-- **Size the activity feed and text documents at first paint.** `lf-activity` draws the
-  log's history and `lf-text-document` its bound source's value, and both arrive with
-  the first state answer, after first paint. Serving that state inside the page does
-  not work: modules run after first paint, and a page revision is immutable while the
-  log keeps changing. Follow #1566's Command Hub pattern instead: draw a summary whose
-  structure is fixed, declared as the widget's `x-prepaint` so the first paint lays it
-  out, open the rows from it, and hold later growth with
-  `HeldReading` (`runtime/thread/held-news.js`) while it would be seen. Check first
-  whether a text document, which the reader came to read, can stand behind a summary.
+- **Size text documents at first paint.** `lf-text-document` draws its bound source's
+  value after the first state answer. Check whether the document can be laid out from
+  a synchronous source reading, or whether a summary can serve the reader who came
+  to read it. The activity feed now opens log-sized rows deliberately and holds later
+  growth with `HeldReading`.
 - **Decide the contents' form before first paint.** `lf-toc` changes size because the
   margin pass decides after first paint whether it is the fixed map in the margin or
   the outline in the flow (`data-lf-margin`, `margin-layout.js`), from the room
   it measures at that point. A held summary does not answer that cause. Check first whether a
   container or media query on the space beside the column can make the same decision
   in CSS.
-- **Find a first-paint fix for targeting.** `lf-targeting` has no recorded cause;
-  read `lf-targeting.js` for what it builds after first paint before choosing an
-  approach.
 - **Check that margin markers paint in place in their first frame.** The shift watch
   exempts the page until it is presented (`tests/shift_watch.js`), and #1603 records
   startup shifts only as diagnostics, so a marker drawn in the wrong place in its first
@@ -355,7 +355,7 @@ on 2026-10-07.
   It runs a page once in the host's browser, about 1.3 s, where the page has a script
   or places a page widget or a data widget (`needs_browser`,
   `render_gate/page_code.py`); any other page checks in about 0.15 s. Widgets that fail on their attribute values
-  (`lf-playground`, `lf-targeting`, `lf-shot`, `lf-visual-review`, `lf-text-document`)
+  (`lf-playground`, `lf-shot`, `lf-visual-review`, `lf-text-document`)
   and every widget in thread markup report through `leaf wait` once a browser draws
   them, but nothing runs them first. Write `evals/` cases in which agents author each
   kind and measure how often what they write fails to draw, then run the kinds agents
@@ -558,3 +558,5 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **MCP Apps:** rebuild inline hosting as the direct-resource design when a host
   the user runs renders MCP Apps. See [notes/mcp-apps/PROJECT.md](notes/mcp-apps/PROJECT.md).
 - **Release labels:** prefer an exact tag when Leaf adopts named releases.
+- **Diff controls:** consider author-configurable wrapping and per-file review tracking
+  when a page needs them. Keep their controls optional.

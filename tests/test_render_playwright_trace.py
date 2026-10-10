@@ -14,9 +14,25 @@ from leaf import exporting as exporting_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf_dev.page_fixtures import example_media
 from playwright.sync_api import expect
-from render_harness import holding, leaf_page, open_page, resized, sending, told
+from render_harness import (
+    at_rest,
+    holding,
+    leaf_page,
+    open_page,
+    resized,
+    sending,
+    still_page,
+    told,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.mark.nightly
+def test_trace_viewer_stays_idle_after_initial_presentation(browser, serve):
+    """The viewer's disabled transition cannot wake margin layout after readiness."""
+    url = serve(ROOT / "examples/developer/playwright-trace-gallery.html")
+    assert at_rest(still_page(browser, url)) == []
 
 
 def navigate_at(timeline, index):
@@ -932,6 +948,16 @@ def test_trace_transport_scrubs_plays_and_freezes_review_evidence(browser, serve
             rendered(user)
             expect(position).to_have_text(frozen)
 
+            # Native keyboard reading belongs to the bounded point inspector.
+            widget.locator(".lf-trace-tree summary").click()
+            rendered(user)
+            user.clock.pause_at(user.evaluate("Date.now() / 1000") + 1)
+            play.click()
+            metadata.focus()
+            metadata.press("End")
+            expect(play).to_be_visible()
+            user.clock.resume()
+
         # Starting a drawing with the ordinary W route freezes the captured image
         # before ink samples arrive; comments keep that immutable image identity.
         timeline.focus()
@@ -939,14 +965,176 @@ def test_trace_transport_scrubs_plays_and_freezes_review_evidence(browser, serve
         user.clock.pause_at(user.evaluate("Date.now() / 1000") + 1)
         play.tap() if touch else play.click()
         expect(pause).to_be_visible()
+        user.clock.run_for(round(duration * 0.75))
         pause.press("w")
+        expect(pause).to_be_visible()
+        pixels = widget.locator(".lf-trace-image-viewport")
+        pixels.scroll_into_view_if_needed()
+        box = pixels.bounding_box()
+        x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+        if touch:
+            cdp = context.new_cdp_session(user)
+            cdp.send(
+                "Input.dispatchTouchEvent",
+                {"type": "touchStart", "touchPoints": [{"x": x, "y": y}]},
+            )
+        else:
+            user.mouse.move(x, y)
+            user.mouse.down()
         expect(play).to_be_visible()
+        if touch:
+            cdp.send(
+                "Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []}
+            )
+            cdp.detach()
+        else:
+            user.mouse.up()
         user.clock.resume()
         rendered(user)
         frozen = position.inner_text()
         rendered(user)
         expect(position).to_have_text(frozen)
         user.keyboard.press("Escape")
+
+
+def test_trace_page_scrolling_preserves_playback(browser, serve):
+    """Wheel and touch page navigation never freeze or rewind the recording."""
+    source = ROOT / "examples/developer/playwright-trace-gallery.html"
+    record = json.loads(source.with_suffix(".data.json").read_text())["release-journey"]
+    duration = max(image["timestamp"] for image in record["images"]) - min(
+        action["startTime"] for action in record["actions"]
+    )
+    url = serve(source)
+    for touch in (False, True):
+        context = browser.new_context(
+            viewport={"width": 390 if touch else 1440, "height": 900},
+            has_touch=touch,
+            is_mobile=touch,
+        )
+        user = context.new_page()
+        user.goto(url)
+        wait_until_ready(user)
+        widget = user.locator("lf-trace")
+        timeline = widget.get_by_role("group", name="Recording timeline", exact=True)
+        timeline.focus()
+        timeline.press("Home")
+        position = widget.locator(".lf-trace-position")
+        beginning = position.inner_text()
+        user.clock.install(time=0)
+        user.clock.pause_at(1)
+        widget.get_by_role(
+            "button", name="Play", exact=True
+        ).tap() if touch else widget.get_by_role(
+            "button", name="Play", exact=True
+        ).click()
+        pause = widget.get_by_role("button", name="Pause", exact=True)
+        expect(pause).to_be_visible()
+        if not touch:
+            for key in ("a", "Escape"):
+                pause.press(key)
+                expect(pause).to_have_count(1)
+            before_key = user.evaluate("scrollY")
+            pause.press("PageDown")
+            user.wait_for_function("before => scrollY > before", arg=before_key)
+            expect(pause).to_have_count(1)
+            pause.press("Tab")
+            expect(
+                widget.get_by_role("button", name="Previous", exact=True)
+            ).to_be_focused()
+            expect(pause).to_have_count(1)
+        user.clock.run_for(round(duration * 0.75))
+        if not touch:
+            canvas = widget.locator(
+                ".lf-trace-image:not(.lf-trace-image-pending) .lf-trace-canvas"
+            )
+            canvas.focus()
+            canvas.evaluate("node => window.focusedCapture = node")
+            user.clock.run_for(round(duration * 0.05))
+            expect(canvas).to_be_focused()
+            assert canvas.evaluate("node => node !== window.focusedCapture")
+            before_space = user.evaluate("scrollY")
+            canvas.press("Space")
+            user.wait_for_function("before => scrollY > before", arg=before_space)
+            expect(pause).to_have_count(1)
+        # Reading further down the page is not an inspection of the recording.
+        # Cross its top edge with ordinary wheel/touch input over the pixels.
+        pixels = widget.locator(".lf-trace-image-viewport")
+        pixels.scroll_into_view_if_needed()
+        box = pixels.bounding_box()
+        x = box["x"] + box["width"] / 2
+        y = min(800, box["y"] + 80)
+        assert pixels.evaluate(
+            "(node, point) => node.contains(document.elementFromPoint(...point))",
+            [x, y],
+        )
+        user.evaluate("window.playingWidget = document.querySelector('lf-trace')")
+        before_scroll = user.evaluate("scrollY")
+        if touch:
+            cdp = context.new_cdp_session(user)
+            cdp.send(
+                "Input.dispatchTouchEvent",
+                {"type": "touchStart", "touchPoints": [{"x": x, "y": y}]},
+            )
+            # Browser gesture recognition may see horizontal jitter first.
+            cdp.send(
+                "Input.dispatchTouchEvent",
+                {"type": "touchMove", "touchPoints": [{"x": x + 3, "y": y - 1}]},
+            )
+            for distance in range(40, 361, 40):
+                cdp.send(
+                    "Input.dispatchTouchEvent",
+                    {
+                        "type": "touchMove",
+                        "touchPoints": [{"x": x, "y": y - distance}],
+                    },
+                )
+            cdp.send(
+                "Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []}
+            )
+            cdp.detach()
+        else:
+            user.mouse.move(x, y)
+            user.mouse.wheel(0, 450)
+        user.wait_for_function("before => scrollY > before", arg=before_scroll)
+        assert widget.bounding_box()["y"] < 0
+        assert widget.evaluate("node => node === window.playingWidget")
+        expect(pause).to_have_count(1)
+        user.clock.run_for(round(duration * 0.05))
+        expect(pause).to_have_count(1)
+        expect(position).not_to_have_text(beginning)
+        if touch:
+            # A swipe starting on the timeline still belongs to the page unless
+            # the user takes its explicit scrub handle or selects a moment.
+            timeline.scroll_into_view_if_needed()
+            rail = widget.locator(".vis-panel.vis-center").bounding_box()
+            x, y = rail["x"] + rail["width"] - 30, rail["y"] + 20
+            before_scroll = user.evaluate("scrollY")
+            cdp = context.new_cdp_session(user)
+            cdp.send(
+                "Input.dispatchTouchEvent",
+                {"type": "touchStart", "touchPoints": [{"x": x, "y": y}]},
+            )
+            cdp.send(
+                "Input.dispatchTouchEvent",
+                {"type": "touchMove", "touchPoints": [{"x": x + 12, "y": y - 1}]},
+            )
+            for distance in range(40, 301, 40):
+                cdp.send(
+                    "Input.dispatchTouchEvent",
+                    {"type": "touchMove", "touchPoints": [{"x": x, "y": y + distance}]},
+                )
+            cdp.send(
+                "Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []}
+            )
+            cdp.detach()
+            user.wait_for_function("before => scrollY < before", arg=before_scroll)
+            expect(pause).to_have_count(1)
+        # A tap inspects the current pixels; an explicit Pause stops transport.
+        pixels.tap() if touch else pause.click()
+        expect(widget.get_by_role("button", name="Play", exact=True)).to_be_visible()
+        frozen = position.inner_text()
+        user.clock.run_for(round(duration))
+        expect(position).to_have_text(frozen)
 
 
 def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serve):
@@ -1070,6 +1258,19 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
         before = user.evaluate("inspectionView()")
         before_window = user.evaluate("inspectionWindow()")
         assert before["width"] > 1.4
+        user.evaluate("""() => {
+          window.inspectionStyleWrites = 0;
+          const image = document.querySelector('.lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img');
+          new MutationObserver(records => {inspectionStyleWrites += records.length})
+            .observe(image, {attributes: true, attributeFilter: ['style']});
+        }""")
+        user.evaluate("window.dispatchEvent(new Event('resize'))")
+        rendered(user)
+        assert user.evaluate("inspectionView()") == pytest.approx(before, abs=0.003)
+        assert user.evaluate("inspectionStyleWrites") == 0
+        user.evaluate(
+            "() => {inspectionFrames.length = 0; inspectionWindows.length = 0}"
+        )
         play = widget.get_by_role("button", name="Play", exact=True)
         play.tap() if touch else play.click()
         expect(widget.get_by_role("button", name="Pause", exact=True)).to_be_visible()
@@ -1285,11 +1486,24 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
 
 
 def test_trace_zoom_and_pan_stay_within_the_fitted_recording(browser, serve):
-    """Repeated buttons, wheel zoom and drags cannot lose a short recording."""
+    """An overview refits; zoom, pan and repeated controls keep the reader's range."""
     url = serve(ROOT / "examples/developer/playwright-trace-gallery.html")
-    user = open_page(browser, url)
+    context = browser.new_context(viewport={"width": 480, "height": 900})
+    user = open_page(browser, url, context=context)
     widget = user.locator("lf-trace")
     rail = widget.locator(".vis-panel.vis-center")
+
+    def moment_positions():
+        return widget.locator(".lf-trace-marker").evaluate_all(
+            "nodes => nodes.map(node => node.getBoundingClientRect().left)"
+        )
+
+    resized(user, 1120, 900)
+    first_overview = moment_positions()
+    assert len(first_overview) == 3
+    resized(user, 1200, 900)
+    resized(user, 1120, 900)
+    assert moment_positions() == pytest.approx(first_overview, abs=0.5)
 
     def visible_ticks():
         return widget.locator(".vis-text.vis-minor:not(.vis-measure)").evaluate_all(
@@ -1332,6 +1546,10 @@ def test_trace_zoom_and_pan_stay_within_the_fitted_recording(browser, serve):
             panned |= visible_ticks() != before_pan
             expect(widget.locator(".lf-trace-position")).to_have_text(selection)
         assert panned, "Detail dragging must pan without selecting another capture"
+        panned_ticks = visible_ticks()
+        resized(user, 1120 if width == 1440 else 480, 900)
+        resized(user, width, 900)
+        assert visible_ticks() == panned_ticks
 
         for _ in range(16):
             widget.get_by_role("button", name="Zoom out", exact=True).click()
@@ -1882,6 +2100,55 @@ def test_hidden_recording_prepares_when_shown_without_blocking_page(browser, ser
     assert abs(canvas["width"] - viewer["width"]) <= 2
     assert abs(canvas["height"] - viewer["height"]) <= 2
     assert user.evaluate("document.documentElement.scrollWidth <= innerWidth")
+
+
+def test_trace_metadata_inspection_preserves_pending_checkpoint(browser, serve):
+    """Reading current action details never selects an older displayed image."""
+    source = ROOT / "examples/developer/playwright-trace-gallery.html"
+    user = browser.new_page()
+    held = []
+    armed = False
+
+    def gate(route):
+        if armed:
+            held.append(route)
+        else:
+            route.continue_()
+
+    user.route("**/media/**", gate)
+    user.goto(serve(source))
+    wait_until_ready(user)
+    widget = user.locator("lf-trace")
+    armed = True
+    timeline = widget.get_by_role("group", name="Recording timeline", exact=True)
+    timeline.focus()
+    timeline.press("End")
+    holding(user, held, 1, "next checkpoint image")
+    phase = widget.locator(".lf-trace-phase")
+    requested_phase = phase.inner_text()
+    assert requested_phase
+    summary = widget.locator(".lf-trace-tree summary")
+    requested_tree = summary.inner_text()
+    assert "unavailable" not in requested_tree
+    position = widget.locator(".lf-trace-position")
+    requested_position = position.inner_text()
+    metadata = widget.get_by_role("group", name="Selected point details")
+    metadata.scroll_into_view_if_needed()
+    box = metadata.bounding_box()
+    user.mouse.move(box["x"] + box["width"] / 2, box["y"] + 30)
+    user.mouse.wheel(0, 100)
+    metadata.focus()
+    metadata.press("End")
+    summary.click()
+    expect(phase).to_have_text(requested_phase)
+    expect(summary).to_have_text(requested_tree)
+    expect(position).to_have_text(requested_position)
+    armed = False
+    for route in held:
+        route.continue_()
+    rendered(user)
+    expect(phase).to_have_text(requested_phase)
+    expect(position).to_have_text(requested_position)
 
 
 def test_trace_replaces_captures_without_blank_pixels_or_layout_displacement(

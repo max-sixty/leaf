@@ -230,6 +230,7 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     column = evaluate_probe(page, "columnGeometry")
     overflow = column["overflow"]
     misplaced = column["misplaced"]
+    scrollbars = evaluate_probe(page, "scrollbarClearance")
     # This experiment writes and removes a temporary wrapping rule. Preserve its
     # position between the two read-only groups so each reads the same restored page.
     squeezed = evaluate_probe(page, "squeezedTables")
@@ -339,6 +340,7 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         for u in unmarkable
     ]
     found += [f"[{scheme}] {text}" for _key, text in _overflow(overflow, misplaced)]
+    found += [f"[{scheme}] {text}" for _key, text in _scrollbars(scrollbars)]
     found += [f"[{scheme}] {s}" for s in squeezed]
     found += [
         f"[{scheme}] the control .{c['ctrl'].split()[0]}"
@@ -377,6 +379,22 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     found += [f"[{scheme}] {r}" for r in relative]
     notices = [f"[{scheme}] console: {e}" for e in resize_notices]
     return found, notices
+
+
+def _scrollbars(boxes: list) -> list[tuple[tuple[str, str], str]]:
+    """Overlay track collisions, keyed like other width-dependent geometry."""
+    return [
+        (
+            (box["place"], "scrollbar"),
+            (
+                f"{box['at']} leaves {box['clear']}px below its {box['content']}"
+                f" for a {box['required']:g}px horizontal overlay scrollbar; avoid the"
+                " horizontal overflow or reserve room below the content so reaching for"
+                " the bar does not cover it"
+            ),
+        )
+        for box in boxes
+    ]
 
 
 def _overflow(overflow: int, misplaced: list) -> list[tuple[tuple[str, str], str]]:
@@ -548,8 +566,8 @@ def margin_changes(page, readings, height: int) -> list[int]:
 
 
 def swept_overflow(readings, viewports) -> list[str]:
-    """Sideways overflow the fixed viewports miss, with the widths each run of it
-    spans and what it reads at the narrowest.
+    """Sideways overflow and scrollbar collisions the fixed viewports miss, with
+    the widths each run spans and what it reads at the narrowest.
 
     A run that takes in a fixed width is dropped here, because that viewport's own
     reading already reports it in both schemes."""
@@ -558,7 +576,10 @@ def swept_overflow(readings, viewports) -> list[str]:
         f"at {_span(widths)} wide, {text}"
         for widths, text in _swept(
             readings,
-            lambda reading: _overflow(reading["overflow"], reading["misplaced"]),
+            lambda reading: (
+                _overflow(reading["overflow"], reading["misplaced"])
+                + _scrollbars(reading["scrollbars"])
+            ),
         )
         if not fixed & set(widths)
     ]
@@ -650,3 +671,41 @@ def unreserved_height_advice(page, declarations: dict) -> list[str]:
         + f', so what follows it moves when it is drawn: state data-height="{w["drawn"]}"'
         for w in evaluate_probe(page, "unreservedHeights", declarations)
     ]
+
+
+def framing_advice(page) -> list[str]:
+    """Report authored boxes whose visible inset includes a child's outer margin,
+    and rows whose edge trim separates their items.
+
+    Padding and margins can be intentional, so these measurements refuse nothing.
+    The shared probes also inspect Leaf's chrome and module implementations; their
+    findings belong to the suite rather than the author editing the page.
+    """
+
+    found = []
+    for box in evaluate_probe(page, "trappedMargins"):
+        if not box["authored"]:
+            continue
+        through = "".join(f" through <{tag}>" for tag in box["through"])
+        trim = (
+            "Restore the declared frame's content-edge trim"
+            if box["frameDeclared"]
+            else "Use --lf-block-frame: 1 for a drawn frame, or --lf-block-frame: trim "
+            "for a transparent grouping"
+        )
+        found.append(
+            f"{box['at']} draws {box['drawn']:g}px of inset and shows "
+            f"{box['drawn'] + box['margin']:g}px {box['edge']} its <{box['child']}>"
+            f"{through}: {box['margin']:g}px of child margin stays inside the box. "
+            f"{trim}; put spacing between selectable blocks in the parent's gap "
+            "or outside margins"
+        )
+    for row in evaluate_probe(page, "splitEdges"):
+        if not row["authored"]:
+            continue
+        found.append(
+            f"{row['at']} trims only one item at its {row['edge']} edge while "
+            f"another keeps {row['margin']:g}px of margin. Declare "
+            "--lf-holds-edge: 1 on this flex or grid row to keep its items aligned"
+        )
+    return list(dict.fromkeys(found))

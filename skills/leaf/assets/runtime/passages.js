@@ -38,6 +38,12 @@
    reads or it is no change to the reading, by the walk's own rules (`contextAt`), so
    the runtime repainting its chrome does not cost the page a walk.
 
+   Native editing hosts and readonly islands inside them are passage cells. Context
+   outside a field never borrows its mutable value; an actual native selection inside
+   remains readable. File and browser readings share these ownership fences.
+   Native textarea children initialize its value; they are never visible document
+   words or surrounding quote context, before or after that value is edited.
+
    The walk carries its context down (`enter`): each element states once whether it
    starts chrome, silence, generated words, a block or a passage cell, rather than each
    text node climbing to ask. `pageText` indexes back from its string by segment
@@ -78,7 +84,7 @@
 
    Identity crosses the same boundary. `elementById` searches the document and declared
    open roots. `pageQueryAll` clears or queries marks everywhere the runtime may write.
-   `focused` (keyboard/scopes.js) descends through retargeted `document.activeElement`
+   `focused` (focus.js) descends through retargeted `document.activeElement`
    until it finds the actual control.
 
    Hit testing asks two different questions. `elementFromPointAcross` and `markAt`
@@ -119,6 +125,8 @@ import {
 import { decisionFor, registry } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { COLLAPSE } from "./collapse.js";
+import { textUnits } from "./text-alignment.js";
+import { excerptWords } from "./contribution-model.js";
 
 // Opaque widgets and their original direct children: each is a passage cell of its own.
 const passageFences = new WeakSet();
@@ -358,10 +366,10 @@ const BLOCK_TAGS = new Set(TEXT_BLOCK.split(","));
 const chromeMark = (el) => (el.matches(UI_MARKS) ? !el.matches(SAID) : null);
 // What no label can speak through, however it is marked: an inline script, the
 // stylesheet a rendered diagram carries inside its <svg>, and a slot the user's
-// decision took off the page. Chrome is the rest of what the anchor pass skips and
+// decision took off the page, or a native field's default-value markup. Chrome is the rest of what the anchor pass skips and
 // the one part a label yields — it is a look, and a look cannot make a word the
 // runtime's. `retired` is `retiredSlots()`, read once per walk.
-const SILENT_TAGS = new Set(["script", "style"]);
+const SILENT_TAGS = new Set(["script", "style", "textarea"]);
 const silences = (el, retired) =>
   SILENT_TAGS.has(el.localName) ||
   (retired !== "" &&
@@ -374,10 +382,21 @@ const unmodelled = (el) => {
   const attr = el.getAttribute("data-lf-said");
   return !(attr && registry[el.parentElement?.localName]?.["x-says"]?.[attr]);
 };
+// Automatic control capture uses authored or registry-declared words, never the
+// mutable value of a native editing host. A user's actual Range remains readable.
+export const fileModelsPassage = (segments) =>
+  segments.every(
+    ({ node, gen }) =>
+      !node.parentElement.isContentEditable && (!gen || !unmodelled(gen)),
+  );
 // A cell candidate: an opaque widget or one of its original direct children, which
 // always fence, or an unmodelled generated element, which fences once a word of the
 // page's reading is its own (`readPage`).
 const opaque = (el) => passageFences.has(el);
+// Editing values and readonly islands inside them are separate passage cells.
+// Capture and resolution both stop context at those native ownership boundaries.
+const editingBoundary = (el) =>
+  Boolean(el.isContentEditable) !== Boolean(el.parentElement?.isContentEditable);
 // One element's rules applied to the context over it. `inFrame` is false only for a
 // point query's ancestors above the reading's frame, where chrome and the generated
 // marks are somebody else's (`frameOf`). An element that starts nothing — most spans,
@@ -385,7 +404,8 @@ const opaque = (el) => passageFences.has(el);
 function enter(ctx, el, retired, inFrame = true) {
   const marked = el.hasAttributes() && el.matches(MARKS);
   const block = BLOCK_TAGS.has(el.localName);
-  const cell = opaque(el) || (marked && el.matches(GEN) && unmodelled(el));
+  const editing = editingBoundary(el);
+  const cell = opaque(el) || editing || (marked && el.matches(GEN) && unmodelled(el));
   const silent = !ctx.silenced && silences(el, retired);
   if (!marked && !block && !cell && !silent) return ctx;
   const chrome = (marked && inFrame ? chromeMark(el) : null) ?? ctx.chrome;
@@ -397,7 +417,7 @@ function enter(ctx, el, retired, inFrame = true) {
     gen: marked && el.matches(GEN) ? el : ctx.gen,
     block: block ? el : ctx.block,
     island: marked && el.matches(ISLAND) ? el : ctx.island,
-    cells: cell ? { el, up: ctx.cells } : ctx.cells,
+    cells: cell ? { el, editing, up: ctx.cells } : ctx.cells,
   };
 }
 // The tree-local facts start over inside a declared shadow root, as `closest` does.
@@ -711,7 +731,16 @@ export function selectionBackward(selection, range = pageRange(selection)) {
 // about: climb to whichever ancestor shares the range's root, and ask there.
 function coveredBy(range, node) {
   const n = hostIn(node, range.commonAncestorContainer.getRootNode());
-  return Boolean(n) && range.intersectsNode(n);
+  if (!n || !range.intersectsNode(n)) return false;
+  // A host represents its shadow words only while the range actually enters it.
+  // intersectsNode includes an endpoint at the host's edge, even when no shadow
+  // word is selected (for example, a triple-click ending at the next widget).
+  if (n !== node) {
+    if (range.endContainer === n && range.endOffset === 0) return false;
+    if (range.startContainer === n && range.startOffset === n.childNodes.length)
+      return false;
+  }
+  return true;
 }
 
 // The segments a selection covers, clipped to where it starts and ends.
@@ -985,6 +1014,7 @@ const READING_MARKERS = [
   PAGE_PAINT_ATTRIBUTE.retired,
   "slot",
   "name",
+  "contenteditable",
 ];
 const WATCH_READING = {
   subtree: true,
@@ -1148,7 +1178,7 @@ function readPage() {
   // host, which is the opaque root it always was.
   const cellOf = (chain) => {
     for (let at = chain; at; at = at.up)
-      if (opaque(at.el) || dynamicWords.has(at.el)) return at.el;
+      if (opaque(at.el) || at.editing || dynamicWords.has(at.el)) return at.el;
     return null;
   };
 
@@ -1234,6 +1264,9 @@ function confirmRest(raw, at, words) {
   }
   return i;
 }
+const withinCell = (text, from, to) =>
+  !text.fences.some((fence) => from < fence && fence < to);
+
 export function findQuote(text, quote, anchor, within) {
   const { raw } = text;
   const words = quote.trim().split(/\s+/).filter(Boolean);
@@ -1264,7 +1297,7 @@ export function findQuote(text, quote, anchor, within) {
   const exact = [];
   for (const at of raw.matchAll(pattern)) {
     const stop = confirmRest(raw, at.index + at[0].length, rest);
-    if (stop === -1) continue;
+    if (stop === -1 || !withinCell(text, at.index, stop)) continue;
     if (
       within &&
       !(
@@ -1306,21 +1339,49 @@ export function findText(text, query) {
   for (const match of text.raw.matchAll(pattern)) {
     const from = match.index;
     const to = from + match[0].length;
-    if (text.fences.some((fence) => from < fence && fence < to)) continue;
+    if (!withinCell(text, from, to)) continue;
     out.push(spanOf(text, from, to));
   }
   return out;
 }
 
-export function contextAround(text, segments, length = 28) {
+// Display context completes its outer language-aware word within the local window.
+// Oversized tokens use the existing bounded excerpt; stored anchors retain their exact
+// character windows. Search and Design descriptions share this presentation reading.
+export function contextAround(text, segments, { before = 28, after = 28 } = {}) {
   const [start, end] = spanIn(text, segments);
-  const before = neighbourhood(text, start, length, true);
-  const after = neighbourhood(text, end, length, false);
-  const beforeLength = [...before].length;
-  return {
-    before: cut(before, Math.max(0, beforeLength - length), beforeLength),
-    after: cut(after, 0, length),
-  };
+  function side(at, length, backwards) {
+    if (!length) return "";
+    const budget = length * 2 + 1;
+    const neighbourhoodPoints = [...neighbourhood(text, at, budget, backwards)];
+    const points = backwards
+      ? neighbourhoodPoints.slice(-budget)
+      : neighbourhoodPoints.slice(0, budget);
+    const context = points.join("");
+    const boundary = backwards
+      ? points.slice(0, Math.max(0, points.length - length)).join("").length
+      : points.slice(0, length).join("").length;
+    const word = textUnits
+      .segment(context)
+      .containing(backwards ? boundary : boundary - 1);
+    const outer = word?.isWordLike
+      ? backwards
+        ? word.index
+        : word.index + word.segment.length
+      : boundary;
+    const reachesEdge = backwards ? outer === 0 : outer === context.length;
+    if (reachesEdge && points.length >= budget) {
+      // An unfinished token at the local reading's edge cannot justify reading the
+      // whole passage. The caller supplies the visible/spoken outer ellipsis.
+      const excerpt = excerptWords(
+        backwards ? points.toReversed().join("") : context,
+        length,
+      ).slice(0, -1);
+      return backwards ? [...excerpt].toReversed().join("") : excerpt;
+    }
+    return (backwards ? context.slice(outer) : context.slice(0, outer)).trim();
+  }
+  return { before: side(start, before, true), after: side(end, after, false) };
 }
 
 export function pageParts(sel) {

@@ -74,7 +74,7 @@ import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { el, PRESSABLE } from "../widget-elements.js";
 import { allButCommandReference, pageCommand, pageScope } from "./register.js";
 import { focusedThreadTarget } from "../thread/focus.js";
-import { letGo, focusDestination } from "../focus.js";
+import { letGo, focusDestination, focused } from "../focus.js";
 import { pageParts } from "../passages.js";
 import { addressableSays } from "../anchor-resolution.js";
 import { announce, notice } from "../notifications.js";
@@ -82,7 +82,7 @@ import { closestAcross, pageQueryAll } from "../passages.js";
 import { currentDrawer, othersBtn, queueBtn } from "../drawers.js";
 import { mapButton } from "../page-map-dialog.js";
 
-import { claimsEsc, focused, saying } from "./scopes.js";
+import { claimsEsc, saying } from "./scopes.js";
 import { repaint } from "../repaint.js";
 
 // The eye's copy of the go-to map. The layer is aria-hidden because the live region and
@@ -432,7 +432,7 @@ export function createGoToSequence({
       address: steps.join(" "),
       sequence: keySequenceModel(steps, progressStates(steps, sequenceKeys())),
     });
-    return { model, target: box, belowTarget: true, left: box.left, top: box.top };
+    return { model, target: box, placement: "below", left: box.left, top: box.top };
   };
   const directDestinationHints = () =>
     GO_TO_SCOPE.rows.map(directDestinationHint).filter(Boolean);
@@ -463,7 +463,7 @@ export function createGoToSequence({
           candidate,
           model: goToHintModel(candidate, candidate === current),
           target: rect,
-          belowTarget: false,
+          placement: "corner",
           left: rect.left,
           top: rect.top,
         };

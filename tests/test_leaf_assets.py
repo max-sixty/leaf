@@ -1,11 +1,68 @@
 """Asset publication keeps authored consumers on the selected immutable bytes."""
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from leaf.files import list_revisions, revision_path
 from leaf.media import media_name
 from leaf_dev import example_data, leaf_assets, site
+
+
+def test_fetches_the_pin_over_git_and_publishes_a_complete_cache(tmp_path, monkeypatch):
+    """Concurrent cold readers get the pin's bytes even when the remote head moved."""
+    remote = tmp_path / "remote"
+    remote.mkdir()
+    leaf_assets.run("git", "init", "--initial-branch=main", cwd=remote)
+    publisher(remote)
+    image = remote / "example.png"
+    image.write_bytes(b"pinned image\x00\xff")
+    (remote / ".gitattributes").write_text("*.png filter=unavailable\n")
+    (remote / "caption.json").write_bytes(b'{"caption":"pinned"}\n')
+    leaf_assets.run("git", "add", "-A", cwd=remote)
+    leaf_assets.run("git", "commit", "-m", "Pinned image", cwd=remote)
+    pin = leaf_assets.run("git", "rev-parse", "HEAD", cwd=remote)
+    image.write_bytes(b"later image")
+    leaf_assets.run("git", "commit", "-am", "Move the head", cwd=remote)
+
+    source = tmp_path / "source"
+    source.mkdir()
+    lock = source / "leaf-assets.json"
+    lock.write_text(json.dumps({"repository": "fixture/assets", "revision": pin}))
+    cache = tmp_path / "cache"
+    monkeypatch.setattr(leaf_assets, "CACHE", cache)
+    attributes = tmp_path / "global-attributes"
+    attributes.write_text("*.png filter=unavailable\n")
+    settings = {
+        f"url.{remote.as_uri()}.insteadOf": "https://github.com/fixture/assets.git",
+        "core.attributesFile": str(attributes),
+        "core.autocrlf": "true",
+        "filter.unavailable.required": "true",
+        "filter.unavailable.smudge": "missing-asset-filter",
+    }
+    monkeypatch.setenv("GIT_CONFIG_COUNT", str(len(settings)))
+    for index, (key, value) in enumerate(settings.items()):
+        monkeypatch.setenv(f"GIT_CONFIG_KEY_{index}", key)
+        monkeypatch.setenv(f"GIT_CONFIG_VALUE_{index}", value)
+
+    with ThreadPoolExecutor(max_workers=2) as readers:
+        paths = list(readers.map(leaf_assets.pinned_assets, [source, source]))
+    assert paths == [cache / pin, cache / pin]
+    assert (paths[0] / "example.png").read_bytes() == b"pinned image\x00\xff"
+    assert (paths[0] / "caption.json").read_bytes() == b'{"caption":"pinned"}\n'
+    assert sorted(path.name for path in paths[0].iterdir()) == [
+        ".complete",
+        ".gitattributes",
+        "caption.json",
+        "example.png",
+    ]
+    assert (paths[0] / ".complete").read_text() == pin
+
+    missing = "0" * 40
+    lock.write_text(json.dumps({"repository": "fixture/assets", "revision": missing}))
+    with pytest.raises(RuntimeError, match=f"could not fetch .* at {missing}"):
+        leaf_assets.pinned_assets(source)
+    assert not (cache / missing).exists()
 
 
 @pytest.mark.parametrize("failure", ["validation", "push"])
@@ -50,8 +107,10 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
     old = f"/media/{media_name(preview.read_bytes(), preview.suffix)}"
     (docs / "examples.html").write_text(
         f'<a class="example-link" href="/examples/decision/">\n'
-        f'  <span><img src="{old}"></span>\n</a>\n'
-        f'<a class="example-link" href="/examples/retained/"><img src="{old}"></a>\n'
+        f'  <span><img src="{old}"></span>\n'
+        '  <p class="example-description">A decision</p>\n</a>\n'
+        f'<a class="example-link" href="/examples/retained/"><img src="{old}">'
+        '<p class="example-description">A retained preview</p></a>\n'
     )
     (docs / "index.html").write_text(
         f'<a href="/examples/decision/"><img src="{old}" loading="lazy"></a>\n'
@@ -177,10 +236,10 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
             "</main>", '<a href="/missing-by-validation.png">A dead link</a></main>'
         )
         ordinary_build = tmp_path / "ordinary-site"
-        actual_leaf = site.leaf
+        run_leaf = site.checkout_leaf()
         interleaved = False
 
-        def validate_with_an_ordinary_build(env, *args, **kwargs):
+        def validate_with_an_ordinary_build(*args, **kwargs):
             nonlocal interleaved
             if not interleaved and args[:2] == ("page", "check"):
                 interleaved = True
@@ -193,18 +252,22 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
                 ordinary[home] = home.read_bytes()
                 # Another output builds the published bytes while draft validation
                 # is live; neither its sources nor its final stamp may see the draft.
-                site.build(ordinary_build, assets=checkout.path)
+                site.build(ordinary_build, run_leaf, assets=checkout.path)
                 ordinary_home = site.product_page(ordinary_build, "index.html")
                 ordinary_html = (ordinary_home / "index.html").read_text()
                 assert replacement in ordinary_html
                 assert next_address not in ordinary_html
                 assert "A concurrent authored edit" in ordinary_html
-            return actual_leaf(env, *args, **kwargs)
+            return run_leaf(*args, **kwargs)
 
-        monkeypatch.setattr(site, "leaf", validate_with_an_ordinary_build)
         draft_build = tmp_path / "draft-site"
         with pytest.raises(SystemExit, match="missing-by-validation.png"):
-            site.build(draft_build, assets=draft.path, source_markup=draft_markup)
+            site.build(
+                draft_build,
+                validate_with_an_ordinary_build,
+                assets=draft.path,
+                source_markup=draft_markup,
+            )
         assert interleaved
         draft_home = site.product_page(draft_build, "index.html")
         draft_html = (draft_home / "index.html").read_text()

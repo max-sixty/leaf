@@ -11,14 +11,14 @@
    one declaration that reads other owners' state — the modes, the captured target, the
    Page Map's rung — so `declareStanding` is the one export, and the boot entry calls it
    once those owners stand. */
-import { letGo, release } from "../focus.js";
+import { letGo, release, focused } from "../focus.js";
 import { inChrome, pageQueryAll } from "../passages.js";
 import { inUi } from "../shadow.js";
 import { pageSelection } from "../composing/capture.js";
 import { heldThread } from "../thread/focus.js";
 import { heldAsk } from "../standing-target.js";
 import { leavesBox } from "../thread/landing.js";
-import { claimsEsc, documentFocused, focused } from "./scopes.js";
+import { claimsEsc, documentFocused } from "./scopes.js";
 import { DISCLOSE, DISCLOSURE_SELECTOR, disclosed } from "./disclosure.js";
 import { nativeLayers } from "./layer-stack.js";
 import { pageCommand, pageRung, pageScope } from "./register.js";
@@ -154,7 +154,7 @@ export function declareStanding({ pageState }) {
 // than two spellings of it. It stands down under a native layer too: a popover or a
 // modal is the browser's own mode, its own scope is the way out of it, and the page
 // beneath is not somewhere a press can reach from inside it.
-// keyboard/AGENTS.md's "Escape unwinds the hierarchy, not the history" holds the rest.
+// keyboard/AGENTS.md's "Escape" holds the rest.
 pageRung("page", () => {
   if (nativeLayers().length) return null;
   if (holding())

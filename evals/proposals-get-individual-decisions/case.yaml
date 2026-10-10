@@ -61,7 +61,7 @@ assert:
 - type: llm-rubric
   metric: recommendation-markers
   value: |
-    Each recommended removal needs a recommended lf-chip on its Remove option,
+    Each recommended removal needs a recommended small.tag on its Remove option,
     with a reason in prose. Advice must remain distinct from the user's choice:
     neither option starts chosen. Fail recommendations expressed only in prose.
     Compact Remove / Keep controls need not have comparison chips; this case

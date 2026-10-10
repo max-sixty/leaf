@@ -40,7 +40,7 @@ changes outstanding Asks, pending answers, work in hand or approval; delivery ke
 that decision even after these workflows settle.
 
 A user move on a widget whose own Ask the user has not finished answering — a
-pick before the Done its group declares, a swipe before the deck's queue is empty —
+pick before the Done its group declares, a move before a queue is empty —
 has not been handed over yet, so it is no workflow at all: the user is still
 composing the answer, and the finishing move carries the receipt. Once the Ask is
 answered, every move on that widget is owed (`asks.part_of_ask`).
@@ -57,6 +57,7 @@ from .events import (
     conversation_turns,
     unanswered_turns,
 )
+from .files import stamped_version
 from .projection import (
     NO_RECORD,
     PageReading,
@@ -64,7 +65,7 @@ from .projection import (
 )
 from .tasks import (
     TaskReading,
-    ask_tasks,
+    document_tasks,
 )
 
 
@@ -77,11 +78,18 @@ def admission_workflows(readings) -> tuple[list[dict], dict]:
 
 
 def admission_tasks(readings) -> list[dict]:
-    """All tasks under the admission vocabulary, including document Asks."""
+    """All tasks under the admission vocabulary, including document questions."""
     work = readings.work
     standing, ended = work.page_tasks()
     page_standing, page_ended = (
-        ask_tasks(work.document.asks) if work.document is not None else ([], [])
+        document_tasks(
+            work.document,
+            work.page.revision,
+            stamped_version(work.events, work.page.revision),
+            work.approvals,
+        )
+        if work.document is not None
+        else ([], [])
     )
     return page_standing + page_ended + standing + ended
 

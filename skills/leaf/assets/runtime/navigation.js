@@ -1,6 +1,7 @@
 /* Reading movement: walks, scrolling, and aligning the current item without travel.
  * Alignment reads the browser's current selection/focus and the owning reading region;
  * it changes only vertical scroll, retaining focus, selection and browser history. */
+import { scrollIntoView } from "./landing-scroll.js";
 import { cancelRender, nextFrame } from "./rendering.js";
 import { scrollGlides } from "./arrivals.js";
 import { clampedRow } from "./keyboard/bindings.js";
@@ -15,7 +16,7 @@ import {
   scrollersOf,
 } from "./reading-regions.js";
 import { walkOrigin, heldAsk, placeOf } from "./standing-target.js";
-import { focused } from "./keyboard/scopes.js";
+import { focused } from "./focus.js";
 import { bannerStanding } from "./banner-toolbar.js";
 import { pageSelection } from "./composing/capture.js";
 import { blockAt, closestAcross, pageRange } from "./passages.js";
@@ -142,7 +143,7 @@ function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
 // reads the list's declared scroll-padding, its focus-ring room, from the same authority
 // the t/T walk uses.
 export function placeThreadEdge(thread, edge) {
-  thread.scrollIntoView({ behavior: scrollBehavior(), block: edge });
+  scrollIntoView(thread, { behavior: scrollBehavior(), block: edge });
 }
 
 // j/k take small pixel steps; d/u move 60% of the visible reading page. Both follow

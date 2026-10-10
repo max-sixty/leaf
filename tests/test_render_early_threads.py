@@ -15,6 +15,7 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
+    page_comment,
     round_trip,
     select,
     select_words,
@@ -98,7 +99,7 @@ def test_an_early_anchored_send_merges_history_and_keeps_its_seen_revision(
     page.keyboard.press("c")
     editor = page.locator(".lf-fab-input")
     expect(editor).to_be_focused()
-    assert "add comments now" in page.locator(".lf-status-detail").inner_text()
+    assert "ready for reading and new comments" in page.locator(".lf-status-detail").inner_text()
     words = "A new comment before the container has answered."
     write(editor, words)
     page.keyboard.press("ControlOrMeta+Enter")
@@ -158,7 +159,7 @@ def test_an_early_anchored_send_merges_history_and_keeps_its_seen_revision(
     ]
     assert len(drawings) == 1
     assert drawings[0]["revision"] == 1
-    assert drawings[0]["drawing"]["format"] == "leaf-drawing/2"
+    assert drawings[0]["drawing"]["format"] == "leaf-drawing/3"
     expect(
         page.locator(".lf-thread .lf-msg-body", has_text=drawing_words)
     ).to_have_count(1)
@@ -366,7 +367,7 @@ def test_first_history_preserves_the_early_anchored_editor_and_caret(browser, se
     page.keyboard.press("c")
     editor = page.locator(".lf-fab-input")
     expect(editor).to_be_focused()
-    assert "add comments now" in page.locator(".lf-status-detail").inner_text()
+    assert "ready for reading and new comments" in page.locator(".lf-status-detail").inner_text()
     words = "Keep my unfinished comment here."
     write(editor, words)
     editor.press("Home")
@@ -476,11 +477,13 @@ def test_an_early_touch_comment_returns_its_words_when_delivery_is_refused(
             else route.continue_()
         ),
     )
-    page.locator(".lf-threads-toggle").tap()
-    editor = page.locator(".lf-general leaf-text")
+    page.locator(".lf-banner-more").tap()
+    page.locator(".lf-page-comment").tap()
+    editor = page.locator(".lf-page-comment-card .lf-general leaf-text")
     words = "A comment sent from the cold touch page."
     write(editor, words)
     page.locator(".lf-general").get_by_role("button", name="Send", exact=True).tap()
+    page.locator(".lf-threads-toggle").tap()
     pending = page.locator('.lf-thread[data-id^="pending:"]')
     expect(pending.locator(".lf-msg-body")).to_have_text(words)
     expect(pending).to_be_visible()
@@ -550,7 +553,7 @@ def test_history_dependent_keys_keep_their_place_until_the_first_reading(
         expect(page.locator("#cold-ask")).not_to_be_focused()
     expect(page.locator("#cold-a")).not_to_have_attribute("chosen", "")
     expect(page.locator("#cold-b")).not_to_have_attribute("chosen", "")
-    assert "add comments now" in page.locator(".lf-status-detail").inner_text()
+    assert "ready for reading and new comments" in page.locator(".lf-status-detail").inner_text()
 
     release_state()
     wait_until_ready(page)
@@ -585,7 +588,7 @@ def test_a_known_local_thread_accepts_reply_search_and_resolve_before_history(
     page.route("**/api/event", lambda route: held_posts.append(route))
     page.locator(".lf-threads-toggle").click()
     root_words = "A known local conversation."
-    write(page.locator(".lf-general leaf-text"), root_words)
+    write(page_comment(page), root_words)
     page.locator(".lf-general").get_by_role("button", name="Send", exact=True).click()
     pending = page.locator('.lf-thread[data-id^="pending:"]')
     expect(pending.locator(".lf-msg-body")).to_have_text(root_words)
@@ -605,7 +608,7 @@ def test_a_known_local_thread_accepts_reply_search_and_resolve_before_history(
     expect(pending.locator(".lf-msg-body")).to_have_text([root_words, reply_words])
     pending.get_by_role("button", name="Resolve thread", exact=True).click()
     expect(pending).to_have_attribute("data-resolved", "true")
-    assert "add comments now" in page.locator(".lf-status-detail").inner_text()
+    assert "ready for reading and new comments" in page.locator(".lf-status-detail").inner_text()
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
 
     release_state()

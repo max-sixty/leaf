@@ -40,6 +40,22 @@ test("the place follows the most recent named item, then visible items", () => {
     "a",
     "b",
   ]);
+  // A surface's active reading can lead even when its title is clipped. Explicitly
+  // naming another row still gives that row the place.
+  assert.deepEqual(placeCandidates({ named: [], preferred: "clipped", visible }), [
+    "clipped",
+    "a",
+    "b",
+    "c",
+    "d",
+  ]);
+  assert.deepEqual(placeCandidates({ named: ["b"], preferred: "clipped", visible }), [
+    "b",
+    "clipped",
+    "c",
+    "d",
+    "a",
+  ]);
 });
 
 test("a correction follows reflow and pays for a limit clamp only once", () => {

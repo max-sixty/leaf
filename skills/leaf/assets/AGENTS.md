@@ -32,7 +32,8 @@ Three things shape a page, and none of them reads another:
 
 Where one has to answer another, the owner sets a token saying what the box is, or
 which style it stands under, and the reader keys on that token with a style query:
-`--lf-full-height` (the body has a definite height to fill), `--lf-wide-page` (the page
+`--lf-full-height` (this box's children have a definite height to fill; it does not
+inherit, so each box that passes the height on says so again), `--lf-wide-page` (the page
 spans the window, so the theme sets its title a size up), `--lf-resident` (what stands
 in the column's margin), and `--lf-density` (the working setting, for what a width alone
 cannot decide). A width needs no token, since a size query on the reader's own container
@@ -81,6 +82,10 @@ stylesheet's, a Layout's or the page's, which the runtime reads rather than deci
 The Questions panel is experimental and expected to change a lot: it replaced the Asks
 drawer to try one place for both queues (`runtime/queue-panel.js`).
 
+The current Threads panel is unsatisfactory and being reconsidered. Defer
+refinements to its existing layout and interaction design; carry those findings
+into the design reconsideration instead of polishing a surface that may go away.
+
 Widgets in ordinary document flow grow with their content by default. Internal
 vertical scrolling needs a task that benefits from keeping a region in view while
 its contents move, or a live stream whose newest entry the reader follows; being
@@ -112,11 +117,21 @@ boundary and every enclosing declaration's guarantees; it never borrows an outer
 declaration or relaxes one, including across a shadow root. Both painted positions stay inside
 that boundary, and neighbours and ordinary page reading content stay put. Typing
 still cannot carry its field.
+An `append` region declares a transcript whose new children may grow its end within
+its stationary scrollport. Existing messages stay put; the idle reply row and later
+cards may move by that growth. The declaration permits no changes to existing
+messages or independent movement of following content.
 News grows where the reader isn't looking: above the screen, where scroll anchoring
 takes the growth into what they scrolled past, or below it. A short thread's reply
 box follows its last message; a long panel thread pins the
-box at its scroller's foot. News that would move a reply in flow waits behind the
-thread's existing notice; a pinned reply lets the transcript grow above it.
+box at its scroller's foot. An idle open panel thread shows appended replies
+immediately, allowing its reply row and later cards to move. An active composition
+keeps its editor still: news that would move it waits behind the thread's existing
+notice; a pinned reply lets the transcript grow above it. Only an already pinned
+reply follows incoming messages to the end; a short thread keeps the previous reading
+in place even when a new answer is taller than the panel.
+The open conversation remains the panel's reading anchor even when its title is
+scrolled above the visible band. An explicitly named later card takes precedence.
 These holds protect continuous reading. A hidden tab ends it; returning reveals
 the held reading and the first refreshed reading before protection resumes
 (`reading-continuity.js`, closed by `state-feed.js` after presentation). Keyboard
@@ -124,11 +139,12 @@ blur alone does not end reading: the page may remain visible beside another wind
 Returning uses the ordinary arrival tint and thread transitions, and keeps a native
 editor the user was composing in, including its focus and caret.
 Where news would move what the reader is reading, it waits behind a control of fixed size:
-in a seat in the page's flow or an open panel card, whatever the thread would draw
-differently (an agent's reply, a reaction from another tab, the thread resolved or
-reopened elsewhere) waits behind a notice in a row the thread already draws, as does a
-thread the agent starts in the seat, and a thread that would open a seat of its own, as
-on a diff line with no thread, waits in the margin behind its marker
+in a seat in the page's flow, whatever the thread would draw differently (an agent's
+reply, a reaction from another tab, the thread resolved or reopened elsewhere) waits
+behind a notice in a row the thread already draws. Open panel cards apply the same
+hold to changes in existing messages, reactions, folds, settlement and active
+compositions. A thread the agent starts in a seat also waits there; a thread that
+would open a seat of its own, as on a diff line with no thread, waits in the margin behind its marker
 (`thread/held-news.js`). It shows once a gesture of theirs takes them to it: opening
 the notice or the thread, walking to the thread or one of its Asks, or acting there. In
 the Threads panel, a card news takes out of the view, as another actor resolving its
@@ -137,15 +153,22 @@ and, once shown, in the shape it stood in, until its going would move nothing th
 user sees or they change the view
 (`thread/thread-list-view.js`, `keeping`). A region whose rows only the
 log or the clock decides, so no first paint can size it, shows none of them until the
-reader opens them through a control of fixed size the widget already draws, as a
-command's counts open its lists; after that a change to its rows waits the same way
-while its growth would be seen (`HeldReading`, command-hub's `lf-command.js`). A
+reader opens them through a control of fixed size the widget already draws, as the
+Atlas plan's Stopped work disclosure opens its list; after that a change to its rows
+waits the same way while its growth would be seen (`HeldReading` in
+`examples/command-hub.page/widgets/lf-atlas-plan.js`). A
 fixed-height box that scrolls them is no answer: nothing tells the reader a row is
 cut off, since a scroller shows no edge until it is scrolled.
 A change the user requested may reflow the
 content it replaces, shown as motion the eye can follow. A hover, focus, or
 keyboard reveal never changes the space given to its ancestors or siblings. Typing
-may grow its field at the edge its layout grows, but never carries the field. The
+may grow its field at the edge its layout grows, but never carries the field. A box
+that floats over the page, as the comment box and the thread card do, grows inside the
+window as the user types, toward whichever edge still has room, and never scrolls the
+page to make room for its growth (`comment-placement.js`), though one a scroll carried away still comes back for
+the words typed into it (`off-flow.js`). Only a field in flow, which cannot move apart
+from the page, keeps its controls in view as a browser keeps a caret in view
+(`reply-landing.js`). The
 suite's browser fixture watches ordinary tests and nightly tests marked `watch_shifts`
 for a protected box moving on screen without input, news landing just after a press included,
 or typing carrying its field (`tests/shift_watch.js`).
@@ -276,7 +299,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Annotation inventory and controls | `annotation-inventory.js`, `annotation-view.js`, `contributions.js`, `contribution-controls.js`, `inline-contributions.js` |
 | Annotation records and Page Map | `margin-model.js`, `margin-map-model.js`, `page-map-dialog.js`, `pointed-place.js` |
 | Physical annotation presentation | `../packages/default/runtime/annotation-overlay/` |
-| Passages and target identity | `passages.js`, `text-alignment.js`, `anchor-coordinate.js`, `target-references.js`, `resolved-target.js`, `anchor-resolution.js` |
+| Passages and target identity | `passages.js`, `text-alignment.js`, `anchor-coordinate.js`, `resolved-target.js`, `anchor-resolution.js` |
 | Anchor placement, decoration and travel | `anchor-placement.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js`, `indication.js` |
 | Banner and approvals | `banner*.js` |
 | Drawers and neighboring pages | `drawers.js`, `queue-panel.js`, `queue-list.js`, `live-leaves*.js` |
@@ -359,10 +382,9 @@ owner of such a condition states it as an attribute on the element the rule styl
 
 ### One writer for each fact
 
-Each mutable fact has one authority and one browser writer. The application
-publisher combines authored state, the admitted server reading, and the ordered
-ledger of unresolved local work into the one semantic reading every component
-selects from:
+Each mutable fact has one authority and one browser writer. The application publisher
+combines authored state, the admitted server reading, and the ordered ledger of
+unresolved local work into the one reading every component selects from:
 
 | Fact | Authority |
 | --- | --- |
@@ -395,12 +417,11 @@ open menu.
 
 ## Startup and presentation
 
-Startup order is load-bearing:
+`leaf.js` boots in this order, each step relying on those before it:
 
-1. Construct the application, page commands, and UI owners in `leaf.js`; every
-   owner stands before the first input is wired, then sheets are adopted, chrome
-   attached, owners mounted, and the repaint phases wired.
-2. Begin the first state read without applying its answer.
+1. Construct every owner, then adopt sheets, attach chrome, mount the owners, and wire
+   the repaint phases, so no input is wired before its owner exists.
+2. Begin the first state read, without applying its answer.
 3. Restore the user's arrangement from storage.
 4. Fetch and validate the registry.
 5. Index passage fences and parent identities, then capture each widget's
@@ -451,27 +472,26 @@ condition behind a refusal can change without the user's words changing.
 
 ## The widget vocabulary stays open
 
-Core names a widget only when it is part of how Leaf works (root `AGENTS.md`,
-"Keep the layer open"); the merge grains are `../references/packages.md`,
-"Package contract". Layer-wide facts live under `$languages`, `$tones`,
-`$idioms`, and `$events`; each `x-` key's meaning is its `$keys` entry in
-`registry.json`. Use a boolean only when false has one clear meaning; otherwise
-declare named values.
+Core names a widget only when it is part of how Leaf works (root `AGENTS.md`, "Keep
+the layer open"; the merge grains are in `../references/packages.md`, "Package
+contract"). Each `x-` key's meaning is its `$keys` entry in `registry.json`. Use a
+boolean only when false has one clear meaning; otherwise declare named values.
 
-The Python reader models only transformations the registry declares. A module
-that changes text in a way the file cannot reproduce is fenced: browser capture
-stops at the fence, so a selection crossing it is not captured as a quote the file
-cannot confirm. Declare modelable words with `x-says`, `x-paints`, or the content
-key, and keep the widget fenced when its transformation cannot be represented.
+The Python reader models only transformations the registry declares. A module that
+changes text in a way the file cannot reproduce is fenced: browser capture stops at the
+fence, so a selection crossing it never becomes a quote the file cannot confirm.
+Declare modelable words with `x-says`, `x-paints`, or the content key, and keep a
+widget fenced when its transformation cannot be represented.
 
 ## Render gates
 
-`leaf page check <page> --render` is the browser contract: both color schemes,
-the runtime's actual readiness and motion boundary, screen and print, and
-reapplied standing state. Run it, or the relevant browser test file, after
-changing `leaf.js`, a runtime owner, a widget module, the registry, or the theme.
-`leaf/render-checks/index.js` exports one probe per failure class, invoked by
-`leaf/render_checks.py` and composed by `leaf/render_gate/`:
+Run `leaf page check <page> --render`, or the relevant browser test file, after
+changing `leaf.js`, a runtime owner, a widget module, the registry, or the theme;
+`../scripts/leaf/validation.md`, "Browser validation", lists what it reads. Put a
+check on the side that can observe the fact: static validation owns schema, ids,
+nesting, passages, event shapes, and file readings; the browser owns computed layout,
+composed trees, module writes, focus, and replay idempotence. A test reads widget state
+through the publisher's own reading, never a test-only interpretation of it.
 
 | Reading | Contract |
 | --- | --- |
@@ -490,7 +510,7 @@ changing `leaf.js`, a runtime owner, a widget module, the registry, or the theme
 | `silentWords` | `x-says` and `x-paints` promises reach the rendered page |
 | `undeclaredAttrs` | modules write no undeclared author-namespace state |
 | `retiredSlots` | settlement marks agree with the projection |
-| `trappedMargins`, `splitEdges` | suite only: the theme's frame trim reaches Leaf's own boxes |
+| `trappedMargins`, `splitEdges` | authored-page spacing advice; the suite enforces frame trim on Leaf's own boxes |
 | `relativeReplays` | rendering a complete widget state twice changes nothing |
 | `shrunkLabels` | advice only |
 

@@ -3,18 +3,24 @@
    A surface that re-renders a list the user may be scrolled into takes a place hold
    around the change: `placeKeeper(scroller, {items, identity})` names the nodes that
    can mark a place and the identity each is rendered under, and its `take` / `finish`
-   pair brackets one mutation. The document itself needs none of this: its scroller is
-   the platform's, and native scroll anchoring holds it.
+   pair brackets one mutation. The same helper can bracket a widget's synchronous
+   mutation in the platform page scroller when native anchoring does not retain its
+   focused control. `around` compensates the browser's anchoring once and claims no
+   asynchronous scroll owner.
 
    The place is one reference node and its offset in the scroller's content. The
    reference is chosen by what the user last named: an item under the pointer or
    holding focus, whichever input came last, then the other, then the items in the
    scroller's visible band (less the sticky headers stuck over each item, `headerInset`, so an
-   item wholly under a stuck heading is not where anyone is reading) from the top down. Only an item whose top stands in the band
-   can be named or lead. Holding a top the user cannot see keeps nothing they see still:
-   the item's growth pushes everything after it, where holding the next item grows it
-   up into the room scrolled past. The item the band's top cuts holds the place only
-   where no item begins in view. Every candidate is recorded, so when the
+   item wholly under a stuck heading is not where anyone is reading) from the top down.
+   Only an item whose top stands in the band can be named or lead by default.
+   A surface may supply a visible `preferred` item
+   whose interior is the active reading, even with its top clipped; it follows named
+   items and precedes the default visible rows. Otherwise, holding a top the user
+   cannot see keeps nothing they see still: the item's growth pushes everything after
+   it, where holding the next item grows it up into the room scrolled past. Without a
+   preferred reading, the item the band's top cuts holds the place only where no item
+   begins in view. Every candidate is recorded, so when the
    first leaves, hides, or is renamed out of `items`, the next one still standing holds
    the place without recovering an old position. A candidate the render replaced is
    handed across to the node now rendered under its identity; that is how a keyed
@@ -48,19 +54,18 @@
    inside it would be read as reflow and undone. */
 import { cancelRender, nextFrame, nextRender } from "./rendering.js";
 import { headerInset, visibleBand } from "./geometry.js";
-import { focused } from "./keyboard/scopes.js";
 import { pointerAt } from "./pointer.js";
-import { recentPlaceInput } from "./user-intent.js";
+import { recentPlaceInput, focused } from "./focus.js";
 
 // The candidates in the order they may hold the place, each once: an inherited
-// reference, named items in input order, then the visible ones from the lead downward and
-// wrapping to those above it.
-export function placeCandidates({ inherited, named, visible }) {
-  const lead = inherited || named[0] || visible[0];
+// reference, named items in input order, the surface's preferred reading, then the
+// visible ones from the lead downward and wrapping to those above it.
+export function placeCandidates({ inherited, named, preferred, visible }) {
+  const lead = inherited || named[0] || preferred || visible[0];
   const at = visible.indexOf(lead);
   const rest =
     at < 0 ? visible : [...visible.slice(at + 1), ...visible.slice(0, at + 1)];
-  return [...new Set([inherited, ...named, lead, ...rest].filter(Boolean))];
+  return [...new Set([inherited, ...named, preferred, lead, ...rest].filter(Boolean))];
 }
 
 // How far to scroll so a reference whose content offset moved from `was` to `now` stands
@@ -83,7 +88,10 @@ export function placeCorrection({
   return now - was - reflowed;
 }
 
-export function placeKeeper(scroller, { items, identity, active = () => true }) {
+export function placeKeeper(
+  scroller,
+  { items, identity, active = () => true, preferred = () => null },
+) {
   let standing = null;
   const limit = () => Math.max(0, scroller.scrollHeight - scroller.clientHeight);
   // The box a node can hold the place by, or null where it holds nothing.
@@ -195,8 +203,7 @@ export function placeKeeper(scroller, { items, identity, active = () => true }) 
         );
       })
       .sort((a, b) => boxes.get(a).top - boxes.get(b).top);
-    // Only an item beginning in view can be named or lead; the one the band's top cuts
-    // is the last resort.
+    // A named row begins in view. The surface's active reading may begin above it.
     const beginning = visible.filter((node) => boxes.get(node).top >= topFor(node));
     const shown = new Set(visible);
     const pointer = over ? document.elementFromPoint(x, y)?.closest?.(items) : null;
@@ -204,11 +211,13 @@ export function placeKeeper(scroller, { items, identity, active = () => true }) 
     const named = (
       recentPlaceInput() === "pointer" ? [pointer, focus] : [focus, pointer]
     ).filter((node) => beginning.includes(node));
+    const reading = preferred();
     const candidates = placeCandidates({
       inherited: prior?.references.find(
         (candidate) => live(candidate) && shown.has(candidate.node),
       )?.node,
       named,
+      preferred: shown.has(reading) ? reading : null,
       visible: beginning,
     });
     const references = [...new Set([...candidates, ...visible])]

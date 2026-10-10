@@ -16,23 +16,28 @@
 
    Immutable descriptors contain generated presentation only. Retained native editors,
    margin controls and frozen message widgets keep their mechanical lifetime outside
-   those values.
+   those values. A quotation whose original words are no longer on the page keeps
+   a local full-reading disclosure, including when a rewritten section still has a
+   navigation destination. Its expansion lives with the card through presentation.
    The owner alone renders its native card root and all generated descendants; a
    failed candidate is restored by presenting its committed descriptor again. It owns
    title gesture policy, outgoing fold paint and local draft repaint. Surfaces receive
    whole-thread geometry readings rather than descendant nodes. */
 import { nextRender, sizeObserver } from "../rendering.js";
-import { holdFocus, focusDestination } from "../focus.js";
-import { TEXT_FIELD } from "../control-selectors.js";
+import { holdFocus, focusDestination, focused } from "../focus.js";
 import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
 import { anchorLabel, MessageView, messageReading } from "./messages.js";
-import { reactionReading } from "./reaction-model.js";
 import { offer, reachedForWords, measure, reserve } from "../widget-elements.js";
 import { keeps, keepsHidden, layoutPx } from "../keeps.js";
-import { keys, focused } from "../keyboard/scopes.js";
+import { keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
-import { wireReply, replyIsEditing, replyAvailable, dismissReply } from "./replies.js";
+import {
+  createReplyView,
+  replyIsEditing,
+  replyAvailable,
+  dismissReply,
+} from "./replies.js";
 import { settleThread, foldOut, finishFold, isFolding } from "./folding.js";
 import { iconTemplate } from "../icons.js";
 import { loadDraft } from "../drafts.js";
@@ -53,28 +58,36 @@ function quoteReading(thread, anchors) {
   // A version that rewrote the quoted words left the thread on their section
   // (`rewritten_from`, events.md); the head still names those words, marked as changed.
   const rewritten = thread.rewritten_from;
-  const label = anchorLabel(
-    rewritten ?? thread.detached_from ?? thread.anchor,
-    thread.root.about,
-  );
+  const quoted = rewritten ?? thread.detached_from ?? thread.anchor;
+  const label = anchorLabel(quoted, thread.root.about);
   if (!label) return null;
   const anchored = Boolean(thread.anchor) || Boolean(thread.detached_from);
   const found = !thread.detached_from && Boolean(placement);
   const outdated = anchored && placement?.status === "outdated";
+  const changed =
+    Boolean(rewritten) ||
+    Boolean(quoted?.quote && placement?.datumElement && !placement.exact);
   return Object.freeze({
     label,
+    words: quoted?.quote ?? null,
     anchored,
     found,
     outdated,
-    changed: Boolean(rewritten),
+    changed,
+    // A surviving element can still be a destination after its quoted words
+    // have gone (rewritten text, replaced data or a virtual datum). Only a
+    // resolved passage can supply the original quote's complete reading.
+    localReading: Boolean(quoted?.quote) && placement?.kind !== "passage",
     title: !anchored
       ? null
       : found
         ? outdated
           ? "This comment refers to an earlier data revision"
-          : rewritten
-            ? "These words have changed since; jump to their section"
-            : "Jump to this passage"
+          : changed
+            ? "These words have changed since; jump to their current item"
+            : quoted?.quote && placement.kind !== "passage"
+              ? "Jump to the quoted item's current location"
+              : "Jump to this passage"
         : thread.detached_from
           ? "This passage is no longer in the version you're viewing"
           : "This passage can't be identified in the version you're viewing",
@@ -98,8 +111,11 @@ export function threadReading(thread, surface, commands, options) {
   const messages = turns(thread).map((message) =>
     messageReading(message, {
       panel,
-      nativeAuthored: panel && commands.nativeAuthored !== false,
-      reactions: reactionReading(thread, message, panel || surface === "outlet"),
+      nativeAuthored:
+        typeof commands.nativeAuthored === "function"
+          ? commands.nativeAuthored(message)
+          : Boolean(commands.nativeAuthored ?? panel),
+      reactions: panel || surface === "outlet" ? message.reactions : null,
       workflows: message.workflows,
     }),
   );
@@ -256,13 +272,17 @@ function readBoundary(kind) {
 
 let nextViewId = 0;
 // The margin card's controls stand over its transcript, so each message's head keeps
-// their width clear and its words end before them.
+// their width clear and its words end before them. Applying that allocation can wrap
+// a header and resize the controls' ancestors. Write it in the next rendering pass:
+// ResizeObserver cannot deliver those shallower boxes again in the controls' delivery.
 const marginControlsSizes = sizeObserver((entries) => {
-  for (const { target, borderBoxSize } of entries)
-    target.parentElement?.style.setProperty(
-      "--lf-margin-controls-width",
-      `${borderBoxSize[0].inlineSize}px`,
-    );
+  nextRender(() => {
+    for (const { target, borderBoxSize } of entries)
+      target.parentElement?.style.setProperty(
+        "--lf-margin-controls-width",
+        layoutPx(borderBoxSize[0].inlineSize),
+      );
+  });
 });
 
 // A panel card's reply row is pinned over the turns above it at the list's foot, so the
@@ -289,6 +309,7 @@ export class ThreadView {
   #settlements = new Map();
   #actions = document.createElement("span");
   #expandedSummaries = new Set();
+  #quoteExpanded = false;
   #marginControls = null;
   #marginControlsRow = null;
   #viewId = ++nextViewId;
@@ -303,7 +324,11 @@ export class ThreadView {
   #headerSlot = null;
   #newsReserved = false;
   #observedHeader = null;
-  #headerSizes = sizeObserver(() => this.#retainHeaderSlot());
+  #quoteNode = null;
+  #sizes = sizeObserver(() => {
+    this.#retainHeaderSlot();
+    this.#measureQuote();
+  });
 
   constructor(surface, commands) {
     this.#commands = commands;
@@ -434,6 +459,7 @@ export class ThreadView {
       tailStart: node.getBoundingClientRect().bottom,
       end: this.node.getBoundingClientRect().bottom,
       box: this.#reply?.node.getBoundingClientRect().top,
+      pinned: replyPinned(this.#reply?.node),
     };
   }
 
@@ -449,11 +475,23 @@ export class ThreadView {
   }
 
   // HeldNews compares readings; this owner decides whether their changed regions
-  // would move visible words. A pinned reply can absorb growth at the thread's end,
-  // but cannot absorb changes above it or settlement replacing the reply itself.
-  newsMoves({ news, changed, folds }) {
+  // would move visible words. An idle open panel card permits a suffix append to move
+  // its reply row and later cards. Existing-message changes and active compositions
+  // retain the hold. A pinned reply can absorb growth at the thread's end, but cannot
+  // absorb changes above it or settlement replacing the reply itself.
+  newsMoves({ news, changed, folds, appendedAtEnd }) {
     const pinned = replyPinned(this.#reply?.node);
-    const followed = pinned && !news.settled ? this.#foot : null;
+    const idleAppend =
+      this.#model?.surface === "panel" &&
+      this.node.open &&
+      !replyIsEditing(this.#model.key) &&
+      appendedAtEnd &&
+      !news.settled &&
+      !news.summaries &&
+      !changed.size &&
+      !folds.messages.length &&
+      !folds.summaries.length;
+    const followed = (pinned && !news.settled) || idleAppend ? this.#foot : null;
     return (
       [
         ...[...changed].map((message) => this.#messageNode(message)),
@@ -536,6 +574,7 @@ export class ThreadView {
           this.#expandedSummaries.add(summary.id);
       }
     }
+    if (model.quote?.words !== prior?.quote?.words) this.#quoteExpanded = false;
     this.#model = model;
     const reply = model.reply || replyIsEditing(model.key);
     this.#replyShown = reply;
@@ -633,6 +672,15 @@ export class ThreadView {
       };
     });
     const boundaries = panel ? unreadBoundaries(rangeState) : new Map();
+    // Automatic progress folds name the reply that completed them. Its header owns
+    // their disclosure, even when a user's intervening reply split the originals.
+    const progressByReply = new Map();
+    for (const range of rangeState) {
+      if (range.kind !== "summary" || !range.summary.trigger || range.forced) continue;
+      const trigger = range.summary.trigger;
+      if (!progressByReply.has(trigger)) progressByReply.set(trigger, []);
+      progressByReply.get(trigger).push(range);
+    }
     const messages = model.messages.map((message) => {
       let view = this.#messages.get(message.key);
       if (!view)
@@ -642,6 +690,9 @@ export class ThreadView {
         );
       view.present(message, {
         arrived: Boolean(prior),
+        headerControls: progressByReply.has(message.id)
+          ? this.#summaryToggle(progressByReply.get(message.id), true)
+          : nothing,
       });
       return { key: message.key, node: view.node };
     });
@@ -677,13 +728,27 @@ export class ThreadView {
       ${
         model.quote
           ? html`<header class="lf-thread-head">
+              ${
+                model.quote.localReading
+                  ? html`<button
+                      type="button"
+                      class="lf-thread-disclosure lf-quote-expand"
+                      aria-label="Full quote"
+                      hidden
+                      aria-expanded=${String(this.#quoteExpanded)}
+                      aria-controls=${`lf-quote-${this.#viewId}`}
+                      @click=${this.#toggleQuote}
+                    >
+                      Full quote
+                    </button>`
+                  : nothing
+              }
               <blockquote
+                id=${`lf-quote-${this.#viewId}`}
                 class=${`lf-quote${model.quote.anchored && !model.quote.found ? " detached" : ""}`}
-                role=${model.quote.anchored ? "button" : nothing}
-                tabindex=${model.quote.anchored ? "0" : nothing}
-                aria-disabled=${
-                  model.quote.anchored ? String(!model.quote.found) : nothing
-                }
+                data-expanded=${String(model.quote.localReading && this.#quoteExpanded)}
+                role=${model.quote.found ? "button" : nothing}
+                tabindex=${model.quote.found ? "0" : nothing}
                 title=${model.quote.title ?? nothing}
                 @click=${this.#returnToQuote}
               >
@@ -699,7 +764,12 @@ export class ThreadView {
             </header>`
           : nothing
       }
-      <div class="lf-thread-transcript">${transcript}</div>
+      <div
+        class="lf-thread-transcript"
+        data-lf-reflow=${model.surface === "panel" ? "append" : nothing}
+      >
+        ${transcript}
+      </div>
       ${
         threadActions
           ? marginControls
@@ -774,6 +844,7 @@ export class ThreadView {
     else this.#releaseHeaderSlot();
     this.#continuity?.after(bodyPlace);
     this.#wireKeys();
+    this.#measureQuote();
     // A summary gathering the message the user stands on moves it; a page thread whose
     // render took their place puts them in its reply, or on the thread itself.
     // Handing it on is the card's own act, which the list holding the card defers to.
@@ -786,8 +857,29 @@ export class ThreadView {
     return this.node;
   }
 
+  // The same native layout that clips the preview decides whether there is
+  // anything to disclose. Read it synchronously after render, before the frame
+  // paints; resizes update it through this card's shared size observation.
+  #measureQuote() {
+    const quote = this.#model.quote?.localReading
+      ? this.node.querySelector(`#lf-quote-${this.#viewId}`)
+      : null;
+    if (quote !== this.#quoteNode) {
+      if (this.#quoteNode) this.#sizes.unobserve(this.#quoteNode);
+      this.#quoteNode = quote;
+      if (quote) this.#sizes.observe(quote);
+    }
+    const control = quote?.previousElementSibling;
+    if (control?.classList.contains("lf-quote-expand"))
+      keeps(
+        control,
+        "hidden",
+        !this.#quoteExpanded && quote.scrollHeight <= quote.clientHeight ? "" : null,
+      );
+  }
+
   #releaseHeaderSlot() {
-    if (this.#observedHeader) this.#headerSizes.unobserve(this.#observedHeader);
+    if (this.#observedHeader) this.#sizes.unobserve(this.#observedHeader);
     this.#observedHeader = null;
     this.#releaseHeaderItems();
     this.#newsReserved = false;
@@ -822,8 +914,8 @@ export class ThreadView {
     if (!box.width) return;
     const allocates = header.classList.contains("lf-msg-head");
     if (observe && this.#observedHeader !== header) {
-      if (this.#observedHeader) this.#headerSizes.unobserve(this.#observedHeader);
-      this.#headerSizes.observe(header);
+      if (this.#observedHeader) this.#sizes.unobserve(this.#observedHeader);
+      this.#sizes.observe(header);
       this.#observedHeader = header;
     }
     if (
@@ -907,46 +999,43 @@ export class ThreadView {
   }
 
   #summaryRange(range, markerFor) {
-    const count = range.messages.length;
     const id = range.summary.id;
+    const progress = Boolean(range.summary.trigger);
     const originalsId = `lf-summary-originals-${this.#viewId}-${id}`;
     return html`<section
       class="lf-thread-checkpoint"
       data-summary-id=${id}
       data-expanded=${String(range.expanded)}
+      ?hidden=${progress && !range.expanded}
     >
-      <div class="lf-summary-checkpoint">
-        <div class="lf-summary-header">
-          <div class="lf-summary-label">${range.summary.label}</div>
-          ${
-            range.forced
-              ? nothing
-              : html`<button
-                  type="button"
-                  class="lf-summary-expand"
-                  aria-expanded=${String(range.expanded)}
-                  aria-controls=${originalsId}
-                  @click=${() => this.#setSummaryExpanded(id, !range.expanded)}
-                >
-                  ${range.expanded ? "Collapse" : "Show"} ${count} earlier
-                  message${count === 1 ? "" : "s"}
-                </button>`
-          }
-        </div>
-        ${
-          range.summary.text
-            ? html`<div
-                class="lf-summary-text"
-                .innerHTML=${renderMarkdown(range.summary.text)}
-              ></div>`
-            : nothing
-        }
-        ${
-          range.forced
-            ? html`<div class="lf-summary-required">${range.requiredText}</div>`
-            : nothing
-        }
-      </div>
+      ${
+        progress
+          ? nothing
+          : html` <div class="lf-summary-checkpoint">
+              <div class="lf-summary-header">
+                <div class="lf-summary-label">${range.summary.label}</div>
+                ${range.forced ? nothing : this.#summaryToggle([range])}
+              </div>
+              ${
+                range.summary.text
+                  ? html`<div
+                      class="lf-summary-text"
+                      .innerHTML=${renderMarkdown(range.summary.text)}
+                    ></div>`
+                  : nothing
+              }
+              ${
+                range.forced
+                  ? html`<div class="lf-summary-required">${range.requiredText}</div>`
+                  : nothing
+              }
+            </div>`
+      }
+      ${
+        progress && range.forced
+          ? html`<div class="lf-summary-required">${range.requiredText}</div>`
+          : nothing
+      }
       <div id=${originalsId} class="lf-summary-originals" ?hidden=${!range.expanded}>
         ${repeat(
           range.messages,
@@ -960,14 +1049,38 @@ export class ThreadView {
     </section>`;
   }
 
-  #setSummaryExpanded(id, expanded) {
-    if (expanded) this.#expandedSummaries.add(id);
-    else this.#expandedSummaries.delete(id);
+  #summaryToggle(ranges, progress = false) {
+    const ids = ranges.map((range) => range.summary.id);
+    const expanded = ranges.every((range) => range.expanded);
+    const count = ranges.reduce((total, range) => total + range.messages.length, 0);
+    return html`<button
+      type="button"
+      class="lf-thread-disclosure lf-summary-expand"
+      data-summary-toggle=${ids[0]}
+      aria-expanded=${String(expanded)}
+      aria-controls=${ids
+        .map((id) => `lf-summary-originals-${this.#viewId}-${id}`)
+        .join(" ")}
+      @click=${() => this.#setSummaryExpanded(ids, !expanded)}
+    >
+      ${expanded ? (progress ? "Hide" : "Collapse") : "Show"} ${count}
+      ${progress ? "progress" : "earlier"} message${count === 1 ? "" : "s"}
+    </button>`;
+  }
+
+  #setSummaryExpanded(ids, expanded) {
+    for (const id of ids) {
+      if (expanded) this.#expandedSummaries.add(id);
+      else this.#expandedSummaries.delete(id);
+    }
     this.repaint();
     const toggle = this.node.querySelector(
-      `.lf-thread-checkpoint[data-summary-id="${CSS.escape(id)}"] .lf-summary-expand`,
+      `.lf-summary-expand[data-summary-toggle="${CSS.escape(ids[0])}"]`,
     );
-    if (toggle) focusDestination(toggle, "return");
+    if (toggle) {
+      focusDestination(toggle, "return");
+      scrollThreadIntoView(this.node, toggle, "instant");
+    }
   }
 
   // The panel's resolved title keeps its state label as the reopening action.
@@ -1067,6 +1180,13 @@ export class ThreadView {
     return { optimistic: () => land(), reverse: land };
   };
 
+  // Local reading belongs to this retained card, not the event log. Its trigger
+  // stands above the growing quote so a press never moves its own target.
+  #toggleQuote = () => {
+    this.#quoteExpanded = !this.#quoteExpanded;
+    this.repaint();
+  };
+
   #returnToQuote = (event) => {
     const model = this.#model;
     if (!model.quote?.anchored || !model.quote.found) return;
@@ -1101,16 +1221,6 @@ export class ThreadView {
 
   #createReply(model) {
     const panel = model.surface === "panel";
-    const row = offer("div", "lf-thread-reply");
-    // The reply is its editor on every surface, at rest too: `c`, its key badge and
-    // landing all name this box, so nothing stands in for it on screen.
-    const input = offer(TEXT_FIELD);
-    input.name = "reply";
-    const send = offer("button", "lf-btn lf-thread-send", "Send");
-    row.append(input, send);
-    if (panel)
-      input.lfRevealReply = () =>
-        this.#commands.listRoot.revealNavigation(this.#model.id);
     const replyChanged = () => {
       if (!this.#reply) return;
       this.#draftFrame ||= nextRender(() => {
@@ -1120,10 +1230,13 @@ export class ThreadView {
         if (this.#model.resolved) this.#commands.reply.changed();
       });
     };
-    const lifetime = wireReply(model.key, row, input, send, {
-      ...this.#commands.reply,
+    const lifetime = createReplyView(model.key, this.#commands.reply, {
       onChange: replyChanged,
     });
+    const { node: row, input } = lifetime;
+    if (panel)
+      input.lfRevealReply = () =>
+        this.#commands.listRoot.revealNavigation(this.#model.id);
     if (!panel) return { node: row, dispose: lifetime.dispose };
     replyRowSizes.observe(row);
     return {
@@ -1212,6 +1325,8 @@ export class ThreadView {
   }
 
   dispose() {
+    this.#sizes.disconnect();
+    this.#quoteNode = null;
     this.#releaseHeaderSlot();
     if (this.#marginControlsRow) marginControlsSizes.unobserve(this.#marginControlsRow);
     this.#continuity?.release();

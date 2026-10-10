@@ -183,9 +183,7 @@ def _instance_errors(
     errors.extend(suggestion_errors(parser.lf_elements, registry, thread_ids))
     taken = sorted(parser.ids & thread_structure(events).ids)
     if taken:
-        errors.append(
-            f"ids already taken by widget markup in a reply: {json_value(taken)}"
-        )
+        errors.append(f"ids already taken by message markup: {json_value(taken)}")
     return errors
 
 
@@ -265,9 +263,7 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
     stored_data = read_data(page_dir, registry)
     contracts = read_contracts(page_dir)
     readings = (
-        working_data_document_readings(
-            page_dir, registry, events, authored=document.lf_elements
-        )
+        working_data_document_readings(page_dir, registry, events, authored=document)
         if registry is not None
         else []
     )
@@ -302,7 +298,7 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
                 child_events = []
             documents.append((child, child_events, name))
             child_readings = initial_data_document_readings(
-                child.lf_elements, child_events, registry
+                child, child_events, registry
             )
             child_errors = _authored_document_checks(
                 page_dir,

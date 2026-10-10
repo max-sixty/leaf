@@ -1,17 +1,14 @@
-/* The keys the Threads list itself answers. Its general box is wired by the owner of
-   Comment on the page (thread/page-comment.js), which also owns the banner's card.
+/* The keys the Threads list itself answers. Threads holds no box for starting a page
+   thread; that is the banner's Comment on the page (thread/page-comment.js).
 
    Standing in the panel is where its focus is, not merely that it is open: the Threads
    button is the banner's, so opening by pointer leaves the user outside, and `g T`, `t`,
    Tab or a click on a thread is what puts them in. The thread scope draws one step further
-   in, so its rows shadow these. Every page has this scope: the general box stands and
-   takes words from the first paint — the offline banner says a comment will not send, not
-   that there is nowhere to write it. A drawing belongs to an element's comment, never to
-   this box (composing/drawing.js). */
-import { focused, keys } from "../keyboard/scopes.js";
+   in, so its rows shadow these. Every page has this scope. */
+import { keys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
 import { pagePresented } from "../presentation.js";
-import { focusDestination } from "../focus.js";
+import { focusDestination, focused } from "../focus.js";
 import { rowWalk } from "../walk-position.js";
 
 export function createThreadPanelKeys({

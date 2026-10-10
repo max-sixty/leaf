@@ -1,0 +1,54 @@
+# The focus overhaul gave widgets the runtime's own focus primitives through
+# widget-api.js: a keyed hold for a list a render replaces, closeLayer for a layer the
+# widget opens, and focusDestination with a cause. A row removal had dropped the user
+# to the body whenever Remove re-rendered its list; this asks for the same shape
+# from the shipped references alone. Added with module-authoring.md's paragraph on
+# those exports; whether it tells two wordings apart is recorded in that commit.
+description: widget-list-keeps-focus
+metadata:
+  purpose: A widget keeps the user in a keyed list across a re-render and hands them back when its own popup closes, through the runtime's focus primitives.
+  tags:
+  - packages
+  - keyboard
+vars:
+  prompt: |
+    I'm writing a Leaf package widget. It shows a list of chosen items, each row
+    keyed by the item's id, with a Remove button that deletes the item and
+    re-renders the whole list with Lit. Its "Add item" button opens a small popup
+    list of candidates inside the widget; Escape or a choice closes the popup.
+
+    Removing a row with the keyboard currently drops focus to the page body, and
+    closing the popup leaves focus nowhere. The user should stay in the list after a
+    removal, on the nearest remaining row's Remove, or on Add item when the list is
+    empty, and closing the popup should put them back on the Add item button that
+    opened it. Read the public references and show the JavaScript for the remove
+    handler, the list render, and the popup's close.
+assert:
+- type: javascript
+  metric: reads-module-authoring
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/(?:packages|module-authoring)\.md
+- type: regex
+  metric: keyed-hold
+  value: 'holdFocus\([^)]*\{\s*key\s*:'
+- type: regex
+  metric: closes-through-closeLayer
+  value: 'closeLayer\('
+- type: llm-rubric
+  metric: judgment
+  value: |
+    Pass only if the response imports its focus helpers from /runtime/widget-api.js
+    and:
+    - holds focus across the list render with holdFocus(list, { key: <the row's
+      key attribute> }), sets that attribute on each row, and calls the returned
+      restore after rendering with the Add item button as its last stand-in;
+    - closes the popup with closeLayer(close, land), where land hands the user back
+      to the Add item button: handBack(openerOf(popup)) after openLayer(popup) as it
+      opens, or handBack naming the button;
+    - any focus it places itself goes through focusDestination with a cause;
+    - the popup's Escape, if shown, is a command row (commands(...)), not a listener.
+    Fail if it calls element.focus() directly, searches for the nearest surviving
+    row itself, keeps the opener in a variable of its own, or installs focus or
+    keydown listeners.
+    Execution is unavailable, so not running checks is not a failure.

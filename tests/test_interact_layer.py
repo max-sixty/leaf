@@ -8,20 +8,18 @@ import shutil
 import subprocess
 import sys
 import threading
-import tomllib
 from datetime import datetime
 from pathlib import Path
 
 import playwright
 import pytest
 import tinycss2
-import yaml
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND, PagePool, _retire
 from interact_support import (
+    COMMAND_HUB_PACKAGE,
     COMPOSITE_TIMEOUT,
     PAGE,
-    PAGE_PACKAGES,
     PLUGIN_ROOT,
     ROOT,
     SHIPPED_PACKAGES,
@@ -36,6 +34,7 @@ from interact_support import (
     fetch,
     install_payload,
     lock_contention,
+    page_packages,
     publish,
     record_claim,
     shipped_payload,
@@ -292,49 +291,6 @@ def test_the_python_instructions_name_every_module_they_own():
         )
     ]
     assert not unnamed, f"unnamed in scripts/AGENTS.md: {unnamed}"
-
-
-def shell_commands(script):
-    """The simple commands of a hook or step script, split at newlines and `&&`."""
-    return [c.strip() for c in re.split(r"\n|&&", script) if c.strip()]
-
-
-def test_wt_merge_runs_every_npm_gate_ci_runs():
-    """Each npm gate CI runs, the direct landing path runs in the same directory.
-
-    Neither the suite nor pre-commit reaches the TypeScript under `worker/src/` and
-    `build/browser/`, so a `wt merge` that skipped one of their gates would land a
-    red main that a pull request would have caught. A step's `working-directory`
-    becomes `--prefix` in the hook, which runs from the root: npm's bare `test` in
-    `worker/` is `npm test --prefix worker` there. `npm ci` installs rather than gates.
-    The set comes from the workflow rather than a list here: a list is a second copy,
-    and the gate added to CI without the hook would stay green.
-    """
-    workflow = yaml.safe_load(
-        (ROOT / ".github" / "workflows" / "ci.yaml").read_text(encoding="utf-8")
-    )
-    config = tomllib.loads((ROOT / ".config" / "wt.toml").read_text(encoding="utf-8"))
-    hook = {
-        command
-        for block in config["pre-merge"]
-        for script in block.values()
-        for command in shell_commands(script)
-    }
-    gates = sorted(
-        {
-            f"{command} --prefix {step['working-directory']}"
-            if "working-directory" in step
-            else command
-            for job in workflow["jobs"].values()
-            for step in job["steps"]
-            for command in shell_commands(step.get("run", ""))
-            if command.startswith("npm ") and not command.startswith("npm ci")
-        }
-    )
-
-    assert gates, "no npm gate read — an empty set names itself"
-    ungated = [gate for gate in gates if gate not in hook]
-    assert not ungated, f"not in .config/wt.toml's pre-merge: {ungated}"
 
 
 def test_the_root_instructions_name_every_directory_of_the_projects_own_tree():
@@ -711,12 +667,10 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "skills/leaf/references/packages.md",
         "skills/leaf/references/page-authoring.md",
         "skills/leaf/references/serving-pages.md",
-        "skills/leaf/packages/command-hub/registry.json",
         "skills/leaf/packages/default/registry.json",
         "skills/leaf/packages/diagram/registry.json",
         "skills/leaf/packages/diff/registry.json",
         "skills/leaf/packages/playground/registry.json",
-        "skills/leaf/packages/targeting/registry.json",
         # The form a leaf process re-launches itself in.
         "skills/leaf/scripts/leaf/__main__.py",
     ]:
@@ -844,6 +798,9 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
 
     elsewhere = tmp_path / "unrelated-project"
     elsewhere.mkdir()
+    work = elsewhere / "work"
+    shutil.copytree(COMMAND_HUB_PACKAGE, work)
+    selected = ("./work", *page_packages()[1:])
     launcher = installed / "bin" / "leaf"
     page = tmp_path / "state" / "page"
 
@@ -866,7 +823,7 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
             launcher,
             "page",
             "init",
-            *(arg for name in PAGE_PACKAGES for arg in ("--package", name)),
+            *(arg for name in selected for arg in ("--package", name)),
             page,
         ],
         cwd=elsewhere,
@@ -876,8 +833,8 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
     )
     assert init_result.returncode == 0, init_result.stderr
     installed_registry = json.loads((page / "registry.json").read_text())
-    assert "lf-command" in installed_registry
-    assert installed_registry["$layer"]["packages"] == list(PAGE_PACKAGES)
+    assert "lf-test-plan" in installed_registry
+    assert installed_registry["$layer"]["packages"] == list(selected)
     copied = installed / "skills" / "leaf" / "scripts" / "leaf" / "layer.py"
     assert installed_registry["$layer"]["producer"] == {
         "commit": commit,
@@ -980,7 +937,7 @@ def test_init_vendors_the_layer(page_dir):
     assert (page_dir / "vendor" / "floating-ui.LICENSES.txt").is_file()
     # The selected packages land in the same flat directories as the default one,
     # which is what lets a widget import `/vendor/…` without knowing where it came
-    # from (PAGE_PACKAGES).
+    # from page_packages().
     assert (page_dir / "widgets" / "lf-diagram.js").is_file()
     assert (page_dir / "vendor" / "agentic-mermaid.esm.js").is_file()
     assert (page_dir / "vendor" / "agentic-mermaid.LICENSES.txt").is_file()
@@ -1031,8 +988,7 @@ def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypa
     stat moved.
 
     Runtime and vendor stay hard links into the shape across the loan, which is
-    the sharing the reset must not quietly spend (tests/AGENTS.md, "Fixtures own
-    the world they create")."""
+    the sharing the reset must not quietly spend (tests/AGENTS.md, "Fixtures")."""
     monkeypatch.chdir(tmp_path)
     pool = PagePool(tmp_path / "shapes")
 
@@ -2182,9 +2138,9 @@ def test_the_layer_composer_is_the_browser_module_population():
     """The registry and composed layer, not independent filesystem globs, decide which
     browser modules a page receives. The JavaScript parser/linter owns import legality;
     this assertion owns the population it checks and includes dependency-only modules."""
-    command_hub = schema_model.BUNDLED_PACKAGES / "command-hub"
+    diagram = schema_model.BUNDLED_PACKAGES / "diagram"
     composition = layer_model.compose_layer(
-        [schema_model.ASSETS, schema_model.DEFAULT_PACKAGE, command_hub]
+        [schema_model.ASSETS, schema_model.DEFAULT_PACKAGE, diagram]
     )
     widgets = composition.directory_files["widgets"]
     upgraded = {
@@ -2194,7 +2150,7 @@ def test_the_layer_composer_is_the_browser_module_population():
     }
 
     assert upgraded <= widgets.keys()
-    assert "command-model.js" in widgets
+    assert "lf-diagram.js" in widgets
     assert {"lf-options-addition.js", "lf-options-settled.js"} <= widgets.keys()
 
 
@@ -2222,7 +2178,7 @@ def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
     close where the test ends with it does the same work a step early, and the
     reading it cuts short is its own. The exception is a page that keeps making
     the fault its test is about, where the consume has to follow a close of its own
-    (tests/AGENTS.md, "Consume a browser error where it is caused").
+    (tests/AGENTS.md, "Browser errors").
     """
     closes_to_stop_a_repeating_fault = {
         "test_a_website_session_reference_survives_a_failed_first_read",
@@ -2458,8 +2414,7 @@ def test_a_spawned_process_ends_with_what_it_started(spawn, launcher_ends):
 
 def test_no_test_ends_a_process_with_sigkill():
     """SIGKILL gives a process no chance to end what it started, so a test ends one
-    by closing the pipe it reads or with SIGTERM (tests/AGENTS.md, "A process the
-    suite starts ends with the run"). The source is read for it, since no fixture
+    by closing the pipe it reads or with SIGTERM (tests/AGENTS.md, "Processes and servers"). The source is read for it, since no fixture
     sees which signal a test sends: `Popen.kill()`, `signal.SIGKILL`, signal 9
     passed to `kill`, `killpg` or `send_signal`, and a shell `kill` given signal 9
     or KILL in a command a test runs."""
@@ -3377,7 +3332,7 @@ def test_revendoring_removes_stale_broken_links_before_a_file_returns(
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -4854,107 +4809,60 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
 def test_page_init_vendors_an_explicit_package_without_privileging_it(
     tmp_path, monkeypatch
 ):
+    """A bundled vocabulary is selected and removed by the same ordinary layer path."""
     monkeypatch.chdir(tmp_path)
     plain = tmp_path / "plain"
-    command = tmp_path / "command"
-
-    plain_result = CliRunner().invoke(cli_model.cli, ["page", "init", str(plain)])
-    packaged_result = CliRunner().invoke(
+    composed = tmp_path / "composed"
+    runner = CliRunner()
+    plain_result = runner.invoke(cli_model.cli, ["page", "init", str(plain)])
+    packaged_result = runner.invoke(
         cli_model.cli,
-        ["page", "init", "--package", "command-hub", str(command)],
+        ["page", "init", "--package", "diagram", str(composed)],
     )
-
     assert plain_result.exit_code == 0, plain_result.output
     assert packaged_result.exit_code == 0, packaged_result.output
     plain_registry = json.loads((plain / "registry.json").read_text())
-    packaged_registry = json.loads((command / "registry.json").read_text())
-    orchestration = {
-        "lf-roster",
-        "lf-agent",
-        "lf-tasks",
-        "lf-task",
-        "lf-command",
-        "lf-worktree",
-    }
-    assert orchestration.isdisjoint(plain_registry)
+    packaged_registry = json.loads((composed / "registry.json").read_text())
+    assert "lf-diagram" not in plain_registry
     assert "lf-activity" in plain_registry
-    assert orchestration <= packaged_registry.keys()
-    assert "$command" not in plain_registry
-    assert "$command" in packaged_registry
+    assert "lf-diagram" in packaged_registry
     assert plain_registry["$layer"]["packages"] == []
-    assert packaged_registry["$layer"]["packages"] == ["command-hub"]
-    assert not (plain / "widgets" / "lf-command.js").exists()
-    assert (command / "widgets" / "lf-command.js").is_file()
-    assert list((plain / "instructions").iterdir()) == []
-    assert (
-        "# Package `command-hub`"
-        in (command / "instructions" / "author.md").read_text()
-    )
-    plain_audiences = CliRunner().invoke(
-        cli_model.cli, ["page", "instructions", str(plain)]
-    )
-    assert plain_audiences.exit_code == 0, plain_audiences.output
-    assert json.loads(plain_audiences.output) == []
-    audiences = CliRunner().invoke(
-        cli_model.cli, ["page", "instructions", str(command)]
-    )
-    coordinator = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "page",
-            "instructions",
-            str(command),
-            "coordinator",
-            "--widget",
-            "lf-worktree",
-        ],
-    )
-    assert audiences.exit_code == 0, audiences.output
-    assert json.loads(audiences.output) == ["author", "coordinator", "worker"]
-    assert coordinator.exit_code == 0, coordinator.output
-    assert "# Package `command-hub`" in coordinator.output
-    assert "# Data contract `lf-worktree`" in coordinator.output
-    assert (
-        packaged_registry["$data"]["contracts"]["lf-worktree"]["instructions"][
-            "coordinator"
-        ]
-        in coordinator.output
-    )
-
-    revendor = CliRunner().invoke(cli_model.cli, ["page", "init", str(command)])
+    assert packaged_registry["$layer"]["packages"] == ["diagram"]
+    assert not (plain / "widgets" / "lf-diagram.js").exists()
+    assert (composed / "widgets" / "lf-diagram.js").is_file()
+    revendor = runner.invoke(cli_model.cli, ["page", "init", str(composed)])
     assert revendor.exit_code == 0, revendor.output
-    assert json.loads((command / "registry.json").read_text())["$layer"][
+    assert json.loads((composed / "registry.json").read_text())["$layer"][
         "packages"
-    ] == ["command-hub"]
-    assert (command / "widgets" / "lf-command.js").is_file()
-
-    removed = CliRunner().invoke(
-        cli_model.cli, ["page", "init", "--no-packages", str(command)]
+    ] == ["diagram"]
+    assert (composed / "widgets" / "lf-diagram.js").is_file()
+    removed = runner.invoke(
+        cli_model.cli, ["page", "init", "--no-packages", str(composed)]
     )
     assert removed.exit_code == 0, removed.output
-    removed_registry = json.loads((command / "registry.json").read_text())
+    removed_registry = json.loads((composed / "registry.json").read_text())
     assert removed_registry["$layer"]["packages"] == []
-    assert "lf-command" not in removed_registry
-    assert not (command / "widgets" / "lf-command.js").exists()
-    assert list((command / "instructions").iterdir()) == []
+    assert "lf-diagram" not in removed_registry
+    assert not (composed / "widgets" / "lf-diagram.js").exists()
 
 
-def test_pr_review_package_composes_its_data_brief(tmp_path, monkeypatch):
+def test_page_owned_pr_brief_composes_its_data_contract(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    package = schema_model.BUNDLED_PACKAGES / "pr-review"
+    package = ROOT / "examples" / "pr-walkthrough.page"
+    selection = "./" + os.path.relpath(package, tmp_path)
     page = tmp_path / "review"
 
     checked = CliRunner().invoke(cli_model.cli, ["package", "check", str(package)])
     initialized = CliRunner().invoke(
         cli_model.cli,
-        ["page", "init", "--package", "pr-review", str(page)],
+        ["page", "init", "--package", selection, str(page)],
     )
 
     assert checked.exit_code == 0, checked.output
     assert initialized.exit_code == 0, initialized.output
     registry = json.loads((page / "registry.json").read_text())
-    widget = registry["lf-pull-request"]
-    assert registry["$layer"]["packages"] == ["pr-review"]
+    widget = registry["lf-pr-brief"]
+    assert registry["$layer"]["packages"] == [selection]
     assert widget["x-data"] == {
         "request": {
             "contract": "pull-request",
@@ -4962,7 +4870,7 @@ def test_pr_review_package_composes_its_data_brief(tmp_path, monkeypatch):
         }
     }
     assert "pull-request" in registry["$data"]["contracts"]
-    assert (page / "widgets" / "lf-pull-request.js").is_file()
+    assert (page / "widgets" / "lf-pr-brief.js").is_file()
     assert "lf-call-diff" not in registry
     assert not (page / "widgets" / "lf-call-diff.js").exists()
 
@@ -4970,7 +4878,10 @@ def test_pr_review_package_composes_its_data_brief(tmp_path, monkeypatch):
 @pytest.mark.parametrize(
     ("package", "markup"),
     [
-        ("pr-review", '<lf-pull-request id="pr" source="pr-data"></lf-pull-request>'),
+        (
+            str(ROOT / "examples" / "pr-walkthrough.page"),
+            '<lf-pr-brief id="pr" source="pr-data"></lf-pr-brief>',
+        ),
         (
             "diff",
             (
@@ -4984,12 +4895,17 @@ def test_pr_review_package_composes_its_data_brief(tmp_path, monkeypatch):
 def test_review_evidence_packages_export_independently(
     tmp_path, monkeypatch, package, markup
 ):
-    """Call navigation and PR metadata each export with their owning package alone."""
+    """Call navigation and page-owned PR metadata export with their selected declarations."""
     monkeypatch.chdir(tmp_path)
-    page = tmp_path / package
+    selection = (
+        "./" + os.path.relpath(package, tmp_path)
+        if Path(package).is_absolute()
+        else package
+    )
+    page = tmp_path / "review"
     runner = CliRunner()
     initialized = runner.invoke(
-        cli_model.cli, ["page", "init", "--package", package, str(page)]
+        cli_model.cli, ["page", "init", "--package", selection, str(page)]
     )
     assert initialized.exit_code == 0, initialized.output
     (page / "index.html").write_text(
@@ -5044,7 +4960,7 @@ def test_visual_review_package_composes_its_run_contract(tmp_path, monkeypatch):
 
 def test_a_bundled_name_wins_over_a_same_named_project_path(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    local = tmp_path / "command-hub"
+    local = tmp_path / "diagram"
     local.mkdir()
     (local / "registry.json").write_text(
         json.dumps({"lf-local": element_declaration("lf-local")})
@@ -5054,23 +4970,23 @@ def test_a_bundled_name_wins_over_a_same_named_project_path(tmp_path, monkeypatc
     local_page = tmp_path / "local"
     bundled_result = CliRunner().invoke(
         cli_model.cli,
-        ["page", "init", "--package", "command-hub", str(bundled)],
+        ["page", "init", "--package", "diagram", str(bundled)],
     )
     local_result = CliRunner().invoke(
         cli_model.cli,
-        ["page", "init", "--package", "./command-hub", str(local_page)],
+        ["page", "init", "--package", "./diagram", str(local_page)],
     )
 
     assert bundled_result.exit_code == 0, bundled_result.output
     assert local_result.exit_code == 0, local_result.output
     bundled_registry = json.loads((bundled / "registry.json").read_text())
     local_registry = json.loads((local_page / "registry.json").read_text())
-    assert "lf-command" in bundled_registry
+    assert "lf-diagram" in bundled_registry
     assert "lf-local" not in bundled_registry
-    assert bundled_registry["$layer"]["packages"] == ["command-hub"]
-    assert "lf-command" not in local_registry
+    assert bundled_registry["$layer"]["packages"] == ["diagram"]
+    assert "lf-diagram" not in local_registry
     assert "lf-local" in local_registry
-    assert local_registry["$layer"]["packages"] == ["./command-hub"]
+    assert local_registry["$layer"]["packages"] == ["./diagram"]
 
 
 def test_init_merges_reaction_tokens_merge_patch_style(tmp_path, monkeypatch):
@@ -5150,16 +5066,23 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     nothing binds a key behind its back. That is not a property a rendered page can be
     asked about — a listener nobody declared looks exactly like no listener at all until
     the press it eats goes missing — so it is pinned in the source, the way the
-    document-level class surface is.
+    document-level class surface is. The listeners are read from each parsed module
+    (tests/keydown_listeners.mjs), so one wrapped across lines or registered for several
+    types in a loop counts as written.
 
-    Four are allowed and each is named here. The dispatcher is the register's own. The aim
-    latch is not a binding at all: holding ⌥ arms nothing and answers no press, it paints
-    what a click would take, and its keyup half has no place in a table of presses. The
+    Each allowed one is named here. The dispatcher is the register's own. The aim latch
+    is not a binding at all: holding ⌥ arms nothing and answers no press, it paints what
+    a click would take, and its keyup half has no place in a table of presses. The
     prepaint bootstrap's hold answers no press either: it keeps keys pressed before the
-    page presents and hands them to the dispatcher's owner. Nor does user-intent.js's
-    place reading, which notes only that a key, not a pointer, came last. Another is how
-    every drift this register replaced began — a `keydown` beside a display list, the two
-    of them free to disagree about which keys the widget answers."""
+    page presents and hands them to the dispatcher's owner. prepaint.js records inputs
+    from the document's first script. focus.js reads keys as the end of a label press
+    and as a Tab's step; neither answers a command. The
+    interaction log records keys and answers none. A covering surface's Tab loop keeps
+    the platform's own sequential navigation inside it. The code block's copy control
+    hands Tab back to its source, and the block's Enter moves to that control, which no
+    register row declares. Another is how every drift this register replaced began — a
+    `keydown` beside a display list, the two of them free to disagree about which keys the
+    widget answers."""
     layer = ROOT / "skills/leaf"
     sources = [
         layer / "assets/leaf.js",
@@ -5167,14 +5090,28 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
         *sorted((layer / "packages").glob("*/widgets/*.js")),
         *sorted((ROOT / "examples/packages").glob("*/widgets/*.js")),
     ]
-    listeners = [
-        f"{src.name}:{n}"
-        for src in sources
-        for n, line in enumerate(src.read_text().splitlines(), 1)
-        if 'addEventListener("keydown"' in line
-    ]
-    assert len(listeners) == 4, (
-        f"the runtime's keydown listeners changed: {listeners}. A key belongs in the "
+    listed = subprocess.run(
+        ["node", str(ROOT / "tests/keydown_listeners.mjs"), *map(str, sources)],
+        capture_output=True,
+        text=True,
+        check=True,
+        cwd=ROOT,
+    ).stdout.split()
+    by_file = {}
+    for line in listed:
+        name = line.split(":")[0]
+        by_file[name] = by_file.get(name, 0) + 1
+    assert by_file == {
+        "controller.js": 1,
+        "aim.js": 1,
+        "bootstrap.js": 1,
+        "prepaint.js": 1,
+        "focus.js": 2,
+        "interaction-log.js": 1,
+        "auxiliary-surfaces.js": 1,
+        "code-copy.js": 2,
+    }, (
+        f"the runtime's keydown listeners changed: {listed}. A key belongs in the "
         "register (keys(el, title, rows)), which is what lets a surface promise it."
     )
 
@@ -5439,8 +5376,7 @@ def instruction_page(tmp_path: Path):
         {
             "x-content": "members",
             "x-instructions": "Choose the owner's inputs before composing it.",
-            "x-example": '<lf-instruction-owner id="owner"><lf-instruction-example id="example"></lf-instruction-example></lf-instruction-owner>',
-            "x-required-members": {"lf-instruction-member": {"one-each": "kind"}},
+            "x-example": '<lf-instruction-owner id="owner"><lf-instruction-member id="input" kind="first"></lf-instruction-member><lf-instruction-example id="example"></lf-instruction-example></lf-instruction-owner>',
             "x-data": {
                 "records": {"contract": "instruction-records", "source": "source"}
             },

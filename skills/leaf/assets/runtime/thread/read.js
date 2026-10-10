@@ -24,7 +24,7 @@ import { whenDocumentPresented } from "../semantic-state.js";
 import { pagePresented } from "../presentation.js";
 import { moved } from "./model.js";
 import { readThreads } from "./state.js";
-import { excludedByInert, upFrom } from "../shadow.js";
+import { excludedByInert, renderedParent } from "../shadow.js";
 import { nativeModalAdmits } from "../keyboard/layer-stack.js";
 import { keeps, keepsHidden } from "../keeps.js";
 
@@ -78,7 +78,11 @@ function frameBand() {
         bottom: Math.min(band.bottom, rect.bottom - y),
       };
     };
-    for (let ancestor = upFrom(frame); ancestor; ancestor = upFrom(ancestor)) {
+    for (
+      let ancestor = renderedParent(frame);
+      ancestor;
+      ancestor = renderedParent(ancestor)
+    ) {
       const style = owner.getComputedStyle(ancestor);
       if (
         ancestor.getAttribute?.("aria-hidden") === "true" ||
@@ -98,7 +102,7 @@ function frameBand() {
 function visibleInterval(body, clips, band) {
   if (!body.checkVisibility() || excludedByInert(body) || !nativeModalAdmits(body))
     return null;
-  for (let owner = body; owner; owner = upFrom(owner))
+  for (let owner = body; owner; owner = renderedParent(owner))
     if (owner.getAttribute?.("aria-hidden") === "true") return null;
   const box = body.getBoundingClientRect();
   // Sticky headers, the open thread panel standing over the right of the page, and the
@@ -194,7 +198,7 @@ export function createReadTracking({ markRead, showThread, firstUnreadBtn }) {
     const clips = new Map();
     const completed = new Map();
     for (const [node, rendered] of renderedBodies) {
-      const { body, id } = rendered;
+      const { body, id, version } = rendered;
       if (!node.isConnected || !body.isConnected) {
         sizes.unobserve(body);
         renderedBodies.delete(node);
@@ -202,7 +206,13 @@ export function createReadTracking({ markRead, showThread, firstUnreadBtn }) {
       }
       const item = candidates.get(id);
       const key = item && keyOf(item);
-      if (!item || completed.has(key) || refusedThisVisit.has(key)) continue;
+      if (
+        !item ||
+        item.version !== version ||
+        completed.has(key) ||
+        refusedThisVisit.has(key)
+      )
+        continue;
       const visible = visibleInterval(body, clips, band);
       if (!visible) continue;
       let tracked = coverage.get(body);
@@ -301,23 +311,22 @@ export function createReadTracking({ markRead, showThread, firstUnreadBtn }) {
     );
   }
 
-  function observeBody(node, body, message) {
-    if (!body) return;
-    const previous = renderedBodies.get(node);
-    if (previous?.body !== body) {
-      if (previous) sizes.unobserve(previous.body);
-      sizes.observe(body);
-    }
-    renderedBodies.set(node, {
+  function observeMessage(body, message) {
+    if (!(body instanceof Element))
+      throw new TypeError("A message body must be an Element");
+    if (!renderedBodies.has(body)) sizes.observe(body);
+    const registration = {
       body,
       id: message.id,
-    });
-  }
-
-  function forgetBody(node) {
-    const rendered = renderedBodies.get(node);
-    if (rendered) sizes.unobserve(rendered.body);
-    renderedBodies.delete(node);
+      version: message.version ?? message.edited?.id ?? message.id,
+    };
+    renderedBodies.set(body, registration);
+    scheduleScan();
+    return () => {
+      if (renderedBodies.get(body) !== registration) return;
+      sizes.unobserve(body);
+      renderedBodies.delete(body);
+    };
   }
 
   function present() {
@@ -362,8 +371,7 @@ export function createReadTracking({ markRead, showThread, firstUnreadBtn }) {
     begin,
     abort,
     present,
-    observeBody,
-    forgetBody,
+    observeMessage,
     firstUnreadCommand,
     exposureChanged: scheduleScan,
   };

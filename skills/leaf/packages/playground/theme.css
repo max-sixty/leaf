@@ -60,13 +60,17 @@
  * its body scrolls instead of running past the window. */
 @media screen {
   @container style(--lf-full-height: 1) {
+    /* Each box passes the height on, so the panes in the split are told they have one
+       (`--lf-full-height`, layouts.css) and scroll their bodies. */
     :scope:is(lf-playground) {
       min-block-size: 0;
       margin-block: 0;
+      --lf-full-height: inherit;
     }
 
     .lf-playground-split {
       min-block-size: 0;
+      --lf-full-height: inherit;
     }
 
     @container (min-width: 43.5rem) {
@@ -175,7 +179,7 @@
   font: inherit;
   accent-color: var(--accent);
 }
-:scope:is(lf-playground-control) > input:is([type="text"], [type="color"]) {
+:scope:is(lf-playground-control) > input[type="color"] {
   border: 1px solid var(--rule);
   border-radius: var(--r);
   background: var(--card);

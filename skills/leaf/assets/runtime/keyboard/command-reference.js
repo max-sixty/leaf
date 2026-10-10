@@ -22,6 +22,7 @@
    The catalog is deliberately frozen while open. A command that becomes live waits until
    the next opening; one that becomes unavailable is rejected by fresh dispatch and causes
    the reference to reopen with an explanation. */
+import { scrollIntoView } from "../landing-scroll.js";
 import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
 
 import {
@@ -50,13 +51,22 @@ import {
   keySequenceTemplate,
   neutralStates,
 } from "./presentation.js";
-import { handBack, tabStops, focusDestination } from "../focus.js";
-import { closeControl } from "../widget-elements.js";
+import {
+  handBack,
+  tabStops,
+  focusDestination,
+  focused,
+  closeLayer,
+  openLayer,
+  openerOf,
+  rove,
+  standingIn,
+} from "../focus.js";
+import { closeControl, searchField } from "../widget-elements.js";
 import { keeps } from "../keeps.js";
 import { ELEMENTS, pageScope, pageScopes } from "./register.js";
 import { EVERYTHING } from "./text-entry.js";
 import {
-  focused,
   merge,
   pruneScopedElements,
   scopeRefs,
@@ -67,6 +77,7 @@ import { repaint } from "../repaint.js";
 import { pageSelection } from "../composing/capture.js";
 import { availableCommandRoutes, userIn } from "./dispatch.js";
 import { reachScrollers } from "../reach.js";
+import { registerReadingRegion } from "../reading-regions.js";
 import { openPopovers } from "./layer-stack.js";
 
 export const commandReferenceDialog = document.createElement("dialog");
@@ -77,6 +88,16 @@ commandReferenceDialog.setAttribute("closedby", "any");
 commandReferenceDialog.setAttribute("aria-modal", "true");
 // Focused on open, so the dialog is not silent to a screen reader.
 commandReferenceDialog.tabIndex = -1;
+let stopReferenceReading = null;
+const commandReferenceSearch = searchField("lf-command-reference-search", {
+  name: "shortcut-search",
+  label: "Search commands",
+  placeholder: "Find a key or action",
+});
+commandReferenceSearch.addEventListener("input", readCommandReferenceSearch);
+// Like Page Map's search, this retained control connects with its closed dialog at
+// boot. Its native editor is ready before the first opening and survives local renders.
+commandReferenceDialog.append(commandReferenceSearch);
 
 // Page-key presentation owns this retained native control's changing name and shortcut
 // metadata. The reference template only seats it.
@@ -182,7 +203,6 @@ function declaredStack(origin) {
 
 let commandRoutesAtOpen = new Map();
 let commandReferenceIsOpen = false;
-let commandReferenceOrigin = null;
 let commandReferenceInvoke = null;
 
 const EMPTY_CATALOG = Object.freeze({
@@ -244,7 +264,7 @@ const spokenReferenceSteps = (row, route, steps, declared) => {
 // Evaluate every dynamic declaration once while opening. Search never calls back into the
 // register, and rendered records retain no executable command or liveness function.
 function captureCommandReferenceCatalog() {
-  const referenceScopes = declaredStack(commandReferenceOrigin)
+  const referenceScopes = declaredStack(openerOf(commandReferenceDialog))
     .map((scope) => {
       const inScope = userIn(scope) || scope.liveInCommandReference;
       const rows = scope.rows
@@ -579,7 +599,6 @@ function activateCommandEntry(entry) {
 
 function commandEntryTemplate(entry, promoted = false, shown = true) {
   const selected = commandReferenceView.selectedCommandId === entry.id;
-  const tabStop = commandReferenceView.tabStopCommandId === entry.id;
   const action = entry.actionable
     ? html`<button
         type="button"
@@ -593,7 +612,6 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
         ]
           .filter(Boolean)
           .join(" ")}
-        .tabIndex=${tabStop ? 0 : -1}
         title=${entry.available ? "Run command" : entry.unavailableMessage}
         @click=${() => activateCommandEntry(entry)}
         .textContent=${entry.title}
@@ -708,9 +726,6 @@ function commandReferenceItemTemplate(item) {
 }
 
 function commandReferenceTemplate() {
-  const selected = commandReferenceView.visibleCommands.find(
-    ({ entry }) => entry.id === commandReferenceView.selectedCommandId,
-  );
   const items = commandReferenceItems();
   return html`
     <div class="lf-command-reference-head">
@@ -737,22 +752,7 @@ function commandReferenceTemplate() {
         >Use letters, numbers and symbols for Leaf actions.</small
       >
     </label>
-    <input
-      type="search"
-      name="shortcut-search"
-      class="lf-command-reference-search"
-      placeholder="Find a key or action"
-      aria-label="Search commands"
-      role="combobox"
-      aria-autocomplete="list"
-      aria-expanded="true"
-      aria-haspopup="grid"
-      aria-controls="lf-command-reference-results"
-      aria-activedescendant=${selected?.entry.rowId ?? nothing}
-      autocomplete="off"
-      spellcheck="false"
-      @input=${readCommandReferenceSearch}
-    />
+    ${commandReferenceSearch}
     <div
       class="lf-command-reference-meta"
       aria-live="polite"
@@ -784,6 +784,30 @@ function presentCommandReference() {
   updateCommandReferenceView();
   presentCommandReferenceClose();
   render(commandReferenceTemplate(), commandReferenceDialog);
+  // The combobox belongs to the native editor, not its component host. Element
+  // references keep its result relationships valid across the editor's shadow root.
+  const search = commandReferenceSearch.input;
+  keeps(search, "role", "combobox");
+  keeps(search, "aria-autocomplete", "list");
+  keeps(search, "aria-expanded", "true");
+  keeps(search, "aria-haspopup", "grid");
+  const results = commandReferenceDialog.querySelector(".lf-command-reference-results");
+  if (search.ariaControlsElements?.[0] !== results)
+    search.ariaControlsElements = [results];
+  const selected = commandReferenceView.visibleCommands.find(
+    ({ entry }) => entry.id === commandReferenceView.selectedCommandId,
+  );
+  const row = selected
+    ? commandReferenceDialog.querySelector(`#${selected.entry.rowId}`)
+    : null;
+  if (search.ariaActiveDescendantElement !== row)
+    search.ariaActiveDescendantElement = row;
+  // The results are one roving group: Tab reaches the selected command, or the first,
+  // and the arrows walk the rest (focus.js, `rove`).
+  rove(
+    commandReferenceDialog.querySelectorAll(".lf-command-reference-command"),
+    commandButton(commandReferenceView.tabStopCommandId),
+  );
 }
 
 function readCommandReferenceSearch(event) {
@@ -806,9 +830,8 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
   // Focusing a text input replaces the document selection. Keep a passage the user has
   // in hand and focus Close instead; an ordinary opening lands directly in search.
   const preserveSelection = fresh && Boolean(pageSelection());
-  const handingBack =
-    !open && restoreFocus && commandReferenceDialog.contains(focused());
-  const restore = handingBack ? commandReferenceOrigin : null;
+  const handingBack = !open && restoreFocus && standingIn(commandReferenceDialog);
+  const restore = handingBack ? openerOf(commandReferenceDialog) : null;
   if (fresh) {
     commandReferenceInvoke = invokeCommand;
     for (const popover of openPopovers())
@@ -822,8 +845,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
     // and the user who opened the reference four screens down would Tab from there.
     // A popover opened while nothing held focus lets go as it closes (layer-stack.js),
     // so that user reads as standing on `body` here too.
-    const at = focused();
-    commandReferenceOrigin = at === document.body ? null : at;
+    openLayer(commandReferenceDialog);
     commandRoutesAtOpen = availableCommandRoutes({ commands: true });
   }
   commandReferenceIsOpen = open;
@@ -843,40 +865,57 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
     // renders.
     search.value = "";
     results.scrollTop = 0;
+    stopReferenceReading = registerReadingRegion({
+      id: "lf-region:command-reference",
+      host: commandReferenceDialog,
+      body: results,
+    });
   }
   commandReferenceDialog.classList.toggle("open", open);
   if (open && !commandReferenceDialog.open) commandReferenceDialog.showModal();
-  else if (!open && commandReferenceDialog.open) commandReferenceDialog.close();
-  // A closed dialog's search box keeps focus until the browser's next focus fixup, so the
-  // repaint below would read the user as still typing there, and the shortcut bar would
-  // keep the More it hands back to standing down. Release it with the dialog.
-  if (!open && commandReferenceDialog.contains(document.activeElement))
-    document.activeElement.blur();
-
-  // The results are a real overflow region and must enter the modal Tab loop.
-  if (open) reachScrollers(commandReferenceDialog);
-  if (open)
-    focusDestination(
-      commandReferenceDialog.querySelector(
-        preserveSelection
-          ? ".lf-command-reference-close"
-          : ".lf-command-reference-search",
-      ),
-      "move",
-    );
-  repaint();
   // The reference is a bounded interaction rather than a level of the page: it claims the
   // whole keyboard while it stands and hands the user back itself, to the control the
   // press displaced, or to the page where that control has gone — the layer it stood in
   // may have closed under the user while the reference was up — which is where a user
-  // who pressed `?` from the page was all along.
-  if (handingBack) handBack(restore);
+  // who pressed `?` from the page was all along. A closed dialog's search box keeps focus
+  // until the browser's next focus fixup, so the repaint below would read the user as
+  // still typing there, and the shortcut bar would keep the More it hands back to
+  // standing down: the close releases it with the dialog, and hands the user back once
+  // its repaint has drawn that More again.
+  if (!open) {
+    stopReferenceReading?.();
+    stopReferenceReading = null;
+    closeLayer(
+      () => {
+        if (commandReferenceDialog.open) commandReferenceDialog.close();
+        if (commandReferenceDialog.contains(document.activeElement))
+          document.activeElement.blur();
+        repaint();
+      },
+      handingBack && (() => handBack(restore)),
+    );
+    return;
+  }
+  // The results are a real overflow region and must enter the modal Tab loop.
+  reachScrollers(commandReferenceDialog);
+  focusDestination(
+    commandReferenceDialog.querySelector(
+      preserveSelection
+        ? ".lf-command-reference-close"
+        : ".lf-command-reference-search",
+    ),
+    "move",
+  );
+  repaint();
 }
 
 export function moveCommandReferenceFocus(dir) {
   const stops = tabStops(commandReferenceDialog);
   if (!stops.length) return focusDestination(commandReferenceDialog, "step");
-  const at = stops.indexOf(focused());
+  const standing = focused();
+  const at = stops.indexOf(
+    standing === commandReferenceSearch.input ? commandReferenceSearch : standing,
+  );
   const next =
     at < 0
       ? dir > 0
@@ -898,10 +937,7 @@ const focusedCommandId = () =>
 
 export const commandReferenceCommandActive = () =>
   commandReferenceView.visibleCommands.length > 0 &&
-  (focused()?.matches?.(
-    ".lf-command-reference-search, .lf-command-reference-command",
-  ) ??
-    false);
+  (focused() === commandReferenceSearch.input || focusedCommandId() !== null);
 
 export function moveCommandReferenceSelection(dir) {
   const ids = commandReferenceView.visibleCommands.map(({ entry }) => entry.id);
@@ -925,7 +961,7 @@ export function moveCommandReferenceSelection(dir) {
   presentCommandReference();
   const next = commandButton(nextId);
   if (focusedId) focusDestination(next, "move");
-  next.closest("tr").scrollIntoView({ block: "nearest" });
+  scrollIntoView(next.closest("tr"), { block: "nearest" });
   beginWalk("shortcut-command", "Command", () => {
     const current = focusedCommandId() ?? commandReferenceState.selectedCommandId;
     return listWalkPosition(

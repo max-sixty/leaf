@@ -9,6 +9,8 @@
 // request that starts it names its cause (`adoptReactive`).
 // Native edit starts identify their field through DOM capture or EditContext's
 // attachment; a watch confirms the value that field's input commits.
+// Parent input bridges belong to the child document. Pagehide releases them before
+// its realm goes away; a back-forward cache return reconnects the same bridges.
 // The watch's own scheduling uses the saved platform methods and is never counted.
 (() => {
   "use strict";
@@ -22,6 +24,20 @@
   let order = 0;
   const then = Promise.prototype.then;
   const parents = [];
+  const parentConnections = [];
+  const stopParents = [];
+  const connectParent = (connect) => {
+    parentConnections.push(connect);
+    stopParents.push(connect());
+  };
+  addEventListener("pagehide", () => {
+    for (const stop of stopParents) stop();
+    stopParents.length = 0;
+  });
+  addEventListener("pageshow", (event) => {
+    if (event.persisted)
+      for (const connect of parentConnections) stopParents.push(connect());
+  });
   let callbackSource = null;
   let callbackDepth = 0;
   const localSource = (source) => {
@@ -42,15 +58,20 @@
     const source = parents[0]?.current();
     return source ? localSource(source) : null;
   };
+  const closed = (owner) =>
+    owner.localName === "details" ? !owner.open : !owner.matches(":popover-open");
   const checkpoint = (source, completedEdit = false) => {
     // The first reader after activation owns the native default, even when a
     // toggle listener runs before the dispatch-completion task.
-    for (const [activation, owner] of nativeDefaults) {
-      if (!activation.event.defaultPrevented && !owner.open) {
-        nativeDefaults.delete(activation);
+    for (const [activation, owners] of nativeDefaults) {
+      if (activation.event.defaultPrevented) continue;
+      for (const owner of owners) {
+        if (!closed(owner)) continue;
+        owners.delete(owner);
         for (const subscriber of subscribers)
           subscriber({ ...activation, nativeDefault: owner }, true);
       }
+      if (!owners.size) nativeDefaults.delete(activation);
     }
     for (const subscriber of subscribers) subscriber(source, completedEdit);
   };
@@ -143,11 +164,28 @@
     }
   }
 
+  // A press is one gesture from pointerdown through its click; a key is its keydown.
+  const PRESS = new Set(["pointerdown", "mousedown", "pointerup", "mouseup"]);
+  const GESTURES = new Set(["pointerdown", "keydown"]);
   const endDispatch = (source) => {
     finishing.add(source);
     // A summary's native activation runs after the click listeners and their
-    // microtasks. Retain that one browser-owned close until dispatch completion,
-    // without assigning unrelated native-await work to the press.
+    // microtasks, and so do the closes the browser makes of the popovers open when a
+    // gesture starts: a press's light dismissal, a popovertarget invoker's toggle, and
+    // Escape. Retain those browser-owned closes until the gesture's dispatch completes,
+    // without assigning unrelated native-await work to the input. A press's light
+    // dismissal falls between its own events, outside every dispatch, so the closes a
+    // pointerdown retains stand until its click has dispatched.
+    // A press inside a popover never light-dismisses it, so only those it lands outside
+    // are retained for a press.
+    const path = source.event.composedPath();
+    const closes = new Set(
+      GESTURES.has(source.event.type)
+        ? [...document.querySelectorAll(":popover-open")].filter(
+            (popover) => source.event.type === "keydown" || !path.includes(popover),
+          )
+        : [],
+    );
     const summary =
       source.event.type === "click" ? source.node?.closest?.(nativeActivation) : null;
     const details = summary?.parentElement;
@@ -156,12 +194,19 @@
       summary.localName === "summary" &&
       details.querySelector(":scope > summary") === summary &&
       details.open;
-    if (closesDetails) nativeDefaults.set(source, details);
+    if (closesDetails) closes.add(details);
+    if (closes.size) nativeDefaults.set(source, closes);
     task(() => {
       // The dispatch is over. A native await continuation since dispatch is not owned by
       // this event unless its committing callback was explicitly captured.
       checkpoint(null, true);
-      nativeDefaults.delete(source);
+      for (const activation of nativeDefaults.keys())
+        if (
+          activation === source
+            ? !PRESS.has(source.event.type)
+            : source.event.type === "click" && PRESS.has(activation.event.type)
+        )
+          nativeDefaults.delete(activation);
       finishing.delete(source);
       if (!finishing.size) {
         for (const resolve of finished) resolve();
@@ -172,6 +217,8 @@
   const beginSource = (event, node, edit = false) => {
     // An earlier passive loss cannot be answered by the input that follows it.
     checkpoint(null, event.type !== "input");
+    // A new gesture ends what an earlier one retained.
+    if (GESTURES.has(event.type)) nativeDefaults.clear();
     const source = { event, node, order: ++order };
     sources.set(event, source);
     if (edit) for (const subscriber of editSubscribers) subscriber(source);
@@ -209,37 +256,52 @@
       break;
     }
     if (view !== window && view.lfInputWork) {
-      parents.push(view.lfInputWork);
-      view.lfInputWork.subscribeEdits((source) => {
-        for (const subscriber of editSubscribers) subscriber(localSource(source));
-      });
-      view.lfInputWork.subscribe((source, completedEdit) => {
-        if (!source) return checkpoint(source, completedEdit);
-        checkpoint(localSource(source), completedEdit);
+      const parent = view.lfInputWork;
+      parents.push(parent);
+      connectParent(() => {
+        const stopEdits = parent.subscribeEdits((source) => {
+          for (const subscriber of editSubscribers) subscriber(localSource(source));
+        });
+        const stop = parent.subscribe((source, completedEdit) => {
+          if (!source) return checkpoint(source, completedEdit);
+          checkpoint(localSource(source), completedEdit);
+        });
+        return () => {
+          stopEdits();
+          stop();
+        };
       });
       if (view === view.parent) break;
       continue;
     }
+    const callbacks = [];
     for (const type of inputTypes) {
-      view.addEventListener(
-        type,
-        (event) => {
-          if (!event.isTrusted) return;
-          beginSource(
-            event,
-            event.composedPath()[0],
-            event.type === "beforeinput" || editorCommands.includes(event.type),
-          );
-          // The browser compiles handler attributes without invoking our setter.
-          // Adopt those callbacks before target dispatch, preserving getter identity.
-          for (const node of event.composedPath()) {
-            const name = `on${type}`;
-            if (typeof node?.[name] === "function") node[name] = node[name];
-          }
-        },
-        true,
-      );
+      const callback = (event) => {
+        if (!event.isTrusted) return;
+        beginSource(
+          event,
+          event.composedPath()[0],
+          event.type === "beforeinput" || editorCommands.includes(event.type),
+        );
+        // The browser compiles handler attributes without invoking our setter.
+        // Adopt those callbacks before target dispatch, preserving getter identity.
+        for (const node of event.composedPath()) {
+          const name = `on${type}`;
+          if (typeof node?.[name] === "function") node[name] = node[name];
+        }
+      };
+      callbacks.push([type, callback]);
     }
+    const listen = () => {
+      for (const [type, callback] of callbacks)
+        view.addEventListener(type, callback, true);
+      return () => {
+        for (const [type, callback] of callbacks)
+          view.removeEventListener(type, callback, true);
+      };
+    };
+    if (view === window) listen();
+    else connectParent(listen);
     if (view === view.parent) break;
   }
   addEventListener("storage", (event) => {

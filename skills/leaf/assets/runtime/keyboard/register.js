@@ -25,14 +25,15 @@ import {
   lineOf,
   word,
 } from "./bindings.js";
-import { focused, paintKeys, watchCommandScopes } from "./scopes.js";
+import { focused } from "../focus.js";
+import { paintKeys, watchCommandScopes } from "./scopes.js";
 // Native activation reads declarations without assembling or validating the keyboard
 // during feature construction. Both element and page commands share one control owner.
 watchCommandScopes(() => [
   ...[...scopes.values()].flat(),
   { rows: [...commands.values()] },
 ]);
-import { under } from "../shadow.js";
+import { renderedUnder } from "../shadow.js";
 import { offlineInteractive } from "../context.js";
 
 export const ELEMENTS = Symbol("the scopes of the focused element");
@@ -205,10 +206,10 @@ function rung() {
   const here = focused();
   let surface = null;
   for (const { root } of steps) {
-    if (!root || root === document || !under(here, root)) continue;
-    if (!surface || under(root, surface)) surface = root;
+    if (!root || root === document || !renderedUnder(here, root)) continue;
+    if (!surface || renderedUnder(root, surface)) surface = root;
   }
-  const holds = (step) => under(step.root ?? document, surface);
+  const holds = (step) => renderedUnder(step.root ?? document, surface);
   return (surface && steps.find(holds)) ?? steps[0] ?? null;
 }
 // The page's own Escape, said and run off that one object: each rung states the act, the

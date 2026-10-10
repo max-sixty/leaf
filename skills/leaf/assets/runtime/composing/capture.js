@@ -9,85 +9,24 @@
 import { COLLAPSE } from "../collapse.js";
 import {
   closestAcross,
-  cut,
-  DATUM,
-  neighbourhood,
   pageRange,
   pageText,
   pageWords,
   pointAt,
-  quoteFrom,
   selectEnds,
   selectionBackward,
   segmentBlock,
   segmentsIn,
   spanIn,
 } from "../passages.js";
-import { upFrom } from "../shadow.js";
 import { textUnits } from "../text-alignment.js";
-import { ADDRESSABLE, anchorForDatum, anchoringIsReady } from "../anchor-resolution.js";
-import { takesLetters } from "../focus.js";
-import { focused } from "../keyboard/scopes.js";
+import { anchorForRange, anchoringIsReady } from "../anchor-resolution.js";
+import { takesLetters, focused } from "../focus.js";
 import { notice } from "../notifications.js";
 import { retainUserIntent } from "../user-intent.js";
 
-// How much of a passage's surroundings an anchor writes down. Only the capture decides
-// this; the search asks for whatever a given anchor happens to hold.
-const CONTEXT = 24;
-// The anchor a selection makes: the enclosing section, and the passage as the document
-// holds it. Not the selection's own toString(), which is what the user sees rendered —
-// text-transform uppercases an eyebrow or a table header, and the runtime's own chrome
-// inside the passage comes along — and a quote the search can't find is no highlight while
-// composing and a comment that posts permanently detached. A selection with nothing
-// quotable in it yields no quote, which makes it an element anchor on its section: what
-// such a selection meant anyway.
-//
-// The whole of it, however long. A cap here read as an economy and was a claim: the
-// stored quote is the passage, so the mark paints it and the comment is on it, and a
-// user who selected a paragraph past the cap got a comment on its opening and a
-// highlight that shrank to match — silently, on most of the paragraphs a leaf page
-// holds. What the cap was really bounding is the search's pattern, which is where the
-// bound now lives (LEAD_CAP), so nothing has to be given up to keep it cheap.
-export const selectionAnchor = (sel) => rangeAnchor(pageRange(sel));
-// The same anchor for any range of page words: a selection's, or the words of the
-// element a pointing gesture landed on (pointed-place.js).
-export function rangeAnchor(range) {
-  const node = range.commonAncestorContainer;
-  const holder = node.nodeType === Node.ELEMENT_NODE ? node : upFrom(node);
-  // The neighbours come from the same indexed reading the search uses and stop at
-  // the same opaque-widget fences as the file-side capture. The browser knows words
-  // a module generated and may quote them; it does not pretend the file can confirm
-  // context across their seam.
-  const segments = segmentsIn(range);
-  const quote = quoteFrom(segments);
-  const dataNodes = new Set(
-    segments.map((seg) => closestAcross(seg.node, DATUM)).filter(Boolean),
-  );
-  const [onlyDatum] = dataNodes;
-  const datum =
-    dataNodes.size === 1 &&
-    segments.every((seg) => closestAcross(seg.node, DATUM) === onlyDatum)
-      ? onlyDatum
-      : null;
-  // Identity is the context for projected data. Neighbouring display values may reorder
-  // or repeat, so storing their words as prefix/suffix would make incidental layout a
-  // second, conflicting answer to which datum the user selected.
-  if (datum) return anchorForDatum(datum, { quote });
-  const section = closestAcross(holder, ADDRESSABLE)?.id ?? null;
-  const reading = pageText();
-  const [start, stop] = spanIn(reading, segments);
-  const prefix = cut(neighbourhood(reading, start, CONTEXT, true), -CONTEXT, Infinity);
-  const suffix = cut(neighbourhood(reading, stop, CONTEXT, false), 0, CONTEXT);
-  // Only what there is. A passage against the document's own edge has no neighbour on
-  // that side, and writing that down as an empty string puts a field in the event that
-  // never says anything.
-  return {
-    section,
-    quote,
-    ...(prefix && { prefix }),
-    ...(suffix && { suffix }),
-  };
-}
+// Selection and control-context capture use the same durable passage producer.
+export const selectionAnchor = (sel) => anchorForRange(pageRange(sel));
 
 // A selection of the page's own words, as against none, a bare caret, or one made inside
 // the runtime's own layer. That is the line between a user reaching for a passage and

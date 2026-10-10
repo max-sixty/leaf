@@ -11,6 +11,11 @@
 // textarea on an author's page still does. One spelling of each lets the field's
 // element change without a lookup somewhere silently finding nothing.
 export const TEXT_FIELD = "leaf-text";
+
+// The same modifiers as the platform's own keydowns: what `ev.key` says when a modifier
+// goes down alone, ahead of the key it modifies. The dispatcher's sequence asks this to tell
+// half a press from a key of its own, and a label press keeps its hold through one.
+export const MODIFIER_KEYS = ["Shift", "Alt", "Control", "Meta"];
 export const TEXT_BOX = `textarea, ${TEXT_FIELD}`;
 
 // What the platform puts in the tab order without being asked, which is what a layout
@@ -31,7 +36,7 @@ export const TAB_STOP = `a[href], button, input, select, ${TEXT_BOX}, summary, [
 // land that holds content of its own: a tab stop focus rests on, a composite widget
 // whose items are the presses, an editing surface, a drag source.
 const PRESS_SELECTORS = [
-  "a",
+  "a[href]",
   "audio[controls]",
   "button",
   "img[usemap]",
@@ -60,8 +65,11 @@ const PRESS_SELECTORS = [
   "[role='textbox']",
   "[role='treeitem']",
 ];
+// Reach lends a mechanical tab stop to overflowing prose. That stop does not
+// turn its content into an authored interactive region.
+export const LENT_REACH_STOP = "data-lf-lent-reach-stop";
 const REGION_SELECTORS = [
-  "[tabindex]:not([tabindex='-1'])",
+  `[tabindex]:not([tabindex='-1']):not([${LENT_REACH_STOP}])`,
   "[contenteditable]:not([contenteditable='false'])",
   "[draggable='true']",
   "[role='application']",

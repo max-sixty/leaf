@@ -7,18 +7,14 @@
    containing it or by the page. CSS decides that from the space a workspace has
    (layouts.css, the workspace Layout), so nothing here chooses a posture.
 
-   A separately scrolling piece of a region's apparatus declares `apparatusFor`, the
-   owning region's id. It stays in the physical scroll inventory, while focus and
-   gestures there select its owner for reading. Containment still names the apparatus's
-   own box, so bringing its controls into view never mistakes the owner's reading body
-   for the box that actually carries them.
-
    Every box Leaf makes scroll vertically is a region, so every question that names the
    box scrolling a node (`scrollerFor`, and `scrollersOf` for the boxes around it) gets
    that box rather than the page: a pane's body, the Threads list, a compound widget's
    parts, and a block bounded with x-bound or data-bound, which `bounds.js` registers. A
    box page CSS makes scroll is none of these. It stays unsupported: `page check`
    advises bounding the block instead, and nothing here searches the DOM for scrollers.
+   Containment follows the rendered tree, including assigned slots: a native message
+   laid out by a package's shadow reader belongs to that reader's region.
 
    A region's scroller can change without any gesture: a window crossing the workspace
    threshold, a tab showing, a panel opening. A region whose width changes keeps its
@@ -41,15 +37,15 @@ import { sizeObserver } from "./rendering.js";
 import { shownRect, skipped } from "./geometry.js";
 import { pageScroller } from "./scrolling.js";
 import { reachReadingScroller } from "./reach.js";
-import { under, upFrom } from "./shadow.js";
-import { deepFocus, onStanding } from "./focus.js";
+import { under, renderedUnder, renderedParent } from "./shadow.js";
+import { deepFocus, onStanding, pressing } from "./focus.js";
 
 const regions = new Map();
 const transitionWatchers = new Set();
 
 const depthOf = (node) => {
   let depth = 0;
-  for (let current = node; current; current = upFrom(current)) depth += 1;
+  for (let current = node; current; current = renderedParent(current)) depth += 1;
   return depth;
 };
 
@@ -74,14 +70,12 @@ export function compoundReadingRegionId(owner, localName) {
   return `lf-region:${owner.id}:${localName}`;
 }
 
-export function registerReadingRegion({ id, host, body, apparatusFor = null }) {
+export function registerReadingRegion({ id, host, body }) {
   if (typeof id !== "string" || !id || !host || !body)
     throw new Error("leaf: a reading region needs id, host, and body");
   if (live(regions.get(id)))
     throw new Error(`leaf: reading region ${id} is already live`);
-  if (apparatusFor !== null && !live(regions.get(apparatusFor)))
-    throw new Error("leaf: reading apparatus needs a live owning region");
-  const region = { id, host, body, apparatusFor, scroller: null, width: null };
+  const region = { id, host, body, scroller: null, width: null };
   const stopReaching = reachReadingScroller(body);
   regions.set(id, region);
   sizes.observe(host);
@@ -135,16 +129,14 @@ export const unconcealedReadingRegions = () =>
 
 const regionAt = (node) => {
   const region = [...regions.values()]
-    .filter((candidate) => live(candidate) && under(node, candidate.host))
+    .filter((candidate) => live(candidate) && renderedUnder(node, candidate.host))
     .sort((a, b) => depthOf(b.host) - depthOf(a.host))[0];
   return region;
 };
 
 export const readingRegionFor = (node) => {
   const region = regionAt(node);
-  return region?.apparatusFor
-    ? readingRegion(region.apparatusFor)
-    : region && regionRecord(region);
+  return region && regionRecord(region);
 };
 
 // The region the user is reading in, which the reading keys scroll and continuity
@@ -169,8 +161,8 @@ export const readingRegionFor = (node) => {
 let recentRegionId = null;
 let pageRegionId = null;
 // Chrome can focus body between pointerdown on unfocusable words and pointerup.
-// That focus belongs to the same press; pointerdown has already named its place.
-let pressing = false;
+// That focus belongs to the same press (focus.js, `pressing`); pointerdown has already
+// named its place.
 const readingInputReaders = new Set();
 export const onReadingInput = (read) => readingInputReaders.add(read);
 const readingInput = (node) => {
@@ -184,7 +176,7 @@ const actedAt = (at, arriving) => {
     if (under(region.host, pageRoot())) pageRegionId = region.id;
   } else if (
     (at === document.body || under(at, pageRoot())) &&
-    !(arriving && at === document.body && pressing)
+    !(arriving && at === document.body && pressing())
   )
     recentRegionId = pageRegionId = null;
 };
@@ -193,12 +185,8 @@ for (const type of ["pointerdown", "wheel", "touchstart", "click"])
     type,
     (event) => {
       const at = event.composedPath()[0];
-      if (type === "click") {
-        if (event.isTrusted && event.button === 0) readingInput(at);
-      } else {
-        if (type === "pointerdown") pressing = true;
-        actedAt(at, false);
-      }
+      if (type !== "click") actedAt(at, false);
+      else if (event.isTrusted && event.button === 0) readingInput(at);
     },
     { capture: true, passive: true },
   );
@@ -207,8 +195,6 @@ onStanding((node, cause) => {
   if (node) actedAt(node, true);
   if (node && cause === "step") readingInput(node);
 });
-for (const type of ["pointerup", "pointercancel"])
-  addEventListener(type, () => (pressing = false), { capture: true });
 export const recentReadingRegion = () => readingRegion(recentRegionId);
 // A region hidden from layout — a closed panel's list, a pane in a tab not shown — is not
 // where the user reads. One scrolled out of the window still is.
@@ -233,8 +219,8 @@ export const userReadingRegion = () => {
 export const containingReadingRegionFor = (node) => {
   let region = regionAt(node);
   while (region) {
-    if (under(node, region.body)) return regionRecord(region);
-    region = regionAt(region.host.parentElement);
+    if (renderedUnder(node, region.body)) return regionRecord(region);
+    region = regionAt(renderedParent(region.host));
   }
   return undefined;
 };
@@ -260,7 +246,9 @@ export function effectiveScroller(regionOrNode) {
   const containing = [...regions.values()]
     .filter(
       (candidate) =>
-        candidate !== region && live(candidate) && under(region.host, candidate.body),
+        candidate !== region &&
+        live(candidate) &&
+        renderedUnder(region.host, candidate.body),
     )
     .sort((a, b) => depthOf(b.host) - depthOf(a.host))[0];
   return containing ? effectiveScroller(containing) : pageScroller;
@@ -283,8 +271,8 @@ export const scrollerFor = (el) => {
 // scrolling, and a region scrolled to its end moves no further. A fixed box between a
 // node and a scroller stands still while that scroller moves, so the walk ends there.
 export function* scrollersOf(node) {
-  for (let box = scrollerFor(node); ; box = scrollerFor(upFrom(box))) {
-    for (let at = node; at !== box; at = upFrom(at))
+  for (let box = scrollerFor(node); ; box = scrollerFor(renderedParent(box))) {
+    for (let at = node; at !== box; at = renderedParent(at))
       if (!at || getComputedStyle(at).position === "fixed") return;
     yield box;
     if (box === pageScroller) return;

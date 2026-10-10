@@ -14,7 +14,7 @@
    refusing a provisional thread preserves the conversation the user had selected.
 
    Focus given to the list goes on to that card's title, whatever gave it — `g T`, an
-   Escape from the panel's general box, a fold that took the focused card — so
+   Escape from the panel's find box, a fold that took the focused card — so
    every key answers for the thread the screen shows selected. The list keeps focus
    itself only while it shows no card, and its ring never outlines one, and no title
    holds focus closed: focus, selection and the open card never part.
@@ -28,8 +28,7 @@
    nodes connected but hidden so widget proof and direct destinations remain available;
    the existing card notice or a direct arrival reveals them before focus lands. */
 import { html, repeat } from "../../vendor/browser-runtime.js";
-import { focused } from "../keyboard/scopes.js";
-import { holdFocus, onStanding, focusDestination } from "../focus.js";
+import { holdFocus, onStanding, focusDestination, focused } from "../focus.js";
 import { RetainedFace } from "../retained-face.js";
 import { ThreadView } from "./thread-card.js";
 import { draftHasContent } from "../drafts.js";

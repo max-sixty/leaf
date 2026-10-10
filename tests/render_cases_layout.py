@@ -467,8 +467,46 @@ OVER_ITS_CONTAINER = LONG_PAGE.replace(
     "overflow: hidden'>"
     "<div id='over-by-far' style='position: absolute; left: 0; width: 600px'>Four "
     "hundred over that one.</div></div></div></div>"
+    "<div id='html-drawing' style='--lf-drawing: 1; width: 120px; overflow: hidden'>"
+    "<div id='drawing-pixels' style='width: 300px; height: 30px; background: coral'>"
+    "</div><lf-test-drawing-control id='clipped-drawing'></lf-test-drawing-control>"
+    "<lf-test-drawing-control id='clean-drawing'>"
+    "</lf-test-drawing-control></div>"
+    "<div id='drawing-holder' style='width: 120px; overflow: hidden'>"
+    "<div id='outside-viewport' style='--lf-drawing: 1; width: 180px; overflow: hidden'>"
+    "<div style='width: 300px; height: 30px; background: coral'></div></div></div>"
     "\n</main>",
+).replace(
+    "</head>",
+    "<style>lf-test-drawing-control { display: block; width: 90px; }"
+    "#clipped-drawing { width: 200px; }</style></head>",
 )
+DRAWING_CONTROL_LAYER = {
+    "lf-test-drawing-control": {
+        "description": "A native offered control inside a drawing viewport.",
+        "type": "object",
+        "properties": {"id": {"type": "string"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-upgrade": True,
+        "x-example": '<lf-test-drawing-control id="control"></lf-test-drawing-control>',
+    }
+}
+DRAWING_CONTROL_WIDGETS = {
+    "lf-test-drawing-control.js": """
+import { once, offer } from '/runtime/widget-api.js';
+customElements.define('lf-test-drawing-control', class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    const control = offer('button', 'drawing-control', 'Inspect');
+    control.id = `${this.id}-control`;
+    control.style.width = '100%';
+    this.append(control);
+  }
+});
+"""
+}
 # A scroller the page wrote and did not position, beside one it did. The commented
 # words stand at the far end of the first, since a word laid out against the page from
 # the near end lands inside the window and escapes nothing anyone can measure.
@@ -854,7 +892,9 @@ BANNER_ORDER = r"""() => {
             getComputedStyle(control).visibility !== 'hidden')
     .map(control => (control.getAttribute('aria-label') || control.textContent).trim()
       // The version's age ticks with the clock between two readings; the order does not.
-      .replace(/ · \S+ ago$/, ''));
+      .replace(/ · \S+ ago$/, '')
+      // The queue's population does not change the control's place in that order.
+      .replace(/^Questions: \d+ waiting on you$/, 'Questions'));
 }"""
 
 
@@ -955,7 +995,7 @@ FOCUS_IN_PAGE = """() => {
 # had no class of its own: DOMTokenList leaves `class=""` behind, and that is a residue of
 # the runtime's paint rather than anything the page says.
 # Generated text is blanked before the compare, because a widget may render a clock
-# and a clock is not a press: lf-agent's elapsed line re-renders on every poll, so the
+# and a clock is not a press: lf-test-worker's elapsed line re-renders on every poll, so the
 # minute turning during a long sweep read as a press that had reached a widget. What the
 # check is for survives untouched — a stray pick writes `chosen` on the option and a
 # stray tab switch moves the panels' attributes, both of them authored rather than
@@ -1305,41 +1345,38 @@ MANY_ASKS_PAGE = leaf_page(
     """
 <h1>Many decisions</h1>
 <p>A drawer long enough to scroll.</p>
-<lf-tasks id="plan">
+<lf-test-tasks id="plan">
 """
     + "\n".join(
-        f'<lf-task id="t-{i}" status="review" owner="wren">'
+        f'<lf-test-task id="t-{i}" status="review" owner="wren">'
         f"<strong>Waiting on you, item {i}</strong>"
         f'<lf-ask id="t-{i}-decision"><h2>Decision {i}</h2>'
         f'<lf-options id="t-{i}-choice" choose>'
         f'<lf-option id="t-{i}-yes"><strong>Approve</strong></lf-option>'
         f'<lf-option id="t-{i}-no"><strong>Request changes</strong></lf-option>'
-        f"</lf-options></lf-ask></lf-task>"
+        f"</lf-options></lf-ask></lf-test-task>"
         for i in range(24)
     )
     + """
-</lf-tasks>
+</lf-test-tasks>
 """,
 )
-# A run with nothing to break on, in the three places a page puts one: a metric's headline,
-# where the box is a fixed 138px and the value is whatever the number turned out to be;
-# ordinary prose, which is where a page about code keeps its paths; and a tree, whose module
-# writes the name and its badges with no whitespace between them at all.
+# Native values and prose paths must remain readable in a narrow column.
 UNBREAKABLE_PAGE = leaf_page(
     "unbreakable",
     """
 <h1 id="h">Nothing to break on</h1>
 <div class="layout-tiles" id="numbers">
-  <lf-metric id="m-token" value="a_very_long_unbroken_identifier">Bucket key</lf-metric>
+  <dl id="m-token" class="panel"><dt>Bucket key</dt><dd><strong>a_very_long_unbroken_identifier</strong></dd></dl>
 </div>
 <p id="p-token">The one it fails on is
 gateway_middleware_authentication_token_bucket_refill_strategy.py, every time.</p>
-<lf-tree id="tree"><pre>
+<pre id="tree">
 gateway/
   middleware/
     authentication/
       token_bucket_refill_strategy.py    +6 -2
-</pre></lf-tree>
+</pre>
 """,
 )
 # One line past any phone column, so the box a diff renders in has to scroll and the
@@ -1426,10 +1463,10 @@ rack flag from <lf-suggestion id="sug-flag"><lf-old>x</lf-old><lf-new>y</lf-new>
 before it ships.</p>
 <lf-ask id="extras-decision"><h2>Which extras should we add?</h2>
 <lf-options id="extras" choose multiple>
-<lf-option id="x-tray"><lf-chip>£9</lf-chip>
+<lf-option id="x-tray"><lf-gloss tip="Price">£9</lf-gloss>
 <strong>Seed tray</strong> Catches the spill under the south pair.
 </lf-option>
-<lf-option id="x-dome"><lf-chip tone="ok">£15</lf-chip>
+<lf-option id="x-dome"><lf-gloss tip="Price">£15</lf-gloss>
 <strong>Weather dome</strong> Keeps the seed dry through a wet week.
 </lf-option>
 </lf-options></lf-ask>
@@ -1484,21 +1521,17 @@ def shown_frames(page):
 
 # A painted fact whose spoken copy is on the page and drawn nowhere. It is written into
 # the markup because the gate reads the rendered page and cannot tell who suppressed
-# the word. `kind` is x-paints, so the runtime writes a
+# the word. `state` is x-paints, so the runtime writes a
 # .lf-quiet span beside each of these; the style takes the box off both. One stands in
 # the open and one behind a disclosure the user has not opened.
 PAINTED_IN_SILENCE_PAGE = leaf_page(
     "silence",
     """
 <h1 id="h">Transport</h1>
-<lf-chronology id="open-group">
-  <lf-chronology-entry id="p-seen" at="09:12" kind="failure"><strong>Feed stopped</strong></lf-chronology-entry>
-</lf-chronology>
+<div id="open-group"><lf-reading id="p-seen" label="Feed stopped" state="failure">The feeder stopped.</lf-reading></div>
 <details id="folded">
   <summary>Weighed in March</summary>
-  <lf-chronology id="folded-group">
-    <lf-chronology-entry id="p-folded" at="10:20" kind="failure"><strong>Feed stopped</strong></lf-chronology-entry>
-  </lf-chronology>
+  <div id="folded-group"><lf-reading id="p-folded" label="Feed stopped" state="failure">The feeder stopped.</lf-reading></div>
 </details>
 """,
     head="<style>.lf-quiet { display: none }</style>",

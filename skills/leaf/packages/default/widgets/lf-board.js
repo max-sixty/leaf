@@ -21,6 +21,7 @@
  * walk. The theme's column heading is CSS generated content with empty alt
  * text, so the label reaches the tree once, as the list's name, rather than
  * twice. */
+import { scrollIntoView } from "/runtime/widget-api.js";
 import Sortable from "/vendor/sortable.esm.js";
 import {
   once,
@@ -124,7 +125,7 @@ customElements.define(
     // them. Same marker (the theme styles [data-lf-said]) and same contract
     // (generated, so the diff looks away; not .lf-ui, so the anchor pass doesn't)
     // — a widget with a module of its own does the part only it can, which is
-    // the line the layer's AGENTS.md draws and lf-milestone's chips are the
+    // the line the layer's AGENTS.md draws and a widget's authored labels are the
     // other case of.
     #structure() {
       for (const col of this.querySelectorAll(":scope > lf-column")) {
@@ -467,10 +468,9 @@ customElements.define(
       col.moveBefore(card, rest[index] ?? null);
       if (grip) {
         focusDestination(grip, "return");
-        card.scrollIntoView({
+        scrollIntoView(card, {
           behavior: scrollBehavior(),
           block: "nearest",
-          inline: "nearest",
         });
       }
       const last = card.getBoundingClientRect();

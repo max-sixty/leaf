@@ -71,9 +71,6 @@ const unavailable = (reading) =>
     ),
   });
 
-const commandTarget = (target) =>
-  typeof target === "string" && target ? target : null;
-
 function createWidgetController(owner) {
   if (!(owner instanceof Element))
     throw new TypeError("A widget controller needs an Element owner");
@@ -285,24 +282,8 @@ function createWidgetController(owner) {
       };
     },
     dispatch(command) {
-      const action = command?.kind === "action";
-      const undo = command?.kind === "undo";
-      if (!action && !undo)
-        throw new TypeError("Widget dispatch needs an action or exact undo command");
-      if (
-        action &&
-        (typeof command.verb !== "string" ||
-          !command.verb ||
-          command.detail === null ||
-          typeof (command.detail ?? {}) !== "object")
-      )
-        throw new TypeError("Widget action commands need {kind, verb, detail}");
       if (!descriptorStillMatches(owner, descriptor)) return null;
-      if (action && !read().actions[command.verb]?.available) return null;
-      const delivery = dispatchWidget(
-        descriptor,
-        undo ? { kind: "undo", target: commandTarget(command.target) } : command,
-      );
+      const delivery = dispatchWidget(descriptor, command);
       if (!delivery) return null;
       return immutable({ reading: read(), delivery });
     },

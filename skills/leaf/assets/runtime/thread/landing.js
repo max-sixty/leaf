@@ -28,11 +28,12 @@
    “comment on the thread” going in and “back to thread” coming out name one element. It
    answers for every arrival — a keyboard command, a Tab, a pointer — because a box's way
    out is the thread it belongs to whichever of them put the user in it, and the
-   panel's own general box hands back to the Threads list. A page-owned first-message seat
+   panel's own find box hands back to the Threads list. A page-owned first-message seat
    has no standing place of its own; a widget control that explicitly enters its box
    supplies the caller-owned return target through `landInThread`. Sending leaves
    focus on the conversation's card or title on every surface (`landSent`). Returning
    to the page is a separate navigation gesture. */
+import { scrollIntoView } from "../landing-scroll.js";
 import { landingBand, seenRect, shownBox, shownWindow } from "../geometry.js";
 import { documentFocused } from "../keyboard/scopes.js";
 import {
@@ -128,7 +129,7 @@ const threadLandingStart = (held, target, threadsBox) => {
 // `threadLandingStart` picks, or with its end at the list's foot where none is needed.
 const landLatest = (thread, threadsBox, behavior = scrollBehavior()) => {
   const start = threadLandingStart(thread, thread, threadsBox);
-  (start ?? thread).scrollIntoView({ behavior, block: start ? "start" : "end" });
+  scrollIntoView(start ?? thread, { behavior, block: start ? "start" : "end" });
 };
 
 export function threadInput(node) {
@@ -163,7 +164,7 @@ function backFromBox() {
   return route?.target?.isConnected ? route : null;
 }
 // Whether the box the user is typing in has somewhere to hand them back: the
-// thread it belongs to, or the panel's list where it is the chrome's own box.
+// thread it belongs to, or the panel's list from the panel's own find box.
 const boxHandsBack = () =>
   Boolean(backFromBox()) || Boolean(documentFocused()?.closest?.(".lf-thread-panel"));
 // The box, or the reply's composition row around it, which takes its Send control too.
@@ -195,9 +196,9 @@ pageScope("text entry", {
       keys: ["Escape"],
       description: "Leave the box, keeping what is typed",
       title: () => backFromBox()?.line ?? "back to list",
-      // The thread the box belongs to, or the panel's list where it is the chrome's
-      // own box. A page text box that is neither leaves the row dead and the page's rung
-      // standing, which is the honest answer: nothing there to go back to.
+      // The thread the box belongs to, or the panel's list from its own find box. A
+      // page text box that is neither leaves the row dead and the page's rung standing,
+      // which is the honest answer: nothing there to go back to.
       when: leavesBox,
       run: () => {
         const back = backFromBox();
@@ -497,7 +498,7 @@ async function showThreadNow(id, focus, flash, revealThread, threadsBox, mayArri
   const long = directThread && (target !== thread || aim.block === "end");
   const start = long ? threadLandingStart(thread, target, threadsBox) : null;
   if (mayArrive())
-    (start ?? target).scrollIntoView({
+    scrollIntoView(start ?? target, {
       behavior: scrollBehavior(),
       // A long thread begins at the clean content boundary chosen above. A short card
       // is context in full; a requested message keeps the least-moving direct route.
@@ -539,7 +540,7 @@ export function accompanyThread(ids, threadsBox) {
   threadsBox.revealNavigation(thread.dataset.id);
   const room = landingBand(threadsBox);
   const fits = !room || shownBox(thread).height <= room.bottom - room.top;
-  thread.scrollIntoView({
+  scrollIntoView(thread, {
     behavior: scrollBehavior(),
     block: fits ? "nearest" : "start",
   });
@@ -569,9 +570,8 @@ export function createThreadLanding({ setPanel, revealThread, threadsBox }) {
       (shown.width <= room.width &&
         (visible.left > shown.left || visible.right < shown.right))
     )
-      box.scrollIntoView({
+      scrollIntoView(box, {
         block: "nearest",
-        inline: "nearest",
         behavior: "instant",
       });
     return true;

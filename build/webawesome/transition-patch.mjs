@@ -1,6 +1,6 @@
 /* Adapt the pinned library's open watchers to the shared transition owner.
  * Discover them from their watch('open') declarations, not component names.
- * Guard every continuation, including pre-animation updateComplete, and bind
+ * Guard animation continuations and bind
  * public show/hide promises to that same owner instead of obsolete after-events.
  * Other animation callers honor the primitive's superseded result too. */
 import { parse } from "acorn";
@@ -79,8 +79,6 @@ export function patchTransitions(source) {
           node.end,
           `if (!(await animateWithClass(${args.join(", ")}))) return;`,
         ]);
-      } else if (inside(node)) {
-        edits.push([node.end, node.end, "\nif (!transition.current) return;"]);
       }
     }
     if (

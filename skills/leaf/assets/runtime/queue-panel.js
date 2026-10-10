@@ -26,7 +26,7 @@
    of a page widget move the user must send again, stands at that element
    (`declareSide`), so a walk or a comment from a focused row starts there. A row whose
    task the user ends with Done carries that Done (`queue-list.js`), the walk's own
-   (`queue-walk.js`, `endTask`).
+   (`queue-api.js`, `done`).
 
    Its door in the banner says how many Questions wait on the user, and the agent's
    count beside the status sentence opens it too; `g Shift+Q` is the key.
@@ -54,7 +54,7 @@ import { clocked, shortAgo } from "./presence.js";
 import { elementById, inChrome } from "./passages.js";
 import { PRESENTATION } from "./presentation.js";
 import { standsAt } from "./queue-list.js";
-import { endsByDone, taskNoun } from "./queues.js";
+import { taskNoun } from "./queues.js";
 import { repaint } from "./repaint.js";
 import { keeps, keepsHidden, keepsText } from "./keeps.js";
 import {
@@ -68,9 +68,12 @@ import {
 } from "./semantic-state.js";
 import { under } from "./shadow.js";
 import { askAnswers } from "./asks/answer.js";
-import { allAsks } from "./asks/model.js";
+import { readAsks } from "./asks/model.js";
+import { readThreads } from "./thread/state.js";
+import { readQueues, queueItemKey } from "./queue-api.js";
 import { askHolding, declareSide } from "./standing-target.js";
 import { anchorLabel } from "./thread/messages.js";
+import { queueTitle } from "./queue-title.js";
 import { threadSummary } from "./thread/model.js";
 import { workflowLabel } from "./thread/workflow.js";
 import { walkPositionLabel } from "./walk-position.js";
@@ -83,6 +86,7 @@ import { walkPositionLabel } from "./walk-position.js";
 const WORDS = Object.freeze({
   ask: "Ask",
   question: "Thread",
+  approval: "Approval",
   recovery: "Resend",
   answer: "Answer",
   reply: "Reply",
@@ -117,22 +121,18 @@ function sectionWords(element) {
   return words ? `§ ${words}` : "";
 }
 
-export function createQueuePanel({ arriveAtItem, endTask, next, announce }) {
-  const reading = () => readApplication().effective;
+export function createQueuePanel({ actions, next, announce }) {
+  const reading = readQueues;
   const threadOf = (id) =>
     id === null
       ? null
-      : (reading().thread.all.find((thread) => thread.id === id) ?? null);
-  const workflowOf = (id) =>
-    reading().workflows.find((workflow) => workflow.id === id) ?? null;
+      : (readThreads().threads.find((thread) => thread.id === id) ?? null);
   const agent = agentName;
   // The panel's door beside Threads, in the Threads door's face: its name and how many
   // Questions wait on the user, as that one says how many threads are open (banner.js).
   // Until the log has answered, the door claims no count, as the Threads door claims none.
   function nameDoor() {
-    const count = readApplication().authoritative
-      ? reading().queues.onYou.length
-      : null;
+    const count = reading().phase === "ready" ? reading().onYou.length : null;
     keepsText(queueBtn, count === null ? "Questions" : `Questions: ${count}`);
     keeps(
       queueBtn,
@@ -161,7 +161,7 @@ export function createQueuePanel({ arriveAtItem, endTask, next, announce }) {
     if (!thread) {
       // A widget answering an Ask is where that Ask is.
       const own = elementById(item.subject.id);
-      const ask = own && askHolding(allAsks(), own);
+      const ask = own && askHolding(readAsks().all, own);
       return sectionWords(ask ? elementById(ask.id) : own);
     }
     if (!thread.anchor?.section) return "Whole page";
@@ -169,32 +169,14 @@ export function createQueuePanel({ arriveAtItem, endTask, next, announce }) {
     const named = addressableName(about);
     return named ? `§ ${named}` : sectionWords(about) || anchorLabel(thread.anchor);
   }
-  // A widget is named by the Ask it answers, where it answers one, as that Ask's own
-  // row names it.
-  function title(item, thread) {
-    const own = elementById(item.subject.id);
-    const topic = thread ? threadSummary(thread).topic : "";
-    if (item.title) return item.title;
-    if (item.kind === "work" && item.detail) return item.detail;
-    if (item.subject.kind === "widget") {
-      const ask = own && askHolding(allAsks(), own);
-      return (
-        (ask && addressableLabel(elementById(ask.id))) ||
-        addressableLabel(own) ||
-        topic ||
-        item.id
-      );
-    }
-    return topic || item.id;
-  }
   // The rest of where: how long it has stood or how far a reply has got, after the
   // place; and before it, how a finished item ended, which is what a Done row is for.
   function when(item, thread) {
     if (taskNoun(item) === "question")
       return thread && shortAgo(threadSummary(thread).latest);
-    if (item.kind === "answer") return workflowLabel(workflowOf(item.id));
+    if (item.kind === "answer") return workflowLabel(item.workflow);
     if (item.kind === "work")
-      return [workflowLabel(workflowOf(item.id)), shortAgo(workflowOf(item.id)?.ts)]
+      return [workflowLabel(item.workflow), shortAgo(item.workflow?.ts)]
         .filter(Boolean)
         .join(" · ");
     // A task the agent has in hand says the line its start gave, as a move in hand does.
@@ -206,7 +188,7 @@ export function createQueuePanel({ arriveAtItem, endTask, next, announce }) {
   // its outcome.
   function ended(item) {
     if (item.ends === "widget") {
-      const ask = allAsks().find((candidate) => candidate.id === item.id);
+      const ask = readAsks().all.find((candidate) => candidate.id === item.id);
       const answer = ask ? askAnswers([ask])[0] : "";
       return answer ? `Answered ${answer}` : "Answered";
     }
@@ -225,7 +207,7 @@ export function createQueuePanel({ arriveAtItem, endTask, next, announce }) {
     )
       .filter(Boolean)
       .join(" · ");
-    const words = title(item, thread);
+    const words = queueTitle(item);
     // The element a row stands at: an Ask, or a page widget whose move the user must send
     // again. A reply the agent owes a move stands nowhere, so an Ask's own row is the one
     // row standing at it.
@@ -248,7 +230,7 @@ export function createQueuePanel({ arriveAtItem, endTask, next, announce }) {
       live: item.kind === "work" || Boolean(item.running),
       // A task on the user that no widget answers ends at their Done, which its row
       // carries.
-      done: list === "you" && endsByDone(item),
+      done: item.offers.done,
       account: [word, words, where, list === "done" ? item.detail : ""]
         .filter(Boolean)
         .join(" · "),
@@ -266,12 +248,12 @@ export function createQueuePanel({ arriveAtItem, endTask, next, announce }) {
         done: Object.freeze({ label: "", rows: Object.freeze([]) }),
       });
     }
-    const { queues, done } = reading();
+    const { onYou, onAgent, done } = reading();
     // Before the log's first answer the panel, like its door, counts nothing, and says
     // so as the Threads panel does.
-    const known = Boolean(readApplication().authoritative);
-    const you = queues.onYou.map((item) => row(item, "you"));
-    const them = queues.onAgent.map((item) => row(item, "agent"));
+    const known = Boolean(reading().phase === "ready");
+    const you = onYou.map((item) => row(item, "you"));
+    const them = onAgent.map((item) => row(item, "agent"));
     const finished = done.map((item) => row(item, "done"));
     rows = new Map([...you, ...them, ...finished].map((entry) => [entry.key, entry]));
     return Object.freeze({
@@ -303,7 +285,7 @@ export function createQueuePanel({ arriveAtItem, endTask, next, announce }) {
 
   async function paintQueue(current) {
     nameDoor();
-    const waiting = reading().queues.onYou.length > 0;
+    const waiting = reading().onYou.length > 0;
     keepsHidden(queueNextBtn, !waiting);
     // On a phone the door waits in More, which says a question is there as it says an
     // approval is open.
@@ -345,7 +327,7 @@ export function createQueuePanel({ arriveAtItem, endTask, next, announce }) {
     const entry = rows.get(key);
     if (!entry) return;
     const list = [...rows.values()].filter((other) => other.list === entry.list);
-    const ready = arriveAtItem(entry.item).then((arrived) => {
+    const ready = actions.open(queueItemKey(entry.item)).then((arrived) => {
       if (!arrived) return;
       const qualifier =
         entry.list === "done"
@@ -359,10 +341,10 @@ export function createQueuePanel({ arriveAtItem, endTask, next, announce }) {
     });
     void ready.catch(() => {});
   }
-  // A Done on a row: the walk's own Done on that task (queue-walk.js, `endTask`).
+  // A Done on a row: the canonical Done command on that task (queue-api.js, `done`).
   function finish(key) {
     const entry = rows.get(key);
-    if (entry?.done) endTask(entry.item.id);
+    if (entry?.done) actions.done(queueItemKey(entry.item));
   }
   queueList.configure({ activate: goTo, finish, fallback: queuePanel });
   queueNextBtn.onclick = () => next();

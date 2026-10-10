@@ -673,6 +673,7 @@ def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
             ]
             if spill
             else [],
+            "scrollbars": [],
             "labels": {"threshold_px": 10, "drawings": drawings},
         }
 
@@ -2902,14 +2903,14 @@ def test_verbatim_wrapper_owns_prose_and_order_but_not_nested_widget_rendering(
 
 
 def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
-    browser, serve, tmp_path, monkeypatch
+    browser, serve, tmp_path, monkeypatch, declared_reading_package
 ):
     """Bug-back for the other thing a declaration promises: that the words arrive. Both
     word passes stop at a shadow boundary on purpose — which widgets the page holds is
     the document's question — so an element a module stages into its own tree keeps its
     declarations and gets neither pass, and the failure is silence: no error, no missing
     box, nothing a reading of the drawn page can tell from an attribute with nothing to
-    say. Here a project widget stages an <lf-chronology-entry>, whose declaration names both keys, and
+    say. Here a project widget stages a declared child, whose declaration names both keys, and
     the gate is asked for each.
 
     A staged element rather than a module that wipes its own body after the passes have
@@ -2934,10 +2935,10 @@ def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
         "  class extends HTMLElement {\n"
         "    connectedCallback() {\n"
         "      if (!once(this)) return;\n"
-        '      const staged = document.createElement("lf-chronology-entry");\n'
-        '      staged.id = "staged-chronology-entry";\n'
-        '      staged.setAttribute("at", "09:00");\n'
-        '      staged.setAttribute("kind", "failure");\n'
+        '      const staged = document.createElement("lf-reading");\n'
+        '      staged.id = "staged-reading";\n'
+        '      staged.setAttribute("label", "09:00");\n'
+        '      staged.setAttribute("state", "failure");\n'
         '      staged.textContent = "The feeder stopped.";\n'
         "      shadowStage(this, [staged]);\n"
         "    }\n"
@@ -2950,7 +2951,7 @@ def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
     ).failures
 
     assert any('never says "09:00"' in f for f in failures), failures
-    assert any('paints kind="failure" and says nothing' in f for f in failures), (
+    assert any('paints state="failure" and says nothing' in f for f in failures), (
         failures
     )
 
@@ -3754,6 +3755,56 @@ def test_a_still_page_comes_back_from_every_journey_as_it_was(browser, serve, so
     )
 
 
+def test_working_prose_density_yields_to_component_spacing(browser, serve):
+    """Density supplies prose defaults without defeating a component's own rhythm."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Working prose and component rhythm",
+                """<style>@layer lf-base {
+.component-line { margin: 0; }
+.component-cell { padding: 3px; }
+}</style>
+<section class="density-working">
+  <p>First paragraph.</p>
+  <h2 id="prose-heading">Ordinary heading</h2>
+  <p id="prose-paragraph">Ordinary paragraph.</p>
+  <div style="display:grid;gap:8px">
+    <h2 class="component-line">Component title</h2>
+    <h3 class="component-line">Component subject</h3>
+    <h4 class="component-line">Component detail</h4>
+    <p class="component-line">Component status</p>
+    <ul class="component-line"><li class="component-line">Component item</li></ul>
+    <table><tr><th class="component-cell">Label</th>
+      <td class="component-cell">Value</td></tr></table>
+  </div>
+  <p>Last paragraph.</p>
+</section>""",
+            )
+        ),
+    )
+    reading = page.evaluate(
+        """() => {
+          const margin = node => {
+            const s = getComputedStyle(node);
+            return [parseFloat(s.marginBlockStart), parseFloat(s.marginBlockEnd)];
+          };
+          return {
+            heading: margin(document.querySelector('#prose-heading')),
+            paragraph: margin(document.querySelector('#prose-paragraph')),
+            components: [...document.querySelectorAll('.component-line')].map(margin),
+            cells: [...document.querySelectorAll('.component-cell')]
+              .map(node => getComputedStyle(node).paddingBlock),
+          };
+        }"""
+    )
+    assert reading["heading"] == [18, 6], reading
+    assert reading["paragraph"] == [6, 6], reading
+    assert all(margin == [0, 0] for margin in reading["components"]), reading
+    assert reading["cells"] == ["3px", "3px"], reading
+
+
 def test_frame_edges_pass_through_whatever_stands_at_them(browser, serve):
     """A frame trims the margin at its edge through every first or last child: a bare
     section, a boxless one, and a padded grid section alike, with nothing declared on
@@ -4302,6 +4353,226 @@ def test_a_widget_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar
     for name, reading in measured.items():
         assert reading["scrolls"], f"the {name} fits, so it proves nothing"
         assert reading["clear"] >= 15, measured
+
+
+def test_scrollbar_clearance_reads_generic_content_and_open_shadow_words(
+    browser, serve, tmp_path, monkeypatch
+):
+    """An author's scrolling strip needs room for the overlay bar just as code does.
+
+    Controls, ordinary text flow, and words a widget puts in its open shadow tree
+    all reach the same check. Fitting content and an intentionally hidden bar do not.
+    Adding block-end room preserves both horizontal overflow and keyboard access.
+    """
+    monkeypatch.chdir(tmp_path)
+    add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
+    registry_path = tmp_path / ".leaf" / "registry.json"
+    entries = json.loads(registry_path.read_text())
+    entries["lf-callout"].pop("x-verbatim")
+    entries["lf-callout"]["x-shadow"] = True
+    registry_path.write_text(json.dumps(entries, indent=2))
+    (tmp_path / ".leaf" / "widgets" / "lf-callout.js").write_text(
+        'import { once, shadowStage } from "/runtime/widget-api.js";\n'
+        'customElements.define("lf-callout", class extends HTMLElement {\n'
+        "  connectedCallback() {\n"
+        "    if (!once(this)) return;\n"
+        "    const content = document.createElement('span');\n"
+        "    content.textContent = this.textContent;\n"
+        "    this.textContent = '';\n"
+        "    shadowStage(this, [content]);\n"
+        "  }\n"
+        "});\n"
+    )
+    wide = "sideways words " * 30
+    source = leaf_page(
+        "Scrollbar room",
+        '<h1 id="t">Reading a scrolling box</h1>'
+        '<div id="strip"><button>First choice</button><button>Middle choice</button>'
+        "<button>Last choice</button></div>"
+        f'<div id="flow"><span>{wide}</span><span>{wide}</span>'
+        f"<span>{wide}</span></div>"
+        f'<div id="shadow"><lf-callout id="words">{wide}</lf-callout></div>'
+        f'<div id="raw-words">{wide}</div>'
+        '<div id="slotted"><div id="slot-host" style="display: block; width: 600px">'
+        '<button style="display: block; width: 600px; height: 40px; margin: 0">Slotted choice</button>'
+        '<p style="height: 100px; margin: 0">Hidden words below the clip</p></div></div>'
+        '<div id="fits">Short words</div>'
+        f'<div id="hidden">{wide}</div>',
+        head="""<style>
+          #strip, #flow, #shadow, #raw-words, #slotted, #fits, #hidden {
+            box-sizing: content-box; width: 240px; overflow: auto;
+            padding: 0; border: 0; margin-block: 20px; line-height: 20px;
+            white-space: nowrap;
+          }
+          #strip { display: flex; }
+          #strip button { flex: 0 0 180px; height: 40px; margin: 0; }
+          #flow { height: 40px; }
+          #flow span { display: block; }
+          #hidden { scrollbar-width: none; }
+          #shadow lf-callout { display: inline; padding: 0; border: 0; margin: 0; }
+        </style>""",
+    )
+    url = serve(source, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    page = open_page(browser, url)
+    page.evaluate(
+        """() => {
+          const raw = document.getElementById('raw-words');
+          raw.attachShadow({mode: 'open'}).append(document.createTextNode(raw.textContent));
+          raw.textContent = '';
+          document.getElementById('slot-host').attachShadow({mode: 'open'}).innerHTML =
+            '<div style="height: 40px; overflow: hidden; line-height: 20px"><slot></slot></div>';
+        }"""
+    )
+    before = page.evaluate(
+        """() => Object.fromEntries(['strip', 'flow', 'shadow', 'raw-words', 'slotted', 'fits', 'hidden'].map(id => {
+          const box = document.getElementById(id);
+          return [id, {width: box.scrollWidth, scrolls: box.scrollWidth > box.clientWidth,
+                       vertical: box.scrollHeight > box.clientHeight}];
+        }))"""
+    )
+    assert all(
+        before[name]["scrolls"]
+        for name in ("strip", "flow", "shadow", "raw-words", "slotted", "hidden")
+    ), before
+    assert before["flow"]["vertical"], before
+    assert not before["fits"]["scrolls"], before
+    assert page.locator("#words").evaluate("el => el.textContent") == ""
+    assert page.locator("#raw-words").evaluate(
+        "el => el.shadowRoot.lastChild.nodeType === Node.TEXT_NODE && "
+        "el.shadowRoot.lastChild.parentElement === null"
+    )
+
+    findings = render_checks_model.evaluate_probe(page, "scrollbarClearance")
+    assert {finding["at"] for finding in findings} == {
+        "<div id=strip>",
+        "<div id=flow>",
+        "<div id=shadow>",
+        "<div id=raw-words>",
+        "<div id=slotted>",
+    }, findings
+    assert all(finding["clear"] < finding["required"] == 15 for finding in findings), (
+        findings
+    )
+
+    page.locator("#strip").evaluate("box => { box.style.visibility = 'hidden'; }")
+    hidden = render_checks_model.evaluate_probe(page, "scrollbarClearance")
+    page.locator("#strip").evaluate("box => { box.style.visibility = ''; }")
+    assert not any(finding["at"] == "<div id=strip>" for finding in hidden), hidden
+
+    page.add_style_tag(
+        content="#strip { transform: scale(.5); transform-origin: top left; }"
+    )
+    scaled = render_checks_model.evaluate_probe(page, "scrollbarClearance")
+    assert any(finding["at"] == "<div id=strip>" for finding in scaled), scaled
+
+    page.add_style_tag(
+        content="#strip, #flow, #shadow, #raw-words, #slotted { padding-bottom: 15px; }"
+    )
+    page.locator("#flow").evaluate("box => { box.scrollTop = box.scrollHeight; }")
+    assert render_checks_model.evaluate_probe(page, "scrollbarClearance") == []
+    page.add_style_tag(content="#strip { transform: scale(2); }")
+    assert render_checks_model.evaluate_probe(page, "scrollbarClearance") == []
+    page.add_style_tag(content="#strip { transform: none; }")
+    page.get_by_role("button", name="Middle choice").press("Shift+Tab")
+    expect(page.get_by_role("button", name="First choice")).to_be_focused()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Tab")
+    last = page.get_by_role("button", name="Last choice")
+    expect(last).to_be_focused()
+    assert last.evaluate("el => el.matches(':focus-visible')")
+    reached = last.evaluate(
+        """el => {
+          const box = el.parentElement, rect = box.getBoundingClientRect();
+          const control = el.getBoundingClientRect();
+          return {left: box.scrollLeft, visible: control.right <= rect.right + 1,
+                  clear: rect.bottom - control.bottom};
+        }"""
+    )
+    assert reached["left"] > 0 and reached["visible"], reached
+    assert reached["clear"] >= 15, reached
+    assert render_checks_model.evaluate_probe(page, "scrollbarClearance") == []
+    assert page.evaluate(
+        "() => Object.fromEntries(['strip', 'flow', 'shadow', 'raw-words', 'slotted', 'fits', 'hidden']"
+        ".map(id => [id, document.getElementById(id).scrollWidth]))"
+    ) == {name: reading["width"] for name, reading in before.items()}
+    page.close()
+    failures = render_gate_model.render_version(browser, url).failures
+    for name in ("strip", "flow", "shadow"):
+        assert any(
+            f"<div id={name}>" in failure and "horizontal overlay scrollbar" in failure
+            for failure in failures
+        ), failures
+    assert any(
+        "<div id=raw-words>" in failure and "horizontal overlay scrollbar" in failure
+        for failure in failures
+    ), failures
+
+
+def test_scrollbar_clearance_catches_an_intermediate_width(browser, serve):
+    """A control row fits at both fixed viewports but loses its track room between them."""
+    source = leaf_page(
+        "Mid-width scrollbar",
+        '<h1>Review sections</h1><div id="strip">'
+        "<button>Summary</button><button>Release scope</button>"
+        "<button>Owner handoff</button></div>",
+        head="""<style>
+          #strip { display: flex; width: 240px; overflow: auto; padding: 0 0 15px;
+                   border: 0; }
+          #strip button { flex: 0 0 180px; height: 40px; margin: 0; }
+          @media (min-width: 600px) and (max-width: 900px) {
+            #strip { padding-bottom: 0; }
+          }
+        </style>""",
+    )
+    failures = render_gate_model.render_version(browser, serve(source)).failures
+    (collision,) = [failure for failure in failures if "overlay scrollbar" in failure]
+    assert collision.startswith("at 600–880px wide, <div id=strip> leaves 0px"), (
+        failures
+    )
+
+
+def test_scrollbar_clearance_reads_main_when_it_is_the_scroller(browser, serve):
+    """The page's main region can itself own the horizontal track."""
+    source = leaf_page(
+        "Scrolling main",
+        '<button style="flex: 0 0 600px; height: 40px; margin: 0">Wide choice</button>',
+        layout=None,
+    ).replace(
+        "<main>",
+        '<main style="display: flex; box-sizing: content-box; width: 240px; '
+        'max-width: none; overflow: auto; padding: 0; border: 0">',
+    )
+    page = open_page(browser, serve(source))
+    assert page.locator("main").evaluate("box => box.scrollWidth > box.clientWidth")
+    findings = render_checks_model.evaluate_probe(page, "scrollbarClearance")
+    assert len(findings) == 1, findings
+    assert findings[0]["at"].startswith("<main"), findings
+    assert findings[0]["clear"] == 0, findings
+    page.add_style_tag(content="main { padding-bottom: 15px !important; }")
+    assert render_checks_model.evaluate_probe(page, "scrollbarClearance") == []
+
+
+def test_scrollbar_clearance_accepts_room_allocated_to_a_classic_track(
+    scrollbar_browser, serve
+):
+    """A classic scrollbar has its own track below the content, so needs no spacer."""
+    source = leaf_page(
+        "Classic scrollbar room",
+        '<h1 id="t">Allocated track</h1>'
+        f'<div id="classic">{"sideways words " * 30}</div>',
+        head="""<style>
+          #classic { width: 240px; overflow: auto; white-space: nowrap;
+                     padding: 0; border: 0; }
+          #classic::-webkit-scrollbar { height: 20px; }
+        </style>""",
+    )
+    page = open_page(scrollbar_browser, serve(source))
+    allocated = page.locator("#classic").evaluate(
+        """box => ({scrolls: box.scrollWidth > box.clientWidth,
+                     track: box.offsetHeight - box.clientHeight})"""
+    )
+    assert allocated["scrolls"] and allocated["track"] == 20, allocated
+    assert render_checks_model.evaluate_probe(page, "scrollbarClearance") == []
 
 
 FRAMED_TABLES_PAGE = leaf_page(

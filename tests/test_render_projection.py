@@ -8201,13 +8201,13 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve, one_user):
 
 def test_a_followed_link_arrives_as_a_fresh_load_of_it_does(browser, serve):
     """A link followed on the page and the same URL opened in a new tab are one
-    destination, so they arrive alike: the worker's worktree sits in a goal the command
-    hub keeps shut (`display: none`, which `hidden="until-found"` would not be), and the
-    browser's own jump landed on nothing where the fresh load revealed it. Back then
-    returns the user to where they pressed, and Forward to the link's entry after the
-    goal is shut again arrives there as well: the offset that entry was left at was
-    read over the open goal, and restoring it over the shut one landed further down the
-    page with the worktree still hidden."""
+    destination, so they arrive alike: the worker's worktree sits in a disclosure
+    the command hub keeps shut, and the browser's own jump landed on nothing where
+    the fresh load revealed it. Back then returns the user to where they pressed,
+    and Forward to the link's entry after the disclosure is shut again arrives
+    there as well: the offset that entry was left at was read over the open
+    disclosure, and restoring it over the shut one landed further down the page
+    with the worktree still hidden."""
     url = live_url(serve(COMMAND_HUB_EXAMPLE))
     shown = """(id) => { const t = document.getElementById(id);
                          const r = t.getBoundingClientRect();
@@ -8228,7 +8228,7 @@ def test_a_followed_link_arrives_as_a_fresh_load_of_it_does(browser, serve):
 
     # Shut again and followed again: a press on a link to the fragment the page already
     # shows is still a trip there.
-    page.locator("#parser-dedupe > strong").click()
+    page.locator("#w-5 > details > summary").click()
     expect(page.locator("#tree-w-5")).to_be_hidden()
     link.click()
     page.wait_for_function(shown, arg="tree-w-5")
@@ -8239,7 +8239,7 @@ def test_a_followed_link_arrives_as_a_fresh_load_of_it_does(browser, serve):
         arg=pressed_at,
     )
 
-    page.locator("#parser-dedupe > strong").click()
+    page.locator("#w-5 > details > summary").click()
     expect(page.locator("#tree-w-5")).to_be_hidden()
     page.go_forward()
     page.wait_for_function(shown, arg="tree-w-5")

@@ -10948,7 +10948,6 @@ def test_inline_diff_lines_and_files_can_start_comments(browser, serve):
     ]
 
 
-@pytest.mark.parametrize("review", [False, True])
 @pytest.mark.parametrize("width", [390, 1280])
 def test_filtering_a_diff_keeps_its_field_and_toolbar_controls_fixed(
     browser, serve, width

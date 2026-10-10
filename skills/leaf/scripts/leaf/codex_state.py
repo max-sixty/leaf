@@ -286,7 +286,7 @@ def delivery_turn(session_id: str) -> str | None:
     return None
 
 
-def confirm_codex_pointer(session_id: str, payload: dict) -> None:
+def confirm_codex_pointer(session_id: str, payload: dict) -> list[Path]:
     """Confirm the owning task's complete pointer receipt in its exact turn.
 
     A hook reservation remains bound to its offered turn. Already queued input
@@ -301,10 +301,10 @@ def confirm_codex_pointer(session_id: str, payload: dict) -> None:
         raise ReceiptRefused("the receiving provider turn has ended")
     record = read_task_delivery(session_id, payload["id"])
     if record is None or isinstance(record, Accepted):
-        receive(payload, session_id)
-        return
+        return receive(payload, session_id)
     received = accept_codex_delivery(
         session_id, payload["id"], observation["turn"], hook_observation=observation
     )
     if len(received) != len(payload["batches"]):
         raise ReceiptRefused("delivery no longer owns its page or receiving turn")
+    return [batch["page"] for batch in received]

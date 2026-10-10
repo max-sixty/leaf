@@ -508,6 +508,8 @@ function makeMarkdown(module, breaks) {
     module.taskLists,
     { enabled: false },
   );
+  // Linkify 6 leaves bare domains unlinked by default; page prose keeps them clickable.
+  markdown.linkify.set({ fuzzyLink: true });
   // Message paragraphs preserve typed spaces. A break has one visible carrier:
   // MarkdownIt's formatting newline after <br> would become a second line there.
   markdown.renderer.rules.softbreak = (_tokens, _at, options) =>

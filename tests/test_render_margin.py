@@ -8096,15 +8096,26 @@ def test_a_growing_draft_holds_its_card_s_side_and_the_editor_s_top(
         editor.press("Shift+Enter")
         rendered(page)
         readings.append(page.evaluate(CARD_AND_REPLY))
-    for now in readings:
+    cap = next(
+        (i for i, now in enumerate(readings)
+         if now["cardBottom"] >= now["foot"] - 0.01),
+        None,
+    )
+    assert cap is not None and cap > 0, readings
+    for i, now in enumerate(readings):
         assert now["placement"] == held["placement"], (held, now)
         assert now["cardBottom"] <= now["foot"] + 0.5, now
-        # Capping the card can round an inner grid track by one CSS pixel.
-        for edge in ("cardTop", "turn", "editorTop"):
-            assert now[edge] == pytest.approx(held[edge], abs=1.5), (held, now)
+        assert now["cardTop"] == pytest.approx(held["cardTop"], abs=0.5), (held, now)
+        # At the first cap, the inner grid's fractional track can round by 1px.
+        # Before and after that transition, the turn and editor stay still.
+        reference = readings[cap] if i > cap else held
+        tolerance = 1.5 if i == cap else 0.5
+        for edge in ("turn", "editorTop"):
+            assert now[edge] == pytest.approx(reference[edge], abs=tolerance), (
+                reference, now
+            )
     last = readings[-1]
     assert last["cardBottom"] == pytest.approx(last["foot"], abs=0.5), last
-    assert last["editorTop"] == pytest.approx(held["editorTop"], abs=1.5), (held, last)
     assert editor.evaluate("box => box.scrollHeight > box.clientHeight"), (
         "thirty lines never outgrew the editor's room"
     )

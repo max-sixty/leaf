@@ -182,6 +182,7 @@ export { shadowStage } from "./shadow-stage.js";
 export { inBaseLayer } from "./stylesheets.js";
 export { revisionLabel, annotationMode } from "./context.js";
 export { loadDeferred, watchData } from "./data.js";
+export { boundFile } from "./file-api.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
 export {
   declarationFor,

@@ -35,6 +35,7 @@ from .data import (
 )
 from .event_endpoint import accept_event, event_fault, event_rejection
 from .event_log import read_events
+from .file_bindings import FileBindingError, StaleFileError, read_file, save_file
 from .files import (
     latest_revision,
     list_revisions,
@@ -956,6 +957,13 @@ class PageEndpoint:
 
     def _get(self) -> Response:
         path = self.path
+        if match := re.fullmatch(r"/api/files/([^/]+)", path):
+            if self.page_snapshot is not None:
+                return self._refuse("Captured previews cannot read live files.", 403)
+            try:
+                return self._json(read_file(self.page_dir, match[1]))
+            except FileBindingError as error:
+                return self._refuse(str(error))
         if probe_source := PROBE_SOURCES.get(path):
             return self._content(
                 200, "text/javascript; charset=utf-8", probe_source.read_bytes()
@@ -1014,6 +1022,29 @@ class PageEndpoint:
 
     def _post(self) -> Response:
         path = self.path
+        if match := re.fullmatch(r"/api/files/([^/]+)", path):
+            # File writes are mechanical editing, outside event admission and layer
+            # vocabulary. Only the mutable, authenticated, same-origin page writes.
+            try:
+                view_revision = self.requested_view_revision()
+            except ValueError as error:
+                return self._refuse(str(error))
+            if self.page_snapshot is not None or (
+                view_revision is not None
+                and view_revision != latest_revision(self.page_dir)
+            ):
+                return self._refuse("This view cannot edit live files.", 403)
+            expected_origin = f"{self.request.url.scheme}://{self.request.url.netloc}"
+            if self.headers.get("Origin") != expected_origin:
+                return self._refuse("File saving requires this page's origin.", 403)
+            if self.posted_error:
+                return self._refuse(self.posted_error)
+            try:
+                return self._json(save_file(self.page_dir, match[1], self.posted))
+            except StaleFileError as error:
+                return self._json({"error": str(error), "current": error.current}, 409)
+            except (FileBindingError, UnicodeEncodeError) as error:
+                return self._refuse(str(error))
         if path not in {
             "/api/event",
             "/api/media",

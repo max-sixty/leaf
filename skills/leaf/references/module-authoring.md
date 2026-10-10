@@ -864,6 +864,22 @@ is that subscriber's page error and does not make later state reads repeat the
 page-wide failure. A rejection from the callback's first run permanently ends that
 registration.
 
+## Editing a bound file
+
+`boundFile(binding)` returns the transport for a file explicitly granted to this
+page with `leaf file bind`. Its `read()` returns `{label, text, revision, newline,
+bytes}`; `save({revision, text})` checks that exact revision before writing and
+returns the submitted snapshot. A stale save throws an error whose `current`
+holds the newer file. Other errors carry a message and leave the caller's buffer
+alone. `text` uses LF line endings; the host preserves the file's LF or CRLF form.
+
+The `writable` property is false in captured documents and exports. The transport
+owns page-relative routing and delivery checks; a widget never names a host path.
+The file remains external filesystem state: editing it does not append a Leaf
+action or participate in page Undo. CodeMirror owns editing history. Use the
+`file-editor` package's `lf-file` for this interface; use `lf-code` for a portable
+snapshot that should travel with the page.
+
 ## Reading and opening Threads from a widget
 
 `readThreads()` returns the same immutable `{phase, threads}` collection the

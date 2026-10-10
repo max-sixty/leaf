@@ -96,6 +96,20 @@ other page files and the external state listed below.
 - `data.json` — the current contract each external-data source id was set under.
   `data.py` owns storage and updates.
 
+- `files.json` — explicit local text-file grants, written by `leaf file bind PAGE
+  ID PATH` as `{ "bindings": { "ID": "/absolute/canonical/path" } }`.
+  `file_bindings.py` owns the grants and current-file reads and writes. Browser
+  requests name only a binding, never a path. These files remain their own authority:
+  editing is mechanical browser state, outside document revisions and event history.
+  The API reads current UTF-8 text up to 256 KiB and saves against a revision of its
+  path and exact bytes, preserving LF or CRLF and file permissions. Mixed line endings,
+  binary controls, and later symlink substitutions are refused. Captured previews
+  cannot read or save live files; immutable views offer no editor access. Target locks
+  under `<state-home>/files/` serialize file-editor saves, including different pages
+  bound to the same path. An unrelated
+  writer which does not use those locks can still race the last comparison and atomic
+  replacement; this is not an operating-system compare-and-swap guarantee.
+
 - `data/` — one JSON file per source, `<source>.json`, holding its current value.
   Any process may rewrite one; readings validate it against the recorded contract.
   Deferred record fields served by `/api/deferred` come from these same files.

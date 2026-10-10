@@ -8,6 +8,8 @@
  * tool list. Claude uses the installed Agent SDK with built-ins disabled. Browser
  * access is one host-owned operation, never model-written JavaScript or shell code.
  * Each call owns a fresh conversation, browser context, and auditable evidence dir.
+ * Model work has no wall-clock deadline. Timed progress reports expose elapsed
+ * time and time since native activity without cancelling a slow conversation.
  */
 import { createHash } from "node:crypto";
 import {
@@ -284,7 +286,6 @@ async function codexModel(config, content, browser, record) {
         reasoningEffort: config.effort ?? "high",
         toolChoice: browser ? "auto" : "none",
         transport: "sse",
-        timeoutMs: config.timeoutMs ?? 300_000,
         onPayload(payload) {
           if (
             !browser &&
@@ -489,10 +490,6 @@ async function claudeModel(config, content, browser, record, evidenceDir) {
       }),
     );
     options.abortController = abortController;
-    const timer = setTimeout(
-      () => abortController.abort(),
-      config.timeoutMs ?? 300_000,
-    );
     const run = query({ prompt: input(), options });
     let final,
       initializedModel = null,
@@ -521,7 +518,6 @@ async function claudeModel(config, content, browser, record, evidenceDir) {
     } catch (error) {
       throw budgetError ?? error;
     } finally {
-      clearTimeout(timer);
       release?.();
       run.close();
     }
@@ -584,15 +580,44 @@ export default class UiReviewDetectionProvider {
     const root = path.resolve(config.evidenceDir ?? ".tmp/ui-review-detection/samples");
     await mkdir(root, { recursive: true });
     const evidenceDir = await mkdtemp(path.join(root, "sample-"));
+    const startedAt = new Date().toISOString();
+    const started = performance.now();
+    let lastActivity = started;
+    let activityCount = 0;
+    let status = "running";
     let traceWrites = Promise.resolve();
     const record = (type, value) => {
+      if (type !== "progress" && type !== "finished") {
+        lastActivity = performance.now();
+        activityCount++;
+      }
+      const event = {
+        at: new Date().toISOString(),
+        elapsedMs: performance.now() - started,
+        type,
+        value,
+      };
       traceWrites = traceWrites.then(() =>
-        appendFile(
-          path.join(evidenceDir, "trace.jsonl"),
-          JSON.stringify({ at: new Date().toISOString(), type, value }) + "\n",
-        ),
+        appendFile(path.join(evidenceDir, "trace.jsonl"), JSON.stringify(event) + "\n"),
       );
     };
+    const timing = () => ({
+      startedAt,
+      elapsedMs: performance.now() - started,
+      sinceLastActivityMs: performance.now() - lastActivity,
+      activityCount,
+      status,
+    });
+    const progress = setInterval(() => {
+      const value = timing();
+      record("progress", value);
+      console.error(
+        `[ui-review ${config.model}/${config.condition} ${path.basename(evidenceDir)}] ` +
+          `${(value.elapsedMs / 1000).toFixed(1)}s elapsed; ` +
+          `${(value.sinceLastActivityMs / 1000).toFixed(1)}s since activity`,
+      );
+    }, 30_000);
+    progress.unref();
     let browser;
     try {
       let request =
@@ -664,6 +689,7 @@ export default class UiReviewDetectionProvider {
         billing: "subscription; dollar cost unmeasured",
       };
       await writeFile(path.join(evidenceDir, "metadata.json"), json(metadata));
+      status = "completed";
       return {
         output: result.output,
         metadata,
@@ -683,6 +709,7 @@ export default class UiReviewDetectionProvider {
             },
       };
     } catch (error) {
+      status = "failed";
       await writeFile(
         path.join(evidenceDir, "harness-error.json"),
         json({ name: error.name, message: error.message }),
@@ -693,8 +720,14 @@ export default class UiReviewDetectionProvider {
         metadata: { evidenceDir, harnessFailure: !budgetExhausted, budgetExhausted },
       };
     } finally {
-      await browser?.close();
-      await traceWrites;
+      clearInterval(progress);
+      record("finished", timing());
+      try {
+        await browser?.close();
+      } finally {
+        await traceWrites;
+        await writeFile(path.join(evidenceDir, "timing.json"), json(timing()));
+      }
     }
   }
 }

@@ -135,7 +135,14 @@ each snapshot. Playwright's accessibility snapshot supplies accessible names,
 roles and state; numbered controls carry only a `labelHint`. Scroll owners are
 indexed with their axes and positions even when they are not interactive controls.
 
-Timeouts are unscored: Codex applies its timeout per request, whereas Claude
-applies it to the whole query. Do not compare latency under those different
-limits. Claude's native usage may include auxiliary models; observed assistant
+Model conversations have no runner-imposed wall-clock deadline. Every 30 seconds,
+the provider reports elapsed time and time since native activity to stderr and
+the sample's `trace.jsonl`. `timing.json` records elapsed time, activity count and
+completion status on exit. Inspect these measurements when a run is slow;
+elapsed time alone does not abort it. Browser operation limits remain part of the
+frozen tool condition. Provider or transport failures remain unscored.
+
+Earlier runs imposed a five-minute Claude query deadline and a Codex response-header
+deadline. Preserve those runs as historical evidence; their aborted answers stay
+unscored. Claude's native usage may include auxiliary models; observed assistant
 identity and complete native model-usage keys are retained.

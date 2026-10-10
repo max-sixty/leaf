@@ -314,7 +314,6 @@ def eval_ui_review(models, condition, mode, repeat, prepare_only, output):
                         "condition": arm,
                         "effort": "high",
                         "toolBudget": 12,
-                        "timeoutMs": 300000,
                         "evidenceDir": str(output / "samples"),
                     },
                 }
@@ -353,7 +352,10 @@ def eval_ui_review(models, condition, mode, repeat, prepare_only, output):
             )
             return
         env = environment(
-            PROMPTFOO_DISABLE_TELEMETRY="1", PROMPTFOO_DISABLE_UPDATE_CHECK="1"
+            PROMPTFOO_DISABLE_TELEMETRY="1",
+            PROMPTFOO_DISABLE_UPDATE_CHECK="1",
+            PROMPTFOO_EVAL_TIMEOUT_MS="0",
+            PROMPTFOO_MAX_EVAL_TIME_MS="0",
         )
         for key in (
             "OPENAI_API_KEY",

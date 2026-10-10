@@ -9,7 +9,7 @@ putting one in the claim.
 """
 
 import model_folds as model
-from interact_support import PAGE_PACKAGES
+from interact_support import page_packages
 
 HUB = model.leaf_page(
     "command hub",
@@ -270,7 +270,7 @@ def test_a_decision_on_any_message_settles_the_thread_it_belongs_to():
     and a command page reading the thread's `holds` would go on calling settled
     work outstanding.
     """
-    registry = model.model_layer(PAGE_PACKAGES[0])
+    registry = model.model_layer(page_packages()[0])
     open_thread = model.threads(model.reading(HUB, HELD_REQUEST, registry=registry))
     # The contrast: without it a fold that resolved every thread would pass below.
     assert open_thread["e1"]["resolved"] is None

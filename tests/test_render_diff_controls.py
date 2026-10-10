@@ -1,11 +1,80 @@
-"""Diff comments preserve the compact reader and keep hover marks clear of numbers."""
+"""Diff controls share canonical fields and preserve the compact source reader."""
 
 from html import escape
 
 import pytest
 from leaf import data as data_model
+from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_harness import leaf_page, open_page, write
+
+
+@pytest.mark.parametrize("width,scheme", [(1280, "light"), (390, "dark")])
+def test_diff_filter_has_one_frame_and_clears_with_its_count_inside(
+    browser, serve, width, scheme
+):
+    """The canonical search owns the frame, count, and Clear; filtering owns the rows."""
+    patch = "".join(
+        f"diff --git a/src/file-{index}.py b/src/file-{index}.py\n"
+        f"--- a/src/file-{index}.py\n+++ b/src/file-{index}.py\n"
+        "@@ -1 +1 @@\n-old\n+new\n"
+        for index in range(12)
+    )
+    context = browser.new_context(
+        viewport={"width": width, "height": 844}, color_scheme=scheme
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Changed files",
+                f'<h1>Changed files</h1><lf-diff id="patch"><pre>{escape(patch)}</pre></lf-diff>',
+            )
+        ),
+        context=context,
+    )
+    diff = page.locator("#patch")
+    field = diff.locator(".lf-diff-search")
+    editor = field.locator("input")
+    count = diff.locator(".lf-diff-progress")
+    rows = diff.locator(".lf-diff-file:not(.lf-diff-filtered)")
+    expect(editor).to_have_accessible_name("Filter diff files")
+    page.get_by_role("heading", name="Changed files").click()
+    for _ in range(8):
+        page.keyboard.press("Tab")
+        if editor.evaluate("node => node === node.getRootNode().activeElement"):
+            break
+    expect(editor).to_be_focused()
+    assert editor.evaluate("node => node.matches(':focus-visible')")
+    field.scroll_into_view_if_needed()
+    rendered(page)
+    frame = field.bounding_box()
+    assert diff.locator(".lf-diff-tools").bounding_box() == frame
+    count_box = count.bounding_box()
+    assert (
+        frame["x"]
+        <= count_box["x"]
+        < count_box["x"] + count_box["width"]
+        <= frame["x"] + frame["width"]
+    )
+    for query, matches in (("file-0", 1), ("no-match", 0)):
+        editor.fill(query)
+        expect(rows).to_have_count(matches)
+        expect(count).to_have_text(f"{matches} of 12")
+        expect(field.get_by_role("button", name="Clear")).to_be_visible()
+        assert field.bounding_box() == frame
+    field.get_by_role("button", name="Clear").click()
+    expect(editor).to_have_value("")
+    expect(editor).to_be_focused()
+    expect(rows).to_have_count(12)
+    expect(count).to_have_text("12 files")
+    assert field.bounding_box() == frame
+    editor.fill("file-0")
+    expect(rows).to_have_count(1)
+    editor.press("ControlOrMeta+A")
+    editor.press("Backspace")
+    expect(rows).to_have_count(12)
+    expect(count).to_have_text("12 files")
 
 
 @pytest.mark.parametrize("touch", [False, True])

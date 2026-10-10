@@ -9,6 +9,7 @@
  * its dedicated removal action; only that action withdraws the reaction. Commands enter
  * only through the constructor.
  */
+import { scrollIntoView } from "./landing-scroll.js";
 
 import { nextRender } from "./rendering.js";
 import { holdFocus } from "./focus.js";
@@ -143,10 +144,9 @@ export function createAnchorControls({
     reveal(element, retainUserIntent());
     current = resolveAnchor(control.lfAnchor, pageText());
     element = targetParts(current)[0] ?? targetElement(current);
-    element?.scrollIntoView({
+    scrollIntoView(element, {
       behavior: "instant",
       block: "nearest",
-      inline: "nearest",
     });
   }
 

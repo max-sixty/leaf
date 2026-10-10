@@ -4,7 +4,7 @@ import { keeps, keepsHidden, keepsText } from "../keeps.js";
 import { advertisesKeys, submitBindings, submitLabel } from "../keyboard/bindings.js";
 import { readPastedMedia, scopedMediaUrl, writePastedMedia } from "../media.js";
 import { announce, notice } from "../notifications.js";
-import { iconElement } from "../icons.js";
+import { iconElement, iconTemplate } from "../icons.js";
 import { drawingThumbnail } from "./drawing-context.js";
 import { LitElement, html } from "../../vendor/browser-runtime.js";
 import "./text-field.js";
@@ -138,7 +138,7 @@ class PastedMediaShelf extends LitElement {
               aria-label=${`Remove pasted image ${index + 1}`}
               @click=${() => this.actions.removeMedia(index)}
             >
-              ×
+              ${iconTemplate("cross", "lf-action-icon")}
             </button>
           </span>
         `,

@@ -179,7 +179,7 @@
   font: inherit;
   accent-color: var(--accent);
 }
-:scope:is(lf-playground-control) > input:is([type="text"], [type="color"]) {
+:scope:is(lf-playground-control) > input[type="color"] {
   border: 1px solid var(--rule);
   border-radius: var(--r);
   background: var(--card);

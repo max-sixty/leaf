@@ -17,7 +17,7 @@
  *
  * The thing is the row's way there: a widget or section is an ordinary fragment link,
  * so the browser owns that travel as it does for lf-toc, and a thread is a button
- * onto `openThread`, which chooses the thread's inline destination or Threads the same
+ * onto `threadActions.open`, which chooses the thread's inline destination or Threads the same
  * way a mark and t/T do. Links and buttons are the keyboard route: each is a Tab stop
  * and a go-to target.
  *
@@ -48,7 +48,8 @@ import {
   markdownWords,
   offer,
   once,
-  openThread,
+  threadActions,
+  readThreads,
   relabel,
   watchHistory,
   watchOwner,
@@ -230,7 +231,11 @@ customElements.define(
       relabel(button, row.label, { says: "echo" });
       button.addEventListener(
         "click",
-        () => void openThread(row.thread, { focus: "thread" }),
+        () =>
+          void threadActions.open(
+            readThreads().threads.find((thread) => thread.id === row.thread)?.key,
+            { focus: "thread" },
+          ),
       );
     }
 

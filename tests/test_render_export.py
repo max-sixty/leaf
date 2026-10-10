@@ -1625,7 +1625,7 @@ def test_playground_examples_keep_their_offline_interaction_mode(
         live.locator('.query-row[data-filter-id="filter-2"] input').fill("80")
         submit = playground.get_by_role("button", name="Build query")
     else:
-        playground.get_by_role("button", name="Wrapped reader").click()
+        playground.get_by_role("button", name="B at 320px").click()
         submit = playground.get_by_role("button", name="Apply treatment")
     with sending(live, f"the {stem} configuration"):
         submit.click()

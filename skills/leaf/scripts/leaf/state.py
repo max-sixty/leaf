@@ -20,6 +20,7 @@ import hashlib
 import json
 import os
 import secrets
+import stat
 import sys
 import time
 from datetime import datetime
@@ -163,6 +164,8 @@ def replace_bytes(writes: list) -> None:
     Each write is (target, bytes, preserve_mode). The higher file boundary validates
     target identity before a multi-file replacement; a single JSON write needs no
     comparison. A caller resolving a symlink decides its target before entering.
+    Preserved modes include special permission bits. Apply them after flushing all
+    data, since writing can clear set-user-ID and set-group-ID bits on POSIX files.
     """
     staged = []
     try:
@@ -186,12 +189,12 @@ def replace_bytes(writes: list) -> None:
             staged.append((tmp, target))
             with os.fdopen(fd, "wb") as stream:
                 stream.write(data)
+                stream.flush()
                 if preserve_mode:
                     try:
-                        os.fchmod(stream.fileno(), target.stat().st_mode & 0o777)
+                        os.fchmod(stream.fileno(), stat.S_IMODE(target.stat().st_mode))
                     except FileNotFoundError:
                         pass  # no target to preserve a mode from
-                stream.flush()
                 os.fsync(stream.fileno())
         for tmp, target in staged:
             os.replace(tmp, target)

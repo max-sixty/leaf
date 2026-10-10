@@ -1507,9 +1507,11 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
     )
     page.wait_for_function("readLeafPresentation().pending.length === 0")
     assert page.evaluate("window.__failedLocalRenders") == 1
-    assert take_browser_errors(page) == [
+    errors = take_browser_errors(page)
+    assert [error.splitlines()[0] for error in errors] == [
         "leaf: Presentation failed: <lf-local> renderState threw: deliberate render failure"
     ]
+    assert "Caused by: Error: deliberate render failure" in errors[0]
 
 
 def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
@@ -1674,7 +1676,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
     expect(page.locator("#thread-failing")).to_have_count(1)
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 2")
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
-    assert take_browser_errors(page) == [
+    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
         "leaf: Presentation failed: frozen descendant failure"
     ]
 
@@ -2083,8 +2085,10 @@ def test_a_refused_thread_reading_leaves_a_user_who_moved_on_where_they_went(
             "leaf: Presentation failed: Thread list presentation retry failed: "
             "injected refusal; injected refusal"
         ),
-        "leaf: State presentation failed: Thread list presentation retry failed",
-        "leaf: read failed: Thread list presentation retry failed",
+        "leaf: State presentation failed: Thread list presentation retry failed: "
+        "injected refusal; injected refusal",
+        "leaf: read failed: Thread list presentation retry failed: "
+        "injected refusal; injected refusal",
     )
     expect(page.locator('[data-id="arriving"]')).to_have_count(0)
 
@@ -2560,15 +2564,22 @@ def test_primary_arrival_records_a_return_place_only_when_travelling(
                   const selection = document.querySelector('script[data-lf-entry]').lfFloatingSelections().find(item => item.floating === owner);
                   const node = fault === 'child' ? owner.querySelector('leaf-text') : owner;
                   const before = node.getBoundingClientRect().top;
+                  let insetFault;
                   if (fault === 'child') {
                     node.style.position = 'relative';
                     node.style.top = '-20px';
                   } else if (fault === 'inset') {
                     const edge = selection.edges.top;
-                    node.style[edge] = `calc(${edge === 'top' ? -20 : 20}px + ${node.style[edge]})`;
+                    // Placement owns this inline inset and can restore it before
+                    // paint. Hold the fault through the cascade instead.
+                    insetFault = document.createElement('style');
+                    insetFault.textContent = `#${owner.id} {${edge}: calc(${edge === 'top' ? -20 : 20}px + ${node.style[edge]}) !important}`;
+                    document.head.append(insetFault);
                   } else node.style.marginTop = '-20px';
                   const result = {before, after:node.getBoundingClientRect().top, scroll:scrollY, plane:selection.plane, sourceTravel:source.getBoundingClientRect().top - sourceBefore};
                   await paint();
+                  result.afterPaint = node.getBoundingClientRect().top;
+                  insetFault?.remove();
                   scrollTo({top:140, behavior:'instant'});
                   await paint();
                   scrollTo({top:100, behavior:'instant'});
@@ -2582,6 +2593,9 @@ def test_primary_arrival_records_a_return_place_only_when_travelling(
                 assert displacement["after"] - displacement["before"] == pytest.approx(
                     -20
                 )
+                assert displacement["afterPaint"] - displacement[
+                    "before"
+                ] == pytest.approx(-20)
                 scroll_settled(page)
                 page.evaluate("lfShiftsJudged()")
                 errors = consume_browser_errors(page, "moved without input")

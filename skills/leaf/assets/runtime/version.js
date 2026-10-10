@@ -1335,7 +1335,7 @@ export function createVersionController({
     try {
       await land();
     } catch (error) {
-      reportPageError(`Revision continuity failed: ${error?.message ?? error}`);
+      reportPageError(error, `Revision continuity failed`);
     }
   }
 
@@ -1585,9 +1585,7 @@ export function createVersionController({
       // revision introduces would otherwise reject every later state read for good.
       await preloadWidgets(doc.querySelector("body > main"));
     } catch (error) {
-      reportPageError(
-        `revision ${target.revision} failed to load: ${error?.message ?? error}`,
-      );
+      reportPageError(error, `revision ${target.revision} failed to load`);
       return null;
     }
     return {
@@ -1794,14 +1792,19 @@ export function createVersionController({
   // that a box two regions share lands where that one left it. Inside a composition,
   // only the composition's own scrollers are restored: document travel belongs to the
   // navigation that changed it, including native history.
-  function restoreRegions(candidates, currentIntent, owner = null) {
+  function restoreRegions(
+    candidates,
+    currentIntent,
+    owner = null,
+    views = regionViews,
+  ) {
     const active = activeReadingRegion(candidates);
     const ordered = active
       ? [active, ...candidates.filter(({ id }) => id !== active.id)]
       : candidates;
     const restored = new Set();
     for (const region of ordered) {
-      const reading = regionViews.get(region.id);
+      const reading = views.get(region.id);
       const box = effectiveScroller(region);
       if (owner && !under(box, owner)) continue;
       if (!reading || restored.has(box)) continue;
@@ -1823,7 +1826,7 @@ export function createVersionController({
   // the banner takes another row: the line the user was reading went under it. So the
   // page moves with its band first, and a region the page carries lands against the new
   // band from its own record.
-  function restoreShifted(shifted, currentIntent) {
+  function restoreShifted(shifted, currentIntent, views, pageReading) {
     if (compositionChanges.size) return;
     if (!currentIntent()) return;
     const page = shifted.find(({ region }) => !region);
@@ -1831,9 +1834,9 @@ export function createVersionController({
     const candidates = shifted
       .map(({ region }) => region)
       .filter((region) => region && shownRegionBounds(region));
-    const restored = restoreRegions(candidates, currentIntent);
-    if (page && hasLandmark(pageView) && !restored.has(pageScroller))
-      restorePlace(pageView, null, currentIntent);
+    const restored = restoreRegions(candidates, currentIntent, null, views);
+    if (page && hasLandmark(pageReading) && !restored.has(pageScroller))
+      restorePlace(pageReading, null, currentIntent);
     recordRegions();
   }
 
@@ -1849,7 +1852,11 @@ export function createVersionController({
     // region and resize what the observer watches, so it waits for the next frame.
     if (phase === "shift") {
       const currentIntent = retainUserIntent();
-      nextRender(() => restoreShifted(shifted, currentIntent));
+      // A resize can cause a scroll event before this frame. Keep the pre-shift
+      // reading now, so that event cannot replace it with the moved geometry.
+      const views = new Map(regionViews);
+      const pageReading = pageView;
+      nextRender(() => restoreShifted(shifted, currentIntent, views, pageReading));
       return;
     }
     // A composition change captures the intact view before hiding any region, and its

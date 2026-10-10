@@ -5,8 +5,9 @@ of its private rubric/provenance. Recognition supplies labelled screenshot seque
 or candidate source text in the code-only condition; discovery supplies arrival only.
 Code-only includes the pinned dependency source, without supplying rendered evidence.
 Transition defects are unobservable to no-tools discovery and must not be scored as
-misses. Promptfoo records raw answers; its
-completion indicators are not correctness grades. Human scoring uses rubric.json.
+misses. Promptfoo grades completed answers through an evidence-aware JavaScript
+assertion using its standard isolated Codex judge. The frozen rubric owns target
+meaning; transport and judge failures remain unscored rather than review misses.
 """
 
 import hashlib
@@ -14,6 +15,7 @@ import json
 import shutil
 import subprocess
 import sys
+import tempfile
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from functools import partial
@@ -31,7 +33,7 @@ from playwright.sync_api import expect
 from leaf_dev import ROOT
 from leaf_dev.arms import environment
 from leaf_dev.browser import chrome
-from leaf_dev.eval import PROMPTFOO
+from leaf_dev.eval import PROMPTFOO, screenshot_judge
 
 SOURCE = ROOT / "evals/ui-review-detection"
 MODELS = {
@@ -155,7 +157,7 @@ def stage(output):
     if digest(dependency) != provenance["dependency"]["sha256"]:
         raise click.ClickException("Frozen timeline dependency changed")
     shutil.copyfile(dependency, output / "site/assets/timeline.esm.js")
-    for name in ("cases.yaml", "rubric.json", "provider.mjs"):
+    for name in ("cases.yaml", "rubric.json", "provider.mjs", "grade.mjs"):
         shutil.copyfile(SOURCE / name, output / name)
     shutil.copyfile(fixtures / "private/provenance.json", output / "provenance.json")
     shutil.copyfile(Path(__file__), output / "runner.py")
@@ -188,6 +190,91 @@ def stage(output):
     return provenance
 
 
+def grading(output, home):
+    """Configure the standard judge on anonymous evidence, with a disposable home.
+
+    The login home stays outside the evidence tree. Candidate providers read only
+    their task/manifest; private assertion metadata never enters their request.
+    """
+    evidence = output / "grading"
+    evidence.mkdir()
+    provider = screenshot_judge(None, home)
+    write_json(
+        output / "grader-environment.json",
+        {
+            "provider": provider["id"],
+            "model": provider["config"]["model"],
+            "codex": subprocess.check_output(
+                [provider["config"]["codex_path_override"], "--version"],
+                text=True,
+                env=environment(),
+            ).strip(),
+        },
+    )
+    return {
+        "metadata": {
+            "graderProvider": provider,
+            "gradingDir": str(evidence),
+            "rubricFile": str(output / "rubric.json"),
+        },
+        "assert": [
+            {
+                "type": "javascript",
+                "value": (output / "grade.mjs").as_uri(),
+                "metric": "ui-review",
+            }
+        ],
+    }
+
+
+def summarize(output):
+    """Derive outcomes from Promptfoo's export, excluding unscored denominators."""
+    exported = json.loads((output / "results.json").read_text())
+    rows = []
+    for result in exported["results"]["results"]:
+        metadata = result["testCase"]["metadata"]
+        components = (result.get("gradingResult") or {}).get("componentResults", [])
+        grade = next(
+            (
+                component["metadata"]["grade"]
+                for component in components
+                if "grade" in component.get("metadata", {})
+            ),
+            None,
+        )
+        rows.append(
+            {
+                "case": metadata["privateCase"],
+                "variant": metadata["privateVariant"],
+                "provider": result["provider"]["label"],
+                "sample": result["response"].get("metadata", {}).get("evidenceDir"),
+                "grade": grade,
+                "scorable": grade is not None and grade["scorable"],
+                "error": result.get("error") if grade is None else None,
+            }
+        )
+    scored = [row for row in rows if row["scorable"]]
+    defects = [row["grade"] for row in scored if row["variant"].endswith("defect")]
+    controls = [row["grade"] for row in scored if row["variant"].endswith("control")]
+    summary = {
+        "samples": len(rows),
+        "scored": len(scored),
+        "unscored": len(rows) - len(scored),
+        "defects": len(defects),
+        "detected": sum(grade["target_detection"] == 2 for grade in defects),
+        "concerns": sum(grade["target_detection"] == 1 for grade in defects),
+        "missed": sum(grade["target_detection"] == 0 for grade in defects),
+        "controls": len(controls),
+        "target_false_alarms": sum(grade["target_false_alarm"] for grade in controls),
+        "unsupported_observations": sum(
+            len(row["grade"]["unsupported_observations"]) for row in scored
+        ),
+        "rows": rows,
+    }
+    write_json(output / "grading-summary.json", summary)
+    return summary
+
+
 @click.command("eval-ui-review")
 @click.option(
     "--model",
@@ -216,7 +303,7 @@ def stage(output):
     help="Fresh directory; defaults under .tmp/eval-ui-review/.",
 )
 def eval_ui_review(models, condition, mode, repeat, prepare_only, output):
-    """Evaluate UI review detection; every answer requires manual correctness scoring."""
+    """Evaluate and grade UI review detection against frozen defect/control pairs."""
     if condition == "code-only" and mode == "discovery":
         raise click.UsageError(
             "Code-only reviews source; discovery requires visual evidence."
@@ -233,7 +320,10 @@ def eval_ui_review(models, condition, mode, repeat, prepare_only, output):
     provenance = stage(output)
     cases = yaml.safe_load((output / "cases.yaml").read_text())["cases"]
     conditions = ["no-tools", "browser"] if condition == "both" else [condition]
-    with served(output / "site") as origin:
+    with (
+        tempfile.TemporaryDirectory(prefix="leaf-ui-grader-") as temporary,
+        served(output / "site") as origin,
+    ):
         for private in (
             "/private/provenance.json",
             "/../rubric.json",
@@ -303,7 +393,8 @@ def eval_ui_review(models, condition, mode, repeat, prepare_only, output):
                 )
         write_json(output / "behavior-evidence.json", readings)
         config = {
-            "description": f"UI review {mode}; raw answers require blind manual scoring",
+            "description": f"UI review {mode}; automatic blinded evidence-aware grading",
+            "defaultTest": grading(output, Path(temporary) / "judge"),
             "prompts": ["{{prompt}}"],
             "providers": [
                 {
@@ -333,7 +424,7 @@ def eval_ui_review(models, condition, mode, repeat, prepare_only, output):
                 "repeat": repeat,
                 "prepare_only": prepare_only,
                 "private_paths_returned_404": True,
-                "correctness": "manual scoring required",
+                "correctness": "automatic model-anonymous rubric grading",
                 "no_tools_discovery_limit": "Transition-only targets are unobservable from arrival images; exclude them from miss rates.",
             },
         )
@@ -356,6 +447,7 @@ def eval_ui_review(models, condition, mode, repeat, prepare_only, output):
             PROMPTFOO_DISABLE_UPDATE_CHECK="1",
             PROMPTFOO_EVAL_TIMEOUT_MS="0",
             PROMPTFOO_MAX_EVAL_TIME_MS="0",
+            PROMPTFOO_FAILED_TEST_EXIT_CODE="100",
         )
         for key in (
             "OPENAI_API_KEY",
@@ -394,12 +486,23 @@ def eval_ui_review(models, condition, mode, repeat, prepare_only, output):
             {
                 "changed_inputs": changed,
                 "returncode": result.returncode,
-                "correctness": "unscored; apply rubric.json to raw answers",
+                "correctness": "see results.json and grading-summary.json",
                 "no_tools_discovery_limit": "Transition-only failures are unobservable from arrival images and are excluded from miss rates.",
             },
         )
-        if changed or result.returncode:
+        if changed or result.returncode not in (0, 100):
             raise click.ClickException(
                 f"Run failed integrity/execution checks; inspect {output}"
             )
-    click.echo(f"Raw results: {output / 'results.json'}; correctness remains unscored.")
+        summary = summarize(output)
+        click.echo(
+            f"Graded {summary['scored']}/{summary['samples']}; "
+            f"detected {summary['detected']}/{summary['defects']} defects "
+            f"({summary['concerns']} partial, {summary['missed']} missed); "
+            f"{summary['target_false_alarms']}/{summary['controls']} control false alarms; "
+            f"{summary['unsupported_observations']} unsupported observations; "
+            f"{summary['unscored']} unscored."
+        )
+    click.echo(f"Results: {output / 'results.json'}\nview: npm run view --prefix evals")
+    if result.returncode:
+        raise click.exceptions.Exit(result.returncode)

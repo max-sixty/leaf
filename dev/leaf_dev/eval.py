@@ -204,12 +204,14 @@ def workflow_provider(
     }
 
 
-def screenshot_judge(screenshots: Path, home: Path) -> dict:
+def screenshot_judge(screenshots: Path | None, home: Path) -> dict:
     """The Codex grader for an executor's `agent-rubric`s, run under a home of its own.
 
     Its permission profile lets it read the run's screenshot tree and nothing else,
     so neither a page's source, the author's transcript, nor a path naming the arm
-    reaches it. `:minimal` is the runtime paths tools need, which include the temp
+    reaches it. Passing None leaves evidence access to each call's isolated profile,
+    so an assertion can grant exactly one sample instead of the run's whole tree.
+    `:minimal` is the runtime paths tools need, which include the temp
     directories but not the repository. Codex starts its sandbox helper by executing
     itself, so the profile also grants the executable, run by its resolved path: a
     symlink's own location is refused. A profile replaces Codex's older sandbox
@@ -222,7 +224,7 @@ def screenshot_judge(screenshots: Path, home: Path) -> dict:
             "",
             "[permissions.screenshots.filesystem]",
             '":minimal" = "read"',
-            f'{json.dumps(f"{screenshots}/**")} = "read"',
+            *([f'{json.dumps(f"{screenshots}/**")} = "read"'] if screenshots else []),
             f'{json.dumps(str(codex))} = "read"',
             "",
         ]

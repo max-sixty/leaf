@@ -5,6 +5,7 @@ Each `evals/<task>/case.yaml` is a Promptfoo test that runs on Claude Code and C
 config, and runs `promptfoo eval`; Promptfoo does the rest.
 
 Internal viewer-review diagnostics run with `leaf-dev eval-ui-review`.
+They use Promptfoo's assertions and viewer with automatic evidence-aware grading.
 Their exception to the usual suite scope, retained cases and grading workflow are
 in [UI review detection](ui-review-detection/README.md).
 

@@ -11,6 +11,13 @@ specific viewer defects and distinguish repaired controls. The ordinary
 `leaf-dev eval` catalog continues to score shipped instructions and agent loops;
 these diagnostics run separately with `leaf-dev eval-ui-review`.
 
+They use the same Promptfoo framework, results database and viewer as the standard
+suite. The separate launcher prepares the review-specific evidence conditions;
+`grade.mjs` is a JavaScript assertion using Promptfoo's native Codex provider and
+Leaf's standard isolated screenshot-judge configuration. A run includes candidate
+inference and automatic correctness grading; it needs neither the projects repo
+nor a supervising session.
+
 ## Run
 
 From the checkout, install the eval dependencies and check the fixtures without
@@ -40,6 +47,7 @@ uv run leaf-dev eval-ui-review \
 `--repeat 2` runs independent conversations. Every run needs a fresh `--output`
 directory; the default is under `.tmp/eval-ui-review/`. Models use the host's
 signed-in subscriptions. No dollar-cost estimate is reported.
+Grading also uses the host's Codex login, with the standard Sol judge.
 
 Recognition supplies the same labelled screenshot sequence to both arms. The
 browser arm additionally has one host-owned operation for snapshots, clicks,
@@ -75,7 +83,7 @@ miss against the complete-source condition.
 | `recording-times` | Label boxes lack a visible point anchor, making event time or apparent duration ambiguous. | Restores point dots and stems while retaining label widths, stacking and dense timing. |
 | `recording-stepping` | Variable checkpoint metadata moves the application image during intermediate-frame stepping. | Places the image before variable metadata so its origin stays fixed. |
 
-Calibration on 2026-10-10 found that Sol missed the timing target in three
+Manual calibration on 2026-10-10 found that Sol missed the timing target in three
 screenshot-only reviews; Opus and Fable detected it in their screenshot-only
 comparison runs, while Astra missed it. All four detected image movement from
 screenshots. These are narrow fresh
@@ -90,9 +98,9 @@ they supplied identical evidence.
 
 ## Evidence and grading
 
-The runner freezes and hashes its source, provider, prompts, rubric, public assets
+The runner freezes and hashes its source, provider, grader, prompts, rubric, public assets
 and candidate packets before inference. It retains the dependency lock, installed
-direct dependency versions, and Node/Python/Chrome identities. Installed transitive
+direct dependency versions, and Node/Python/Chrome and grader Codex CLI identities. Installed transitive
 bytes rely on `npm ci` rather than independent hashes. The private provenance
 records historical sources and reconstruction limits. Screenshots are generated
 from text fixtures; run captures and raw outputs stay under `.tmp/`.
@@ -110,8 +118,8 @@ wire-level byte equality or exclude SDK transformations.
 
 Each sample retains its request, any supplied images, native trace, browser captures,
 answer, observed assistant identity and usage, or an execution-error record.
-Grade every completed answer against the run's frozen `rubric.json` and actual
-evidence, preferably with model identity withheld:
+The automatic judge grades each completed answer against the run's frozen
+`rubric.json` and that answer's actual evidence:
 
 - On defective cases, score specific target detection and supporting evidence.
 - On controls, score allegations of the repaired target separately. Other valid
@@ -119,8 +127,44 @@ evidence, preferably with model identity withheld:
 - Record unsupported observations and execution integrity independently.
 - Exclude infrastructure failures from correctness totals.
 
-**Promptfoo completion indicators are not correctness scores.** Its table records
-whether execution returned an answer; the semantic findings require grading.
+The judge receives an anonymous packet with the task, answer, supplied source or
+images, and actual browser operations/results. Candidate model/harness identity,
+native reasoning and other candidates' evidence are withheld. Screenshots are
+copied into that sample's allowed evidence tree; its login home is temporary and
+outside the retained evidence. Grading has no runner-imposed wall-clock cap.
+
+`results.json` and Promptfoo's viewer contain assertion reasons and named metrics:
+`target_detection` (0–2, defective cases), `target_false_alarm` (0–1, controls),
+and `unsupported_observations` (count). Inapplicable metrics are omitted from the
+named scores; structured grades retain nulls. A full pass requires full target
+detection or no control alarm, and no unsupported observations.
+
+`grading-summary.json` separates scored samples from execution failures, judge
+failures and unobservable targets. Each sample's `grade.json` retains the structured
+grade and audit; anonymous grading inputs and native judge responses are under
+`grading/`. Invalid judge output stays unscored. A valid miss is an assertion
+failure, not an infrastructure failure. The command follows Promptfoo's exit
+convention: 0 for all passes and 100 for assertion failures or unscored samples.
+
+Automated scores are model judgments, not proof of UI correctness. The frozen
+rubric and evidence remain available for inspection and regrading. Historical
+study grades were manual and are not overwritten by new automatic judgments.
+
+Native grader calibration on 2026-10-10 replayed eight historical answers and
+five retained semantic controls (`grader-controls.json`). All six clear historical
+target judgments agreed, and all thirteen unsupported-observation checks agreed.
+Four of five semantic controls matched exactly. The remaining timing answer raises
+a specific duration concern: the automatic judge and original manual grade gave
+full credit, while an independent reviewer gave partial credit. That partial/full
+boundary remains uncertain; this small calibration is not a general accuracy
+estimate. Both ambiguous historical judgments and the failed setup attempts remain
+in the study evidence.
+
+A fresh end-to-end Sol recognition run then completed all eight reviews and
+automatic grades: both timing defects missed, both movement defects detected,
+zero target alarms on four controls, zero unsupported observations and zero
+unscored samples. Frozen inputs were unchanged. This verifies the complete
+Leaf-only command, including actual browser traces, rather than replay alone.
 
 ## Browser tool experiments
 

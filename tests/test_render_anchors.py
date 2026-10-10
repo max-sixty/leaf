@@ -812,8 +812,10 @@ def test_a_selection_around_a_targets_buttons_does_not_deaden_them(browser, serv
         (end["x"] + end["width"] - 6, end["y"] + end["height"] - 6),
         steps=16,
     )
-    wait_for_pending_mark(page)
-    assert "Refill" in pending_text(page)
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    quote = composer_quote(page)
+    assert quote["shown"] and "Refill" in quote["text"]
+    assert "Refill" in page.evaluate("getSelection().toString()")
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
     assert not page.evaluate("getSelection().isCollapsed")
 

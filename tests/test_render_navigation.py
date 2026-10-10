@@ -4565,10 +4565,8 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     page.keyboard.press("Escape")
     assert pending_text(page) == "", "the highlight outlived its composer"
 
-    # A passage with the runtime's own chrome inside it paints around the chrome, the way
-    # the search reads around it — one range per segment, not one spanning the lot.
-    # Across both options, so a Choose button falls in the middle of the passage rather
-    # than after it — where a single range spanning the whole thing would swallow it.
+    # A selection across two options crosses their passage fence, so the composer
+    # shows its detached quote. The widget's own control is not part of that quote.
     chrome = page.locator("#opts .lf-pick").first.text_content().strip()
     assert chrome, "this assertion needs the widget to have rendered chrome inside it"
     page.evaluate("""() => {
@@ -4579,10 +4577,14 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     }""")
     page.get_by_role("button", name="Comment on selection", exact=True).click()
     page.locator(".lf-fab-input").click()
-    wait_for_pending_mark(page)
-    assert chrome not in pending_text(page), (
-        f"the highlight painted the widget's own {chrome!r} control along with the passage"
+    quote = composer_quote(page)
+    assert quote["shown"], "a selection across option cells cannot paint one passage"
+    assert "Keep the store" in quote["text"]
+    assert "Signed tokens" in quote["text"]
+    assert chrome not in quote["text"], (
+        f"the detached quote included the widget's own {chrome!r} control"
     )
+    assert pending_text(page) == ""
     page.keyboard.press("Escape")
 
     # A diagram has no text to quote, so its anchor is the element and its mark is an

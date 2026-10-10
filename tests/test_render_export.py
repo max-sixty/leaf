@@ -1138,10 +1138,9 @@ def test_a_user_preview_brings_back_a_service_that_is_down_but_wanted(
     port = server_model.running_server(directory)["port"]
     claim = service_model.page_claim(directory)
     events = (directory / "events.jsonl").read_bytes()
-    # Hold the watcher while taking the stopped server's port. The first revival
-    # must refuse, then recover after that condition clears without a source edit.
+    # Hold the watcher while taking the stopped server's port. Revival waits for
+    # native availability, then recovers without a source edit.
     with socket.socket() as occupied:
-        occupied.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         os.killpg(process.pid, signal.SIGSTOP)
         try:
             killed = subprocess.run(
@@ -1158,10 +1157,11 @@ def test_a_user_preview_brings_back_a_service_that_is_down_but_wanted(
         finally:
             os.killpg(process.pid, signal.SIGCONT)
         wait_for(
-            log.read_text,
-            lambda output: "can't serve" in output,
-            failure="the occupied preview address was not reported",
+            lambda: leases_model.lock_is_held(directory / "server.lock"),
+            bool,
+            failure="the preview did not prepare a replacement server",
         )
+        assert server_model.running_server(directory) is None
         assert files_model.read_json(directory / "service.json")["enabled"]
 
     wait_for(

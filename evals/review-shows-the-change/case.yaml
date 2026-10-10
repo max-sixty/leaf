@@ -9,6 +9,10 @@
 # Native fixed-output grader controls passed 3/3: reject an archived open/focus
 # plan, accept active-row inspection and a pointer-based equivalent. Scratch
 # calibration rejected five historical incomplete plans the old rubric accepted.
+# Capture first-reading reconstruction (2026-10-09): plans passed 0/2 on
+# 40f9aca26 and 2/2 with task-information comparison; resize and useful-ghost
+# controls passed 2/2 each on both arms. A separate blinded browser review
+# caught the original obstruction; plan scores alone did not establish that.
 description: review-shows-the-change
 metadata:
   purpose: 'Maintainer review: user reviews the change; agent verifies preservation.'

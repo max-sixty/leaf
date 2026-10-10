@@ -31,6 +31,7 @@ whole, when the reading names none), ready to hand off as an `lf-shot` pair, and
 crops cover both stills' regions.
 """
 
+import re
 import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -120,7 +121,7 @@ def drawing_photo_comment(page: Page) -> None:
 
 def share_link(page: Page) -> None:
     """The standard readonly URL field reached by keyboard inside Share."""
-    page.get_by_role("button", name="More page controls", exact=True).click()
+    page.get_by_role("button", name=re.compile(r"^More page controls(?:,|$)")).click()
     page.locator(".lf-share > summary").click()
     page.keyboard.press("Tab")
     expect(page.get_by_role("textbox", name="Share link", exact=True)).to_be_focused()
@@ -757,13 +758,26 @@ class State:
     viewport: tuple[int, int] = DESKTOP
     scheme: str = "light"
     touch: bool = False
+    region: str | None = None
 
 
 STATES = (
-    State("drawing-photo-comment", "developer/feature-gallery", drawing_photo_comment),
-    State("share-link", "developer/feature-gallery", share_link),
+    State(
+        "drawing-photo-comment",
+        "developer/feature-gallery",
+        drawing_photo_comment,
+        region=".lf-composer-media",
+    ),
+    State(
+        "share-link", "developer/feature-gallery", share_link, region=".lf-share-panel"
+    ),
     State("share-link-dark", "developer/feature-gallery", share_link, scheme="dark"),
-    State("diff-filter", "pr-walkthrough", diff_filter),
+    State(
+        "diff-filter",
+        "pr-walkthrough",
+        diff_filter,
+        region="#pr-key-hunk .lf-diff-tools",
+    ),
     State(
         "diff-filter-phone-dark",
         "pr-walkthrough",
@@ -772,7 +786,12 @@ STATES = (
         scheme="dark",
         touch=True,
     ),
-    State("playground-text", "notification-playground", playground_text),
+    State(
+        "playground-text",
+        "notification-playground",
+        playground_text,
+        region='lf-playground-control:has(> input[type="text"])',
+    ),
     State(
         "playground-text-dark",
         "notification-playground",
@@ -1110,7 +1129,24 @@ def capture(browser, address: str, state: State, path: Path) -> None:
         load(page, address)
         state.drive(page)
         settle(page)
-        page.screenshot(path=path)
+        clip = None
+        if state.region:
+            target = page.locator(state.region)
+            expect(target).to_be_visible()
+            bounds = target.bounding_box()
+            assert bounds is not None
+            # Keep the focus paint outside the target while omitting unrelated chrome.
+            room = 8
+            x, y = max(0, bounds["x"] - room), max(0, bounds["y"] - room)
+            clip = {
+                "x": x,
+                "y": y,
+                "width": min(state.viewport[0], bounds["x"] + bounds["width"] + room)
+                - x,
+                "height": min(state.viewport[1], bounds["y"] + bounds["height"] + room)
+                - y,
+            }
+        page.screenshot(path=path, clip=clip)
 
 
 def differences(browser, names: list[str], out: Path) -> dict[str, dict]:

@@ -54,8 +54,8 @@ directory explicitly; export or copy anything that must outlive the page directo
    `page init` with a selection adds it to a page already written.
 2. Read `references/page-authoring.md`, then the authoring reference each part
    of the page needs, listed under "Author a version" below. Follow "Read the
-   registry" there to discover widgets and load selected instructions before
-   authoring. Write
+   registry" there to select elements and class idioms and read their examples
+   and selected instructions before authoring. Write
    `<page>/index.html` in the registry's vocabulary. Each valid save becomes the
    active immutable revision; an invalid save leaves the last valid one live and
    reports its diagnostic in page state and the browser. You write `index.html` and

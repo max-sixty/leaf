@@ -13,17 +13,29 @@
 
 ## Read the registry
 
+Write semantic HTML and use the class idioms the registry lists under `$idioms`,
+where each one comes with the markup it is written as. The vendored theme owns
+palette, type, spacing, headings, tables, code, and widget presentation. Use a
+page-local `<style>` only for presentation unique to this page.
+
 Run `leaf page instructions <page>` and read the shared `author` instructions
 when listed before choosing widgets. Shared composition rules guide that choice.
 
 `<page>/registry.json` is the vocabulary `page init` vendored; a
 `page/registry.json` the page writes adds to it or replaces its entries ("Page
-behavior"). Discover widgets by their short purpose and use case:
+behavior"). Discover elements and class idioms by their purpose and use case:
 
 ```bash
 registry="<page>/registry.json"
-jq 'with_entries(select(.key | startswith("lf-")))
-    | map_values(.description)' "$registry"
+jq '{elements: with_entries(select(.key | startswith("lf-")))
+      | map_values(.description),
+     idioms: ."$idioms" | del(.description) | map_values(.description)}' "$registry"
+```
+
+For a selected class idiom, read its complete entry, including its `example`:
+
+```bash
+jq '."$idioms"[".eyebrow"]' "$registry"
 ```
 
 Once you select a widget, read its attribute schema and worked example. Ask for
@@ -444,10 +456,6 @@ shape of its own or backing that belongs under `<details>`.
 
 ## Theme and vocabulary
 
-Write semantic HTML and use the class idioms the registry lists under `$idioms`,
-where each one comes with the markup it is written as. The vendored theme owns
-palette, type, spacing, headings, tables, code, and widget presentation. Use a
-page-local `<style>` only for presentation unique to this page.
 For a page-specific inset, use the frame declaration in `references/packages.md`,
 "A theme change".
 

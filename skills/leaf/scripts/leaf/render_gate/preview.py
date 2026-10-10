@@ -3,7 +3,6 @@
 import contextlib
 from pathlib import Path
 
-from leaf.files import version_name
 from leaf.hosting import TemporaryPageServer
 from leaf.leases import page_locked
 from leaf.page_snapshot import capture_page_snapshot
@@ -17,7 +16,6 @@ def preview_server(
     document: SourceDocument,
     revision: int,
     *,
-    version: int | None = None,
     transition_held: bool = False,
     artifact: RevisionArtifact | None = None,
     through_seq: int | None = None,
@@ -36,14 +34,9 @@ def preview_server(
     """
     transition = contextlib.nullcontext() if transition_held else page_locked(page_dir)
     with transition:
-        active = {
-            "revision": revision,
-            "version": version,
-            "url": (
-                f"/versions/{version_name(version)}" if version is not None else "/"
-            ),
-        }
-        snapshot = capture_page_snapshot(page_dir, document, active, artifact=artifact)
+        snapshot = capture_page_snapshot(
+            page_dir, document, revision, url="/", artifact=artifact
+        )
         if through_seq is not None:
             snapshot = snapshot.through(through_seq)
         server = TemporaryPageServer(page_dir, page_options={"page_snapshot": snapshot})

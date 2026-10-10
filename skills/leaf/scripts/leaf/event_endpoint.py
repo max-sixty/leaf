@@ -84,6 +84,13 @@ def accept_event(
     state: StateReader,
 ) -> EventAnswer:
     """Validate and append one browser record, then return its current state."""
+    status, answer = _receive_event(page_dir, event)
+    # Admission has released its transaction before this reader takes a fresh one.
+    # A refusal also restores the tab from current truth, including other tabs' moves.
+    return status, {**answer, "state": state()}
+
+
+def _receive_event(page_dir: Path, event: dict) -> EventAnswer:
     try:
         # The shape check before the lease reads no log, so a sign-off checks its
         # kind against the newest vocabulary; admission inside the lease reads the
@@ -108,15 +115,14 @@ def accept_event(
         return event_rejection(event, f"{kind} event is invalid: {error}")
     # A fault raises out of here, before or after the append, and the transport's
     # one fault boundary answers it with `event_fault`.
-    return _execute_event(page_dir, event, state)
+    return _execute_event(page_dir, event)
 
 
 def _execute_event(
     page_dir: Path,
     event: dict,
-    state: StateReader,
 ) -> EventAnswer:
-    """Admit and append as one log transaction, then read the page back.
+    """Admit and append as one log transaction, then release it before answering.
 
     `accept_event` checks the payload's declared shape before the page transaction. A
     re-vendor can replace that declaration before this transaction is acquired, so the
@@ -168,7 +174,7 @@ def _execute_event(
     # the page's lock, so it starts once the lock is given back.
     if spoken and (generate := claim_harness(spoken[1]).title_generator()):
         name_admitted_thread(generate, page_dir, spoken[0], spoken[1]["id"])
-    return 200, {"ok": True, "state": state()}
+    return 200, {"ok": True}
 
 
 def nudge_unwatched(page: PageTransaction) -> None:

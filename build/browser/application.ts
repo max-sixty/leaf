@@ -310,6 +310,7 @@ export interface AuthoritativeState {
   layer: { generation: string };
   active: { revision: number; version?: number | null; label?: string | null };
   versions?: { revision: number; version: number; url: string }[];
+  revision_labels: Record<string, string>;
   events: Event[];
   workflows: WireWorkflow[];
   browser: {

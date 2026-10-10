@@ -1973,6 +1973,19 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
     `required_paths` keeps that causal selection honest when an example changes.
     """
     url = serve(example)
+    if case_name == "ship-review":
+        # The native section replaced the task widget that used to carry this mark.
+        # Seed one on a remaining widget so the aim still crosses a standing mark.
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "anchor": {"section": "off-workaround-review"},
+                "text": "Keep the upstream dependency visible.",
+            },
+        )
     page = open_page(browser, url)
     # What the log already held. A shipped seed can carry a decision the user made
     # before this page was opened, and what an aim may not do is add one of its own —

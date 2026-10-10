@@ -55,7 +55,7 @@ export const queueOffers = (item, ready, onYou) => ({
   done: ready && onYou && item.kind === "task" && endsByDone(item),
 });
 
-const NOUNS = Object.freeze({ widget: "ask", reply: "question" });
+const NOUNS = Object.freeze({ widget: "ask", reply: "question", approval: "approval" });
 export const taskNoun = (item) =>
   item.kind === "task"
     ? (NOUNS[item.ends] ?? "task")
@@ -75,6 +75,7 @@ const taskItem = (task) => ({
   session: task.session,
   ends: task.ends,
   ask: task.ask,
+  ...(task.approval ? { approval: task.approval } : {}),
 });
 
 export function selectQueues({ threads, workflows, tasks }) {
@@ -141,5 +142,6 @@ export function selectDone({ tasks }) {
     detail: task.outcome?.detail ?? null,
     ends: task.ends,
     ask: task.ask,
+    ...(task.approval ? { approval: task.approval } : {}),
   }));
 }

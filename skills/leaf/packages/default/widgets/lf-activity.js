@@ -17,7 +17,7 @@
  *
  * The thing is the row's way there: a widget or section is an ordinary fragment link,
  * so the browser owns that travel as it does for lf-toc, and a thread is a button
- * onto `openThread`, which chooses the thread's inline destination or Threads the same
+ * onto `threadActions.open`, which chooses the thread's inline destination or Threads the same
  * way a mark and t/T do. Links and buttons are the keyboard route: each is a Tab stop
  * and a go-to target.
  *
@@ -48,7 +48,8 @@ import {
   markdownWords,
   offer,
   once,
-  openThread,
+  threadActions,
+  readThreads,
   relabel,
   watchHistory,
   watchOwner,
@@ -169,7 +170,6 @@ customElements.define(
     #empty = null;
     // Event id to its row and the description it was last filled from.
     #rows = new Map();
-    #history = [];
     #notice = null;
     #opened = false;
     #reading = null;
@@ -177,6 +177,7 @@ customElements.define(
     #closedReading = null;
     #restored = null;
     #ready = false;
+    #watching = null;
 
     connectedCallback() {
       if (!once(this)) return;
@@ -192,31 +193,30 @@ customElements.define(
         this.#bind(this.#rows.get(row.id).item, row);
       this.#reading = new HeldReading(
         () => [this.#notice, this.#list, this.#empty],
-        () => this.#render(this.#history),
+        () => this.#watching.refresh(),
       );
       this.#notice.addEventListener("click", () => {
         if (this.#notice.hasAttribute("data-lf-news")) this.#opened = true;
         else this.#opened = !this.#opened;
         this.#reading.release();
-        this.#render(this.#history);
+        this.#watching.refresh();
       });
       const paper = matchMedia("print");
       const printing = () => {
         this.#printing = paper.matches;
-        this.#render(this.#history);
+        this.#watching.refresh();
       };
       watchOwner(this, {
         connect: () => paper.addEventListener("change", printing),
         disconnect: () => paper.removeEventListener("change", printing),
       });
-      watchHistory(this, (history, { ready }) => {
+      this.#watching = watchHistory(this, (history, { ready }) => {
         this.#ready = ready;
-        this.#history = history;
         this.#render(history);
         // Excerpts painted from the source take the parser's words once it lands.
         if (!markdownReady())
           loadMarkdown().then((loaded) => {
-            if (loaded && this.isConnected) this.#render(this.#history);
+            if (loaded) this.#watching.refresh();
           });
       });
     }
@@ -231,7 +231,11 @@ customElements.define(
       relabel(button, row.label, { says: "echo" });
       button.addEventListener(
         "click",
-        () => void openThread(row.thread, { focus: "thread" }),
+        () =>
+          void threadActions.open(
+            readThreads().threads.find((thread) => thread.id === row.thread)?.key,
+            { focus: "thread" },
+          ),
       );
     }
 
@@ -253,7 +257,7 @@ customElements.define(
         undone: served.undone,
       }));
       // Hold the complete drawn reading, including an undo or a changed title:
-      // those may wrap too. The authoritative history always remains #history.
+      // those may wrap too. The watcher supplies the authoritative history.
       for (const row of current) {
         if (row.widget || row.label) row.label ??= nameOf(row.widget);
       }

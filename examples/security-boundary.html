@@ -196,9 +196,7 @@ flowchart LR
         </section>
 
         <section id="security-states">
-          <h2 id="security-states-heading">
-            The job has an irreversible handoff, not a hand-back
-          </h2>
+          <h2 id="security-states-heading">Sandbox execution and cleanup</h2>
           <lf-diagram
             id="security-proposed-states"
             parts="node:S0 node:S1 node:S2 node:S3 node:S4 node:S5 node:S6 node:S7 node:F"
@@ -321,7 +319,7 @@ stateDiagram-v2
         </section>
 
         <section id="security-bottlenecks">
-          <h2 id="security-bottlenecks-heading">Put policy at four bottlenecks</h2>
+          <h2 id="security-bottlenecks-heading">Boundary enforcement</h2>
           <table id="security-bottleneck-table">
             <thead>
               <tr>
@@ -404,9 +402,7 @@ stateDiagram-v2
         </section>
 
         <section id="security-vendor-sandboxes">
-          <h2 id="security-vendor-heading">
-            One outer sandbox is the enforcement seam for both harnesses
-          </h2>
+          <h2 id="security-vendor-heading">Shared sandbox for Claude and Codex</h2>
           <table id="security-vendor-table">
             <thead>
               <tr>
@@ -476,7 +472,7 @@ stateDiagram-v2
         </section>
 
         <section id="security-contracts">
-          <h2 id="security-contracts-heading">Setup becomes a clean ownership seam</h2>
+          <h2 id="security-contracts-heading">Runner setup and sandbox setup</h2>
           <table id="security-setup-contract">
             <thead>
               <tr>
@@ -537,9 +533,7 @@ stateDiagram-v2
         </section>
 
         <section id="security-implementation">
-          <h2 id="security-implementation-heading">
-            The proposal cut the work into three slices
-          </h2>
+          <h2 id="security-implementation-heading">Implementation steps</h2>
           <ol class="steps" id="security-implementation-steps">
             <li>
               <strong>Prove one shared outer adapter.</strong> On
@@ -583,7 +577,7 @@ stateDiagram-v2
         </section>
 
         <section id="security-proof">
-          <h2 id="security-proof-heading">Acceptance is end-to-end and adversarial</h2>
+          <h2 id="security-proof-heading">Integration and adversarial tests</h2>
           <table id="security-proof-table">
             <thead>
               <tr>
@@ -713,10 +707,11 @@ stateDiagram-v2
             </tbody>
           </table>
           <p id="security-not-proven">
-            The adapter probe and hosted integration tests subsequently exercised
-            current Claude, Codex, and SRT behavior on GitHub-hosted Ubuntu 24.04,
-            including the nested UID, TLS-intercepting proxy, headless command lines,
-            Unix-socket denial, runner-checkout isolation, and complete teardown.
+            The Ubuntu 24.04 <code>test-sandbox</code> job exercised SRT and Tend’s
+            Claude and Codex adapters with stub harness executables. It checked
+            Unix-socket denial, runner-checkout isolation, broker routing, sandbox-local
+            loopback, reap, and bounded export. The separate
+            <code>test-codex-surface</code> job checked the pinned Codex CLI interface.
           </p>
         </section>
 

@@ -46,6 +46,7 @@ import tempfile
 from collections.abc import Callable, Sequence
 from dataclasses import replace
 from functools import partial
+from html import escape
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import unquote, urljoin, urlsplit
@@ -61,7 +62,7 @@ from leaf.schema import (
     SESSION_ROUTE_DIRS,
     VENDORED_FILES,
 )
-from leaf.structure import FRAME_ANCESTORS_CSP, SourceDocument
+from leaf.structure import FRAME_ANCESTORS_CSP, SourceDocument, source_index
 from leaf_website import SITE_MANIFEST, SITE_ORIGIN, initial_state, site_metadata
 
 from leaf_dev import LEAF_COMMAND, ROOT
@@ -293,10 +294,9 @@ def social_images(assets: Path) -> dict[str, str]:
     return {"": media_url(assets / SOCIAL_CARD), **images}
 
 
-def document_metadata(page_dir: Path) -> tuple[str, str]:
-    """The title and description a published page authored; a crawler and an
-    unfurled link show exactly these two, so the build refuses a page missing either."""
-    parsed = SourceDocument((page_dir / "index.html").read_text(encoding="utf-8"))
+def document_metadata(source: Path) -> tuple[str, str]:
+    """The authored title and description shared by publication and catalog captions."""
+    parsed = SourceDocument(source.read_text(encoding="utf-8"))
     title = parsed.title.strip()
     description = next(
         (
@@ -307,8 +307,44 @@ def document_metadata(page_dir: Path) -> tuple[str, str]:
         "",
     )
     if not title or not description:
-        sys.exit(f"{page_dir.name}: a published page needs a <title> and a description")
+        sys.exit(f"{source}: a published page needs a <title> and a description")
     return title, description
+
+
+def catalog_markup(markup: str) -> str:
+    """Derive each active catalog caption from its example's description.
+
+    The authored catalog keeps selection, order, category labels and presentation.
+    Source spans replace only descriptions, preserving the rest of its markup,
+    including commented-out cards. Site publication uses this reading even when
+    the committed generated captions have not been refreshed.
+    """
+    parsed = SourceDocument(markup)
+    index = source_index(markup)
+    replacements = []
+    for link in parsed.tree.select("a.example-link"):
+        name = urlsplit(link.attrs["href"]).path.removeprefix("/examples/").strip("/")
+        _, description = document_metadata(EXAMPLES / f"{name}.html")
+        caption = link.select_one(".example-description")
+        if caption is None:
+            raise ValueError(f"{name}: catalog card needs an example-description")
+        location = caption.source_location
+        start = index(location.start_tag.end_line, location.start_tag.end_col)
+        end = index(location.end_tag.start_line, location.end_tag.start_col)
+        replacements.append((start, end, escape(description, quote=False)))
+    for start, end, text in reversed(replacements):
+        markup = markup[:start] + text + markup[end:]
+    return markup
+
+
+@click.command()
+def catalog() -> None:
+    """Refresh docs/examples.html descriptions from example page metadata."""
+    source = DOCS / "examples.html"
+    source.write_text(
+        catalog_markup(source.read_text(encoding="utf-8")), encoding="utf-8"
+    )
+    click.echo(f"✓ catalog descriptions → {source}")
 
 
 def write_crawler_directives(assets: Path, routes: list[str]) -> None:
@@ -392,9 +428,13 @@ def publish_pages(
         # Reuse the initialized layer; each document prepares its own authored inputs.
         for source in product_sources():
             fixture = read_fixture(source)
-            if source in source_markup:
+            authored = source.read_text(encoding="utf-8")
+            markup = source_markup.get(source, authored)
+            if source.name == "examples.html":
+                markup = catalog_markup(markup)
+            if markup != authored:
                 private_source = Path(tmp) / source.name
-                private_source.write_text(source_markup[source], encoding="utf-8")
+                private_source.write_text(markup, encoding="utf-8")
                 fixture = replace(
                     fixture,
                     source=private_source,
@@ -474,7 +514,7 @@ def publish_live_shells(
             states[str(revision)] = state_path
         state_path = states[str(current)]
         state = initial_state(page_dir, page_root, kind, release)
-        title, description = document_metadata(page_dir)
+        title, description = document_metadata(page_dir / "index.html")
         entry = {
             "directory": page_dir.relative_to(out).as_posix(),
             "assets": asset_root,

@@ -81,6 +81,7 @@
    (anchor-travel.js, `prepareTrip`), is not travelled to at all: the press moves the ring and
    the focus and leaves the page still. A thread ask keeps its centred arrival in the
    panel's own list. */
+import { scrollIntoView } from "../landing-scroll.js";
 
 import { landingBand, shownBox, shownParts } from "../geometry.js";
 import { createAskBannerControls } from "./banner-controls.js";
@@ -165,6 +166,7 @@ export function createAskView({
     await openPageThread(ask.thread, {
       focus: false,
       travel: false,
+      reader: "complete",
       ...(intent && { intent }),
     });
     return askNodes(ask);
@@ -661,7 +663,7 @@ export function createAskView({
       },
     );
     if (!arrived) return false;
-    askRow(next)?.scrollIntoView({ block: "nearest" });
+    scrollIntoView(askRow(next), { block: "nearest" });
     return true;
   }
 

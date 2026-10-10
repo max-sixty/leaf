@@ -48,7 +48,12 @@ from urllib.parse import parse_qsl, urlencode, urlsplit
 import pytest
 from browser_sources import browser_function
 from click.testing import CliRunner
-from interact_support import STATED_TIMEOUT, append_carried_log_record, wait_for
+from interact_support import (
+    STATED_TIMEOUT,
+    append_carried_log_record,
+    package_path,
+    wait_for,
+)
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -480,6 +485,9 @@ def serve(tmp_path, monkeypatch, initialized_page):
     half of it. A thread and any widget a message carries exist nowhere else, so
     without this every sweep is green over a page the user never gets.
 
+    Explicit checkout packages may be passed as Paths; the fixture selects them
+    relative to its working directory, independently of the checkout and HOME.
+
     `seed_log=False` leaves an example's log out while still laying in its media, for a
     test that appends those events itself. `layer_registry` and `layer_widgets` add a
     project package, a registry and its widget modules, for a reading the layer makes
@@ -521,16 +529,17 @@ def serve(tmp_path, monkeypatch, initialized_page):
             if fixture is not None and packages is None
             else (
                 *EXAMPLE_PACKAGES,
-                "~/"
-                + (ROOT / "tests/fixtures/packages/work")
-                .relative_to(Path.home())
-                .as_posix(),
+                ROOT / "tests/fixtures/packages/work",
             )
             if packages is None
             else packages
         )
         if layer_registry is not None or layer_widgets:
             selected_packages = (*selected_packages, "./.leaf")
+        selected_packages = tuple(
+            package_path(item) if isinstance(item, Path) else item
+            for item in selected_packages
+        )
         selection_args = package_selection_args(selected_packages)
         d = tmp_path / f"page{len(servers)}"
 
@@ -1113,7 +1122,7 @@ def undo(page):
 # A request a test stops is cancelled rather than failed. The page cannot tell the two
 # apart — both reject the fetch the runtime awaits and leave it on the same `catch`.
 # The console can tell them apart, which is what the reason is chosen for:
-# tests/AGENTS.md, "A test cannot assert over noise it makes itself". A refused event
+# tests/AGENTS.md, "Test-made noise". A refused event
 # request remains unresolved, deliberately: the outbox keeps its attempt and retries.
 def refuse(route):
     """Stop this request with nothing for the page's console to report."""
@@ -1350,8 +1359,7 @@ def watched(page, *, java_script_enabled=True):
     Call before navigation so the init scripts take effect. With scripting disabled,
     retain native console and page errors but install no script-driven sensors and
     await none at judgement.
-    Repeated calls return the existing list. `tests/AGENTS.md`, "Consume a browser
-    error where it is caused", owns consumption and cleanup policy."""
+    Repeated calls return the existing list. `tests/AGENTS.md`, "Browser errors", owns consumption and cleanup policy."""
     assert _BROWSER_PROBLEM_LISTS is not None, (
         "watched pages need the function-scoped browser fixture"
     )
@@ -1926,7 +1934,7 @@ class WatchedBrowser:
     `unwatched` exposes the underlying browser for product gates that deliberately
     open faulty pages and report those faults themselves. Ordinary clean-page
     journeys use the wrapped browser. Fixture policy lives in `tests/AGENTS.md`,
-    "Consume a browser error where it is caused"."""
+    "Browser errors"."""
 
     def __init__(self, browser):
         self._browser = browser
@@ -1990,8 +1998,7 @@ def margins_laid_out(page):
     window — but only on the runs where the frame had not landed yet, which is why the
     same probe condensed on one run and not the next.
 
-    The pending frame is not a fact to wait a frame for (`tests/AGENTS.md`, "A wait
-    consumes a fact the system states"), so the work is run instead of guessed at.
+    The pending frame is not a fact to wait a frame for (`tests/AGENTS.md`, "Waits"), so the work is run instead of guessed at.
     Whether the observer schedules it at all is `test_render_margin.py`'s subject, not
     that of a test reading the layout it produces.
 

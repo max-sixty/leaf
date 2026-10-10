@@ -2565,7 +2565,11 @@ def test_primary_arrival_records_a_return_place_only_when_travelling(
                     node.style.top = '-20px';
                   } else if (fault === 'inset') {
                     const edge = selection.edges.top;
-                    node.style[edge] = `calc(${edge === 'top' ? -20 : 20}px + ${node.style[edge]})`;
+                    // Placement owns the inline inset and rewrites it after scroll.
+                    // Keep the fault in the cascade through the painted comparison.
+                    const rule = document.createElement('style');
+                    rule.textContent = `#${owner.id} { ${edge}: calc(${edge === 'top' ? -20 : 20}px + ${node.style[edge]}) !important; }`;
+                    document.head.append(rule);
                   } else node.style.marginTop = '-20px';
                   const result = {before, after:node.getBoundingClientRect().top, scroll:scrollY, plane:selection.plane, sourceTravel:source.getBoundingClientRect().top - sourceBefore};
                   await paint();

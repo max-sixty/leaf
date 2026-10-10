@@ -239,6 +239,7 @@ export {
   reachedForWords,
   relabel,
   reserve,
+  searchField,
   selectableOffer,
   worksInside,
 } from "./widget-elements.js";

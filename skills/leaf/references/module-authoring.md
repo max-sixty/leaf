@@ -27,6 +27,11 @@ query private chrome, or duplicate a runtime helper inside itself. Resolve canon
 generated images or links. It uses the page's public root across ordinary and
 published pages while the source retains its canonical path.
 
+Use `searchField(className, {name, label, placeholder = label})` for a search or
+filter field. It supplies the shared frame, accessible label, native editor and
+Clear; the caller owns its query and results. Put an auxiliary reading such as a
+match count in its `end` slot and reserve its longest value with `reserve`.
+
 For a vertical navigation that must retain sideways reading, use
 `scrollIntoReadingBand(target, holder, block, behavior)`: `target` is an element or
 Range, and `holder` is the element whose reading regions contain it. Element targets

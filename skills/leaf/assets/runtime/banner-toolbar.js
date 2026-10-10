@@ -33,9 +33,11 @@
  *   return once the selection goes.
  *
  * A contribution whose seat differs by face names one per face (`{ desk, phone }`). The
- * face is the window's, the same query that gives the banner its phone face in theme.css
- * and chrome.css, so the partition changes only when the window crosses that width.
+ * face is the window's, the stylesheet-owned --lf-banner-face that also dresses
+ * the banner, so the partition changes only when the window crosses that width.
  */
+import { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
+import { scrollIntoView } from "./landing-scroll.js";
 import { html, render, repeat } from "../vendor/browser-runtime.js";
 import { el } from "./widget-elements.js";
 import { iconTemplate } from "./icons.js";
@@ -60,7 +62,7 @@ export const BANNER_CONTROL_RANK = Object.freeze({
   leaves: 40,
   latest: 50,
   map: 70,
-  // The page's commands a finger reaches here rather than by key (touch-controls.js),
+  // The page's commands reached by pointer here (touch-controls.js),
   // among themselves in the shortcut line's order.
   commands: 75,
   blanket: 80,
@@ -71,7 +73,7 @@ export const BANNER_CONTROL_RANK = Object.freeze({
   // Questions and Threads are the two doors to the one side panel, side by side.
   queue: 107,
   threads: 110,
-  // The way out of the mode or picker the user stands in, under a finger.
+  // The next steps in the mode or picker the user stands in.
   steps: 120,
   commentSelection: 130,
 });
@@ -83,8 +85,12 @@ overflowMenu.setAttribute("role", "group");
 overflowMenu.setAttribute("aria-label", "More page controls");
 
 const SEATS = ["row", "menu", "gesture"];
-// The banner's phone face; theme.css and chrome.css state the same query.
-const phone = matchMedia("screen and (width <= 480px)");
+// The render-blocking theme decides posture once, before the banner arrives.
+const bannerFace = () =>
+  getComputedStyle(document.documentElement)
+    .getPropertyValue("--lf-banner-face")
+    .trim();
+let face = bannerFace();
 
 const controls = new Map();
 let sequence = 0;
@@ -93,8 +99,7 @@ let menu = EMPTY;
 let openSeats = null;
 
 const perFace = (entry) => typeof entry.seat !== "string";
-const seatOf = (entry) =>
-  perFace(entry) ? entry.seat[phone.matches ? "phone" : "desk"] : entry.seat;
+const seatOf = (entry) => (perFace(entry) ? entry.seat[face] : entry.seat);
 const ordered = () =>
   [...controls.values()].sort(
     (left, right) => left.rank - right.rank || left.sequence - right.sequence,
@@ -245,7 +250,10 @@ overflowMenu.addEventListener("toggle", (event) => {
   const open = event.newState === "open";
   render(rowTemplate(), bannerActions);
   const first = open && document.activeElement === overflowBtn && menu.find(focusable);
-  if (first) focusDestination(first.focusTarget, "move", { scroll: true });
+  if (first) {
+    focusDestination(first.focusTarget, "move");
+    scrollIntoView(first.focusTarget, { block: "nearest" });
+  }
   if (!open) opener = null;
   repaint();
 });
@@ -261,7 +269,10 @@ function seatControls() {
 }
 
 // Crossing the phone width moves a per-face control between the row and More.
-phone.addEventListener("change", () => {
+addEventListener("resize", () => {
+  const next = bannerFace();
+  if (next === face) return;
+  face = next;
   seatControls();
   if (openSeats !== null) openSeats = currentMenuSeats();
   paint();
@@ -410,7 +421,7 @@ function focusAfterRemoval(entry, wasInMenu) {
 // caller means to show, and this is the only one that can open for a menu control.
 function revealMenuControl(control) {
   if (!overflowMenu.matches(":popover-open")) {
-    overflowMenu.showPopover();
+    showNativeLayer(overflowMenu);
     return;
   }
   const entry = menu.find(
@@ -432,7 +443,7 @@ overflowMenu.addEventListener("lf-reveal", (event) => {
 // control fails `checkVisibility()` inside a shut popover, and `focus()` on it is a
 // no-op, so a caller that hands the user somewhere has to ask this rather than the
 // control. Null means the toolbar offers no way in, which happens only off the banner.
-export function bannerControlDoor(control) {
+export function bannerControlDoor(control = overflowBtn) {
   if (control.isConnected && control.checkVisibility({ visibilityProperty: true }))
     return control;
   const menu = control.closest(".lf-banner-menu");
@@ -453,5 +464,5 @@ export function returnToBannerControl(control) {
 }
 
 export function dismissBannerControls() {
-  if (overflowMenu.matches(":popover-open")) overflowMenu.hidePopover();
+  if (overflowMenu.matches(":popover-open")) closeNativeLayer(overflowMenu);
 }

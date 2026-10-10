@@ -921,11 +921,9 @@ def test_an_ask_marker_s_label_and_name_identify_its_question(browser, serve):
     }"""
     seen = {}
     for ask in ("short-ask", "long-ask"):
-        marker = page.locator(f'.lf-margin-marker[data-lf-margin-for="{ask}"]')
-        if not marker.count():
-            marker = page.locator(
-                f'[data-lf-margin-for="{ask}"] .lf-margin-marker[data-lf-kinds~="ask"]'
-            )
+        marker = page.locator(
+            f'[data-lf-margin-for="{ask}"] .lf-margin-marker[data-lf-kinds~="question"]'
+        )
         marker.scroll_into_view_if_needed()
         marker.hover()
         expect(marker.locator(".lf-margin-entry-label")).to_be_visible()
@@ -1386,7 +1384,7 @@ def test_the_standing_ask_marks_its_selected_margin_reading(browser, serve):
     first_marker = page.locator(
         '[data-lf-margin-for="jobs-decision"] > .lf-margin-marker'
     )
-    expect(first).to_have_attribute("data-lf-ask", "1")
+    expect(first).to_have_attribute("data-lf-question", "1")
     expect(first_marker).to_have_attribute("data-lf-target-selected", "")
     assert first_marker.evaluate(
         "marker => getComputedStyle(marker).borderTopColor"
@@ -1520,9 +1518,13 @@ def test_draft_and_page_map_reaction_actions_stay_reachable(browser, serve, widt
     expect(draft_control(page, "cancel", "d-draft")).to_be_visible()
     with sending(page, "save the draft"):
         draft_control(page, "save", "d-draft").click()
-    expect(page.locator("#d-draft .lf-draft-body")).to_have_text(body)
+    expect(page.locator("#d-draft .lf-draft-body")).to_have_text(
+        body, use_inner_text=True
+    )
     navigate(page, page.url)
-    expect(page.locator("#d-draft .lf-draft-body")).to_have_text(body)
+    expect(page.locator("#d-draft .lf-draft-body")).to_have_text(
+        body, use_inner_text=True
+    )
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
@@ -2197,7 +2199,7 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
     expect(
         page.locator(
             '[data-lf-margin-for="bg-choice-ask"] '
-            '.lf-margin-marker[data-lf-kinds="ask"] '
+            '.lf-margin-marker[data-lf-kinds="question"] '
             'svg[data-lf-icon="question"]'
         )
     ).to_be_visible()
@@ -2969,7 +2971,9 @@ def test_the_chrome_names_an_ask_by_its_question(browser, serve):
     page.keyboard.press("Shift+m")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     group = dialog.locator(".lf-page-map-group").filter(
-        has=page.get_by_role("heading", name="ask · Which jobs are worth starting?")
+        has=page.get_by_role(
+            "heading", name="question · Which jobs are worth starting?"
+        )
     )
     expect(group).to_have_count(1)
     expect(group.locator(".lf-page-map-action")).to_have_text(["Waiting on you"])
@@ -4284,7 +4288,8 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     cluster = page.locator(f'[data-lf-margin-for="{target}"]')
     marker = cluster.locator(":scope > .lf-margin-marker")
     expect(marker).to_have_attribute(
-        "data-lf-kinds", "comment ask" if target == "bracket-decision" else "comment"
+        "data-lf-kinds",
+        "comment question" if target == "bracket-decision" else "comment",
     )
     expect(marker).not_to_have_attribute("data-lf-turn", re.compile(".+"))
     marker.evaluate("node => node.dataset.identityProbe = 'retained'")
@@ -5646,7 +5651,7 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     assert page.evaluate(
         """async id => {
           const {openThread} = await window.__lfRuntimeImport('/runtime/application.js');
-          return Boolean(await openThread(id, {focus: 'thread'}));
+          return Boolean(await openThread(id, {part: 'thread'}));
         }""",
         second["id"],
     )
@@ -5901,7 +5906,7 @@ def test_one_information_margin_entry_does_not_raise_a_preview(browser, serve):
     """A single non-thread reading travels directly; cards are reserved for threads."""
     page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
     resized(page, 1600, 900)
-    marker = page.locator('.lf-margin-marker[data-lf-kinds="ask"]').first
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="question"]').first
     expect(marker).not_to_have_attribute("aria-controls", re.compile(".+"))
     expect(marker).not_to_have_attribute("aria-expanded", re.compile(".+"))
     marker.hover()
@@ -6938,6 +6943,78 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(browser,
     expect(preview).to_be_hidden()
     expect(page.locator(f'.lf-thread[data-id="{root_id}"] leaf-text')).to_be_focused()
     assert page.evaluate("() => window.__cardOpenings") == []
+
+
+def test_the_first_rail_allocation_matches_its_native_row(browser, serve):
+    """A first comment clears touch-sized entries and the actual focus-ring inset."""
+    source = leaf_page(
+        "First rail allocation",
+        "<h1>First rail allocation</h1>"
+        '<p id="subject">A passage without an existing margin entry.</p>'
+        '<p id="next-subject">Another passage beside the same rail.</p>',
+        head="<style>:root {--focus-ring-w:7px; --focus-ring-gap:4px}</style>",
+    )
+    context = browser.new_context(
+        viewport={"width": 1400, "height": 900}, has_touch=True
+    )
+    page = open_page(browser, serve(source), context=context)
+    expect(page.locator("main")).to_have_attribute(
+        "data-lf-margin", re.compile(r"rail")
+    )
+    expect(page.locator(".lf-margin-entry")).to_have_count(0)
+    prospective = page.evaluate("""async () => {
+      const owner = await __lfRuntimeImport('/runtime/annotation-overlay/margin-layout.js');
+      return owner.marginSpot(document.querySelector('#subject'));
+    }""")
+    assert prospective["right"] - prospective["left"] == pytest.approx(55)
+    expect(page.locator(".lf-margin-entry")).to_have_count(0)
+    page.locator("#subject").click(modifiers=["Alt"])
+    editor = page.locator(".lf-fab-input")
+    expect(editor).to_be_focused()
+    editor.press_sequentially("The first comment")
+    with sending(page, "the first rail comment"):
+        editor.press("Control+Enter")
+    entry = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
+    expect(entry).to_be_visible()
+    actual = entry.evaluate("""entry => {
+      const row = entry.closest('.lf-margin-cluster').getBoundingClientRect();
+      return {left:row.left, right:row.right, entry:entry.offsetWidth};
+    }""")
+    assert actual["entry"] == 44
+    assert actual["left"] == pytest.approx(prospective["left"])
+    assert actual["right"] == pytest.approx(prospective["right"])
+    reused = page.evaluate("""async () => {
+      const owner = await __lfRuntimeImport('/runtime/annotation-overlay/margin-layout.js');
+      const observer = new MutationObserver(() => {});
+      observer.observe(document.body, {childList:true, subtree:true});
+      const spot = owner.marginSpot(document.querySelector('#next-subject'));
+      const writes = observer.takeRecords().length;
+      observer.disconnect();
+      return {spot, writes};
+    }""")
+    assert reused["spot"]["right"] - reused["spot"]["left"] == pytest.approx(55)
+    assert reused["writes"] == 0, "An existing rail should need no measuring DOM writes"
+
+    # Opening peer actions leaves one direct entry beside an options group. That
+    # wider row cannot supply the allocation of a new single-entry comment row.
+    page.evaluate("""async () => {
+      const {contributionEntry, registerContribution} =
+        await __lfRuntimeImport('/runtime/widget-api.js');
+      registerContribution({key: 'rail-details', target: document.querySelector('#subject'),
+        read: () => ({entries: [contributionEntry({
+          key: 'details', icon: 'comment', label: 'Rail details',
+          behavior: 'disclosure', rank: 'reading'
+        })]}), activate: () => {}});
+    }""")
+    entry.focus()
+    expect(
+        entry.locator("xpath=..").locator(":scope > .lf-margin-options")
+    ).to_be_visible()
+    expanded = page.evaluate("""async () => {
+      const owner = await __lfRuntimeImport('/runtime/annotation-overlay/margin-layout.js');
+      return owner.marginSpot(document.querySelector('#next-subject'));
+    }""")
+    assert expanded["right"] - expanded["left"] == pytest.approx(55)
 
 
 @pytest.mark.parametrize("width", [1440, 1920, 2400])
@@ -8398,7 +8475,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     marker = page.locator('[data-lf-margin-for="off-t-resync"] > .lf-margin-marker')
     expect(marker).to_have_count(1)
     expect(marker.locator("..")).to_have_attribute(
-        "aria-label", re.compile(r"Page actions for .*iOS reconnect stall")
+        "aria-label", re.compile(r"Page actions for section · iOS reconnect stall")
     )
     marker.evaluate(
         "marker => scrollBy(0, marker.getBoundingClientRect().top - innerHeight + 52)"
@@ -8410,9 +8487,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(preview).to_be_visible()
     expect(preview).to_have_attribute("aria-label", "Thread for iOS reconnect stall")
     expect(thread.locator(".lf-msg.user").first).to_be_visible()
-    expect(
-        thread.get_by_role("button", name="Open interactive reply in Threads")
-    ).to_have_count(1)
+    expect(thread.get_by_role("button", name="Open interactive reply")).to_have_count(1)
     expect(thread.locator(".lf-page-thread")).to_be_focused()
     geometry = marker.evaluate(
         """markerNode => {
@@ -8467,6 +8542,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     target.scroll_into_view_if_needed()
     expect(target).to_be_in_viewport()
     rendered(page)
+    expect(send).to_be_focused()
     expect(preview).to_be_visible()
     capped = preview.evaluate(
         """card => {
@@ -8515,7 +8591,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(preview).to_be_visible()
     expect(thread.locator(".lf-page-thread")).to_be_focused()
 
-    open_full = thread.get_by_role("button", name="Open interactive reply in Threads")
+    open_full = thread.get_by_role("button", name="Open interactive reply")
     open_full.focus()
     expect(open_full).to_be_focused()
     page.keyboard.press("Enter")
@@ -11418,7 +11494,7 @@ def test_rail_native_comment_and_retained_reply(browser, serve):
     expect(card).to_have_count(1)
     expect(card).to_be_visible()
     page.evaluate(
-        """async () => {const {openThread}=await __lfRuntimeImport('/runtime/application.js'); await openThread(document.querySelector('.lf-page-thread').dataset.thread,{focus:'reply',travel:false});}"""
+        """async () => {const {openThread}=await __lfRuntimeImport('/runtime/application.js'); await openThread(document.querySelector('.lf-page-thread').dataset.thread,{part:'reply',travel:false});}"""
     )
     reply = card.locator("leaf-text")
     expect(reply).to_be_focused()

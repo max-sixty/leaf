@@ -159,7 +159,7 @@ customElements.define(
         button.type = "button";
         row = { node, outlet, button };
         button.addEventListener("click", async () => {
-          await threadActions.open(thread.key, { focus: "thread", travel: false });
+          await threadActions.open(thread.key, { part: "thread", travel: false });
         });
         node.append(button, outlet);
         group.rows.append(node);

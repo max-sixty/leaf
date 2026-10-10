@@ -30,7 +30,7 @@ measurement definition.
 ## Interactive and visual evidence
 
 Introduce each interaction in the page's own language: say that a board takes a
-drag, an options group takes a click, or a review task's nested Ask takes a pick.
+drag, an options group takes a click, or a review task's nested Question takes a pick.
 Do not copy the connective sentence from another page.
 
 Use `lf-diagram` for flows, state machines, sequences, class relationships, ER
@@ -130,7 +130,7 @@ A patch goes through the `diff` package's producer script; the contract's
 instructions give the command:
 
 ```bash
-leaf page instructions <page> producer --contract unified-diff
+leaf page instructions <page> --contract unified-diff | jq -er '.producer'
 ```
 
 A bound widget shows its source's current value, in every version and thread that
@@ -158,8 +158,12 @@ subject. Show a browser journey recorded with Playwright as its trace in `lf-tra
 rather than as its video, so the user can step through each recorded action and
 comment on its screenshots and saved page elements. `lf-trace` travels in the `playwright` package; after
 `leaf page init --package playwright <page>`,
-`leaf page instructions <page> producer --contract playwright-trace` gives the
-import command. Give native `<video>` and `<audio>` elements `controls`, label their
+the producer instructions give the import command:
+
+```bash
+leaf page instructions <page> --contract playwright-trace | jq -er '.producer'
+```
+ Give native `<video>` and `<audio>` elements `controls`, label their
 content, and give a video a `poster` image. MP4 and WebM video, and MP3, M4A,
 Ogg, and WAV audio are admitted; codec playback is the browser's. Export embeds
 the complete recording for offline playback with no size cap or omissions: base64

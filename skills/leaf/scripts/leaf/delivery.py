@@ -50,7 +50,13 @@ from .service import (
     requires_agent_attention,
     unacknowledged,
 )
-from .state import flocked, session_lock_path, session_record, write_json
+from .state import (
+    flocked,
+    open_session_turn,
+    session_lock_path,
+    session_record,
+    write_json,
+)
 
 DELIVERY_FORMAT = "leaf-delivery-v5"
 DELIVERY_ID = re.compile(r"[0-9a-f]{8}")
@@ -506,12 +512,7 @@ def cmd_delivery_read(delivery_id: str, *, part: int = 1) -> None:
 
 def cmd_delivery_ack(delivery_id: str) -> None:
     """Accept the reader's attestation that every part reached its context."""
-    payload = read_delivery(delivery_id)
-    harness = session_harness()
-    if payload["acknowledge"] is None and harness is not None:
-        harness.receive_pointer(payload)
-    else:
-        receive(payload, harness.session if harness else None)
+    receive_delivery(delivery_id)
 
 
 def pickup_receipts(
@@ -654,10 +655,21 @@ def receive_batch(
 
 
 def receive_delivery(delivery_id: str) -> list[Path]:
-    """Confirm complete input a `leaf wait` printed, as its reader, and record its
-    entry into this consumer's turn. Printing cannot confirm receipt."""
+    """Confirm a reader's complete input and record its entry into that turn.
+
+    Both explicit acknowledgement commands prove the consumer is running even
+    if its prompt hook failed. The canonical opener preserves known provider
+    lifecycle authority. Pointer receipt also retains its origin's reservation,
+    including the exact turn a Codex hook offered it to. Automatic hook and
+    provider receipts observe an already-open turn through `receive` instead.
+    """
+    payload = read_delivery(delivery_id)
     harness = session_harness()
-    return receive(read_delivery(delivery_id), harness.session if harness else None)
+    if harness:
+        open_session_turn(harness.session)
+        if payload["acknowledge"] is None:
+            return harness.receive_pointer(payload)
+    return receive(payload, harness.session if harness else None)
 
 
 def receive(payload: dict, session_id: str | None) -> list[Path]:
@@ -706,8 +718,8 @@ def receive_one(
             observed = session_record(session_id)
             if observed["turn_closed"] is not None:
                 raise ReceiptRefused("the receiving provider turn has ended")
-            # Receipt observes the already-open consumer turn. Harness prompt and
-            # provider-start boundaries own lifecycle; an ack never opens it.
+            # Receipt observes the consumer turn. The explicit acknowledgement
+            # boundary can open an unnamed turn; hooks and providers cannot.
             turn = observed["turn"]
         record_pickup(page, events, session=session_id, turn=turn)
     return page_dir

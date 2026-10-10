@@ -36,7 +36,6 @@ from interact_support import (
     TOKEN,
     append_carried_log_record,
     append_command,
-    asks_on_you,
     check,
     declare_data_input,
     declare_work,
@@ -47,6 +46,7 @@ from interact_support import (
     page_packages,
     page_state,
     publish,
+    questions_on_you,
     read_page_data,
     record_claim,
     release_codex_command,
@@ -138,6 +138,18 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
         )[0]
         == 401
     )
+    for entry in (
+        {"type": "keydown", "sequence": True},
+        {"type": "interaction_part", "sequence": 1},
+        {"type": "focusin", "target": [{}]},
+    ):
+        assert (
+            fetch(
+                f"{server}/api/interaction",
+                data=json.dumps({"session": "bad", "entries": [entry]}).encode(),
+            )[0]
+            == 400
+        )
     assert fetch(f"{server}/missing")[0] == 404
 
     rows = [
@@ -283,19 +295,25 @@ def test_samples_use_captured_resources_and_independent_event_logs(server, page_
     assert status == 200, document
     assert b"Child text." in document
     assert b"data-lf-share-url" not in document
-    root = "/revisions/" + files_model.revision_path(page_dir, 1).stem
-    assert f'data-lf-entry="{root}/leaf.js"'.encode() in document
-    assert f'data-lf-page-root="{child.removeprefix(server)}"'.encode() in document
     served = structure_model.SourceDocument(document.decode()).tree
+    assert f'data-lf-page-root="{child.removeprefix(server)}"'.encode() in document
     assert "inert" in served.find("body").attrs
+    child_assets = (
+        served.find("script", attrs={"data-lf-entry": True})
+        .attrs["data-lf-entry"]
+        .removesuffix("leaf.js")
+    )
+    assert child_assets.startswith(child.removeprefix(server) + "/revisions/")
+    assert fetch(server + child_assets + "page/sample.js", token=None) == (200, module)
+    assert fetch(server + child_assets + "theme.css", token=None) == (
+        200,
+        captured_theme,
+    )
     trace = page_dir / interaction_model.INTERACTIONS_FILE
     before_housekeeping = trace.read_bytes()
-    assert fetch(child + "/api/news")[0] == 200
-    assert fetch(child + "/theme.css") == (200, captured_theme)
+    assert fetch(child + "/api/news", token=None)[0] == 200
+    assert fetch(child + "/theme.css", token=None) == (200, captured_theme)
     assert trace.read_bytes() == before_housekeeping
-    [module_path] = re.findall(rb'src="([^"]+/page/sample.js)"', document)
-    assert module_path == f"{root}/page/sample.js".encode()
-    assert fetch(server + module_path.decode()) == (200, module)
     status, raw = fetch(child + "/api/state")
     assert status == 200, raw
     assert json.loads(raw)["events"] == []
@@ -472,7 +490,7 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
     assert event_model.read_events(page_dir) == before
     status, raw = fetch(f"{server}/api/samples", data=b'{"template":"missing"}')
     assert status == 400 and "unknown sample template" in json.loads(raw)["error"]
-    assert fetch(children[0] + "/api/state", token=None)[0] == 401
+    assert fetch(children[0] + "/api/state", token=None)[0] == 200
 
 
 def test_sample_template_lookup_stays_within_the_requesting_page(server, page_dir):
@@ -497,11 +515,92 @@ def test_sample_template_lookup_stays_within_the_requesting_page(server, page_di
     nested = create(outer, "practice")
     nested_document = fetch(nested + "/")[1]
     assert b"Nested practice" in nested_document
-    root = "/revisions/" + files_model.revision_path(page_dir, 1).stem
-    assert f'data-lf-entry="{root}/leaf.js"'.encode() in nested_document
+    entry = re.search(rb'data-lf-entry="([^"]+)"', nested_document)[1].decode()
+    assert entry.startswith(nested.removeprefix(server) + "/revisions/")
+    assert fetch(server + entry, token=None)[0] == 200
     assert fetch(server + "/api/samples", data=b'{"template":"nested-only"}')[0] == 400
     assert fetch(outer + "/api/release", data=b"{}")[0] == 200
     assert fetch(nested + "/")[0] == 404
+
+
+@pytest.mark.parametrize("routed", [False, True])
+def test_sample_capability_authorizes_only_its_live_descendants(page_dir, routed):
+    template = """<template id="practice" data-sample><h1>Practice</h1>
+      <template id="inner" data-sample><h1>Nested practice</h1></template>
+    </template>"""
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
+    publish(page_dir)
+    with hosting_model.TemporaryPageServer(page_dir, token=TOKEN) as preview:
+        origin = preview.origin
+
+        def create(parent, name, token):
+            generation = json.loads(fetch(parent + "/api/state", token=token)[1])[
+                "layer"
+            ]["generation"]
+            status, raw = fetch(
+                parent + "/api/samples",
+                data=json.dumps({"template": name}).encode(),
+                token=token,
+                layer=generation,
+                headers={"Leaf-Layer": generation},
+            )
+            assert status == 200, raw
+            url = origin + json.loads(raw)["url"].rstrip("/")
+            if routed and parent == origin:
+                url += "~" + "1" * 64
+            return url
+
+        first = create(origin, "practice", TOKEN)
+        second = create(origin, "practice", TOKEN)
+        preflight = urllib.request.Request(
+            first + "/api/event",
+            method="OPTIONS",
+            headers={
+                "Origin": "null",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type,leaf-layer",
+            },
+        )
+        with urllib.request.urlopen(preflight) as answer:
+            assert answer.status == 204
+            assert answer.headers["Access-Control-Allow-Origin"] == "*"
+            assert (
+                answer.headers["Access-Control-Allow-Headers"]
+                == "content-type,leaf-layer"
+            )
+            assert answer.headers["Referrer-Policy"] == "no-referrer"
+            assert answer.headers.get("Access-Control-Allow-Credentials") is None
+        with urllib.request.urlopen(first + "/") as answer:
+            assert answer.headers.get("Content-Security-Policy") is None
+        assert fetch(first + "/api/state", token=None)[0] == 200
+        assert fetch(origin + "/api/state", token=None)[0] == 401
+        assert fetch(origin + "/api/samples/" + "0" * 32 + "/", token=None)[0] == 404
+        nested = create(first, "inner", None)
+        assert fetch(nested + "/", token=None)[0] == 200
+        assert fetch(first + "/api/release", data=b"{}", token=None)[0] == 200
+        assert fetch(first + "/", token=None)[0] == 404
+        # A read already sent by the opaque child can arrive after Reset revokes
+        # its capability. It still receives the HTTP refusal, not a CORS failure.
+        for method in ("GET", "OPTIONS"):
+            request = urllib.request.Request(
+                first + "/api/state", method=method, headers={"Origin": "null"}
+            )
+            if method == "OPTIONS":
+                # Browsers reject non-2xx preflights regardless of their headers.
+                with urllib.request.urlopen(request) as answer:
+                    assert answer.status == 204
+                    headers = answer.headers
+            else:
+                with pytest.raises(urllib.error.HTTPError) as refused:
+                    urllib.request.urlopen(request)
+                assert refused.value.code == 404
+                headers = refused.value.headers
+            assert headers["Access-Control-Allow-Origin"] == "*"
+            assert headers.get("Access-Control-Allow-Credentials") is None
+        assert fetch(nested + "/", token=None)[0] == 404
+        assert fetch(second + "/api/state", token=None)[0] == 200
+        assert fetch(second + "/api/release", data=b"{}", token=None)[0] == 200
+        assert preview.httpd.samples.pages == {}
 
 
 @pytest.mark.parametrize("explicit_revision", [False, True])
@@ -551,10 +650,15 @@ def test_frozen_preview_samples_use_snapshot_inputs_without_parent_writes(
         assert status == 200, raw
         child = preview.origin + json.loads(raw)["url"]
         body = fetch(child)[1]
-        root = "/revisions/" + snapshot.revision_names[2].removesuffix(".html")
         assert b"Frozen child" in body
-        assert f'data-lf-entry="{root}/leaf.js"'.encode() in body
-        assert fetch(preview.origin + root + "/leaf.js")[0] == 200
+        tree = structure_model.SourceDocument(body.decode()).tree
+        assets = (
+            tree.find("script", attrs={"data-lf-entry": True})
+            .attrs["data-lf-entry"]
+            .removesuffix("leaf.js")
+        )
+        assert assets.startswith(child.removeprefix(preview.origin) + "revisions/")
+        assert fetch(preview.origin + assets + "leaf.js", token=None)[0] == 200
         state = json.loads(fetch(child + "api/state")[1])
         # The child reads the data the checked preview holds, as the preview does.
         assert state["data"]["sources"]["builds"]["value"] == ["checked"]
@@ -1918,10 +2022,12 @@ def test_the_live_root_places_its_delivery_at_the_parsers_head_boundary(
     assert "<title>Backfill plan\u2028Q3</title>" in body
     # The old splice corrupted this tag while leaving the page renderable.
     artifact_root = "/revisions/" + files_model.revision_path(page_dir, 1).stem
-    assert (
-        f'<link rel="stylesheet" href="{artifact_root}/theme.css" data-lf-runtime>'
-        in body
+    theme = structure_model.SourceDocument(body).tree.find(
+        "link", attrs={"href": f"{artifact_root}/theme.css"}
     )
+    assert theme is not None
+    assert theme.attrs["rel"] == ["stylesheet"]
+    assert "data-lf-runtime" in theme.attrs
 
 
 def test_a_revision_s_resources_are_cached_and_its_document_is_not(server, page_dir):
@@ -1976,7 +2082,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     )
     assert status == 400
     assert json.loads(body)["error"] == (
-        "v2 still has unanswered Asks: plan-choice-decision"
+        "v2 still has unanswered widget Questions: widget:choice"
     )
 
     status, body = fetch(
@@ -2027,7 +2133,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     )
     assert status == 400
     assert json.loads(body)["error"] == (
-        "v2 still has unanswered Asks: thread-approval-decision"
+        "v2 still has unanswered widget Questions: widget:thread-approval"
     )
 
     status, body = fetch(
@@ -5878,10 +5984,10 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     open_state = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
     assert open_state.exit_code == 0, open_state.output
     open_reading = json.loads(open_state.output)
-    assert asks_on_you(open_reading) == [
+    assert questions_on_you(open_reading) == [
         {
-            "id": "orphan-decision",
-            "tag": "lf-ask",
+            "id": "widget:orphan-choice",
+            "tag": "lf-options",
             "widget": "orphan-choice",
             "widget_tag": "lf-options",
             "thread": "c-lost",
@@ -5921,7 +6027,7 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
         "unread": [],
         "attention": None,
     }
-    assert asks_on_you(closed_reading) == []
+    assert questions_on_you(closed_reading) == []
     assert [
         element["id"]
         for element in closed_reading["elements"]

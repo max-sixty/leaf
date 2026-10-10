@@ -101,7 +101,7 @@
    passes. */
 // The page's own text blocks: what a user takes in as one unit of prose, and the
 // grain every question about "where in the document is this" is answered at — which
-// passage they are reading, where a walk over Asks starts, what a version diff
+// passage they are reading, where a walk over Questions starts, what a version diff
 // compares, and which block holds a change the user has to see in context. A plain
 // constant at module scope rather than a member of the passages object, because a
 // consumer built before that object exists is otherwise reduced to holding a thunk for
@@ -309,7 +309,7 @@ export const elementOver = (n) => {
 // A widget riding a message stands inside the thread panel, so the panel is `.lf-ui`
 // over every word it says — and read straight, a question an agent asked in a reply says
 // nothing whatever. That silence did not read as one: it read as an empty slot, so the
-// group named its options by their ids in the accessibility tree, the Asks list named the
+// group named its options by their ids in the accessibility tree, the Questions list named the
 // question by its id, and every widget reading its own words in a message got "" and fell
 // back to something else.
 //

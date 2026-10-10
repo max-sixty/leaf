@@ -12,7 +12,12 @@ from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
 from leaf import http as http_model
 from leaf import thread as thread_model
-from leaf.render_checks import SERVED_TIMEOUT_MS, rendered
+from leaf.render_checks import (
+    PROBE_POLL_MS,
+    SERVED_TIMEOUT_MS,
+    rendered,
+    wait_until_ready,
+)
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_cases_navigation import source_revision
@@ -80,6 +85,49 @@ def _agent_update_reply(page_dir, root, number, for_event=None):
         for_event=for_event,
         when_settled="post",
     )["id"]
+
+
+def test_main_reply_replaces_unread_progress_before_the_thread_is_opened(
+    browser, serve
+):
+    """Reading a main reply clears unread without unfolding its completed progress."""
+    url = serve(PANEL_PAGE)
+    panel_comment(serve.page_dir, "An earlier conversation.")
+    root = panel_comment(serve.page_dir, "Check the schedule.")
+    progress = thread_model.post_reply(
+        serve.page_dir, root, "Checking mounts.", None, for_event=root, ephemeral=True
+    )["id"]
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    expect(card).not_to_have_attribute("open", "")
+    expect(card.locator(".lf-thread-unread")).to_have_text("1 unread")
+
+    answer = thread_model.post_reply(
+        serve.page_dir, root, "Both mounts fit.", None, for_event=root
+    )["id"]
+    told(page)
+    expect(card.locator(".lf-thread-unread")).to_have_text("1 unread")
+    # A fresh transcript starts with completed progress folded, as on a later visit.
+    page.reload()
+    wait_until_ready(page)
+    card.locator(":scope > .lf-thread-summary").click()
+    expect(card.locator(f'.lf-msg[data-mid="{answer}"]')).to_be_visible()
+    expect(card.locator(f'.lf-msg[data-mid="{progress}"]')).to_be_hidden()
+    expect(page.locator(".lf-first-unread")).to_be_hidden()
+    round_trip(page)
+    assert _read_events(serve.page_dir)[-1]["messages"] == [
+        {"message": answer, "version": answer}
+    ]
+
+    expand = card.get_by_role("button", name="Show 1 progress message", exact=True)
+    expand.press("Enter")
+    expect(card.get_by_text("Checking mounts.", exact=True)).to_be_visible()
+    expect(page.locator(".lf-first-unread")).to_be_hidden()
+    page.reload()
+    wait_until_ready(page)
+    expect(page.locator(".lf-first-unread")).to_be_hidden()
 
 
 def test_unread_summary_keeps_hidden_original_unread(browser, serve):
@@ -784,11 +832,19 @@ def _open_first_unread(page, child):
     }"""), "the message is not whole in the child's own viewport"
 
 
-def _still_unread(child):
-    """Read once, after the reading pass the last move scheduled has run (`rendered`).
-    The page draws a version read in the pass that sends it, so a pass that read the
-    message would have hidden Next unread and counted a send."""
-    rendered(child)
+def _still_unread(page, child):
+    """Deliver the owner's viewport, then wait for the child's renderable work.
+
+    An offscreen child has no paint to wait for. Its rendering owner declares such
+    work settled until it becomes visible; a visible child drains its reading pass.
+    A pass that read the message hides Next unread and counts a send.
+    """
+    rendered(page)
+    child.wait_for_function(
+        "() => document.querySelector('script[data-lf-entry]').lfRenderingSettled()",
+        polling=PROBE_POLL_MS,
+        timeout=SERVED_TIMEOUT_MS,
+    )
     assert child.locator(".lf-first-unread").is_visible()
     assert _traffic(child).sends == 0
 
@@ -814,7 +870,7 @@ def test_clipped_sample_cannot_acknowledge_child_viewport(browser, serve):
     )
     child.locator(".lf-threads-toggle").focus()
     _open_first_unread(page, child)
-    _still_unread(child)
+    _still_unread(page, child)
 
     # Scrolling the box until the message stands 20px below its top shows it, and the
     # same message is read.
@@ -840,7 +896,7 @@ def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
     page.evaluate("scrollTo(0, 0)")
     _open_first_unread(page, child)
     assert frame.bounding_box()["y"] > page.viewport_size["height"]
-    _still_unread(child)
+    _still_unread(page, child)
 
     # Taller than the window, the sample is read through the band the containing page
     # shows as it scrolls: its edge coming into view shows nothing, and a later scroll of
@@ -850,7 +906,7 @@ def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
             .getBoundingClientRect().top;
         scrollBy(0, top - innerHeight + 20);
     }""")
-    _still_unread(child)
+    _still_unread(page, child)
     page.evaluate("scrollBy(0, 700)")
     _read_by_the_sample(page, child)
 

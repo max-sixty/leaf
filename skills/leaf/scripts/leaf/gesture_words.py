@@ -44,7 +44,7 @@ def _text(node) -> str:
     return "".join(_text(child) for child in node["content"])
 
 
-def _leading_title(node: dict) -> str:
+def leading_title(node: dict) -> str:
     for child in node["content"]:
         if isinstance(child, str):
             if child.strip():
@@ -53,7 +53,7 @@ def _leading_title(node: dict) -> str:
         if child["tag"] in TITLES:
             return collapse(_text(child))
         if child["tag"] in {"header", "hgroup"}:
-            return _leading_title(child)
+            return leading_title(child)
     return ""
 
 
@@ -80,7 +80,7 @@ class _Document:
     def name(self, node: dict) -> str:
         attribute = self.registry.get(node["tag"], {}).get("x-name")
         declared = (node["attrs"].get(attribute) or "").strip() if attribute else ""
-        return declared or _leading_title(node)
+        return declared or leading_title(node)
 
 
 class GestureWords:

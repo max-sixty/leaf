@@ -26,7 +26,6 @@
    instead (`landing.js`): a visible pinned row or a separate transcript keeps
    the turn the user was reading, even when it is not the latest one. A separate
    transcript opened for reading shows its latest turn (`showLatestTurn`). */
-import { scrollIntoView } from "../landing-scroll.js";
 import { landingBand, seenRect, shownBox } from "../geometry.js";
 import { focused } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
@@ -35,7 +34,7 @@ import { scrollerFor, scrollersOf } from "../reading-regions.js";
 import { renderedParent, under } from "../shadow.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { retainUserIntent } from "../user-intent.js";
-import { scrollIntoReadingBand } from "../landing-scroll.js";
+import { scrollIntoReadingBand, scrollIntoView } from "../landing-scroll.js";
 import { atScrollEnd, moveScrollerBy, scrollToEnd } from "../scrolling.js";
 import { SAYS_IN, SAY_ROW } from "./selectors.js";
 

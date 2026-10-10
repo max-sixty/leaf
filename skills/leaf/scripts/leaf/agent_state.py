@@ -1,10 +1,10 @@
-"""Agent-facing projected page state and the current Questions and Tasks lists.
+"""Agent-facing page state, canonical Questions, explicit Tasks and work queues.
 
-The reading uses one transaction and canonical queue selection. Questions
-are everything currently on the user, including recovery; Tasks are everything on
-the agent, including owed answers and work in hand. Empty Questions means this page
-records no current need for the user. `source` states whether a document is live and
-whether an invalid source save leaves the last valid version active.
+The reading uses one transaction and canonical queue selection. The on-you queue
+selects open Questions, explicit user Tasks and delivery recovery; on-agent selects
+owed responses and committed work. The Question inventory also retains answered
+and withdrawn records. `source` states whether a document is live and whether an
+invalid source save leaves the last valid version active.
 """
 
 import json
@@ -19,6 +19,7 @@ from .events import bare_reaction, is_reaction
 from .files import revision_path
 from .passages import page_passages
 from .projection import FrozenThreadReading, retirement_outcomes
+from .questions import collection
 from .registry.reactions import described
 from .registry.storage import layer_metadata, require_registry
 from .revision_artifact import active_enclosing
@@ -120,11 +121,11 @@ def _base_state(
         "data_bindings": page_data_binding_inventory(page_dir, registry, events),
         "measurement_lag": [],
         # What is on the user and what is on the agent, each item naming its
-        # subject (`queues` below); and every task open on the page, on either
-        # side, each naming its `owner` (`tasks.page_tasks`): the agent's, and the
-        # user's, among them each open Ask and each question a thread leaves them.
+        # subject (`queues` below); explicit committed tasks on either side; and
+        # the complete canonical Question inventory selected by those queues.
         "queues": {"on_you": [], "on_agent": []},
         "tasks": [],
+        "questions": [],
         # Current semantic facts only. A thread's history belongs to
         # `page state PAGE THREAD`; keeping its sequence list here would make this
         # default snapshot grow with every thread turn. A reaction nobody
@@ -234,9 +235,8 @@ def _apply_thread_state(state: dict, thread: FrozenThreadReading) -> None:
 def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> dict:
     """The page reading narrowed to one widget on the page and what it holds: its
     element, the moves and reports standing on it or on anything inside it, the
-    workflows there, the updates aimed at them, and the tasks open on them, an Ask's
-    among them. An Ask's task names the widget that answers it, so narrowing to the
-    Ask carries the pick standing on that choice."""
+    workflows there, the updates aimed at them, the explicit tasks open on them,
+    and the canonical Questions sourced by them."""
 
     def inside(element: str | None) -> bool:
         return element is not None and widget in enclosing.get(element, ())
@@ -271,21 +271,27 @@ def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> 
             ],
         },
         "workflows": workflows,
+        "questions": [
+            question
+            for question in state["questions"]
+            if question["thread"] is None
+            and question["source"]["kind"] == "widget"
+            and (
+                inside(question["source"]["id"]) or inside(question["prompt"]["target"])
+            )
+        ],
         "tasks": [
             task
             for task in state["tasks"]
             if task["thread"] is None
-            and (
-                (task["subject"]["kind"] == "widget" and inside(task["subject"]["id"]))
-                or (task["ask"] is not None and inside(task["ask"]["widget"]))
-            )
+            and (task["subject"]["kind"] == "widget" and inside(task["subject"]["id"]))
         ],
     }
 
 
 def task_item(task: dict) -> dict:
     """One open task as an item on the queue of its `owner`."""
-    item = {
+    return {
         "kind": "task",
         "id": task["id"],
         "owner": task["owner"],
@@ -296,50 +302,44 @@ def task_item(task: dict) -> dict:
         "agent": task["agent"],
         "session": task["session"],
         "ends": task["ends"],
-        "ask": task["ask"],
     }
-    if task["ends"] == "approval":
-        item["approval"] = task["approval"]
-    return item
 
 
-def queues(threads: list[dict], workflows: list[dict], tasks: list[dict]) -> dict:
-    """What is on the user and what is on the agent, as two lists of items.
+def question_item(question: dict) -> dict:
+    """One Question on a work queue; it retains its canonical record."""
+    source = question["source"]
+    subject = (
+        {"kind": "widget", "id": source["id"]}
+        if source["kind"] == "widget"
+        else {"kind": "page"}
+        if source["kind"] == "approval"
+        else {"kind": "thread", "id": question["thread"]}
+    )
+    return {
+        "kind": "question",
+        "id": question["id"],
+        "owner": "user",
+        "subject": subject,
+        "thread": question["thread"],
+        "title": question["prompt"]["text"],
+        "running": None,
+        "agent": None,
+        "session": None,
+        "ends": source["kind"],
+        "question": question,
+    }
 
-    `on_you` holds each open task on the user (`task`, `owner: "user"`); then each
-    thread whose attention is the user's for a move whose response failed, to send
-    again (`recovery`), once however many such moves it holds; then each page widget
-    move whose response failed (`recovery`). How a task `ends` says when it leaves the
-    user's queue early: an Ask's while its widget seat holds a thread with the agent
-    (`ask.held_by_seat`), and a question's while its thread waits on the agent, as it
-    does the moment the user answers there. `on_agent` holds each move the agent owes
-    an answer (`answer`), each move it has in hand that owes nothing (`work`), and each
-    open task of the agent's (`task`, `owner: "agent"`). Every item names its `subject`
-    and the `thread` it stands in, or null on the page. Each is selected from a
-    reading the served state already made: each thread's `attention`, the workflows,
-    and the open tasks (`tasks.page_tasks`).
 
-    The browser selects the same two lists from its own reading of these three
-    (`runtime/queues.js`), with the tab's unresolved sends already folded into the
-    threads' attention, the workflows and the tasks, and a thread message the tab is
-    still sending counted on the agent; `served_records.py` holds a reading the two
-    must agree on.
+def queues(
+    threads: list[dict], workflows: list[dict], tasks: list[dict], questions: dict
+) -> dict:
+    """Select Question obligations, explicit tasks and response recovery once.
 
-    Experimental, like tasks (`tasks.py`): the item kinds and fields are expected to
-    change a lot."""
-    attention = {thread["id"]: thread["attention"] for thread in threads}
-
-    def on_user(task: dict) -> bool:
-        if task["ends"] == "widget":
-            return not task["ask"]["held_by_seat"]
-        if task["ends"] == "reply":
-            held = attention.get(task["subject"]["id"])
-            return held is None or held["kind"] != "waiting"
-        return True
-
-    on_you = [
-        task_item(task) for task in tasks if task["owner"] == "user" and on_user(task)
-    ]
+    Questions are not tasks. Their canonical next actor selects their queue row;
+    explicit work and delivery recovery keep their existing completion routes.
+    """
+    on_you = [question_item(question) for question in questions["user"]]
+    on_you += [task_item(task) for task in tasks if task["owner"] == "user"]
     on_you += [
         {
             "kind": "recovery",
@@ -395,7 +395,7 @@ def _write_page_state(
     authored measurements whose live source has run again
     (`measurement_lag_entries`), each comment thread's current state, attention, and
     the agent messages in it the user has not read, every open task on either side,
-    an open Ask among the user's, the two queues they and the workflows add up to
+    the canonical Questions, the two queues they and the workflows add up to
     (`queues`, the banner's own counts), and presence beside what
     answers for it. It is a
     selection from the reading /api/state serves (`read_served_page`), computed on
@@ -456,7 +456,7 @@ def _write_page_state(
     state["user_views"] = read_user_views(
         page_dir, active["revision"] if active is not None else None
     )
-    # Before a first revision there is no document, so no thread, Ask, widget, or
+    # Before a first revision there is no document, so no thread, Question, widget, or
     # claim subject either: every reading below keeps its empty default.
     if reading is not None:
         browser = served["browser"]
@@ -475,15 +475,16 @@ def _write_page_state(
                 item["message"] for item in served_threads[thread["id"]]["unread"]
             ]
             thread["attention"] = served_threads[thread["id"]]["attention"]
-        # The active version's Ask and approval tasks, then every other page task.
-        state["tasks"] = (
-            browser["views"][str(active["revision"])]["document"]["tasks"]
-            + browser["tasks"]
+        state["questions"] = (
+            browser["views"][str(active["revision"])]["document"]["questions"]["all"]
+            + browser["thread"]["questions"]["all"]
         )
+        state["tasks"] = browser["tasks"]
         state["queues"] = queues(
             browser["thread"]["threads"],
             state["workflows"],
             state["tasks"],
+            collection(state["questions"]),
         )
     subject = None
     if target is not None:
@@ -621,5 +622,10 @@ def _write_page_state(
             },
             "workflows": workflows,
             "tasks": [task for task in state["tasks"] if task["thread"] == thread_id],
+            "questions": [
+                question
+                for question in state["questions"]
+                if question["thread"] == thread_id
+            ],
         }
     print(json.dumps(state, indent=2, ensure_ascii=False))

@@ -40,6 +40,7 @@ from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import tasks as tasks_model
 from leaf.registry import storage as registry_storage
+from leaf.registry.contract import element_declarations
 from leaf.structure import SourceDocument
 from leaf.thread_context import thread_digest
 from leaf.validation import compatibility as validation_model
@@ -257,8 +258,8 @@ def test_sample_admits_interactive_widgets(page_dir):
     assert errs == []
 
 
-def test_an_ask_surface_frames_exactly_one_source(page_dir):
-    """A broad Ask has one authored title and one source of liveness and state."""
+def test_question_context_frames_any_number_of_independent_sources(page_dir):
+    """Context supplies one title without imposing source count or identity."""
     registry = registry_storage.load_registry(page_dir)
     first = (
         '<lf-options id="g-one" choose>'
@@ -294,15 +295,18 @@ def test_an_ask_surface_frames_exactly_one_source(page_dir):
         f'<lf-ask id="decision-untitled"><p>Context.</p>{first}</lf-ask>',
         registry,
     )
-    assert "an Ask must have exactly one direct heading, found none" in " ".join(
-        untitled
+    assert (
+        "a Question context must have exactly one direct heading, found none"
+        in " ".join(untitled)
     )
 
     retitled = fragment_errors(
         f'<lf-ask id="decision-retitled"><h2>Choose</h2><h3>Again</h3>{first}</lf-ask>',
         registry,
     )
-    assert "an Ask must have exactly one direct heading" in " ".join(retitled)
+    assert "a Question context must have exactly one direct heading" in " ".join(
+        retitled
+    )
 
     context_first = fragment_errors(
         f'<lf-ask id="decision-context-first"><p>Context.</p><h2>Choose</h2>{first}</lf-ask>',
@@ -321,20 +325,20 @@ def test_an_ask_surface_frames_exactly_one_source(page_dir):
         in " ".join(control_first)
     )
 
-    empty = fragment_errors(
-        '<lf-ask id="decision-empty"><h2>Nothing to answer</h2></lf-ask>',
-        registry,
+    assert (
+        fragment_errors(
+            '<lf-ask id="decision-empty"><h2>Nothing to answer</h2></lf-ask>',
+            registry,
+        )
+        == []
     )
-    assert "an Ask must frame exactly one declared Ask source, found none" in " ".join(
-        empty
+    assert (
+        fragment_errors(
+            f'<lf-ask id="decision-crowded"><h2>Two decisions</h2>{first}{second}</lf-ask>',
+            registry,
+        )
+        == []
     )
-
-    crowded = fragment_errors(
-        f'<lf-ask id="decision-crowded">{first}{second}</lf-ask>', registry
-    )
-    message = " ".join(crowded)
-    assert "an Ask must frame exactly one declared Ask source" in message
-    assert "<lf-options#g-one>" in message and "<lf-options#g-two>" in message
 
 
 def test_command_references_preserve_the_package_owned_subject_roles(page_dir):
@@ -526,7 +530,7 @@ def test_every_widget_in_the_vocabulary_stands_in_a_corpus_source():
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
     # The corpus is generated from the others, so it can only repeat their coverage.
     authored = " ".join(path.read_text() for path in CORPUS_SOURCES)
-    tags = [tag for tag in registry if not tag.startswith("$")]
+    tags = element_declarations(registry)
     assert tags, "no widgets read — an empty vocabulary demonstrates itself"
     undemonstrated = [tag for tag in tags if not re.search(rf"<{tag}[\s>]", authored)]
     assert not undemonstrated, (

@@ -80,6 +80,7 @@ import {
   allBindings,
   lineOf,
   titleOf,
+  descriptionOf,
   commandEntries,
   commandRoutes,
   live,
@@ -294,7 +295,7 @@ export const shadow = () => {
 // callback. Resolve that reference at invocation time so replacement, disconnection,
 // scope liveness, row liveness, and dynamic routes have the same meaning as they do for
 // an intrinsic key press. The source scope need not be where focus stands: that is the
-// point of an ancestor projection such as Ask.
+// point of an ancestor projection such as Question.
 function referencedInvocation(reference) {
   if (!reference) return null;
   const current = referencedCommandEntry(reference);
@@ -310,6 +311,7 @@ function referencedInvocation(reference) {
     ? {
         id: reference.id,
         row: reference.row,
+        entry: current,
         binding: reference.binding ?? undefined,
         run,
         native: false,
@@ -330,14 +332,30 @@ function invocationFor(row, binding, command, recovered = null) {
       ? () => nativeControl.click()
       : null;
   return run
-    ? { id: command?.id ?? row.id, row, binding, run, native: Boolean(row.native) }
+    ? {
+        id: command?.id ?? row.id,
+        row,
+        entry: current,
+        binding,
+        run,
+        native: Boolean(row.native),
+      }
     : null;
 }
 
 function announceInvocation(invocation) {
+  const { row, entry } = invocation;
+  const route = entry.route;
   document.dispatchEvent(
     new window.CustomEvent("lf-command-invoked", {
-      detail: { id: invocation.id, binding: invocation.binding },
+      // Dynamic words are facts of this invocation. Reading the register later
+      // would describe the state after the command changed it.
+      detail: {
+        id: invocation.id,
+        binding: invocation.binding,
+        title: titleOf(route?.title === undefined ? row : route),
+        description: descriptionOf(route?.description === undefined ? row : route),
+      },
     }),
   );
 }
@@ -496,7 +514,7 @@ export function activeCommandLabel(ids) {
   return command?.binding != null ? spell(command.binding) : "";
 }
 // Snapshot executable bindings by row while focus is still on the page. A widget's
-// intrinsic key and an Ask alias can share a command id while only one is shadowed.
+// intrinsic key and a Question alias can share a command id while only one is shadowed.
 // The reference is a modal scope and shadows the page once it opens, so callers take
 // this snapshot before opening it.
 export function availableCommandRoutes({ commands = false } = {}) {

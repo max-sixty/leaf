@@ -19,7 +19,7 @@ from leaf.projection import (
     retirement_outcomes,
     rewritten_bodies,
 )
-from leaf.registry.contract import retirement_slots
+from leaf.registry.contract import is_element_name, retirement_slots
 from leaf.registry.schema import json_value
 from leaf.render_checks import evaluate_probe, one_frame, rendered
 from leaf.structure import SourceDocument
@@ -335,7 +335,7 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         f"[{scheme}] <{u['tag']} id={u['id']!r}> shows {u['w']}x{u['h']}px of words"
         " and offers no box to mark: it draws none of its own and no element inside"
         " it draws one either, so a comment anchored here would outline nothing and"
-        " the Ask walk would travel to the top of the page. Put the words in an"
+        " the Question walk would travel to the top of the page. Put the words in an"
         " element that takes a box"
         for u in unmarkable
     ]
@@ -430,7 +430,7 @@ def open_widgets(registry: dict) -> list[str]:
     return [
         tag
         for tag, entry in registry.items()
-        if tag.startswith("lf-") and entry.get("x-content") in ("markup", "members")
+        if is_element_name(tag) and entry.get("x-content") in ("markup", "members")
     ]
 
 
@@ -623,7 +623,7 @@ def overflowing_region_advice(readings, height: int) -> list[str]:
     so its regions should show what they hold, and one that scrolls is the exception
     (page-authoring.md, A workspace). Advice rather than a failure: a region that
     scrolls still shows everything, and whether to trim it or split it is the author's
-    call. A region holding more than one open Ask is a queue of items to decide
+    call. A region holding more than one open Question is a queue of items to decide
     stacked into one scroll, so its advice names the queue form instead of trimming."""
     found = []
     regions = _swept(
@@ -635,9 +635,9 @@ def overflowing_region_advice(readings, height: int) -> list[str]:
             f"at {_span(widths)} wide and {height}px tall {region['at']} runs past "
             f"the region it scrolls in, {region['over']}px at {min(widths)}px"
         )
-        if region["asks"] > 1:
+        if region["questions"] > 1:
             found.append(
-                f"{where}, and holds {region['asks']} open Asks: a reader decides "
+                f"{where}, and holds {region['questions']} open Questions: a reader decides "
                 "them one at a time, so make the items a queue, one "
                 '`lf-tabs list="side"` whose tabs each hold one (page-authoring.md, '
                 "A workspace)"

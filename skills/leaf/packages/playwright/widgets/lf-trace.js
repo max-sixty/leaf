@@ -39,6 +39,7 @@
  * prepares offscreen while the committed pixels, caption and comment identity stay
  * together; viewed and decoded pixels commit before the retired surface leaves. */
 import {
+  inBaseLayer,
   commands,
   capturePlace,
   declarationFor,
@@ -85,7 +86,7 @@ const [{ Timeline, DataSet, css: timelineCss }, { Viewer, css: imageCss }] =
 if (!document.querySelector("#lf-trace-library-styles")) {
   const styles = document.createElement("style");
   styles.id = "lf-trace-library-styles";
-  styles.textContent = `@layer lf-base { @scope (lf-trace) { ${timelineCss} ${imageCss} } }`;
+  styles.textContent = inBaseLayer(`@scope (lf-trace) { ${timelineCss} ${imageCss} }`);
   document.head.append(styles);
 }
 
@@ -366,7 +367,7 @@ customElements.define(
       this.querySelector(":scope > [data-lf-prepaint]")?.remove();
       this.append(this.waiting);
       this.controls = offer("div", "lf-trace-controls");
-      this.sources = offer("wa-radio-group", "lf-trace-sources");
+      this.sources = offer("wa-radio-group", "lf-trace-sources lf-label-hidden");
       this.sources.name = `${this.id}-scope`;
       this.sources.label = "Recording scope";
       this.sources.size = "s";

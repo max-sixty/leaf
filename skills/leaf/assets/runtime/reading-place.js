@@ -16,12 +16,12 @@
  *
  * Whoever remembers a place owns when to take it and where to keep it: version
  * continuity (version.js) across revisions and reading-region shifts, a root tab set
- * (lf-tabs) for each of its views. The browser keeps a history entry's own offset
- * (history.js). `readingBlock` is the first block on screen in one region or the page;
- * `pageReadingBlock` is the block the user is reading, where a walk starts, and
- * `landingPlace` is where a let-go puts them. `openingPassage` gives travel the
- * passage its destination draws first, using the same rendered words as the visible
- * landmarks. It is independent of the viewport, so scrolling through a tall landing
+ * (lf-tabs) for each of its views. History's working-place checkpoints separately own
+ * an entry's viewport offset (history.js). `readingBlock` is the first block on screen
+ * in one region or the page; `pageReadingBlock` is the block the user is reading,
+ * where a walk starts, and `landingPlace` is where a let-go puts them. `openingPassage`
+ * gives travel the passage its destination draws first, using the same rendered words
+ * as the visible landmarks. It is independent of the viewport, so scrolling through a tall landing
  * does not turn a later passage into the trip's original arrival.
  */
 import {
@@ -81,7 +81,7 @@ const HEADING = "h1, h2, h3, h4, h5, h6";
 // The page's own text blocks the user can see, in document order, with the rect of each
 // one's first line — one reading of what is in front of them, for the two questions that
 // ask it: which passage the user returns to (below), and where a walk over the page's
-// Asks starts when they have pointed at nothing.
+// Questions starts when they have pointed at nothing.
 // A block's landmark is the top of its first line (a range), not its border box; restore
 // measures the matched text the same way, so the line box's leading cancels out.
 // The blocks are the page reading's (`pageBlocks`) rather than a query of the light DOM: a

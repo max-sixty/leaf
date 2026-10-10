@@ -123,7 +123,7 @@ leaf page state <page>
 ```
 
 Read the active revision's HTML (`active.file`) and the standing `state` over it,
-then open Asks, current thread state, and `measurement_lag` for figures whose sources
+then open Questions, current thread state, and `measurement_lag` for figures whose sources
 have run again. Before editing, follow `authoring-revisions.md`'s "Read
 before editing" section. Then run `leaf page claim <page>` and follow your harness
 contract for watching it. Starting a server

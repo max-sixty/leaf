@@ -82,6 +82,52 @@ def test_typing_may_grow_its_field(browser):
     judge_watches()
 
 
+def test_native_document_replacement_preserves_sensor_input_ownership(browser):
+    """A parser replacement retains sensors, including their input listeners.
+
+    A real click owns its movement; later passive movement and lost words still fail.
+    The same realm replaces its document twice; application listeners retire normally.
+    """
+    page = browser.new_page()
+    page.goto("data:text/html,<!doctype html><body>")
+    page.evaluate("""() => {
+      window.retiredClicks = 0;
+      addEventListener('click', () => retiredClicks++);
+    }""")
+    source = """<!doctype html><body style="margin:0">
+      <button id="press">Move the control</button><div id="above"></div>
+      <button id="control">Keep this control usable</button><textarea id="field"></textarea>
+      <script>
+        document.querySelector('#press').addEventListener('click', () => {
+          window.inputSource = lfInputWork.current()?.event.type ?? null;
+          document.querySelector('#above').style.height = '40px';
+        });
+      </script>"""
+    for _ in range(2):
+        page.evaluate(
+            "source => { document.open(); document.write(source); document.close(); }",
+            source,
+        )
+    paint(page)
+    page.locator("#press").click()
+    paint(page)
+    assert page.evaluate("inputSource") == "click"
+    assert page.evaluate("retiredClicks") == 0
+    assert page.locator("#above").bounding_box()["height"] == 40
+    judge_watches()
+    assert page.lf_errors == []
+
+    page.locator("#control").evaluate("node => { node.style.marginTop = '30px'; }")
+    paint(page)
+    judge_watches()
+    consume_browser_errors(page, "moved without input")
+
+    page.locator("#field").fill("Half a thought")
+    page.locator("#field").evaluate("node => { node.value = ''; }")
+    judge_watches()
+    consume_browser_errors(page, "typed words left the screen without a key or press")
+
+
 @pytest.mark.parametrize("nested", [False, True])
 def test_hidden_opaque_frames_drain_without_waiting_for_suppressed_paint(
     browser, nested
@@ -1142,6 +1188,11 @@ def test_a_hidden_frame_judges_existing_records_without_awaiting_paint(browser, 
         window.lfWatchPlatform.frame = nativeFrame;
         for (const callback of held.splice(0)) nativeFrame(callback);
       };
+      // The driver publishes owner visibility; this sensor-level fixture supplies
+      // the same fact while holding paint. Opaque-frame integration is above.
+      window.lfWatchJudgement = {
+        ancestorsDrawn: window.frameElement.checkVisibility(),
+      };
       window.hiddenJudged = false;
       window.lfShiftsJudged().then(() => window.hiddenJudged = true);
     }""")
@@ -1156,10 +1207,13 @@ def test_a_hidden_frame_judges_existing_records_without_awaiting_paint(browser, 
                 )
             else:
                 page.evaluate("document.querySelector('iframe').style.display = 'none'")
+        frame.evaluate(
+            "lfWatchJudgement.ancestorsDrawn = frameElement.checkVisibility()"
+        )
         frame.wait_for_function("window.hiddenJudged === true", polling=100)
         assert frame.evaluate("window.frameElement.checkVisibility()") is False
     finally:
-        frame.evaluate("window.restoreFrame()")
+        frame.evaluate("window.restoreFrame(); delete window.lfWatchJudgement")
 
 
 @pytest.mark.parametrize(

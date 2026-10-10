@@ -8,9 +8,10 @@ environment manager.
 This supervisor calls `bin/leaf` with its own arguments, which the registration
 states (`hook --harness claude-code --watch`). Claude's asyncRewake registration
 wakes on exit 2, a status uv can also use for startup failures, so only a clean
-Leaf return with a nonempty result becomes stderr and exit 2 here. Every other
-ending is silent. The harness's timeout signal is forwarded to the child, allowing
-the watch to release its lease. Only Claude Code's registrations run it: Codex
+Leaf return with a nonempty result becomes stderr and exit 2 here. Failures keep
+the child's stderr and become nonblocking exit 1; cancellation stays quiet.
+The harness's timeout signal is forwarded to the child, allowing the watch to
+release its lease. Only Claude Code's registrations run it: Codex
 ignores asyncRewake and would wait on this long-running command.
 
 Where Leaf's hooks module keeps the session's watch instead (`hooks/claude-code.ts`),
@@ -34,30 +35,41 @@ def watch(args: list[str], payload: str) -> None:
     own failures, so the status alone would wake the session with an error at
     every turn's end."""
     children = []
-    # The harness stops the hook at its timeout; the watch has to let its lease go
-    # with it, and a signal before it starts must not leave it starting unwatched.
+    cancelled = False
+
+    def cancel(signum, _frame):
+        nonlocal cancelled
+        cancelled = True
+        if children:
+            children[0].terminate()
+        else:
+            sys.exit(128 + signum)
+
+    # A harness timeout forwards termination so the watch releases its lease.
     for ending in (signal.SIGTERM, signal.SIGHUP):
-        signal.signal(
-            ending,
-            lambda signum, _frame: (
-                children[0].terminate() if children else sys.exit(128 + signum)
-            ),
-        )
-    with contextlib.suppress(Exception):
+        signal.signal(ending, cancel)
+    try:
         children.append(
             subprocess.Popen(
                 [str(PROJECT / "bin" / "leaf"), *args],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
                 text=True,
             )
         )
-        [child] = children
-        woke, _ = child.communicate(payload)
-        if child.returncode == 0 and woke.strip():
-            sys.stderr.write(woke)
-            sys.exit(2)
+    except OSError as error:
+        sys.exit(f"Leaf watch could not start: {error}")
+    [child] = children
+    woke, errors = child.communicate(payload)
+    if cancelled:
+        return
+    if child.returncode != 0:
+        sys.stderr.write(f"Leaf watch failed (exit {child.returncode}): {errors}")
+        sys.exit(1)
+    if woke.strip():
+        sys.stderr.write(woke)
+        sys.exit(2)
 
 
 def module_watches(payload: str) -> bool:

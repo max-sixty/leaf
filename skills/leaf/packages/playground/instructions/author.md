@@ -13,8 +13,8 @@ instruction to the agent stand in a rail beside it, on the same `2fr 1fr` tracks
 wide page's body and rail, wherever it has 43.5rem; narrower, they stack. A preview that needs
 width, such as two candidates side by side, belongs on a wide page (`<main
 class="layout-wide">`), or on a workspace page (`<main class="layout-workspace density-working">`) whose
-body is the playground's Ask, where the stage grows to the window's height. An Ask
-keeps the prose's width on either page, so give the playground's Ask
+body is the playground's `lf-ask` context, where the stage grows to the window's height.
+An `lf-ask` keeps the prose's width on either page, so give that context
 `data-width="available"`. Draw candidates directly on the stage without separate cards.
 
 The preview is the surface the user operates. An A/B comparison keeps both candidates

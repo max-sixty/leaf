@@ -63,7 +63,7 @@ has tried; settle that before building it.
   [the comparison finding](notes/comparisons.md#phone-annotation-placement-2026-10-05).
 - **Make the next move and its result apparent.** Play through `review-a-plan`,
   `triage-board`, `pr-walkthrough`, and `ship-review`; fix dead ends and moves whose
-  result is hidden. Decide whether a page needs one progress reading across Asks,
+  result is hidden. Decide whether a page needs one progress reading across Questions,
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
 - **Keep Tab off page content a panel beside the page covers.** Threads and the
@@ -249,7 +249,12 @@ and its chrome coordinate.
   keeping its comments. They hold if revisions happen by ordinary composition. Include
   a cold agent asked for "a dashboard", the likeliest trigger for over-tiling. Run it
   with the agent-usability baseline (#19), by extending the document, dashboard and
-  queue tasks in `evals/`.
+  queue tasks in `evals/`. For a workspace, also measure what a screenshot of the
+  document cannot show: each pane's contents through its own scroll, how much of each
+  pane is empty, and whether a reader reaches every pane by key. The arrangement
+  judge sees only the first screen of a pane that scrolls and is told not to infer
+  interaction, so no case yet measures whether a workspace works as a screen. The
+  plain-HTML control (`--condition html`) has never run.
 - **Layout values that wait for a task:** a selection-and-detail component whose phone
   form shows one side at a time; canvas regions, whose reading position is
   two-dimensional; slides as a presentation of `lf-tabs`.
@@ -287,9 +292,9 @@ A queue is one `lf-tabs list="side"` beside its open item (`page-authoring.md`, 
 workspace"). The first real one, a 21-item triage page, showed these. Its list's
 height and where a switch lands wait on the workspace decision under Layout.
 
-- **Start `a` from the open item's Ask.** From a row, `a` goes to the queue's first
-  open Ask, and `1` then picks for an item the user isn't looking at. The walk
-  measures from focus (`askPosition` in `asks/view.js`), and the row precedes every
+- **Start `q` from the open item's Question.** From a row, `q` goes to the queue's first
+  open Question, and `1` then picks for an item the user isn't looking at. The walk
+  measures from focus (`queue-walk.js`), and the row precedes every
   panel; `t` and `T` measure the same way. A tab could stand at the view it opens for
   the walks (`standing-target.js`), while `c` on a row still names the row.
 - **Keep the open item's group named on a phone.** In the one-row strip a group's
@@ -360,11 +365,11 @@ on 2026-10-07.
   them, but nothing runs them first. Write `evals/` cases in which agents author each
   kind and measure how often what they write fails to draw, then run the kinds agents
   get wrong and stop running those they reliably get right.
-- **Derive the waiting banner from the page's open Ask.** Consider using the Ask's
+- **Derive the waiting banner from the page's open Question.** Consider using the Question's
   words when no explicit waiting detail is needed. **Unconfirmed:** try pages with
-  several open Asks and an informational page before choosing how the banner
+  several open Questions and an informational page before choosing how the banner
   explains who owes the next move. Keep explicit agent status available when the
-  Ask alone does not explain the wait.
+  Question alone does not explain the wait.
 
 ### Development velocity
 
@@ -447,7 +452,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
   [What needs you](notes/what-needs-you/page.html#task-hierarchy)). Trigger: a page
   whose work the user wants to see broken down.
 - **Tell the agent when to ask before ending its own task.** The agent ends its tasks
-  itself, and asks first, with an Ask or a thread question, when the result needs the
+  itself, and asks first, with a Question or a thread question, when the result needs the
   user's sign-off
   ([What needs you](notes/what-needs-you/page.html#task-done)). The shipped
   instructions don't yet say when that is. Trigger: an agent ends a task as done that
@@ -471,10 +476,15 @@ Revisit these when their stated trigger becomes real; they are not an active que
   building a feed or presence on it.
 - **Show which pane has focus, and move between panes by key.** A terminal marks
   its active pane and one key moves to the next. In a workspace today the arrow keys
-  walk a side list, `a` reaches the next open Ask, and a pane body that scrolls is a
+  walk a side list, `q` reaches the next open Question, and a pane body that scrolls is a
   Tab stop, but nothing marks the active pane and no key moves from one pane to the
-  next. Pane focus belongs to the panes and the keyboard layer, not the Layout, so it
-  works the same wherever panes stand. Draw it as a playground before building it.
+  next. The runtime already tracks it: `userReadingRegion` (`reading-regions.js`) is the
+  pane holding focus, or else the last one pressed, wheeled or touched, and `j`/`k`/`d`/`u`
+  scroll it. Until the user picks a pane those keys reach the page, which a workspace
+  doesn't scroll, so they appear to do nothing. The feature is a mark on that region and
+  a key that moves it. Pane focus belongs to the
+  panes and the keyboard layer, not the Layout, so it works the same wherever panes
+  stand. Draw it as a playground before building it.
   Trigger: a user loses track of the active pane, or tabs through a pane to reach the
   next one.
 - **Expand everything waiting with a keypress.** A held notice, a collapsed summary,

@@ -27,6 +27,7 @@ import {
   registerNoticePresentation,
 } from "./notifications.js";
 import { watchProjection } from "./projection-watch.js";
+import { readQuestions } from "./questions/model.js";
 import { createBannerApprovalFace } from "./banner-approval.js";
 import { createBannerStatusView } from "./banner-status-view.js";
 import { declareBanner } from "./geometry.js";
@@ -79,6 +80,7 @@ export function setThreadCounts(open, unread) {
   paintThreadCounts();
 }
 const approveBtn = el("button", "lf-btn primary lf-signoff");
+approveBtn.id = "lf-approve";
 // The queue arrives at the one approval control, including its overflow seat.
 export const approvalTarget = () => (signoff ? approveBtn : null);
 approveBtn.title = "Approve this work; the page stays open for follow-up";
@@ -273,7 +275,6 @@ let saidActionableWork;
 // agent's in the turn it is sent. A press on either opens the Questions panel, which
 // lists both.
 const QUEUE_WORDS = Object.freeze({
-  ask: ["Ask", "Asks"],
   question: ["question", "questions"],
   approval: ["approval", "approvals"],
   recovery: ["update to send again", "updates to send again"],
@@ -561,7 +562,7 @@ const publicationWords = (published) => [
 ];
 
 // The moves an open turn picked up, by kind: a comment in a thread, or an answer to an
-// Ask. A lone move is the user's own; several are counted.
+// Question. A lone move is the user's own; several are counted.
 function pickedUpWords({ comments, answers }) {
   if (comments + answers === 1) return comments ? "your comment" : "your answer";
   const counted = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
@@ -851,11 +852,11 @@ function reserveBannerControls() {
 
 let approving = false;
 
-// `blockingAsks` is the unanswered Asks that hold approval, or null before the page has
+// `blockingQuestions` is the unanswered Questions that hold approval, or null before the page has
 // read the log and so cannot say which those are.
-export function paintApproval(pendingApprovals, blockingAsks, acceptedApprovals) {
-  const approved = [...acceptedApprovals, ...pendingApprovals].some(
-    (e) => e.kind === "done" && e.version === runtime.currentStamp,
+export function paintApproval(blockingQuestions) {
+  const approved = readQuestions().all.some(
+    (question) => question.source.kind === "approval" && question.status === "answered",
   );
   // The word and the title turn over together. The title read "Approve this work; the
   // page stays open for follow-up" whether or not the work had been approved, so the one
@@ -870,10 +871,10 @@ export function paintApproval(pendingApprovals, blockingAsks, acceptedApprovals)
       ? "There is no stamped version to approve yet"
       : !signoff ||
           !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) ||
-          blockingAsks === null
+          blockingQuestions === null
         ? "Approval waits until this page has read its current state"
-        : blockingAsks.length
-          ? "Answer every Ask before approving this work"
+        : blockingQuestions.length
+          ? "Answer every Question before approving this work"
           : null;
   approvalFace.present(
     Object.freeze({
@@ -884,7 +885,7 @@ export function paintApproval(pendingApprovals, blockingAsks, acceptedApprovals)
   );
   // Approval is open while a press would approve this version, and behind More, on a
   // phone, that puts More's dot up. A refused press does not: the dot comes up when the
-  // last Ask holding approval is answered, which is when the user can act on it.
+  // last Question holding approval is answered, which is when the user can act on it.
   markBannerControl(approveBtn, reason === null ? "approval open" : null);
   repaint();
 }

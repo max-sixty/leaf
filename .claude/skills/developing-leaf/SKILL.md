@@ -236,16 +236,17 @@ in the foreground, like a dev server, so run it as a long-running command
 detaches its watcher and returns its URL: the page and feedback stay available
 when Codex unloads the chat's idle instance. `--source <file>` serves any authored HTML
 file in place of a shipped example. It follows source and runtime edits at one
-URL; each start rebuilds the page from the fixture, and `--slot <name>` runs another copy.
+URL. A user preview resumes its existing page after a restart, preserving feedback,
+decisions, data and revisions; a plain preview rebuilds from the fixture.
+`--slot <name>` starts another copy, with its own initial fixture history and data.
 
 A plain preview takes no task claim, so its presses reach only the page's log;
 use it for screenshots and browser checks. `--user` claims the page at
 the directory printed at startup (`.tmp/previews/<example>-user` by default;
 `--slot` chooses the directory name) so the user's comments reach the harness, which
 also makes every click this session drives there read as an unanswered user
-move. So drive only claimless previews, start any `--user` preview from the
-session the user talks to, and answer the user's feedback before restarting
-their preview, since a restart discards the claim and the moves it held. Don't
+move. So drive only claimless previews and start any `--user` preview from the
+session the user talks to. Don't
 idle a preview to quiet the loop; `idle` closes the page in the browser.
 
 ### In Codex
@@ -253,7 +254,7 @@ idle a preview to quiet the loop; `idle` closes the page in the browser.
 1. Start the preview with `--user` from the current
    chat. It connects Leaf feedback to this Codex chat before printing the URL;
    desktop Codex returns after the detached watcher subscribes to source edits.
-   Each restart reconnects the rebuilt page automatically.
+   Each restart reconnects the existing page automatically.
 2. Call `mcp__codex_app__open_in_codex` with the printed keyed URL and the semantic
    block's fragment, as a browser target with `placement: "right"`.
 3. Tell the user to comment on the surrounding review page to steer this chat.
@@ -325,34 +326,15 @@ journey against the deployed release is the only production reading.
 
 ## Compare checkout versions
 
-Build the baseline in a detached worktree at the merge base:
+Serve the merge-base runtime beside this checkout:
 
 ```bash
-candidate_root=$(git rev-parse --show-toplevel)
-baseline_commit=$(git merge-base HEAD main)
-baseline_parent=$(mktemp -d "${TMPDIR:-/tmp}/leaf-baseline.XXXXXX")
-baseline_parent=$(cd "$baseline_parent" && pwd -P)
-baseline_root="$baseline_parent/checkout"
-git worktree add --detach "$baseline_root" "$baseline_commit"
+uv run leaf-dev compare <example> --user
 ```
 
-Choose sources that isolate the change: one shared source for a runtime change,
-or each checkout's copy when the authored content changed. Run the two previews
-as separate commands, adding `--user` to both when their URLs go to the user.
-Keep foreground previews running; desktop Codex user previews return after
-startup:
-
-```bash
-uv run --project "$candidate_root" leaf-dev preview --source <baseline-source.html> \
-  --runtime "$baseline_root" \
-  --slot <slot>-baseline
-```
-
-```bash
-uv run --project "$candidate_root" leaf-dev preview --source <candidate-source.html> \
-  --runtime "$candidate_root" \
-  --slot <slot>-candidate
-```
+Use one shared source for a runtime change (the default), or `--authored` when
+the authored content changed. `--base REF` selects another baseline. Omit `--user`
+for claimless tests; keep that foreground command running.
 
 ## Author or revise a page
 

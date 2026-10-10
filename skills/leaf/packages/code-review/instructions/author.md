@@ -19,4 +19,4 @@ revision, author, checks and source link. Bind external evidence through a
 page-owned data adapter when it must refresh. Standard code, table, and disclosure
 elements can carry a focused invariant, test result, or remaining uncertainty.
 Set `lf-diff`'s `review` attribute when the user needs to inspect every file, and
-use an Ask when a specific decision is owed.
+pose a Question when a specific decision is owed (`references/authoring-questions.md`).

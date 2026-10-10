@@ -45,7 +45,7 @@ export function createStanding({
     // The chips are where the user can go, beside the ring saying where they are and the
     // line saying what the next press does — one paint, because a chip repainted by its
     // own door alone went stale on the door it did not
-    // have: a poll that retires an Ask moves the list under an armed window, and only the
+    // have: a poll that retires a Question moves the list under an armed window, and only the
     // panel's own render was calling the chip pass.
     paintGoToHints();
     paintTargetPickerHints();

@@ -123,7 +123,7 @@ def thread_names(events: list) -> dict:
     rest of the page around it.
 
     Two readings of the panel's own document resolve a message to its thread, and
-    they must answer alike: an Ask and a question naming different threads for one
+    they must answer alike: a Question and a question naming different threads for one
     message is a disagreement no reader could account for. (`build_threads` walks
     the same relation to a different end — the thread object itself, with its
     resolution — so it keeps its own walk, and answers the same way where the log

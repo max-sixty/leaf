@@ -1,4 +1,688 @@
 {
+  "question_values": [
+    {
+      "name": "attribute authored empty",
+      "spec": {
+        "unit": "widget",
+        "record": {
+          "kind": "attribute",
+          "attr": "chosen"
+        }
+      },
+      "authored": {
+        "value": []
+      },
+      "entries": [],
+      "answered": false,
+      "expected": {
+        "value": [],
+        "present": false
+      }
+    },
+    {
+      "name": "attribute completed empty",
+      "spec": {
+        "unit": "widget",
+        "record": {
+          "kind": "attribute",
+          "attr": "chosen"
+        }
+      },
+      "authored": {
+        "value": []
+      },
+      "entries": [],
+      "answered": true,
+      "expected": {
+        "value": [],
+        "present": true
+      }
+    },
+    {
+      "name": "attribute sorted action",
+      "spec": {
+        "unit": "widget",
+        "record": {
+          "kind": "attribute",
+          "attr": "chosen"
+        }
+      },
+      "authored": {
+        "value": []
+      },
+      "entries": [
+        {
+          "e": {
+            "kind": "action",
+            "meaning": {},
+            "id": "e1",
+            "seq": 1,
+            "widget": "owner",
+            "action": "set",
+            "detail": {
+              "value": [
+                "b",
+                "a"
+              ]
+            }
+          },
+          "unit": "owner",
+          "spec": {
+            "unit": "widget",
+            "record": {
+              "kind": "attribute",
+              "attr": "chosen"
+            }
+          },
+          "coordinate": "[\"owner\",\"owner\",\"set\"]"
+        }
+      ],
+      "answered": false,
+      "expected": {
+        "value": [
+          "a",
+          "b"
+        ],
+        "present": true
+      }
+    },
+    {
+      "name": "value absent despite completion",
+      "spec": {
+        "unit": "widget",
+        "record": {
+          "kind": "value",
+          "attr": "value"
+        }
+      },
+      "authored": {
+        "value": null
+      },
+      "entries": [],
+      "answered": true,
+      "expected": {
+        "value": null,
+        "present": false
+      }
+    },
+    {
+      "name": "value action False",
+      "spec": {
+        "unit": "widget",
+        "record": {
+          "kind": "value",
+          "attr": "value"
+        }
+      },
+      "authored": {
+        "value": null
+      },
+      "entries": [
+        {
+          "e": {
+            "kind": "action",
+            "meaning": {},
+            "id": "e1",
+            "seq": 1,
+            "widget": "owner",
+            "action": "set",
+            "detail": {
+              "value": false
+            }
+          },
+          "unit": "owner",
+          "spec": {
+            "unit": "widget",
+            "record": {
+              "kind": "value",
+              "attr": "value"
+            }
+          },
+          "coordinate": "[\"owner\",\"owner\",\"set\"]"
+        }
+      ],
+      "answered": false,
+      "expected": {
+        "value": false,
+        "present": true
+      }
+    },
+    {
+      "name": "value action 0",
+      "spec": {
+        "unit": "widget",
+        "record": {
+          "kind": "value",
+          "attr": "value"
+        }
+      },
+      "authored": {
+        "value": null
+      },
+      "entries": [
+        {
+          "e": {
+            "kind": "action",
+            "meaning": {},
+            "id": "e1",
+            "seq": 1,
+            "widget": "owner",
+            "action": "set",
+            "detail": {
+              "value": 0
+            }
+          },
+          "unit": "owner",
+          "spec": {
+            "unit": "widget",
+            "record": {
+              "kind": "value",
+              "attr": "value"
+            }
+          },
+          "coordinate": "[\"owner\",\"owner\",\"set\"]"
+        }
+      ],
+      "answered": false,
+      "expected": {
+        "value": 0,
+        "present": true
+      }
+    },
+    {
+      "name": "value action ''",
+      "spec": {
+        "unit": "widget",
+        "record": {
+          "kind": "value",
+          "attr": "value"
+        }
+      },
+      "authored": {
+        "value": null
+      },
+      "entries": [
+        {
+          "e": {
+            "kind": "action",
+            "meaning": {},
+            "id": "e1",
+            "seq": 1,
+            "widget": "owner",
+            "action": "set",
+            "detail": {
+              "value": ""
+            }
+          },
+          "unit": "owner",
+          "spec": {
+            "unit": "widget",
+            "record": {
+              "kind": "value",
+              "attr": "value"
+            }
+          },
+          "coordinate": "[\"owner\",\"owner\",\"set\"]"
+        }
+      ],
+      "answered": false,
+      "expected": {
+        "value": "",
+        "present": true
+      }
+    },
+    {
+      "name": "body exact source",
+      "spec": {
+        "unit": "widget",
+        "record": {
+          "kind": "body"
+        }
+      },
+      "authored": {
+        "value": "  user words\n"
+      },
+      "entries": [],
+      "answered": false,
+      "expected": {
+        "value": "  user words\n",
+        "present": true
+      }
+    },
+    {
+      "name": "body completed empty",
+      "spec": {
+        "unit": "widget",
+        "record": {
+          "kind": "body"
+        }
+      },
+      "authored": {
+        "value": ""
+      },
+      "entries": [],
+      "answered": true,
+      "expected": {
+        "value": "",
+        "present": true
+      }
+    },
+    {
+      "name": "custom undo despite completion",
+      "spec": {
+        "unit": "widget"
+      },
+      "authored": {
+        "value": null
+      },
+      "entries": [],
+      "answered": true,
+      "expected": {
+        "value": null,
+        "present": false
+      }
+    },
+    {
+      "name": "custom empty action",
+      "spec": {
+        "unit": "widget"
+      },
+      "authored": {
+        "value": null
+      },
+      "entries": [
+        {
+          "e": {
+            "kind": "action",
+            "meaning": {},
+            "id": "e1",
+            "seq": 1,
+            "widget": "owner",
+            "action": "set",
+            "detail": {}
+          },
+          "unit": "owner",
+          "spec": {
+            "unit": "widget"
+          },
+          "coordinate": "[\"owner\",\"owner\",\"set\"]"
+        }
+      ],
+      "answered": false,
+      "expected": {
+        "value": {},
+        "present": true
+      }
+    },
+    {
+      "name": "custom structured action",
+      "spec": {
+        "unit": "widget"
+      },
+      "authored": {
+        "value": null
+      },
+      "entries": [
+        {
+          "e": {
+            "kind": "action",
+            "meaning": {},
+            "id": "e1",
+            "seq": 1,
+            "widget": "owner",
+            "action": "set",
+            "detail": {
+              "outcome": "accept",
+              "text": "Ready"
+            }
+          },
+          "unit": "owner",
+          "spec": {
+            "unit": "widget"
+          },
+          "coordinate": "[\"owner\",\"owner\",\"set\"]"
+        }
+      ],
+      "answered": false,
+      "expected": {
+        "value": {
+          "outcome": "accept",
+          "text": "Ready"
+        },
+        "present": true
+      }
+    },
+    {
+      "name": "member attribute",
+      "spec": {
+        "unit": "part",
+        "record": {
+          "kind": "attribute",
+          "attr": "chosen"
+        }
+      },
+      "authored": {
+        "value": {},
+        "units": {}
+      },
+      "entries": [
+        {
+          "e": {
+            "kind": "action",
+            "meaning": {},
+            "id": "e1",
+            "seq": 1,
+            "widget": "owner",
+            "action": "set",
+            "detail": {
+              "value": [
+                "b",
+                "a"
+              ]
+            }
+          },
+          "unit": "b",
+          "spec": {
+            "unit": "part",
+            "record": {
+              "kind": "attribute",
+              "attr": "chosen"
+            }
+          },
+          "coordinate": "[\"owner\",\"b\",\"set\"]"
+        },
+        {
+          "e": {
+            "kind": "action",
+            "meaning": {},
+            "id": "e2",
+            "seq": 2,
+            "widget": "owner",
+            "action": "set",
+            "detail": {
+              "value": [
+                "b",
+                "a"
+              ]
+            }
+          },
+          "unit": "a",
+          "spec": {
+            "unit": "part",
+            "record": {
+              "kind": "attribute",
+              "attr": "chosen"
+            }
+          },
+          "coordinate": "[\"owner\",\"a\",\"set\"]"
+        }
+      ],
+      "answered": false,
+      "expected": {
+        "value": {
+          "a": [
+            "a",
+            "b"
+          ],
+          "b": [
+            "a",
+            "b"
+          ]
+        },
+        "present": true
+      }
+    },
+    {
+      "name": "member value",
+      "spec": {
+        "unit": "part",
+        "record": {
+          "kind": "value",
+          "attr": "value"
+        }
+      },
+      "authored": {
+        "value": {},
+        "units": {}
+      },
+      "entries": [
+        {
+          "e": {
+            "kind": "action",
+            "meaning": {},
+            "id": "e1",
+            "seq": 1,
+            "widget": "owner",
+            "action": "set",
+            "detail": {
+              "value": " source "
+            }
+          },
+          "unit": "b",
+          "spec": {
+            "unit": "part",
+            "record": {
+              "kind": "value",
+              "attr": "value"
+            }
+          },
+          "coordinate": "[\"owner\",\"b\",\"set\"]"
+        },
+        {
+          "e": {
+            "kind": "action",
+            "meaning": {},
+            "id": "e2",
+            "seq": 2,
+            "widget": "owner",
+            "action": "set",
+            "detail": {
+              "value": " source "
+            }
+          },
+          "unit": "a",
+          "spec": {
+            "unit": "part",
+            "record": {
+              "kind": "value",
+              "attr": "value"
+            }
+          },
+          "coordinate": "[\"owner\",\"a\",\"set\"]"
+        }
+      ],
+      "answered": false,
+      "expected": {
+        "value": {
+          "a": " source ",
+          "b": " source "
+        },
+        "present": true
+      }
+    },
+    {
+      "name": "member body",
+      "spec": {
+        "unit": "part",
+        "record": {
+          "kind": "body"
+        }
+      },
+      "authored": {
+        "value": {},
+        "units": {}
+      },
+      "entries": [
+        {
+          "e": {
+            "kind": "action",
+            "meaning": {},
+            "id": "e1",
+            "seq": 1,
+            "widget": "owner",
+            "action": "set",
+            "detail": {
+              "value": " source "
+            }
+          },
+          "unit": "b",
+          "spec": {
+            "unit": "part",
+            "record": {
+              "kind": "body"
+            }
+          },
+          "coordinate": "[\"owner\",\"b\",\"set\"]"
+        },
+        {
+          "e": {
+            "kind": "action",
+            "meaning": {},
+            "id": "e2",
+            "seq": 2,
+            "widget": "owner",
+            "action": "set",
+            "detail": {
+              "value": " source "
+            }
+          },
+          "unit": "a",
+          "spec": {
+            "unit": "part",
+            "record": {
+              "kind": "body"
+            }
+          },
+          "coordinate": "[\"owner\",\"a\",\"set\"]"
+        }
+      ],
+      "answered": false,
+      "expected": {
+        "value": {
+          "a": " source ",
+          "b": " source "
+        },
+        "present": true
+      }
+    },
+    {
+      "name": "member custom",
+      "spec": {
+        "unit": "part"
+      },
+      "authored": {
+        "value": {},
+        "units": {}
+      },
+      "entries": [
+        {
+          "e": {
+            "kind": "action",
+            "meaning": {},
+            "id": "e1",
+            "seq": 1,
+            "widget": "owner",
+            "action": "set",
+            "detail": {
+              "text": "detail"
+            }
+          },
+          "unit": "b",
+          "spec": {
+            "unit": "part"
+          },
+          "coordinate": "[\"owner\",\"b\",\"set\"]"
+        },
+        {
+          "e": {
+            "kind": "action",
+            "meaning": {},
+            "id": "e2",
+            "seq": 2,
+            "widget": "owner",
+            "action": "set",
+            "detail": {
+              "text": "detail"
+            }
+          },
+          "unit": "a",
+          "spec": {
+            "unit": "part"
+          },
+          "coordinate": "[\"owner\",\"a\",\"set\"]"
+        }
+      ],
+      "answered": false,
+      "expected": {
+        "value": {
+          "a": {
+            "text": "detail"
+          },
+          "b": {
+            "text": "detail"
+          }
+        },
+        "present": true
+      }
+    },
+    {
+      "name": "position complete containers",
+      "spec": {
+        "unit": "part",
+        "record": {
+          "kind": "position",
+          "within": "lf-container"
+        }
+      },
+      "authored": {
+        "value": {
+          "left": [
+            "a"
+          ],
+          "right": []
+        },
+        "units": {},
+        "ranks": {
+          "a": "1"
+        }
+      },
+      "entries": [
+        {
+          "e": {
+            "kind": "action",
+            "meaning": {},
+            "id": "e1",
+            "seq": 1,
+            "widget": "owner",
+            "action": "set",
+            "detail": {
+              "value": "right",
+              "rank": "1"
+            }
+          },
+          "unit": "a",
+          "spec": {
+            "unit": "part",
+            "record": {
+              "kind": "position",
+              "within": "lf-container"
+            }
+          },
+          "coordinate": "[\"owner\",\"a\",\"set\"]"
+        }
+      ],
+      "answered": false,
+      "expected": {
+        "value": {
+          "left": [],
+          "right": [
+            "a"
+          ]
+        },
+        "present": true
+      }
+    }
+  ],
   "thread": {
     "id": "e1",
     "root": {
@@ -143,7 +827,7 @@
           "unread": [],
           "attention": {
             "kind": "needs_user",
-            "reason": "ask",
+            "reason": "question",
             "workflow": null
           }
         }
@@ -244,7 +928,7 @@
           ],
           "attention": {
             "kind": "needs_user",
-            "reason": "ask",
+            "reason": "question",
             "workflow": null
           }
         },
@@ -548,51 +1232,6 @@
       ],
       "tasks": [
         {
-          "id": "pick-ask",
-          "owner": "user",
-          "subject": {
-            "kind": "widget",
-            "id": "pick-ask"
-          },
-          "thread": null,
-          "title": null,
-          "state": "open",
-          "seq": null,
-          "ts": null,
-          "agent": null,
-          "session": null,
-          "revision": null,
-          "running": null,
-          "outcome": null,
-          "ends": "widget",
-          "ask": {
-            "tag": "lf-ask",
-            "widget": "pick",
-            "widget_tag": "lf-options",
-            "held_by_seat": false
-          }
-        },
-        {
-          "id": "e2",
-          "owner": "user",
-          "subject": {
-            "kind": "thread",
-            "id": "e1"
-          },
-          "thread": "e1",
-          "title": null,
-          "state": "open",
-          "seq": 2,
-          "ts": "2026-09-19T12:00:00+00:00",
-          "agent": "Agent",
-          "session": null,
-          "revision": null,
-          "running": null,
-          "outcome": null,
-          "ends": "reply",
-          "ask": null
-        },
-        {
           "id": "e6",
           "owner": "agent",
           "subject": {
@@ -619,8 +1258,7 @@
           },
           "outcome": null,
           "thread": "e4",
-          "ends": "agent",
-          "ask": null
+          "ends": "agent"
         },
         {
           "id": "e12",
@@ -638,48 +1276,203 @@
           "running": null,
           "outcome": null,
           "thread": null,
-          "ends": "done",
-          "ask": null
+          "ends": "done"
         }
       ],
+      "questions": {
+        "all": [
+          {
+            "id": "widget:pick",
+            "source": {
+              "kind": "widget",
+              "id": "pick",
+              "tag": "lf-options"
+            },
+            "thread": null,
+            "prompt": {
+              "text": "Which one?",
+              "target": "pick-ask"
+            },
+            "answer": null,
+            "status": "open",
+            "next_actor": "user"
+          },
+          {
+            "id": "widget:ship",
+            "source": {
+              "kind": "widget",
+              "id": "ship",
+              "tag": "lf-options"
+            },
+            "thread": null,
+            "prompt": {
+              "text": "Ship it?",
+              "target": "ship-ask"
+            },
+            "answer": {
+              "value": [
+                "ship-now"
+              ],
+              "event": {
+                "id": "e9",
+                "kind": "action",
+                "seq": 9,
+                "ts": "2026-09-19T12:00:00+00:00",
+                "author": "user"
+              }
+            },
+            "status": "answered",
+            "next_actor": null
+          },
+          {
+            "id": "reply:e2",
+            "source": {
+              "kind": "reply",
+              "id": "e2",
+              "version": "e2"
+            },
+            "thread": "e1",
+            "prompt": {
+              "text": "Weekly or daily?",
+              "target": "e2"
+            },
+            "answer": null,
+            "status": "open",
+            "next_actor": "user"
+          }
+        ],
+        "user": [
+          {
+            "id": "widget:pick",
+            "source": {
+              "kind": "widget",
+              "id": "pick",
+              "tag": "lf-options"
+            },
+            "thread": null,
+            "prompt": {
+              "text": "Which one?",
+              "target": "pick-ask"
+            },
+            "answer": null,
+            "status": "open",
+            "next_actor": "user"
+          },
+          {
+            "id": "reply:e2",
+            "source": {
+              "kind": "reply",
+              "id": "e2",
+              "version": "e2"
+            },
+            "thread": "e1",
+            "prompt": {
+              "text": "Weekly or daily?",
+              "target": "e2"
+            },
+            "answer": null,
+            "status": "open",
+            "next_actor": "user"
+          }
+        ],
+        "unanswered": [
+          {
+            "id": "widget:pick",
+            "source": {
+              "kind": "widget",
+              "id": "pick",
+              "tag": "lf-options"
+            },
+            "thread": null,
+            "prompt": {
+              "text": "Which one?",
+              "target": "pick-ask"
+            },
+            "answer": null,
+            "status": "open",
+            "next_actor": "user"
+          },
+          {
+            "id": "reply:e2",
+            "source": {
+              "kind": "reply",
+              "id": "e2",
+              "version": "e2"
+            },
+            "thread": "e1",
+            "prompt": {
+              "text": "Weekly or daily?",
+              "target": "e2"
+            },
+            "answer": null,
+            "status": "open",
+            "next_actor": "user"
+          }
+        ]
+      },
       "queues": {
         "on_you": [
           {
-            "kind": "task",
-            "id": "pick-ask",
+            "kind": "question",
+            "id": "widget:pick",
             "owner": "user",
             "subject": {
               "kind": "widget",
-              "id": "pick-ask"
+              "id": "pick"
             },
             "thread": null,
-            "title": null,
+            "title": "Which one?",
             "running": null,
             "agent": null,
             "session": null,
             "ends": "widget",
-            "ask": {
-              "tag": "lf-ask",
-              "widget": "pick",
-              "widget_tag": "lf-options",
-              "held_by_seat": false
+            "question": {
+              "id": "widget:pick",
+              "source": {
+                "kind": "widget",
+                "id": "pick",
+                "tag": "lf-options"
+              },
+              "thread": null,
+              "prompt": {
+                "text": "Which one?",
+                "target": "pick-ask"
+              },
+              "answer": null,
+              "status": "open",
+              "next_actor": "user"
             }
           },
           {
-            "kind": "task",
-            "id": "e2",
+            "kind": "question",
+            "id": "reply:e2",
             "owner": "user",
             "subject": {
               "kind": "thread",
               "id": "e1"
             },
             "thread": "e1",
-            "title": null,
+            "title": "Weekly or daily?",
             "running": null,
-            "agent": "Agent",
+            "agent": null,
             "session": null,
             "ends": "reply",
-            "ask": null
+            "question": {
+              "id": "reply:e2",
+              "source": {
+                "kind": "reply",
+                "id": "e2",
+                "version": "e2"
+              },
+              "thread": "e1",
+              "prompt": {
+                "text": "Weekly or daily?",
+                "target": "e2"
+              },
+              "answer": null,
+              "status": "open",
+              "next_actor": "user"
+            }
           },
           {
             "kind": "task",
@@ -693,8 +1486,7 @@
             "running": null,
             "agent": "Agent",
             "session": "served-records",
-            "ends": "done",
-            "ask": null
+            "ends": "done"
           },
           {
             "kind": "recovery",
@@ -754,39 +1546,13 @@
             },
             "agent": "Agent",
             "session": "served-records",
-            "ends": "agent",
-            "ask": null
+            "ends": "agent"
           }
         ]
       }
     },
     "done": {
       "tasks": [
-        {
-          "id": "ship-ask",
-          "owner": "user",
-          "subject": {
-            "kind": "widget",
-            "id": "ship-ask"
-          },
-          "thread": null,
-          "title": null,
-          "state": "done",
-          "seq": null,
-          "ts": null,
-          "agent": null,
-          "session": null,
-          "revision": null,
-          "running": null,
-          "outcome": null,
-          "ends": "widget",
-          "ask": {
-            "tag": "lf-ask",
-            "widget": "ship",
-            "widget_tag": "lf-options",
-            "held_by_seat": false
-          }
-        },
         {
           "id": "e4",
           "owner": "agent",
@@ -812,10 +1578,92 @@
             "session": "served-records"
           },
           "thread": "e2",
-          "ends": "agent",
-          "ask": null
+          "ends": "agent"
         }
-      ]
+      ],
+      "questions": {
+        "all": [
+          {
+            "id": "widget:pick",
+            "source": {
+              "kind": "widget",
+              "id": "pick",
+              "tag": "lf-options"
+            },
+            "thread": null,
+            "prompt": {
+              "text": "Which one?",
+              "target": "pick-ask"
+            },
+            "answer": null,
+            "status": "open",
+            "next_actor": "user"
+          },
+          {
+            "id": "widget:ship",
+            "source": {
+              "kind": "widget",
+              "id": "ship",
+              "tag": "lf-options"
+            },
+            "thread": null,
+            "prompt": {
+              "text": "Ship it?",
+              "target": "ship-ask"
+            },
+            "answer": {
+              "value": [
+                "ship-now"
+              ],
+              "event": {
+                "id": "e1",
+                "kind": "action",
+                "seq": 1,
+                "ts": "2026-09-19T12:00:00+00:00",
+                "author": "user"
+              }
+            },
+            "status": "answered",
+            "next_actor": null
+          }
+        ],
+        "user": [
+          {
+            "id": "widget:pick",
+            "source": {
+              "kind": "widget",
+              "id": "pick",
+              "tag": "lf-options"
+            },
+            "thread": null,
+            "prompt": {
+              "text": "Which one?",
+              "target": "pick-ask"
+            },
+            "answer": null,
+            "status": "open",
+            "next_actor": "user"
+          }
+        ],
+        "unanswered": [
+          {
+            "id": "widget:pick",
+            "source": {
+              "kind": "widget",
+              "id": "pick",
+              "tag": "lf-options"
+            },
+            "thread": null,
+            "prompt": {
+              "text": "Which one?",
+              "target": "pick-ask"
+            },
+            "answer": null,
+            "status": "open",
+            "next_actor": "user"
+          }
+        ]
+      }
     }
   }
 }

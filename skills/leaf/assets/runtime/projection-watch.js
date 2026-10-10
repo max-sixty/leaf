@@ -8,7 +8,7 @@
    `read` repaints it when the displayed value changes. An optional synchronous proof
    predicate withholds every paint, including clock paints; completion wakes only a
    reading that was withheld, so repainting cannot create a presentation feedback loop. The returned function permanently
-   ends the subscription, including queued paints. `watchAsks`, `watchUpdates`, and `watchHistory` are this watcher
+   ends the subscription, including queued paints. `watchQuestions`, `watchUpdates`, and `watchHistory` are this watcher
    with a reading of their own, so none of them states these rules again. */
 import { clocked } from "./presence.js";
 import { watchSemantic, watchPresentation } from "./semantic-state.js";

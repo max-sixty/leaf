@@ -17,9 +17,9 @@ import { newAttempt } from "./drafts.js";
 import { saidNow } from "./presence.js";
 import { announce, notice } from "./notifications.js";
 import {
-  approvalBlockingAsks as readApprovalBlockingAsks,
-  readAsks,
-} from "./asks/model.js";
+  approvalBlockingQuestions as readApprovalBlockingQuestions,
+  readQuestions,
+} from "./questions/model.js";
 import { paintKeys } from "./keyboard/scopes.js";
 import { pendingTraffic } from "./traffic.js";
 import { createPendingLedger } from "./pending/state.js";
@@ -44,6 +44,7 @@ import { createQueueActions } from "./queue-api.js";
 import { registerMirrorConsumer, createPrimaryReader } from "./thread/mirrors.js";
 import { createReadTracking } from "./thread/read.js";
 import { renderMarginThread } from "./thread/inline.js";
+import { showHeld } from "./thread/held-news.js";
 import { threadBox as buildThreadBox } from "./thread/box.js";
 import { messageText } from "./thread/messages.js";
 import { isThreadEvent } from "./pending/model.js";
@@ -89,7 +90,7 @@ export function mountApplication(dependencies) {
   const currentReceipts = () => readApplication().authoritative?.browser.receipts ?? [];
   const pendingApprovals = () => readApplication().effective.pendingApprovals;
   const acceptedApprovals = () => readApplication().effective.acceptedApprovals;
-  const approvalBlockingAsks = readApprovalBlockingAsks;
+  const approvalBlockingQuestions = readApprovalBlockingQuestions;
 
   // Retire the entries the ledger's lifecycle says wait only for release, once every
   // region that draws them has committed the reading that no longer does.
@@ -108,7 +109,7 @@ export function mountApplication(dependencies) {
         ),
       ]),
       whenApplicationRegionsPresented(
-        ["projection:chrome", "thread", "asks", "queue"],
+        ["projection:chrome", "thread", "questions", "queue"],
         stillCurrent,
       ),
     ]);
@@ -117,7 +118,7 @@ export function mountApplication(dependencies) {
     const released = ledger
       .releasable()
       .filter((entry) => attempts.has(entry.event.attempt));
-    // Widget updates and the thread, projection, and Ask owners have now committed
+    // Widget updates and the thread, projection, and Question owners have now committed
     // this surviving semantic reading. Paint its command surface while the same pending
     // records still stand; removing an accounted record is then a semantic no-op.
     if (!released.length) return false;
@@ -312,14 +313,14 @@ export function mountApplication(dependencies) {
   };
 
   const annotations = createAnnotationInventory({
-    readAsks,
+    readQuestions,
     comparisonBase: dependencies.annotationCommands.comparisonBase,
     comparisonChanges: dependencies.annotationCommands.comparisonChanges,
     inlineComparison: dependencies.annotationCommands.inlineComparison,
     toggleInlineComparison: dependencies.annotationCommands.toggleInlineComparison,
     placedAt: dependencies.anchorPlacement.placedAt,
     showThread: (...args) => threadDestinations.openPageThread(...args),
-    goToAsk: dependencies.annotationCommands.goToAsk,
+    goToQuestion: dependencies.annotationCommands.goToQuestion,
     scrollToElement: dependencies.anchorTravel.scrollToElement,
   });
   const inlineContributions = createInlineContributions(annotations);
@@ -565,7 +566,7 @@ export function mountApplication(dependencies) {
     ...projectionCommands,
     watchUpdates: observeUpdates,
     ...engagement,
-    approvalBlockingAsks,
+    approvalBlockingQuestions,
     beginRead: beginStateRead,
     threadBox,
     dispatchWidget,
@@ -599,6 +600,15 @@ export function mountApplication(dependencies) {
     retireProjectionCoverage: projection.retireProjectionCoverage,
     threadActions,
     queueActions,
+    openQuestion(id) {
+      const question = readQuestions().all.find((item) => item.id === id);
+      if (!question) return Promise.resolve(false);
+      if (question.source.kind === "reply") {
+        showHeld(question.thread);
+        return threadDestinations.openPageThread(question.source.id, { focus: "message" });
+      }
+      return dependencies.annotationCommands.goToQuestion(question, readQuestions().all);
+    },
     shallowSigs: projectionShallowSigs,
     startFeed: feed.startFeed,
     wireInput: dependencies.wireInput,
@@ -606,7 +616,7 @@ export function mountApplication(dependencies) {
   return application;
 }
 
-export const approvalBlockingAsks = (...args) => app().approvalBlockingAsks(...args);
+export const approvalBlockingQuestions = (...args) => app().approvalBlockingQuestions(...args);
 export const beginRead = (...args) => app().beginRead(...args);
 export const threadBox = (...args) => app().threadBox(...args);
 export const dispatchWidget = (...args) => app().dispatchWidget(...args);
@@ -638,6 +648,9 @@ export const threadActions = Object.freeze({
   resolve: (...args) => app().threadActions.resolve(...args),
   reopen: (...args) => app().threadActions.reopen(...args),
   toggleReaction: (...args) => app().threadActions.toggleReaction(...args),
+});
+export const questionActions = Object.freeze({
+  open: (...args) => app().openQuestion(...args),
 });
 export const queueActions = Object.freeze({
   open: (...args) => app().queueActions.open(...args),

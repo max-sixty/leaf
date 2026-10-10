@@ -173,6 +173,7 @@ flowchart TD
   "answer": {"detail": {"type": "object", "additionalProperties": false}, "unit": "widget"}
 },
 "x-awaits": {
+  "value": "choose",
   "answered": {
     "choose": {"when": {"multiple": [false]}},
     "answer": {"when": {"multiple": [true]}}
@@ -207,8 +208,12 @@ flowchart TD
             <code>multiple</code> group.</lf-note
           >
           <lf-note at="17"
-            >The Ask is answered while this condition on the standing state holds: a
-            standing pick for a single-choice group, a standing Done for a
+            >The Question's typed answer comes from the standing
+            <code>choose</code> value.</lf-note
+          >
+          <lf-note at="18"
+            >The Question is answered while this condition on the standing state holds:
+            a standing pick for a single-choice group, a standing Done for a
             <code>multiple</code> one.</lf-note
           >
         </lf-code>
@@ -439,8 +444,8 @@ flowchart TD
             record's line in the log.</lf-note
           >
           <lf-note at="37"
-            >This pick makes the Ask's answered condition hold, so it is the answer.
-            <code>null</code> means it closes no thread; a group with a
+            >This pick makes the Question's answered condition hold, so it completes the
+            Question. <code>null</code> means it closes no thread; a group with a
             <code>resolves</code> attribute would name one here.</lf-note
           >
           <lf-note at="58"

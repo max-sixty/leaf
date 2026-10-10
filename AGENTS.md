@@ -220,13 +220,13 @@ event names the gesture withdrawn; it never deletes or invents a counter-event.
 Actions and reports share the registry-declared coordinate of owner widget,
 fold unit, and verb. Admission records the command's declared meaning in the
 event, so historical readers do not need a surviving widget to recover it.
-Python derives winners, retractions, settlement, asks, threads, and updates in
+Python derives winners, retractions, settlement, Questions, threads, and updates in
 one transaction-consistent browser view. JavaScript combines that view with
 authored initial values and unresolved local gestures to derive complete widget
 and thread state. Every forward gesture whose semantic result the page can draw is on
 screen in the turn that sends it, before the log answers; a disabled control, spinner,
 or other delivery status is not that result. What the page can draw is what its own
-document settles: a widget's state, a thread's turn. Which Asks the document still holds
+document settles: a widget's state, a thread's turn. Which widget Questions the document still holds
 and which of them the user owes are settled by the whole log, so that reading moves
 when the state a gesture's own POST returns is adopted, and the browser never folds a
 second answer to it. Refusal restores the authoritative state.
@@ -262,7 +262,7 @@ canonical activity summary for neighboring rows (`server_rows.py`). The summary 
 disposable delivery output; neighboring readers consult it and server liveness,
 never another page's log or document.
 Messages, thread attention, and margin entries consume the canonical workflows;
-thread attention also retains outstanding user Asks. Page activity does not imply
+thread attention also retains outstanding user Questions. Page activity does not imply
 work on every message. JavaScript adds unresolved local sends through the
 application publisher and may schedule a read at `next_transition_at`; it does not
 age or independently reclassify accepted workflow evidence. The stop guard consumes

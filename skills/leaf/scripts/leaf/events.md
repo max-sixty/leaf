@@ -25,7 +25,7 @@ page and is not a global identifier. The kinds:
 | `note` | agent | `leaf page stamp` | `version`, `revision`, changelog `text`, `restated`, `settles` (`report` ids it answered, and `task` ids its `--completes` ends) | one public version mapped to an immutable revision, naming the decisions it took back, the reports it answered and the widget tasks it completed |
 | `error` | page | the runtime | | the page reported a failure in front of the user; heard like a report, never counted against the user |
 | `task` | agent | `leaf task open` | `owner` (`agent`, or `user` with `--on user`); `subject`: `{kind: thread, id}` (an open thread, for the agent's own task only), `{kind: widget, id}` (a live page widget, which for the agent's own task declares `x-work` or holds an unsettled move), `{kind: element, id}` (any other element of the page), or `{kind: page}`; `title`; server-stamped `revision` on a widget task | the agent takes on work it owes there, or puts a task on the user; the agent's stands through replies, resolutions, versions and session ends, and the user's until their Done (`tasks.py`) |
-| `task_end` | agent or user | `leaf task end`, `POST /api/event` from a task's Done | `task`, an open task: one in the log, or a thread question's by the asking reply's id; `outcome` (`done`, `failed`, or `dropped`; the user's is `done`); optional `detail` from the agent | ends one open task, as a note that `settles` it does, as its `ends` allows: the agent may end any but an Ask's, which only its widget's answer ends, and the user only one the agent opened on them, since a question ends at their reply or a settling reaction |
+| `task_end` | agent or user | `leaf task end`, `POST /api/event` from a task's Done | `task`, an open explicit task id, or for an agent withdrawal a prose Question id (`reply:<message-id>`); `outcome` (`done`, `failed`, or `dropped`; the user's is `done`); optional `detail` from the agent | ends explicit work; the user can end only a task opened on them. For a prose Question, the agent withdraws the request without creating an answer, whatever the outcome. Widget Questions end through their declared widget state or an authored withdrawal |
 | `start` | agent | `leaf task start`; addressed progress carries the same declaration in its reply | `item`, a user move the agent owes (its event id) or an open task; the banner's `text`; `turn`, the claimant turn that wrote it, when the poster holds the page | takes the item in hand: a move reads Working and a task runs, until the move is answered, the task ends, or a `put_down` follows; the newest start on an item replaces the one before |
 | `put_down` | agent | `leaf status waiting` and `leaf status idle`, when a start stands | | ends every start before it: the moves they named go back to their delivery stage and the tasks stay open with nothing running (`tasks.item_starts`) |
 | `undo` | user | `POST /api/event` | `undoes` | withdraws one gesture of the user's own (`UNDOABLE_KINDS`: resolve, unresolve, action, done, task_end) |
@@ -130,8 +130,8 @@ through `schema.agent_name`, which gives such an event the name `Agent`. Every
 agent-authored thread message, closing event, margin update, and activity row the
 browser receives carries that name as `agent`, and the browser shows it as served.
 
-Admission stamps `attention`: whether the input changes the tasks on the user (their
-Asks, textual prompts and the tasks the agent put on them, so their Done is heard),
+Admission stamps `attention`: whether the input changes Questions on the user or
+explicit tasks the agent put on them (so their Done is heard),
 pending answers, the work it has in hand (a started move,
 or an open task on a thread or widget) and its standing inputs, or sign-off
 approval. `workflows.obligation_reading` compares those canonical readings before
@@ -142,7 +142,7 @@ Reports and errors always carry attention; agent messages do not. `leaf wait`,
 delivery selection, pickup, the unpicked-input Stop guard and the idle gate read
 that one field through `service.requires_agent_attention`. The pending transport
 count includes only user input among those events. Read marks, edits that answer
-no Ask and touch no work in hand, and closing or reopening an answered thread with
+no Question and touch no work in hand, and closing or reopening an answered thread with
 none stay quiet. Either side can open a thread and either side can close one.
 A note's purpose is discharged by being read, and only the user knows that
 happened, so the user ordinarily closes a thread; `leaf thread resolve` is the agent's
@@ -179,7 +179,7 @@ a page event's document is the revision the event names, and a thread event's is
 the frozen markup that sent its widget. It also records `unit`, the fold unit, so an action or report stands on the `[widget, unit, action]` coordinate.
 Actions and reports add `depends`, the direct element identities named by the
 owner, the unit, and declared state fields. An action whose admission
-makes its widget's `x-awaits.answered` condition hold is that Ask's answer and
+makes its widget's `x-awaits.answered` condition hold is that Question's answer and
 additionally records `answer`: the widget's authored `resolves`, read from the
 sending document, names the thread the answer closes, and null answers without
 closing one; a decision whose outcome is the widget's `x-withdrawn-as` declines and
@@ -264,36 +264,55 @@ message (`leaf thread reply <page> <message-id>`) carries no `responds`. Settlem
 consumes this exact identity rather than log order, so answering older work cannot
 erase newer user input. A substantive reply reopens a resolved thread;
 reactions and harness failure receipts leave its closure standing. A later resolution
-closes the thread again. Reopening restores its still-unanswered widget Asks,
+closes the thread again. Reopening restores its still-unanswered widget Questions,
 as an explicit reopen does.
 A harness that gives up on a move writes the failure the move's answer takes
 (`thread.fail_answer`): a reply for a message, including one in a thread
-that asked for a version, and a failed `pickup` for an answer to a page Ask. Each
+that asked for a version, and a failed `pickup` for an answer to a page Question. Each
 carries `failure`, a nonempty harness-owned code, which is what tells a harness's failure
 reply from an agent's. Only the harness writer supplies `failure`, and the panel draws
 such a reply as a receipt whose head says the message answers nothing, since
 otherwise it is indistinguishable from the answer it stands in for.
-When a reply carries a widget with a local `x-awaits` Ask, the widget's standing
-projection declares the Ask instead; the CLI refuses a parallel `--awaits` flag on
-that markup. A frozen widget keeps the user's Ask open until its
+When a reply carries a widget with a local `x-awaits` Question, the widget's standing
+projection declares the Question instead; the CLI refuses a parallel `--awaits` flag on
+that markup. A frozen widget keeps the user's Question open until its
 `x-awaits.answered` condition holds. Moves on the widget before then have not been handed over: they carry no receipt and
 require no agent reply, and the move that answers carries the receipt and hands the
-turn to the agent. Undoing it returns the Ask to the user and removes the reply
-obligation. A frozen widget move that answers no Ask, such as a card moved
+turn to the agent. Undoing it returns the Question to the user and removes the reply
+obligation. A frozen widget move that answers no Question, such as a card moved
 on a board sent in a reply, keeps a delivery receipt and owes no reply, under the
 rule `workflows.py` states for page moves.
 
-An open structural Ask anywhere in an unresolved thread keeps it awaiting the
+An open structural Question anywhere in an unresolved thread keeps it awaiting the
 user after later prose or a settling reaction. Without one, the latest unanswered
 prose question determines the obligation. Later agent updates leave it standing.
 A user turn answers every question before it; a reaction whose token declares
 `settles` answers only the question it names, so an older unanswered question may
-become current again. Neither answer resolves the thread. `asks.thread_questions`
-owns recognition, content identity and settlement for every prose question,
-including an agent opening comment.
-`work_reading.WorkReading.questions` shares that reading across admission and
-serving: thread attention selects its latest unanswered prompt, and tasks retain
-its settling event for Done history. Widget Asks remain their own reading.
+become current again. Neither answer resolves the thread. `questions.thread_questions`
+owns recognition, content identity, answer and withdrawal for every prose question,
+including an agent opening comment. An agent `task_end` naming an open prose
+Question withdraws that request; its outcome is no user answer.
+
+`work_reading.WorkReading.all_questions` combines page widgets, frozen widgets and
+prose into one canonical inventory. Every record carries stable `id`, `source`,
+`thread`, `prompt`, `answer`, `status` and `next_actor`. Widget identities are
+`widget:<source-id>` and prose identities `reply:<message-id>`. Prompt context
+changes the words and arrival target without replacing source identity. Answers
+select typed canonical widget values or the settling user reply/reaction, with
+an admitted answering event reference when one supplies the answer; authored and
+carried values can have no event. Completion is separate from value, so a partial
+value and a completed empty answer remain distinguishable.
+
+The `all`, `user` and `unanswered` collections select this inventory. Earlier
+suppressed prose and resolved-thread Questions stay in `all`; open records stay
+in `unanswered`, while only `next_actor: user` enters `user`. An open widget held
+by the agent has `next_actor: agent`; resolved threads suppress attention without
+inventing an answer. Widget registration starts when `x-awaits.when` holds;
+conditional gestures retain registration through the canonical state fold in
+their immutable source basis. Prior authored revisions retain later withdrawn
+requests while their source survives, stopping at a removed source or `restated` basis. A never-requested
+widget is absent. Explicit Tasks and Questions remain separate records; queues
+select either directly, and no task is synthesized from a Question.
 
 What each thread command does for its user, and when an agent uses it, is
 `../../references/threads.md`. The door and the fold hold these rules behind

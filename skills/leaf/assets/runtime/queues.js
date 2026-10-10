@@ -1,51 +1,7 @@
-/* What is on the user and what is on the agent: the browser's selection of
-   `agent_state.queues` from its own reading.
-
-   The two lists are the same selection `leaf page state` prints, made from the same
-   three readings: each thread's `attention`, the workflows, and the open tasks, on
-   either side (`tasks.page_tasks`). Python derives each of those; the application
-   publisher has already folded this tab's unresolved sends into the threads' attention,
-   the workflows and the tasks, so a reply the user just sent takes its thread off their
-   queue in the turn it is sent, and a refused one puts it back. Nothing here decides
-   whose turn a thread is: a thread is on the user exactly when its attention says so
-   (`awaitsUser`).
-
-   `onYou` holds each open task on the user (`task`, `owner: "user"`): each Ask, each
-   question a thread leaves them, and each task the agent put on them. A task the user
-   is ending with Done, still unanswered by the server, has already left the open
-   tasks (`application.ts`). An Ask leaves the
-   queue while a thread in its widget's seat holds it with the agent
-   (`ask.held_by_seat`), and a task on a thread while the thread waits on the agent.
-   Then come each thread whose attention is the user's to send a move again
-   (`recovery`), once, and each page widget move handed back to the user (`recovery`).
-   `onAgent` holds each move the agent owes an answer (`answer`), each move it has in
-   hand that owes nothing (`work`), and each open task of the agent's (`task`). An item
-   has the fields Python's has. `tests/served_records.py` folds a reading both
-   selections must agree on.
-
-   One item is the browser's alone: a message this tab is still sending, whose thread
-   its attention already hands to the agent, is an `answer` the agent will owe, with
-   no answer named yet and the stage `sending`. So the reply leaves the user's count
-   and joins the agent's in the same turn. In a thread the agent already owes, it takes
-   the place of the served answer, since the server owes a thread one answer, to its
-   latest move. A widget move still sending is not: until
-   the server reads it, it is not known to owe anything, and an Ask it answers still
-   stands open.
-
-   `selectDone` is a third list beside them, what is finished, which the Questions panel
-   folds at its foot (`queue-panel.js`): each task that has ended, an answered Ask's
-   among them, with its outcome. Python serves the ended tasks beside the open ones
-   (`served_state.browser`), so nothing here folds the log again.
-
-   Every task carries `ends`, how it ends, which Python derives once (`tasks.py`):
-   `agent` for the agent's own, `widget` for an Ask's, `reply` for a question's, and
-   `done` for any other task on the user, which only their Done ends. `taskNoun` is what
-   an item is called, read from it: an Ask, a question, otherwise its kind.
-   `endsByDone` is whether the user ends it with Done (`queue-api.js`, `done`).
-
-   Experimental: the queues, the walk over them and the panel listing them are new, and
-   their shape is expected to change a lot (notes/what-needs-you/). Change them freely.
-*/
+/* Queues select the canonical Questions, explicit Tasks and response workflows.
+ * A Question is never synthesized as a Task. Its source owns its answer; only an
+ * explicit user Task offers Done. Pending thread sends change attention through
+ * the application publisher, while widget completion waits for admission. */
 import { awaitsUser } from "./thread/model.js";
 import { atWork } from "./thread/workflow.js";
 
@@ -55,13 +11,8 @@ export const queueOffers = (item, ready, onYou) => ({
   done: ready && onYou && item.kind === "task" && endsByDone(item),
 });
 
-const NOUNS = Object.freeze({ widget: "ask", reply: "question" });
 export const taskNoun = (item) =>
-  item.kind === "task"
-    ? (NOUNS[item.ends] ?? "task")
-    : item.kind === "answer" && item.answer?.kind === "reply"
-      ? "reply"
-      : item.kind;
+  item.kind === "answer" && item.answer?.kind === "reply" ? "reply" : item.kind;
 
 const taskItem = (task) => ({
   kind: "task",
@@ -74,20 +25,29 @@ const taskItem = (task) => ({
   agent: task.agent,
   session: task.session,
   ends: task.ends,
-  ask: task.ask,
 });
 
-export function selectQueues({ threads, workflows, tasks }) {
-  const attention = new Map(threads.map((thread) => [thread.id, thread.attention]));
-  const onUser = (task) => {
-    if (task.ends === "widget") return !task.ask.held_by_seat;
-    if (task.ends === "reply")
-      return attention.get(task.subject.id)?.kind !== "waiting";
-    return true;
-  };
-  const onYou = tasks
-    .filter((task) => task.owner === "user" && onUser(task))
-    .map(taskItem);
+export const questionItem = (question) => ({
+  kind: "question",
+  id: question.id,
+  owner: "user",
+  subject: question.source.kind === "widget"
+    ? { kind: "widget", id: question.source.id }
+    : { kind: "thread", id: question.thread },
+  thread: question.thread,
+  title: question.prompt.text,
+  running: null,
+  agent: null,
+  session: null,
+  ends: question.source.kind === "widget" ? "widget" : "reply",
+  question,
+});
+
+export function selectQueues({ threads, workflows, tasks, questions }) {
+  const onYou = [
+    ...(questions?.user ?? []).map(questionItem),
+    ...tasks.filter((task) => task.owner === "user").map(taskItem),
+  ];
   for (const thread of threads)
     if (awaitsUser(thread) && thread.attention.reason === "recovery")
       onYou.push({
@@ -97,30 +57,18 @@ export function selectQueues({ threads, workflows, tasks }) {
         thread: thread.id,
       });
   const onAgent = [];
-  // The server owes a thread one answer, to its latest move, so a message still being
-  // sent in a thread stands for that thread's answer in place of the one served.
+  // A pending thread send replaces the served response obligation for that thread.
   const sending = (workflow) =>
     workflow.stage === "sending" && workflow.subject.kind === "thread";
   const resent = new Set(workflows.filter(sending).map(({ thread }) => thread));
   for (const workflow of workflows) {
-    const item = {
-      id: workflow.id,
-      subject: workflow.subject,
-      thread: workflow.thread,
-    };
-    // A move handed back in a thread is that thread's item above.
+    const item = { id: workflow.id, subject: workflow.subject, thread: workflow.thread };
     if (workflow.next_actor === "user") {
       if (workflow.thread === null) onYou.push({ kind: "recovery", ...item });
     } else if (
-      sending(workflow) ||
-      (workflow.answer !== null && !resent.has(workflow.thread))
+      sending(workflow) || (workflow.answer !== null && !resent.has(workflow.thread))
     )
-      onAgent.push({
-        kind: "answer",
-        ...item,
-        answer: workflow.answer,
-        stage: workflow.stage,
-      });
+      onAgent.push({ kind: "answer", ...item, answer: workflow.answer, stage: workflow.stage });
     else if (atWork(workflow))
       onAgent.push({ kind: "work", ...item, detail: workflow.detail });
   }
@@ -128,18 +76,20 @@ export function selectQueues({ threads, workflows, tasks }) {
   return { onYou, onAgent };
 }
 
-export function selectDone({ tasks }) {
-  return tasks.map((task) => ({
-    kind: "task",
-    id: task.id,
-    owner: task.owner,
-    subject: task.subject,
-    thread: task.thread,
-    title: task.title,
-    state: task.state,
-    ended: task.outcome?.ts ?? null,
-    detail: task.outcome?.detail ?? null,
-    ends: task.ends,
-    ask: task.ask,
-  }));
+export function selectDone({ tasks, questions }) {
+  return [
+    ...(questions?.all ?? []).filter((question) => question.status !== "open")
+      .map((question) => ({
+        ...questionItem(question),
+        state: question.status === "answered" ? "done" : "dropped",
+        ended: question.answer?.event?.ts ?? null,
+        detail: null,
+      })),
+    ...tasks.map((task) => ({
+      ...taskItem(task),
+      state: task.state,
+      ended: task.outcome?.ts ?? null,
+      detail: task.outcome?.detail ?? null,
+    })),
+  ];
 }

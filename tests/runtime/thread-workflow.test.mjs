@@ -71,7 +71,7 @@ test("workflow labels retain exact input progress and positive conditions", () =
   );
 });
 
-test("thread attention gives a standing user Ask precedence over agent work", () => {
+test("thread attention gives a standing user Question precedence over agent work", () => {
   const work = workflow("a", "working");
   const recovery = workflow("recovery", "sent", {
     condition: { kind: "failed" },
@@ -80,7 +80,7 @@ test("thread attention gives a standing user Ask precedence over agent work", ()
   const thread = {
     resolved: null,
     workflows: [recovery, work],
-    attention: { kind: "needs_user", reason: "ask", workflow: "recovery" },
+    attention: { kind: "needs_user", reason: "question", workflow: "recovery" },
   };
   assert.deepEqual(threadAttention(thread), {
     kind: "needs_user",

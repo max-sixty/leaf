@@ -15,7 +15,7 @@ class ServedPage(NamedTuple):
     the semantic readings, and the page's stored external data.
 
     `reading` is None before the page has an active revision, when there is no
-    document to read threads, Asks, or widgets against.
+    document to read threads, Questions, or widgets against.
     """
 
     state: dict

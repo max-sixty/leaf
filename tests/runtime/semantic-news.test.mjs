@@ -33,7 +33,10 @@ const thread = (id, msgs, attention = null, userPrompt = null) =>
         .map((item) => ({ message: item.id, version: item.edited?.id ?? item.id })),
     },
   );
-const ask = (id, thread = null) => ({ id, thread });
+const ask = (id, thread = null) => ({ id, thread, source: {kind: "widget", id} });
+const replyQuestion = (id, version = id) => ({
+  id, thread: "t", source: {kind: "reply", id, version},
+});
 const activity = (kind = "away", extra = {}) => ({
   kind,
   held: true,
@@ -42,15 +45,15 @@ const activity = (kind = "away", extra = {}) => ({
 });
 const reading = ({
   threads = [],
-  pageAsks = [],
-  threadAsks = [],
+  pageQuestions = [],
+  threadQuestions = [],
   workflows = [],
   pageActivity = activity(),
 } = {}) => ({
-  page: { asks: { user: pageAsks } },
+  page: { questions: { user: pageQuestions } },
   thread: {
     threads,
-    asks: { user: threadAsks },
+    questions: { user: threadQuestions },
   },
   workflows,
   activity: pageActivity,
@@ -74,7 +77,7 @@ const responseFailure = (source, kind = "failed") =>
 test("accepted messages and user obligations arrive together after a quiet baseline", () => {
   const old = reading({
     threads: [thread("t", [message("old", { unread: false })])],
-    pageAsks: [ask("existing")],
+    pageQuestions: [ask("existing")],
   });
   const baseline = observeSemanticNews(null, old);
   assert.deepEqual(baseline.news, []);
@@ -85,11 +88,12 @@ test("accepted messages and user obligations arrive together after a quiet basel
       thread(
         "t",
         [message("old", { unread: false }), message("new", { seq: 2, awaits: true })],
-        { kind: "needs_user", reason: "ask" },
+        { kind: "needs_user", reason: "question" },
         { message: "new", version: "new" },
       ),
     ],
-    pageAsks: [ask("existing"), ask("new")],
+    pageQuestions: [ask("existing"), ask("new")],
+    threadQuestions: [replyQuestion("new")],
   });
   const arrived = observeSemanticNews(baseline.observed, next);
   // A reply and both scopes of obligation may share a source id. Combining notices
@@ -106,19 +110,19 @@ test("accepted messages and user obligations arrive together after a quiet basel
   assert.deepEqual(observeSemanticNews(arrived.observed, next).news, []);
 });
 
-test("structural asks own their thread obligation and reopening starts a new episode", () => {
+test("structural questions own their thread obligation and reopening starts a new episode", () => {
   const baseline = observeSemanticNews(null, reading());
   const owed = reading({
     threads: [
       thread(
         "t",
         [message("question")],
-        { kind: "needs_user", reason: "ask" },
+        { kind: "needs_user", reason: "question" },
         { message: "question", version: "question" },
       ),
     ],
-    pageAsks: [ask("other")],
-    threadAsks: [ask("choice", "t")],
+    pageQuestions: [ask("other")],
+    threadQuestions: [ask("choice", "t")],
   });
   const first = observeSemanticNews(baseline.observed, owed);
   assert.deepEqual(
@@ -133,7 +137,7 @@ test("structural asks own their thread obligation and reopening starts a new epi
     first.observed,
     reading({
       threads: [thread("t", [message("question", { unread: false })])],
-      pageAsks: [ask("other")],
+      pageQuestions: [ask("other")],
     }),
   );
   assert.deepEqual(answered.news, []);
@@ -162,11 +166,12 @@ test("structural asks own their thread obligation and reopening starts a new epi
 
 test("a second question in the same waiting thread has its own source version", () => {
   const firstQuestion = reading({
+    threadQuestions: [replyQuestion("first")],
     threads: [
       thread(
         "t",
         [message("first", { awaits: true })],
-        { kind: "needs_user", reason: "ask" },
+        { kind: "needs_user", reason: "question" },
         { message: "first", version: "first" },
       ),
     ],
@@ -175,6 +180,7 @@ test("a second question in the same waiting thread has its own source version", 
   const next = observeSemanticNews(
     baseline.observed,
     reading({
+      threadQuestions: [replyQuestion("second")],
       threads: [
         thread(
           "t",
@@ -182,7 +188,7 @@ test("a second question in the same waiting thread has its own source version", 
             message("first", { awaits: true }),
             message("second", { seq: 2, awaits: true }),
           ],
-          { kind: "needs_user", reason: "ask" },
+          { kind: "needs_user", reason: "question" },
           { message: "second", version: "second" },
         ),
       ],
@@ -369,8 +375,8 @@ test("agent availability is an episode, not a work-stage notice", () => {
 });
 
 test("page obligations come from the shown revision, not a waiting activation", () => {
-  const shown = reading({ pageAsks: [ask("shown")] });
-  const waiting = reading({ pageAsks: [ask("waiting")] });
+  const shown = reading({ pageQuestions: [ask("shown")] });
+  const waiting = reading({ pageQuestions: [ask("waiting")] });
   const selected = semanticNewsReading({
     effective: { view: { document: shown.page } },
     authoritative: {
@@ -383,17 +389,18 @@ test("page obligations come from the shown revision, not a waiting activation", 
       activity: shown.activity,
     },
   });
-  assert.deepEqual([...selected.page.asks.user], [ask("shown")]);
+  assert.deepEqual([...selected.page.questions.user], [ask("shown")]);
 });
 
 test("one producer notice states a reply and new obligation as separate facts", () => {
   const baseline = observeSemanticNews(null, reading());
   const current = reading({
+    threadQuestions: [replyQuestion("answer")],
     threads: [
       thread(
         "t",
         [message("answer", { agent: "Sam", awaits: true })],
-        { kind: "needs_user", reason: "ask" },
+        { kind: "needs_user", reason: "question" },
         { message: "answer", version: "answer" },
       ),
     ],
@@ -519,4 +526,15 @@ test("news is ordered by when each message last moved", () => {
       ["a", "edited", "e"],
     ],
   );
+});
+
+
+test("editing a prose Question creates news for its new content version", () => {
+  const first = reading({ threadQuestions: [replyQuestion("same", "original")] });
+  const baseline = observeSemanticNews(null, first);
+  const edited = reading({ threadQuestions: [replyQuestion("same", "edit")] });
+  const changed = observeSemanticNews(baseline.observed, edited);
+  assert.deepEqual(changed.news.map(({kind, source, thread}) => [kind, source, thread]),
+    [["user_obligation", "same", "t"]]);
+  assert.deepEqual(observeSemanticNews(changed.observed, edited).news, []);
 });

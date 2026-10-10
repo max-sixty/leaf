@@ -3410,6 +3410,12 @@ def test_check_refuses_a_predicate_no_page_could_carry(
     Same for an answering verb the widget does not declare, which would hold its
     Ask open for a state no gesture writes."""
     registry = json.loads((page_dir / "registry.json").read_text())
+    if key == "x-awaits":
+        declaration = {
+            "value": next(iter(registry[tag]["x-state"])),
+            "answered": {"choose": {}},
+            **declaration,
+        }
     registry[tag][key] = declaration
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
@@ -3421,10 +3427,12 @@ def test_check_refuses_a_predicate_no_page_could_carry(
 @pytest.mark.parametrize(
     ("declaration", "message"),
     [
-        ({}, "local Ask declares no `answered` condition"),
+        ({"value": "answer"}, "answered"),
     ],
 )
-def test_a_local_ask_declares_its_answered_condition(page_dir, declaration, message):
+def test_a_local_question_declares_its_answered_condition(
+    page_dir, declaration, message
+):
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-test-task"]["x-awaits"] = declaration
     (page_dir / "registry.json").write_text(json.dumps(registry))
@@ -4961,7 +4969,11 @@ def test_an_ask_role_declares_an_addressable_instance(page_dir):
         "properties": {"open": {"type": "boolean"}},
         "additionalProperties": False,
         "x-content": "markup",
-        "x-awaits": {"when": {"open": [True]}, "answered": {"answer": {}}},
+        "x-awaits": {
+            "when": {"open": [True]},
+            "value": "answer",
+            "answered": {"answer": {}},
+        },
         "x-state": {
             "answer": {
                 "detail": {"type": "object", "additionalProperties": False},

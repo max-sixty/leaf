@@ -25,7 +25,7 @@
  * chip explicitly releases that hold. The chip remains available while activation waits.
  *
  * Retained nodes keep their mechanical state. Replaced nodes use `carry.js`'s authored-id
- * contract, and the Ask view restores the selected Ask by id. Both installs restore these
+ * contract, and the Question view restores the selected Question by id. Both installs restore these
  * readings; the patch passes its retained nodes so restoration skips them. Unnamed
  * replaced controls receive no guessed focus. Authored controls and registered draft
  * editors carry native editing under their existing replacement identity; arbitrary
@@ -33,10 +33,10 @@
  * use their own stores.
  *
  * A fresh-document install stores a page-scoped, one-use handoff: reading position,
- * comparison, pointer, margin standing, mechanical carry, and Ask standing. A newer
+ * comparison, pointer, margin standing, mechanical carry, and Question standing. A newer
  * revision may consume it, but ordinary reloads and history travel cannot replay it.
  * Explicit historical travel carries reading position and the decision landmark, without
- * mechanical carry or Ask standing. State application serializes responses and remains
+ * mechanical carry or Question standing. State application serializes responses and remains
  * pending after navigation starts until the old document is discarded.
  *
  * `captureView` records a place (reading-place.js) for the page and each reading
@@ -251,8 +251,8 @@ export function createVersionController({
   syncLayout,
   captureRetainedStanding = () => null,
   restoreRetainedStanding = () => false,
-  captureAskStanding = () => null,
-  restoreAskStanding = () => {},
+  captureQuestionStanding = () => null,
+  restoreQuestionStanding = () => {},
 }) {
   let { authoredBodyAttributes, authoredHeadNodes, authoredHtmlAttributes } =
     initialDocument;
@@ -1282,15 +1282,15 @@ export function createVersionController({
     sameAuthoredMarkup(shell(before), shell(after), arrivingRoot);
 
   // Patch against the authored baselines. Retained nodes keep their live state;
-  // replacement nodes recover eligible state through carry and Ask restoration.
+  // replacement nodes recover eligible state through carry and Question restoration.
   function captureEditingContinuity() {
     const draftEditing = captureDraftEditing();
     return {
       draftEditing,
       replyThread: draftEditing?.mirrored ? heldThreadId() : null,
-      // Ask standing is the fallback for unnamed controls. An exact editor already
-      // has a replacement identity, so its parent Ask does not also own focus.
-      askStanding: draftEditing ? null : captureAskStanding(),
+      // Question standing is the fallback for unnamed controls. An exact editor already
+      // has a replacement identity, so its parent Question does not also own focus.
+      questionStanding: draftEditing ? null : captureQuestionStanding(),
     };
   }
 
@@ -1307,8 +1307,8 @@ export function createVersionController({
 
   async function restoreEditingContinuity(continuity, currentIntent) {
     if (!currentIntent()) return;
-    const { draftEditing, replyThread, askStanding } = continuity;
-    restoreAskStanding(askStanding);
+    const { draftEditing, replyThread, questionStanding } = continuity;
+    restoreQuestionStanding(questionStanding);
     const mayRestore = restrictUserIntent(currentIntent, () =>
       draftEditingStands(draftEditing),
     );

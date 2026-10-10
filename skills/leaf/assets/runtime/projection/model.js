@@ -270,3 +270,40 @@ export function foldWidgetStates(authoredSnapshots, projection) {
           ids.sort(byRank(state[verb].ranks));
   return states;
 }
+
+/* A Question reads its value from the same complete fold as its widget. Completion
+   can make an empty recorded value an answer, but cannot invent custom state after
+   undo removes its action. Python's projection.question_value owns the same reading;
+   the shared question-value cases exercise both runtimes. */
+export function questionValue(widget, verb, answered) {
+  const state = widget.state[verb];
+  const spec = widget.specs.get(verb);
+  const recorded = (value) =>
+    spec.record?.kind === "attribute" ? [...value].sort() : value;
+  const value =
+    spec.unit === "widget"
+      ? spec.record
+        ? recorded(state.value)
+        : state.action
+          ? state.detail
+          : null
+      : spec.record?.kind === "position"
+        ? state.value
+        : Object.fromEntries(
+            Object.entries(state.units)
+              .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+              .map(([id, entry]) => [
+                id,
+                spec.record ? recorded(entry.value) : entry.detail,
+              ]),
+          );
+  const populated =
+    value !== null &&
+    value !== "" &&
+    (typeof value !== "object" || Object.keys(value).length > 0);
+  const hasInput =
+    spec.unit === "widget"
+      ? Boolean(state.action)
+      : Object.keys(state.units).length > 0;
+  return { value, present: value !== null && (populated || answered || hasInput) };
+}

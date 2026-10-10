@@ -15,9 +15,9 @@ import { moved } from "./thread/model.js";
 
 const identity = (record) => record.attempt ?? record.id;
 
-// News reads the shown revision's view: the one the page just presented, whose Asks
+// News reads the shown revision's view: the one the page just presented, whose Questions
 // the drawer and banner count paint. While an activation waits (a gesture defers it, or
-// the document is a pinned version), an Ask the active revision adds is not on this
+// the document is a pinned version), a Question the active revision adds is not on this
 // page yet; it becomes news when a revision holding it is presented.
 export function semanticNewsReading(root) {
   const page = root.effective.view?.document;
@@ -48,27 +48,14 @@ function unreadContent(threadView) {
 
 function userObligations(page, threadView) {
   const held = new Map();
-  for (const ask of page.asks.user)
-    held.set(JSON.stringify(["page", ask.id]), { source: ask.id, thread: null });
-  const askedThreads = new Set();
-  for (const ask of threadView.asks.user) {
-    held.set(JSON.stringify(["thread", ask.thread, ask.id]), {
-      source: ask.id,
-      thread: ask.thread,
+  for (const question of page.questions.user)
+    held.set(JSON.stringify(["page", question.id]), { source: question.id, thread: null });
+  for (const question of threadView.questions.user) {
+    const version = question.source.kind === "reply" ? question.source.version : null;
+    held.set(JSON.stringify(["thread", question.thread, question.id, version]), {
+      source: question.id,
+      thread: question.thread,
     });
-    askedThreads.add(ask.thread);
-  }
-  for (const thread of threadView.threads) {
-    if (
-      thread.attention?.kind === "needs_user" &&
-      thread.attention.reason === "ask" &&
-      !askedThreads.has(thread.id) &&
-      thread.user_prompt
-    )
-      held.set(JSON.stringify(["thread-turn", thread.id, thread.user_prompt.version]), {
-        source: thread.user_prompt.message,
-        thread: thread.id,
-      });
   }
   return held;
 }

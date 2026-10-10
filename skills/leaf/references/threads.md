@@ -162,7 +162,8 @@ version** and a later reply may still move it to a replacement.
 
 An ordinary reply answers the thread without putting anything on the user's queue.
 Add `--awaits` when the reply's prose asks the user to answer; the reply is then a
-task on them, under the reply's id, until they answer in the thread:
+Question under `reply:<message-id>` in `page state`'s `questions` collection,
+until they answer in the thread:
 
 ```bash
 leaf response reply <answer.ref> --awaits --text "Which store should own it?"
@@ -200,8 +201,8 @@ disclosure appears in the panel and contextual thread surfaces. A completing rep
 held behind a new-reply notice keeps its progress visible until the reply is shown;
 originals already being read or focused stay expanded.
 
-A widget whose registry entry declares a local `x-awaits` is already an Ask, a task
-on the user, and keeps its thread "On you" while that Ask stands. Leaf refuses
+A widget whose registry entry declares `x-awaits` already poses a Question
+and keeps its thread "On you" while that Question awaits the user. Leaf refuses
 `--awaits` beside such markup; the widget's state is the one reading.
 
 Correct an agent-authored message, including a predecessor's, without adding another turn:

@@ -46,9 +46,9 @@
  * In a thread the existing reply box already owns those words, so Enter from a mark
  * continues into that box. Every `multiple` group grows a Done press: each toggle
  * reaches the agent as it lands, so the press is the one statement that the set
- * is whole, posted as an `answer` action and held as the Ask's closing
+ * is whole, posted as an `answer` action and held as the Question's closing
  * condition (x-awaits.answered). Answered is paint on the press, never a wider word. A
- * second press withdraws that answer through the widget's exact undo, reopening the Ask;
+ * second press withdraws that answer through the widget's exact undo, reopening the Question;
  * the set can still change after either press, and each toggle reaches the agent.
  *
  * That paint goes on the press and nowhere else, which is a rule rather than a
@@ -69,7 +69,7 @@
  *
  * The keyboard path: every mark is a checkbox, so Tab reaches it and Space toggles. From a
  * mark, the runtime's row walk moves among the options: ↑/↓ clamp at the ends, and Home and
- * End land on them. This widget owns 1–9; Ask forwards those declarations across the
+ * End land on them. This widget owns 1–9; Question forwards those declarations across the
  * whole question. The column is held whether or not a key is in it, which is the theme's
  * half of this. The rows are
  * declared per mark, on the mark rather than on the group — the group holds the option's
@@ -144,23 +144,20 @@ const DONE_TAG = "lf-options-done";
 customElements.define(
   "lf-options",
   class extends HTMLElement {
-    // What the Ask was answered with: the picked options' names, the group's own in its
+    // What the Question was answered with: the picked options' names, the group's own in its
     // order and then the user's in the order they added them. An option the user added
     // is named by the words its `add` carries, and an authored one by its markup.
-    static answerWords(state, group) {
-      const picked = new Set(state.choose.detail.value);
-      const added = Object.entries(state.add?.units ?? {});
+    static answerWords(value, group) {
+      const picked = new Set(value);
+      const added = Object.entries(group.#controller?.read()?.state.add?.units ?? {});
       const authored = [...group.querySelectorAll(":scope > lf-option")].filter(
         (option) => picked.has(option.id) && !added.some(([id]) => id === option.id),
       );
-      return (
-        [
-          ...authored.map((option) => label(option) || option.id),
-          ...added
-            .filter(([id]) => picked.has(id))
-            .map(([, { detail }]) => markdownWords(detail.text)),
-        ].join(", ") || "No options selected"
-      );
+      return [
+        ...authored.map((option) => label(option) || option.id),
+        ...added.filter(([id]) => picked.has(id))
+          .map(([, { detail }]) => markdownWords(detail.text)),
+      ].join(", ") || "No options selected";
     }
 
     #addition = null;
@@ -395,7 +392,7 @@ customElements.define(
     }
 
     // From a mark, arrows walk the options and Space toggles. The group owns stable
-    // numbered commands; Ask forwards those same declarations.
+    // numbered commands; Question forwards those same declarations.
     #keys() {
       for (const bindingBadge of this.querySelectorAll(
         ":scope > lf-option > .lf-key-badge",

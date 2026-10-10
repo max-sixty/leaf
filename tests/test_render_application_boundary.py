@@ -960,7 +960,7 @@ def test_admission_holds_approval_until_the_answer_is_in_the_log(
     expect_asks_answered(page, "0/1")
     expect(approval).to_be_disabled()
     expect(approval).to_have_attribute(
-        "title", "Answer every Ask before approving this work"
+        "title", "Answer every Question before approving this work"
     )
 
     if expanded:

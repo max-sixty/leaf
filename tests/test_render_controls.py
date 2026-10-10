@@ -4002,7 +4002,7 @@ def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
     resized(page, 390, 900)
     expect(page.locator(".lf-banner-menu > .lf-answer-all")).to_have_count(1)
     assert answer_all.evaluate("button => button === window.__lfBulkControl")
-    assert answer_all.locator(":scope > lf-ask-banner-face").count() == 1
+    assert answer_all.locator(":scope > lf-question-banner-face").count() == 1
     order = page.evaluate(
         """() => [...document.querySelector('.lf-banner-menu').children,
                     ...document.querySelector('.lf-banner-actions').children]

@@ -3798,7 +3798,9 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         }
         # The comparison base carries its own Ask reading, because the browser reads
         # which Asks a revision holds rather than folding the declarations again.
-        assert set(view["browser"]["views"][str(revision)]["document"]["asks"]) == {
+        assert set(
+            view["browser"]["views"][str(revision)]["document"]["questions"]
+        ) == {
             "all",
             "user",
             "unanswered",

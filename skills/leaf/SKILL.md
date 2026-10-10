@@ -69,13 +69,13 @@ directory explicitly; export or copy anything that must outlive the page directo
    `leaf page stamp <page> --text "<changelog>"`. The check establishes that the
    page renders; the reading establishes that it shows the intended content.
    Review a record before its first handoff and at every later stamp, covering
-   the views and Asks that stamp adds. Review a quick page when a stamp makes it
+   the views and Questions that stamp adds. Review a quick page when a stamp makes it
    a record. A revision that answers a user's message needs only
    `leaf page check` before the reply, even on a record, because each valid save
    is already live on the user's page and further checking only delays the answer
    they are waiting for. Stamp a record again, with its render check and reading,
    at a checkpoint the user would name, such as sign-off (step 6), and wherever a
-   reference requires a stamped version, as taking in an answer to a page Ask
+   reference requires a stamped version, as taking in an answer to a page Question
    does (`references/authoring-revisions.md`). A page declaring
    `<meta name="lf-review" content="sign-off">` is always a record, since
    approval requires a stamped version.
@@ -136,7 +136,7 @@ by side on a wide page, or a workspace, a screen the user moves through rather t
 scrolls. A Layout class
 on `main` or a block arranges each of these, and the page's own CSS adjusts it;
 `references/page-authoring.md`, "Composing a page", owns the concrete choices, and
-`references/authoring-asks.md` owns where each Ask goes.
+`references/authoring-questions.md` owns where each Question goes.
 
 Include only controls and gestures that advance the user's task. Widget moves,
 resolutions and sign-offs can be undone; sent words remain in the log.
@@ -177,7 +177,7 @@ so a phase does not depend on discovering a chain of references.
 ### Author a version
 
 - `references/page-authoring.md`: before writing or revising any version.
-- `references/authoring-asks.md`: when the page needs an answer from the user or
+- `references/authoring-questions.md`: when the page needs an answer from the user or
   sign-off, before choosing its widgets.
 - `references/authoring-revisions.md`: before changing a handed-over page,
   proposing a rewrite, using a user-owned draft, or revising standing state.
@@ -188,7 +188,7 @@ so a phase does not depend on discovering a chain of references.
 ### First handoff
 
 - `references/conversation-loop.md`: before a page handoff, starting work on the page,
-  work long enough to delegate, or asking the user to do something no Ask or thread
+  work long enough to delegate, or asking the user to do something no Question or thread
   question answers.
 - The contract selected by "Harness selection": before the first handoff and
   when a delivery arrives.

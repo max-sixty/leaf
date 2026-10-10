@@ -203,7 +203,7 @@ test("attention names the outstanding question rather than the latest message", 
     seq: 2,
   });
   const source = servedThread([question, update], {
-    attention: { kind: "needs_user", reason: "ask", workflow: null },
+    attention: { kind: "needs_user", reason: "question", workflow: null },
     user_prompt: { message: "question", version: "question" },
   });
   const [thread] = readThreadRecords([source], NO_DOCUMENT, new Map(), []);
@@ -313,7 +313,7 @@ test("narrowing transitions reset what they contradict and counts name each subs
   assert.equal(transition(resolved, "waiting", "user").status, "open");
   assert.equal(transition(DEFAULT_INTENT, "status", "open"), DEFAULT_INTENT);
 
-  const onUser = { kind: "needs_user", reason: "ask" };
+  const onUser = { kind: "needs_user", reason: "question" };
   // A thread the agent has started a move in: the card says Working, so the agent
   // filter lists it.
   const claimed = { kind: "waiting", reason: "workflow", workflow: "working" };

@@ -356,7 +356,10 @@ def test_the_event_log_page_quotes_the_registry():
     shown = json.loads("{" + code_block(source, "options-verbs") + "}")
     assert shown == {
         "x-state": entry["x-state"],
-        "x-awaits": {"answered": entry["x-awaits"]["answered"]},
+        "x-awaits": {
+            "value": entry["x-awaits"]["value"],
+            "answered": entry["x-awaits"]["answered"],
+        },
     }
 
     registries = [

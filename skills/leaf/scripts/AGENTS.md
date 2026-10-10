@@ -39,13 +39,13 @@ subpackage's initializer is only a marker, never a second API.
   serving and delivery;
 - `workflows`, `activity`: unsettled user moves with their evidence, and the
   page-level fold over workflows, tasks, starts, status, claim, turn, and watcher;
-- `asks`: the one implementation of page and thread Asks, which every surface reads;
+- `questions`: the canonical inventory of widget and prose Questions, including typed
+  answers, completion, withdrawal and attention, which every surface selects;
 - `work`: the subjects work stands on: what an id names, which widgets seat a task,
   and which widget tasks a version would leave without a target;
-- `tasks` (experimental, expected to change a lot): tasks on either side, each with
-  its owner: the agent's the log holds until it ends them, the user's the log, the
-  document's Asks and the threads' questions hold, and the `start` that takes a move
-  or task in hand; their folds, admission gate, and `leaf task`;
+- `tasks` (experimental, expected to change a lot): explicit committed work on either
+  side, held by the log until ended, and the `start` that takes a move or task in
+  hand; their folds, admission gate, and `leaf task`. Questions never become Tasks;
 - `delivery`, `session`, `hooks`, `hook_transport`, `harness`: the delivery envelope
   and its receipt, status and the `leaf wait` watch, the harness hooks' entry, the
   prompt and Stop hooks as a session's transport, and harness declarations;

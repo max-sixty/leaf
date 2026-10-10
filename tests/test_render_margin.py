@@ -1395,7 +1395,7 @@ def test_the_standing_ask_marks_its_selected_margin_reading(browser, serve):
     first_marker = page.locator(
         '[data-lf-margin-for="jobs-decision"] > .lf-margin-marker'
     )
-    expect(first).to_have_attribute("data-lf-ask", "1")
+    expect(first).to_have_attribute("data-lf-question", "1")
     expect(first_marker).to_have_attribute("data-lf-target-selected", "")
     assert first_marker.evaluate(
         "marker => getComputedStyle(marker).borderTopColor"

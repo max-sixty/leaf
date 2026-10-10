@@ -72,7 +72,7 @@ The optional bundled packages are:
 | `diagram` | `lf-diagram` and its Agentic Mermaid renderer. |
 | `diff` | `lf-diff`, its `unified-diff` data contract and Pierre renderer, and `lf-call-diff` with links to exact patch evidence. |
 | `playground` | Controls and structured state with shared reset, restore, preview, output, and typed configuration submission. |
-| `monitoring` | Release-workspace instructions for current state, checks, a run log, and a rollback Ask. |
+| `monitoring` | Release-workspace instructions for current state, checks, a run log, and a rollback Question. |
 | `visual-review` | Ordered website cases with aligned before-and-after evidence, automatic comparison orientation, authored focus and full-frame context, flip and overlay, fit and captured-size inspection, exact preview links, and dispositions. |
 | `playwright` | Native trace import and `lf-trace` review of actions, checkpoint images, captured frames and saved accessibility elements, with comments that restore their recorded moment and a link to Playwright's full viewer. |
 | `gallery` | Static action controls, disclosures, and status indicators for the developer feature gallery; ordinary pages do not select it. |
@@ -249,9 +249,9 @@ Startup behavior and transition protection follow
 The element declaration is JSON Schema over the element's attributes, plus the `x-` keys that
 say how the layer treats the tag — its content model, whether a module upgrades it, which
 attributes the user sees as words, its action verbs and their record forms, whether it
-stands as one of the page's Asks. The merged registry's `$keys` entry defines each key,
+stands as one of the page's Questions. The merged registry's `$keys` entry defines each key,
 and `$state` defines each `x-state` verb member, including `creates` for user-added
-children, while `$awaits` defines when a widget's Ask is answered. Every element
+children, while `$awaits` defines its Question's typed value and completion. Every element
 declaration carries a non-empty `description`: short prose stating the widget's
 purpose and when to use it. The attribute schema and valid `x-example` describe
 its form. Optional `x-instructions` states the authoring choices and obligations
@@ -346,23 +346,46 @@ A verb with no record declares its own closed `detail` JSON Schema. Its `unit` i
 `"widget"` or a required detail field naming the element it changes. This supports
 custom actions, such as a playground's submitted settings, and generated children.
 
-`x-awaits.answered` says when the widget's Ask is answered, as a condition on that
-standing state for each verb that can answer it. `{}` holds while the verb's state
-stands, `when` narrows a verb to instances with matching attributes, and `empty` holds
-while the named container inside the widget has no members. For a page-owned queue,
-`"answered": {"move": {"empty": {"within": "lf-queue-column", "when": {"queued": [true]}}}}`
-answers when the marked column is empty; returning a card reopens the Ask. The package
-declares its own column and card elements, whose `x-owners` name their containers, and
-its module renders the positions. The default board's `lf-column` belongs only to
-`lf-board`; declaring a new queue does not change that ownership or make ordinary
-boards into Asks.
+`x-awaits` registers a Question automatically for each matching widget. Its
+required `value` names one `x-state` verb: recorded state supplies that verb's
+typed value, and a verb without a record supplies its admitted action detail.
+For example, `"value": "choose"` exposes selected option ids; a playground's
+recordless `choose` exposes its submitted configuration. The source widget
+continues to own that state and admit its commands.
 
-`"answered": {"edit": {}}` answers a draft once an edit stands, and
-`"answered": {"choose": {"when": {"multiple": [false]}}, "answer": {"when":
-{"multiple": [true]}}}` answers a single-choice group by its pick and a `multiple` group
-by its Done press.
-The words that name an answer are the module's `static answerWords(state, element)`
-([module-authoring.md, "Declared widget state"](module-authoring.md#declared-widget-state)).
+`x-awaits.answered` separately says when the Question is complete. `{}` holds
+while the verb's state stands, `when` narrows a verb to instances with matching
+attributes, and `empty` holds while the named container has no members. A
+page-owned queue can declare:
+
+```json
+{
+  "value": "move",
+  "answered": {
+    "move": {"empty": {"within": "lf-queue-column", "when": {"queued": [true]}}}
+  }
+}
+```
+
+The Question is answered when the marked column is empty; returning a card
+reopens it. The package declares its own columns and cards, whose `x-owners`
+name their containers. The default board's `lf-column` belongs only to
+`lf-board`; ordinary boards pose no Question unless they declare one.
+
+A draft declares `"value": "edit", "answered": {"edit": {}}`. An options group
+keeps `"value": "choose"` for both forms, while `answered` selects `choose` for
+single choice and `answer` for multiple choice's Done. Completion never depends
+on the answer's truthiness: partial choices can be open, and an empty selected
+set can be complete. If the Question's `when` stops holding, a complete source
+remains answered and an incomplete one becomes withdrawn.
+
+`x-question-context` contributes the leading heading and arrival target to a
+nested Question. It does not replace its source identity or own the answer.
+`lf-ask` is the default context adapter. The module's `static answerWords(value,
+element)` formats values for presentation ([module-authoring.md, "Declared widget
+state"](module-authoring.md#declared-widget-state)); `readQuestions()` exposes
+typed values directly ([module-authoring.md, "Reading Questions and obligation
+queues"](module-authoring.md#reading-questions-and-obligation-queues)).
 
 The module reads and writes through `widgetController(owner)`, described in
 [module-authoring.md, "The widget controller"](module-authoring.md#the-widget-controller): `subscribe` delivers the authored baseline with the fold applied, and

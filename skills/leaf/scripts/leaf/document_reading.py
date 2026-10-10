@@ -1,17 +1,18 @@
 """Shared semantic reading of one document and its standing event log.
 
-Browser state and agent inspection use the same retirement and Ask assembly.
+Browser state and agent inspection use the same retirement and Question assembly.
 Callers supply the document's reading and events from their page transaction; this
-reading does no file I/O and stores no derived state. The retired passage view is
+reading stores no derived state. Registration history is read lazily through the
+transaction-owned revision reader supplied by the caller. The retired passage view is
 the document reading's own (`SourceReading.decided_passages`).
 """
 
 from typing import NamedTuple
 
-from .asks import page_ask_readings
 from .events import retractions, seats_with_agent
 from .passages import Passages
 from .projection import PageReading, StateProjection, retirement_outcomes
+from .questions import page_question_readings
 from .structure import SourceDocument
 
 
@@ -20,13 +21,13 @@ class DocumentReading(NamedTuple):
     projection: StateProjection
     spoken: dict
     passages: Passages
-    asks: dict
+    questions: dict
     within: dict
     floors: dict
 
 
 def read_document(page: PageReading, threads: dict) -> DocumentReading:
-    """Resolve a document's durable state and its user's outstanding Asks.
+    """Resolve a document's durable state and its user's outstanding Questions.
 
     `spoken` retains authored words because retractions and action ownership are
     based on construction. `passages` removes retired slots; exact replacement
@@ -41,7 +42,7 @@ def read_document(page: PageReading, threads: dict) -> DocumentReading:
     spk = page.spoken
     passages = page.reading.decided_passages(retirement_outcomes(projection.actions))
     dropped = set(passages.retired) | set(passages.gone)
-    asks = page_ask_readings(
+    questions = page_question_readings(
         parser,
         projection,
         parser.by_id,
@@ -50,13 +51,16 @@ def read_document(page: PageReading, threads: dict) -> DocumentReading:
         dropped,
         seats_with_agent(threads),
         settled_away=set(passages.gone),
+        prior=page.prior,
+        revision=revision,
+        events=events,
     )
     return DocumentReading(
         document=document,
         projection=projection,
         spoken=spk,
         passages=passages,
-        asks=asks,
+        questions=questions,
         within=page.within,
         floors=retractions(events, revision),
     )

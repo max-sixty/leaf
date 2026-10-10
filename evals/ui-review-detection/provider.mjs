@@ -1,8 +1,8 @@
 /**
  * Promptfoo transport for blinded UI defect detection. A candidate manifest names
- * only its prompt, screenshots, and optional fixture URL. Gold answers never enter
- * this module. Both model families receive the same evidence and browser operation;
- * their native transports and system prompts are recorded as experimental factors.
+ * only its prompt, screenshots or source files, and optional fixture URL. Gold
+ * answers never enter this module. Both model families receive the same evidence
+ * and browser operation; native transports are recorded as experimental factors.
  *
  * Codex subscription requests use pi-ai's OAuth Responses transport with an explicit
  * tool list. Claude uses the installed Agent SDK with built-ins disabled. Browser
@@ -438,7 +438,7 @@ async function claudeModel(config, content, browser, record, evidenceDir) {
     // Keep the input stream open while SDK MCP operations run; close it with query.
     let release;
     async function* input() {
-      yield {
+      const message = {
         type: "user",
         session_id: "",
         parent_tool_use_id: null,
@@ -458,6 +458,8 @@ async function claudeModel(config, content, browser, record, evidenceDir) {
           ),
         },
       };
+      record("sdk-input", sanitized(message));
+      yield message;
       await new Promise((resolve) => {
         release = resolve;
       });
@@ -566,8 +568,13 @@ export default class UiReviewDetectionProvider {
     );
     const candidateDir = path.dirname(manifestPath);
     const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-    if (!["no-tools", "browser"].includes(config.condition))
-      throw new Error("condition must be no-tools or browser");
+    if (!["no-tools", "browser", "code-only"].includes(config.condition))
+      throw new Error("condition must be no-tools, browser or code-only");
+    if (
+      config.condition === "code-only" &&
+      ((manifest.images ?? []).length || !manifest.sources?.length)
+    )
+      throw new Error("Code-only requires source files and zero images");
     if (
       !["gpt-6.1-sol", "gpt-6-astra", "claude-opus-5-5", "claude-fable-5-1"].includes(
         config.model,
@@ -588,10 +595,20 @@ export default class UiReviewDetectionProvider {
     };
     let browser;
     try {
-      const request =
+      let request =
         prompt && path.resolve(prompt) !== manifestPath
           ? prompt
           : await readFile(contained(candidateDir, manifest.prompt), "utf8");
+      const sources = [];
+      if (config.condition === "code-only") {
+        request +=
+          "\n\nCandidate source files follow. No rendered screenshots or browser access are supplied.\n";
+        for (const source of manifest.sources) {
+          const bytes = await readFile(contained(candidateDir, source.file));
+          sources.push({ path: source.path, sha256: digest(bytes) });
+          request += `\n<file path=${JSON.stringify(source.path)}>\n${bytes.toString("utf8")}\n</file>\n`;
+        }
+      }
       await writeFile(path.join(evidenceDir, "request.md"), request);
       const content = [{ type: "text", text: request }];
       for (let index = 0; index < (manifest.images ?? []).length; index++) {
@@ -618,6 +635,7 @@ export default class UiReviewDetectionProvider {
           effort: config.effort ?? "high",
           manifest: sanitized(manifest),
           systemPrompt: SYSTEM,
+          ...(config.condition === "code-only" ? { sources } : {}),
           images: content
             .filter((x) => x.type === "image")
             .map((x) => ({ sha256: digest(x.data), mimeType: x.mimeType })),

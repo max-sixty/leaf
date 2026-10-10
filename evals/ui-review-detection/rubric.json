@@ -1,11 +1,11 @@
 {
-  "version": 2,
-  "grading": "Read every answer against its supplied static evidence and actual browser trace. Grade without model identity. Do not use keyword matching or reward always finding a problem.",
+  "version": 4,
+  "grading": "Read every answer against its supplied evidence (screenshots or source text) and actual tool trace. Grade without model identity. Do not use keyword matching or reward always finding a problem.",
   "metrics": {
-    "target_detection": "Defective cases only: 2 = identifies the target failure with correct observable evidence and its consequence; 1 = identifies the specific target concern but cannot substantiate it; 0 = misses it, merely names generic aesthetics, or asserts a different mechanism.",
+    "target_detection": "Defective cases only: 2 = identifies the target failure with correct evidence and its consequence; 1 = identifies the specific target concern but cannot substantiate it; 0 = misses it, merely names generic aesthetics, or asserts a different mechanism.",
     "target_false_alarm": "Corrected controls only: 1 = alleges the same target failure despite evidence that it is absent; 0 = does not. Other valid findings are allowed and are not false alarms.",
     "unsupported_observations": "Record concrete invented observations or claims of interactions absent from the trace. A suggestion to test a possibility is not an invented observation.",
-    "execution_integrity": "Transport completion, true no-tools request when applicable, readable images, fixture availability, and no oracle leakage. Infrastructure failures are unscored."
+    "execution_integrity": "Transport completion, true tool-free request when applicable, correct image/source modality, fixture availability, and no oracle leakage. Infrastructure failures are unscored."
   },
   "targets": {
     "recording-times": {
@@ -17,11 +17,12 @@
     },
     "recording-stepping": {
       "failure": "The inspected application image changes vertical position when checkpoint-only metadata appears or disappears during intermediate-frame stepping.",
-      "accept": "Identify image movement/layout instability across the supplied frame transitions or actual Next/Previous sequence, and connect it to interrupted visual comparison.",
+      "accept": "Identify image movement/layout instability across the supplied frame transitions, actual Next/Previous sequence, or source-defined DOM/state changes, and connect it to interrupted visual comparison.",
       "reject": "Check only button positions or selected frame identity; report only different image content without recognizing viewer layout movement.",
       "control": "The image precedes variable metadata, keeping its origin fixed across the same transitions.",
       "limit": "This fixture reconstructs the historical DOM-order mechanism; a small fresh review does not reproduce the long authoring context."
     }
   },
-  "qualification": "Freeze task and scoring before Sol runs. A ceiling, consistent miss, false-alarm pattern and insufficient evidence are distinct outcomes. Do not tune packets just to manufacture Sol failures. Inspect all outputs before spending on other models."
+  "qualification": "Freeze task and scoring before Sol runs. A ceiling, consistent miss, false-alarm pattern and insufficient evidence are distinct outcomes. Do not tune packets just to manufacture Sol failures. Inspect all outputs before spending on other models.",
+  "source_only": "Code-only supplies candidate and pinned dependency source text without rendering or tools. Correctly reasoned consequences of the supplied CSS/DOM/state changes can substantiate a target; distinguish them from observed rendering. Record invented pixel measurements or unperformed interactions as unsupported observations. The target failures and corrected controls are unchanged. Earlier partial-source timing packets omitted the dependency; track that evidence insufficiency separately and do not pool them with complete-source misses."
 }

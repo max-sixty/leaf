@@ -31,6 +31,10 @@ uv run leaf-dev eval-ui-review \
 uv run leaf-dev eval-ui-review \
   --model sol --model opus --model fable --model astra \
   --condition browser --mode discovery
+uv run leaf-dev eval-ui-review --model sol --condition code-only
+uv run leaf-dev eval-ui-review \
+  --model sol --model opus --model fable --model astra \
+  --condition code-only
 ```
 
 `--repeat 2` runs independent conversations. Every run needs a fresh `--output`
@@ -44,6 +48,26 @@ Discovery supplies only the arrival screenshot, so the browser model must discov
 transitions. A transition-only defect is unobservable in no-tools discovery and
 must not be scored as a miss.
 
+Code-only supplies the same review task plus the candidate's authored HTML/CSS,
+its local JavaScript and adapter, and SVG source text where used. It supplies no
+image content blocks, screenshots, browser capability or other tools. `both`
+continues to mean the two visual recognition arms; choose `code-only` separately.
+Code-only cannot be combined with arrival-only discovery.
+
+These are complete reconstructed fixture packets, not the full Leaf repository.
+The timing packet includes the complete pinned Timeline/DataSet bundle and its
+CSS as source text, rather than selecting explanatory excerpts. It contributes
+about 450 KB of minified code; record actual input tokens and completion integrity.
+The stepping packet includes its module, styling, adapter and vector source.
+Grade supported source inferences separately from claims of observed rendering;
+exact pixel geometry is not an observed fact in this condition. Source review and
+screenshot review answer different evidence questions, so differences are not
+a causal estimate of image benefit.
+
+An initial partial-source Sol calibration omitted the timeline bundle. Preserve
+that run separately: its timing uncertainty cannot be counted as a comparable
+miss against the complete-source condition.
+
 ## Retained cases and calibration
 
 | Case | Target | Corrected control |
@@ -51,9 +75,10 @@ must not be scored as a miss.
 | `recording-times` | Label boxes lack a visible point anchor, making event time or apparent duration ambiguous. | Restores point dots and stems while retaining label widths, stacking and dense timing. |
 | `recording-stepping` | Variable checkpoint metadata moves the application image during intermediate-frame stepping. | Places the image before variable metadata so its origin stays fixed. |
 
-Calibration on 2026-10-10 found that Sol missed the timing target in three static
-reviews; Opus and Fable detected it in their static comparison runs, while Astra
-missed it. All four detected image movement statically. These are narrow fresh
+Calibration on 2026-10-10 found that Sol missed the timing target in three
+screenshot-only reviews; Opus and Fable detected it in their screenshot-only
+comparison runs, while Astra missed it. All four detected image movement from
+screenshots. These are narrow fresh
 review observations, mostly one conversation per comparative cell, not a general
 model ranking or a replay of the long authoring sessions. The ambiguous grouped
 navigation probe was exploratory and is not retained here.
@@ -73,12 +98,17 @@ records historical sources and reconstruction limits. Screenshots are generated
 from text fixtures; run captures and raw outputs stay under `.tmp/`.
 
 The server exposes only public assets. Candidate models receive no diagnosis,
-variant label, source code or prior complaints. Codex uses pi-ai's native OAuth
+variant label or prior complaints; visual arms also withhold source code.
+Codex uses pi-ai's native OAuth
 Responses transport; Claude uses its Agent SDK with built-ins disabled and an
-isolated login home. Both receive the same controlled browser capability. Native
-harness differences remain a comparison limitation.
+isolated login home. In the browser condition, both receive the same controlled
+browser capability. Native harness differences remain a comparison limitation.
+Code-only audits record the
+Codex native request payload or the exact user message handed to Claude's SDK,
+alongside its empty initialized tool roster. SDK input does not establish HTTP
+wire-level byte equality or exclude SDK transformations.
 
-Each sample retains its request, supplied images, native trace, browser captures,
+Each sample retains its request, any supplied images, native trace, browser captures,
 answer, observed assistant identity and usage, or an execution-error record.
 Grade every completed answer against the run's frozen `rubric.json` and actual
 evidence, preferably with model identity withheld:

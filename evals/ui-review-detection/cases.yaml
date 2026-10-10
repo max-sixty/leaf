@@ -5,6 +5,9 @@
 # A sample is a fresh review, not a continuation of the historical authoring session.
 cases:
   recording-times:
+    source_files:
+      - "{candidate}.html"
+      - assets/timeline.esm.js
     prompt: |
       Review this browser-recording viewer before it is handed to a reader.
       The reader needs to understand the sequence and timing of the recorded
@@ -14,6 +17,11 @@ cases:
       its effect on that task, and any uncertainty. Do not assume there is
       a defect, and do not invent interactions you did not observe.
   recording-stepping:
+    source_files:
+      - "{candidate}.html"
+      - "{candidate}.js"
+      - assets/widget-api.js
+      - assets/scene.svg
     prompt: |
       Review this browser-recording viewer before it is handed to a reader.
       The reader needs to inspect the recorded application while stepping

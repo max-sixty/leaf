@@ -1,9 +1,11 @@
 """Blinded UI review detection on frozen historical mechanism reconstructions.
 
 Each run owns a fresh public-only fixture server, candidate packets and a snapshot
-of its private rubric/provenance. Recognition supplies labelled screenshot sequences;
-discovery supplies arrival only. Transition defects are unobservable to no-tools
-discovery and must not be scored as misses. Promptfoo records raw answers; its
+of its private rubric/provenance. Recognition supplies labelled screenshot sequences,
+or candidate source text in the code-only condition; discovery supplies arrival only.
+Code-only includes the pinned dependency source, without supplying rendered evidence.
+Transition defects are unobservable to no-tools discovery and must not be scored as
+misses. Promptfoo records raw answers; its
 completion indicators are not correctness grades. Human scoring uses rubric.json.
 """
 
@@ -75,7 +77,7 @@ def served(site):
             thread.join()
 
 
-def capture(browser, origin, variant, identity, output, mode):
+def capture(browser, origin, variant, identity, output, mode, *, include_images=True):
     """Assert the historical contrast and capture neutral, ordered observations."""
     family = variant.split("-", 1)[0]
     page = browser.new_page(
@@ -88,6 +90,8 @@ def capture(browser, origin, variant, identity, output, mode):
     images, labels = [], []
 
     def screenshot(label):
+        if not include_images:
+            return
         file = f"view-{len(images)}.png"
         page.screenshot(path=output / file)
         images.append(file)
@@ -193,7 +197,9 @@ def stage(output):
     default=("sol",),
 )
 @click.option(
-    "--condition", type=click.Choice(["no-tools", "browser", "both"]), default="both"
+    "--condition",
+    type=click.Choice(["no-tools", "browser", "both", "code-only"]),
+    default="both",
 )
 @click.option(
     "--mode", type=click.Choice(["recognition", "discovery"]), default="recognition"
@@ -211,6 +217,10 @@ def stage(output):
 )
 def eval_ui_review(models, condition, mode, repeat, prepare_only, output):
     """Evaluate UI review detection; every answer requires manual correctness scoring."""
+    if condition == "code-only" and mode == "discovery":
+        raise click.UsageError(
+            "Code-only reviews source; discovery requires visual evidence."
+        )
     default = (
         ROOT
         / ".tmp/eval-ui-review"
@@ -250,8 +260,31 @@ def eval_ui_review(models, condition, mode, repeat, prepare_only, output):
                 prompt = cases[CASES[family]]["prompt"]
                 (packet / "request.md").write_text(prompt)
                 readings[identity] = capture(
-                    browser, origin, variant, identity, packet, mode
+                    browser,
+                    origin,
+                    variant,
+                    identity,
+                    packet,
+                    mode,
+                    include_images=condition != "code-only",
                 )
+                if condition == "code-only":
+                    case = cases[CASES[family]]
+                    sources = []
+                    for template in case["source_files"]:
+                        name = template.format(candidate=identity)
+                        target = packet / "source" / name
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copyfile(output / "site" / name, target)
+                        sources.append({"path": name, "file": f"source/{name}"})
+                    write_json(
+                        packet / "input.json",
+                        {
+                            "prompt": "request.md",
+                            "images": [],
+                            "sources": sources,
+                        },
+                    )
                 tests.append(
                     {
                         "description": identity,

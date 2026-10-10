@@ -20,8 +20,8 @@ second fold.
 | the turn ending this page nudged its session after | `messaged_ending` in the page's claim record: the turn id and its close stamp, or for an interrupted turn its last opening | browser-event admission, once the harness's nudge lands | a later ending, a close under a new id or an interrupt after a new prompt renewed the same one, differs |
 | wait lease | `waiter.lock`, or `sessions/<session>.wait` for a harness session | the live `leaf wait` process, or Claude Code's background Stop hook watching between turns (`leaf hook --harness claude-code --watch`), holding an exclusive kernel lock on a stable file; file existence does not prove liveness | descriptor close or process exit, including a crash |
 | the harness runs Leaf's hooks for this session | `sessions/<session>.hooks` | every Leaf hook the harness runs for the session | removed by its SessionEnd hook |
-| acknowledgement cursor | `cursor.json` | whatever confirms the complete delivery reached its durable consumer: a Claude Code or Pi hook once it has published an inline delivery, the session's `leaf delivery read` of a hook's pointer, `leaf wait --ack` after a printed one, or the Codex adapter | when its seq is past the log's end, or a fresh log replaces the one it named; monotonic within one log |
-| pickup transition | a `pickup` event in `events.jsonl` | the adapter records `queued` when Codex accepts a batch it does not observe; whatever puts the batch into a turn records `opened` with session and turn identity: a direct `leaf wait --ack` confirmation, a hook's or a pointer read's confirmation of a Claude Code or Pi hook delivery, the prompt hook re-presenting an acknowledged unanswered move, or an App Server turn start | never; each event/phase/session/turn transition is idempotent |
+| acknowledgement cursor | `cursor.json` | whatever confirms the complete delivery reached its durable consumer: a Claude Code or Pi hook once it has published an inline delivery, the session's explicit `leaf delivery ack` after a pointer reading, `leaf wait --ack` after a printed one, or the Codex adapter | when its seq is past the log's end, or a fresh log replaces the one it named; monotonic within one log |
+| pickup transition | a `pickup` event in `events.jsonl` | the adapter records `queued` when Codex accepts a batch it does not observe; whatever puts the batch into a turn records `opened` with session and turn identity: a direct `leaf wait --ack` confirmation, an inline hook's or a pointer reader's explicit confirmation of a Claude Code or Pi hook delivery, the prompt hook re-presenting an acknowledged unanswered move, or an App Server turn start | never; each event/phase/session/turn transition is idempotent |
 | page claim: unique acquisition, session generation, display name, harness | `~/.local/state/leaf/claims/<page-key>.json`; the session partition holds a symlink locator to it | `server start` from an agent harness; references the session lifetime publication | `released` is set, the referenced generation ended or was replaced, or the shared harness lifetime is gone: the pid, the background job's directory, or the desktop Codex chat's validated native transcript at the path in its session record; archive moves that source and delete removes it |
 | service lifetime | `service.json` | `server start` at launch: session, or standing | `leaf server stop`; a session server also retires when no live claim holds it |
 | Codex delivery record | `sessions/<session>.deliveries/` in the state home | the detached adapter or an embedded App Server harness | an unaccepted record is inactive while the session owns no page; an accepted record moves under `history/` after every batch is receipted; a record, live or archived, goes at the next scan that finds its pages all gone: its own task's reading, its next archiving, or any Codex adapter's retirement, which scans every task's records and removes a directory it empties |
@@ -220,13 +220,13 @@ under that epoch guard. A harness discards the output of a hook it times out,
 and Claude Code cuts a large context to a preview, so the hook confirms an inline
 delivery only after publishing it, and only while it is well inside its timeout
 (`hook_transport.CONFIRM_WITHIN`); otherwise, and for a delivery too large for the
-context, it hands over a pointer whose `leaf delivery read` in the session is the
-receipt. Every hook envelope's `acknowledge` is null. Receipt then revalidates
+context, it hands over a pointer. After reading all its parts, the session
+confirms receipt with `leaf delivery ack`. Every hook envelope's `acknowledge` is null. Receipt then revalidates
 current ownership and exact event identities under page→session locks held
 through pickup and cursor commit, batch by batch, so a page the session no longer
 holds keeps its input pending. Receipt observes an open turn and cannot open or
 replace one. Input stays pending if a hook is stopped before it confirms, or a
-pointer is never read. Provider callbacks
+pointer is never confirmed. Provider callbacks
 can only bind an unknown turn or match the known one; an App Server start result
 introduces a new identity only by comparing the epoch captured before its request.
 The subscribed observer captures its epoch before resume and advances that token
@@ -253,8 +253,8 @@ once, or renews only the already observed running provider turn and offers one i
 revision advances on a prompt, ending, or tool step: the queue rechecks it under
 the same delivery lock before reserving its transport, so even a renewed step within
 the same turn invalidates an idle reading taken before it. Completing the hook does not prove
-the model read its output: `delivery read` in the owning task takes receipt and
-records opened pickup. Hook reads, App Server entry, and durable queue acceptance
+the model read its output: `delivery ack` in the owning task confirms complete receipt and
+records opened pickup. Pointer confirmation, App Server entry, and durable queue acceptance
 all use `codex.accept_codex_delivery` against the exact delivery id. It persists
 acceptance before page IO; normal receipt and interrupted-acceptance recovery use
 `codex.finish_codex_batch`, which never opens a turn. Stop or Interrupt closes the

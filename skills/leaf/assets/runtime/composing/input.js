@@ -208,6 +208,12 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // another in its place (null takes it off), `undoStroke` takes back its last stroke
       // and `remove` takes it off the draft.
       drawing = null,
+      // Keys this box answers beyond submitting, in its own scope, such as a rewrite's
+      // ↑ to the message before it.
+      rows = [],
+      // Where the submit control stands: in the field beside the words, or in a group of
+      // the caller's that holds it elsewhere, as a rewrite's stands at its message's head.
+      submitIn = null,
     },
   ) {
     const field = document.createElement("div");
@@ -223,14 +229,20 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const hintKey = document.createElement("kbd");
     hintKey.className = "lf-key-badge";
     visibleHint.append(hintLabel, hintKey);
-    field.append(ta, sendBtn);
+    field.append(ta);
+    (submitIn ?? field).append(sendBtn);
     // These two are the press's whole face, and the theme keys the glyph's colour on the
     // pair, so a box cannot be handed a send button dressed as something else. `primary`
     // is a different face: it dresses the press's own box, which is the hit target and
     // stands larger than the disc wherever the pointer is coarse. A send press never
-    // wears it.
+    // wears it. A press standing among words rather than in the field, as a rewrite's
+    // Save at its message's head, takes no glyph (`icon: null`) and wears its word.
     sendBtn.classList.add("lf-icon-action", "lf-compose-submit");
-    sendBtn.replaceChildren(iconElement(icon, "lf-action-icon"));
+    if (icon) sendBtn.replaceChildren(iconElement(icon, "lf-action-icon"));
+    else {
+      const word = typeof sends === "function" ? sends() : sends;
+      sendBtn.replaceChildren(word.charAt(0).toUpperCase() + word.slice(1));
+    }
     const mediaShelf = document.createElement(MEDIA_SHELF_TAG);
     mediaShelf.className = "lf-composer-media";
     mediaShelf.setAttribute("role", "group");
@@ -509,6 +521,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // many boxes the page holds; the word is this box's, because what the press does here is
     // what the line is for — a composer in suggestion mode and a thread's reply are one
     // binding doing two things.
+    // An empty box sends nothing, so where it has another key live, as a reply's ↑ to
+    // the user's last message, the line offers that key in the send hint's place; the
+    // placeholder still shows the send key.
     keys(ta, "In a text box", [
       {
         id: "text.send",
@@ -516,8 +531,11 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         label: submitLabel,
         description: "Submit what you have typed",
         title: sends,
+        lineWhen: () =>
+          hasContent(draftValue()) || !rows.some((row) => row.when?.() ?? true),
         run: () => pressed(send),
       },
+      ...rows,
     ]);
     // A press on a submit control is the send key pressed from the box, so it leaves the
     // user where Enter does: in the box, for a box that stays to take more, or wherever the

@@ -117,7 +117,7 @@
     window.addEventListener("lf-startup-failed", () =>
       root.lfSample.send({
         type: "error",
-        detail: {
+        detail: root.lfStartupException ?? {
           message:
             document.documentElement.dataset.lfStartupError || "Sample could not start",
         },

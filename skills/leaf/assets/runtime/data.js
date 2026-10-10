@@ -101,6 +101,7 @@ export function watchData(element, input, callback) {
   // attribute mutation into an unvalidated rebind. Version activation mounts a new
   // element and therefore establishes a new subscription when authored markup changes.
   const source = element.getAttribute(declaration.source);
+  const failureContext = `data subscriber failed for ${element.localName}#${element.id} input ${input} source ${source}`;
   const paint = clocked(element, callback);
   const selectedSource = applicationState.select((root) =>
     source && Object.hasOwn(root.data.sources, source)
@@ -152,7 +153,7 @@ export function watchData(element, input, callback) {
       const mount = presentation;
       const rendering = paint(structuredClone(snapshot));
       completion = Promise.resolve(rendering).catch((error) => {
-        reportPageError(`data subscriber failed: ${error?.message ?? error}`);
+        reportPageError(error, failureContext);
         if (mounting && presentation === mount) stop();
       });
     }
@@ -186,7 +187,7 @@ export function watchData(element, input, callback) {
     try {
       return update(sourceStore);
     } catch (error) {
-      reportPageError(`data subscriber failed: ${error?.message ?? error}`);
+      reportPageError(error, failureContext);
     }
   };
   const stage = (sourceStore) => {

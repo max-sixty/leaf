@@ -170,6 +170,48 @@ test("rounded frames do not join neighbouring text into a changed container", as
   assert.equal(describeDifference(reading), "1 area moved");
 });
 
+test("a card that only shrank is outlined between its two edges, not whole", async () => {
+  // A panel loses its empty room below unchanged contents. Its contents are the same
+  // blocks in both frames, so the card gives way to them like any other container.
+  // A faint rule under it follows it up, so the card's old sides, a grey near the
+  // rule's, cross where the rule now stands: the ground beside the rule changed there,
+  // which is the card's change, not the rule's.
+  const card = (height) =>
+    painted(
+      blank(300, 220),
+      [20, 20, 200, height, undefined, 200],
+      [22, 22, 196, height - 4, undefined, 255],
+      [40, 40, 30, 10],
+      [80, 40, 24, 10],
+      [40, 60, 50, 10],
+      [0, 30 + height, 300, 2, undefined, 225],
+    );
+  const reading = await differingRegions(card(150), card(100));
+  assert.deepEqual(outlines(reading, "before"), [
+    { x: 20, y: 116, width: 200, height: 55, kind: "changed" },
+  ]);
+  assert.deepEqual(outlines(reading, "after"), [
+    { x: 20, y: 116, width: 200, height: 5, kind: "changed" },
+  ]);
+  assert.equal(describeDifference(reading), "1 changed area");
+});
+
+test("a rule drawn in the image's commonest colour still changes where it is drawn", async () => {
+  // A black rule on a white band of a black page: the rule's own colour is the page's
+  // ground, but not the band's it stands on.
+  const band = painted(
+    blank(300, 200),
+    [0, 0, 300, 200, undefined, 0],
+    [0, 20, 300, 80, undefined, 255],
+  );
+  const reading = await differingRegions(
+    painted(band, [0, 60, 300, 2, undefined, 0]),
+    painted(band, [0, 60, 300, 2, undefined, 120]),
+  );
+  assert.deepEqual(outlines(reading, "before"), outlines(reading, "after"));
+  assert.equal(outlines(reading, "before").length, 1);
+});
+
 test("crowded changes consolidate nearby fragments while a distant edit stays separate", async () => {
   // Adjacent fragments of the same hunk once kept separate outlines around line
   // numbers and individual words. The same two fragments merit separate attention

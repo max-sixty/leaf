@@ -9,8 +9,12 @@
    The editor retains its allocated room across passive draft replacement, so
    surviving words and Send stay put; longer replacement text scrolls inside it.
    A change of inline measure starts a fresh allocation. Native edits resize that
-   room to their intrinsic content and change the retained body extent by the
-   reply's own height change: the transcript's space never retains deleted draft lines.
+   room to their intrinsic content. What the user writes is theirs to see grow and
+   shrink: the retained body extent changes by the height change of the box they write
+   in, the reply row or a message they are rewriting (`message-edit.js`), on each native
+   edit and on each presentation that opens, closes or saves a rewrite
+   (`before(writing)`), so the transcript's space never retains deleted lines, and
+   space held for news stays held.
    A departed or closed region releases that mechanical extent. A floating card
    bounds that extent by its already allocated body room.
    No message or delivery state is retained; a short panel card starts at its
@@ -20,12 +24,23 @@ import { atLayoutPrecision, layoutPx } from "../keeps.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { nextRender, sizeObserver } from "../rendering.js";
 
+// The box an edit is written in: the thread's reply row, or the message whose rewrite
+// holds the target.
+const writingArea = (row, target) =>
+  row?.contains(target)
+    ? row
+    : (target.closest?.(".lf-msg-editor")?.closest(".lf-msg") ?? null);
+
 export class ReplyContinuity {
   #owner;
   #row = null;
   #departure = null;
   #extent = null;
-  #replyHeight = 0;
+  // The writing area read at an edit's boundary, and its height then.
+  #read = null;
+  #readHeight = 0;
+  // The writing areas a presentation changes, each with its height before it.
+  #presenting = [];
   #writing = null;
   #measure = null;
   #sizes = sizeObserver((entries) => {
@@ -50,7 +65,7 @@ export class ReplyContinuity {
         parseFloat(getComputedStyle(writing.input).inlineSize),
       );
       this.#allocateWriting(writing.input, layoutPx(writing.input.naturalBlockSize));
-      this.#readReply();
+      this.#readArea(this.#row);
     });
   });
   gap = document.createElement("div");
@@ -62,16 +77,14 @@ export class ReplyContinuity {
     owner.addEventListener("toggle", () => {
       if (!this.#visible()) this.release();
     });
-    owner.addEventListener("lf-before-edit", (event) => {
-      if (this.#row?.contains(event.target)) this.#readReply();
-    });
+    owner.addEventListener("lf-before-edit", (event) =>
+      this.#readArea(writingArea(this.#row, event.target)),
+    );
     // Input names a native edit; writing a restored or mirrored draft fires none.
     // Rebase before the draft's listeners can repaint and retain its former height.
     owner.addEventListener(
       "input",
-      (event) => {
-        if (this.#row?.contains(event.target)) this.#edited();
-      },
+      (event) => this.#edited(writingArea(this.#row, event.target)),
       { capture: true },
     );
   }
@@ -83,9 +96,15 @@ export class ReplyContinuity {
       growthIsSeen(this.#row)
     );
   }
-  before() {
+  // `writing` are the boxes the presentation opens, closes or changes the words of, as
+  // rewrites do, whose own height changes the extent follows.
+  before(writing = []) {
     this.#row = this.#owner.querySelector(":scope > .lf-thread-reply");
+    this.#presenting = [];
     if (!this.#visible()) return null;
+    this.#presenting = writing
+      .filter((node) => node.isConnected)
+      .map((node) => ({ node, height: node.getBoundingClientRect().height }));
     const body =
       this.#owner.localName === "details"
         ? getComputedStyle(this.#owner, "::details-content")
@@ -94,6 +113,8 @@ export class ReplyContinuity {
   }
   after(extent) {
     this.#row = this.#owner.querySelector(":scope > .lf-thread-reply");
+    const presenting = this.#presenting;
+    this.#presenting = [];
     if (
       extent == null ||
       !this.#row?.isConnected ||
@@ -104,9 +125,17 @@ export class ReplyContinuity {
       return;
     }
     // Keep the prior extent before asking layout to read the changed body: scroll
-    // anchoring need not pay a temporary collapse the live response never paints.
-    this.#keep(extent);
-    this.#readReply();
+    // anchoring need not pay a temporary collapse the live response never paints. An
+    // extent already held does that itself, so the one write is the followed extent.
+    if (this.#extent == null) this.#keep(extent);
+    const grown = presenting
+      .filter(({ node }) => node.isConnected)
+      .reduce(
+        (sum, { node, height }) => sum + node.getBoundingClientRect().height - height,
+        0,
+      );
+    this.#keep(Math.max(0, extent + grown));
+    this.#readArea(this.#row);
     this.#retainWriting();
     this.#departure?.();
     this.#departure = whenNone([this.#row], growthIsSeen, () => this.release());
@@ -116,19 +145,23 @@ export class ReplyContinuity {
     this.#extent = extent;
     this.#owner.style.setProperty("--lf-thread-body-extent", layoutPx(extent));
   }
-  #edited() {
-    if (!this.#row?.isConnected) return;
-    const input = this.#row.querySelector(TEXT_FIELD);
-    if (input.value) this.#allocateWriting(input, layoutPx(input.naturalBlockSize));
-    else this.#releaseWriting();
-    const height = this.#row.getBoundingClientRect().height;
-    if (this.#extent != null)
-      this.#keep(Math.max(0, this.#extent + height - this.#replyHeight));
-    this.#replyHeight = height;
+  #edited(area) {
+    if (!area?.isConnected) return;
+    if (area === this.#row) {
+      const input = this.#row.querySelector(TEXT_FIELD);
+      if (input.value) this.#allocateWriting(input, layoutPx(input.naturalBlockSize));
+      else this.#releaseWriting();
+    }
+    const height = area.getBoundingClientRect().height;
+    if (this.#extent != null && area === this.#read)
+      this.#keep(Math.max(0, this.#extent + height - this.#readHeight));
+    this.#read = area;
+    this.#readHeight = height;
   }
-  #readReply() {
-    if (this.#row?.isConnected)
-      this.#replyHeight = this.#row.getBoundingClientRect().height;
+  #readArea(area) {
+    if (!area?.isConnected) return;
+    this.#read = area;
+    this.#readHeight = area.getBoundingClientRect().height;
   }
   #retainWriting() {
     const input = this.#row?.querySelector(TEXT_FIELD);

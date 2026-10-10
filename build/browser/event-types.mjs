@@ -66,11 +66,27 @@ export async function eventTypes(root) {
   const browser = kinds
     .filter(([, contract]) => contract.browser)
     .map(([kind, contract]) => {
-      const record = contract.record;
       const owned = new Set(Object.values(registry.$events.ownership).flat());
-      const properties = Object.fromEntries(
-        Object.entries(record.properties).filter(([key]) => !owned.has(key)),
-      );
+      // Server-owned fields leave every branch of the record, not only its top level:
+      // a branch naming one (an edit's `author`) would otherwise put it back.
+      const unowned = (schema) => ({
+        ...schema,
+        ...(schema.properties && {
+          properties: Object.fromEntries(
+            Object.entries(schema.properties).filter(([key]) => !owned.has(key)),
+          ),
+        }),
+        ...(schema.required && {
+          required: schema.required.filter((key) => !owned.has(key)),
+        }),
+        ...Object.fromEntries(
+          ["anyOf", "oneOf"]
+            .filter((key) => schema[key])
+            .map((key) => [key, schema[key].map(unowned)]),
+        ),
+      });
+      const record = unowned(contract.record);
+      const properties = { ...record.properties };
       // The browser contract may forbid fields the agent is allowed to write.
       const forbidden = contract.browser.not;
       for (const branch of forbidden?.anyOf ?? (forbidden ? [forbidden] : []))

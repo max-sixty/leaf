@@ -38,6 +38,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import (
     CHANGE_SHAPES_PAGE,
     PANEL_PAGE,
+    SHORT_SUGGESTION,
     panel_comment,
 )
 from render_cases_layout import (
@@ -1275,6 +1276,42 @@ def test_a_probe_module_that_stops_loading_is_a_gate_finding(browser, serve):
     assert failures
     assert all("did not load" in failure for failure in failures)
     assert all("within 500ms" in failure for failure in failures)
+    assert all('File "' not in failure for failure in failures), failures
+
+
+@pytest.mark.parametrize("fault", ["exception", "null"])
+def test_a_failed_probe_import_keeps_its_original_throw_site(browser, serve, fault):
+    thrown = (
+        "new TypeError('probe import rejected')" if fault == "exception" else "null"
+    )
+
+    def failing_probe(page):
+        page.route(
+            "**/checks/index.js",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="text/javascript; charset=utf-8",
+                body=f"function loadBrowserProbes() {{ throw {thrown}; }} loadBrowserProbes();",
+            ),
+        )
+
+    failures = render_gate_model.render_version(
+        primed(browser.unwatched, failing_probe),
+        serve(LONG_PAGE),
+    ).failures
+    assert len(failures) == 2, failures
+    assert all('File "' not in failure for failure in failures), failures
+    if fault == "exception":
+        assert all(
+            "TypeError: probe import rejected" in failure
+            and "loadBrowserProbes" in failure
+            and "checks/index.js:" in failure
+            for failure in failures
+        ), failures
+    else:
+        assert all(
+            "null" in failure and "did not load" not in failure for failure in failures
+        ), failures
 
 
 def test_an_async_reading_probe_is_refused_instead_of_awaited(browser, serve):
@@ -2004,6 +2041,56 @@ def test_the_render_gate_resolves_a_part_its_visual_draws_on_reveal(browser, ser
     )
 
 
+def test_visual_reveal_findings_keep_the_throw_site(browser, serve):
+    """A caught package fault is useful evidence, even without a pageerror event."""
+    widgets = visual_widgets(staged=True)
+    widgets["visual-fixture.js"] = widgets["visual-fixture.js"].replace(
+        'if (id !== "inner") return;',
+        'if (id !== "inner") return; null.revealInner();',
+    )
+    failures = render_gate_model.render_version(
+        browser.unwatched,
+        serve(
+            GENERIC_VISUAL_PAGE,
+            layer_registry=GENERIC_VISUAL_LAYER,
+            layer_widgets=widgets,
+        ),
+    ).failures
+    assert len(failures) == 2, failures
+    assert all('File "' not in failure for failure in failures), failures
+    assert all(
+        "could not reveal visual parts" in failure
+        and "TypeError:" in failure
+        and "visual-fixture.js:" in failure
+        and "at reveal" in failure
+        for failure in failures
+    ), failures
+
+
+def test_replay_findings_keep_the_throw_site(browser, serve):
+    """A direct complete-state replay retains the package's original exception."""
+    page = open_page(browser, serve(SHORT_SUGGESTION))
+    page.evaluate("""async () => {
+      const {validationWidgetStates} = await window.__lfRuntimeImport('/runtime/check-api.js');
+      const widget = validationWidgetStates().find(s => s.widget?.renderState).widget;
+      window.restoreReplay = () => { widget.renderState = original; };
+      const original = widget.renderState;
+      widget.renderState = function replayProjection() { throw new TypeError('replay rejected'); };
+    }""")
+    try:
+        findings = render_checks_model.evaluate_probe(page, "relativeReplays")
+    finally:
+        page.evaluate("restoreReplay()")
+    assert len(findings) == 1, findings
+    assert 'File "' not in findings[0], findings
+    assert (
+        "renderState threw when the complete state was rendered a second time: replay rejected"
+        in findings[0]
+    )
+    assert "TypeError: replay rejected" in findings[0]
+    assert "replayProjection" in findings[0]
+
+
 def test_the_render_gate_reads_a_visual_before_revealing_its_parts(browser, serve):
     """Reveals come after every other reading, so a defect in the opening state stands
     even when revealing a part draws it away."""
@@ -2039,14 +2126,14 @@ def test_the_render_gate_rejects_invalid_visual_inventory_records(browser, serve
             layer_widgets=widgets,
         ),
     ).failures
-    assert failures == [
+    assert [failure.splitlines()[0] for failure in failures] == [
         (
             "[light] <lf-test-visual id='missing'> declares addressable visual parts "
             "but its module did not register declared parts absent"
         ),
         (
             "[light] <lf-test-visual id='outside'> declares addressable visual parts "
-            "but its module Visual part outer has no descendant Element surface"
+            "but its module could not read visual parts: Visual part outer has no descendant Element surface"
         ),
         (
             "[dark] <lf-test-visual id='missing'> declares addressable visual parts "
@@ -2054,9 +2141,18 @@ def test_the_render_gate_rejects_invalid_visual_inventory_records(browser, serve
         ),
         (
             "[dark] <lf-test-visual id='outside'> declares addressable visual parts "
-            "but its module Visual part outer has no descendant Element surface"
+            "but its module could not read visual parts: Visual part outer has no descendant Element surface"
         ),
     ]
+
+    inventory_errors = [
+        failure for failure in failures if "could not read visual parts" in failure
+    ]
+    assert len(inventory_errors) == 2, failures
+    assert all(
+        "TypeError:" in failure and "registeredVisualParts" in failure
+        for failure in inventory_errors
+    )
 
 
 def test_the_render_gate_bounds_a_prefixed_inventory_by_its_prefixes(browser, serve):

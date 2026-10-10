@@ -67,8 +67,10 @@ import { recentPlaceInput, focused } from "./focus.js";
 // something else, though the control keeps focus, and a stuck tab strip, title or reply
 // row stays in view over whatever they scroll to, so it names no place in what it holds.
 // A reflow then holds, and a landing returns them to, what they see instead. A render
-// holding the box they type in (reply-landing.js, `holdBox`) and a reading place
-// (reading-place.js, `capturePlace`) ask this. Two readers ask a question of their own
+// holding the box they type in (reply-landing.js, `holdBox`), a reading place
+// (reading-place.js, `capturePlace`), and revision continuity (version.js), for the
+// region the user is working and whether a replaced reply box is scrolled back into
+// view, ask this. Two readers ask a question of their own
 // instead: a place hold here, whether the item focus names begins in the scroller's
 // band, as it asks of the pointer's item, and the Threads list's resize landing
 // (thread/landing.js), whether the focused title stands wholly where a landing puts it.

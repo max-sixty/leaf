@@ -555,7 +555,7 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
 
     Endpoint choice, inspection, and native modified navigation are separate routes;
     closing the viewer returns to the same route without shifting the comparison.
-    A parent inspector can still withdraw the complete rail with controls off.
+    A containing inspector's compare view still withdraws the complete rail.
     """
     shots = {
         "before": solid_png(1200, 600, (210, 220, 235)),
@@ -1682,7 +1682,8 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
     assert broken.returncode == 1, broken.stdout + broken.stderr
     assert "Error: page code reported 2 errors" in broken.stderr
     assert "map is not a function" in broken.stderr
-    assert "/page/film.js:2)" in broken.stderr
+    assert "at paint (" in broken.stderr
+    assert "/page/film.js:2:" in broken.stderr
     assert "Error: the trace never loaded" in broken.stderr
     assert "/page/widgets/lf-loader.js:3" in broken.stderr
 

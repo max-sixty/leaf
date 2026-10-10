@@ -78,7 +78,6 @@ import { createPageGeometry } from "./runtime/page-geometry.js";
 import * as targetPaint from "./runtime/target-paint.js";
 import { pointerAt } from "./runtime/pointer.js";
 import { createWritingResume } from "./runtime/drafts.js";
-import { threadKey } from "./runtime/thread/model.js";
 import { allThreads, threadList } from "./runtime/thread/state.js";
 import { anchorLabel } from "./runtime/thread/messages.js";
 import {
@@ -814,12 +813,8 @@ drawers = createDrawers({
 });
 const writingResume = createWritingResume({
   arriveEditor: anchorTravel.arriveEditor,
-  revealReply: (key, intent) => {
-    const thread = allThreads().find((thread) => threadKey(thread) === key);
-    return thread
-      ? app.threadDestinations.openPageThread(thread.id, { part: "reply", intent })
-      : null;
-  },
+  revealInThread: (context, intent) =>
+    app.threadDestinations.openThreadDraft(context, intent),
 });
 goToSequence = createGoToSequence({
   panelIsOpen,
@@ -1018,7 +1013,7 @@ async function syncInteractionGallery() {
   } catch (error) {
     failedInteractionGallery = gallery;
     if (!interactionGalleryModule) interactionGalleryLoading = null;
-    reportPageError(`interaction gallery failed to start: ${error?.message ?? error}`);
+    reportPageError(error, `interaction gallery failed to start`);
   }
 }
 if (!offlineInteractive) {
@@ -1142,7 +1137,9 @@ async function startPage() {
 
 startPage().catch((error) => {
   const reason = `page failed to start: ${error?.message ?? error}`;
-  window.dispatchEvent(new CustomEvent("lf-startup-failed", { detail: { reason } }));
-  reportPageError(reason);
+  window.dispatchEvent(
+    new CustomEvent("lf-startup-failed", { detail: { reason, error } }),
+  );
+  reportPageError(error, "page failed to start");
   renderStatus(error);
 });

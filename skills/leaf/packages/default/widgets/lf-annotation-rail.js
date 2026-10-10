@@ -27,7 +27,7 @@ import {
   layoutPx,
   once,
   offer,
-  openThread,
+  threadActions,
   registerReadingRegion,
   setChildren,
 } from "/runtime/widget-api.js";
@@ -157,9 +157,9 @@ customElements.define(
         const outlet = make("div", "lf-ar-outlet");
         const button = make("button", "lf-ar-open lf-btn", "Open thread");
         button.type = "button";
-        row = { node, outlet, button, id: thread.id };
+        row = { node, outlet, button };
         button.addEventListener("click", async () => {
-          await openThread(row.id, { focus: "thread", travel: false });
+          await threadActions.open(thread.key, { focus: "thread", travel: false });
         });
         node.append(button, outlet);
         group.rows.append(node);
@@ -170,7 +170,6 @@ customElements.define(
         group.rows.append(row.node);
         restore?.();
       }
-      row.id = thread.id;
       keepsText(
         row.button,
         `Open thread · ${anchorLabel(thread.anchor, thread.root.about) || "The page"}`,

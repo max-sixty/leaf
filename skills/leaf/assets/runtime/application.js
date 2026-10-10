@@ -266,6 +266,7 @@ export function mountApplication(dependencies) {
     withdraw: projectionCommands.withdraw,
     sendReaction: dependencies.sendReaction,
     currentRevision: () => runtime.currentRevision,
+    open: (...args) => threadDestinations.openPageThread(...args),
   });
   const queueActions = createQueueActions({
     post,
@@ -535,11 +536,13 @@ export function mountApplication(dependencies) {
   const mountThreadViews = (owner, render) =>
     registerMirrorConsumer(owner, render, { commands: inlineView });
 
-  const registerThreadPresentation = (owner, { render, open }) => {
-    if (typeof open !== "function")
-      throw new TypeError("A Thread presentation needs an open callback");
-    const reader = createPrimaryReader(owner, render, inlineView, refreshThread);
-    const detachDestination = threadDestinations.register(owner, open, reader);
+  const registerThreadPresentation = (owner, { render, reveal }) => {
+    if (typeof reveal !== "function")
+      throw new TypeError("A Thread presentation needs a reveal callback");
+    const reader = createPrimaryReader(owner, render, inlineView, () =>
+      threadPresenter.present(),
+    );
+    const detachDestination = threadDestinations.register(owner, reveal, reader);
     let detachPresentation;
     try {
       detachPresentation = threadPresenter.registerPrimary(reader);
@@ -550,8 +553,10 @@ export function mountApplication(dependencies) {
     }
     let active = true;
     return Object.freeze({
-      destination: reader.destination,
-      update: () => threadPresenter.present(),
+      update: ({ release = false } = {}) => {
+        if (release) reader.release();
+        return threadPresenter.present();
+      },
       unregister() {
         if (!active) return;
         active = false;
@@ -633,11 +638,12 @@ export const registerThreadPresentation = (...args) =>
   app().registerThreadPresentation(...args);
 export const registerThreadPanel = (...args) => app().registerThreadPanel(...args);
 export const threadActions = Object.freeze({
+  open: (...args) => app().threadActions.open(...args),
   create: (...args) => app().threadActions.create(...args),
   reply: (...args) => app().threadActions.reply(...args),
   resolve: (...args) => app().threadActions.resolve(...args),
   reopen: (...args) => app().threadActions.reopen(...args),
-  toggleReaction: (...args) => app().threadActions.toggleReaction(...args),
+  setReaction: (...args) => app().threadActions.setReaction(...args),
 });
 export const queueActions = Object.freeze({
   open: (...args) => app().queueActions.open(...args),

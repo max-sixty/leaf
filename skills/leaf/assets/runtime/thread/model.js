@@ -21,6 +21,43 @@ import { PENDING } from "./identity.js";
 
 export const isReaction = (message) => Boolean(message.token);
 export const isAddressable = (message) => message.addressable !== false;
+
+export const threadOffers = (thread, ready) => ({
+  open: ready,
+  reply: ready && !thread.settling,
+  resolve: ready && !thread.resolved && !thread.settling,
+  reopen: ready && Boolean(thread.resolved) && !thread.settling,
+});
+
+// The publisher supplies the vocabulary; controls and commands read these same
+// choices, including the exact standing reaction an explicit removal withdraws.
+function reactionChoices(thread, message, tokens) {
+  if (
+    thread.resolved ||
+    message.author !== "agent" ||
+    !isAddressable(message) ||
+    !Object.keys(tokens).length
+  )
+    return null;
+  const latest = thread.msgs.findLast(
+    (item) => item.author === "agent" && isAddressable(item),
+  );
+  const standing = thread.msgs.filter(
+    (item) => isReaction(item) && item.author === "user" && item.parent === message.id,
+  );
+  return {
+    thread: thread.key,
+    message: message.key,
+    latest: latest?.id === message.id,
+    agent: message.agent,
+    choices: Object.entries(tokens).map(([name, entry]) => ({
+      name,
+      glyph: entry.glyph,
+      label: entry.means ? `${name} — ${entry.means}` : name,
+      standing: standing.find((item) => item.token === name) ?? null,
+    })),
+  };
+}
 const spoken = (thread) => thread.msgs.filter((message) => !isReaction(message));
 export const turns = (thread) =>
   thread.msgs.filter(
@@ -204,6 +241,7 @@ export function readThreadRecords(
   widgets,
   workflows,
   markingRead = [],
+  ready = true,
 ) {
   const locallyRead = new Set(markingRead.map(versionKey));
   const unitsByMessage = new Map();
@@ -281,7 +319,7 @@ export function readThreadRecords(
         ),
       };
     });
-    return {
+    const record = {
       id: thread.id,
       key: threadKey(thread),
       title: thread.title,
@@ -299,6 +337,12 @@ export function readThreadRecords(
       bare_reaction: thread.bare_reaction,
       seat: thread.seat,
       summaries: thread.summaries,
+      offers: threadOffers(thread, ready),
     };
+    for (const message of msgs)
+      message.reactions = ready
+        ? reactionChoices(record, message, document.registry.$reactions?.tokens ?? {})
+        : null;
+    return record;
   });
 }

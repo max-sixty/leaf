@@ -12,11 +12,12 @@ import { watchThreads } from "./watch.js";
 import { ThreadView, threadReading } from "./thread-card.js";
 import { MessageView, messageReading } from "./messages.js";
 import { createReplyView, replyAvailable } from "./replies.js";
-import { reactionReading } from "./reaction-model.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import { readApplication, whenWidgetsPresented } from "../semantic-state.js";
 import { elementById } from "../passages.js";
 import { SAY_BOX } from "./selectors.js";
+import { orderChildren } from "../dom-children.js";
+import { HeldNews, growthInsideIsSeen, newsNotice } from "./held-news.js";
 
 const registrations = new WeakMap();
 
@@ -60,7 +61,7 @@ export function registerMirrorConsumer(owner, render, { commands }) {
     let accepting = true;
     const mirrors = {
       signal: abort.signal,
-      render(key, outlet) {
+      thread(key, outlet) {
         if (!accepting || abort.signal.aborted)
           throw new Error("Thread mirrors belong to their current render callback");
         if (!(outlet instanceof Element))
@@ -116,7 +117,6 @@ export function registerMirrorConsumer(owner, render, { commands }) {
   };
   const stop = watchThreads(owner, update);
   const handle = Object.freeze({
-    read: readThreads,
     update,
     unregister() {
       if (!active) return;
@@ -149,6 +149,30 @@ export function createPrimaryReader(owner, render, commands, update) {
   const views = new Map();
   const destinations = new Map();
   const nativeMessages = new Set();
+  const held = new HeldNews(
+    owner,
+    (key) => {
+      const parts = destinations.get(key);
+      if (!parts?.length) return null;
+      const whole = parts.find((part) => part instanceof ThreadView);
+      if (whole) return whole;
+      return {
+        node: parts.at(-1).node,
+        newsMoves: ({ news, changed, folds }) =>
+          parts.some(
+            (part) =>
+              (news.appended ||
+                news.settled ||
+                changed.has(part.messageKey) ||
+                folds.messages.includes(part.messageKey) ||
+                folds.summaries.length) &&
+              growthInsideIsSeen([part.node]),
+          ),
+      };
+    },
+    () => void update().catch(() => {}),
+  );
+  let shown = new Map();
   const clear = () => {
     for (const view of views.values()) {
       view.dispose();
@@ -165,7 +189,21 @@ export function createPrimaryReader(owner, render, commands, update) {
     const abort = new AbortController();
     pending = abort;
     void cancelled.then(() => abort.abort());
-    const byKey = new Map(collection.threads.map((thread) => [thread.key, thread]));
+    const candidate = held.prepare(
+      {
+        threads: collection.threads.map((thread) =>
+          threadReading(thread, "outlet", { ...commands, nativeAuthored: true }, {}),
+        ),
+      },
+      { row: false },
+    );
+    const byKey = new Map(
+      candidate.reading.threads.map((thread) => [thread.key, thread.source]),
+    );
+    const shownCollection = Object.freeze({
+      phase: collection.phase,
+      threads: Object.freeze([...byKey.values()]),
+    });
     const nominations = [];
     let accepting = true;
     const nominate = (kind, key, message, outlet) => {
@@ -175,7 +213,7 @@ export function createPrimaryReader(owner, render, commands, update) {
         throw new TypeError("A Thread outlet must be an Element");
       const thread = byKey.get(key);
       if (!thread) throw new Error(`No Thread has key ${key}`);
-      if (message !== null && !thread.msgs.some((item) => item.id === message))
+      if (message !== null && !thread.msgs.some((item) => item.key === message))
         throw new Error(`Thread ${key} has no message ${message}`);
       const identity = JSON.stringify([kind, key, message]);
       if (
@@ -197,22 +235,27 @@ export function createPrimaryReader(owner, render, commands, update) {
             "A primary Thread outlet must remain inside its connected owner",
           );
       selected = nominations;
+      shown = new Map(candidate.reading.threads.map((thread) => [thread.key, thread]));
       nativeMessages.clear();
       for (const item of nominations)
         for (const message of item.thread.msgs)
-          if (item.kind === "thread" || item.message === message.id)
+          if (item.kind === "thread" || item.message === message.key)
             nativeMessages.add(message.id);
       return {
-        paint: () => paint(current),
+        paint: async () => {
+          await paint(current);
+          if (active && current === generation && !abort.signal.aborted)
+            candidate.commit();
+        },
         current: () => active && current === generation && !abort.signal.aborted,
       };
     };
     try {
       const rendering = render(
-        collection,
+        shownCollection,
         Object.freeze({
           signal: abort.signal,
-          render: (key, outlet) => nominate("thread", key, null, outlet),
+          thread: (key, outlet) => nominate("thread", key, null, outlet),
           message: (key, id, outlet) => nominate("message", key, id, outlet),
           reply: (key, outlet) => nominate("reply", key, null, outlet),
         }),
@@ -250,6 +293,12 @@ export function createPrimaryReader(owner, render, commands, update) {
         views.delete(key);
       }
     destinations.clear();
+    const children = new Map();
+    const place = (parent, node) => {
+      const nodes = children.get(parent) ?? [];
+      nodes.push(node);
+      children.set(parent, nodes);
+    };
     for (const item of selected) {
       let view = views.get(item.identity);
       if (!view) {
@@ -257,54 +306,68 @@ export function createPrimaryReader(owner, render, commands, update) {
           view = new ThreadView("outlet", { ...commands, nativeAuthored: true });
         else {
           const node = document.createElement("div");
-          node.className = "lf-page-thread lf-ui";
+          node.className = "lf-page-thread lf-ui lf-primary-part";
+          node.dataset.lfPart = item.kind;
           node.tabIndex = -1;
           node.dataset.lfRuntime = "";
           node.dataset.lfGen = "1";
           node.dataset.lfOffer = "";
           if (item.kind === "message") {
             const message = new MessageView(commands);
+            message.node.classList.add("lf-primary-message");
             node.append(message.node);
-            view = { node, message, dispose: () => message.retire() };
+            view = {
+              node,
+              message,
+              messageKey: item.message,
+              dispose: () => message.retire(),
+            };
           } else {
             let joined = false;
             const reply = createReplyView(item.key, commands.reply, {
               onChange: () => {
-                if (joined) update();
+                if (joined) void update().catch(() => {});
               },
             });
             joined = true;
             node.append(reply.node);
             view = { node, reply, dispose: reply.dispose };
           }
+          view.notice = newsNotice();
+          view.notice.node.classList.add("lf-primary-news");
         }
         views.set(item.identity, view);
       }
       if (item.kind === "thread") {
-        view.present(
-          threadReading(
-            item.thread,
-            "outlet",
-            { ...commands, nativeAuthored: true },
-            {},
-          ),
-        );
+        view.present(shown.get(item.key));
         view.commit();
       } else {
         keeps(view.node, "data-thread", item.thread.id);
         keeps(view.node, "data-attempt", item.thread.root.attempt ?? null);
+        const news = shown.get(item.key)?.news;
+        const first =
+          selected.find((part) => part.key === item.key && part.kind === "message") ??
+          selected.find((part) => part.key === item.key);
+        const notice = Boolean(news) && first === item;
+        if (notice) view.notice.set(news);
+        keepsHidden(view.notice.node, !notice);
         if (item.kind === "message") {
-          const message = item.thread.msgs.find((entry) => entry.id === item.message);
+          const message = item.thread.msgs.find((entry) => entry.key === item.message);
           view.message.present(
             messageReading(message, {
               panel: false,
               nativeAuthored: true,
-              reactions: reactionReading(item.thread, message, true),
+              reactions: message.reactions,
               workflows: message.workflows,
             }),
+            { headerControls: view.notice.node },
           );
           view.message.commit();
-        } else keepsHidden(view.node, !replyAvailable(item.thread));
+        } else {
+          keepsHidden(view.node, !replyAvailable(item.thread));
+          if (view.notice.node.parentNode !== view.node)
+            view.node.append(view.notice.node);
+        }
       }
       // A native slot keeps the canonical conversation and its authored widgets in
       // the document's stylesheet scope, including html/body state conditions.
@@ -322,18 +385,19 @@ export function createPrimaryReader(owner, render, commands, update) {
           slots.push(slot);
         }
         keeps(slot, "slot", previous?.name ?? null);
-        if (slot.parentNode !== destination) destination.append(slot);
+        place(destination, slot);
         previous = slot;
         destination = host;
         depth++;
       }
       for (const slot of slots.splice(depth)) slot.remove();
       keeps(view.node, "slot", previous?.name ?? null);
-      if (view.node.parentNode !== destination) destination.append(view.node);
+      place(destination, view.node);
       const parts = destinations.get(item.key) ?? [];
       parts.push(view);
       destinations.set(item.key, parts);
     }
+    for (const [parent, nodes] of children) orderChildren(parent, nodes);
     const widgets = [...readApplication().document.descriptors.values()]
       .filter(
         (descriptor) =>
@@ -346,10 +410,10 @@ export function createPrimaryReader(owner, render, commands, update) {
   const destination = (key, { message = null, focus = null } = {}) => {
     const parts = destinations.get(key) ?? [];
     if (message) {
+      const id = shown.get(key)?.source.msgs.find((item) => item.key === message)?.id;
+      if (!id) return null;
       for (const view of parts) {
-        const node = view.node.querySelector(
-          `.lf-msg[data-event="${CSS.escape(message)}"]`,
-        );
+        const node = view.node.querySelector(`.lf-msg[data-event="${CSS.escape(id)}"]`);
         if (node) return node;
       }
       return null;
@@ -363,6 +427,8 @@ export function createPrimaryReader(owner, render, commands, update) {
   };
   return Object.freeze({
     owner,
+    update,
+    release: () => held.release(),
     prepare,
     destination,
     ownsMessage: (message) => owner.isConnected && nativeMessages.has(message.id),
@@ -372,12 +438,14 @@ export function createPrimaryReader(owner, render, commands, update) {
       ++generation;
       pending?.abort();
       clear();
+      held.release();
     },
     unregister() {
       active = false;
       ++generation;
       pending?.abort();
       clear();
+      held.dispose();
     },
   });
 }

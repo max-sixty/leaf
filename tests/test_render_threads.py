@@ -4085,7 +4085,7 @@ def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination
     if destination == "message":
         page.evaluate(
             """async id => {
-              const {openThread} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+              const {openThread} = await window.__lfRuntimeImport('/runtime/application.js');
               await openThread(id, {focus: 'message'});
             }""",
             reply["id"],

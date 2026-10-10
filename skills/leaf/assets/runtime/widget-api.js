@@ -77,6 +77,7 @@ export {
 } from "./work.js";
 export { answersWithin, askAnswers } from "./asks/answer.js";
 export { readQueues, watchQueues, queueItemKey } from "./queue-api.js";
+export { queueTitle } from "./queue-title.js";
 export { queueActions } from "./application.js";
 export { registerVisualParts } from "./visual-parts.js";
 export {
@@ -95,7 +96,7 @@ export { threadInput } from "./thread/landing.js";
 // Holding a region's rows the log or the clock decides while their growth would be seen
 // (assets/AGENTS.md, "Stability").
 export { HeldReading } from "./thread/held-news.js";
-export { landInThread, openThread } from "./application.js";
+export { landInThread } from "./application.js";
 export { wireInput } from "./application.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
 export { HOLDS_WORD } from "./held-word.js";

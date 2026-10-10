@@ -5561,7 +5561,7 @@ def test_delayed_thread_destination_yields_to_shared_generation_or_new_input(
       const drafts=await window.__lfRuntimeImport('/runtime/drafts.js');
       const {replyDestination}=await window.__lfRuntimeImport('/runtime/thread/focus.js');
       const {retainUserIntent,restrictUserIntent}=await window.__lfRuntimeImport('/runtime/user-intent.js');
-      const {openThread}=await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const {openThread}=await window.__lfRuntimeImport('/runtime/application.js');
       const button=document.createElement('button');button.id='held-reply-route';button.textContent='Continue the held reply';document.querySelector('main').append(button);
       button.onclick=()=>{
         const original=retainUserIntent();window.readOriginalIntent=original;

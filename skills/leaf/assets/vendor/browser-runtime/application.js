@@ -801,6 +801,7 @@ export function createSemanticApplication({
       widgets,
       workflows,
       markingRead,
+      ready,
     );
     const selectedQueues = selectQueues({ threads, workflows, tasks: tasks.open });
     const workflowById = new Map(workflows.map((workflow) => [workflow.id, workflow]));

@@ -73,6 +73,7 @@ import { readThreads } from "./thread/state.js";
 import { readQueues, queueItemKey } from "./queue-api.js";
 import { askHolding, declareSide } from "./standing-target.js";
 import { anchorLabel } from "./thread/messages.js";
+import { queueTitle } from "./queue-title.js";
 import { threadSummary } from "./thread/model.js";
 import { workflowLabel } from "./thread/workflow.js";
 import { walkPositionLabel } from "./walk-position.js";
@@ -167,24 +168,6 @@ export function createQueuePanel({ actions, next, announce }) {
     const named = addressableName(about);
     return named ? `§ ${named}` : sectionWords(about) || anchorLabel(thread.anchor);
   }
-  // A widget is named by the Ask it answers, where it answers one, as that Ask's own
-  // row names it.
-  function title(item, thread) {
-    const own = elementById(item.subject.id);
-    const topic = thread ? threadSummary(thread).topic : "";
-    if (item.title) return item.title;
-    if (item.kind === "work" && item.detail) return item.detail;
-    if (item.subject.kind === "widget") {
-      const ask = own && askHolding(readAsks().all, own);
-      return (
-        (ask && addressableLabel(elementById(ask.id))) ||
-        addressableLabel(own) ||
-        topic ||
-        item.id
-      );
-    }
-    return topic || item.id;
-  }
   // The rest of where: how long it has stood or how far a reply has got, after the
   // place; and before it, how a finished item ended, which is what a Done row is for.
   function when(item, thread) {
@@ -223,7 +206,7 @@ export function createQueuePanel({ actions, next, announce }) {
     )
       .filter(Boolean)
       .join(" · ");
-    const words = title(item, thread);
+    const words = queueTitle(item);
     // The element a row stands at: an Ask, or a page widget whose move the user must send
     // again. A reply the agent owes a move stands nowhere, so an Ask's own row is the one
     // row standing at it.

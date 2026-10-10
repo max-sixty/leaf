@@ -20,6 +20,7 @@ from render_cases_interaction import (
     ASK_PAGE,
     SEATED_QUESTION_PAGE,
     live_url,
+    panel_comment,
 )
 from render_cases_layout import (
     glyph_action_face,
@@ -5487,6 +5488,39 @@ def test_executable_revision_preserves_non_editor_thread_standing(browser, serve
         )
         is None
     )
+
+
+def test_executable_revision_keeps_a_reader_who_scrolled_away_from_their_reply(
+    browser, serve
+):
+    """A replaced reply box takes focus back without pulling the reader back to it.
+
+    The reader wrote in a thread at the top of the Threads list, then scrolled the
+    list on with no other input, so the box keeps focus but no longer marks their
+    place (user-place.js, `focusedInView`). A revision that replaces the document
+    returns focus and words to the new box and leaves the list where they read."""
+    url = live_url(serve(editing_revision_source("before")))
+    ids = [panel_comment(serve.page_dir, f"General thread {n}.") for n in range(40)]
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-threads .lf-thread[data-id="{ids[0]}"]')
+    thread.click()
+    reply = thread.locator(".lf-thread-reply leaf-text")
+    words = "Words the reader left to read on."
+    write(reply, words)
+    threads = page.locator(".lf-threads")
+    threads.evaluate("list => { list.scrollTop = list.scrollHeight; }")
+    scroll_settled(page, ".lf-threads")
+    expect(reply).to_be_focused()
+    expect(reply).not_to_be_in_viewport()
+    held = threads.evaluate("list => list.scrollTop")
+    assert held > 0
+    replace_editing_document(page, serve)
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", words)
+    scroll_settled(page, ".lf-threads")
+    assert threads.evaluate("list => list.scrollTop") == pytest.approx(held, abs=2)
 
 
 def test_executable_revision_does_not_restore_a_new_draft_generation(browser, serve):

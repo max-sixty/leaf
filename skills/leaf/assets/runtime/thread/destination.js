@@ -11,7 +11,9 @@
    no destination policy. A command retains its original intent through placement
    and returns its actual focus destination. Surface defaults enter the reply,
    compact previews default to the thread, and Threads defaults to the reply.
-   `travel: false` keeps the page under the gesture while revealing its destination.
+   `travel: false` keeps the page under the gesture while revealing its destination;
+   `scroll: false` also leaves every scroller where it stands, for a continuation into
+   a box the user had scrolled away from.
    A native continuation (`focus: false`) returns its presented route under session
    availability even after Tab supersedes positioning; it never takes focus, and the
    original intent alone permits scrolling or another reveal gesture.
@@ -106,11 +108,14 @@ export function createThreadDestinations({
       focus = true,
       travel = true,
       flash = true,
+      scroll = true,
       intent = retainUserIntent(),
       transition = null,
     } = {},
   ) {
     if (!intent()) return null;
+    // A trip moves the page, so a destination that may move no scroller takes none.
+    const trip = travel && scroll;
     const selected = presentation;
     if (selected?.owner.isConnected) {
       const thread = threadNames(readThreads().threads).get(id);
@@ -143,7 +148,7 @@ export function createThreadDestinations({
         (focus === false ? intent.available() : intent());
       const arriving = restrictUserIntent(intent, mayPresent);
       const departure =
-        focus !== false && travel
+        focus !== false && trip
           ? prepareTrip({
               landing: () => selected.reader.destination(thread.key, request),
               intent: arriving,
@@ -182,7 +187,7 @@ export function createThreadDestinations({
                 current && {
                   where: current,
                   focus: current,
-                  scroll: travel ? [{ at: current, block: "nearest" }] : [],
+                  scroll: trip ? [{ at: current, block: "nearest" }] : [],
                 }
               );
             },
@@ -197,7 +202,7 @@ export function createThreadDestinations({
       const localPart = part ?? "reply";
       const openSurface = async () => {
         if (preview) intent.handoff(preview.close);
-        if (travel) {
+        if (trip) {
           if (!(await scrollToThread(id, { part: localPart, focus, intent })))
             return null;
         } else {
@@ -209,7 +214,7 @@ export function createThreadDestinations({
             (focus !== false &&
               !intent.handoff(() => {
                 focusDestination(current, "move");
-                scrollIntoView(current, { block: "nearest" });
+                if (scroll) scrollIntoView(current, { block: "nearest" });
               }))
           )
             return null;
@@ -226,7 +231,7 @@ export function createThreadDestinations({
           opened = preview.open(id, { transition });
         });
       if (opened) {
-        if (travel) {
+        if (trip) {
           if (
             !(await scrollToThread(id, {
               part: part ?? "thread",
@@ -245,10 +250,11 @@ export function createThreadDestinations({
             (focus !== false &&
               !intent.handoff(() => {
                 focusDestination(current, "move");
-                scrollIntoView(current, {
-                  behavior: scrollBehavior(),
-                  block: "nearest",
-                });
+                if (scroll)
+                  scrollIntoView(current, {
+                    behavior: scrollBehavior(),
+                    block: "nearest",
+                  });
               }))
           )
             return null;
@@ -262,7 +268,7 @@ export function createThreadDestinations({
       }
       if (surfaceFocusTarget(id, { part: localPart })) return openSurface();
     }
-    return showThread(id, { part: part ?? "reply", focus, flash, intent });
+    return showThread(id, { part: part ?? "reply", focus, flash, scroll, intent });
   }
 
   // Where a thread holds the user's draft `context`, with its box ready for the caret:

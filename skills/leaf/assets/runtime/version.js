@@ -84,6 +84,7 @@ import {
   closeLayer,
 } from "./focus.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
+import { focusedInView } from "./user-place.js";
 import { patchTree, patchRetains } from "./dom-children.js";
 import { labelOf, PRESS } from "./keyboard/bindings.js";
 import { commandShortcut } from "./keyboard/control-keys.js";
@@ -1321,6 +1322,9 @@ export function createVersionController({
     return {
       draftEditing,
       replyThread: draftEditing?.mirrored ? heldThreadId() : null,
+      // A replaced reply box takes focus back either way, but is brought into view only
+      // where it marked the user's place (user-place.js, `focusedInView`).
+      replyInView: focusedInView() !== null,
       // Question standing is the fallback for unnamed controls. An exact editor already
       // has a replacement identity, so its parent Question does not also own focus.
       questionStanding: draftEditing ? null : captureQuestionStanding(),
@@ -1340,7 +1344,7 @@ export function createVersionController({
 
   async function restoreEditingContinuity(continuity, currentIntent) {
     if (!currentIntent()) return;
-    const { draftEditing, replyThread, questionStanding } = continuity;
+    const { draftEditing, replyThread, replyInView, questionStanding } = continuity;
     restoreQuestionStanding(questionStanding);
     const mayRestore = restrictUserIntent(currentIntent, () =>
       draftEditingStands(draftEditing),
@@ -1353,7 +1357,9 @@ export function createVersionController({
           // Present that session before its route reads the annotation directory.
           await refreshThread();
           return mayRestore()
-            ? replyDestination(replyThread, openThread, mayRestore)
+            ? replyDestination(replyThread, openThread, mayRestore, {
+                scroll: replyInView,
+              })
             : null;
         })
       : draftEditingDestination(draftEditing, mayRestore.handoff);
@@ -1668,7 +1674,7 @@ export function createVersionController({
     const regions = new Map(readingRegions().map((region) => [region.id, region]));
     const active =
       regions.get(view.activeRegion) ??
-      containingReadingRegionFor(focused()) ??
+      containingReadingRegionFor(focusedInView()) ??
       readingRegionFor(pageReadingBlock());
     if (active) reveal(active.host, currentIntent);
     const restored = new Set();
@@ -1761,12 +1767,15 @@ export function createVersionController({
   // still names its own pane to d/u through userReadingRegion; because the furniture does
   // not live in that pane's scroller, a posture change preserves the outer region that
   // geometrically contains it. The same distinction keeps an inline response outside a
-  // nested region body with the outer scroller that actually carries it.
+  // nested region body with the outer scroller that actually carries it. Focus names the
+  // region only while in view (user-place.js, `focusedInView`): regions sharing the page
+  // scroller restore the active one's reading for it, and a pane the reader scrolled
+  // away from, though it keeps their focus, would take them back to it.
   const activeReadingRegion = (
     candidates = readingRegions(),
     blocks = textBlocks(),
   ) => {
-    const focusedRegion = containingReadingRegionFor(focused());
+    const focusedRegion = containingReadingRegionFor(focusedInView());
     if (focusedRegion && candidates.some(({ id }) => id === focusedRegion.id))
       return focusedRegion;
     const recent = candidates.find(({ id }) => id === recentReadingRegion()?.id);

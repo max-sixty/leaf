@@ -1,35 +1,35 @@
 /* Fixed status allocation leaves the filename and editor still during delayed
  * writes. Normal writes and completion paint no status at all. Only this widget's
  * shadow stage receives these rules; CodeMirror owns its editing presentation. */
-:scope:host(lf-file) .lf-file-head {
+:scope:host(lf-file-editor) .lf-file-editor-head {
   display: flex; align-items: center; gap: .5rem 1rem;
   padding: .5rem 1rem; border-bottom: 1px solid var(--border-2);
 }
-:scope:host(lf-file) .lf-file-name {
+:scope:host(lf-file-editor) .lf-file-editor-name {
   flex: 1; min-width: 0; overflow-wrap: anywhere;
   font: 600 .9rem var(--mono);
 }
-:scope:host(lf-file) .lf-file-status {
+:scope:host(lf-file-editor) .lf-file-editor-status {
   flex: 0 0 10rem; text-align: right; color: var(--muted);
   font: .8rem var(--sans); min-block-size: 1lh;
 }
-:scope:host(lf-file) .lf-file-edit { min-width: 0; min-height: 0; }
-:scope:host(lf-file) .lf-file-problem {
+:scope:host(lf-file-editor) .lf-file-editor-edit { min-width: 0; min-height: 0; }
+:scope:host(lf-file-editor) .lf-file-editor-problem {
   padding: 1rem; background: var(--paper); border-top: 1px solid var(--border-2);
   max-block-size: min(50%, 20rem); overflow: auto;
 }
-:scope:host(lf-file) .lf-file-problem p { margin: 0 0 .7rem; font-size: .88rem; }
-:scope:host(lf-file) .lf-file-legend { color: var(--muted); }
-:scope:host(lf-file) .lf-file-actions { display: flex; flex-wrap: wrap; gap: .6rem; }
-:scope:host(lf-file) .lf-file-comparison { block-size: 10rem; margin-top: .75rem; }
-:scope:host(lf-file) .lf-file-announcement {
+:scope:host(lf-file-editor) .lf-file-editor-problem p { margin: 0 0 .7rem; font-size: .88rem; }
+:scope:host(lf-file-editor) .lf-file-editor-legend { color: var(--muted); }
+:scope:host(lf-file-editor) .lf-file-editor-actions { display: flex; flex-wrap: wrap; gap: .6rem; }
+:scope:host(lf-file-editor) .lf-file-editor-comparison { block-size: 10rem; margin-top: .75rem; }
+:scope:host(lf-file-editor) .lf-file-editor-announcement {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
 }
-:scope:host(lf-file) .cm-editor { height: 100%; font-size: var(--lf-file-size); }
-:scope:host(lf-file) .cm-scroller { overflow: auto; }
-:scope:host(lf-file) .cm-editor.cm-focused { outline: 2px solid var(--accent); outline-offset: -2px; }
+:scope:host(lf-file-editor) .cm-editor { height: 100%; font-size: var(--lf-file-editor-size); }
+:scope:host(lf-file-editor) .cm-scroller { overflow: auto; }
+:scope:host(lf-file-editor) .cm-editor.cm-focused { outline: 2px solid var(--accent); outline-offset: -2px; }
 @media (max-width: 36rem) {
-  :scope:host(lf-file) .lf-file-head { padding-inline: .7rem; gap: .35rem .6rem; }
-  :scope:host(lf-file) .lf-file-status { flex-basis: 9rem; }
+  :scope:host(lf-file-editor) .lf-file-editor-head { padding-inline: .7rem; gap: .35rem .6rem; }
+  :scope:host(lf-file-editor) .lf-file-editor-status { flex-basis: 9rem; }
 }

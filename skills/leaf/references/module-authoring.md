@@ -892,7 +892,7 @@ The `writable` property is false in captured documents and exports. The transpor
 owns page-relative routing and delivery checks; a widget never names a host path.
 The file remains external filesystem state: editing it does not append a Leaf
 action or participate in page Undo. CodeMirror owns editing history. Use the
-`file-editor` package's `lf-file` for this interface; use `lf-code` for a portable
+`file-editor` package's `lf-file-editor` for this interface; use `lf-code` for a portable
 snapshot that should travel with the page.
 
 ## Reading and opening Threads from a widget

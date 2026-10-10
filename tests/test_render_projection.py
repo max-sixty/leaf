@@ -4618,13 +4618,9 @@ def test_a_stamped_url_stays_pinned_while_the_live_root_follows_a_draft(browser,
     expect(pinned.locator(".lf-version")).to_contain_text("v1")
 
 
-def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, serve):
-    """Unsent words hold an arriving version, but clearing them releases it.
-
-    The chip is news during the hold, not a required confirmation: after the user
-    puts the page comment card away, the ordinary poll activates the already-published
-    version.
-    """
+def test_the_live_page_retains_a_page_comment_while_adopting_revisions(browser, serve):
+    """A page comment editor belongs to runtime chrome, so an authored patch can
+    arrive while it holds unsent words. The draft and focus survive each revision."""
     version_url = serve(LIVE_V1)
     page = open_page(browser, live_url(version_url))
     general = page_comment(page)
@@ -4632,15 +4628,15 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
 
     (serve.page_dir / "index.html").write_text(LIVE_V2)
     told(page)
-    expect(page).to_have_title("Live first")
-    expect_banner_control_offered(page.locator(".lf-latest-chip"))
+    expect(page).to_have_title("Live second")
+    expect(general).to_be_focused()
+    expect(general).to_have_js_property(
+        "value", "Do not replace the page under these words."
+    )
 
-    # Leaving the text box releases the hold. The live address and the card's durable
-    # draft survive the arriving document without a confirmation press.
+    # Leaving the text box preserves its durable draft on the live address.
     page.keyboard.press("Escape")
     expect(general).not_to_be_focused()
-    told(page)
-    expect(page).to_have_title("Live second")
     assert "/versions/" not in page.url
     expect(general).to_have_js_property(
         "value", "Do not replace the page under these words."
@@ -4652,11 +4648,15 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
         approval.element_handle(),
     )
 
-    # Keep editing after the first release, then ask v3 to honor the hold again.
+    # Continue editing after the first release, then adopt v3 while the field stands.
     page_comment(page)
     (serve.page_dir / "index.html").write_text(LIVE_V3)
     told(page)
-    expect(page).to_have_title("Live second")
+    expect(page).to_have_title("Live third")
+    expect(general).to_be_focused()
+    expect(general).to_have_js_property(
+        "value", "Do not replace the page under these words."
+    )
 
     write(general, "")
     page.locator("#live-reading").click()

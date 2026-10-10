@@ -38,17 +38,19 @@
  * rule.
  *
  * Each image's blocks are then read against the other image. A block none of whose
- * squares holds a changed pixel is the same. A block that did change is looked for in
- * the other image, among its blocks of the same size that changed too, the nearest
- * first: found there, no pixel more than SLIGHT apart, it moved; found nowhere, it
- * changed. Each frame of the pair is outlined on its own, around its own blocks: where
- * content changed, in both frames at the place it has in each, and where it moved, at
- * its old place in before and its new place in after. So a list that moved beside a
- * chart is outlined at the foot of before and beside the chart in after, and nothing
- * marks the empty place it left. A change where neither image draws an edge, such as
- * rows of ground only the taller image has, lies inside no block; its struck squares
- * are outlined as a change in each image that reaches them, joined with the outlines
- * they touch there.
+ * squares holds a changed pixel is the same. A frame is a line, so it is the same
+ * unless a pixel it draws changed: where only the ground beside a rule changed (the
+ * colour most of its image has), as where the other image's border crossed it, the
+ * change is the border's. A block that did change is looked for in the other image,
+ * among its blocks of the same size that changed too, the nearest first: found there,
+ * no pixel more than SLIGHT apart, it moved; found nowhere, it changed. Each frame of
+ * the pair is outlined on its own, around its own blocks: where content changed, in
+ * both frames at the place it has in each, and where it moved, at its old place in
+ * before and its new place in after. So a list that moved beside a chart is outlined at
+ * the foot of before and beside the chart in after, and nothing marks the empty place
+ * it left. A change where neither image draws an edge, such as rows of ground only the
+ * taller image has, lies inside no block; its struck squares are outlined as a change
+ * in each image that reaches them, joined with the outlines they touch there.
  *
  * A block that holds another block is a container, such as a panel, a card or a lane.
  * One that changed and holds only what changed too, as a card whose text rewrapped, is
@@ -128,16 +130,43 @@ export async function differingRegions(a, b) {
   const { DBSCAN } = await import("/vendor/density-clustering.esm.js");
   const before = blocksOf(a, one, columns);
   const after = blocksOf(b, other, columns);
-  const touched = (block) => block.cells.some((cell) => struck[cell]);
+  // A frame is a line, so it changed only where it is drawn. A struck square at its edge
+  // can hold only the ground beside it, as where the other image's border crosses a rule:
+  // that is the border's change, not the rule's.
+  const ground = new Map([
+    [a, commonest(one)],
+    [b, commonest(other)],
+  ]);
+  const drawnChange = (block, image, pixels, otherImage, otherPixels) =>
+    block.cells.some((cell) => {
+      if (!struck[cell]) return false;
+      const box = block.boxes.get(cell);
+      for (let y = box.y; y < box.y + box.height; y += 1)
+        for (let x = box.x; x < box.x + box.width; x += 1) {
+          const p = pixels[y * image.width + x];
+          if (distance(p, ground.get(image)) <= STEP) continue;
+          const q =
+            x < otherImage.width && y < otherImage.height
+              ? otherPixels[y * otherImage.width + x]
+              : undefined;
+          if (q === undefined || distance(p, q) >= SLIGHT) return true;
+        }
+      return false;
+    });
+  const touched = (block, image, pixels, otherImage, otherPixels) =>
+    block.frame
+      ? drawnChange(block, image, pixels, otherImage, otherPixels)
+      : block.cells.some((cell) => struck[cell]);
   const reading = (blocks, image, pixels, others, otherImage, otherPixels) =>
     blocks.map((block) => {
-      if (!touched(block)) return { state: "same" };
+      if (!touched(block, image, pixels, otherImage, otherPixels))
+        return { state: "same" };
       let found = null;
       let nearest = Infinity;
       for (const candidate of others) {
         // Content arrives only where the other image changed, so a block that stayed
         // where it was, such as one of a row of like icons, is never where this went.
-        if (!touched(candidate)) continue;
+        if (!touched(candidate, otherImage, otherPixels, image, pixels)) continue;
         if (candidate.width !== block.width || candidate.height !== block.height)
           continue;
         const far = Math.abs(candidate.x - block.x) + Math.abs(candidate.y - block.y);
@@ -548,6 +577,18 @@ function join(marks, DBSCAN) {
       ...indices.map((i) => changed[i]).reduce(union),
     })),
   ];
+}
+
+// The colour most pixels have: the image's ground.
+function commonest(pixels) {
+  const counts = new Map();
+  let best = pixels[0];
+  for (let i = 0; i < pixels.length; i += 7) {
+    const count = (counts.get(pixels[i]) ?? 0) + 1;
+    counts.set(pixels[i], count);
+    if (count > counts.get(best)) best = pixels[i];
+  }
+  return best;
 }
 
 function words(image) {

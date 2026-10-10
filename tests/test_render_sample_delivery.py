@@ -184,14 +184,12 @@ document.querySelector('#popup').addEventListener('click', () => {
         and row["template"] == "nested-source"
         and row["phase"] == "presented"
     )
-    child_store = serve.httpd.samples.get(serve.page_dir, child_page.rsplit("/", 1)[-1])
-    grandchild_records = interaction_records(
-        page, child_store.directory, document=grandchild
-    )
+    grandchild_records = interaction_records(page, serve.page_dir, document=grandchild)
     grandchild_page = [
         row for row in grandchild_records if row.get("type") == "test-checkpoint"
     ][-1]["page"]
     assert nested_identity == grandchild_page
+    assert grandchild_page.startswith(child_page + "/api/samples/")
     child.evaluate("""async () => {
       const state = await (await fetch('api/state')).json();
       const response = await fetch('api/event', {
@@ -240,6 +238,8 @@ document.querySelector('#popup').addEventListener('click', () => {
     assert destroyed[-2]["phase"] == "destroyed"
     assert destroyed[-1]["phase"] == "retired"
     assert destroyed[-1]["reason"] == "destroyed"
+    persisted = interaction_records(page, serve.page_dir)
+    assert any(row.get("page") == grandchild_page for row in persisted)
 
 
 @pytest.mark.parametrize("response_type", ["json", "html"])

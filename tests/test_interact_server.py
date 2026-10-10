@@ -534,6 +534,8 @@ def test_sample_capability_authorizes_only_its_live_descendants(page_dir, routed
     with hosting_model.TemporaryPageServer(page_dir, token=TOKEN) as preview:
         origin = preview.origin
 
+        allocation_pages = {}
+
         def create(parent, name, token):
             generation = json.loads(fetch(parent + "/api/state", token=token)[1])[
                 "layer"
@@ -549,6 +551,7 @@ def test_sample_capability_authorizes_only_its_live_descendants(page_dir, routed
             url = origin + json.loads(raw)["url"].rstrip("/")
             if routed and parent == origin:
                 url += "~" + "1" * 64
+            allocation_pages[url] = json.loads(raw)["page"]
             return url
 
         first = create(origin, "practice", TOKEN)
@@ -599,6 +602,16 @@ def test_sample_capability_authorizes_only_its_live_descendants(page_dir, routed
         assert fetch(origin + "/api/samples/" + "0" * 32 + "/", token=None)[0] == 404
         nested = create(first, "inner", None)
         assert fetch(nested + "/", token=None)[0] == 200
+        assert (
+            fetch(
+                nested + "/api/interaction",
+                token=None,
+                data=json.dumps(
+                    {"session": "nested-sample", "entries": [{"type": "checkpoint"}]}
+                ).encode(),
+            )[0]
+            == 204
+        )
         assert fetch(first + "/api/release", data=b"{}", token=None)[0] == 200
         assert fetch(first + "/", token=None)[0] == 404
         # A read already sent by the opaque child can arrive after Reset revokes
@@ -620,6 +633,21 @@ def test_sample_capability_authorizes_only_its_live_descendants(page_dir, routed
             assert headers["Access-Control-Allow-Origin"] == "*"
             assert headers.get("Access-Control-Allow-Credentials") is None
         assert fetch(nested + "/", token=None)[0] == 404
+        nested_trace = next(
+            row
+            for row in map(
+                json.loads,
+                (page_dir / interaction_model.INTERACTIONS_FILE)
+                .read_text()
+                .splitlines(),
+            )
+            if row.get("session") == "nested-sample"
+        )
+        assert (
+            nested_trace["page"]
+            == nested.removeprefix(origin)
+            == allocation_pages[nested]
+        )
         assert fetch(second + "/api/state", token=None)[0] == 200
         assert fetch(second + "/api/release", data=b"{}", token=None)[0] == 200
         assert preview.httpd.samples.pages == {}

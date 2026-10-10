@@ -4,8 +4,9 @@
 # queues and no result reached the thread. Cold, every run opens the task; what
 # fails is ending it, since "a worker touches the page only in a role Leaf's
 # instructions give it" leads the brief to forbid `leaf task`. Base at 8cbfb8f75
-# passed 6 of 8 runs on Claude Code, both failures that brief; the change 4 of 4,
-# each brief ending the task from the dispatched session.
+# passed 9 of 12 runs on Claude Code, every failure that brief; "wherever the result
+# lands, the task ends there" passed 4 of 4, each brief ending the task from the
+# dispatched session, as did a longer edit that also listed hand-offs as a worker role.
 description: handoff-holds-a-task
 metadata:
   purpose: 'Conversation loop: work the agent hands to another session still gets a

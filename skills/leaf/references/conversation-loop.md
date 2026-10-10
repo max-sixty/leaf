@@ -178,9 +178,8 @@ You drive the page and your workers do not. The server, the watcher and its
 acknowledgements, replies, starts and status, edits to `index.html`, and stamps stay
 with you, and a worker returns its result to you. A worker touches the page only in a
 role Leaf's instructions give it, and only as those instructions direct: a command hub worker
-(the `worker` value returned by `leaf page instructions <page>`), a Codex watcher task
-(`references/codex-watcher.md`), or a session you hand a task to, which ends that task
-(below). Put this in each worker's brief, because a worker that
+(the `worker` value returned by `leaf page instructions <page>`), or a Codex watcher task
+(`references/codex-watcher.md`). Put this in each worker's brief, because a worker that
 inherits your conversation inherits the page with it and may otherwise treat the page
 as its own. Work that needs its own conversation with the user belongs to a session
 of its own, with its own page.
@@ -199,17 +198,15 @@ line beside its thread or widget.
 
 A start lasts a turn; a task lasts until you end it. When you take on work a thread
 asked for that can outlast the turn you took it on in, such as a worker's build, a
-wait on CI, a change you promise for the next version, or work you hand to another
-session, open a task on that thread:
+wait on CI, or a change you promise for the next version, open a task on that thread:
 `leaf task open <page> <id> "<what you owe>"`. Then reply, saying what is under way:
 the reply answers the user's message, and the task keeps the thread on you, and named
-in the banner, through the user resolving it and the end of your session. When the
-result lands, write its outcome with `leaf task end <page> <task> done "<where the
-result is>"`, or `failed` or `dropped` with the reason, beside the reply that links
-it. Where the result lands in a session that won't report back to you, that session
-ends the task: put the page and the task's id in its brief. While you work on it,
-start it, so the banner and the thread show your line. Work on a move that finishes
-inside the turn needs no task.
+in the banner, through the user resolving it and the end of your session. Wherever
+the result lands, the task ends there: `leaf task end <page> <task> done "<where the
+result is>"`, or `failed` or `dropped` with the reason, so work that won't come back
+to you takes the page and the task's id in its brief. While you work on it, start it,
+so the banner and the thread show your line.
+Work on a move that finishes inside the turn needs no task.
 
 ## Questions and Tasks
 

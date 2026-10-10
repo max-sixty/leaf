@@ -1,5 +1,7 @@
 """Pure folds over the append-only event model."""
 
+from itertools import groupby
+
 from leaf.schema import MESSAGE_KINDS, UNDOABLE_KINDS
 
 
@@ -365,43 +367,58 @@ def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:
     return result
 
 
-def _ephemeral_ranges(thread: dict, covered: set) -> list[dict]:
-    """Completed contiguous runs of progress, preserving intervening conversation.
+def progress_completions(thread: dict) -> dict[str, dict]:
+    """The ordinary agent reply that supersedes each completed progress message.
 
-    A user message breaks a run but does not complete progress. The next ordinary
-    agent reply completes all pending runs. Its identity is also the presentation
-    dependency: a renderer holding that reply must hold its folds with it.
+    The next non-failure agent reply completes all pending progress in its thread.
+    Reactions and user messages do not complete it. Presentation and unread share
+    this relation independently of explicit summaries and read acknowledgements.
     """
     pending = []
-    run = []
-    ranges = []
+    completed = {}
     for message in spoken_turns(thread):
-        if message.get("ephemeral") and message["id"] not in covered:
-            run.append(message)
+        if message.get("ephemeral"):
+            pending.append(message["id"])
             continue
-        if run:
-            pending.append(run)
-            run = []
         if (
-            message.get("ephemeral")
-            or message["kind"] != "reply"
+            message["kind"] != "reply"
             or message["author"] != "agent"
             or message.get("failure")
         ):
             continue
-        for group in pending:
-            ranges.append(
-                {
-                    "id": f"ephemeral:{group[0]['id']}:{message['id']}",
-                    "seq": message["seq"],
-                    "from": group[0]["id"],
-                    "through": group[-1]["id"],
-                    "text": "",
-                    "label": "Previous updates",
-                    "trigger": message["id"],
-                }
-            )
+        completed.update((identity, message) for identity in pending)
         pending = []
+    return completed
+
+
+def _ephemeral_ranges(thread: dict, covered: set) -> list[dict]:
+    """Contiguous completed progress outside explicit summaries, split by conversation.
+
+    The completing reply is also the presentation dependency: a renderer holding
+    that reply must hold its folds with it.
+    """
+    completed = progress_completions(thread)
+    ranges = []
+    for reply, messages in groupby(
+        spoken_turns(thread),
+        key=lambda message: (
+            None if message["id"] in covered else completed.get(message["id"])
+        ),
+    ):
+        if reply is None:
+            continue
+        group = list(messages)
+        ranges.append(
+            {
+                "id": f"ephemeral:{group[0]['id']}:{reply['id']}",
+                "seq": reply["seq"],
+                "from": group[0]["id"],
+                "through": group[-1]["id"],
+                "text": "",
+                "label": "Previous updates",
+                "trigger": reply["id"],
+            }
+        )
     return ranges
 
 

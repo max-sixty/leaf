@@ -3507,7 +3507,12 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     expect(page.locator(".lf-banner-menu > .lf-version")).to_be_visible()
     expect(page.locator(".lf-banner-menu > .lf-banner-copy")).to_be_visible()
     expect(page.locator(".lf-banner-menu > .lf-share")).to_be_visible()
-    expect(page.locator(".lf-banner-menu > *:visible")).to_have_count(4)
+    # More also holds page commands; their number can grow without making the
+    # retired synthetic destinations reachable again.
+    expect(page.locator(".lf-banner-menu > .lf-secondary-destination")).to_have_count(7)
+    expect(
+        page.locator(".lf-banner-menu > .lf-secondary-destination:visible")
+    ).to_have_count(0)
     page.keyboard.press("Escape")
     expect(page.locator(".lf-banner-menu")).to_be_hidden()
     expect(page.locator(".lf-banner-more")).to_be_visible()
@@ -6634,7 +6639,7 @@ def test_a_failed_leaves_restore_keeps_application_presentation_pending(
           return presentation.readApplicationPresentation().pending.includes('leaves');
         }"""
     )
-    assert take_browser_errors(page) == [
+    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
         (
             "leaf: Presentation failed: Leaves presentation and retention failed: "
             "deliberate leaves failure; deliberate leaves failure"

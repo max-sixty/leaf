@@ -268,6 +268,8 @@ html[data-lf-draw-mode] main [data-lf-offer] * {
     left: 0;
     right: 0;
     z-index: var(--lf-z-banner);
+    box-sizing: border-box;
+    height: var(--lf-banner-h);
     display: flex;
     flex-wrap: nowrap;
     align-content: flex-start;
@@ -304,8 +306,6 @@ html[data-lf-draw-mode] main [data-lf-offer] * {
     .lf-banner {
       flex-wrap: wrap;
       flex-direction: row-reverse;
-      box-sizing: border-box;
-      height: var(--lf-banner-h);
       clip-path: inset(-100vh -100vw 0);
     }
     .lf-banner-status {

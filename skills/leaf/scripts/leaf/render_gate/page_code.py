@@ -135,7 +135,7 @@ def run_page_code(browser, url: str) -> list[str]:
     except PlaywrightError as error:
         # A wait that timed out names what never arrived; any other browser error
         # is as much a failed run, and the reports already taken still stand.
-        reports.append(str(error).strip().splitlines()[0])
+        reports.append(str(error).strip())
     finally:
         page.close()
     if reports and network_errors:

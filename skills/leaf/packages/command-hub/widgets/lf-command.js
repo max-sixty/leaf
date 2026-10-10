@@ -54,6 +54,7 @@ import {
   watchOwner,
   focusDestination,
   worksInside,
+  scrollIntoView,
 } from "/runtime/widget-api.js";
 import {
   closestCommandRole,
@@ -329,7 +330,7 @@ function showView(box) {
   const title = box?.querySelector(":scope > h2");
   if (!title) return;
   focusDestination(title, "move");
-  box.scrollIntoView({ block: "nearest" });
+  scrollIntoView(box, { block: "nearest" });
 }
 
 // A count opens its list: the lists show as they stand now, whatever they move, since

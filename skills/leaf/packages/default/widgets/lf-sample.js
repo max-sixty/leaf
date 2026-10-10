@@ -5,16 +5,14 @@
  * sample is instead a whole Leaf window at the frame's own height, chrome included,
  * and scrolls inside itself. The child's
  * final Escape brings focus back to this element. Each presented child announces
- * lf-sample-ready with its Document, on first mount and Reset. Reset stays focusable
+ * lf-sample-ready with its sample element, on first mount and Reset. Reset stays focusable
  * while loading but accepts no new press, preserving the parent's keyboard position.
  * Ordinary children remain static
  * quotation. A disconnect releases the child; moving the retained element within a
  * document does not reset its work. */
 import {
-  cancelRender,
   keeps,
   mountSample,
-  nextRender,
   once,
   offer,
   widgetController,
@@ -29,8 +27,6 @@ customElements.define(
     #template;
     #reset;
     #status;
-    #fit;
-    #fitting = 0;
     #ready;
     #mounting = false;
     #viewOperation;
@@ -56,6 +52,9 @@ customElements.define(
             throw new DOMException("sample disconnected", "AbortError");
           }
           this.#host = host;
+          host.on("height", ({ height }) => this.#height(height));
+          host.on("loading", () => this.#track(host.ready));
+          host.on("error", (error) => this.#failure(error));
           return host.ready;
         },
         (error) => {
@@ -73,7 +72,6 @@ customElements.define(
         if (!this.#host) return;
         const host = this.#host;
         this.#host = null;
-        cancelRender(this.#fitting);
         host.destroy().catch((error) => this.#failure(error));
       });
     }
@@ -108,27 +106,14 @@ customElements.define(
     // The frame's height follows its child's page, so nothing scrolls inside it. It
     // takes the child's height as the child presents, inside the presentation the page
     // waits on, so the sample first appears at that height rather than at the
-    // stylesheet's placeholder. Every later write waits a frame: the new height relays
-    // out the containing page, which can reach the child's body again inside the
-    // observation that asked for it. The observer is the child's own, watching its own
-    // body; the write it queues is this page's, and this page's settled reading counts
-    // it. A reset replaces the child, so it cancels the write the last child queued.
-    #follow(doc) {
-      this.#fit?.disconnect();
-      cancelRender(this.#fitting);
+    // stylesheet's placeholder. The child's own observer reports later changes over
+    // its private port. Reset retires that port before a replacement can report.
+
+    #height(height) {
+      if (this.hasAttribute("window")) return;
       const frame = this.#frame;
-      const view = doc.defaultView;
-      const fit = () => {
-        const border = frame.offsetHeight - frame.clientHeight;
-        const height = `${Math.ceil(doc.body.getBoundingClientRect().height) + border}px`;
-        if (frame.style.height !== height) frame.style.height = height;
-      };
-      fit();
-      this.#fit = new view.ResizeObserver(() => {
-        cancelRender(this.#fitting);
-        this.#fitting = nextRender(fit);
-      });
-      this.#fit.observe(doc.body);
+      const next = `${height + frame.offsetHeight - frame.clientHeight}px`;
+      if (frame.style.height !== next) frame.style.height = next;
     }
 
     #failure(error) {
@@ -140,18 +125,18 @@ customElements.define(
     #track(promise) {
       keeps(this.#reset, "aria-disabled", "true");
       this.#status.textContent = "Loading sample…";
-      const ready = promise.then((doc) => {
-        if (this.#ready !== ready) return doc;
+      const ready = promise.then((reading) => {
+        if (this.#ready !== ready) return reading;
         keeps(this.#reset, "aria-disabled", null);
         this.#status.textContent = "";
-        if (doc.documentElement.hasAttribute("data-lf-sample-block")) this.#follow(doc);
+        if (reading.block) this.#height(reading.height);
         this.dispatchEvent(
           new CustomEvent("lf-sample-ready", {
             bubbles: true,
-            detail: { document: doc },
+            detail: { sample: this },
           }),
         );
-        return doc;
+        return reading;
       });
       this.#ready = ready;
       ready.catch((error) => {
@@ -175,7 +160,6 @@ customElements.define(
       });
       const select = async () => {
         if (signal.aborted || ready !== this.#ready || !this.isConnected) return false;
-        const invoker = this.ownerDocument.activeElement;
         const shown = await this.#host.showThread(id, {
           surface,
           status,
@@ -183,13 +167,6 @@ customElements.define(
           signal,
         });
         if (signal.aborted || ready !== this.#ready || !this.isConnected) return false;
-        if (
-          shown &&
-          invoker &&
-          this.ownerDocument.activeElement === this.#frame &&
-          invoker !== this.#frame
-        )
-          focusDestination(invoker, "return");
         return shown;
       };
       try {

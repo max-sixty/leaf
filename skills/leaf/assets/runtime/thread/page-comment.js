@@ -23,6 +23,7 @@
    opens it from the page, the control too, since the key runs the control's press
    (keyboard/dispatch.js). On a phone the control stands behind More in its words, and
    the card spans the window under the banner. */
+import { showNativeLayer, closeNativeLayer } from "../keyboard/layer-stack.js";
 import { el } from "../widget-elements.js";
 import { iconElement } from "../icons.js";
 import { textField } from "../composing/text-field.js";
@@ -93,7 +94,7 @@ export function createPageComment({
       description: () =>
         holds() ? "Close the card, keeping the draft" : "Close the card",
       title: () => (holds() ? "close — draft kept" : "close"),
-      run: () => card.hidePopover(),
+      run: () => closeNativeLayer(card),
     },
   ]);
 
@@ -109,7 +110,7 @@ export function createPageComment({
   // away; opened with the control as its source, the card does not count a press on the
   // control as one outside it.
   control.addEventListener("click", () => {
-    if (cardIsOpen()) card.hidePopover();
+    if (cardIsOpen()) closeNativeLayer(card);
     else open();
   });
   registerBannerControl({
@@ -129,7 +130,7 @@ export function createPageComment({
       // a phone.
       const door = bannerControlDoor(control);
       if (door) focusDestination(door, "move");
-      card.showPopover({ source: control });
+      showNativeLayer(card, { source: control });
     }
     // At once rather than at `toggle`, which comes a task later: the words typed right
     // after the press belong in the box, not to the control or the page's keys.
@@ -215,7 +216,7 @@ export function createPageComment({
   return {
     control,
     open,
-    close: () => cardIsOpen() && card.hidePopover(),
+    close: () => cardIsOpen() && closeNativeLayer(card),
     // The box Comment on the page writes in now, which carries `c`'s hint.
     box: () => (panelIsOpen() ? panelBox : input),
     // Both boxes restate their hint and Send state (Design mode, a restored draft).

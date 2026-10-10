@@ -42,6 +42,56 @@ what fails and what still works.
 
 ## Known gaps
 
+### Native focus and scrolling inside samples
+
+- **Impact: functional; Leaf-owned navigation is contained.** An opaque
+  sandboxed frame with an opaque origin denies parent DOM, storage, and cookie access,
+  but does not confine native focus and reveal operations. Leaf’s own code observes
+  input ownership and uses document-local reveals. Authored scripts retain native
+  browser APIs; no page-content restriction is required for that runtime contract.
+- **Owners:** focus admission and layer returns in `runtime/focus.js`, native
+  openings and the canonical modal reading in `runtime/keyboard/layer-stack.js`,
+  document-local reveal in `runtime/landing-scroll.js`, and the editor adapter in
+  `runtime/composing/text-field.js`.
+- **Observed, 2026-10-09:** installed Chrome 155 and Playwright Chromium
+  153.0.8010.12 allow autonomous SVG focus, `window.focus`, `dialog.showModal`,
+  `showPopover`, and nested-frame native focus to take focus from the containing
+  page. `scrollIntoViewIfNeeded` can scroll that page without changing focus.
+  The Chrome 155 calls ran from message handlers with both user-activation
+  readings false. An inert containing iframe did not supply the missing boundary.
+- **Observed, 2026-10-10:** a native dialog opening can reveal its containing frame
+  even while the child already owns focus. Native dialog close can return focus
+  after the parent has reclaimed input, including into another modal that escapes
+  ancestor inertness. Temporarily making the opening layer, or the document and
+  standing modal roots during close, inert prevents these transfers before they
+  occur. Leaf then places its own intended arrival without native scrolling.
+- **Reproduction:** serve a window sample with a tall body, a focusable SVG
+  link, a dialog containing an autofocus input, and a popover containing an
+  autofocus input. Focus a button on the containing page, then run each native
+  operation from an autonomous child message handler. Read the containing
+  page’s active element and scroll position and capture focus events throughout
+  the operation. Repeat after child entry, with nested modal dialogs, and with
+  the containing page scrolled away while the child retains focus.
+- **Platform status:** Chrome described `focus-without-user-activation` as an
+  [origin trial in Chrome 149](https://developer.chrome.com/release-notes/149).
+  Neither checked engine exposes it in its permissions-policy feature list;
+  setting an unsupported policy does not establish a guarantee.
+- **Disposition:** Leaf contains its own navigation through its canonical owners.
+  This is a cooperative runtime contract, not a security claim that arbitrary
+  authored JavaScript cannot call native APIs outside it. No parent focus or
+  scroll restoration establishes the guarantee.
+- **Editing and engine limits, checked 2026-10-10:** typing into an offscreen
+  focused editor reveals its frame in Chrome, including a plain native textarea,
+  without any JavaScript focus or reveal call. Leaf's autonomous value and selection
+  updates leave parent focus and scroll unchanged. WebKit 26.6 also revealed an
+  offscreen editor on focus: CodeMirror disables `preventScroll` on Safari 26+,
+  and native contenteditable focus can reveal an inactive retained selection.
+  Leaf's editor adapter detaches only its own inactive DOM selection, focuses
+  without scrolling, and places the retained selection from editor state. The
+  regression passes repeated entry and real editing in Chromium and WebKit 26.6;
+  WebKit dialog and popover phase checks also preserve containing-page focus and
+  scroll. These are engine checks, not installed Safari or mobile-browser checks.
+
 ### Frame margin trimming
 
 - **Disposition: shared CSS retained.** Leaf trims a frame's content edges through

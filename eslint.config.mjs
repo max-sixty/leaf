@@ -12,6 +12,7 @@ const runtimePrimitives = [
   "control-selectors.js",
   "keeps.js",
   "rendering.js",
+  "sample-visibility.js",
   "queued-work.js",
   "repaint.js",
   "root-state.js",
@@ -480,6 +481,27 @@ export const placementsRule = {
     return {
       CallExpression(node) {
         const { callee, arguments: args } = node;
+        if (callee.type === "MemberExpression" && !callee.computed) {
+          if (
+            ["scrollIntoView", "scrollIntoViewIfNeeded"].includes(callee.property.name)
+          )
+            context.report({
+              node,
+              message:
+                "Reveal with scrollIntoView(node, options) from runtime/landing-scroll.js: native reveal can scroll the containing page.",
+            });
+          if (
+            ["showModal", "showPopover", "hidePopover"].includes(
+              callee.property.name,
+            ) &&
+            file !== "skills/leaf/assets/runtime/keyboard/layer-stack.js"
+          )
+            context.report({
+              node,
+              message:
+                "Use showNativeLayer(layer, options) or closeNativeLayer(layer): native focus must respect the document holding input.",
+            });
+        }
         if (callee.type === "Identifier" && callee.name === "focusDestination") {
           if (args.length < 2)
             context.report({ node, message: "focusDestination names its cause." });
@@ -1301,7 +1323,7 @@ export default [
     // These are the two boundaries that load authored/package modules, whose paths
     // are data rather than runtime dependencies. Literal imports still enter the graph.
     files: [
-      "skills/leaf/assets/runtime/interaction-gallery.js",
+      "skills/leaf/assets/runtime/interaction-gallery-playback.js",
       "skills/leaf/assets/runtime/widget-loader.js",
     ],
     rules: {

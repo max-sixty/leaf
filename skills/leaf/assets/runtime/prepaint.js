@@ -74,39 +74,72 @@
 
   // Tab memory has one storage policy, including before the module graph starts.
   // Initial package drawings and their later controllers read the same values.
-  const stored = (open, name, prefix = "") => ({
-    read(key) {
-      try {
-        return { available: true, value: open().getItem(prefix + key) };
-      } catch {
-        return { available: false, value: null };
-      }
-    },
-    get(key) {
-      return this.read(key).value;
-    },
-    set(key, value) {
-      try {
-        if (value === null) open().removeItem(prefix + key);
-        else open().setItem(prefix + key, value);
-        return true;
-      } catch {
-        return false;
-      }
-    },
-    where(key) {
-      return { store: name, key: prefix + key };
-    },
-    keys() {
-      try {
-        return Object.keys(open())
-          .filter((key) => key.startsWith(prefix))
-          .map((key) => key.slice(prefix.length));
-      } catch {
-        return [];
-      }
-    },
-  });
+  // Samples own disposable browser state in their realm. Choosing the backing here
+  // keeps early drawings, widget controllers, drafts and chrome on the same store,
+  // without ever requesting storage denied to an opaque origin.
+  const memoryStores = root.hasAttribute("data-lf-sample") ? new Map() : null;
+  const memoryStore = (name) => {
+    if (!memoryStores.has(name)) {
+      const values = new Map();
+      memoryStores.set(name, {
+        get length() {
+          return values.size;
+        },
+        key(index) {
+          return [...values.keys()][index] ?? null;
+        },
+        getItem(key) {
+          return values.get(key) ?? null;
+        },
+        setItem(key, value) {
+          values.set(key, String(value));
+        },
+        removeItem(key) {
+          values.delete(key);
+        },
+      });
+    }
+    return memoryStores.get(name);
+  };
+  const stored = (nativeOpen, name, prefix = "") => {
+    const open = memoryStores ? () => memoryStore(name) : nativeOpen;
+    return {
+      read(key) {
+        try {
+          return { available: true, value: open().getItem(prefix + key) };
+        } catch {
+          return { available: false, value: null };
+        }
+      },
+      get(key) {
+        return this.read(key).value;
+      },
+      set(key, value) {
+        try {
+          if (value === null) open().removeItem(prefix + key);
+          else open().setItem(prefix + key, value);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      where(key) {
+        return { store: name, key: prefix + key };
+      },
+      keys() {
+        try {
+          const backing = open();
+          return Array.from({ length: backing.length }, (_, index) =>
+            backing.key(index),
+          )
+            .filter((key) => key !== null && key.startsWith(prefix))
+            .map((key) => key.slice(prefix.length));
+        } catch {
+          return [];
+        }
+      },
+    };
+  };
   const tabStore = stored(() => sessionStorage, "session", scope);
   const userStore = stored(() => localStorage, "local", root.dataset.lfUserScope ?? "");
   root.lfStorage = { stored, tabStore, userStore };

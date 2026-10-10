@@ -8,6 +8,7 @@
    the walk could not move; that state briefly gives the unchanged ordinal an accent
    face. Both clamped and cyclic semantic walks use this reading. Native focus traversal
    and gestures that rearrange state are not walks through a named list. */
+import { scrollIntoView } from "./landing-scroll.js";
 import { clampedRow } from "./keyboard/bindings.js";
 import { holdStatus } from "./notifications.js";
 import { repaint } from "./repaint.js";
@@ -96,7 +97,8 @@ export function rowWalk({
     const was = focused();
     const row = pick(rows());
     if (!row) return;
-    focusDestination(row, "move", { scroll });
+    focusDestination(row, "move");
+    if (scroll) scrollIntoView(row, { block: "nearest" });
     beginWalk(id, noun, () => listWalkPosition(items(), focused()));
     if (row !== was) landed?.(row);
   };

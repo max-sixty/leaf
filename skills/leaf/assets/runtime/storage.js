@@ -1,3 +1,7 @@
+/* Browser working state has one backing policy, selected by prepaint before widgets
+ * draw. Isolated samples keep all stores inside their disposable realm; ordinary
+ * documents use native scoped storage, whose refusal never prevents reading. */
+
 // ---------- which address this document is ----------
 // Which version a document is comes from its served `lf-version` marker
 // (`document-identity.js`), and where another version is from that version's `url` in
@@ -63,17 +67,3 @@ export const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
 // The delivery declares a child page's private user scope. Bootstrap reads the
 // same fact before this module loads; neither derives it from the viewed revision.
 export const userStore = document.documentElement.lfStorage.userStore;
-
-// Disposable child pages have an exclusive URL scope. Call only after their
-// browsing context has stopped: pagehide itself saves tab state.
-export function discardPageStorage(url) {
-  const scope = new URL(url).pathname;
-  if (scope === "/") throw new Error("cannot discard root page storage");
-  for (const [open, name] of [
-    [() => localStorage, "local"],
-    [() => sessionStorage, "session"],
-  ]) {
-    const store = stored(open, name, scope);
-    for (const key of store.keys()) store.set(key, null);
-  }
-}

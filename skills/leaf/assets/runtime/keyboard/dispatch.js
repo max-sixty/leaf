@@ -80,6 +80,7 @@ import {
   allBindings,
   lineOf,
   titleOf,
+  descriptionOf,
   commandEntries,
   commandRoutes,
   live,
@@ -308,6 +309,7 @@ function referencedInvocation(reference) {
     ? {
         id: reference.id,
         row: reference.row,
+        entry: current,
         binding: reference.binding ?? undefined,
         run,
         native: false,
@@ -328,14 +330,30 @@ function invocationFor(row, binding, command, recovered = null) {
       ? () => nativeControl.click()
       : null;
   return run
-    ? { id: command?.id ?? row.id, row, binding, run, native: Boolean(row.native) }
+    ? {
+        id: command?.id ?? row.id,
+        row,
+        entry: current,
+        binding,
+        run,
+        native: Boolean(row.native),
+      }
     : null;
 }
 
 function announceInvocation(invocation) {
+  const { row, entry } = invocation;
+  const route = entry.route;
   document.dispatchEvent(
     new window.CustomEvent("lf-command-invoked", {
-      detail: { id: invocation.id, binding: invocation.binding },
+      // Dynamic words are facts of this invocation. Reading the register later
+      // would describe the state after the command changed it.
+      detail: {
+        id: invocation.id,
+        binding: invocation.binding,
+        title: titleOf(route?.title === undefined ? row : route),
+        description: descriptionOf(route?.description === undefined ? row : route),
+      },
     }),
   );
 }

@@ -31,6 +31,8 @@
  * face is the window's, the same query that gives the banner its phone face in theme.css
  * and chrome.css, so the partition changes only when the window crosses that width.
  */
+import { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
+import { scrollIntoView } from "./landing-scroll.js";
 import { html, render, repeat } from "../vendor/browser-runtime.js";
 import { el } from "./widget-elements.js";
 import { repaint } from "./repaint.js";
@@ -230,7 +232,10 @@ overflowMenu.addEventListener("toggle", (event) => {
   const open = event.newState === "open";
   render(rowTemplate(), bannerActions);
   const first = open && document.activeElement === overflowBtn && menu.find(focusable);
-  if (first) focusDestination(first.focusTarget, "move", { scroll: true });
+  if (first) {
+    focusDestination(first.focusTarget, "move");
+    scrollIntoView(first.focusTarget, { block: "nearest" });
+  }
   if (!open) opener = null;
   repaint();
 });
@@ -393,7 +398,7 @@ function focusAfterRemoval(entry, wasInMenu) {
 // answers the layer's shared disclosure route: `reveal` walks the ancestors of what a
 // caller means to show, and this is the only one that can open for a menu control.
 overflowMenu.addEventListener("lf-reveal", () => {
-  if (!overflowMenu.matches(":popover-open")) overflowMenu.showPopover();
+  if (!overflowMenu.matches(":popover-open")) showNativeLayer(overflowMenu);
 });
 
 // The node a user can actually put focus on to reach this control: the control
@@ -414,11 +419,11 @@ export function bannerControlDoor(control) {
 export function returnToBannerControl(control) {
   if (overflowMenu.contains(control) && !overflowMenu.matches(":popover-open")) {
     focusDestination(overflowBtn, "return");
-    overflowMenu.showPopover();
+    showNativeLayer(overflowMenu);
   }
   focusDestination(control, "return");
 }
 
 export function dismissBannerControls() {
-  if (overflowMenu.matches(":popover-open")) overflowMenu.hidePopover();
+  if (overflowMenu.matches(":popover-open")) closeNativeLayer(overflowMenu);
 }

@@ -20,7 +20,7 @@ import { bannerStanding } from "./banner-toolbar.js";
 import { pageSelection } from "./composing/capture.js";
 import { blockAt, closestAcross, pageRange } from "./passages.js";
 import { readingBlock } from "./reading-place.js";
-import { scrollIntoReadingBand } from "./landing-scroll.js";
+import { scrollIntoReadingBand, scrollIntoView } from "./landing-scroll.js";
 import { THREAD } from "./thread/selectors.js";
 import { under } from "./shadow.js";
 import { retainUserIntent } from "./user-intent.js";
@@ -141,7 +141,7 @@ function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
 // reads the list's declared scroll-padding, its focus-ring room, from the same authority
 // the t/T walk uses.
 export function placeThreadEdge(thread, edge) {
-  thread.scrollIntoView({ behavior: scrollBehavior(), block: edge });
+  scrollIntoView(thread, { behavior: scrollBehavior(), block: edge });
 }
 
 // j/k take small pixel steps; d/u move 60% of the visible reading page. Both follow

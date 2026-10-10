@@ -22,6 +22,8 @@
    The catalog is deliberately frozen while open. A command that becomes live waits until
    the next opening; one that becomes unavailable is rejected by fresh dispatch and causes
    the reference to reopen with an explanation. */
+import { showNativeLayer, closeNativeLayer } from "./layer-stack.js";
+import { scrollIntoView } from "../landing-scroll.js";
 import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
 
 import {
@@ -824,7 +826,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
     commandReferenceInvoke = invokeCommand;
     for (const popover of openPopovers())
       if (popover.popover !== "manual" && popover.matches(":popover-open"))
-        popover.hidePopover();
+        closeNativeLayer(popover);
     // The origin is read off the scene the reference leaves standing: hiding a popover
     // hands focus back to where the user stood when it opened, and that is the place
     // the reference owes them. A control, or nothing: a user working from the page
@@ -855,7 +857,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
     results.scrollTop = 0;
   }
   commandReferenceDialog.classList.toggle("open", open);
-  if (open && !commandReferenceDialog.open) commandReferenceDialog.showModal();
+  if (open && !commandReferenceDialog.open) showNativeLayer(commandReferenceDialog);
   // The reference is a bounded interaction rather than a level of the page: it claims the
   // whole keyboard while it stands and hands the user back itself, to the control the
   // press displaced, or to the page where that control has gone — the layer it stood in
@@ -868,7 +870,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
   if (!open) {
     closeLayer(
       () => {
-        if (commandReferenceDialog.open) commandReferenceDialog.close();
+        if (commandReferenceDialog.open) closeNativeLayer(commandReferenceDialog);
         if (commandReferenceDialog.contains(document.activeElement))
           document.activeElement.blur();
         repaint();
@@ -942,7 +944,7 @@ export function moveCommandReferenceSelection(dir) {
   presentCommandReference();
   const next = commandButton(nextId);
   if (focusedId) focusDestination(next, "move");
-  next.closest("tr").scrollIntoView({ block: "nearest" });
+  scrollIntoView(next.closest("tr"), { block: "nearest" });
   beginWalk("shortcut-command", "Command", () => {
     const current = focusedCommandId() ?? commandReferenceState.selectedCommandId;
     return listWalkPosition(

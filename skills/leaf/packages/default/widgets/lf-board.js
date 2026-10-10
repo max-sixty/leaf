@@ -49,6 +49,7 @@ import {
   keepsHidden,
   keepsText,
   focusDestination,
+  scrollIntoView,
 } from "/runtime/widget-api.js";
 
 customElements.define(
@@ -467,10 +468,9 @@ customElements.define(
       col.moveBefore(card, rest[index] ?? null);
       if (grip) {
         focusDestination(grip, "return");
-        card.scrollIntoView({
+        scrollIntoView(card, {
           behavior: scrollBehavior(),
           block: "nearest",
-          inline: "nearest",
         });
       }
       const last = card.getBoundingClientRect();

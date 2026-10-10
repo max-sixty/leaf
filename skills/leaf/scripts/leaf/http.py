@@ -284,6 +284,8 @@ class PageEndpoint:
         started = time.monotonic()
         if self.method in {"GET", "HEAD"}:
             answer = self._answer(self._get)
+        elif self.method == "OPTIONS":
+            answer = self._answer(self._not_found)
         elif self.method == "POST":
             answer = self._answer(self._post, prepare=self._read_posted)
         else:
@@ -668,9 +670,10 @@ class PageEndpoint:
         the one person still looking, and `record_fault` keeps a copy for whoever
         else reads this host. This is the only place a 500 is written: a route that
         cannot answer raises rather than composing one of its own, so no fault
-        reaches a browser without passing the record. The key is checked here for `_delivery_headers`'s
-        reason: every request passes through, so there is one gate rather than one
-        per method, and a route added later cannot be the one that forgot to ask.
+        reaches a browser without passing the record. Authorization lives here:
+        a disposable child's unguessable path grants that child's routes; every
+        parent route requires its handover key or cookie. A route added later
+        cannot be the one that forgot to ask.
         POST preparation is deliberately after that gate, so an unknown peer cannot
         choose a body-read cost.
 
@@ -688,13 +691,13 @@ class PageEndpoint:
                 return answered
             if prepare:
                 self.posted, self.posted_error = {}, None
+            sample_answer = self._sample_request()
+            if sample_answer is not None:
+                return sample_answer
             if not self.authorized():
                 if prepare:
                     self.body_unread = True
                 return self._json({"error": NO_KEY}, 401)
-            sample_answer = self._sample_request()
-            if sample_answer is not None:
-                return sample_answer
             if prepare:
                 self.posted, self.posted_error = prepare()
                 prepared = True
@@ -718,24 +721,33 @@ class PageEndpoint:
         """
 
     def _sample_request(self) -> Response | None:
-        """Enter a child only after its parent transport has authorized this request."""
-        match = re.fullmatch(r"/api/samples/([a-f0-9]{32})(/.*)?", self.path)
+        """An unguessable child path authorizes only that disposable page.
+
+        Opaque frames cannot carry the parent cookie. Every native loader and API
+        uses this same child capability, before the parent cookie gate.
+        """
+        match = re.fullmatch(
+            r"/api/samples/([a-f0-9]{32}(?:~[a-f0-9]{64})?)(/.*)?", self.path
+        )
         if match is None:
             return None
-        identity, inside = match.groups()
+        segment, inside = match.groups()
+        identity = segment.split("~", 1)[0]
         sample = self.server.samples.get(self.page_dir, identity)
         if sample is None:
             return self._not_found()
+        if self.method == "OPTIONS":
+            return self._sample_headers(self._content(204, "text/plain", b""))
         if self.method == "POST" and inside == "/api/release":
             self.read_body(MAX_MEDIA_UPLOAD_BYTES)
             self.server.samples.release(self.page_dir, identity)
-            return self._json({"released": True})
+            return self._sample_headers(self._json({"released": True}))
         child = SampleEndpoint(
             self.request,
             self.server,
             page_dir=sample.directory,
             layer_identity=sample.layer,
-            page_root=f"{self.page_root}/api/samples/{identity}",
+            page_root=f"{self.page_root}/api/samples/{segment}",
         )
         child.path = inside or "/"
         child.parent = self
@@ -747,7 +759,26 @@ class PageEndpoint:
             answer = child.respond()
             self.response_layer = child.response_layer
             self.housekeeping = child.housekeeping
-            return answer
+            return self._sample_headers(answer)
+
+    def _sample_headers(self, response: Response) -> Response:
+        """Credentialless native loads share the scoped child path, never cookies."""
+        response.headers.update(
+            {
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, HEAD, POST, OPTIONS",
+                "Access-Control-Allow-Headers": self.headers.get(
+                    "Access-Control-Request-Headers", "*"
+                ),
+                "Access-Control-Expose-Headers": "*",
+                "Referrer-Policy": "no-referrer",
+            }
+        )
+        # An opaque parent is not expressible as a frame-ancestors source. Child
+        # capabilities admit nested samples; parent documents keep their policy.
+        if response.headers.get("Content-Security-Policy") == FRAME_ANCESTORS_CSP:
+            del response.headers["Content-Security-Policy"]
+        return response
 
     def _serve_root(self) -> Response:
         if self.page_snapshot is not None:
@@ -792,9 +823,9 @@ class PageEndpoint:
         """The immutable dependency namespace selected for this document."""
         return self._artifact_root(revision)
 
-    def _sample_asset_root(self, revision: int) -> str:
-        """Capture the parent's resource provenance when creating a child."""
-        return self._document_asset_root(revision)
+    def _sample_asset_root(self, revision: int) -> str | None:
+        """A host's public captured graph, or the child's own capability namespace."""
+        return None
 
     def _serve_document(
         self, artifact: RevisionArtifact, revision: int, version: int | None
@@ -1041,7 +1072,11 @@ class PageEndpoint:
             owner = getattr(self, "parent", None)
             directory = owner.page_dir if owner is not None else self.page_dir
             page = self.page_root[len(owner.page_root) :] if owner is not None else "/"
-            append_interactions(directory, client_records(session, page, entries))
+            try:
+                records = client_records(session, page, entries)
+            except (TypeError, ValueError) as error:
+                return self._refuse(str(error))
+            append_interactions(directory, records)
             return self._content(204, "text/plain", b"")
         # Preview requests have passed authentication and body preparation. An event
         # refusal can therefore name its attempt; media uses the route's generic shape.
@@ -1138,10 +1173,16 @@ class PageEndpoint:
 
 
 class SampleEndpoint(PageEndpoint):
-    """A normal child page whose parent route already checked access."""
+    """A normal child page authorized by its scoped, unguessable route."""
 
     def authorized(self) -> bool:
         return True
+
+    def _document_asset_root(self, revision: int) -> str:
+        return self.asset_root or super()._document_asset_root(revision)
+
+    def _sample_asset_root(self, revision: int) -> str | None:
+        return self.asset_root
 
     def record_fault(self, error: Exception) -> None:
         # `_sample_request` builds this child, not the host that chose the parent's
@@ -1151,9 +1192,6 @@ class SampleEndpoint(PageEndpoint):
         # reading the fault is looking for.
         self.parent.record_fault(error)
 
-    def _document_asset_root(self, revision: int) -> str:
-        return self.asset_root
-
     def _delivery(self, artifact: RevisionArtifact, revision: int) -> Delivery:
         # Every child arrives inert, so its startup cannot take focus from the page;
         # the host releases a live one once it presents. A passive replay never takes
@@ -1161,7 +1199,10 @@ class SampleEndpoint(PageEndpoint):
         # say (sample.js), which its bootstrap asks before it paints.
         return replace(
             super()._delivery(artifact, revision),
-            html_attributes={"data-lf-user-scope": self.page_root + "/"},
+            html_attributes={
+                "data-lf-user-scope": self.page_root + "/",
+                "data-lf-sample": "",
+            },
             body_attributes={"inert": ""}
             | ({"data-lf-sample-passive": ""} if self.passive else {}),
         )

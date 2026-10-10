@@ -12,7 +12,7 @@
 // The watch's own scheduling uses the saved platform methods and is never counted.
 (() => {
   "use strict";
-  const { later: task, microtask } = window.lfWatchPlatform;
+  const { later: task, microtask, listen } = window.lfWatchPlatform;
   const finishing = new Set();
   const nativeDefaults = new Map();
   const finished = new Set();
@@ -221,7 +221,8 @@
       continue;
     }
     for (const type of inputTypes) {
-      view.addEventListener(
+      listen(
+        view,
         type,
         (event) => {
           if (!event.isTrusted) return;
@@ -242,7 +243,7 @@
     }
     if (view === view.parent) break;
   }
-  addEventListener("storage", (event) => {
+  listen(window, "storage", (event) => {
     if (!event.isTrusted) return;
     checkpoint(null);
     const source = { event, node: null, order: ++order };

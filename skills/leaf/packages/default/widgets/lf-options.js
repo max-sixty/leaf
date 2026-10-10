@@ -118,6 +118,7 @@ import {
   worksInside,
   wrote,
   focusDestination,
+  scrollIntoView,
 } from "/runtime/widget-api.js";
 
 // What an option is called, in either form: its title where it leads with one, and its
@@ -473,7 +474,10 @@ customElements.define(
           title: "Another option",
           description: "Write another option",
           when: () => this.#available("choose"),
-          run: () => focusDestination(this.#addition.input, "move", { scroll: true }),
+          run: () => {
+            focusDestination(this.#addition.input, "move");
+            scrollIntoView(this.#addition.input, { block: "nearest" });
+          },
         });
       if (this.#done)
         answerRows.push({

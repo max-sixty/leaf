@@ -77,6 +77,7 @@
 // Every finding fails the ordinary browser fixture. It installs this sensor after
 // write_watch.js and binds the canonical control and clipping vocabulary.
 (() => {
+  const { listen } = window.lfWatchPlatform;
   // A native paint/task checkpoint retires only evidence it has judged. Execution
   // time says nothing about whether Chrome has delivered an earlier painted shift.
   let retainedFrom = -Infinity;
@@ -168,6 +169,12 @@
   const INSETS = ["top", "right", "bottom", "left"];
   const insetRules = new WeakMap();
   const rulesStatingInsets = (sheet) => {
+    if (
+      sheet.href &&
+      new URL(sheet.href).origin !== window.origin &&
+      !sheet.ownerNode?.hasAttribute("crossorigin")
+    )
+      return [];
     const length = sheet.cssRules.length;
     const known = insetRules.get(sheet);
     if (known?.length === length) return known.rules;
@@ -333,11 +340,11 @@
       characterData: true,
     });
     for (const type of EVENTS)
-      tree.addEventListener(type, announce, { capture: true, passive: true });
+      listen(tree, type, announce, { capture: true, passive: true });
   };
   watchTree(document);
   for (const type of ["resize", "hashchange", "pageshow", "focus", "blur"])
-    window.addEventListener(type, announce, { capture: true, passive: true });
+    listen(window, type, announce, { capture: true, passive: true });
   for (const type of ["resize", "scroll"])
     window.visualViewport?.addEventListener(type, announce);
   document.fonts?.addEventListener("loadingdone", announce);
@@ -1085,7 +1092,7 @@
     if (open?.typing?.until === Infinity) open.typing.until = before;
     begin(nativePerformance.now());
   };
-  window.addEventListener("resize", resized);
+  listen(window, "resize", resized);
   // When the page adopted each server reading.
   new MutationObserver(() => {
     unwatch();
@@ -1119,12 +1126,8 @@
       "click",
       "wheel",
     ])
-      held.addEventListener(type, heard, true);
-    held.addEventListener(
-      "pointercancel",
-      (event) => presses.delete(event.pointerId),
-      true,
-    );
+      listen(held, type, heard, true);
+    listen(held, "pointercancel", (event) => presses.delete(event.pointerId), true);
     if (view === view.parent) break;
   }
   const reported = new Set();
@@ -1163,7 +1166,7 @@
   // answer arrives later. Consume the runtime's boundary, never a timed grace.
   const returns = [];
   let continuityTurn = 0;
-  document.addEventListener("lf-reading-continuity", ({ detail }) => {
+  listen(document, "lf-reading-continuity", ({ detail }) => {
     const turn = ++continuityTurn;
     const current = returns.at(-1);
     if (!detail.continuous) {

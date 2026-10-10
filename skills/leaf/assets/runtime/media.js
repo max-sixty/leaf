@@ -27,7 +27,11 @@ import {
 } from "./focus.js";
 import { closeControl, offered } from "./widget-elements.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
-import { nativeLayers } from "./keyboard/layer-stack.js";
+import {
+  nativeLayers,
+  showNativeLayer,
+  closeNativeLayer,
+} from "./keyboard/layer-stack.js";
 import { keeps, keepsText } from "./keeps.js";
 import { reducedMotion, FOLD_MS } from "./motion.js";
 
@@ -103,7 +107,17 @@ function presentViewer(model) {
       <div class="lf-media-viewer-head">
         <strong id="lf-media-viewer-title">Image preview</strong>
         <div class="lf-media-viewer-actions">
-          ${model ? html`<a ${offered("lf-media-viewer-original", true)} href=${model.url} target="_blank" rel="noopener">Original</a>` : null}
+          ${
+            model
+              ? html`<a
+                  ${offered("lf-media-viewer-original", true)}
+                  href=${model.url}
+                  target="_blank"
+                  rel="noopener"
+                  >Original</a
+                >`
+              : null
+          }
           ${viewerZoom}${viewerClose}
         </div>
       </div>
@@ -131,7 +145,7 @@ keys(
       title: "close image",
       description: "Close image preview",
       control: viewerClose,
-      run: () => mediaViewer.close(),
+      run: () => closeLayer(() => closeNativeLayer(mediaViewer)),
     },
     {
       id: "image.zoom",
@@ -176,7 +190,7 @@ const open = (url, alt, from) => {
     from.closest("figure")?.querySelector("figcaption")?.textContent || alt,
   );
   keepsText(viewerZoom, "100%");
-  if (!mediaViewer.open) mediaViewer.showModal();
+  if (!mediaViewer.open) showNativeLayer(mediaViewer);
   focusDestination(viewerClose, "move");
   const image = stage.querySelector("img");
   Promise.all([imageTools(), image.decode()]).then(
@@ -226,7 +240,7 @@ const open = (url, alt, from) => {
           event.preventDefault();
       });
       current.on("close", () => {
-        if (mediaViewer.open) mediaViewer.close();
+        if (mediaViewer.open) closeLayer(() => closeNativeLayer(mediaViewer));
       });
       current.on("zoomPanUpdate", () => {
         const slide = current.currSlide;

@@ -8,6 +8,7 @@
    takes words from the first paint — the offline banner says a comment will not send, not
    that there is nowhere to write it. A drawing belongs to an element's comment, never to
    this box (composing/drawing.js). */
+import { scrollIntoView } from "../landing-scroll.js";
 import { keys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
 import { runtime } from "../context.js";
@@ -109,7 +110,8 @@ export function createThreadPanelKeys({
         title: "find",
         control: () => findInput,
         run: () => {
-          focusDestination(findInput, "move", { scroll: true });
+          focusDestination(findInput, "move");
+          scrollIntoView(findInput, { block: "nearest" });
           findInput.select();
         },
       },

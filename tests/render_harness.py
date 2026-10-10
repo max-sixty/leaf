@@ -2085,7 +2085,8 @@ def panel_settled(page, open=True):
 
     The panel stands over the page, so opening or closing it moves nothing else; its own
     slide is the one motion, finished rather than waited out for `edge_settled`'s reason.
-    Closed means the retained panel is no longer visible."""
+    Closed means the retained panel is no longer visible. An occluded child gets no
+    animation frames, so a native timer polls the same actual motion reading there."""
     page.wait_for_function(
         """(open) => {
           const panel = document.querySelector('.lf-thread-panel');
@@ -2094,6 +2095,7 @@ def panel_settled(page, open=True):
             && panel.getAnimations().length === 0;
         }""",
         arg=open,
+        polling=render_checks_model.PROBE_POLL_MS,
     )
 
 

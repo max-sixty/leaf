@@ -2,6 +2,7 @@
    authority for decisions; this stream explains the gestures that led to them. */
 import { TEXT_BOX } from "./control-selectors.js";
 import { PAGE_ROOT } from "./storage.js";
+import { focused } from "./focus.js";
 
 // A document with no declared root has no server to record to: an interactive export,
 // or a file opened on its own.
@@ -380,9 +381,15 @@ if (enabled) {
   ]) {
     window.addEventListener(type, (event) => enqueue(describe(event)), true);
   }
-  document.addEventListener("lf-command-invoked", (event) =>
-    enqueue({ type: "command", ...event.detail }),
-  );
+  document.addEventListener("lf-command-invoked", (event) => {
+    const active = focused();
+    enqueue({
+      type: "command",
+      ...event.detail,
+      focus: active ? { target: locator(active), node: nodeIdentity(active) } : null,
+      scroll: [window.scrollX, window.scrollY],
+    });
+  });
   if (typeof window.PerformanceObserver !== "undefined") {
     const observer = new window.PerformanceObserver((list) => {
       for (const resource of list.getEntries()) {

@@ -6,7 +6,25 @@
 (() => {
   if (window.lfWatchPlatform) return;
   const platform = window.__pwClock?.builtins ?? window;
+  // Native document replacement keeps this realm and its observers, but clears
+  // Window and Document listeners. Restore only the sensors' listeners before
+  // the replacement parses; application listeners retain their native lifetime.
+  const listeners = [];
+  const listen = (target, type, callback, options) => {
+    const add = target.addEventListener;
+    const install = () => add.call(target, type, callback, options);
+    install();
+    if (target === window || target === document) listeners.push(install);
+  };
+  const open = Document.prototype.open;
+  Document.prototype.open = function (...args) {
+    const result = open.apply(this, args);
+    if (this === document && result === document)
+      for (const install of listeners) install();
+    return result;
+  };
   window.lfWatchPlatform = {
+    listen,
     performance: platform.performance,
     frame: platform.requestAnimationFrame.bind(window),
     later: platform.setTimeout.bind(window),

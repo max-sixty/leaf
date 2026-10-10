@@ -82,6 +82,7 @@
    the focus and leaves the page still. A thread ask keeps its centred arrival in the
    panel's own list. */
 
+import { scrollIntoView } from "../landing-scroll.js";
 import { landingBand, shownBox, shownParts } from "../geometry.js";
 import { createAskBannerControls } from "./banner-controls.js";
 import { decisionControls } from "../keyboard/bindings.js";
@@ -684,7 +685,7 @@ export function createAskView({
       },
     );
     if (!arrived) return false;
-    askRow(next)?.scrollIntoView({ block: "nearest" });
+    scrollIntoView(askRow(next), { block: "nearest" });
     return true;
   }
 

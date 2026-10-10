@@ -220,7 +220,11 @@ def test_browser_interactions_are_recorded_beside_server_requests(browser, serve
     assert any(
         any("button#trace-button" in part for part in row["target"]) for row in clicks
     )
-    assert any(row["id"] == "command.reference.open" for row in commands)
+    reference = next(row for row in commands if row["id"] == "command.reference.open")
+    assert reference["title"]
+    assert "description" in reference
+    assert reference["focus"]["target"] == "body"
+    assert reference["scroll"] == [0, 0]
     assert len({row["session"] for row in inputs + clicks + commands}) == 1
     grouped = [row for row in parts if row["partOf"] == parts[0]["partOf"]]
     reconstructed = json.loads(

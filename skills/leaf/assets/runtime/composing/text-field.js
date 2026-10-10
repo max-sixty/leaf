@@ -75,6 +75,7 @@
  * This reveal belongs to the host alone: resizing a focused field does not move a
  * reading pane the user scrolled away from it.
  */
+import { scrollIntoView } from "../landing-scroll.js";
 import {
   EditorView,
   EditorState,
@@ -92,9 +93,41 @@ import {
   markdownLanguage,
   insertNewlineContinueMarkup,
 } from "../../vendor/codemirror.esm.js";
+import { canPlaceFocus } from "../focus.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { loadMarkdown, markdownReady, placedMarkdownTokens } from "../markdown.js";
 import { sizeObserver } from "../rendering.js";
+
+// CodeMirror also returns focus from its own delayed work. Its virtual focus
+// operation shares the field's admission and reveal policy, including those calls.
+// Safari's dependency policy permits native scrolling then restores it; an embedded
+// field must prevent that transfer. WebKit also reveals an inactive contenteditable
+// selection on refocus, so detach this editor's DOM selection before arrival and
+// place the authoritative caret afterward. Composed ranges reach the closed root.
+class LeafEditorView extends EditorView {
+  focus() {
+    if (!canPlaceFocus()) return;
+    const selection =
+      this.root.getSelection?.() ?? this.dom.ownerDocument.getSelection();
+    if (
+      this.root.activeElement !== this.contentDOM &&
+      selection
+        .getComposedRanges({ shadowRoots: [this.root] })
+        .some(
+          (range) =>
+            this.contentDOM.contains(range.startContainer) ||
+            this.contentDOM.contains(range.endContainer),
+        )
+    )
+      selection.removeAllRanges();
+    this.contentDOM.focus({ preventScroll: true });
+    if (this.root.activeElement !== this.contentDOM) return;
+    const { anchor, head } = this.state.selection.main;
+    const from = this.domAtPos(anchor);
+    const to = this.domAtPos(head);
+    selection.setBaseAndExtent(from.node, from.offset, to.node, to.offset);
+  }
+}
 
 const sheet = new CSSStyleSheet();
 sheet.replaceSync(`
@@ -422,6 +455,23 @@ class LeafText extends HTMLElement {
       doc: text,
       selection: { anchor: text.length },
       extensions: [
+        // Consume editor reveal requests before CodeMirror's mobile viewport
+        // fallback invokes native scrollIntoView across the frame boundary.
+        EditorView.scrollHandler.of((view, selection, options) => {
+          const position = view.domAtPos(selection.head);
+          const caret = document.createRange();
+          caret.setStart(position.node, position.offset);
+          caret.collapse(true);
+          // An empty line has a BR rather than a text caret rectangle. Its line
+          // box is the visible destination in that case.
+          const destination = caret.getClientRects().length
+            ? caret
+            : position.node instanceof Element
+              ? position.node
+              : position.node.parentElement;
+          scrollIntoView(destination, { block: options.y, behavior: "instant" });
+          return true;
+        }),
         // DOM input has already changed the words when CodeMirror reads it, so its
         // bracket started at beforeinput. EditContext leaves rendering to the editor;
         // its transactions, like commands, still start before the DOM changes.
@@ -482,7 +532,7 @@ class LeafText extends HTMLElement {
     if (!this.hasAttribute("tabindex")) this.tabIndex = 0;
     this.#internals ??= this.attachInternals();
     this.#root.adoptedStyleSheets = [sheet];
-    this.#view = new EditorView({
+    this.#view = new LeafEditorView({
       root: this.#root,
       parent: this.#frame,
       state: this.#model,
@@ -549,17 +599,11 @@ class LeafText extends HTMLElement {
   // the DOM selection predates that press, and then reads the platform's caret back as
   // the user's. So the element writes the page's selection from the field's own.
   focus(options) {
+    if (!canPlaceFocus()) return;
     if (!this.#view) return super.focus(options);
-    const view = this.#view;
-    view.focus();
-    if (this.#root.activeElement !== view.contentDOM) return;
-    const { anchor, head } = view.state.selection.main;
-    const from = view.domAtPos(anchor);
-    const to = view.domAtPos(head);
-    // A shadow root answers for its own selection only in Chromium, as CodeMirror reads it.
-    const selection = this.#root.getSelection?.() ?? document.getSelection();
-    selection.setBaseAndExtent(from.node, from.offset, to.node, to.offset);
-    if (!options?.preventScroll) this.scrollIntoView({ block: "nearest" });
+    this.#view.focus();
+    if (this.#root.activeElement !== this.#view.contentDOM) return;
+    if (!options?.preventScroll) scrollIntoView(this, { block: "nearest" });
   }
 
   blur() {

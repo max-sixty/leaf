@@ -4892,7 +4892,7 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
     # From the page: the walk is lateral, and its way out is the thread's element.
     page.keyboard.press("t")
     expect(threads[0]).to_be_focused()
-    expect(line).to_contain_text("back to page")
+    expect(line).to_contain_text("back to element")
     page.keyboard.press("t")
     expect(threads[1]).to_be_focused()
     page.keyboard.press("Escape")
@@ -5361,7 +5361,7 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     expect(threads[0]).to_be_focused()
     page.keyboard.press("t")
     expect(threads[1]).to_be_focused()
-    expect(line).to_contain_text("back to page")
+    expect(line).to_contain_text("back to element")
     out_through("#p2")
 
     # The mark on the page is the same door and the same way out.
@@ -5908,7 +5908,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     expect(thread).to_be_focused()
     expect(reply).to_be_visible()
     wait_standing(page, "bold text")
-    assert "back to page" in shortcut_bar_text(page)
+    assert "back to element" in shortcut_bar_text(page)
     page.keyboard.press("Enter")
     expect(reply).to_be_focused()
     expect(reply).to_be_visible()
@@ -10105,7 +10105,7 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     card_thread = page.locator(".lf-margin-preview .lf-page-thread")
     page.keyboard.press("t")
     expect(card_thread).to_be_focused()
-    expect(line).to_contain_text("back to page")
+    expect(line).to_contain_text("back to element")
     # The global reference is a modal over everything; the card is where the user
     # stands rather than a layer of its own, so it waits under the modal, the reference
     # names its way out among the scene's, and the user comes back to it.
@@ -10118,7 +10118,25 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     page.keyboard.press("Escape")
     expect(help_el).to_be_hidden()
     expect(card_thread).to_be_focused()
-    page.keyboard.press("Escape")
+    with page.expect_response(
+        lambda response: (
+            response.url.endswith("/api/interaction")
+            and response.ok
+            and any(
+                row.get("type") == "command" and row["id"] == "margin.back"
+                for row in response.request.post_data_json["entries"]
+            )
+        )
+    ) as recorded:
+        page.keyboard.press("Escape")
+    command = next(
+        row
+        for row in recorded.value.request.post_data_json["entries"]
+        if row.get("type") == "command" and row["id"] == "margin.back"
+    )
+    assert command["title"] == "back to element"
+    assert command["description"] == "Return to the page element this thread is about"
+    assert command["focus"]["target"] == "div"
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
@@ -16239,36 +16257,66 @@ def test_a_command_button_owns_activation_and_the_native_form_default(browser, s
     ]
 
 
-def test_native_dialog_transitions_change_state_without_rewriting_reflected_attributes(
-    browser, serve
+def test_native_layer_transitions_change_state_without_rewriting_reflected_attributes(
+    browser,
 ):
-    """The write instrument recognizes native posture and focus operations, while plain
-    repeated attributes still fail even on the same native dialog."""
-    page = open_page(browser, serve(ASKS_PAGE))
-    page.evaluate("""() => {
-      const dialog = document.createElement('dialog');
-      dialog.id = 'native-transition-probe';
-      document.body.append(dialog);
-      dialog.show();
-    }""")
-    page.evaluate("""() => {
-      const dialog = document.querySelector('#native-transition-probe');
-      dialog.inert = true;
-      dialog.close();
-      dialog.showModal();
-      dialog.inert = false;
-    }""")
-    assert page.locator("#native-transition-probe").evaluate(
-        'dialog => dialog.matches(":modal")'
+    """Native focus guards change eligibility even when inert returns to its start.
+
+    Opening and closing include popovers and modal roots inside closed shadow trees.
+    Only actual native transitions credit their participating eligibility roots.
+    """
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,<!doctype html><body><div id=unrelated></div>"
+        "<div id=shadow-host></div><dialog id=native-transition-probe>"
+        "<div id=native-popover popover=manual><input autofocus></div></dialog>"
     )
     page.evaluate("""() => {
-      const dialog = document.querySelector('#native-transition-probe');
-      dialog.setAttribute('open', '');
-      dialog.setAttribute('inert', '');
-      dialog.removeAttribute('inert');
+      window.dialog = document.querySelector('#native-transition-probe');
+      window.popover = document.querySelector('#native-popover');
+      window.shadowModal = document.createElement('dialog');
+      shadowModal.id = 'shadow-modal';
+      document.querySelector('#shadow-host').attachShadow({mode:'closed'}).append(shadowModal);
+      window.guard = (roots, change) => {
+        for (const root of roots) root.inert = true;
+        try { change(); }
+        finally { for (const root of roots) root.inert = false; }
+      };
+      dialog.show();
     }""")
+    # Separate mutation checkpoints ensure an opening's eligibility credit cannot
+    # hide a missing close guard, especially for the modal in the closed shadow tree.
+    for transition in [
+        "() => guard([dialog], () => { dialog.close(); dialog.showModal(); })",
+        "() => guard([shadowModal], () => shadowModal.showModal())",
+        "() => guard([document.documentElement, dialog, shadowModal], () => shadowModal.close())",
+        "() => guard([popover], () => popover.showPopover())",
+        "() => guard([document.documentElement, dialog], () => popover.hidePopover())",
+    ]:
+        page.evaluate(transition)
+    assert page.evaluate("""() => ({
+      modal: dialog.matches(':modal'), shadow: shadowModal.open,
+      popover: popover.matches(':popover-open'),
+      inert: [document.documentElement, dialog, shadowModal, popover].some(node => node.inert),
+    })""") == {"modal": True, "shadow": False, "popover": False, "inert": False}
+    assert page.lf_errors == []
+
+    page.evaluate("""() => {
+      dialog.setAttribute('open', '');
+      guard([dialog], () => {});
+      guard([shadowModal, document.documentElement], () => shadowModal.close());
+      guard([document.querySelector('#unrelated'), popover], () => popover.showPopover());
+    }""")
+    page.evaluate("() => guard([popover], () => popover.showPopover())")
     failures = consume_browser_errors(page, "unchanged write:")
-    assert len(failures) == 2, failures
-    assert any("open on dialog#native-transition-probe" in error for error in failures)
-    assert any("inert on dialog#native-transition-probe" in error for error in failures)
-    page.evaluate("() => document.querySelector('#native-transition-probe').remove()")
+    assert len(failures) == 6, failures
+    for target in [
+        "open on dialog#native-transition-probe",
+        "inert on dialog#native-transition-probe",
+        "inert on dialog#shadow-modal in shadow of div#shadow-host",
+        "inert on html",
+        "inert on div#unrelated",
+        "inert on div#native-popover",
+    ]:
+        assert any(target in error for error in failures), failures
+    page.evaluate("() => { popover.hidePopover(); dialog.close(); }")

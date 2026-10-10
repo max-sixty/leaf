@@ -8,11 +8,14 @@
  * its shortcut (keyboard/control-keys.js), so each has one writer. It never
  * fetches a document, chooses a version, or decides what a comparison means.
  */
+import { closeNativeLayer } from "./keyboard/layer-stack.js";
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 
 import { dismissBannerControls } from "./banner-toolbar.js";
 import { el } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
+import { focusDestination, canPlaceFocus } from "./focus.js";
+import { scrollIntoView } from "./landing-scroll.js";
 
 const LATEST_FAILED = "Latest edit couldn't be shown";
 const INITIAL_LATEST = "New page available → open v999";
@@ -66,11 +69,16 @@ class VersionPickerView {
     this.menu.lfInvoker = this.button;
     this.menu.addEventListener("beforetoggle", (event) => {
       if (event.newState === "open") dismissBannerControls();
-      // The native popover opening focuses its declared arrival synchronously.
-      // Declare it only for this opening: autofocus on inserted rows also runs
-      // during document load, when an embedded page cannot claim focus.
-      const arrival = event.newState === "open" ? this.#selectedRow() : null;
-      for (const row of this.rows()) row.toggleAttribute("autofocus", row === arrival);
+      // Declare the arrival after the native opening finishes. Native autofocus
+      // can reveal a sample's containing frame; Leaf places focus without scrolling
+      // and reveals the row only through this document's reading regions.
+      if (event.newState === "open")
+        queueMicrotask(() => {
+          const arrival = this.#selectedRow();
+          if (!this.isOpen() || !arrival || !canPlaceFocus()) return;
+          focusDestination(arrival, "move");
+          scrollIntoView(arrival, { block: "nearest" });
+        });
     });
     this.menu.addEventListener("toggle", (event) => {
       this.#presentDisclosure();
@@ -99,7 +107,7 @@ class VersionPickerView {
   }
 
   close() {
-    if (this.isOpen()) this.menu.hidePopover();
+    if (this.isOpen()) closeNativeLayer(this.menu);
   }
 
   rows() {

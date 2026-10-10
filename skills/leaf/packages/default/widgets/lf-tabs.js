@@ -86,6 +86,7 @@ import {
   watchAsks,
   focusDestination,
   rove,
+  scrollIntoView,
 } from "/runtime/widget-api.js";
 
 // The page's navigation strip, where one stands: the first tab set in main, drawn as
@@ -713,7 +714,7 @@ customElements.define(
     // where it is.
     #land() {
       if (this.getBoundingClientRect().top < 0)
-        this.scrollIntoView({ block: "start", behavior: "instant" });
+        scrollIntoView(this, { block: "start", behavior: "instant" });
     }
 
     #placeKey(panel) {

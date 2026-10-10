@@ -33,6 +33,7 @@
    supplies the caller-owned return target through `landInThread`. Sending leaves
    focus on the conversation's card or title on every surface (`landSent`). Returning
    to the page is a separate navigation gesture. */
+import { scrollIntoView } from "../landing-scroll.js";
 import { landingBand, seenRect, shownBox, shownWindow } from "../geometry.js";
 import { documentFocused } from "../keyboard/scopes.js";
 import {
@@ -64,6 +65,7 @@ import { showHeld } from "./held-news.js";
 import {
   focusedThreadTarget,
   focusThread,
+  threadFocusStop,
   heldThread,
   threadReplyInput,
   threadFocusDestination,
@@ -128,7 +130,7 @@ const threadLandingStart = (held, target, threadsBox) => {
 // `threadLandingStart` picks, or with its end at the list's foot where none is needed.
 const landLatest = (thread, threadsBox, behavior = scrollBehavior()) => {
   const start = threadLandingStart(thread, thread, threadsBox);
-  (start ?? thread).scrollIntoView({ behavior, block: start ? "start" : "end" });
+  scrollIntoView(start ?? thread, { behavior, block: start ? "start" : "end" });
 };
 
 export function threadInput(node) {
@@ -208,8 +210,11 @@ pageScope("text entry", {
         document.activeElement.blur();
         const target = back?.target ?? panelList;
         if (!target) return;
-        if (!target.matches?.(THREAD))
-          return focusDestination(target, "return", { scroll: true });
+        if (!target.matches?.(THREAD)) {
+          focusDestination(target, "return");
+          scrollIntoView(target, { block: "nearest" });
+          return;
+        }
         standOnThread(target);
       },
     },
@@ -220,9 +225,13 @@ pageScope("text entry", {
 // arrival. A thread too tall to show whole is already on screen around the box, and
 // landing its title would take the user away from the turn they were answering, so it
 // is a `return` the list leaves where it is. One that fits is a `move`, which the list
-// lands whole in view (`onStanding` below) as the browser's own scroll brings its title.
+// lands whole in view (`onStanding` below) as local scrolling reveals its title.
 export function standOnThread(thread) {
-  if (fitsWhole(thread)) return focusThread(thread, "move", { scroll: true });
+  if (fitsWhole(thread)) {
+    focusThread(thread, "move");
+    scrollIntoView(threadFocusStop(thread), { block: "nearest" });
+    return;
+  }
   focusThread(thread, "return");
 }
 
@@ -497,7 +506,7 @@ async function showThreadNow(id, focus, flash, revealThread, threadsBox, mayArri
   const long = directThread && (target !== thread || aim.block === "end");
   const start = long ? threadLandingStart(thread, target, threadsBox) : null;
   if (mayArrive())
-    (start ?? target).scrollIntoView({
+    scrollIntoView(start ?? target, {
       behavior: scrollBehavior(),
       // A long thread begins at the clean content boundary chosen above. A short card
       // is context in full; a requested message keeps the least-moving direct route.
@@ -539,7 +548,7 @@ export function accompanyThread(ids, threadsBox) {
   threadsBox.revealNavigation(thread.dataset.id);
   const room = landingBand(threadsBox);
   const fits = !room || shownBox(thread).height <= room.bottom - room.top;
-  thread.scrollIntoView({
+  scrollIntoView(thread, {
     behavior: scrollBehavior(),
     block: fits ? "nearest" : "start",
   });
@@ -569,9 +578,8 @@ export function createThreadLanding({ setPanel, revealThread, threadsBox }) {
       (shown.width <= room.width &&
         (visible.left > shown.left || visible.right < shown.right))
     )
-      box.scrollIntoView({
+      scrollIntoView(box, {
         block: "nearest",
-        inline: "nearest",
         behavior: "instant",
       });
     return true;

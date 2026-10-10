@@ -76,6 +76,7 @@
    pass owns refresh, clocks, contribution updates and print deferral; local geometry
    gestures request that same pass. Mount binds the overlay's mechanical lifecycle. */
 
+import { scrollIntoView } from "/runtime/landing-scroll.js";
 import { atScrollEnd, scrollToEnd } from "/runtime/scrolling.js";
 import { afterScript, cancelRender, nextRender } from "/runtime/rendering.js";
 import { labelWords, spokenSubject } from "/runtime/contribution-model.js";
@@ -1898,7 +1899,7 @@ export function createMarginProjection({
     transferThreadCard(button);
     buildThreadCard(entry, threadItem, origin);
     keepsHidden(preview, false);
-    previewList.firstElementChild?.scrollIntoView({
+    scrollIntoView(previewList.firstElementChild, {
       behavior: scrollBehavior(),
       block: "nearest",
     });
@@ -2026,7 +2027,7 @@ export function createMarginProjection({
       return {
         root: preview,
         description: "Return to the page element this thread is about",
-        title: "back to page",
+        title: "back to element",
         out: () => focusDestination(stepsOut(), "return"),
       };
     return {

@@ -10,6 +10,7 @@
  * choice pressed never inserts a row that pushes the list down under the user. It never
  * reads its rendering back into user intent.
  */
+import { scrollIntoView } from "../landing-scroll.js";
 import {
   html,
   noChange,
@@ -115,7 +116,10 @@ class ThreadNarrowingView extends HTMLElement {
     const toggle =
       document.activeElement === event.currentTarget &&
       this.querySelector(".lf-thread-filter-toggle");
-    if (toggle) focusDestination(toggle, "return", { scroll: true });
+    if (toggle) {
+      focusDestination(toggle, "return");
+      scrollIntoView(toggle, { block: "nearest" });
+    }
     this.#reset();
   }
 

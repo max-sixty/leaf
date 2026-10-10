@@ -1,23 +1,26 @@
-/* A sample is a normally served Leaf page with its own disposable event log.
- * The server captures an authored template and its layer; this owner handles the
- * frame's readiness and reset. Allocation keeps the authored owner's captured
- * revision: a live patch connects arriving widgets before it publishes that revision,
- * and a retained sample resets from the same immutable template it first mounted.
- * The child arrives inert, so its startup cannot take
- * focus from the page; this owner releases a live child once it presents, and after
- * that focus entering the frame is entry, the way it is for any iframe. The child's
- * final Escape asks the frame's owner to take focus back with `lf-sample-return`. Passive demonstrations use the
- * same host and remain inert throughout their playback.
- *
- * A live child is a block of the page holding it (`data-lf-sample-block` on its root)
- * unless it is asked for as a window; a passive replay always is one. A window is a
- * whole Leaf window, chrome included, at the frame's size. The child's bootstrap asks
- * its frame for that marker and its dress (dress.js) before it paints. */
+/* A sample owns a disposable served page in an opaque browsing context. Its
+ * unguessable page URL grants native requests to its own document, assets and log;
+ * presentation commands and observations cross a private port as values.
+ * Allocation captures the owning widget's immutable revision. Reset replaces the
+ * allocation; an ordinary reload reconnects the same allocation with a fresh port
+ * and presentation promise. Departed ports cannot settle the replacement's calls.
+ * A block follows the child's reported height; a window keeps its own viewport.
+ * Passive demonstrations remain inert. Removing a frame retires its realm before
+ * releasing the allocation, including on reset and parent departure. */
 import { layerHeaders } from "./layer-client.js";
 import { pageUrl, runtime } from "./context.js";
-import { discardPageStorage } from "./storage.js";
-import { dressFor, wear } from "./dress.js";
+import { dressFor, registerSampleDress } from "./dress.js";
 import { widgetDescriptor } from "./widget-descriptors.js";
+import { excludedByInert, upFrom } from "./shadow.js";
+import { seenRect } from "./geometry.js";
+import {
+  sampleVisibility,
+  onSampleVisibility,
+  readSampleVisibility,
+} from "./sample-visibility.js";
+import { nativeModalAdmits } from "./keyboard/layer-stack.js";
+import { keeps } from "./keeps.js";
+import { nextRender, sizeObserver } from "./rendering.js";
 
 async function request(url, body, headers = {}) {
   const response = await fetch(url, {
@@ -31,72 +34,11 @@ async function request(url, body, headers = {}) {
   return answer;
 }
 
-// Presentation waits on the child's state read, which can be slow without failing.
-// The child reports startup errors; the owner cancels a replaced or detached frame.
-function presented(frame, url, signal) {
-  const expected = new URL(url);
-  expected.hash = "";
-  return new Promise((resolve, reject) => {
-    let observer;
-    const cleanup = () => {
-      observer?.disconnect();
-      detached.disconnect();
-      frame.removeEventListener("load", loaded);
-      signal.removeEventListener("abort", aborted);
-    };
-    const finish = (error, doc) => {
-      cleanup();
-      if (error) reject(error);
-      else resolve(doc);
-    };
-    const aborted = () => finish(signal.reason);
-    const detached = new MutationObserver(() => {
-      if (!frame.isConnected)
-        finish(new DOMException("sample disconnected", "AbortError"));
-    });
-    const loaded = () => {
-      const doc = frame.contentDocument;
-      if (!doc) return;
-      // Startup may select a tab or restore a fragment before load. That changes
-      // the child's reading place, while the loaded document remains the one requested.
-      const actual = new URL(doc.URL);
-      actual.hash = "";
-      if (actual.href !== expected.href) return;
-      // A failed document response can load without any Leaf scripts to report it.
-      if (
-        !doc.documentElement.hasAttribute("data-lf-live") &&
-        !doc.documentElement.dataset.lfStartupError
-      ) {
-        finish(new Error(`Leaf sample document did not start: ${url}`));
-        return;
-      }
-      const inspect = () => {
-        const failure = doc.documentElement.dataset.lfStartupError;
-        if (failure) finish(new Error(failure));
-        else if (doc.body?.hasAttribute("data-lf-presented")) finish(null, doc);
-      };
-      observer = new MutationObserver(inspect);
-      observer.observe(doc, { attributes: true, childList: true, subtree: true });
-      inspect();
-    };
-    signal.addEventListener("abort", aborted, { once: true });
-    if (signal.aborted || !frame.isConnected) {
-      finish(signal.reason ?? new DOMException("sample disconnected", "AbortError"));
-      return;
-    }
-    detached.observe(frame.ownerDocument, { childList: true, subtree: true });
-    frame.addEventListener("load", loaded);
-    frame.src = url;
-  });
-}
-
 export function mountSample(
   frame,
   { template, passive = false, window: asWindow = false },
 ) {
   if (!template) throw new Error("a sample needs an authored template id");
-  // A widget's descriptor was captured before connection. The application can still
-  // be reading the outgoing revision while that widget prepares its new child.
   let revision = runtime.currentRevision;
   for (let owner = frame.parentElement; owner; owner = owner.parentElement) {
     const descriptor = widgetDescriptor(owner);
@@ -108,34 +50,204 @@ export function mountSample(
   let destroyed = false;
   let operation = null;
   let closing = null;
-  let loading = null;
+  let channel = null;
+  let nextId = 0;
+  let readyResolve;
+  let readyReject;
+  let connectedNonce = null;
+  const candidates = new Set();
+  const pending = new Map();
+  const listeners = new Map();
+  const notify = (type, detail) => {
+    for (const callback of listeners.get(type) ?? []) callback(detail);
+  };
+  keeps(
+    frame,
+    "sandbox",
+    "allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-pointer-lock",
+  );
   frame.toggleAttribute("inert", passive);
   frame.toggleAttribute("data-lf-contained", true);
-  frame.lfDressRoot = (root) => {
-    root.toggleAttribute("data-lf-sample-block", !(passive || asWindow));
-    const dress = dressFor(frame);
-    if (dress) wear(root, dress);
-  };
 
-  const release = (url) => request(new URL("api/release", url), {});
+  function admitted() {
+    for (let owner = frame; owner; owner = upFrom(owner))
+      if (owner.getAttribute?.("aria-hidden") === "true") return false;
+    return (
+      !passive &&
+      document.visibilityState === "visible" &&
+      frame.checkVisibility({ visibilityProperty: true }) &&
+      !excludedByInert(frame) &&
+      nativeModalAdmits(frame) &&
+      sampleVisibility()?.visible !== false
+    );
+  }
+  function visibility() {
+    channel?.postMessage({ type: "visibility", detail: { visible: admitted() } });
+  }
+  async function readVisibility(port, id) {
+    try {
+      const outer = await readSampleVisibility();
+      if (channel !== port) return;
+      const rect = frame.getBoundingClientRect();
+      const shown = seenRect(frame, new Map());
+      const band = shown ?? { left: 0, top: 0, right: 0, bottom: 0 };
+      const left = Math.max(rect.left, band.left, outer?.left ?? 0);
+      const top = Math.max(rect.top, band.top, outer?.top ?? 0);
+      const right = Math.min(rect.right, band.right, outer?.right ?? innerWidth);
+      const bottom = Math.min(rect.bottom, band.bottom, outer?.bottom ?? innerHeight);
+      const scaleX = rect.width / frame.offsetWidth || 1;
+      const scaleY = rect.height / frame.offsetHeight || 1;
+      port.postMessage({
+        type: "visibility-reading",
+        detail: {
+          id,
+          visible:
+            admitted() && outer?.visible !== false && right > left && bottom > top,
+          left: (left - rect.left) / scaleX - frame.clientLeft,
+          top: (top - rect.top) / scaleY - frame.clientTop,
+          right: (right - rect.left) / scaleX - frame.clientLeft,
+          bottom: (bottom - rect.top) / scaleY - frame.clientTop,
+        },
+      });
+    } catch (error) {
+      if (channel !== port) return;
+      port.postMessage({
+        type: "visibility-reading",
+        detail: { id, error: { name: error.name, message: error.message } },
+      });
+      reportError(error);
+    }
+  }
+  function disconnect(reason) {
+    channel?.close();
+    channel = null;
+    connectedNonce = null;
+    for (const { reject } of pending.values()) reject(reason);
+    pending.clear();
+  }
+  function presentation() {
+    host.ready = new Promise((resolve, reject) => {
+      readyResolve = resolve;
+      readyReject = reject;
+    });
+    // A reload can start without a caller waiting on the new presentation.
+    host.ready.catch(() => {});
+    return host.ready;
+  }
+  function connect(event) {
+    if (
+      !current ||
+      event.source !== frame.contentWindow ||
+      event.data?.type !== "leaf-sample-connect" ||
+      event.data.sample !== new URL(current).pathname ||
+      typeof event.data.nonce !== "string" ||
+      event.data.nonce === connectedNonce
+    )
+      return;
+    const nonce = event.data.nonce;
+    const owned = current;
+    const pair = new MessageChannel();
+    const port = pair.port1;
+    candidates.add(port);
+    port.onmessage = ({ data }) => {
+      if (data.type === "connected") {
+        if (!candidates.has(port) || current !== owned || data.nonce !== nonce) return;
+        candidates.delete(port);
+        for (const candidate of candidates) candidate.close();
+        candidates.clear();
+        const reloading = connectedNonce !== null;
+        disconnect(new DOMException("sample document replaced", "AbortError"));
+        channel = port;
+        connectedNonce = nonce;
+        if (reloading) {
+          const previousResolve = readyResolve;
+          const previousReject = readyReject;
+          presentation().then(previousResolve, previousReject);
+          notify("loading");
+        }
+        visibility();
+        return;
+      }
+      // Messages from the departed realm cannot settle the next realm's calls.
+      if (channel !== port) return;
+      if (data.type === "visibility-read") {
+        void readVisibility(port, data.detail.id);
+        return;
+      }
+      if (pending.has(data.id)) {
+        const { resolve, reject } = pending.get(data.id);
+        pending.delete(data.id);
+        if (data.error)
+          reject(
+            Object.assign(new Error(data.error.message), { name: data.error.name }),
+          );
+        else resolve(data.result);
+      } else if (data.type === "ready") {
+        readyResolve(data.detail);
+        visibility();
+      } else if (data.type === "error") {
+        const error = new Error(data.detail.message);
+        readyReject(error);
+        notify("error", error);
+      } else if (data.type === "return")
+        frame.dispatchEvent(new Event("lf-sample-return"));
+      else notify(data.type, data.detail);
+    };
+    event.source.postMessage(
+      {
+        sample: event.data.sample,
+        nonce,
+        settings: { passive, window: asWindow, dress: dressFor(frame) ?? undefined },
+      },
+      "*",
+      [pair.port2],
+    );
+  }
+  window.addEventListener("message", connect);
+  window.addEventListener("scroll", visibility, true);
+  window.addEventListener("resize", visibility);
+  document.addEventListener("visibilitychange", visibility);
+  const seen = new IntersectionObserver(visibility, { threshold: [0, 1] });
+  seen.observe(frame);
+  const size = sizeObserver(visibility);
+  size.observe(frame);
+  const admission = new MutationObserver((records) => {
+    if (records.some(({ target }) => target === frame || target.contains(frame)))
+      visibility();
+  });
+  admission.observe(document, {
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["inert", "open", "hidden", "aria-hidden", "class", "style"],
+  });
+  const nativeTransition = () => nextRender(visibility);
+  for (const type of ["beforetoggle", "toggle", "close"])
+    document.addEventListener(type, nativeTransition, true);
+  const unwatch = onSampleVisibility(visibility);
+  const undress = registerSampleDress(frame, (dress) =>
+    channel?.postMessage({ type: "dress", detail: dress }),
+  );
+  const lifetime = new MutationObserver(() => {
+    if (!frame.isConnected) void host.destroy();
+  });
+  lifetime.observe(document, { childList: true, subtree: true });
 
   function retire() {
     if (!current) return;
     const previous = current;
     current = null;
-    // Removal synchronously destroys the old browsing context, including its
-    // pagehide writers. A navigation would leave it running until commit.
+    const cancelled = new DOMException("sample replaced", "AbortError");
+    disconnect(cancelled);
+    for (const port of candidates) port.close();
+    candidates.clear();
+    readyReject?.(cancelled);
     const parent = frame.parentNode;
     const next = frame.nextSibling;
     frame.remove();
-    delete frame.lfShowThread;
     frame.removeAttribute("src");
-    frame.removeAttribute("srcdoc");
-    discardPageStorage(previous);
     parent?.insertBefore(frame, next);
-    return release(previous);
+    return request(new URL("api/release", previous), {});
   }
-
   async function replace() {
     await retire();
     if (destroyed) throw new DOMException("sample destroyed", "AbortError");
@@ -145,44 +257,79 @@ export function mountSample(
       revision ? { "Leaf-View-Revision": String(revision) } : {},
     );
     current = new URL(url, location.href).href;
+    if (destroyed) {
+      await retire();
+      throw new DOMException("sample destroyed", "AbortError");
+    }
+    const presented = presentation();
+    frame.src = current;
     try {
-      if (destroyed) throw new DOMException("sample destroyed", "AbortError");
-      loading = new AbortController();
-      const doc = await presented(frame, current, loading.signal);
-      if (!passive) doc.body.toggleAttribute("inert", false);
-      return doc;
+      return await presented;
     } catch (error) {
       await retire();
       throw error;
-    } finally {
-      loading = null;
     }
   }
-
   function reset() {
     if (destroyed)
       return Promise.reject(new Error("the sample host has been destroyed"));
     if (!operation) {
       operation = replace();
-      const settled = () => {
-        operation = null;
-      };
-      operation.then(settled, settled);
+      operation.then(
+        () => {
+          operation = null;
+        },
+        () => {
+          operation = null;
+        },
+      );
     }
     return operation;
   }
-
   const host = {
     ready: null,
     reset,
-    showThread: (id, options) => frame.lfShowThread(id, options),
+    async call(method, detail = {}) {
+      const ready = host.ready;
+      await ready;
+      if (ready !== host.ready || !channel)
+        return Promise.reject(new DOMException("sample unavailable", "AbortError"));
+      const id = ++nextId;
+      return new Promise((resolve, reject) => {
+        pending.set(id, { resolve, reject });
+        channel.postMessage({ id, method, detail });
+      });
+    },
+    on(type, callback) {
+      if (!listeners.has(type)) listeners.set(type, new Set());
+      listeners.get(type).add(callback);
+      return () => listeners.get(type).delete(callback);
+    },
+    dress: (dress) => channel?.postMessage({ type: "dress", detail: dress }),
+    showThread(id, { signal, ...options }) {
+      if (signal.aborted) return Promise.resolve(false);
+      const cancel = () => channel?.postMessage({ type: "cancel-view" });
+      signal.addEventListener("abort", cancel, { once: true });
+      return host
+        .call("thread", { id, ...options })
+        .finally(() => signal.removeEventListener("abort", cancel));
+    },
     destroy() {
       if (closing) return closing;
       destroyed = true;
-      loading?.abort();
+      window.removeEventListener("message", connect);
       window.removeEventListener("pagehide", departing);
-      // Retire synchronously even on pagehide. An allocation already in flight
-      // still has to answer so replace() can release that child's exact URL.
+      window.removeEventListener("scroll", visibility, true);
+      window.removeEventListener("resize", visibility);
+      document.removeEventListener("visibilitychange", visibility);
+      seen.disconnect();
+      size.disconnect();
+      admission.disconnect();
+      for (const type of ["beforetoggle", "toggle", "close"])
+        document.removeEventListener(type, nativeTransition, true);
+      lifetime.disconnect();
+      unwatch();
+      undress();
       closing = Promise.all([retire(), operation?.catch(() => {})]);
       return closing;
     },

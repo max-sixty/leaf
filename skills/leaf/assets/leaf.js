@@ -1,3 +1,4 @@
+import { registerSampleCommand, onSampleNotice } from "./runtime/sample-child.js";
 /* Leaf runtime boot and application composition root. */
 import "./vendor/browser-runtime.js";
 import "./runtime/interaction-log.js";
@@ -131,6 +132,7 @@ import {
 import { nativeLayers } from "./runtime/keyboard/layer-stack.js";
 import { holdToRead } from "./runtime/held-word.js";
 
+await document.documentElement.lfSample?.ready;
 initializeServedDocument();
 keepPageRulesOffLayer();
 holdArrivingBounds();
@@ -777,24 +779,27 @@ threadPanelController = createThreadPanelController({
 });
 // The sample host binds to this child's owners, rather than importing another
 // window's runtime. This capability is ready before the child presents.
-if (window.frameElement?.hasAttribute("data-lf-contained")) {
-  window.frameElement.lfShowThread = async (
-    id,
-    { surface, status, waiting, signal },
-  ) => {
+if (document.documentElement.lfSample) {
+  let viewOperation;
+  onSampleNotice("cancel-view", () => viewOperation?.abort());
+  registerSampleCommand("thread", async ({ id, surface, status, waiting }) => {
+    viewOperation?.abort();
+    viewOperation = new AbortController();
+    const { signal } = viewOperation;
     if (surface === "panel")
       return threadPanelController.showView({ thread: id, status, waiting, signal });
     const intent = retainUserIntent({ available: () => !signal.aborted });
     intent.handoff(() => threadPanelController.setPanel(false));
     return Boolean(
       await app.threadDestinations.openPageThread(id, {
-        focus: "thread",
+        focus: false,
         travel: false,
         intent,
       }),
     );
-  };
+  });
 }
+
 drawers = createDrawers({
   doors: { queue: [queueCounts] },
   sideEdge: layout.commentsEdge,

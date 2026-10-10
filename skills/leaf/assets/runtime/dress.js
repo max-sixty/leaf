@@ -10,6 +10,11 @@ import { keeps } from "./keeps.js";
 
 const worn = new WeakMap();
 const dresses = new WeakMap();
+const children = new WeakMap();
+export function registerSampleDress(frame, send) {
+  children.set(frame, send);
+  return () => children.delete(frame);
+}
 
 export function wear(element, dress) {
   const previous = worn.get(element);
@@ -33,7 +38,6 @@ export function dressFor(frame) {
 export function dressSamples(owner, dress) {
   dresses.set(owner, dress);
   for (const frame of owner.querySelectorAll("iframe[data-lf-contained]")) {
-    const root = frame.contentDocument?.documentElement;
-    if (root && dressFor(frame) === dress) wear(root, dress);
+    if (dressFor(frame) === dress) children.get(frame)?.(dress);
   }
 }

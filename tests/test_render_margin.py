@@ -11504,6 +11504,56 @@ def test_rail_ask_draft_and_optimistic_undo(browser, serve):
     expect(ask).to_be_visible()
 
 
+def test_rail_actions_wrap_and_hold_a_new_row_until_revealed(browser, serve):
+    """Actions stay reachable without sideways scrolling; foreign growth still waits."""
+    source = page_annotation_action_source().replace(
+        "width:430px", "width:100%;max-width:430px"
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 390, 844)
+    page.evaluate("""async () => {
+      const {registerContribution, contributionEntry} =
+        await window.__lfRuntimeImport('/runtime/widget-api.js');
+      window.__railActions = {count: 6, activated: null};
+      const state = window.__railActions;
+      state.registration = registerContribution({key: 'review-actions',
+        target: document.querySelector('#subject'),
+        read: () => ({entries: Array.from({length: state.count}, (_, i) =>
+          contributionEntry({key: String(i), label: `Review reading ${i}`, glyph: '→'}))}),
+        activate: key => {state.activated = key},
+      });
+    }""")
+    rendered(page)
+    rail = page.locator("#annotations")
+    notice = rail.get_by_role("button", name="Show updated annotations", exact=True)
+    notice.click()
+    actions = rail.locator(".lf-ar-action-controls").filter(
+        has=page.get_by_role("button", name="Review reading 0", exact=True)
+    )
+    expect(actions.get_by_role("button")).to_have_count(6)
+    ask = rail.get_by_role("button", name="Which route? · Waiting on you", exact=True)
+    before = ask.bounding_box()
+    height = actions.evaluate("el => el.clientHeight")
+    page.evaluate("""() => {
+      window.__railActions.count = 12;
+      window.__railActions.registration.update();
+    }""")
+    rendered(page)
+    expect(notice).to_be_enabled()
+    expect(actions.get_by_role("button")).to_have_count(6)
+    assert ask.bounding_box() == before
+    notice.click()
+    expect(actions.get_by_role("button")).to_have_count(12)
+    assert actions.evaluate("el => el.clientHeight") > height
+    for width in (320, 1200):
+        resized(page, width, 844)
+        assert actions.evaluate("el => el.scrollWidth <= el.clientWidth")
+    last = actions.get_by_role("button", name="Review reading 11", exact=True)
+    last.focus()
+    page.keyboard.press("Space")
+    page.wait_for_function("window.__railActions.activated === '11'")
+
+
 def test_draw_mode_leaves_page_annotation_controls_usable(browser, serve):
     page = open_page(browser, serve(page_annotation_action_source()))
     page.locator("#subject").hover()

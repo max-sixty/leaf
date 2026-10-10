@@ -176,6 +176,10 @@
         box-shadow: 0 18px 46px color-mix(in srgb, var(--ink) 11%, transparent);
       }
 
+      #bg-rollout-tabs {
+        max-inline-size: 26rem;
+      }
+
       .interaction-gallery .lf-interaction-controls {
         display: flex;
         flex-wrap: wrap;
@@ -2154,6 +2158,53 @@ gallery/
                 <lf-tab id="bg-tab-context" label="Context">
                   <p id="bg-tab-context-text">
                     The earlier route crossed the courtyard.
+                  </p>
+                </lf-tab>
+              </lf-tabs>
+              <h4 id="bg-overflow-tabs-heading">A rollout review in a narrow column</h4>
+              <p id="bg-overflow-tabs-guide">
+                This review keeps six sections in one compact row. The native scrollbar
+                is hidden; use the edge arrows to reveal more names, or swipe the row on
+                a touch screen. Focus a tab and use Left or Right to switch sections, or
+                Home and End to reach the first and last. Narrow the window: the
+                selected name stays visible and its section stays open. The arrows
+                disappear at an edge with no more names.
+              </p>
+              <lf-tabs id="bg-rollout-tabs">
+                <lf-tab id="bg-rollout-summary" label="Summary">
+                  <p id="bg-rollout-summary-text">
+                    Ship the revised search index to the internal team first, then
+                    expand after one healthy working day.
+                  </p>
+                </lf-tab>
+                <lf-tab id="bg-rollout-scope" label="Release scope">
+                  <p id="bg-rollout-scope-text">
+                    This release changes ranking and query suggestions. Saved searches
+                    keep their current filters.
+                  </p>
+                </lf-tab>
+                <lf-tab id="bg-rollout-stages" label="Rollout stages">
+                  <p id="bg-rollout-stages-text">
+                    Begin with the search team, continue with a small customer cohort,
+                    then open access to everyone.
+                  </p>
+                </lf-tab>
+                <lf-tab id="bg-rollout-health" label="Health checks">
+                  <p id="bg-rollout-health-text">
+                    Compare query latency, empty results, and user reports with the
+                    previous index before expanding access.
+                  </p>
+                </lf-tab>
+                <lf-tab id="bg-rollout-recovery" label="Recovery plan">
+                  <p id="bg-rollout-recovery-text">
+                    Return traffic to the previous index if searches become slow or
+                    relevant results disappear.
+                  </p>
+                </lf-tab>
+                <lf-tab id="bg-rollout-handoff" label="Owner handoff">
+                  <p id="bg-rollout-handoff-text">
+                    The search team owns the rollout. Support collects reports and the
+                    on-call engineer can restore the previous index.
                   </p>
                 </lf-tab>
               </lf-tabs>

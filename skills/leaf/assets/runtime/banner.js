@@ -31,11 +31,22 @@ import { createBannerStatusView } from "./banner-status-view.js";
 import { declareBanner } from "./geometry.js";
 import { agentName, readApplication, watchSemantic } from "./semantic-state.js";
 import { taskNoun } from "./queues.js";
+import { UPGRADE } from "./presentation.js";
+
+const INITIAL = Object.freeze({
+  tone: "",
+  summary: "Loading…",
+  queues: "",
+  queuesWidest: "",
+  explanation:
+    "Loading the page's interface. Reading, links, and scrolling are already available.",
+  publication: null,
+});
 
 export const banner = el("header", "lf-ui lf-banner");
 banner.id = "lf-banner";
 declareBanner(banner);
-const bannerStatus = createBannerStatusView(repaint);
+const bannerStatus = createBannerStatusView(repaint, INITIAL);
 registerNoticePresentation(() => bannerStatus.presentNotice(noticeReading()));
 export const dot = bannerStatus.dot;
 // The agent's Tasks count, which opens the Questions panel listing them (drawers.js).
@@ -347,6 +358,22 @@ const presentStatus = (status) => {
   saidActionableWork = actionableWork;
   if (changed) announce(explanation);
 };
+// Upgrade opens new comments independently of private history. A state or error
+// already received owns the status; upgrade never replaces that newer reading.
+document.addEventListener(
+  UPGRADE,
+  () => {
+    if (lastStatus) return;
+    presentStatus({
+      kind: "loading",
+      tone: "",
+      summary: "Loading saved state…",
+      explanation:
+        "The page is ready for reading and new comments. Saved comments and choices are still loading; new comments will be sent when the server responds.",
+    });
+  },
+  { once: true },
+);
 // The developer preview's identity: which checkout is serving this page, and a press to
 // copy the whole diagnostic. It is the banner's least-used control, so it stays behind
 // the overflow door at every width instead of adding a permanent chip to the reading row.

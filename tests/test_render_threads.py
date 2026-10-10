@@ -3408,7 +3408,9 @@ def test_news_from_elsewhere_moves_nothing_in_a_short_panel_thread(browser, serv
     )
     panel_comment(serve.page_dir, "A second thread raises a count.", author="agent")
     told(page)
-    notice = thread.get_by_role("button", name="1 reaction changed", exact=True)
+    notice = thread.get_by_role(
+        "button", name="1 reaction changed · 1 new thread", exact=True
+    )
     expect(notice).to_be_visible()
     expect(keep).to_have_attribute("aria-pressed", "false")
     expect(page.get_by_role("button", name="Open (2)", exact=True)).to_be_visible()

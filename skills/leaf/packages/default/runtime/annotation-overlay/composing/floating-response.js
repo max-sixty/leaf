@@ -12,7 +12,6 @@
    side panel withholds the page's response bar and takes its focus until the page is
    available again. */
 import { cancelRender, nextRender } from "/runtime/rendering.js";
-import { resolveAnchor } from "/runtime/anchor-resolution.js";
 import { sameAnchor } from "/runtime/anchor-coordinate.js";
 import { declareOffFlowSurface } from "/runtime/off-flow.js";
 import { rightCover, shownBox } from "/runtime/geometry.js";
@@ -23,7 +22,7 @@ import {
   targetParts,
   targetRange,
 } from "/runtime/resolved-target.js";
-import { pageRange, pageText } from "/runtime/passages.js";
+import { pageRange } from "/runtime/passages.js";
 import { pageSelection, selectionAnchor } from "/runtime/composing/capture.js";
 import { holdFocus, focusDestination } from "/runtime/focus.js";
 import { coarsePointer } from "/runtime/pointer.js";
@@ -49,7 +48,6 @@ export function createFloatingResponsePlacement({
   threadsBox,
   positioned,
   dismiss,
-  standsIn,
   scrollToElement,
   scrollToRange,
 }) {
@@ -221,8 +219,8 @@ export function createFloatingResponsePlacement({
       // no longer available once the field took focus.
       if (!response.open && !response.captured) return null;
     }
-    const found = anchor ? resolveAnchor(anchor, pageText()) : null;
-    if (!anchor || !standsIn(anchor, found)) return null;
+    const found = response.resolved;
+    if (!anchor || !found) return null;
     const words = anchor.quote ? passageGeometry(found) : null;
     if (words) return words;
     // The full authored box supplies the attachment even when an ancestor clips it.
@@ -435,7 +433,7 @@ export function createFloatingResponsePlacement({
       floats: () => Boolean(response.anchor && response.floating),
       away: () => fabWithheld,
       bringBack: (behavior) => {
-        const found = resolveAnchor(response.anchor, pageText());
+        const found = response.resolved;
         const range = response.anchor.quote && targetRange(found);
         if (range) return scrollToRange(range, behavior);
         const target = response.target;

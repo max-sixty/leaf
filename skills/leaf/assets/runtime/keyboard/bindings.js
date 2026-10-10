@@ -9,6 +9,11 @@
 
    A row has these meanings:
 
+   - `ready` optionally says whether the command's input has arrived. A false
+     reading keeps a startup key queued; `when` instead describes an ordinary
+     unavailable command after its input is known. Decisions default to waiting
+     for the saved reading that settles the Ask they change.
+
    - `id` is its stable dotted identity. Words and keys may change without changing the
      route the command reference and the other projections use.
    - `keys` is a binding or computed list of bindings: "a", "Escape", "Mod+Enter",
@@ -106,6 +111,7 @@
    command reference. Call `paintKeys` when a state change moves row liveness so this projection
    and the visible surfaces change together. */
 import { coarsePointer } from "../pointer.js";
+import { readApplication } from "../semantic-state.js";
 
 // Which platform's spelling, and which modifier is the sequence's. Up here rather than beside
 // the text inputs because the spelling table below is the first thing that needs it.
@@ -325,7 +331,22 @@ export function controlAvailable(control) {
   return !disabled && !ariaDisabled;
 }
 export const declaredCommandAvailable = (row, route = null) =>
-  (!row.when || row.when()) && (!route?.when || route.when());
+  commandReady(row, route) &&
+  (!row.when || row.when()) &&
+  (!route?.when || route.when());
+// Unlike `when`, readiness says a command's input has not arrived yet. A queued
+// startup key keeps its place until that input can be read rather than disappearing
+// as an ordinary unavailable command would.
+export const commandReady = (row, route = null) => {
+  const reference = routedCommand(route);
+  if (reference) {
+    const entry = referencedCommandEntry(reference, { includeUnavailable: true });
+    if (entry && !commandReady(reference.row, entry.route)) return false;
+  }
+  return row.ready
+    ? row.ready()
+    : !(row.decision || route?.decision) || readApplication().phase !== "waiting";
+};
 export const commandAvailable = (row, route = null) => {
   const control = route?.control ?? row.control;
   const reference = routedCommand(route);
@@ -335,7 +356,7 @@ export const commandAvailable = (row, route = null) => {
     (!reference || referencedCommandEntry(reference) !== null)
   );
 };
-export function referencedCommandEntry(reference) {
+export function referencedCommandEntry(reference, options) {
   if (
     !reference.source.isConnected ||
     !reference.scope.rows.includes(reference.row) ||
@@ -343,7 +364,7 @@ export function referencedCommandEntry(reference) {
   )
     return null;
   return (
-    commandEntries(reference.row, allBindings(reference.row)).find(
+    commandEntries(reference.row, allBindings(reference.row), options).find(
       ({ id, binding }) =>
         id === reference.id && (binding ?? null) === reference.binding,
     ) ?? null
@@ -620,6 +641,8 @@ export function checked(rows, where) {
   rows.forEach((row, i) => {
     if (!row) throw new TypeError(`${where}: row ${i + 1} is missing`);
     named(row);
+    if (row.ready !== undefined && typeof row.ready !== "function")
+      throw new TypeError(`leaf: ${row.id} readiness must be a function`);
     if (row.decision && row.control == null)
       throw new Error(`leaf: ${row.id} is a Decision command with no control`);
     if (row.native && !row.run)

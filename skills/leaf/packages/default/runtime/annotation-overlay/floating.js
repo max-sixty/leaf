@@ -292,18 +292,27 @@ export function floatingPlacement({ floating, update }) {
   };
   // Each held edge's inset from the anchor's start edge on its axis, which `anchor()`
   // resolves as an inset on whichever side the property names. An anchor lost between
-  // placements (a row withheld, a target skipped, its name taken by a revision) stands
-  // the box off screen, as the rows fall back, until the placement that follows finds
-  // it another.
+  // placements retains the last solved spot until its owner repositions or withdraws
+  // the box. Replacing a target must not send an active editor off screen between
+  // the native anchor disappearing and the next asynchronous solve.
   const anchoredAt =
     (anchor, at) =>
     ({ x, y, middlewareData }) => {
-      const { edges, width, height } = middlewareData.held;
-      const from = (side, length) => `calc(anchor(${side}, -9999px) + ${px(length)})`;
+      const { edges, width, height, block } = middlewareData.held;
+      const from = (side, length, fallback) =>
+        `calc(anchor(${side}, ${px(fallback)}) + ${px(length)})`;
       frame.style.positionAnchor = anchorName(anchor);
       inset({
-        [edges.x]: from("left", edges.x === "left" ? x - at.x : at.x - x - width),
-        [edges.y]: from("top", edges.y === "top" ? y - at.y : at.y - y - height),
+        [edges.x]: from(
+          "left",
+          edges.x === "left" ? x - at.x : at.x - x - width,
+          edges.x === "left" ? at.x : block.width - at.x,
+        ),
+        [edges.y]: from(
+          "top",
+          edges.y === "top" ? y - at.y : at.y - y - height,
+          edges.y === "top" ? at.y : block.height - at.y,
+        ),
       });
     };
   let stand = placedAt;

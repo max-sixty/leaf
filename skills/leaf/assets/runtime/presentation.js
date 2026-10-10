@@ -9,7 +9,8 @@
    layer in turn:
 
    - `data-lf-upgraded` means widget imports, asynchronous upgrades, geometry, and
-     drawings have finished.
+     anchor preparation have finished. New comments and drawing can start against
+     this shown document while private history is still loading.
    - `data-lf-applied` is the event coverage of the last complete semantic projection
      committed to the DOM.
    - `data-lf-presented` means the initial authoritative projection, or the deliberate
@@ -110,6 +111,13 @@ export const isPagePaint = (name) =>
   Object.values(registry.$marks).some((mark) => mark.paint === name);
 export const pagePresented = () =>
   document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
+export const pageUpgraded = () =>
+  document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.upgraded);
+export const UPGRADE = "lf-upgraded";
+export function markPageUpgraded() {
+  setRuntimeRootAttribute(document.body, PAGE_PAINT_ATTRIBUTE.upgraded, "1");
+  document.dispatchEvent(new Event(UPGRADE));
+}
 // The stamp is written here and nowhere else, and never taken back, so the promise it
 // resolves answers every later waiter too.
 const { promise: presented, resolve: resolvePresented } = Promise.withResolvers();

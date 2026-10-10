@@ -83,7 +83,7 @@ export function createThreadPresentation({
       if (phase === "ready") await paintCurrent(current);
       else {
         paintCurrent.stop();
-        await startRender(current, phase);
+        await startRender(current);
       }
       return value;
     },
@@ -96,17 +96,12 @@ export function createThreadPresentation({
   // margin draws the Ask rows beside them. The claim registers that obligation inside
   // the publication that seals membership; the pass paints it.
   //
-  // Every epoch the page has read the log for, that is. Before it has, each one draws
-  // the same line about waiting, and repainting the margin and the anchors to say it
-  // again is work done ahead of the first paint the user is waiting on. A user who
-  // opens the panel in that window asks for the reading directly, and gets it.
+  // Local threads can arrive and leave while the first saved reading is pending.
+  // Those epochs owe the same paint as an admitted one, including refusal of the last
+  // pending comment: an empty local fold must retire its card and passage mark.
   applicationState
-    .select((snapshot) =>
-      snapshot.phase === "waiting" ? null : snapshot.semanticEpoch,
-    )
-    .subscribe((value) => {
-      if (value !== null) void present();
-    });
+    .select((snapshot) => snapshot.semanticEpoch)
+    .subscribe(() => void present());
 
   function finishListRecovery(candidates) {
     for (const candidate of candidates)
@@ -116,13 +111,13 @@ export function createThreadPresentation({
 
   let surfaceGeneration = 0;
   let cancelCurrentRender = () => {};
-  const startRender = (presenting, phase = "ready") => {
+  const startRender = (presenting) => {
     cancelCurrentRender();
     const cancelled = new Promise((resolve) => (cancelCurrentRender = resolve));
-    return renderReading(phase, cancelled, presenting);
+    return renderReading(cancelled, presenting);
   };
 
-  async function renderReading(phase, cancelled, presenting) {
+  async function renderReading(cancelled, presenting) {
     const generation = ++surfaceGeneration;
     read.begin();
     const current = () => generation === surfaceGeneration && presenting();
@@ -134,9 +129,8 @@ export function createThreadPresentation({
     const livePanels = [...panels].filter((panel) => panel.required);
     let surfaces = null;
     try {
-      const { all } = threadState();
+      const { all: threads } = threadState();
       const collection = readThreads();
-      const threads = phase === "ready" ? all : [];
       const listed = collection.threads;
       const continueReplies = holdReplyCompositions(threads, continueThread);
       renderHolds(threads);
@@ -157,14 +151,7 @@ export function createThreadPresentation({
       void surfaces.completion.catch(() => {});
       prepared = Promise.all(
         livePanels.map(({ controller, view }) =>
-          phase === "ready"
-            ? controller.renderThreads(collection, view)
-            : controller.renderThreadListUnavailable(
-                phase === "offline"
-                  ? "Current threads are unavailable while the server is offline."
-                  : "Loading current threads…",
-                view,
-              ),
+          controller.renderThreads(collection, view),
         ),
       );
       void prepared.catch(() => {});
@@ -221,6 +208,7 @@ export function createThreadPresentation({
     const thread = target && closestAcross(target, ".lf-thread");
     if (!thread) return;
     const id = thread.dataset.id;
+    threadsBox.revealNavigation(id);
     if (thread.hidden) {
       const { mayReveal } = event.detail;
       const revealed = view.narrowing.revealThread(id);
@@ -230,7 +218,7 @@ export function createThreadPresentation({
             if (mayReveal() && thread.isConnected) threadsBox.revealNavigation(id);
           }),
         );
-    } else threadsBox.revealNavigation(id);
+    }
   }
 
   function attach(panel) {
@@ -244,15 +232,7 @@ export function createThreadPresentation({
     panels.add(panel);
     const renderOptional = async (collection) => {
       try {
-        const candidate =
-          collection.phase === "ready"
-            ? await controller.renderThreads(collection, view)
-            : await controller.renderThreadListUnavailable(
-                collection.phase === "offline"
-                  ? "Current threads are unavailable while the server is offline."
-                  : "Loading current threads…",
-                view,
-              );
+        const candidate = await controller.renderThreads(collection, view);
         if (!panels.has(panel) || !candidate) return;
         candidate.commit();
         finishListRecovery([candidate]);

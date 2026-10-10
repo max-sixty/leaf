@@ -35,8 +35,10 @@
      the thread to place (surfaces.js), and the margin draws it as it draws any thread
      no widget places, out of the flow.
 
-   A panel card uses the same hold for its own news, and a closed card holds nothing,
-   since its title row draws at one size whatever it says. A reply pinned to its
+   A panel list owns one hold for its cards and their arrivals. A closed card holds
+   none of its own news, since its title row draws at one size whatever it says;
+   inserting a card before a visible one waits behind an existing open card's notice.
+   A reply pinned to its
    scrollport lets a turn joining the thread's end grow up into the room scrolled past
    (thread-list.js, `followThreadEnd`), though nothing that changes above that end. A
    held change leaves the controls it touches drawn as they were, and a press on one
@@ -409,13 +411,12 @@ export class HeldNews {
     holders.add(this);
   }
 
-  // The reading to draw from `reading`, the seat's whole reading of its threads. The first
-  // reading drawn from the read log is what the seat shows on arrival, so none of it is
-  // news; one drawn before the log is read, or while the server is away, is no baseline
-  // either. `row` says whether the seat draws a first-message row the user is not in, in
-  // whose place a new thread's notice can stand.
+  // The reading to draw from `reading`, the seat's whole reading of its threads. Empty
+  // startup preparation is no baseline, but known local threads already drawn while
+  // history loads are real reading to protect. `row` says whether the seat draws a
+  // first-message row the user is not in, in whose place a notice can stand.
   hold(reading, { row }) {
-    const read = readApplication().phase === "ready";
+    const read = readApplication().phase === "ready" || reading.threads.length > 0;
     if (!read || !readingIsContinuous()) this.#forget();
     const prior = read ? this.#shown : null;
     const keys = new Set(reading.threads.map(({ key }) => key));
@@ -439,10 +440,17 @@ export class HeldNews {
     // A thread the user starts is their gesture, and the threads before it show with it.
     if (arrived.some(({ key }) => gestured(key))) this.#threads.clear();
     else if (arrived.length) {
-      const last = prior.threads.at(-1)?.key;
-      const seen = growthAfterIsSeen(last ? this.#view(last)?.node : this.#seat);
-      if (seen && (last || row)) for (const { key } of arrived) this.#threads.add(key);
-      else this.#threads.clear();
+      const drawn = ({ key }) =>
+        this.#known.has(key) && this.#view(key)?.node.checkVisibility();
+      for (const thread of arrived) {
+        const index = reading.threads.indexOf(thread);
+        const next = reading.threads.slice(index + 1).find(drawn);
+        const previous = reading.threads.slice(0, index).findLast(drawn);
+        const seen = next
+          ? growthInsideIsSeen([this.#view(next.key)?.node].filter(Boolean))
+          : growthAfterIsSeen(previous ? this.#view(previous.key)?.node : this.#seat);
+        if (seen && (next || previous || row)) this.#threads.add(thread.key);
+      }
     }
   }
 
@@ -475,7 +483,17 @@ export class HeldNews {
         };
       });
     const waiting = this.#threads.size;
-    const host = threads.at(-1);
+    const host =
+      waiting &&
+      (threads.find(
+        (thread) =>
+          this.#view(thread.key)?.node.open &&
+          growthInsideIsSeen([this.#view(thread.key).node]),
+      ) ??
+        threads.findLast((thread) =>
+          growthInsideIsSeen([this.#view(thread.key)?.node].filter(Boolean)),
+        ) ??
+        threads.at(-1));
     if (waiting && host) host.news = { ...host.news, threads: waiting };
     for (const thread of threads) {
       if (thread.news)
@@ -596,10 +614,13 @@ export class HeldReading {
   }
 
   hold(reading) {
-    // Preparation can draw partial authored contributions before the complete log
-    // arrives. That is no baseline for news: the first ready reading stands whole.
-    if (readApplication().phase !== "ready") {
-      this.#shown = null;
+    // Empty preparation is no baseline for first history. A release by the user's
+    // gesture can already establish a real local reading before history arrives.
+    if (
+      readApplication().phase !== "ready" &&
+      !this.#released &&
+      this.#shown === null
+    ) {
       this.#stop();
       return reading;
     }

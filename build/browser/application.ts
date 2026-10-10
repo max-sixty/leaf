@@ -681,28 +681,27 @@ export function createSemanticApplication({
       ...admitted,
       pendingEntries: localProjections,
     });
-    // Threads and Asks both wait for an admitted reading. Authored markup names every
-    // Ask the page could hold, but only the log says which of them it still holds and
-    // whether they are answered, so before that reading there is no inventory to publish.
+    // A local comment belongs to the shown document even before saved history arrives.
+    // Fold it through the same ledger and receipt path in every phase; collection.phase
+    // still says whether this is a complete reading. Asks need the log to say which
+    // authored questions the page still holds, so their inventory waits for that reading.
     const ready = phase === "ready";
     const messages = local.filter((entry) => entry.message);
-    const folded = ready
-      ? foldThreads(
-          state?.browser.thread.threads ?? [],
-          messages.map((entry) => entry.message),
-          local.filter((entry) => entry.thread?.token).map((entry) => entry.thread),
-          local
-            .filter(
-              ({ event }) => event.kind === "resolve" || event.kind === "unresolve",
-            )
-            .map((entry) => ({ ...entry.event, localParent: entry.namedParent })),
-          new Set(
-            local
-              .filter(({ event }) => event.kind === "undo")
-              .map(({ event }) => event.undoes),
-          ),
+    const folded = foldThreads(
+      state?.browser.thread.threads ?? [],
+      messages.map((entry) => entry.message),
+      local.filter((entry) => entry.thread?.token).map((entry) => entry.thread),
+      local
+        .filter(
+          ({ event }) => event.kind === "resolve" || event.kind === "unresolve",
         )
-      : [];
+        .map((entry) => ({ ...entry.event, localParent: entry.namedParent })),
+      new Set(
+        local
+          .filter(({ event }) => event.kind === "undo")
+          .map(({ event }) => event.undoes),
+      ),
+    );
     const widgets = foldWidgetStates(document.authored, projection);
     const asks = ready ? normalizedAsks(view, state?.browser.thread) : NO_ASKS;
     const tasks = ready ? localTasks(view, state, local) : { open: [], ended: [] };

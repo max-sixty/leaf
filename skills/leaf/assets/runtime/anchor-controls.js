@@ -42,6 +42,7 @@ import { offer, reveal } from "./widget-elements.js";
 import { keeps, keepsText } from "./keeps.js";
 import { retainUserIntent } from "./user-intent.js";
 import { bareReaction } from "./thread/model.js";
+import { pageUpgraded } from "./presentation.js";
 
 const MSG_REF = '.lf-msg-body a[href^="#"]';
 
@@ -199,8 +200,16 @@ export function createAnchorControls({
   }
 
   function prepareVisualActions() {
-    pendingVisualActions = visualActionPlan();
-    if (document.body.hasAttribute("data-lf-presented")) publishVisualActions();
+    try {
+      pendingVisualActions = visualActionPlan();
+    } catch (error) {
+      // A failed reading invalidates the old proxies too: their coordinates no
+      // longer describe the visual. Keep the fault visible to the presenter.
+      pendingVisualActions = new Map();
+      reconcileVisualActions(pendingVisualActions);
+      throw error;
+    }
+    if (pageUpgraded()) publishVisualActions();
   }
 
   // Each target contributes its complete standing reaction reading. Only the selected

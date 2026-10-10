@@ -101,6 +101,7 @@ from render_harness import (
     refuse,
     round_trip,
     select,
+    select_words,
     sending,
     stamp_page,
     stored_draft_text,
@@ -132,7 +133,7 @@ VISUAL_ACTION_TIMING = """
         ];
         for (const _holder of holders)
           window.__lfVisualActionInsertions.push(
-            document.body?.hasAttribute('data-lf-presented') ?? false
+            document.body?.hasAttribute('data-lf-upgraded') ?? false
           );
       }
     }
@@ -384,6 +385,7 @@ def test_public_startup_reports_upgrade_separately_from_held_state(
     page.wait_for_function("document.body.dataset.lfUpgraded === '1'")
     assert held, "the positive control did not hold the first state read"
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+    expect(page.locator(".lf-status-text")).to_have_text("Loading saved state…")
     assert reports == []
     assert page.evaluate("firstStateResponses") == []
     upgraded_before_release = page.evaluate("Math.round(performance.now())")
@@ -725,6 +727,295 @@ def _hold_startup(page, stage):
     return held, release
 
 
+@pytest.mark.parametrize("command", ["unread", "reaction"])
+def test_history_dependent_keys_wait_for_the_first_read(browser, serve, command):
+    """Unread travel and reaction withdrawal need the complete standing history."""
+    source = leaf_page(
+        "First reading", '<h1>First reading</h1><button id="target">A target</button>'
+    )
+    event = (
+        {
+            "id": "unread-note",
+            "kind": "comment",
+            "author": "agent",
+            "revision": 1,
+            "text": "A question for the reader.",
+        }
+        if command == "unread"
+        else {
+            "id": "saved-reaction",
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "token": "keep",
+            "anchor": {"section": "target"},
+        }
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    held, release = _hold_startup(page, "state")
+    page.goto(serve(source, events=[event]), wait_until="load")
+    holding(page, held, 1, "the first private-state read")
+    expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
+    if command == "unread":
+        page.keyboard.press("g")
+        page.keyboard.press("u")
+        expect(page.locator(".lf-held-keys kbd")).to_have_text("u")
+    else:
+        page.locator("#target").click()
+        page.keyboard.press("e")
+        page.keyboard.press("1")
+        expect(page.locator(".lf-held-keys kbd")).to_have_text(["e", "1"])
+        assert not any(
+            event["kind"] == "undo"
+            or event.get("token") == "keep"
+            and event["id"] != "saved-reaction"
+            for event in events_model.read_events(serve.page_dir)
+        )
+    release()
+    wait_until_ready(page)
+    if command == "unread":
+        expect(page.locator('.lf-msg[data-mid="unread-note"]')).to_be_focused()
+    else:
+        round_trip(page)
+        events = [
+            event
+            for event in events_model.read_events(serve.page_dir)
+            if event["kind"] in {"comment", "undo"}
+        ]
+        assert [(event["kind"], event.get("undoes")) for event in events] == [
+            ("comment", None),
+            ("undo", "saved-reaction"),
+        ]
+    expect(page.locator(".lf-held-keys")).to_have_count(0)
+
+
+@pytest.mark.parametrize("route", ["pointer", "digit"])
+def test_response_reaction_controls_wait_for_history(browser, serve, route):
+    """Reaction chips and their digit routes share the same input readiness."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    held, release = _hold_startup(page, "state")
+    posts = []
+    page.on(
+        "request",
+        lambda request: (
+            posts.append(request.post_data_json)
+            if request.url.endswith("/api/event")
+            else None
+        ),
+    )
+    page.goto(serve(HELD_KEYS_PAGE), wait_until="load")
+    holding(page, held, 1, "the first private-state read")
+    expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
+    select_words(page, "#said")
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.keyboard.press("c")
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    page.keyboard.press("Tab")
+    chip = page.locator('.lf-response-options .lf-react[data-token="keep"]')
+    expect(chip).to_be_visible()
+    expect(chip).to_have_attribute("aria-disabled", "true")
+    if route == "pointer":
+        bounds = chip.bounding_box()
+        page.mouse.click(
+            bounds["x"] + bounds["width"] / 2, bounds["y"] + bounds["height"] / 2
+        )
+        expect(chip).to_be_focused()
+        assert posts == []
+    else:
+        page.keyboard.press("1")
+        expect(page.locator(".lf-held-keys kbd")).to_have_text("1")
+        assert posts == []
+    release()
+    wait_until_ready(page)
+    if route == "pointer":
+        expect(chip).not_to_have_attribute("aria-disabled", "true")
+        chip.click()
+    round_trip(page)
+    reactions = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("token") == "keep"
+    ]
+    assert len(reactions) == 1
+    assert reactions[0]["anchor"]["section"] == "said"
+
+
+@pytest.mark.parametrize("command", ["find", "waiting", "walk"])
+def test_local_thread_keys_distinguish_local_matches_from_complete_history(
+    browser, serve, command
+):
+    """Enter can find a local send; waiting-on-user must include saved agent asks."""
+    agent_note = {
+        "id": "agent-question",
+        "kind": "comment",
+        "author": "agent",
+        "revision": 1,
+        "text": "A question for the reader.",
+    }
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    held, release = _hold_startup(page, "state")
+    posts = []
+    page.route("**/api/event", lambda route: posts.append(route))
+    page.goto(serve(HELD_KEYS_PAGE, events=[agent_note]), wait_until="load")
+    holding(page, held, 1, "the first private-state read")
+    expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
+    page.locator(".lf-threads-toggle").click()
+    write(page.locator(".lf-general leaf-text"), "Local words")
+    page.locator(".lf-general").get_by_role("button", name="Send", exact=True).click()
+    local = page.locator('.lf-thread[data-id^="pending:"] > .lf-thread-summary')
+    expect(local).to_have_count(1)
+    holding(page, posts, 1, "the local send")
+    if command == "find":
+        search = page.get_by_role("searchbox", name="Find in threads")
+        search.fill("Local")
+        search.press("Enter")
+        expect(local).to_be_focused()
+        expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+    elif command == "walk":
+        page.locator(".lf-thread-filter-toggle").focus()
+        page.keyboard.press("t")
+        expect(local).to_be_focused()
+        expect(page.locator(".lf-held-keys")).to_have_count(0)
+        expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+    else:
+        local.focus()
+        page.keyboard.press("w")
+        expect(page.locator(".lf-held-keys kbd")).to_have_text("w")
+    release()
+    wait_until_ready(page)
+    if command == "waiting":
+        expect(page.locator(".lf-thread-view-summary")).to_contain_text("On you")
+        expect(page.locator('.lf-thread[data-id="agent-question"]')).to_be_visible()
+        expect(page.locator('.lf-thread[data-id^="pending:"]')).to_be_hidden()
+    for route in posts:
+        route.continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+
+
+def test_an_empty_bootstrap_handover_preserves_native_space(browser, serve):
+    """Availability reflection without held input must not claim a button's Space."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    held, release = _hold_startup(page, "state")
+    source = leaf_page(
+        "Native Space",
+        '<h1>Native Space</h1><button id="native">Native action</button>',
+    )
+    page.goto(serve(source), wait_until="load")
+    holding(page, held, 1, "the first state read")
+    expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
+    page.locator("#native").focus()
+    page.evaluate("""() => {
+      window.nativePresses = 0;
+      document.querySelector('#native').addEventListener('click', () => window.nativePresses++);
+      document.dispatchEvent(new CustomEvent('lf-held-keys', {
+        detail: {ready: () => true, keep: () => true}
+      }));
+    }""")
+    page.keyboard.press("Space")
+    assert page.evaluate("window.nativePresses") == 1
+    expect(page.locator(".lf-held-keys")).to_have_count(0)
+    release()
+    wait_until_ready(page)
+
+
+def test_a_failed_first_read_stays_unpresented_across_the_retry_clock(browser, serve):
+    """The retry tick cannot turn a malformed reading into an empty valid history."""
+    source = leaf_page(
+        "Failed first read",
+        '<h1>Failed first read</h1><button id="target">A target</button>',
+    )
+    saved = {
+        "id": "saved-reaction",
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "token": "keep",
+        "anchor": {"section": "target"},
+    }
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    calls, held = [], []
+    gate = {"open": False}
+
+    def intercept(route):
+        calls.append(route)
+        if len(calls) == 1:
+            route.fulfill(status=200, content_type="application/json", body="not-json")
+        elif gate["open"]:
+            route.continue_()
+        else:
+            held.append(route)
+
+    page.route("**/api/state*", intercept)
+    with page.expect_console_message(
+        predicate=lambda message: "read failed" in message.text
+    ):
+        page.goto(serve(source, events=[saved]), wait_until="load")
+    expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
+    page.locator("#target").click()
+    page.keyboard.press("e")
+    page.keyboard.press("1")
+    expect(page.locator(".lf-held-keys kbd")).to_have_text(["e", "1"])
+    holding(page, held, 1, "the clock's retry of the malformed first read")
+    rendered(page)
+    expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+    expect(page.locator(".lf-status-detail")).to_have_text(
+        "Page couldn't apply current state — reload"
+    )
+    assert (
+        page.evaluate(
+            "async () => (await window.__lfRuntimeImport('/runtime/semantic-state.js')).readApplication().phase"
+        )
+        == "waiting"
+    )
+    gate["open"] = True
+    for route in held:
+        route.continue_()
+    wait_until_ready(page)
+    round_trip(page)
+    events = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] in {"comment", "undo"}
+    ]
+    assert [(event["kind"], event.get("undoes")) for event in events] == [
+        ("comment", None),
+        ("undo", "saved-reaction"),
+    ]
+    consume_browser_errors(page, "read failed: Unexpected token")
+
+
+def test_upgrade_relinquishes_the_bootstrap_timeout_for_held_keys(browser, serve):
+    """The runtime owns the queue after upgrade, even across bootstrap's deadline."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.clock.install(time=0)
+    page.add_init_script("""window.navigationTime = Date.now();
+      document.addEventListener('lf-page-interface', event =>
+        event.detail.present(new Promise(resolve => window.releaseInterface = resolve)));
+    """)
+    held, release = _hold_startup(page, "state")
+    page.goto(serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD]), wait_until="load")
+    page.wait_for_function("() => Boolean(window.releaseInterface)")
+    page.clock.pause_at(page.evaluate("() => (Date.now() + 10) / 1000"))
+    page.clock.run_for(3000)
+    page.evaluate("() => window.releaseInterface()")
+    page.clock.run_for(100)
+    expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
+    holding(page, held, 1, "the first private-state read")
+    page.keyboard.press("t")
+    page.clock.run_for(200)
+    expect(page.locator(".lf-held-keys kbd")).to_have_text("t")
+    page.clock.run_for(
+        page.evaluate("() => Math.max(0, window.navigationTime + 11000 - Date.now())")
+    )
+    expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+    expect(page.locator(".lf-held-keys kbd")).to_have_text("t")
+    release()
+    page.clock.resume()
+    expect(page.locator('[data-thread="held-thread"]').first).to_be_focused()
+    expect(page.locator(".lf-held-keys")).to_have_count(0)
+
+
 @pytest.mark.parametrize("stage", ["module", "state"])
 @pytest.mark.parametrize("touch", [False, True])
 def test_a_key_pressed_before_presentation_runs_once_the_page_presents(
@@ -783,18 +1074,17 @@ def test_disabled_quick_shortcuts_are_not_held_before_presentation(
 
 
 def test_disabling_quick_shortcuts_discards_keys_already_held(browser, serve):
-    """A preference change before replay must also withdraw an already captured trip."""
+    """Changing the shortcut preference during handover withdraws the held trip."""
     page = browser.new_page(viewport={"width": 1400, "height": 900})
     watched(page)
     # The queue has transferred to the controller, but its first frame has not run.
     page.add_init_script(
-        """document.addEventListener('lf-presentation', () => queueMicrotask(() =>
+        """document.addEventListener('lf-upgraded', () => queueMicrotask(() =>
           document.documentElement.lfKeyboard.setQuick(false)));"""
     )
-    held, release = _hold_startup(page, "state")
+    held, release = _hold_startup(page, "module")
     page.goto(serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD]), wait_until="commit")
-    holding(page, held, 1, "the first state read")
-    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    holding(page, held, 1, "the runtime module")
     page.keyboard.press("g")
     page.keyboard.press("Shift+T")
     try:
@@ -811,24 +1101,23 @@ def test_disabling_quick_shortcuts_discards_keys_already_held(browser, serve):
 
 
 def test_a_key_pressed_while_held_keys_run_waits_its_turn(browser, serve):
-    """Presentation hands the held keys over and presses them a frame apart, so a key
+    """Upgrade hands the held keys over and presses them a frame apart, so a key
     arriving between the handover and the first press has to queue behind them: `g`
     held, then `Shift+T` in that gap, is still `g T`, the trip to Threads."""
     url = serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD])
     page = browser.new_page(viewport={"width": 1400, "height": 900})
     watched(page)
-    # The instant is inside the page: after every presentation listener has run,
+    # The instant is inside the page: after every upgrade listener has run,
     # the handover included, and before the next frame presses the first held key.
     page.add_init_script(
-        """document.addEventListener('lf-presentation', () => queueMicrotask(() =>
+        """document.addEventListener('lf-upgraded', () => queueMicrotask(() =>
           document.body.dispatchEvent(new KeyboardEvent('keydown', {
             key: 'T', code: 'KeyT', shiftKey: true, bubbles: true,
             cancelable: true, composed: true}))));"""
     )
-    held, release = _hold_startup(page, "state")
+    held, release = _hold_startup(page, "module")
     page.goto(url, wait_until="commit")
-    holding(page, held, 1, "the first state read")
-    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    holding(page, held, 1, "the runtime module")
     page.keyboard.press("g")
     expect(page.locator(".lf-held-keys kbd")).to_have_text("g")
 
@@ -839,16 +1128,16 @@ def test_a_key_pressed_while_held_keys_run_waits_its_turn(browser, serve):
 
 
 def test_held_keys_after_one_that_opens_a_box_are_typed_into_it(browser, serve):
-    """`c` opens the page's comment box, so the keys held behind it are the comment:
-    they arrive as its text, Space included, rather than as page commands the box
-    swallows."""
+    """Pre-runtime `c` opens the comment box at upgrade.
+
+    Keys held behind it arrive as comment text, Space included, rather than as page
+    commands the box swallows."""
     url = serve(HELD_KEYS_PAGE)
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
-    held, release = _hold_startup(page, "state")
+    held, release = _hold_startup(page, "module")
     page.goto(url, wait_until="commit")
-    holding(page, held, 1, "the first state read")
-    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    holding(page, held, 1, "the runtime module")
     for key in ["c", "h", "i", "Space", "x"]:
         page.keyboard.press(key)
     expect(page.locator(".lf-held-keys kbd")).to_have_text(
@@ -869,10 +1158,9 @@ def test_a_key_that_is_not_printed_ends_the_held_run(browser, serve, ending):
     url = serve(HELD_KEYS_PAGE)
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
-    held, release = _hold_startup(page, "state")
+    held, release = _hold_startup(page, "module")
     page.goto(url, wait_until="commit")
-    holding(page, held, 1, "the first state read")
-    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    holding(page, held, 1, "the runtime module")
     for key in ["c", "h", "i"]:
         page.keyboard.press(key)
     echo = page.locator(".lf-held-keys")
@@ -1677,9 +1965,11 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
     authored_note = page.locator("#startup-note .lf-draft-body")
     expect(authored_note).to_have_text("Ship on Tuesday from the blue room.")
     authored_note.select_text()
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
     page.keyboard.press("c")
-    expect(page.locator(".lf-fab-input")).not_to_be_visible()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
     assert posts == [], "an anchored comment posted before the first state projection"
+    page.keyboard.press("Escape")
     frames = page.evaluate("() => window.__lfPresentation.frames")
     assert frames and all(frame["height"] > 0 for frame in frames), (
         f"the authored state was never laid out: {frames}"
@@ -1756,13 +2046,14 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     controls = gallery.locator(".lf-interaction-controls")
     expect(controls).to_have_count(1)
     expect(controls).to_be_hidden()
+    expect(page.locator(".lf-status-text")).to_have_text("Loading…")
     page.evaluate("releaseHeldPageInterface()")
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     page.locator("#bg-gallery-tabs").get_by_role(
         "tab", name="Interactions", exact=True
     ).click()
     expect(controls).to_be_visible()
-    expect(page.locator(".lf-status-detail")).to_have_text(re.compile(r"^Connecting"))
+    expect(page.locator(".lf-status-text")).to_have_text("Loading saved state…")
 
     release_state = True
     for route in held:
@@ -1770,7 +2061,7 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     wait_until_ready(page)
     expect(controls).to_be_visible()
     expect(page.locator(".lf-status-detail")).not_to_have_text(
-        re.compile(r"^Connecting")
+        re.compile(r"^The page is ready for reading and new comments")
     )
 
 
@@ -1791,7 +2082,7 @@ def test_playground_joins_initial_widget_settlement(browser, serve):
     expect(playground.locator(".lf-playground-actions")).to_be_visible()
     submit = playground.get_by_role("button", name="Create notification")
     expect(submit).to_be_disabled()
-    expect(page.locator(".lf-status-detail")).to_have_text(re.compile(r"^Connecting"))
+    expect(page.locator(".lf-status-text")).to_have_text("Loading saved state…")
 
     playground.get_by_role("button", name="Needs attention").click()
     compact = playground.get_by_role("switch", name="Compact spacing")
@@ -1803,7 +2094,7 @@ def test_playground_joins_initial_widget_settlement(browser, serve):
     expect(submit).to_be_enabled()
     expect(compact).to_be_checked()
     expect(page.locator(".lf-status-detail")).not_to_have_text(
-        re.compile(r"^Connecting")
+        re.compile(r"^The page is ready for reading and new comments")
     )
 
 
@@ -2006,8 +2297,8 @@ def test_a_startup_failure_keeps_authored_page_readable(browser, serve):
     consume_browser_errors(page, "page failed to start")
 
 
-def test_visual_actions_arrive_only_after_authoritative_presentation(browser, serve):
-    """Visual response controls are a presented reading, never startup scaffolding."""
+def test_visual_comments_arrive_with_the_initialized_document(browser, serve):
+    """A visual can accept a new comment while its saved history is loading."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
     held = []
@@ -2017,9 +2308,10 @@ def test_visual_actions_arrive_only_after_authoritative_presentation(browser, se
     page.wait_for_function(
         "() => document.querySelectorAll('lf-chart.lf-rendered').length === 5"
     )
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
-    expect(page.locator(".lf-visual-actions")).to_have_count(0)
-    assert page.evaluate("() => window.__lfVisualActionInsertions") == []
+    expect(page.locator(".lf-visual-actions")).to_have_count(5)
+    assert all(page.evaluate("() => window.__lfVisualActionInsertions"))
 
     assert held, "the first state read completed before the startup boundary was read"
     held.pop(0).continue_()
@@ -2028,11 +2320,20 @@ def test_visual_actions_arrive_only_after_authoritative_presentation(browser, se
     assert all(page.evaluate("() => window.__lfVisualActionInsertions"))
 
 
-def test_failed_anchor_presentation_keeps_visual_actions_withheld(browser, serve):
-    """A malformed visual reading cannot leave durable controls on a partial page."""
+@pytest.mark.parametrize("after_upgrade", [False, True])
+def test_failed_anchor_presentation_keeps_visual_actions_withheld(
+    browser, serve, after_upgrade
+):
+    """A malformed visual reading cannot leave comment controls on a partial page."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     held = []
     page.add_init_script(VISUAL_ACTION_TIMING)
+    if not after_upgrade:
+        page.add_init_script(
+            """document.addEventListener('lf-page-interface', event => {
+          event.detail.present(new Promise(resolve => window.releaseInterface = resolve));
+        });"""
+        )
     page.route("**/api/state*", lambda route: held.append(route))
     page.goto(
         serve(
@@ -2045,17 +2346,36 @@ def test_failed_anchor_presentation_keeps_visual_actions_withheld(browser, serve
     page.wait_for_function(
         "() => document.querySelector('lf-test-visual')?.parts?.length === 3"
     )
+    if after_upgrade:
+        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+        expect(page.locator(".lf-visual-actions")).to_have_count(1)
     page.locator("lf-test-visual").evaluate(
-        "visual => { visual.parts[1] = {...visual.parts[0]}; }"
+        """visual => {
+          visual.validParts = visual.parts;
+          visual.parts = [visual.parts[0], {...visual.parts[0]}, visual.parts[2]];
+        }"""
     )
     assert held, "the first state read completed before the visual was malformed"
+    if not after_upgrade:
+        page.evaluate("() => window.releaseInterface()")
     held.pop(0).continue_()
 
     expect(page.locator(".lf-status-detail")).to_contain_text("reload", timeout=5000)
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     expect(page.locator(".lf-visual-actions")).to_have_count(0)
-    assert page.evaluate("() => window.__lfVisualActionInsertions") == []
+    if not after_upgrade:
+        assert page.evaluate("() => window.__lfVisualActionInsertions") == []
     consume_browser_errors(page, "registered part outer twice")
+
+    if after_upgrade:
+        page.locator("lf-test-visual").evaluate(
+            """visual => {
+              visual.parts = visual.validParts;
+              visual.visualRegistration.update();
+            }"""
+        )
+        expect(page.locator(".lf-visual-actions")).to_have_count(1)
+        expect(page.locator(".lf-visual-action")).to_have_count(4)
 
 
 def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
@@ -2251,10 +2571,7 @@ def test_user_overrides_identify_state_that_differs_from_authored_inputs(
     )
     wait_for_revision(page, 3)
     page.wait_for_function("() => document.querySelector('.lf-banner') !== null")
-    # A poll has run once the status text resolves, so the origin pass has too.
-    page.wait_for_function(
-        "() => !document.querySelector('.lf-status-detail').textContent.startsWith('Connecting')"
-    )
+    wait_until_ready(page)
     expect(page.locator("[data-lf-user-override]")).to_have_count(0)
 
     # The diff's state half is quiet about the honored move: base state is the
@@ -2431,8 +2748,9 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
 
     That interval is real state, not a missing-registry fallback: the state answer waits
     unapplied until upgrades have captured the authored page, general Threads accepts a
-    send but holds it until the layer identity arrives, and an anchored comment waits until
-    upgrades and the buffered replay have made the page's final words. The explicit gate
+    send and paints its pending thread while holding delivery until the layer identity
+    arrives. Anchored capture waits for widget upgrade to establish the visible document.
+    The explicit gate
     proves each assertion runs on the intended side of the fetch rather than racing a timer.
     """
     gate_registry = """
@@ -2506,11 +2824,14 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
     expect(page.locator(".lf-thread")).to_have_count(0)
     write(page.locator(".lf-general leaf-text"), "General comment during startup")
     page.locator(".lf-general").get_by_role("button", name="Send").click()
-    expect(page.locator(".lf-thread")).to_have_count(0)
+    expect(page.locator(".lf-thread")).to_have_count(1)
+    expect(page.locator(".lf-thread .lf-msg-body")).to_have_text(
+        "General comment during startup"
+    )
+    expect(page.locator(".lf-empty")).to_have_text("Loading current threads…")
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
 
-    # Text is readable and selectable, but an anchored composer waits until upgrades and
-    # replay have established the coordinate it would record.
+    # The visible document has not upgraded yet, so anchored capture is not ready.
     expect(page.locator(".lf-composer")).to_be_hidden()
 
     page.evaluate("window.lfReleaseRegistry()")

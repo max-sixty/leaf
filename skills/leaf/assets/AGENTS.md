@@ -410,21 +410,24 @@ Startup order is load-bearing:
 8. Run the dressing passes and wait for the coordinator publication.
 9. Join optional runtime-owned page-interface imports and installation. Their contained
    sample documents are deferred arrivals, separate from this document's semantic proof.
-10. Land a fresh URL's fragment, then stamp `data-lf-upgraded="1"`.
+10. Land a fresh URL's fragment and prepare anchor-dependent chrome. Stamp
+    `data-lf-upgraded="1"` and open comment capture against the shown document.
 11. Start the state feed; its first answer presents the page, or after a bounded
     wait the page presents offline and applies the answer when it lands.
 
 Authored HTML paints immediately, and the render-blocking theme reserves the
 banner and bottom bar so mounting the runtime moves nothing. Prose, links, and
-scrolling work while widgets upgrade. Page keys wait, because a command reads
-state the first answer brings: the bootstrap holds printed keys pressed before
-presentation and the keyboard controller replays them in order once the page
-presents, while any other key or a pointer press drops the held run. Durable
-controls wait for `data-lf-presented` (`../references/module-authoring.md`, "Startup and presentation"). An async
+scrolling work while widgets upgrade. New comments, anchors, drawing and their
+keys work at upgrade, while private thread history still says it is loading.
+The bootstrap holds printed keys before upgrade; the controller replays them
+in order as each command's declared input becomes ready. A history-dependent
+key keeps its ordered run until presentation, while any other key or a pointer
+press drops the held run. Durable widget actions wait for `data-lf-presented`
+(`../references/module-authoring.md`, "Startup and presentation"). An async
 producer joins settlement before `data-lf-upgraded`, or stays off the
 presentation path through `afterPresentation`, which declares the deferred
-arrival so `pageReadiness` still answers for it. `presentPage` owns the one
-transition to stateful interaction; its synchronous `PRESENTATION` signal lets
+arrival so `pageReadiness` still answers for it. `presentPage` owns initial
+authoritative presentation; its synchronous `PRESENTATION` signal lets
 box-derived apparatus replace provisional geometry before the presented state
 paints. A reader outside the page waits on `pageReadiness`, through
 `wait_until_ready` in Python, rather than combining these stamps.

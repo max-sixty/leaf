@@ -22,6 +22,7 @@ import {
 } from "../semantic-state.js";
 import { paintKeys } from "../keyboard/scopes.js";
 import { pageCommand } from "../keyboard/register.js";
+import { pagePresented } from "../presentation.js";
 import { undoSentence } from "../reactions.js";
 import { PENDING } from "../thread/identity.js";
 import { retainUserIntent } from "../user-intent.js";
@@ -132,6 +133,7 @@ export function createProjectionCommands({ post, stateApplying, unaccountedGestu
   // line that said it would be naming a member where the mechanism is what holds.
   pageCommand({
     id: "history.undo",
+    ready: pagePresented,
     keys: ["z"],
     description: () => undoSentence(undoable),
     title: "undo",

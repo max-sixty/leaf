@@ -345,6 +345,12 @@ test("narrowing transitions reset what they contradict and counts name each subs
   assert.equal(amounts["waiting:user"], 1);
   assert.equal(amounts["waiting:agent"], 1);
   assert.equal(model.presentation.userAvailable, true);
+  const incomplete = narrowingReading(DEFAULT_INTENT, threads, places, false);
+  assert.deepEqual(incomplete.shown, model.shown);
+  assert.equal(incomplete.presentation.summary, "");
+  assert.equal(incomplete.presentation.userAvailable, false);
+  for (const group of incomplete.presentation.groups)
+    for (const choice of group.choices) assert.equal(choice.amount, null);
 });
 
 test("a fold without prose is searchable by its visible label", () => {

@@ -23,7 +23,10 @@
    out from in front of the user: a card another actor resolves under Open stays where
    it stands, its card holding the resolution behind its notice (held-news.js) and,
    once shown, drawn resolved in the shape it stood in, until its going would move
-   nothing the user sees. */
+   nothing the user sees. One HeldNews owns the complete panel reading, both changes
+   inside cards and new cards that would move them. Held arrivals keep their native
+   nodes connected but hidden so widget proof and direct destinations remain available;
+   the existing card notice or a direct arrival reveals them before focus lands. */
 import { html, repeat } from "../../vendor/browser-runtime.js";
 import { focused } from "../keyboard/scopes.js";
 import { holdFocus, onStanding, focusDestination } from "../focus.js";
@@ -36,7 +39,7 @@ import { layoutChanged } from "../widget-elements.js";
 import { isFolding } from "./folding.js";
 import { threadKey } from "./model.js";
 import { seenRect, whenOffScreen } from "../geometry.js";
-import { gesturedOn } from "./held-news.js";
+import { gesturedOn, HeldNews } from "./held-news.js";
 import { readingIsContinuous } from "../reading-continuity.js";
 
 const TAG = "leaf-thread-list";
@@ -58,13 +61,24 @@ class ThreadListView extends RetainedFace {
   #selection = [];
   #intent = null;
   #leaving = new Map();
+  #news = new HeldNews(
+    this,
+    (key) => this.#views.get(`thread:${key}`),
+    () => {
+      this.requestUpdate("model");
+      this.performUpdate();
+      this.#commands?.repaintThread();
+    },
+  );
 
   #visibleRows() {
     const eligible = new Set(
       this.model.rows
         .filter(
           (row) =>
-            row.kind === "thread" && row.descriptor.visible && !row.descriptor.folding,
+            row.kind === "thread" &&
+            this.#views.get(row.key)?.model.visible &&
+            !this.#views.get(row.key)?.model.folding,
         )
         .map((row) => row.key),
     );
@@ -175,8 +189,12 @@ class ThreadListView extends RetainedFace {
     );
     // Narrowing owns hidden rows. Its completed reveal calls back here; opening
     // one before that would paint no disclosure and invalidate the same transition.
-    if (!row || row.node.hidden) return;
+    if (!row) return;
     this.#select(row.key);
+    // A direct destination may be connected for widget proof while its card waits
+    // behind news. Choose it before revealing, so that paint opens it once.
+    this.#news.showThreads(id);
+    if (row.node.hidden) return;
     this.#showExpanded();
   }
 
@@ -233,14 +251,12 @@ class ThreadListView extends RetainedFace {
     const wanted = new Set(
       model.rows.filter((row) => row.kind === "thread").map((row) => row.key),
     );
-    // Unknown counts describe unavailable placeholders, not removed identities.
-    // Candidate fallback is only paint; the complete committed reading retires
-    // departed choices and adopts the choice its narrowing left visible.
-    if (model.count !== null) {
-      this.#selection = this.#selection.filter((key) => wanted.has(key));
-      const chosen = this.#expandedRow();
-      if (chosen) this.#select(chosen.key);
-    }
+    // This committed list is the complete view of known threads, even while its
+    // saved inventory count is unknown. Retire a refused local choice through the
+    // same identity path and adopt the choice narrowing left visible.
+    this.#selection = this.#selection.filter((key) => wanted.has(key));
+    const chosen = this.#expandedRow();
+    if (chosen) this.#select(chosen.key);
     for (const [key, view] of this.#views) {
       if (wanted.has(key)) view.commit();
       else {
@@ -275,6 +291,19 @@ class ThreadListView extends RetainedFace {
     // A change of view moves the cards, so they show what they hold.
     const viewChanged = this.#intent !== this.model.intent;
     this.#intent = this.model.intent;
+    if (viewChanged || this.#retaining) this.#news.release();
+    const drawn = new Map(
+      this.#news
+        .hold(
+          {
+            threads: this.model.rows
+              .filter((row) => row.kind === "thread")
+              .map((row) => row.descriptor),
+          },
+          { row: false },
+        )
+        .threads.map((descriptor) => [descriptor.key, Object.freeze(descriptor)]),
+    );
     const rows = [];
     const wanted = new Set();
     for (const row of this.model.rows) {
@@ -309,8 +338,11 @@ class ThreadListView extends RetainedFace {
           if (!view.node.open && view.model.kept) this.#commands.repaintThread();
         });
       }
-      if (viewChanged) view.releaseNews();
-      view.present(row.descriptor, { retaining: this.#retaining, viewChanged });
+      const descriptor = drawn.get(row.descriptor.key);
+      view.present(descriptor ?? Object.freeze({ ...row.descriptor, visible: false }), {
+        retaining: this.#retaining,
+        viewChanged,
+      });
       rows.push({ kind: "thread", key: row.key, node: view.node });
     }
     for (const [key, view] of this.#views) if (!wanted.has(key)) view.retire();

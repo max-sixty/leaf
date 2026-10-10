@@ -24,18 +24,6 @@ import { focusDestination } from "./focus.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
 const TAG = "leaf-banner-status";
-const website = document.querySelector("script[data-lf-server][data-lf-release]");
-const connecting = website ? "Connecting to the Leaf website…" : "Connecting…";
-const INITIAL = Object.freeze({
-  tone: "",
-  summary: connecting,
-  queues: "",
-  queuesWidest: "",
-  explanation: website
-    ? "Loading this website page. Website examples can take longer to connect than a usual Leaf page."
-    : connecting,
-  publication: null,
-});
 
 class BannerStatusView extends HTMLElement {
   #button = el("button", "lf-status-button");
@@ -79,9 +67,9 @@ class BannerStatusView extends HTMLElement {
     });
   }
 
-  configure({ onToggle }) {
+  configure({ onToggle, initial }) {
     this.#onToggle = onToggle;
-    this.present(INITIAL);
+    this.present(initial);
   }
 
   get dot() {
@@ -162,9 +150,9 @@ class BannerStatusView extends HTMLElement {
 
 if (!customElements.get(TAG)) customElements.define(TAG, BannerStatusView);
 
-export function createBannerStatusView(onToggle) {
+export function createBannerStatusView(onToggle, initial) {
   const view = document.createElement(TAG);
   view.className = "lf-banner-status";
-  view.configure({ onToggle });
+  view.configure({ onToggle, initial });
   return view;
 }

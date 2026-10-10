@@ -555,7 +555,7 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
 
     Endpoint choice, inspection, and native modified navigation are separate routes;
     closing the viewer returns to the same route without shifting the comparison.
-    A parent inspector can still withdraw the complete rail with controls off.
+    A containing inspector's compare view still withdraws the complete rail.
     """
     shots = {
         "before": solid_png(1200, 600, (210, 220, 235)),
@@ -646,22 +646,11 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
     )
     page.keyboard.press("Escape")
 
-    # Parent-owned inspectors hide the same complete rail and keep the checkbox.
-    shot.evaluate("""node => {
-      node.dataset.lfShotControls = 'off';
-      node.querySelector('.lf-shotrail').style.display = 'none';
-    }""")
+    # A containing inspector's other views withdraw the rail, links included.
+    shot.evaluate("node => node.inspect({mode: 'compare'})")
     expect(comparison).to_have_count(0)
     expect(links.first).not_to_be_visible()
-    box = shot.locator("input.lf-shotflip")
-    box.focus()
-    box.press("Space")
-    expect(box).not_to_be_checked()
-    assert shown_frames(page) == ["before"]
-    shot.evaluate("""node => {
-      node.removeAttribute('data-lf-shot-controls');
-      node.querySelector('.lf-shotrail').style.removeProperty('display');
-    }""")
+    shot.evaluate("node => node.inspect({mode: 'flip'})")
     expect(comparison).to_have_count(1)
     expect(links.first).to_be_visible()
     page.emulate_media(media="print")

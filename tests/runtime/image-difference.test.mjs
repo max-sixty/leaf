@@ -170,6 +170,28 @@ test("rounded frames do not join neighbouring text into a changed container", as
   assert.equal(describeDifference(reading), "1 area moved");
 });
 
+test("a card that only shrank is outlined between its two edges, not whole", async () => {
+  // A panel loses its empty room below unchanged contents. Its contents are the same
+  // blocks in both frames, so the card gives way to them like any other container.
+  const card = (height) =>
+    painted(
+      blank(300, 200),
+      [20, 20, 200, height],
+      [22, 22, 196, height - 4, undefined, 255],
+      [40, 40, 30, 10],
+      [80, 40, 24, 10],
+      [40, 60, 50, 10],
+    );
+  const reading = await differingRegions(card(150), card(100));
+  assert.deepEqual(outlines(reading, "before"), [
+    { x: 20, y: 116, width: 200, height: 55, kind: "changed" },
+  ]);
+  assert.deepEqual(outlines(reading, "after"), [
+    { x: 20, y: 116, width: 200, height: 5, kind: "changed" },
+  ]);
+  assert.equal(describeDifference(reading), "1 changed area");
+});
+
 test("crowded changes consolidate nearby fragments while a distant edit stays separate", async () => {
   // Adjacent fragments of the same hunk once kept separate outlines around line
   // numbers and individual words. The same two fragments merit separate attention

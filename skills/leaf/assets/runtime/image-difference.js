@@ -50,21 +50,22 @@
  * are outlined as a change in each image that reaches them, joined with the outlines
  * they touch there.
  *
- * A block that holds another outline is a container, such as a panel, a card or a lane.
+ * A block that holds another block is a container, such as a panel, a card or a lane.
  * One that changed and holds only what changed too, as a card whose text rewrapped, is
- * outlined whole. Any other gives way to what it holds: its contents are outlined, and
- * its own changed squares that no outline covers widen the outline within ABSORB of
- * them, as a card's edge does below the text that grew it, or stand alone. A frame
- * alone that moved, and a move inside a change, are not outlined. Moves that share
- * a displacement join within MOVED_REACH. Changed fragments join through DBSCAN
- * using the gap between their original rectangles, never newly enclosed whitespace.
- * Fragments within eight pixels also join, preserving the touching-outline rule
- * for thin marks. The minimum
- * population is one, so even an isolated edit survives. The radius grows with the
- * square root of fragment count, capped at two median fragment thicknesses: crowded
- * comparisons consolidate more, while distant edits stay separate. Thickness and gap exclude
- * the one-pixel edge on each side, so capture density scales their ratio. These
- * presentation groups form after matching and do not reclassify pixels or moves.
+ * outlined whole. Any other gives way to what it holds: its contents are outlined where
+ * they changed or moved, and its own changed squares that no outline covers widen the
+ * outline within ABSORB of them, as a card's edge does below the text that grew it, or
+ * stand alone. So a card that only grew or shrank, its contents untouched, is outlined
+ * between its two edges rather than whole. A frame alone that moved, and a move inside
+ * a change, are not outlined. Moves that share a displacement join within MOVED_REACH.
+ * Changed fragments join through DBSCAN using the gap between their original
+ * rectangles, never newly enclosed whitespace. Fragments within eight pixels also join,
+ * preserving the touching-outline rule for thin marks. The minimum population is one,
+ * so even an isolated edit survives. The radius grows with the square root of fragment
+ * count, capped at two median fragment thicknesses: crowded comparisons consolidate
+ * more, while distant edits stay separate. Thickness and gap exclude the one-pixel edge
+ * on each side, so capture density scales their ratio. These presentation groups form
+ * after matching and do not reclassify pixels or moves.
  *
  * A strong change over most of the image, such as a photo turned black and white, has
  * no place to point to: where squares COARSE pixels on a side holding a pixel that moved
@@ -234,7 +235,10 @@ function outlines(blocks, states, struck, side, bare, DBSCAN) {
   );
   const inWhole = (mark) => whole.some((outer) => contains(outer, mark));
   const holds = (mark) =>
-    !whole.includes(mark) && marks.some((inner) => contains(mark, inner));
+    !whole.includes(mark) &&
+    (mark.kind === "changed" ? blocks : marks).some(
+      (inner) => inner !== mark.block && contains(mark, inner),
+    );
   const shown = marks.filter((mark) => !holds(mark) && !inWhole(mark));
   for (const mark of marks) {
     if (!holds(mark) || inWhole(mark) || mark.kind !== "changed") continue;

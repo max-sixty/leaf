@@ -1,4 +1,5 @@
 lf-pr-brief { display: block; margin-block: var(--sp-4); }
+section.panel > lf-pr-brief:last-child { margin-block-end: 0; }
 .pr-brief { display: grid; gap: var(--sp-3); }
 .pr-brief :is(h3, h4, p) { margin: 0; }
 .pr-brief dl { margin: 0; }

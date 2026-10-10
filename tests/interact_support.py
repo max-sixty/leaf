@@ -679,6 +679,33 @@ def page_state(d):
     return served_page.full_state(d, events)
 
 
+@pytest.fixture
+def native_codex_chat(tmp_path):
+    """Publish a native chat's validated source through its ordinary prompt hook."""
+    from leaf.hooks import cmd_hook
+
+    def create(session_id):
+        source = tmp_path / "sessions" / f"{session_id}.jsonl"
+        source.parent.mkdir(exist_ok=True)
+        source.write_text(
+            json.dumps({"type": "session_meta", "payload": {"id": session_id}}) + "\n"
+        )
+        cmd_hook(
+            "codex",
+            {
+                "hook_event_name": "UserPromptSubmit",
+                "session_id": session_id,
+                "transcript_path": str(source),
+            },
+        )
+        assert cleanup_model.session_record(session_id)["transcript_path"] == str(
+            source
+        )
+        return source
+
+    return create
+
+
 def record_claim(page, /, harness="claude-code", **fields):
     """Write the canonical claim shape for lifecycle fixtures.
 
@@ -701,7 +728,7 @@ def record_claim(page, /, harness="claude-code", **fields):
         "turn_closed": observed["turn_closed"] if observed else None,
         **fields,
     }
-    lifetime = {key: record[key] for key in ("job", "activity") if key in record}
+    lifetime = {key: record[key] for key in ("job", "chat") if key in record}
     if not lifetime:
         lifetime = {"pid": record["pid"]}
     turn = {key: record[key] for key in ("turn", "turn_opened", "turn_closed")}
@@ -710,7 +737,7 @@ def record_claim(page, /, harness="claude-code", **fields):
     record = {
         key: value
         for key, value in record.items()
-        if key not in {"job", "activity", "pid", "turn", "turn_opened", "turn_closed"}
+        if key not in {"job", "chat", "pid", "turn", "turn_opened", "turn_closed"}
     }
     record["generation"] = session["generation"]
     record["acquisition"] = fields.get("acquisition", secrets.token_hex(16))

@@ -168,6 +168,9 @@ customElements.define(
         if (latest) {
           if (!comparison)
             comparison = createEditor(comparisonMount, {
+              text: editor.value,
+              filename: label,
+              original: latest.text,
               readOnly: true,
               label: "Compare versions",
               description:
@@ -227,10 +230,10 @@ customElements.define(
             clearTimeout(slowTimer);
             slowTimer = null;
           }
-          const returning =
-            connected && returnFrom && focused() === returnFrom && !failure && !latest;
+          const returning = connected && returnFrom && focused() === returnFrom;
           paint();
-          if (returning) focusDestination(editor.contentDOM, "return");
+          if (returning && returnFrom.hidden)
+            focusDestination(editor.contentDOM, "return");
           schedule(0);
         }
       }
@@ -256,10 +259,10 @@ customElements.define(
           busy = false;
           if (connected) remember();
           if (failure || latest || !dirty()) finishSaving();
-          const returning =
-            connected && returnFrom && focused() === returnFrom && !failure && !latest;
+          const returning = connected && returnFrom && focused() === returnFrom;
           paint();
-          if (returning) focusDestination(editor.contentDOM, "return");
+          if (returning && returnFrom.hidden)
+            focusDestination(editor.contentDOM, "return");
           schedule(0);
         }
       }

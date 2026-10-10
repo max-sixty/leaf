@@ -3,7 +3,7 @@
 Only the trusted CLI chooses a path; browser requests name a binding. The file
 remains the authority, outside page revisions and the semantic event log. A
 revision names its canonical path and exact bytes. Saves preserve LF/CRLF and
-permissions, and serialize across Leaf processes and pages through a target lock.
+permission bits, and serialize across Leaf processes and pages through a target lock.
 The comparison plus atomic replacement is not an OS compare-and-swap: an unrelated
 writer which ignores this lock can still race the final comparison and replacement.
 Symlinks introduced after binding are refused rather than followed to another file.
@@ -18,11 +18,10 @@ from stat import S_ISREG
 
 from .files import read_json
 from .leases import page_locked
-from .schema import HTML_NAME
+from .schema import FILE_BINDINGS_FILE, HTML_NAME
 from .state import flocked, replace_bytes, state_home_path, write_json
 
 MAX_FILE_BYTES = 256 * 1024
-BINDINGS_FILE = "files.json"
 BINDING_ID = re.compile(HTML_NAME)
 
 
@@ -48,7 +47,7 @@ def _access(page_dir: Path):
 
 
 def _bindings(page_dir: Path) -> dict:
-    record = read_json(page_dir / BINDINGS_FILE)
+    record = read_json(page_dir / FILE_BINDINGS_FILE)
     if record is None:
         return {}
     if not isinstance(record, dict) or not isinstance(record.get("bindings"), dict):
@@ -109,13 +108,13 @@ def bind_file(page_dir: Path, binding: str, file: Path) -> dict:
             "Binding id must start with a lowercase letter and use lowercase letters, digits or -."
         )
     path = file.expanduser().resolve(strict=True)
-    if path == (page_dir / BINDINGS_FILE).resolve():
+    if path == (page_dir / FILE_BINDINGS_FILE).resolve():
         raise FileBindingError("A page cannot edit its own file access grants.")
     with page_locked(page_dir):
         snapshot = _read(path)
         bindings = _bindings(page_dir)
         bindings[binding] = str(path)
-        write_json(page_dir / BINDINGS_FILE, {"bindings": bindings})
+        write_json(page_dir / FILE_BINDINGS_FILE, {"bindings": bindings})
     return snapshot
 
 

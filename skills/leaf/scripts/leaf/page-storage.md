@@ -102,7 +102,7 @@ other page files and the external state listed below.
   requests name only a binding, never a path. These files remain their own authority:
   editing is mechanical browser state, outside document revisions and event history.
   The API reads current UTF-8 text up to 256 KiB and saves against a revision of its
-  path and exact bytes, preserving LF or CRLF and file permissions. Mixed line endings,
+  path and exact bytes, preserving LF or CRLF and file permission bits. Mixed line endings,
   binary controls, and later symlink substitutions are refused. Captured previews
   cannot read or save live files; immutable views offer no editor access. Target locks
   under `<state-home>/files/` serialize file-editor saves, including different pages

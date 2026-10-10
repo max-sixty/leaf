@@ -1,6 +1,7 @@
 /** CodeMirror owns editing, selection, history and conflict presentation.
  * The surrounding widget alone owns file revisions and disk writes.
  */
+import { sizeObserver } from "/runtime/widget-api.js";
 import {
   ChangeSet,
   Compartment,
@@ -103,6 +104,7 @@ const highlighting = HighlightStyle.define([
   { tag: tags.comment, color: "var(--muted)" },
   { tag: [tags.meta, tags.processingInstruction], color: "var(--muted)" },
 ]);
+const isMarkdown = (filename) => /\.(md|markdown)$/i.test(filename);
 
 /** Create a file editor. External text changes use CodeMirror transactions,
  * mapping selection and local undo history through the dependency's diff.
@@ -111,6 +113,8 @@ export function createEditor(
   parent,
   {
     text = "",
+    filename = "",
+    original = null,
     readOnly = false,
     label = "File contents",
     description = "Changes save automatically. If the file changes elsewhere, review both versions before saving.",
@@ -122,8 +126,8 @@ export function createEditor(
     language = new Compartment(),
     merge = new Compartment();
   let readonly = readOnly,
-    markdown = false,
-    conflict = null,
+    markdown = isMarkdown(filename),
+    conflict = original,
     replacing = false;
   const readonlyExtension = () => [
     EditorState.readOnly.of(readonly),
@@ -140,6 +144,7 @@ export function createEditor(
           original: conflict,
           mergeControls: false,
           allowInlineDiffs: true,
+          gutter: false,
         });
   const state = (value) =>
     EditorState.create({
@@ -148,12 +153,14 @@ export function createEditor(
         history(),
         drawSelection(),
         keymap.of([...defaultKeymap, ...historyKeymap]),
-        language.of([]),
+        language.of(markdown ? new LanguageSupport(markdownLanguage) : []),
         syntaxHighlighting(highlighting),
         theme,
-        lineNumbers(),
-        highlightActiveLineGutter(),
-        highlightActiveLine(),
+        // Only the primary editor needs line coordinates and an active line.
+        // The read-only comparison presents both versions through text decorations.
+        original === null
+          ? [lineNumbers(), highlightActiveLineGutter(), highlightActiveLine()]
+          : [],
         dropCursor(),
         rectangularSelection(),
         crosshairCursor(),
@@ -201,10 +208,23 @@ export function createEditor(
     if (view) view.dispatch(spec);
     else retained = retained.update(spec).state;
   };
+  const resize =
+    original === null
+      ? sizeObserver(() => {
+          if (view?.hasFocus)
+            dispatch({
+              effects: EditorView.scrollIntoView(reading().selection.main.head, {
+                y: "nearest",
+              }),
+            });
+        })
+      : null;
+  resize?.observe(view.scrollDOM);
   const disconnect = () => {
     if (!view) return;
     retained = view.state;
     scroll = { top: view.scrollDOM.scrollTop, left: view.scrollDOM.scrollLeft };
+    resize?.disconnect();
     view.destroy();
     view = null;
   };
@@ -241,7 +261,7 @@ export function createEditor(
       return view.contentDOM;
     },
     setLabel(label) {
-      const next = /\.(md|markdown)$/i.test(label);
+      const next = isMarkdown(label);
       if (next === markdown) return;
       markdown = next;
       dispatch({
@@ -268,6 +288,7 @@ export function createEditor(
       view = new EditorView({ state: retained, parent });
       view.scrollDOM.scrollTop = scroll.top;
       view.scrollDOM.scrollLeft = scroll.left;
+      resize?.observe(view.scrollDOM);
     },
     disconnect,
   };

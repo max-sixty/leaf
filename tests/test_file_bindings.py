@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import stat
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
 
@@ -47,7 +48,7 @@ def test_explicit_cli_binding_and_lossless_save(page_dir, tmp_path):
         {"revision": original["revision"], "text": "# café\nchanged\n"},
     )
     assert target.read_bytes() == "# café\r\nchanged\r\n".encode()
-    assert target.stat().st_mode & 0o777 == 0o640
+    assert stat.S_IMODE(target.stat().st_mode) == 0o640
     assert saved == read_file(page_dir, "notes")
     assert saved["bytes"] == len(target.read_bytes())
     assert saved["revision"] != original["revision"]
@@ -56,6 +57,21 @@ def test_explicit_cli_binding_and_lossless_save(page_dir, tmp_path):
         save_file(page_dir, "notes", {"revision": saved["revision"], "text": "mine\n"})
     assert stale.value.current["text"] == "external\n"
     assert target.read_text() == "external\n"
+
+
+def test_file_saves_preserve_special_permission_bits(page_dir, tmp_path):
+    target = tmp_path / "executable"
+    target.write_text("original\n")
+    snapshot = bind_file(page_dir, "executable", target)
+    for mode in (0o2755, 0o6755, 0o1755):
+        target.chmod(mode)
+        assert stat.S_IMODE(target.stat().st_mode) == mode
+        text = f"saved {mode:o}\n"
+        snapshot = save_file(
+            page_dir, "executable", {"revision": snapshot["revision"], "text": text}
+        )
+        assert target.read_text() == text
+        assert stat.S_IMODE(target.stat().st_mode) == mode
 
 
 def test_only_bound_supported_files_can_be_read_or_saved(page_dir, tmp_path):

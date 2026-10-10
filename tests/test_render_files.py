@@ -41,6 +41,18 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
             )
         )
 
+    def caret_visible():
+        page.wait_for_function(
+            """() => {
+              const root = document.querySelector('lf-file').shadowRoot;
+              const caret = root.querySelector('.lf-file-edit .cm-cursor');
+              if (!caret) return false;
+              const cursor = caret.getBoundingClientRect();
+              const port = root.querySelector('.lf-file-edit .cm-scroller').getBoundingClientRect();
+              return cursor.top >= port.top && cursor.bottom <= port.bottom;
+            }"""
+        )
+
     # Observe the actual visible status through an ordinary fast save.
     status.evaluate(
         "node => { window.fileStatusWords = []; new MutationObserver(() => window.fileStatusWords.push(node.textContent)).observe(node, {childList:true, subtree:true, characterData:true}); }"
@@ -94,25 +106,6 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     page.unroute("**/api/files/notes", hold_writes)
     page.clock.resume()
 
-    # A failed write keeps the buffer editable, and Retry saves the newest text.
-    def fail_write(route):
-        route.abort() if route.request.method == "POST" else route.continue_()
-
-    page.route("**/api/files/notes", fail_write)
-    replace("# Draft\n")
-    page.clock.run_for(600)
-    retry = widget.get_by_role("button", name="Retry", exact=True)
-    expect(retry).to_be_visible()
-    expect(editor).to_have_attribute("aria-readonly", "false")
-    page.keyboard.insert_text("Retained.\n")
-    page.unroute("**/api/files/notes", fail_write)
-    with receipt("# Draft\nRetained.\n"):
-        retry.click()
-    expect(status).to_have_text("")
-    expect(editor).to_be_focused()
-    assert file.read_text() == "# Draft\nRetained.\n"
-    consume_browser_errors(page, "Failed to load resource: net::ERR_FAILED")
-
     # An external clean update follows without replacing the editing owner.
     file.write_text("# External\n")
     page.clock.run_for(2100)
@@ -121,18 +114,61 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     # should update the clean editor; it is not an unsaved composition being lost.
     page.evaluate("lfWordsJudged()")
     consume_browser_errors(
-        page, 'typed words left the screen without a key or press: "# DraftRetained."'
+        page,
+        'typed words left the screen without a key or press: "# PendingMore typing."',
     )
 
-    # Two versions remain available after a stale save. Explicit replacement
-    # checks the displayed disk revision again instead of force-writing.
+    # A failed write keeps the buffer editable, and Retry saves the newest text.
+    def fail_write(route):
+        route.abort() if route.request.method == "POST" else route.continue_()
+
+    page.route("**/api/files/notes", fail_write)
+    failed_draft = "\n" * 40 + "# Draft\n"
+    replace(failed_draft)
+    page.clock.run_for(600)
+    retry = widget.get_by_role("button", name="Retry", exact=True)
+    expect(retry).to_be_visible()
+    expect(editor).to_have_attribute("aria-readonly", "false")
+    caret_visible()
+    page.keyboard.insert_text("Retained.\n")
+    failed_draft += "Retained.\n"
+    page.unroute("**/api/files/notes", fail_write)
     held.clear()
     page.evaluate("window.heldFileWrites = 0")
     page.route("**/api/files/notes", hold_writes)
     with page.expect_request(lambda request: request.method == "POST"):
-        replace("# My version\n")
+        retry.click()
+    page.wait_for_function("window.heldFileWrites === 1")
+    # A retry can become a conflict while the reader resumes typing. The existing
+    # error pane grows into a comparison without clipping the active caret.
+    editor.focus()
+    file.write_text("# Changed during retry\n")
+    held[0].continue_()
+    page.clock.run_for(100)
+    expect(
+        widget.get_by_role("button", name="Use file version", exact=True)
+    ).to_be_visible()
+    expect(editor).to_be_focused()
+    caret_visible()
+    page.unroute("**/api/files/notes", hold_writes)
+    with receipt(failed_draft):
+        widget.get_by_role("button", name="Save my version", exact=True).click()
+    expect(status).to_have_text("")
+    expect(editor).to_be_focused()
+    assert file.read_text() == failed_draft
+    consume_browser_errors(page, "Failed to load resource: net::ERR_FAILED", "409 ")
+
+    # Two versions remain available after a stale save. Explicit replacement
+    # checks the displayed disk revision again instead of force-writing.
+    held.clear()
+    draft = "# My version\n" + "".join(f"Draft line {i}.\n" for i in range(40))
+    page.evaluate("window.heldFileWrites = 0")
+    page.route("**/api/files/notes", hold_writes)
+    with page.expect_request(lambda request: request.method == "POST"):
+        replace(draft)
         page.clock.run_for(600)
     page.wait_for_function("window.heldFileWrites === 1")
+    caret_visible()
     file.write_text("# Other version\n")
     held[0].continue_()
     page.clock.run_for(100)
@@ -143,16 +179,45 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     expect(comparison).to_have_attribute("aria-readonly", "true")
     expect(widget.locator(".cm-deletedText")).to_contain_text("Other")
     expect(comparison).to_contain_text("version")
-    expect(editor).to_have_text("# My version")
+    expect(editor).to_be_focused()
+    caret_visible()
+    page.keyboard.insert_text("Still typing.\n")
+    draft += "Still typing.\n"
+    expect(editor).to_contain_text("Still typing.")
     assert file.read_text() == "# Other version\n"
     page.unroute("**/api/files/notes", hold_writes)
-    with receipt("# My version\n"):
+
+    # A failed explicit replacement leaves recovery available. When its focused
+    # Retry becomes another conflict, disappearing that button returns typing to
+    # the retained editor rather than the document body.
+    page.route("**/api/files/notes", fail_write)
+    widget.get_by_role("button", name="Save my version", exact=True).click()
+    expect(retry).to_be_visible()
+    page.unroute("**/api/files/notes", fail_write)
+    held.clear()
+    page.evaluate("window.heldFileWrites = 0")
+    page.route("**/api/files/notes", hold_writes)
+    with page.expect_request(lambda request: request.method == "POST"):
+        retry.click()
+    page.wait_for_function("window.heldFileWrites === 1")
+    expect(retry).to_be_focused()
+    file.write_text("# Changed again\n")
+    held[0].continue_()
+    page.clock.run_for(100)
+    expect(retry).to_be_hidden()
+    expect(editor).to_be_focused()
+    caret_visible()
+    page.keyboard.insert_text("Recovered.\n")
+    draft += "Recovered.\n"
+    page.unroute("**/api/files/notes", hold_writes)
+    with receipt(draft):
         widget.get_by_role("button", name="Save my version", exact=True).click()
     expect(widget.get_by_role("button")).to_have_count(0)
     expect(status).to_have_text("")
     expect(editor).to_be_focused()
-    assert file.read_text() == "# My version\n"
+    assert file.read_text() == draft
     consume_browser_errors(
         page,
         "409 ",
+        "Failed to load resource: net::ERR_FAILED",
     )

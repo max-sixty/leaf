@@ -41,6 +41,7 @@ from leaf.render_gate import version as render_gate_model
 from leaf.revision_artifact import read_artifact
 from leaf.structure import SourceDocument
 from leaf_dev import site as site_build
+from leaf_dev import verify_site as site_verifier
 from leaf_dev.example_data import catalog_sources, data_operations, example_versions
 from leaf_dev.leaf_assets import pinned_assets, raw_prefix, specification
 from leaf_dev.page_fixtures import source_packages
@@ -873,6 +874,31 @@ def test_a_probe_in_flight_leaves_a_page_that_started_alone(served_example, brow
         page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
     ).to_have_count(0)
     take_browser_errors(page)
+
+
+def test_cross_tab_verifier_completes_activation_before_closing(
+    served_example, browser, monkeypatch
+):
+    """The next fixture cannot inherit an allocation left running by this one."""
+    _, url = served_example("triage-board")
+    allocations = []
+    delivery_headers = ReleasedAssetEndpoint._delivery_headers
+
+    def session_headers(endpoint):
+        # The real adapter supplies the view and browser runtime. Model only the
+        # edge's passive/active metadata and allocation at the first private read.
+        path = urlsplit(endpoint.path).path
+        if path.endswith(("/api/view", "/api/news")) and not allocations:
+            allocations.append(path)
+        return {
+            **delivery_headers(endpoint),
+            "Leaf-Session": "active" if allocations else "passive",
+        }
+
+    monkeypatch.setattr(ReleasedAssetEndpoint, "_delivery_headers", session_headers)
+    origin = f"{urlsplit(url).scheme}://{urlsplit(url).netloc}"
+    site_verifier.verify_cross_tab_activation(browser, origin=origin)
+    assert allocations == ["/api/view"]
 
 
 def test_session_activation_reaches_other_tabs(served_example, browser):

@@ -417,6 +417,7 @@ def verify_cross_tab_activation(browser, *, origin: str) -> None:
     """One interacting tab must wake another tab sharing its browser session."""
     context = browser.new_context()
     url = f"{origin}/examples/triage-board/"
+    state_url = urljoin(url, "api/state")
     leader = context.new_page()
     follower = context.new_page()
     for page in (leader, follower):
@@ -424,8 +425,21 @@ def verify_cross_tab_activation(browser, *, origin: str) -> None:
         response = page.goto(url, wait_until="load", timeout=120_000)
         check(response is not None and response.ok, f"{url} did not load")
         await_presentation(page, url, failures)
+    passive = answered(context.request.get(state_url, timeout=120_000), state_url)
+    check(
+        passive.headers.get("leaf-session") == "passive",
+        f"{state_url} activated before the cross-tab interaction",
+    )
     follower.evaluate("window.__leafVerifier.observeCrossTabActivation")
-    leader.evaluate("window.__leafVerifier.activateSession")
+    # Admit the response that really allocated this session, not a synthetic active
+    # header whose background news request could allocate after this fixture closes.
+    activated = leader.evaluate(
+        "window.__leafVerifier.activateSession", activation_url(url, passive.json())
+    )
+    check(
+        isinstance(activated.get("browser"), dict),
+        "activation returned no browser view",
+    )
     follower.wait_for_function("window.__leafVerifier.crossTabActivated", timeout=5_000)
     context.close()
 

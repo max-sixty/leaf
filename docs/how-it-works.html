@@ -8,6 +8,25 @@
     />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <style>
+      #turn-end-check .node.goes rect {
+        fill: var(--warn-tint);
+        stroke: var(--warn);
+      }
+      #turn-end-check .node.goes :is(text, tspan) {
+        fill: var(--warn-ink);
+      }
+      #turn-end-check .node.ends rect,
+      #updates-diagram .node.leaf rect,
+      #data-flow .node.computed rect {
+        fill: var(--ok-tint);
+        stroke: var(--ok);
+      }
+      #turn-end-check .node.ends :is(text, tspan),
+      #updates-diagram .node.leaf :is(text, tspan),
+      #data-flow .node.computed :is(text, tspan) {
+        fill: var(--ok-ink);
+      }
+
       /* The Layout tab's drawings are the theme's svg.drawing idiom. A figure of several
          panels sets them side by side and stacks them on a narrow window, so no panel's
          words shrink past reading. */
@@ -135,11 +154,7 @@
               picks, and drags go back to the agent session that owns the page.
             </p>
 
-            <lf-diagram
-              id="arch"
-              data-height="286"
-              parts="node:Agent node:Leaf node:Browser"
-            >
+            <lf-diagram id="arch" data-height="355" parts="all">
               <pre>
 sequenceDiagram
   accTitle: Agent, Leaf server and browser exchange
@@ -1180,11 +1195,7 @@ python -m leaf server _serve &lt;page&gt; --handshake &lt;fd&gt;</code></pre>
               the turn. A move that needs no answer waits for the next turn, or goes in
               with whatever else keeps this turn going.
             </p>
-            <lf-diagram
-              id="turn-end-check"
-              data-height="1000"
-              parts="node:Stop node:New node:Hand node:Again node:Owed node:Claimed node:Watched node:Remind node:Ends"
-            >
+            <lf-diagram id="turn-end-check" data-height="989" parts="all">
               <pre>
 flowchart TD
   accTitle: Checks before an agent turn ends
@@ -1202,8 +1213,6 @@ flowchart TD
   Watched -- yes --&gt; Ends
   Hand -.-&gt; Stop
   Remind -. the agent acts, then ends again .-&gt; Stop
-  classDef goes fill:var(--warn-tint),stroke:var(--warn),color:var(--warn-ink)
-  classDef ends fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)
   class Hand,Remind goes
   class Ends ends
 </pre>
@@ -1291,10 +1300,7 @@ flowchart TD
               diagram shows where each update appears; starting work puts its line in
               the banner and beside the move or task being handled.
             </p>
-            <lf-diagram
-              id="updates-diagram"
-              parts="node:Sources node:Reply node:Awaits node:Stamp node:Report node:Status node:Pickup node:Turn node:Reads node:Banner node:Beside node:Thread node:Queue node:Versions node:Widget"
-            >
+            <lf-diagram id="updates-diagram" parts="all">
               <pre>
 flowchart LR
   accTitle: Agent commands and visible outcomes
@@ -1325,7 +1331,6 @@ flowchart LR
   Turn --&gt; Banner
   Turn --&gt; Beside
   Pickup --&gt; Beside
-  classDef leaf fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)
   class Pickup,Turn leaf
 </pre>
             </lf-diagram>
@@ -1491,10 +1496,7 @@ flowchart LR
                 agent renew its start before Leaf reports that the work stopped.
               </li>
             </ul>
-            <lf-diagram
-              id="updates-decision"
-              parts="node:Idle node:Alive node:Believed node:Taking node:Stale node:Stuck node:Closed node:Unheld node:Working node:Stalled node:Listening node:Nudge node:Away"
-            >
+            <lf-diagram id="updates-decision" parts="all">
               <pre>
 flowchart TD
   accTitle: How Leaf describes agent activity
@@ -3597,10 +3599,7 @@ flowchart TD
               revisions, an append-only event log, and JSON files containing the latest
               external values.
             </p>
-            <lf-diagram
-              id="data-flow"
-              parts="node:Writers node:Agent node:You node:Cmd node:Proc node:Dir node:Rev node:Log node:Data node:Read node:Browser node:PageState node:Local"
-            >
+            <lf-diagram id="data-flow" parts="all">
               <pre>
 flowchart TD
   accTitle: Page files, event log and external data produce current state
@@ -3626,7 +3625,6 @@ flowchart TD
   Read --&gt; Browser["your browser"]
   Read --&gt; PageState["agent: leaf page state"]
   Browser -.- Local["this browser only: view state, drafts"]
-  classDef computed fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)
   class Read computed
 </pre>
             </lf-diagram>

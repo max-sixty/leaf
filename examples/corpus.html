@@ -1149,6 +1149,21 @@
         color: var(--danger-ink);
       }
 
+      #pr-flow-diagram .node.removed rect {
+        fill: var(--del-tint);
+        stroke: var(--danger);
+      }
+      #pr-flow-diagram .node.removed text {
+        fill: var(--danger-ink);
+      }
+      #pr-flow-diagram .node.added rect {
+        fill: var(--ok-tint);
+        stroke: var(--ok);
+      }
+      #pr-flow-diagram .node.added text {
+        fill: var(--ok-ink);
+      }
+
       .pr-scale-facts {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
@@ -1727,6 +1742,16 @@
       });
       followLine();
     </script>
+<!-- security-boundary.html authored styles -->
+<style>
+      #security-before-flow .node.danger rect {
+        fill: var(--danger-tint);
+        stroke: var(--danger);
+      }
+      #security-before-flow .node.danger text {
+        fill: var(--danger-ink);
+      }
+</style>
 <!-- command-hub.html authored styles -->
 <style>
       @import url("/page/theme.css");
@@ -4174,11 +4199,7 @@ max-sixty/worktrunk #3865
                 <span>unchanged boundary</span>
                 <span class="pr-added">+ new path</span>
               </p>
-              <lf-diagram
-                id="pr-flow-diagram"
-                data-height="541"
-                parts="node:Row node:Mode node:Working node:Unified node:Prepared node:History node:Temp node:Staged node:Unstaged node:Untracked node:Tabs"
-              >
+              <lf-diagram id="pr-flow-diagram" data-height="541" parts="all">
                 <pre>
 flowchart TB
   accTitle: Unified diff preparation
@@ -4193,8 +4214,6 @@ flowchart TB
   Temp --> Staged[Staged]
   Temp --> Unstaged[Unstaged]
   Temp --> Untracked[Untracked]
-  classDef removed fill:var(--del-tint),stroke:var(--danger),color:var(--danger)
-  classDef added fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)
   class Working removed
   class Unified,Prepared,Temp added
 </pre>
@@ -4976,11 +4995,7 @@ unsafe fn merge&lt;T, F&gt;(v: &amp;mut [T], mid: usize, buf: *mut T, compare: &
           one known consumer while Git, PATH entries, language startup files, action
           manifests, and setup-generated shims remained open paths into runner work.
         </p>
-        <lf-diagram
-          id="security-before-flow"
-          data-height="117"
-          parts="node:R0 node:R1 node:A1 node:R2 node:P1"
-        >
+        <lf-diagram id="security-before-flow" data-height="117" parts="all">
           <pre>
 flowchart LR
   accTitle: Shared checkout crosses the sandbox boundary
@@ -4989,7 +5004,6 @@ flowchart LR
   R1 --> A1[Same tree handed to agent]
   A1 --> R2[Same tree returned to runner]
   R2 --> P1[Runner tail and action POSTs]
-  classDef danger fill:var(--danger-tint),stroke:var(--danger),color:var(--danger-ink)
   class A1,R2,P1 danger
 </pre>
         </lf-diagram>
@@ -5123,10 +5137,7 @@ flowchart LR
 
         <section id="security-states">
           <h2 id="security-states-heading">Sandbox execution and cleanup</h2>
-          <lf-diagram
-            id="security-proposed-states"
-            parts="node:S0 node:S1 node:S2 node:S3 node:S4 node:S5 node:S6 node:S7 node:F"
-          >
+          <lf-diagram id="security-proposed-states" parts="all">
             <pre>
 stateDiagram-v2
   accTitle: Sandbox execution and cleanup states
@@ -9245,10 +9256,10 @@ switch --readers checkout-api,orders-api</code></pre>
                 <lf-num
                   id="bg-latency"
                   source="gallery-latency"
-                  at="2000-01-01T00:00:00Z"
+                  run="a41f103e236c985b"
                   via="uv run bench-gallery"
                   >184 ms</lf-num
-                >, its timestamp, and the command that produced it. Because the source
+                >, its run receipt, and the command that produced it. Because the source
                 has a newer update, <code>page check</code> reports that the measurement
                 is behind its source.
               </p>

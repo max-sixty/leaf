@@ -52,6 +52,21 @@
         color: var(--danger-ink);
       }
 
+      #pr-flow-diagram .node.removed rect {
+        fill: var(--del-tint);
+        stroke: var(--danger);
+      }
+      #pr-flow-diagram .node.removed text {
+        fill: var(--danger-ink);
+      }
+      #pr-flow-diagram .node.added rect {
+        fill: var(--ok-tint);
+        stroke: var(--ok);
+      }
+      #pr-flow-diagram .node.added text {
+        fill: var(--ok-ink);
+      }
+
       .pr-scale-facts {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
@@ -277,11 +292,7 @@ max-sixty/worktrunk #3865
                 <span>unchanged boundary</span>
                 <span class="pr-added">+ new path</span>
               </p>
-              <lf-diagram
-                id="pr-flow-diagram"
-                data-height="541"
-                parts="node:Row node:Mode node:Working node:Unified node:Prepared node:History node:Temp node:Staged node:Unstaged node:Untracked node:Tabs"
-              >
+              <lf-diagram id="pr-flow-diagram" data-height="541" parts="all">
                 <pre>
 flowchart TB
   accTitle: Unified diff preparation
@@ -296,8 +307,6 @@ flowchart TB
   Temp --> Staged[Staged]
   Temp --> Unstaged[Unstaged]
   Temp --> Untracked[Untracked]
-  classDef removed fill:var(--del-tint),stroke:var(--danger),color:var(--danger)
-  classDef added fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)
   class Working removed
   class Unified,Prepared,Temp added
 </pre>

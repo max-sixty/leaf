@@ -417,20 +417,16 @@
             <h3><code>x-measured</code></h3>
             <div class="reference-copy">
               <p>
-                A scalar in authored content pinned to one x-data input at an aware
-                instant.
+                A scalar in authored content pinned to one x-data input's run receipt.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-measured contract">Full contract</summary>
                 <p>
                   <code>input</code> names the widget's data input and
-                  <code>at</code> names its required date-time attribute. The authored
-                  words remain frozen with the version; when that source's stored
-                  <code>updated</code> instant moves past <code>at</code>,
-                  <code>page check</code> advises that the measurement is stale and
-                  <code>page state</code> reports the same debt. The declaration
-                  compares runs, not age: a source that never updates creates no
-                  warning.
+                  <code>run</code> its required nonempty receipt attribute. When that
+                  source holds a different run, <code>page check</code> advises that the
+                  frozen measurement is stale and <code>page state</code> reports the
+                  same debt. Rewriting the same value is a new run; age alone is not.
                 </p>
               </details>
             </div>
@@ -958,6 +954,9 @@
                   The render gate validates every record, requires each authored token
                   to resolve, in the current state or after its <code>reveal</code>, and
                   refuses a registered id its prefixes do not admit. A
+                  <code>{parts: ATTR, all: TOKEN}</code> declaration admits the complete
+                  registered inventory when ATTR is TOKEN, preserving a whole-picture
+                  target when ATTR is omitted. A
                   <code>{parts: ATTR, complete: true}</code> declaration also refuses a
                   nonempty authored list that omits a registered part; omitting ATTR
                   keeps the whole picture as one target.

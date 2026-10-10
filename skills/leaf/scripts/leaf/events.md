@@ -238,7 +238,7 @@ process appends reaches it the same way.
 
 The feed carries the log only. External data under `data/` is replaced in place
 with no sequence to resume from, so a reader that needs it reads `leaf page state`
-or the value files directly.
+or the publication files directly.
 
 ## Threads
 

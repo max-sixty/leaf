@@ -2,9 +2,11 @@
 # to Comment. This case checks the author's choice at page creation.
 # The 2026-10-07 Claude Code comparison kept all five parts on both arms;
 # accessible metadata was absent on HEAD and meaningful on the candidate.
+# Guidance survey #18 now checks that the renderer owns the node inventory rather
+# than making the author duplicate it in a synchronized roster.
 description: diagram-parts-complete
 metadata:
-  purpose: A diagram with box-level comments lists every nameable box in parts.
+  purpose: A diagram exposes every named box through its renderer-owned inventory.
   tags:
   - diagram
   - comments
@@ -22,13 +24,16 @@ vars:
     The page directory is not reachable from here, so reply with the HTML fragment
     rather than writing a file.
 assert:
+- type: regex
+  metric: renderer-owned-inventory
+  value: parts\s*=\s*["']all["']
 - type: llm-rubric
   metric: all-boxes-addressable
   value: |
-    Pass only if the HTML contains one lf-diagram whose parts attribute names all
-    five flowchart nodes as node:A, node:B, node:C, node:D and node:E, and its
-    Mermaid source draws those same five boxes in the stated flow. The order of
-    tokens may vary. Fail if parts is omitted or any of the five boxes is unlisted.
+    Pass only if the HTML contains one lf-diagram with either parts="all" or a
+    complete explicit list node:A node:B node:C node:D node:E, and valid Mermaid
+    source draws all five boxes with the stated yes/no relationships. The order
+    of tokens may vary. Fail if parts is omitted or any box is unaddressable.
 - type: llm-rubric
   metric: accessible-diagram
   value: |

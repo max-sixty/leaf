@@ -45,8 +45,8 @@ def page_reading(page_dir: Path) -> str:
     that does not fail loudly: leave one out and the page simply stops hearing news,
     with nothing red to say so. The authored `page/` tree is also stamped recursively:
     changing a module dependency or stylesheet is a candidate revision even when the
-    HTML stays unchanged. So is `data/`, whose value files another process may rewrite
-    in place. Other directories are stamped without descending — a new
+    HTML stays unchanged. So is `data/`, whose publication files `leaf data set`
+    replaces atomically. Other directories are stamped without descending — a new
     revision moves `revisions/`, a stamp moves `events.jsonl`, and the
     vendored layer cannot change under a served page at all, since re-vendoring restarts
     the server.

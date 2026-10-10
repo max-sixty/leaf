@@ -111,7 +111,10 @@ class Samples:
             (child / DATA_DIR).mkdir()
             for name, reading in data["sources"].items():
                 if "value" in reading:
-                    write_json(source_file(child, name), reading["value"])
+                    write_json(
+                        source_file(child, name),
+                        {key: reading[key] for key in ("run", "updated", "value")},
+                    )
             (child / "index.html").write_bytes(source)
             (child / "events.jsonl").write_text(
                 "".join(json.dumps(event) + "\n" for event in seeded),

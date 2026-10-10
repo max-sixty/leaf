@@ -1168,6 +1168,9 @@ leaf-text.lf-fab-input,
   place-items: center;
   border-radius: var(--r);
 }
+.lf-icon-action[hidden] {
+  display: none;
+}
 .lf-action-icon {
   position: relative;
   z-index: 1;
@@ -1420,6 +1423,24 @@ leaf-text.lf-fab-input {
   inset-inline-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2);
   inset-block-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2);
 }
+.lf-fab-bar[data-lf-other-responses] {
+  --lf-comment-send-room: calc(2 * var(--lf-icon-action-hit));
+}
+.lf-fab-bar[data-lf-other-responses] .lf-compose-submit {
+  inset-inline-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2 + var(--lf-icon-action-hit));
+}
+.lf-fab-more {
+  position: absolute;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  inset-inline-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2);
+  inset-block-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2);
+}
+.lf-fab-more:hover {
+  color: var(--ink);
+  background: var(--chip);
+}
 .lf-response-action {
   min-width: max(30px, var(--aim-floor));
   padding-inline: 9px;
@@ -1502,6 +1523,9 @@ leaf-text.lf-fab-input {
   max-width: none;
   max-height: 50vh;
   margin: 0;
+}
+.lf-fab-bar[data-lf-presentation=inline].lf-response-open > .lf-response-options {
+  flex-basis: 100%;
 }
 .lf-fab-bar .lf-composer-media {
   flex: none;

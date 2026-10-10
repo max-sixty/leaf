@@ -11,7 +11,6 @@ from referencing.exceptions import Unresolvable
 
 from .files import list_revisions
 from .registry.schema import (
-    aware_instant,
     json_validator,
     json_value,
     schema_error_message,
@@ -280,7 +279,7 @@ def data_binding_inventory(lf_elements: list, registry: dict) -> dict:
 def measurement_lag_entries(lf_elements: list, registry: dict, stored: dict) -> list:
     """Authored measurements whose bound source has completed a later run.
 
-    The widget declaration joins the frozen half (its timestamp attribute) to the live
+    The widget declaration joins the frozen half (its run receipt attribute) to the live
     half (one x-data input). Invalid attributes stay with widget validation, and an
     unset source says only that no later run is known, so neither becomes advice here.
     """
@@ -294,15 +293,10 @@ def measurement_lag_entries(lf_elements: list, registry: dict, stored: dict) -> 
         if not input_spec:
             continue  # registry validation owns the malformed declaration
         source = rec["attrs"].get(input_spec["source"])
-        captured = rec["attrs"].get(measured["at"])
+        captured = rec["attrs"].get(measured["run"])
         snapshot = stored["sources"].get(source) if isinstance(source, str) else None
-        captured_at = aware_instant(captured) if isinstance(captured, str) else None
-        updated_at = (
-            aware_instant(snapshot["updated"])
-            if isinstance(snapshot, dict) and isinstance(snapshot.get("updated"), str)
-            else None
-        )
-        if captured_at is None or updated_at is None or updated_at <= captured_at:
+        current = snapshot.get("run") if isinstance(snapshot, dict) else None
+        if not captured or not current or current == captured:
             continue
         entries.append(
             {
@@ -310,8 +304,8 @@ def measurement_lag_entries(lf_elements: list, registry: dict, stored: dict) -> 
                 "widget": rec["attrs"].get("id"),
                 "line": rec["line"],
                 "source": source,
-                "at": captured,
-                "updated": snapshot["updated"],
+                "run": captured,
+                "current_run": current,
             }
         )
     return entries
@@ -324,8 +318,8 @@ def measurement_lag(lf_elements: list, registry: dict, stored: dict) -> list[str
         identity = f" id={entry['widget']!r}" if entry["widget"] else ""
         lines.append(
             f"<{entry['tag']}{identity}> (line {entry['line']}) pins source "
-            f"{entry['source']!r} at {entry['at']}, but that source was updated at "
-            f"{entry['updated']}"
+            f"{entry['source']!r} run {entry['run']}, but that source now holds "
+            f"run {entry['current_run']}"
         )
     return lines
 

@@ -3,10 +3,8 @@
  * draw with. The shared declaration-driven allocation stays in core; this package owns
  * the diagram's natural-size alignment and scrolling. */
 
-/* The renderer's own custom properties are named --bg, --accent, and so on. Passing
- * `var(--accent)` into its inline `--accent` declaration would be a self-reference and
- * invalidate the value, so these inherited aliases carry Leaf's live palette across
- * that namespace boundary. */
+/* Inherited palette aliases keep the generated SVG responsive to the live page's
+ * scheme without redrawing its nodes or replacing Comment coordinates. */
 :scope:is(lf-diagram) { --lf-diagram-paper: var(--paper); --lf-diagram-ink: var(--ink);
              --lf-diagram-muted: var(--muted); --lf-diagram-accent: var(--accent);
              }
@@ -37,6 +35,12 @@
 :scope:is(lf-diagram).lf-rendered[data-lf-space="available"]::after {
   width: calc(2 * var(--lf-grow-r)); }
 :scope:is(lf-diagram).lf-rendered > * { flex: none; }
+/* A declared reservation stays the drawing's minimum room. Native font metrics
+ * can make Mermaid's natural box slightly shorter on another machine; finishing
+ * the drawing must not pull the page back into that spare room. */
+:scope:is(lf-diagram).lf-rendered[data-lf-height] {
+  min-block-size: attr(data-lf-height px);
+}
 /* The layer marks each edge a scrolled box has more beyond (shadow.css, at
  * [data-lf-more-before/after]) by fading the content there toward the page's ground, and
  * a drawing takes that fade with two settings of its own. A fade all the way to the
@@ -57,6 +61,12 @@
  * would scale it right back down. Paper cannot scroll, so print restores the fit: width
  * and viewBox stay in the markup, and max-width alone scales the drawing whole. */
 :scope:is(lf-diagram) svg { display: block; margin: 0 auto; max-width: none; }
+/* The diagram owns its horizontal scrollport. Reserve the overlay track below its
+ * drawing only while it scrolls, so chart marks at the SVG's edge remain visible. */
+:scope:is(lf-diagram).lf-rendered { container-type: scroll-state; }
+@container scroll-state(scrollable: inline) {
+  :scope:is(lf-diagram).lf-rendered > svg { margin-block-end: 15px; }
+}
 @media print {
   :scope:is(lf-diagram) svg { max-width: 100%; }
 }

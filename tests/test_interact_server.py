@@ -90,6 +90,7 @@ from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
+from leaf import thread_titles as thread_titles_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import storage as registry_storage
 from leaf.served_state import browser as served_browser
@@ -661,6 +662,10 @@ def test_frozen_preview_samples_use_snapshot_inputs_without_parent_writes(
         assert fetch(preview.origin + assets + "leaf.js", token=None)[0] == 200
         state = json.loads(fetch(child + "api/state")[1])
         # The child reads the data the checked preview holds, as the preview does.
+        assert (
+            state["data"]["sources"]["builds"]
+            == snapshot.context.stored_data()["sources"]["builds"]
+        )
         assert state["data"]["sources"]["builds"]["value"] == ["checked"]
         assert [event["text"] for event in state["events"]] == ["Frozen seed"]
         for path in ("/api/event", "/api/media"):
@@ -1093,7 +1098,7 @@ def test_api_state_carries_each_sources_current_value(server, page_dir):
     assert data["sources"]["builds"]["contract"] == "build-map"
     assert data["sources"]["builds"]["value"] == {"main": "green"}
 
-    data_model.source_file(page_dir, "builds").write_text('{"main": "red"}')
+    data_model.cmd_data_set(page_dir, "builds", {"main": "red"})
     rewritten = json.loads(fetch(f"{server}/api/state")[1])["data"]
     assert rewritten["sources"]["builds"]["value"] == {"main": "red"}
     assert rewritten["version"] != data["version"]
@@ -6197,6 +6202,57 @@ def test_nested_sample_fixtures_resolve_in_the_immediate_parent_document(
         event["text"] for event in json.loads(fetch(inner + "api/state")[1])["events"]
     ] == ["Nested fixture"]
     assert event_model.read_events(page_dir) == parent_before
+
+
+def test_test_teardown_joins_titles_before_reusing_the_page(
+    claimed, tmp_path, isolated_session, monkeypatch
+):
+    """A pending title cannot escape the test that owns its page.
+
+    Hold the real title worker inside its generator. Teardown must wait for it
+    before a page loan can be reused by the following test.
+    """
+    comment = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "Why here?"}
+    )
+    started = threading.Event()
+    answered = threading.Event()
+
+    def generate(request, page_dir):
+        started.set()
+        assert answered.wait(timeout=STATED_TIMEOUT), "the title was never released"
+        raise RuntimeError("the title stand-in failed")
+
+    thread_titles_model.name_admitted_thread(generate, claimed, comment["id"], "s1")
+    assert started.wait(timeout=STATED_TIMEOUT), "the title generator did not start"
+    [worker] = [
+        thread for thread in threading.enumerate() if thread.name == "leaf-thread-title"
+    ]
+    joining = threading.Event()
+    native_join = worker.join
+
+    def observed_join(*args, **kwargs):
+        joining.set()
+        return native_join(*args, **kwargs)
+
+    monkeypatch.setattr(worker, "join", observed_join)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        retirement = pool.submit(retire_test_services, tmp_path, isolated_session)
+        try:
+            wait_for(
+                lambda: joining.is_set() or retirement.done(),
+                bool,
+                failure="teardown neither joined the pending title nor finished",
+            )
+            assert joining.is_set(), (
+                "teardown returned while its title was still running"
+            )
+            assert not retirement.done(), "teardown did not wait for its title"
+        finally:
+            answered.set()
+            retirement.result(timeout=STATED_TIMEOUT)
+            native_join(timeout=STATED_TIMEOUT)
+    assert not worker.is_alive(), "the title outlived its page fixture"
 
 
 def test_test_teardown_ends_detached_delivery_before_removing_state(

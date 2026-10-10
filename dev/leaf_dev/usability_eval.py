@@ -462,8 +462,10 @@ def build_constructs(run: Run, page: Path) -> None:
     measured = run.leaf(
         "data", "set", str(page), "checkout-p95", input_text="184", check=True
     ).stdout
-    at = json.loads(measured)["updated"]
-    (page / "index.html").write_text(re.sub(r'\bat="[^"]*"', f'at="{at}"', template))
+    receipt = json.loads(measured)["run"]
+    (page / "index.html").write_text(
+        re.sub(r'\brun="[^"]*"', f'run="{receipt}"', template)
+    )
     run.leaf("page", "stamp", str(page), "--text", "Release 4.2 review", check=True)
     run.leaf("status", str(page), "waiting", "Edit the release note", check=True)
     admit(run, page, {
@@ -1171,7 +1173,7 @@ def score_shared_source(run: Run, traces: list[list[dict]], replies: list[str]) 
     }
     page = run.work / "page"
     before = json.loads((FIXTURES / "hub-worktrees.json").read_text())
-    after = json.loads((page / "data/project-worktrees.json").read_text())
+    after = json.loads((page / "data/project-worktrees.json").read_text())["value"]
     finch = after.get("tree-finch", {})
     html = (page / "index.html").read_text()
     return out | {

@@ -2337,15 +2337,25 @@
     );
   };
   checkpoint();
+  const readsFrameOwner =
+    !navigator.userAgent.includes("AppleWebKit") ||
+    navigator.userAgent.includes("Chrome");
   const drawing = () => {
     if (document.hidden) return false;
     // Read accessible owners in the same task as the pose. The driver supplies
     // visibility across opaque boundaries while draining, but its last reading
-    // can lag a same-origin owner's display change by a frame.
-    for (let view = window; view !== view.parent; view = view.parent) {
-      const owner = view.frameElement;
-      if (!owner) break;
-      if (!owner.checkVisibility()) return false;
+    // can lag a same-origin owner's display change by a frame. WebKit logs a
+    // sandbox violation on frameElement access even when that access is caught.
+    if (readsFrameOwner) {
+      try {
+        for (let view = window; view !== view.parent; view = view.parent) {
+          const owner = view.frameElement;
+          if (!owner) break;
+          if (!owner.checkVisibility()) return false;
+        }
+      } catch {
+        // An opaque owner belongs to the driver.
+      }
     }
     if (window.lfWatchJudgement?.ancestorsDrawn === false) return false;
     return true;

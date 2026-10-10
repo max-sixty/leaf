@@ -293,8 +293,8 @@ def composer_sent(page: Page) -> None:
 def composer_sent_zoomed(page: Page) -> None:
     """A short sent comment at fractional zoom must keep its one-line viewport."""
     page.evaluate("document.documentElement.style.zoom = '1.1'")
-    composer(page)
-    page.keyboard.press("ControlOrMeta+a")
+    page.locator("#plan-lede").click(click_count=3)
+    page.locator(".lf-fab-input").click()
     page.keyboard.insert_text(
         "better; is there a way of shortening? or maybe we just remove it??"
     )
@@ -927,8 +927,8 @@ STATES = (
     ),
     State("triage-composer-sent", "triage-board", composer_sent),
     State(
-        "triage-composer-sent-zoomed",
-        "triage-board",
+        "plan-composer-sent-zoomed",
+        "review-a-plan",
         composer_sent_zoomed,
         viewport=(1200, 900),
     ),

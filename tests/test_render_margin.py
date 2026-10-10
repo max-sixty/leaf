@@ -8097,8 +8097,11 @@ def test_a_growing_draft_holds_its_card_s_side_and_the_editor_s_top(
         rendered(page)
         readings.append(page.evaluate(CARD_AND_REPLY))
     cap = next(
-        (i for i, now in enumerate(readings)
-         if now["cardBottom"] >= now["foot"] - 0.01),
+        (
+            i
+            for i, now in enumerate(readings)
+            if now["cardBottom"] >= now["foot"] - 0.01
+        ),
         None,
     )
     assert cap is not None and cap > 0, readings
@@ -8112,7 +8115,8 @@ def test_a_growing_draft_holds_its_card_s_side_and_the_editor_s_top(
         tolerance = 1.5 if i == cap else 0.5
         for edge in ("turn", "editorTop"):
             assert now[edge] == pytest.approx(reference[edge], abs=tolerance), (
-                reference, now
+                reference,
+                now,
             )
     last = readings[-1]
     assert last["cardBottom"] == pytest.approx(last["foot"], abs=0.5), last

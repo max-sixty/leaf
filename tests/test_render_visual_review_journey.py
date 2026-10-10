@@ -131,7 +131,9 @@ def test_a_visual_review_in_flow_keeps_its_navigation_over_a_tall_pair(browser, 
     }"""
     stuck = page.evaluate(read)
     assert stuck["queue"]["top"] == pytest.approx(stuck["banner"], abs=1), stuck
-    assert stuck["toolbar"]["top"] == pytest.approx(stuck["queue"]["bottom"], abs=1), stuck
+    assert stuck["toolbar"]["top"] == pytest.approx(stuck["queue"]["bottom"], abs=1), (
+        stuck
+    )
     for control in (
         widget.get_by_role("button", name="Next", exact=True),
         widget.get_by_role("combobox", name="Selected visual case"),

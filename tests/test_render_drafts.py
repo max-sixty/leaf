@@ -200,7 +200,11 @@ def test_a_page_keeps_its_place_below_the_banner_as_the_window_changes_width(
         "window narrows to a phone and the banner takes its second row.</p>"
         for n in range(60)
     )
-    lines = f'<lf-pane id="reading" label="Reading"><div>{lines}</div></lf-pane>' if region else lines
+    lines = (
+        f'<lf-pane id="reading" label="Reading"><div>{lines}</div></lf-pane>'
+        if region
+        else lines
+    )
     question = (
         '<lf-ask id="ask"><h2>Which way?</h2><lf-options id="way" choose>'
         '<lf-option id="way-one"><strong>One</strong> the first way.</lf-option>'
@@ -250,7 +254,9 @@ def test_a_page_keeps_its_place_below_the_banner_as_the_window_changes_width(
     assert focused["bottom"] < 1100, focused
     resized(page, 420, 1100)
     rendered(page)
-    assert page.evaluate(reading, None)["bottom"] < 1100, "the focused option left the window"
+    assert page.evaluate(reading, None)["bottom"] < 1100, (
+        "the focused option left the window"
+    )
 
 
 @pytest.mark.parametrize("bounded", [False, True])

@@ -677,23 +677,25 @@ export function seenRect(item, clips) {
     : null;
 }
 // Where, in the window's coordinates, a change of size at `item` would move what the
-// user sees, as `{top, bottom}`, or null where it would move nothing seen. A change moves
-// everything after it in the boxes that scroll it, in every column, so the band spans
-// what the clips over `item` and the chrome leave of the window's height, read as
+// user sees, as `{top, bottom}`, or null where it would move nothing seen. A change
+// moves everything after it in the boxes that scroll it, in every column, so the band
+// spans what the clips over `item` and the chrome leave of the window's height, read as
 // `seenRect` reads it but across the whole width. Scroll anchoring keeps still the first
 // box in the scroller's landing band (`landingBand`: the spec's optimal viewing region,
 // which Chrome and WebKit take from `scroll-padding`), so a change above that band moves
-// only what stands above the change. The band therefore starts at the higher of the seen top and
-// the landing band's top. Above both, a change moves only what is under the banner or
-// scrolled past; below a landing band's top that stands higher than the seen top, as a
-// diff's file header reaches below the root's, a change pushes down the lines below the
-// header. Past the seen foot a change moves only what is under the bottom bar or below
-// the window. Only heights count: a change hidden sideways, by a clip or a pinch zoom's
-// pan, still moves what follows it. The scroller that anchors is the innermost with more
-// to scroll than it shows, since one that grows with what it holds, such as a code block
-// that scrolls only sideways, hands the change out to the box around it; one scrolled to
-// its top anchors nothing, so there the band starts at that scroller's own top, wherever
-// the window cuts it.
+// only what stands above the change. Chrome forfeits that for a layout in which a
+// `details` both opens or shuts and changes what it holds, so a writer doing both lays
+// out the disclosure first (thread-card.js, an outlet thread settling). The band
+// therefore starts at the higher of the seen top and the landing band's top. Above both,
+// a change moves only what is under the banner or scrolled past; below a landing band's
+// top that stands higher than the seen top, as a diff's file header reaches below the
+// root's, a change pushes down the lines below the header. Past the seen foot a change
+// moves only what is under the bottom bar or below the window. Only heights count: a
+// change hidden sideways, by a clip or a pinch zoom's pan, still moves what follows it.
+// The scroller that anchors is the innermost with more to scroll than it shows, since
+// one that grows with what it holds, such as a code block that scrolls only sideways,
+// hands the change out to the box around it; one scrolled to its top anchors nothing, so
+// there the band starts at that scroller's own top, wherever the window cuts it.
 export function motionBand(item, clips) {
   const walk = clipWalk(item, clips, false);
   const all = { left: -Infinity, top: -Infinity, right: Infinity, bottom: Infinity };

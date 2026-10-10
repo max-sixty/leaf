@@ -722,6 +722,12 @@ export class ThreadView {
     }
     if (model.surface === "outlet" && this.#outletReplyShown !== reply) {
       this.node.toggleAttribute("open", reply);
+      // Chrome drops scroll anchoring for a layout that both opens or shuts a `details`
+      // and changes what it holds, so an outlet folding above the screen as the agent
+      // resolves it would carry what the user reads by the fold's height. Laying out
+      // the disclosure before the render below changes the thread lets anchoring take
+      // each change.
+      this.node.getBoundingClientRect();
       this.#outletReplyShown = reply;
     }
     const wanted = new Set(model.messages.map((message) => message.key));

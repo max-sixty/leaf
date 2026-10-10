@@ -4143,6 +4143,37 @@ def test_diff_news_waits_only_where_its_growth_would_be_seen(browser, serve, foo
         expect(notice).to_have_count(0)
 
 
+def test_an_agent_settling_a_diff_thread_above_the_screen_moves_nothing_below(
+    browser, serve
+):
+    """A diff thread folds shut when the agent resolves it and opens when it reopens
+    it. Above the screen, either change is scroll anchoring's to absorb, so the line
+    the user reads stays put, though each also changes what the thread holds."""
+    url, root = long_diff_thread(serve)
+    page = open_page(browser, url)
+    resized(page, 1280, 800)
+    thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    expect(thread).to_be_visible()
+    read = page.locator("lf-diff [data-line]").filter(has_text="line 30")
+    thread.evaluate(
+        "node => scrollBy({top: node.getBoundingClientRect().bottom + 100,"
+        " behavior: 'instant'})"
+    )
+    rendered(page)
+    before = read.bounding_box()["y"]
+    for kind, opened in [("resolve", False), ("unresolve", True)]:
+        append_carried_log_record(
+            serve.page_dir,
+            {"kind": kind, "author": "agent", "agent": "Codex", "parent": root},
+        )
+        told(page)
+        rendered(page)
+        expect(thread).to_have_js_property("open", opened)
+        # Anchoring lands the scroll on a device pixel, so the line may settle a
+        # fraction of one from where it stood.
+        assert read.bounding_box()["y"] == pytest.approx(before, abs=0.5), kind
+
+
 def test_a_reaction_list_closes_once_its_trigger_is_out_of_sight(browser, serve):
     """An open reaction list hangs from its trigger, so it closes once none of the
     trigger is in front of the user: scrolled under the banner, still in the window."""

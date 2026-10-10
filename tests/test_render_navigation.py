@@ -7484,9 +7484,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     expect(alignment).to_have_count(1)
     # No reading item stands while the reference opens from page chrome, so this
     # capability has only its unbound page control in this scene.
-    expect(alignment.locator(".lf-binding-sequence > kbd")).to_have_text(
-        ["⏎ / space"]
-    )
+    expect(alignment.locator(".lf-binding-sequence > kbd")).to_have_text(["⏎ / space"])
     overlaps = goto.locator("tr[data-lf-command]").evaluate_all(
         """rows => rows.flatMap(row => {
           const [key, action] = row.querySelectorAll(':scope > td');

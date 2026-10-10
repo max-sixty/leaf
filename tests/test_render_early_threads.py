@@ -41,7 +41,7 @@ SAVED_COMMENT = {
 
 
 def _cold_page(browser, url, *, touch=False):
-    """Hold private history before navigation, leaving real document upgrade free."""
+    """Hold this page's private history; embedded sample pages load independently."""
     page = browser.new_page(
         viewport={"width": 390 if touch else 1200, "height": 900}, has_touch=touch
     )
@@ -50,11 +50,15 @@ def _cold_page(browser, url, *, touch=False):
     gate = {"open": False}
     page.route(
         "**/api/state*",
-        lambda route: route.continue_() if gate["open"] else held.append(route),
+        lambda route: (
+            held.append(route)
+            if route.request.frame == page.main_frame and not gate["open"]
+            else route.continue_()
+        ),
     )
     page.goto(url, wait_until="load")
     holding(page, held, 1, "the first private-state read")
-    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    wait_until_ready(page, through="upgraded")
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     expect(page.locator(".lf-status-text")).to_have_text("Loading saved state…")
 

@@ -10408,7 +10408,8 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
     rendered(page)
     resolved_quote = page.locator(".lf-thread:not([hidden]) .lf-quote")
     expect(resolved_quote).not_to_have_class(re.compile(r"\bdetached\b"))
-    expect(resolved_quote).to_have_attribute("aria-disabled", "false")
+    expect(resolved_quote).to_have_attribute("role", "button")
+    expect(resolved_quote).to_have_attribute("tabindex", "0")
     page.evaluate(
         "() => document.scrollingElement.scrollTo(0, document.scrollingElement.scrollHeight)"
     )
@@ -10430,7 +10431,7 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
     assert placed_after["bottom"] < placed_after["height"]
 
     # When a later version removes the passage altogether, the same resolved quote is an
-    # informative disabled stop. A pointer press has no destination to spend the sheet on,
+    # informative blockquote. A pointer press has no destination to spend the sheet on,
     # so the covering panel and the page behind it both stay where the user left them.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -10446,7 +10447,8 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
     )
     resolved_quote = page.locator(".lf-thread:not([hidden]) .lf-quote")
     expect(resolved_quote).to_have_class(re.compile(r"\bdetached\b"))
-    expect(resolved_quote).to_have_attribute("aria-disabled", "true")
+    expect(resolved_quote).not_to_have_attribute("role", "button")
+    expect(resolved_quote).not_to_have_attribute("tabindex", "0")
     assert resolved_quote.get_attribute("aria-keyshortcuts") is None
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     stranded_before = page.evaluate("() => document.scrollingElement.scrollTop")

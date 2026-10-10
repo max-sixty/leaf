@@ -628,7 +628,8 @@ def test_gallery_revision_preserves_every_open_quoted_thread(browser, serve):
         expect(thread.locator(".lf-quote")).to_contain_text(
             f"“{root['anchor']['quote']}” Changed"
         )
-        expect(thread.locator(".lf-quote")).to_have_attribute("aria-disabled", "false")
+        expect(thread.locator(".lf-quote")).to_have_attribute("role", "button")
+        expect(thread.locator(".lf-quote")).to_have_attribute("tabindex", "0")
         expect(thread.locator(".lf-quote.detached")).to_have_count(0)
         expect(thread.locator(".lf-msg")).to_have_count(1)
     moves = [
@@ -3687,7 +3688,8 @@ def test_a_removed_subject_keeps_its_thread_open_and_detached(browser, serve):
     quote = page.locator(f'.lf-thread[data-id="{root["id"]}"] .lf-quote')
     expect(quote).to_contain_text("The version stamp never lands")
     expect(quote).to_have_class(re.compile(r"\bdetached\b"))
-    expect(quote).to_have_attribute("aria-disabled", "true")
+    expect(quote).not_to_have_attribute("role", "button")
+    expect(quote).not_to_have_attribute("tabindex", "0")
     expect(quote).to_have_attribute("title", re.compile("no longer"))
 
 

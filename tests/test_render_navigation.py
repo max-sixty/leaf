@@ -2927,8 +2927,8 @@ def test_color_cues_fade_to_the_live_surface(request, serve, engine, target):
         write(box, "Review both choices.")
         page.keyboard.press("Enter")
         card = page.locator(".lf-page-comment-card")
-        expect(card).to_be_visible()
-        expect(card).to_be_focused()
+        expect(card).to_be_hidden()
+        expect(page.locator(".lf-page-comment")).to_be_focused()
         cue_target = page.locator(".lf-threads-toggle")
     colours = cue_target.evaluate(
         """async node => {

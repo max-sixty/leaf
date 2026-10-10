@@ -1,7 +1,7 @@
 {
   "producer": {
-    "commit": "f365fac99605",
-    "committed": "2026-10-10T03:22:31-07:00",
+    "commit": "79551e8f97ad",
+    "committed": "2026-10-10T03:25:51-07:00",
     "dirty": false
   },
   "runtime_paths": [
@@ -29,11 +29,6 @@
     "annotation-view.js",
     "application.js",
     "arrivals.js",
-    "asks/answer.js",
-    "asks/banner-controls.js",
-    "asks/model.js",
-    "asks/view-elements.js",
-    "asks/view.js",
     "auxiliary-surfaces.js",
     "banner-approval.js",
     "banner-status-view.js",
@@ -148,6 +143,12 @@
     "projection/model.js",
     "projection/presentation.js",
     "projection/state.js",
+    "questions/answer.js",
+    "questions/banner-controls.js",
+    "questions/model.js",
+    "questions/place.js",
+    "questions/view-elements.js",
+    "questions/view.js",
     "queue-api.js",
     "queue-list.js",
     "queue-panel.js",

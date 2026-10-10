@@ -234,7 +234,7 @@ customElements.define(
         () =>
           void threadActions.open(
             readThreads().threads.find((thread) => thread.id === row.thread)?.key,
-            { focus: "thread" },
+            { part: "thread" },
           ),
       );
     }

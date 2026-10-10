@@ -4,14 +4,10 @@ from ..document_reading import DocumentReading
 from ..events import UndoReading, action_retracted
 from ..projection import StateProjection
 from ..registry.kernel import bookkeeping_kinds
-from ..tasks import document_tasks
 from .wire import browser_projection
 
 
-def browser_document(
-    document: DocumentReading, revision: int, stamp: int | None, approvals: list[dict]
-) -> dict:
-    tasks, ended_tasks = document_tasks(document, revision, stamp, approvals)
+def browser_document(document: DocumentReading, revision: int) -> dict:
     return {
         "revision": revision,
         "projection": browser_projection(
@@ -20,14 +16,10 @@ def browser_document(
             within=document.within,
             floors=document.floors,
         ),
-        # The complete Ask reading of this revision under the same transaction.
-        # The browser draws its Asks from these lists rather than folding the
+        # The complete Question reading of this revision under the same transaction.
+        # The browser draws its Questions from these lists rather than folding the
         # declarations a second time.
-        "asks": document.asks,
-        # Document Asks and required sign-off (`tasks.document_tasks`), open
-        # and ended, which the queues read beside the page's other tasks.
-        "tasks": tasks,
-        "ended_tasks": ended_tasks,
+        "questions": document.questions,
     }
 
 

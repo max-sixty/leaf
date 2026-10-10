@@ -41,11 +41,11 @@
  * side list stands each run of neighbouring panels that share a `group` under a label
  * of that group, which each of their tabs' descriptions names. A side list's row adds
  * the panel's `summary` under the name, and beside the name, once
- * every Ask its panel holds is answered, a check with the answer's own words where the
- * panel holds one Ask, or the check alone where it holds several. So a queue shows how
- * far the user has worked through it, and an undo that reopens an Ask takes the check
- * away again. Which Asks a panel holds and their answers are `answersWithin`'s, read
- * from the admitted Ask inventory. A row whose panel authors an Ask keeps the check's
+ * every Question its panel holds is answered, a check with the answer's own words where the
+ * panel holds one Question, or the check alone where it holds several. So a queue shows how
+ * far the user has worked through it, and an undo that reopens a Question takes the check
+ * away again. Which Questions a panel holds and their answers are the Questions API's, read
+ * from the admitted Question inventory. A row whose panel authors a Question keeps the check's
  * room either way, so an answer moves no row. While the
  * version diff is on, each tab counts the marked passages its panel holds, including
  * inactive panels. Unupgraded,
@@ -55,7 +55,10 @@ import { scrollIntoView } from "/runtime/widget-api.js";
 import {
   HIDDEN,
   PRESS,
-  answersWithin,
+  readQuestions,
+  questionWords,
+  elementById,
+  under,
   backgroundFlash,
   beginWalk,
   capturePlace,
@@ -86,7 +89,7 @@ import {
   setRuntimeRootStyle,
   sizeObserver,
   tabStore,
-  watchAsks,
+  watchQuestions,
   focusDestination,
   rove,
 } from "/runtime/widget-api.js";
@@ -113,7 +116,7 @@ customElements.define(
   class extends HTMLElement {
     #buttons = new Map(); // panel → its strip button
     #diffEvents = null;
-    #stopAsks = null;
+    #stopQuestions = null;
     #historyEvents = null;
     #active = null;
     #root = false;
@@ -132,7 +135,7 @@ customElements.define(
         this.#watchRootContext();
         this.#syncRootContext();
         this.#listenForHistory();
-        this.#listenForAsks();
+        this.#listenForQuestions();
         this.#watchStrip();
         this.#syncRegions();
         return this.#listenForDiff();
@@ -198,8 +201,8 @@ customElements.define(
           relabel(summary, panel.getAttribute("summary"), { says: true });
           btn.append(summary);
         }
-        // The row's answer, unsaid until every Ask in the panel is answered (`#marks`),
-        // stands where the panel authors an Ask; before the Δ count, which takes the
+        // The row's answer, unsaid until every Question in the panel is answered (`#marks`),
+        // stands where the panel authors a Question; before the Δ count, which takes the
         // next column.
         if (side && elementsDeclaring(panel, "x-awaits").length) {
           const answer = document.createElement("span");
@@ -310,7 +313,7 @@ customElements.define(
       }
       // The Δ count follows the version diff; the runtime announces each toggle.
       this.#listenForDiff();
-      this.#listenForAsks();
+      this.#listenForQuestions();
       this.#watchStrip();
       this.#syncRegions();
     }
@@ -374,7 +377,7 @@ customElements.define(
     }
 
     // What each panel holds, said with its summary as the tab's description: the
-    // version diff's marked passages, and in a side list the answer once its Asks are
+    // version diff's marked passages, and in a side list the answer once its Questions are
     // all answered.
     #marks() {
       for (const [panel, btn] of this.#buttons) {
@@ -384,9 +387,20 @@ customElements.define(
           changed ? `Δ${changed}` : "",
         );
         const slot = btn.querySelector(":scope > .lf-tab-answer");
-        const answers = slot ? answersWithin(panel) : [];
-        const answered = answers.length > 0 && !answers.includes(null);
-        const answer = answered && answers.length === 1 ? answers[0] : "";
+        const questions = slot
+          ? readQuestions().all.filter((question) => {
+              const source =
+                question.status !== "withdrawn" &&
+                question.source.kind === "widget" &&
+                elementById(question.source.id);
+              return source && under(source, panel);
+            })
+          : [];
+        const answered =
+          questions.length > 0 &&
+          questions.every((question) => question.status === "answered");
+        const only = questions.length === 1 ? questions[0] : null;
+        const answer = answered && only ? questionWords(only) : "";
         if (slot) {
           keeps(slot, "data-lf-answered", answered ? "" : null);
           keepsText(slot.firstElementChild, answer);
@@ -398,8 +412,8 @@ customElements.define(
           changed === 1 ? "1 change" : changed ? `${changed} changes` : "",
           !answered
             ? ""
-            : answers.length > 1
-              ? `All ${answers.length} Asks answered`
+            : questions.length > 1
+              ? `All ${questions.length} Questions answered`
               : answer
                 ? `Answered: ${answer}`
                 : "Answered",
@@ -410,10 +424,10 @@ customElements.define(
       }
     }
 
-    // A side list's answers follow the page's Ask reading.
-    #listenForAsks() {
-      if (!this.#side || !this.#buttons.size || this.#stopAsks) return;
-      this.#stopAsks = watchAsks(this, () => this.#marks());
+    // A side list's answers follow the page's Question reading.
+    #listenForQuestions() {
+      if (!this.#side || !this.#buttons.size || this.#stopQuestions) return;
+      this.#stopQuestions = watchQuestions(this, () => this.#marks());
     }
 
     #listenForDiff() {

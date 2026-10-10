@@ -5,7 +5,6 @@ from hashlib import sha256
 from pathlib import Path
 
 from leaf.activity import answer_command
-from leaf.asks import local_ask_entry
 from leaf.delivery import (
     ReceiptRefused,
     current_responses,
@@ -30,6 +29,7 @@ from leaf.projection import (
     retirement_outcomes,
     rewritten_bodies,
 )
+from leaf.questions import asking, local_question_entry, quoted_in
 from leaf.registry.schema import json_value
 from leaf.revision_artifact import active_enclosing, read_revision
 from leaf.schema import MESSAGE_KINDS
@@ -551,13 +551,17 @@ def post_reply(
                 {
                     rec["tag"]
                     for rec in fragment.lf_elements
-                    if local_ask_entry(registry.get(rec["tag"]) or {})
+                    if local_question_entry(registry.get(rec["tag"]) or {})
+                    and asking(
+                        rec["attrs"], registry[rec["tag"]]["x-awaits"].get("when")
+                    )
+                    and not quoted_in(rec, registry)
                 }
             )
             if structural:
                 sys.exit(
                     "--awaits is for a prose question; reply markup already declares "
-                    "a local Ask "
+                    "a local Question "
                     f"({', '.join(f'<{tag}>' for tag in structural)})"
                 )
         if not source_matches_active:
@@ -689,7 +693,7 @@ def fail_answer(
     - a `reply` answer takes a reply carrying `failure` in its thread, which
       the user resends into; provider custody refuses it until its turn gives the
       reply up;
-    - a `markup` answer takes a failed pickup: the user's Ask answer stands in the
+    - a `markup` answer takes a failed pickup: the user's Question answer stands in the
       log, and answering again sends a new move.
 
     A move with no answer outstanding writes nothing, except that a repeated reply

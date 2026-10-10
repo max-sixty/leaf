@@ -2992,42 +2992,42 @@ def test_a_finger_opens_the_page_map_on_its_first_row(browser, serve):
 
 def test_g_hints_reach_a_late_visible_action_only_location(browser, serve):
     """A late action-only location is reachable while it is visible."""
-    page = open_page(browser, serve(FEATURE_GALLERY))
-    resized(page, 1440, 900)
-    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Page & layout").click()
-    margins_laid_out(page)
-    page.evaluate(
-        """() => new Promise(resolve => {
-          addEventListener('scrollend', resolve, {once: true});
-          const anchor = document.querySelector('#bg-shot');
-          const scroller = document.scrollingElement;
-          const top = anchor.getBoundingClientRect().top + scroller.scrollTop;
-          scroller.scrollTo(0, top - 100);
-        })"""
+    fixture = leaf_page(
+        "Late action location",
+        "".join(
+            f'<p id="action-{index}" style="min-height: 90px">Capture {index}</p>'
+            for index in range(30)
+        ),
     )
+    page = open_page(browser, serve(fixture))
+    resized(page, 1440, 900)
+    page.evaluate("""async () => {
+      const {contributionEntry, registerContribution} =
+        await window.__lfRuntimeImport('/runtime/widget-api.js');
+      for (let index = 0; index < 30; index++) {
+        registerContribution({key: `capture-${index}`,
+          target: document.querySelector(`#action-${index}`),
+          read: () => ({entries: [contributionEntry({key: 'review', glyph: 'R',
+            label: 'Review capture'})]}), activate: () => {},
+        });
+      }
+    }""")
+    page.locator("#action-29").scroll_into_view_if_needed()
     margins_laid_out(page)
     page.evaluate(RELEASE_FOCUS)
-    show_after = page.locator('[data-lf-margin-for="bg-shot"]').get_by_role(
-        "button", name="Show after — a sample run list with and without a status column"
+    review = page.locator('[data-lf-margin-for="action-29"]').get_by_role(
+        "button", name="Review capture", exact=True
     )
-    # The hint layer offers the locations on screen, so that is the premise, and the
-    # scroll reaches the location's own anchor rather than the section holding it.
-    # `to_be_visible` says a control is laid out, not that the user can see it, so it
-    # passed while gallery content grew between the two and carried this entry out of
-    # the scrollport — leaving the case asking for a chip the page was right not to draw.
-    expect(show_after).to_be_in_viewport()
+    # The hint layer offers on-screen locations, including entries late in the
+    # inventory when their earlier peers have scrolled out of view.
+    expect(review).to_be_in_viewport()
 
     page.keyboard.press("g")
-    target = show_after.evaluate(
+    target = review.evaluate(
         "button => button.closest('[data-lf-margin-for]').dataset.lfMarginFor"
     )
     page.keyboard.type(address_code(page, "Margin entry", target))
-    expect(
-        page.locator('[data-lf-margin-for="bg-shot"]').get_by_role(
-            "button",
-            name="Show before — a sample run list with and without a status column",
-        )
-    ).to_be_focused()
+    expect(review).to_be_focused()
 
 
 def test_margin_target_hover_requires_pointer_movement(browser, serve):

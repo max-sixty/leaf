@@ -16242,7 +16242,7 @@ def test_an_ask_in_a_reply_is_where_the_user_stands_once_answered(browser, serve
     """An Ask frozen into a reply sits in a thread about a page Ask. Standing in the
     reply's Ask is standing there whether or not it is answered: the thread leads to its
     page Ask only from a node inside no Ask, so a user back on the answered option does
-    not have the page Ask's ring and digits. A control the margin draws for a widget in
+    not have the page Ask's ring and digits. A contributed control for a widget in
     the reply stands nowhere, since its widget is chrome in no Ask, so `q` from it starts
     where the reader is rather than behind every Ask on the page."""
     url = serve(
@@ -16274,7 +16274,20 @@ def test_an_ask_in_a_reply_is_where_the_user_stands_once_answered(browser, serve
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page, True)
-    page.locator(".lf-thread .lf-shot-toggle").focus()
+    page.evaluate("""async () => {
+      const {contributionEntry, registerContribution} =
+        await window.__lfRuntimeImport('/runtime/widget-api.js');
+      registerContribution({key: 'reply-capture',
+        target: document.querySelector('.lf-thread lf-shot'),
+        read: () => ({entries: [contributionEntry({key: 'review', glyph: 'R',
+          label: 'Review reply capture'})]}), activate: () => {},
+      });
+    }""")
+    contributed = page.locator(".lf-thread").get_by_role(
+        "button", name="Review reply capture", exact=True
+    )
+    expect(contributed).to_be_visible()
+    contributed.focus()
     page.keyboard.press("q")
     expect(page.locator("#cache-ask")).to_be_focused()
     option = page.locator("#follow-yes")

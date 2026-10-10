@@ -611,7 +611,8 @@ export function countAreas(regions) {
 }
 
 /* `differingRegions`' promise for two decoded images: HTMLImageElements, ImageBitmaps,
- * or any other canvas image source, read at their natural size. */
+ * or any other canvas image source, read at their natural size. Sources must keep
+ * the canvas origin-clean; cross-origin images need a successful CORS response. */
 export function compareImages(a, b) {
   return differingRegions(pixels(a), pixels(b));
 }

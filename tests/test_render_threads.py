@@ -4085,7 +4085,7 @@ def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination
         page.evaluate(
             """async id => {
               const {openThread} = await window.__lfRuntimeImport('/runtime/application.js');
-              await openThread(id, {focus: 'message'});
+              await openThread(id, {part: 'message'});
             }""",
             reply["id"],
         )
@@ -5101,12 +5101,8 @@ def test_two_standard_thread_lists_share_updates_but_not_local_state(browser, se
     ).to_have_count(1)
     expect(a.locator("#two-panel-window")).to_have_count(0)
     expect(b.locator("#two-panel-window")).to_have_count(0)
-    expect(
-        a.get_by_role("button", name="Open interactive reply in Threads")
-    ).to_have_count(1)
-    expect(
-        b.get_by_role("button", name="Open interactive reply in Threads")
-    ).to_have_count(1)
+    expect(a.get_by_role("button", name="Open interactive reply")).to_have_count(1)
+    expect(b.get_by_role("button", name="Open interactive reply")).to_have_count(1)
     a.get_by_role("searchbox", name="Find in threads").fill("Alpha")
     expect(a.locator(f'.lf-thread[data-id="{second_id}"]')).to_be_hidden()
     expect(b.locator(f'.lf-thread[data-id="{second_id}"]')).to_be_visible()
@@ -6841,7 +6837,7 @@ def test_an_inline_reply_link_finishes_a_resolution_fold(browser, serve):
     round_trip(page)
     expect(page.locator(f'.lf-going[data-id="{root}"]')).to_have_count(1)
 
-    inline.get_by_role("button", name="Open interactive reply in Threads").click()
+    inline.get_by_role("button", name="Open interactive reply").click()
     expect(page.locator(f'.lf-going[data-id="{root}"]')).to_have_count(0)
     message = page.locator(
         f'.lf-thread:not([hidden]) .lf-msg[data-mid="{reply["id"]}"]'
@@ -8946,16 +8942,11 @@ def test_the_line_offers_the_thread_g_t_lands_on_its_own_keys(browser, serve):
 def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
     browser, serve
 ):
-    """The Ask reading and the Questions panel read the log; the panel's narrowing is a view.
+    """Thread narrowing changes presentation, not the admitted Question inventory.
 
-    A question an agent asks in a reply is a widget instantiated once, in the panel's
-    card, and every other reading of it finds that widget by id in the document. So
-    when "Waiting on you" took the answered thread's card out of the list, it took the
-    question out of the page: Asks 2/2 became 1/1, the Asks list held one, and a
-    minute later — the narrowing let go — both came back, with nothing in the log
-    having moved. A blind drive spent a locator timeout on the flip.
-
-    The card the narrowing hides is hidden, not gone, so the count and the Questions panel hold."""
+    After both Questions are answered, hiding a thread with the On you filter keeps
+    both canonical records in Done and preserves the page-wide completion count.
+    """
     page = open_page(
         browser, serve(next(p for p in EXAMPLES if p.stem == "ship-review"))
     )
@@ -8979,7 +8970,13 @@ def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
     ).to_have_count(1)
     expect_asks_answered(page, "2/2")
     banner_control(page, ".lf-queue").click()
-    expect(page.locator(".lf-queue-row[data-lf-kind='ask']")).to_have_count(2)
+    page.locator(".lf-queue-done > summary").click()
+    done = page.locator(".lf-queue-done .lf-queue-row[data-lf-kind='question']")
+    expect(done).to_have_count(2)
+    assert set(done.evaluate_all("rows => rows.map(row => row.dataset.lfAt)")) == {
+        "widget:off-workaround-review",
+        "widget:off-slip",
+    }
 
 
 def test_a_narrowing_that_hides_the_card_the_user_stands_in_lands_them_on_the_list(
@@ -10201,7 +10198,7 @@ def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface
                 """async id => {
                   const {surfaceFocusTarget} = await window.__lfRuntimeImport(
                     '/runtime/thread/surfaces.js');
-                  return surfaceFocusTarget(id, {focus: 'message'}) === null;
+                  return surfaceFocusTarget(id, {part: 'message'}) === null;
                 }""",
                 sent["id"],
             )

@@ -39,3 +39,6 @@ export function servedReading(name) {
 
 // The same admitted undo/refusal/revision sequence used by the Python fold test.
 export const servedGestureSequence = () => structuredClone(RECORDS.gestures);
+
+// Cross-runtime typed Question values use the same real server fold.
+export const servedQuestionValues = () => structuredClone(RECORDS.question_values);

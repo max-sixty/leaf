@@ -4,8 +4,8 @@
    immutable lists and correlates workflow context, without folding events or
    keeping another state. Activation resolves a stable kind/id key against the
    current reading; a stale row cannot end a different task or revive an old route.
-   An Ask is answered by its widget, a question by a reply, and only an explicit
-   user to-do offers Done. Navigation is supplied once by the existing queue walk. */
+   A Question is answered through its source; only an explicit user to-do offers
+   Done. Navigation is supplied once by the existing queue walk. */
 import { readApplication } from "./semantic-state.js";
 import { watchProjection } from "./projection-watch.js";
 import { announce } from "./notifications.js";

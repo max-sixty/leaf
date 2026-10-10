@@ -72,9 +72,9 @@ function caretAt(body, x, y) {
 customElements.define(
   "lf-draft",
   class extends HTMLElement {
-    // What the Ask was answered with: the standing words.
-    static answerWords(state) {
-      return markdownWords(state.edit.value).trim() || "Empty";
+    // What the Question was answered with: the standing words.
+    static answerWords(value) {
+      return markdownWords(value).trim() || "Empty";
     }
 
     #controller = widgetController(this);

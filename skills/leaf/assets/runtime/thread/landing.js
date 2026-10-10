@@ -1,7 +1,8 @@
 /* Landing the user in a thread: which node a reveal shows, and where focus
    goes.
 
-   `showThread` reveals a directly requested thread or message. It clears a narrowing
+   `showThread` addresses a thread, reply or message with `part`; boolean `focus`
+   independently controls taking focus. It clears a narrowing
    that hides the destination and finishes an outgoing resolution fold before choosing
    its lifecycle state. A thread reached in the complete panel opens in its reply box;
    the compact margin view opens on its card and reveals that box only when the user
@@ -432,14 +433,22 @@ const listNode = (id, threadsBox, preferMessage = false) => {
 // Direct navigation reveals what was requested, including a message's interactive
 // controls or a resolved thread. A thread arrives ready for a reply; a message keeps
 // focus at its own words so Tab reaches its controls.
-async function showThreadNow(id, focus, flash, revealThread, threadsBox, mayArrive) {
+async function showThreadNow(
+  id,
+  part,
+  focus,
+  flash,
+  revealThread,
+  threadsBox,
+  mayArrive,
+) {
   // A native continuation owns its presented row even after Tab moves standing.
   // The original gesture still gates focus, scrolling, and any later reveal action.
   const mayPresent = () => (focus === false ? mayArrive.available() : mayArrive());
   // Bind the actual narrowing reveal before any asynchronous arrival work; its
   // user-intent lease is checked when that deferred invocation runs.
   const revealDestination = bindQueuedWork(() => {
-    const node = listNode(id, threadsBox, focus === "message");
+    const node = listNode(id, threadsBox, part === "message");
     const going = node?.closest(".lf-going");
     if (node && !going) return { node };
     if (!mayArrive()) return null;
@@ -461,11 +470,11 @@ async function showThreadNow(id, focus, flash, revealThread, threadsBox, mayArri
   if (destination.ready) {
     await destination.ready;
     if (!mayPresent()) return null;
-    node = listNode(id, threadsBox, focus === "message");
+    node = listNode(id, threadsBox, part === "message");
   }
   if (mayArrive())
     threadsBox.revealNavigation(threadNames(allThreads()).get(id)?.id ?? id);
-  node = listNode(id, threadsBox, focus === "message");
+  node = listNode(id, threadsBox, part === "message");
   if (!node || !mayPresent()) return null;
   if (node.closest(".lf-summary-originals[hidden]")) {
     if (!mayArrive()) return null;
@@ -476,12 +485,12 @@ async function showThreadNow(id, focus, flash, revealThread, threadsBox, mayArri
   // cancels a smooth landing already under way: a thread sent from the panel's foot was
   // left below it. Land on the list the render leaves.
   await whenDocumentPresented().catch(() => {});
-  node = listNode(id, threadsBox, focus === "message");
+  node = listNode(id, threadsBox, part === "message");
   if (!node || !mayPresent()) return null;
   const thread = node.closest(".lf-thread");
   if (focus) {
     const destination =
-      node === thread ? threadFocusDestination(thread, { focus }) : node;
+      node === thread ? threadFocusDestination(thread, { part }) : node;
     mayArrive.handoff(() => {
       if (destination === thread) focusThread(thread, "move");
       else focusDestination(destination, "move");
@@ -583,7 +592,8 @@ export function createThreadLanding({ setPanel, revealThread, threadsBox }) {
   const showThread = (
     id,
     {
-      focus = "reply",
+      part = "reply",
+      focus = true,
       flash = true,
       intent = retainUserIntent({
         source: focused(),
@@ -596,11 +606,19 @@ export function createThreadLanding({ setPanel, revealThread, threadsBox }) {
     // A message a held turn carries has no node to land on until its thread shows what
     // it holds (held-news.js).
     if (
-      focus === "message" &&
+      part === "message" &&
       !threadsBox.querySelector(`.lf-msg[data-mid="${CSS.escape(id)}"]`)
     )
       showHeld(id);
-    const ready = showThreadNow(id, focus, flash, revealThread, threadsBox, intent);
+    const ready = showThreadNow(
+      id,
+      part,
+      focus,
+      flash,
+      revealThread,
+      threadsBox,
+      intent,
+    );
     // Pointer and keyboard routes deliberately discard this ticket. The thread
     // coordinator reports its one failure; the landing result keeps that rejection out
     // of both discarded event-handler promises and callers that continue a delivery.

@@ -816,7 +816,7 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     mark.focus()
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("Tab")
-    expect(page.locator("#approach-decision[data-lf-ask]")).to_have_count(1)
+    expect(page.locator("#approach-decision[data-lf-question]")).to_have_count(1)
     ring_on = """el => { const on = el.closest('lf-option');
                       const drawn = (e) => { const s = getComputedStyle(e);
                           return s.outlineStyle === 'none' ? 0 : parseFloat(s.outlineWidth); };
@@ -1395,7 +1395,7 @@ def test_one_band_says_where_the_user_is_standing(browser, serve):
     mark.focus()
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("Tab")
-    expect(page.locator("#storage-decision[data-lf-ask]")).to_have_count(1)
+    expect(page.locator("#storage-decision[data-lf-question]")).to_have_count(1)
     drawn = """el => { const s = getComputedStyle(el);
                        return s.outlineStyle === 'none' ? 0 : parseFloat(s.outlineWidth); }"""
     assert page.locator("#storage-decision").evaluate(drawn) == 0

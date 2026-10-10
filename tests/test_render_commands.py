@@ -329,8 +329,12 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     into, listed = check()
     names = sorted(path.name for path in into.iterdir())
     assert {"1200px-1.png", "1920px-1.png", "390px-1.png"} <= set(names)
-    assert {"1200px-ask-1.png", "1200px-ask-2.png", "1200px-ask-3.png"} <= set(names)
-    assert "1200px-ask-4.png" not in names
+    assert {
+        "1200px-question-1.png",
+        "1200px-question-2.png",
+        "1200px-question-3.png",
+    } <= set(names)
+    assert "1200px-question-4.png" not in names
     assert any("each press of `q`" in line for line in listed)
     assert any('"Pre-handover review"' in line for line in listed)
     stacks = next(line for line in listed if "<main> 1+2 → 1+1+1" in line)

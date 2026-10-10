@@ -50,7 +50,7 @@ export class SettledOptions {
     this.#row.append(this.#title, this.#count);
     this.#row.setAttribute("aria-expanded", "false");
     this.#row.onclick = () => this.#open(!this.#isOpen, true);
-    commands(this.#row, "In a settled ask", [
+    commands(this.#row, "In a settled question", [
       {
         id: "option.toggle-settled",
         keys: () => DISCLOSE(this.#row),

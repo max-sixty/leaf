@@ -15,7 +15,7 @@ an owed move holds the agent's turn is `activity.turn_obligations`'s to say.
 Answers are one of:
 
 - `{"kind": "reply", "to": <message>, "for": <event>}` — a thread input, or a
-  move in an answered Ask in frozen thread markup, answered through its exact delivery reference by `leaf response reply`;
+  move in an answered Question in frozen thread markup, answered through its exact delivery reference by `leaf response reply`;
   Final-message custody is independent of the operation: `activity` adds
   `writer: "turn"` and its attempt while the provider's reply binding stands.
   Delivery captures the same writer policy ahead of that binding, and emits an
@@ -23,12 +23,12 @@ Answers are one of:
   reference through the same rich reply writer; only the bound attempt may
   commit while its provider owns the final.
 - `{"kind": "markup", "action": <action>}` — a page action that is part of its
-  widget's answered Ask and the authored markup does not yet record, answered by
+  widget's answered Question and the authored markup does not yet record, answered by
   a stamped version that writes it in.
 
 Two kinds of move have workflows with no answer of their own. A user input a
 newer input in the same thread covers is answered through the newest, whose one
-answer settles both. A widget move that answers no Ask, such as an edit to a
+answer settles both. A widget move that answers no Question, such as an edit to a
 user-owned draft or a moved card, owes nothing: the log carries it onto later
 readings of its document, and `page check` holds the next version to any part
 of it that version must write. Its receipt stands until that document takes it
@@ -36,14 +36,14 @@ in: on the page, until the markup records it or a later version supersedes it
 (`page_action_unsettled`); in frozen thread markup, which no version rewrites,
 until the agent's next spoken turn in that thread or a resolution after it.
 Delivery is separate from workflows. Admission records whether a user's move
-changes outstanding Asks, pending answers, work in hand or approval; delivery keeps
+changes outstanding Questions, pending answers, work in hand or approval; delivery keeps
 that decision even after these workflows settle.
 
-A user move on a widget whose own Ask the user has not finished answering — a
+A user move on a widget whose own Question the user has not finished answering — a
 pick before the Done its group declares, a move before a queue is empty —
 has not been handed over yet, so it is no workflow at all: the user is still
-composing the answer, and the finishing move carries the receipt. Once the Ask is
-answered, every move on that widget is owed (`asks.part_of_ask`).
+composing the answer, and the finishing move carries the receipt. Once the Question is
+answered, every move on that widget is owed; canonical Questions own that reading.
 
 A harness that gives up on a move writes the failure its answer takes
 (`thread.fail_answer`), each carrying `failure`: a reply in the
@@ -52,12 +52,10 @@ answered with a failed response, whose next actor is the user, until the user
 moves again or the markup records the move anyway.
 """
 
-from .asks import ask_answered, part_of_ask
 from .events import (
     conversation_turns,
     unanswered_turns,
 )
-from .files import stamped_version
 from .projection import (
     NO_RECORD,
     PageReading,
@@ -65,7 +63,6 @@ from .projection import (
 )
 from .tasks import (
     TaskReading,
-    document_tasks,
 )
 
 
@@ -78,29 +75,18 @@ def admission_workflows(readings) -> tuple[list[dict], dict]:
 
 
 def admission_tasks(readings) -> list[dict]:
-    """All tasks under the admission vocabulary, including document questions."""
-    work = readings.work
-    standing, ended = work.page_tasks()
-    page_standing, page_ended = (
-        document_tasks(
-            work.document,
-            work.page.revision,
-            stamped_version(work.events, work.page.revision),
-            work.approvals,
-        )
-        if work.document is not None
-        else ([], [])
-    )
-    return page_standing + page_ended + standing + ended
+    """Explicit tasks under the transaction's admission vocabulary."""
+    standing, ended = readings.work.page_tasks()
+    return standing + ended
 
 
 def obligation_reading(readings) -> dict:
-    """The outstanding Asks and other tasks on the user, answers and work in hand a
+    """The outstanding Questions and explicit tasks on the user, answers and work in hand a
     gesture can change.
 
     Delivery progress, receipt-only moves and presentation are absent. Work in hand,
     a move the agent started or a task it opened on a thread or widget, also holds the
-    standing widget inputs on its subject, even while an Ask is being composed:
+    standing widget inputs on its subject, even while a Question is being composed:
     changing a pick under ongoing work changes that work before Done. Admission
     compares this reading on either side of the append and stores the result.
     """
@@ -108,7 +94,7 @@ def obligation_reading(readings) -> dict:
     page = work.page
     thread = work.thread
     workflows = work.workflows
-    thread_asks = work.asks
+    thread_questions = work.widget_questions
     prompts = work.prompts
     in_hand = [
         (item["id"], item["subject"])
@@ -127,11 +113,19 @@ def obligation_reading(readings) -> dict:
         if source["author"] == "user"
     ]
     return {
-        "asks": {
-            "page": [ask["id"] for ask in work.document.asks["unanswered"]]
+        "questions": {
+            "page": [
+                question["id"]
+                for question in work.document.questions["unanswered"]
+                if question["next_actor"] is not None
+            ]
             if page is not None
             else [],
-            "thread": [ask["id"] for ask in thread_asks["unanswered"]],
+            "thread": [
+                question["id"]
+                for question in thread_questions["unanswered"]
+                if question["next_actor"] is not None
+            ],
             "prompts": {
                 identity: prompt["message"] for identity, prompt in prompts.items()
             },
@@ -173,7 +167,7 @@ def page_action_unsettled(
 ) -> bool:
     """Whether one standing page action is still unsettled.
 
-    An owed move — part of an answered Ask — settles when the authored markup
+    An owed move — part of an answered Question — settles when the authored markup
     records it. The note of a later version settles the rest: a verb with no
     authored record form, whose note is the document's answer to it, and a move
     that owed nothing, which that version has taken in whether or not its markup
@@ -208,6 +202,7 @@ def canonical_workflows(
     page: PageReading | None = None,
     events: list | None = None,
     task_reading: TaskReading | None = None,
+    questions: dict,
 ) -> list[dict]:
     """The unsettled user inputs and strongest evidence held for each.
 
@@ -438,7 +433,7 @@ def canonical_workflows(
 
     # Every widget move the user has handed over keeps its delivery receipt until
     # it settles, whether the widget stands in the page or was frozen into thread
-    # markup, and only a move in an answered Ask is owed an answer. A move on an Ask
+    # markup, and only a move in an answered Question is owed an answer. A move on a Question
     # the user is still answering has not been handed over, so it has no receipt
     # until the finishing move carries one. The two documents differ only in what
     # settles a move and which operation answers an owed one.
@@ -481,32 +476,30 @@ def canonical_workflows(
             {"kind": "reply", "to": thread_id, "for": source["id"]} if owed else None
         )
 
+    question_by_source = {
+        question["source"]["id"]: question
+        for question in questions["all"]
+        if question["source"]["kind"] == "widget"
+    }
     documents = []
     if page is not None:
-        documents.append((page.projection, page.document.by_id, page.spoken, page_move))
+        documents.append((page.projection, page_move))
     if thread_reading is not None:
         documents.append(
             (
                 thread_reading.projection,
-                thread_reading.by_id,
-                thread_reading.spoken,
                 thread_move,
             )
         )
     moves = []
-    for projection, by_id, spoken, settlement in documents:
+    for projection, settlement in documents:
         for coordinate, (source, spec) in projection.actions.items():
             if source["author"] != "user":
                 continue
-            # The projection admits only actions whose widget the markup holds
-            # and whose tag declares the verb.
-            record = by_id[source["widget"]]
-            entry = page.registry[record["tag"]]
-            owed = part_of_ask(record, entry)
-            if owed and not ask_answered(
-                record, entry, projection, by_id, spoken, page.registry
-            ):
+            question = question_by_source.get(source["widget"])
+            if question is not None and question["status"] == "open":
                 continue
+            owed = question is not None and question["status"] == "answered"
             unsettled, answer = settlement(coordinate, source, spec, owed)
             moves.append(
                 (

@@ -447,7 +447,7 @@ function paintReach() {
 // due once it has held still for `STILL_MS`, which a timer waits for. Its watch is
 // uncounted (`queries`, below) for the same reason. A transition, a drag or any motion
 // that ends within `PLAYING_MS` stays counted, so the page settles after its sweep; one
-// that runs longer settles up to `STILL_MS` before it. Asks from the window or a module
+// that runs longer settles up to `STILL_MS` before it. Questions from the window or a module
 // stay apart from a container's own, so announcing a playing container still settles.
 const STILL_MS = 100;
 const PLAYING_MS = 1000;

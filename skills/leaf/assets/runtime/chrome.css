@@ -111,9 +111,9 @@ html[data-lf-draw-mode] main [data-lf-offer] * {
   background: var(--del-tint);
   color: var(--danger-ink);
 }
-[data-lf-ask] {
-  outline: var(--lf-ask-ring, var(--focus-ring));
-  --lf-focus-ring: ask;
+[data-lf-question] {
+  outline: var(--lf-question-ring, var(--focus-ring));
+  --lf-focus-ring: question;
   outline-offset: var(--focus-ring-gap);
   scroll-margin-block: var(--focus-ring-room);
 }
@@ -956,7 +956,7 @@ html[data-lf-draw-mode] main [data-lf-offer] * {
     flex: none;
     margin: 4px 6px 0 0;
   }
-  .lf-queue-row:is(:focus-visible, .lf-focus-visible, [data-lf-ask]),
+  .lf-queue-row:is(:focus-visible, .lf-focus-visible, [data-lf-question]),
   .lf-queue-done > summary:is(:focus-visible, .lf-focus-visible) {
     outline: var(--focus-ring);
     --lf-focus-ring: queue-row;

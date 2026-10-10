@@ -890,8 +890,8 @@
       outline: none;
     }
   }
-  :is(:scope, :scope *)[data-lf-ask]:has(lf-options[choose]:not(:where([data-lf-exhibit]) *) :is(:focus, .lf-focus)) {
-    --lf-ask-ring: none;
+  :is(:scope, :scope *)[data-lf-question]:has(lf-options[choose]:not(:where([data-lf-exhibit]) *) :is(:focus, .lf-focus)) {
+    --lf-question-ring: none;
   }
   :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *) > lf-option:has(> .lf-pick:is(:focus-visible, .lf-focus-visible)) {
     outline: var(--focus-ring);

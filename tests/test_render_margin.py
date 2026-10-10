@@ -1386,7 +1386,7 @@ def test_the_standing_ask_marks_its_selected_margin_reading(browser, serve):
     first_marker = page.locator(
         '[data-lf-margin-for="jobs-decision"] > .lf-margin-marker'
     )
-    expect(first).to_have_attribute("data-lf-ask", "1")
+    expect(first).to_have_attribute("data-lf-question", "1")
     expect(first_marker).to_have_attribute("data-lf-target-selected", "")
     assert first_marker.evaluate(
         "marker => getComputedStyle(marker).borderTopColor"
@@ -5646,7 +5646,7 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     assert page.evaluate(
         """async id => {
           const {openThread} = await window.__lfRuntimeImport('/runtime/application.js');
-          return Boolean(await openThread(id, {focus: 'thread'}));
+          return Boolean(await openThread(id, {part: 'thread'}));
         }""",
         second["id"],
     )
@@ -8470,7 +8470,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     marker = page.locator('[data-lf-margin-for="off-t-resync"] > .lf-margin-marker')
     expect(marker).to_have_count(1)
     expect(marker.locator("..")).to_have_attribute(
-        "aria-label", re.compile(r"Page actions for .*iOS reconnect stall")
+        "aria-label", re.compile(r"Page actions for section · iOS reconnect stall")
     )
     marker.evaluate(
         "marker => scrollBy(0, marker.getBoundingClientRect().top - innerHeight + 52)"
@@ -8482,9 +8482,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(preview).to_be_visible()
     expect(preview).to_have_attribute("aria-label", "Thread for iOS reconnect stall")
     expect(thread.locator(".lf-msg.user").first).to_be_visible()
-    expect(
-        thread.get_by_role("button", name="Open interactive reply in Threads")
-    ).to_have_count(1)
+    expect(thread.get_by_role("button", name="Open interactive reply")).to_have_count(1)
     expect(thread.locator(".lf-page-thread")).to_be_focused()
     geometry = marker.evaluate(
         """markerNode => {
@@ -8539,6 +8537,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     target.scroll_into_view_if_needed()
     expect(target).to_be_in_viewport()
     rendered(page)
+    expect(send).to_be_focused()
     expect(preview).to_be_visible()
     capped = preview.evaluate(
         """card => {
@@ -8587,7 +8586,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(preview).to_be_visible()
     expect(thread.locator(".lf-page-thread")).to_be_focused()
 
-    open_full = thread.get_by_role("button", name="Open interactive reply in Threads")
+    open_full = thread.get_by_role("button", name="Open interactive reply")
     open_full.focus()
     expect(open_full).to_be_focused()
     page.keyboard.press("Enter")
@@ -11490,7 +11489,7 @@ def test_rail_native_comment_and_retained_reply(browser, serve):
     expect(card).to_have_count(1)
     expect(card).to_be_visible()
     page.evaluate(
-        """async () => {const {openThread}=await __lfRuntimeImport('/runtime/application.js'); await openThread(document.querySelector('.lf-page-thread').dataset.thread,{focus:'reply',travel:false});}"""
+        """async () => {const {openThread}=await __lfRuntimeImport('/runtime/application.js'); await openThread(document.querySelector('.lf-page-thread').dataset.thread,{part:'reply',travel:false});}"""
     )
     reply = card.locator("leaf-text")
     expect(reply).to_be_focused()

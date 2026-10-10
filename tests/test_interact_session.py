@@ -40,7 +40,6 @@ from interact_support import (
     _status,
     append_carried_log_record,
     append_command,
-    asks_on_you,
     available_loopback_port,
     check,
     consume_pending_input,
@@ -56,6 +55,7 @@ from interact_support import (
     page_packages,
     page_state,
     publish,
+    questions_on_you,
     queue_board_registry,
     record_claim,
     release_codex_command,
@@ -689,7 +689,7 @@ def test_unrelated_agent_update_does_not_clear_a_standing_user_ask(page_dir):
     assert thread["user_prompt"]["message"] == question["id"]
     assert thread["attention"] == {
         "kind": "needs_user",
-        "reason": "ask",
+        "reason": "question",
         "workflow": None,
     }
 
@@ -7207,7 +7207,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
         },
     )
     selecting = state_json(page_dir)
-    assert [ask["widget"] for ask in asks_on_you(selecting)] == ["regions"]
+    assert [ask["widget"] for ask in questions_on_you(selecting)] == ["regions"]
     assert selecting["activity"]["obligations"] == []
     assert selecting["workflows"] == []
     assert service_model.unacknowledged(events_model.read_events(page_dir), 0) == []
@@ -7226,7 +7226,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
         },
     )
     completed = state_json(page_dir)
-    assert asks_on_you(completed) == []
+    assert questions_on_you(completed) == []
     assert completed["activity"]["obligations"] == [answered["id"]]
     cleanup_model.prompt_turn("s1")
     receive_through(page_dir, last_deliverable_seq(page_dir))
@@ -7241,7 +7241,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
         {"kind": "undo", "author": "user", "undoes": answered["id"]},
     )
     resumed = state_json(page_dir)
-    assert [ask["widget"] for ask in asks_on_you(resumed)] == ["regions"]
+    assert [ask["widget"] for ask in questions_on_you(resumed)] == ["regions"]
     assert resumed["activity"]["obligations"] == []
     answered = append_command(
         page_dir,
@@ -18098,7 +18098,7 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared
         },
     )
     ticked = state_json(claimed)
-    assert [ask["widget"] for ask in asks_on_you(ticked)] == ["choice"]
+    assert [ask["widget"] for ask in questions_on_you(ticked)] == ["choice"]
     assert ticked["workflows"] == []
     assert ticked["activity"]["counts"]["total"] == 0
     assert ticked["activity"]["counts"]["pending"] == 0
@@ -18118,7 +18118,7 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared
         },
     )
     finished = state_json(claimed)
-    assert asks_on_you(finished) == []
+    assert questions_on_you(finished) == []
     [workflow] = owed(finished)
     assert workflow["answer"] == {"kind": "markup", "action": done["id"]}
     delivery = delivery_through(claimed, done["seq"])
@@ -18218,11 +18218,11 @@ def test_a_queue_in_a_thread_owes_nothing_until_it_is_finished(page_dir):
     sort("card-a", "i")
     sorting = state_json(page_dir)
     assert sorting["workflows"] == []
-    assert [ask["widget"] for ask in asks_on_you(sorting)] == ["triage"]
+    assert [ask["widget"] for ask in questions_on_you(sorting)] == ["triage"]
 
     sort("card-b", "r")
     finished = state_json(page_dir)
-    assert asks_on_you(finished) == []
+    assert questions_on_you(finished) == []
     assert sorted(item["coordinate"][1] for item in owed(finished)) == [
         "card-a",
         "card-b",

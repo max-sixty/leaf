@@ -129,7 +129,7 @@ function visibleInterval(body, clips, band) {
   };
 }
 
-export function createReadTracking({ markRead, showThread, firstUnreadBtn }) {
+export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
   let coverage = new WeakMap();
   const renderedBodies = new Map();
   const refusedThisVisit = new Set();
@@ -169,7 +169,7 @@ export function createReadTracking({ markRead, showThread, firstUnreadBtn }) {
     const target = actionableUnread().sort(
       (a, b) => moved(a.message).seq - moved(b.message).seq,
     )[0];
-    if (target) void showThread(target.item.message, { focus: "message" });
+    if (target) void openThread(target.item.message, { part: "message" });
   }
 
   const firstUnreadCommand = {

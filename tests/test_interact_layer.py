@@ -656,7 +656,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "hooks/codex.json",
         "hooks/scripts/loop-guard.py",
         "skills/leaf/SKILL.md",
-        "skills/leaf/references/authoring-asks.md",
+        "skills/leaf/references/authoring-questions.md",
         "skills/leaf/references/authoring-evidence.md",
         "skills/leaf/references/authoring-revisions.md",
         "skills/leaf/references/codex-watcher.md",
@@ -1631,7 +1631,7 @@ def test_layer_style_sources_consume_the_runtime_layout_names():
         "var("
         + constant(r'^export const DRAWER_SLOT_PROP = "([^"]+)";', drawers)
         + ")",
-        "[" + constant(r'^  ask: "([^"]+)",', page_paint) + "]",
+        "[" + constant(r'^  question: "([^"]+)",', page_paint) + "]",
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
     for spelling in (

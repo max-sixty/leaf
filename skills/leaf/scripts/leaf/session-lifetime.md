@@ -100,7 +100,7 @@ put the thread in Needs you without persisting another workflow record.
 A workflow's `stage` and its `answer` are separate readings. The stage reports
 delivery for every move the user has handed over; the answer, which `workflows.py`
 states, is what the agent owes it: a reply, a version for a thread that asked
-for one, a version whose markup records a user's answer to a page Ask, or null. Only owed answers enter activity counts. `leaf status idle`
+for one, a version whose markup records a user's answer to a page Question, or null. Only owed answers enter activity counts. `leaf status idle`
 refuses over one set of them, `activity.blocking_obligations`: the acknowledged
 moves nothing else is set to answer. A move still `queued` is answered by the
 later turn that opens it, and a reply whose provider final the open turn has finished is
@@ -111,17 +111,17 @@ pickup, on the move or on any input its thread's one reply answers, is the agent
 answer for now, and the turn may end over it while background workers carry the
 work. The start does not carry into the next turn, which answers the move or starts
 it again. A widget move
-that answers no Ask, such as a draft edit or a moved card, owes nothing: its workflow
+that answers no Question, such as a draft edit or a moved card, owes nothing: its workflow
 reports delivery until its document takes it in — for a page action, until the markup
 records the move or a later version supersedes it; for a move in frozen thread markup,
 until the agent's next spoken turn in that thread, or a resolution that closes the
 thread after it. It does not make its thread the agent's turn.
-A move the user has not finished — a pick before the Done its Ask declares — has
+A move the user has not finished — a pick before the Done its Question declares — has
 not been handed over and has no workflow. Consecutive user turns form one response batch
 addressed by its newest input. Before settlement each input retains a workflow,
 while only the newest carries the thread's `answer` and enters the obligation
 list. A response to an older input removes that input and leaves the newer
-obligation. A response to the newest settles the batch. Widget Asks remain
+obligation. A response to the newest settles the batch. Widget Questions remain
 independent and settle through their declared state. Pickup never rewrites `status.json` or makes the page itself Picked up. A
 resolution or authored state that honors a move also settles it; a later version
 note settles a page action whose verb has no authored record form. A note already

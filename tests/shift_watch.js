@@ -1494,8 +1494,9 @@
   // resized viewport before dispatching resize, which precedes the frame's callbacks,
   // so tick() always runs after it; a layout-shift record delivered between the two,
   // as one from an earlier frame can be on a busy machine, has its pose read at the new
-  // size, so the observer looks at the size before reading. The preceding pose seals
-  // typing; taking a new pose here would attribute the resize to the key.
+  // size. Observers and callback checkpoints read that native fact before sampling.
+  // The preceding pose seals typing; taking a new pose here would attribute the
+  // resize to the key.
   let viewport = [innerWidth, innerHeight];
   const resized = () => {
     if (innerWidth === viewport[0] && innerHeight === viewport[1]) return;
@@ -1543,6 +1544,7 @@
   // rendering when it runs; an unrelated passive callback never gains that credit.
   window.lfInputWork.subscribe((source) => {
     flushNews();
+    resized();
     const changed = discoverMotion(source);
     // A passive task may move a child before an owned completion callback runs
     // in the same turn. Keep that source boundary before the callback opens its

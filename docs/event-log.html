@@ -4,7 +4,7 @@
     <title>leaf event log</title>
     <meta
       name="description"
-      content="How Leaf records comments, widget actions, agent replies, reports, and versions in an append-only log, and derives widget state from authored markup and surviving actions, with a captured log and a sample you can operate."
+      content="How Leaf records comments, widget actions, agent replies, reports, and versions in an append-only log, and derives widget state from authored markup and surviving actions, with a captured log and a sample to operate."
     />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <style>
@@ -15,9 +15,6 @@
   </head>
   <body class="site-page">
     <main class="layout-column">
-      <!-- TODO: rewrite this page in the third person. It describes how Leaf works,
-           not instructions for the reader, so "you" and "your" become the user, the
-           page, or the system named directly. -->
       <nav class="sitenav" aria-label="Site">
         <a class="brand" href="/">leaf</a>
         <a href="/examples/">Examples</a>
@@ -135,11 +132,11 @@ flowchart TD
           <em>After the canary is healthy</em> into <em>Another option</em>, and press
           <kbd>Enter</kbd>: press the new-updates notice to reveal an
           <code>add</code> and then a pick. Pick <em>Later</em>. Then press
-          <kbd>z</kbd> three times. The first press brings your own option's pick back,
-          the second leaves nothing picked while your option stays, and the third
-          removes the option. Press the activity notice to read the changed history; it
-          waits so arrivals never move what you are reading. Reset starts the sample
-          over.
+          <kbd>z</kbd> three times. The first press brings back the pick of the added
+          option, the second leaves nothing picked while the added option stays, and the
+          third removes the option. Press the activity notice to read the changed
+          history; it waits so arrivals never move the text being read. Reset starts the
+          sample over.
         </p>
         <lf-sample id="try-sample" label="release question">
           <template id="try-page" data-sample>

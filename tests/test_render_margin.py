@@ -8395,10 +8395,11 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     page = open_page(browser, serve(example))
     page.emulate_media(reduced_motion="reduce")
     resized_shell(page, 1920, 900)
-    marker = page.get_by_role(
-        "group", name=re.compile(r"Page actions for task · iOS reconnect stall")
-    ).locator(":scope > .lf-margin-marker")
+    marker = page.locator('[data-lf-margin-for="off-t-resync"] > .lf-margin-marker')
     expect(marker).to_have_count(1)
+    expect(marker.locator("..")).to_have_attribute(
+        "aria-label", re.compile(r"Page actions for .*iOS reconnect stall")
+    )
     marker.evaluate(
         "marker => scrollBy(0, marker.getBoundingClientRect().top - innerHeight + 52)"
     )
@@ -8460,9 +8461,12 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(send).to_be_focused()
 
     resized_shell(page, 1920, 480)
-    page.evaluate(
-        "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
-    )
+    # Containment is measured while the attached passage is in view; a card
+    # follows its passage when that passage leaves the viewport.
+    target = page.locator("#off-t-resync")
+    target.scroll_into_view_if_needed()
+    expect(target).to_be_in_viewport()
+    rendered(page)
     expect(preview).to_be_visible()
     capped = preview.evaluate(
         """card => {

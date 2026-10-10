@@ -1251,8 +1251,8 @@ def test_a_hidden_frame_judges_existing_records_without_awaiting_paint(
             else:
                 page.evaluate("document.querySelector('iframe').style.display = 'none'")
         # A native callback may run after the owner hides but before the driver
-        # refreshes its visibility fact. The sensor must read that change itself
-        # or retain complete readings where the owner is opaque.
+        # refreshes its visibility fact. Child frames retain complete readings
+        # because the embedding page's changes do not announce themselves here.
         frame.evaluate("window.readHeldFrame()")
         drawn = page.locator("iframe").evaluate("frame => frame.checkVisibility()")
         frame.evaluate("drawn => lfWatchJudgement.ancestorsDrawn = drawn", drawn)

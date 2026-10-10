@@ -73,9 +73,9 @@
 // input, focus, scroll, drag, resize, load, reset and beforetoggle events; the
 // emulated media tests change; this frame's own visibility; and the calls that
 // restyle without a DOM write (custom states, constructed and adopted sheets,
-// form-control values and ranges, animation mutators). An opaque frame cannot read
-// its owner's visibility, so its readings remain complete. Every VERIFY-th
-// unannounced frame, and the first one once the fixture asks for the test's
+// form-control values and ranges, animation mutators). A child cannot observe every
+// change in its embedding page, so child-frame readings remain complete. Every
+// VERIFY-th unannounced frame, and the first one once the fixture asks for the test's
 // verdict, reads completely and fails where any reading differs, naming the innermost
 // node that changed, so a source missing from this list is found rather than
 // leaving the readings between entries stale. A page that writes while it is read
@@ -803,7 +803,7 @@
     const drawn = drawing();
     const announced =
       unread ||
-      (window !== top && !window.frameElement) ||
+      window !== top ||
       drawn !== wasDrawn ||
       running ||
       wasRunning ||
@@ -2341,10 +2341,7 @@
   checkpoint();
   const drawing = () => {
     if (document.hidden) return false;
-    // An accessible owner can change before the driver's next visibility refresh.
-    // Read it in the same turn as geometry, including a media-query hide on resize.
-    if (window.frameElement && !window.frameElement.checkVisibility()) return false;
-    // Opaque frame-owner visibility belongs to the driver, which can read across
+    // Frame-owner visibility belongs to the driver, which can read across
     // origins and refreshes this fact while draining. A document's ancestor
     // window walk can lose access when a same-origin blank frame is sandboxed.
     if (window.lfWatchJudgement?.ancestorsDrawn === false) return false;

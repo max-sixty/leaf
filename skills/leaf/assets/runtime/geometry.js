@@ -20,7 +20,7 @@ import { overlaps, overlapsAcross, union, clippingAxes } from "./rect.js";
    that holds the Range and counting that element's own clip. Use:
 
    - `shownBox` for travel, bounds, and reading-position landmarks;
-   - `shownParts` for Ask rings and element-anchor outlines;
+   - `shownParts` for Question rings and element-anchor outlines;
    - `shownExtent` for what stands beside a target's parts: a margin row, the
      response field's room;
    - `shownRect` for visible placement of floating chrome and key badges;

@@ -378,7 +378,7 @@ def instructions(
 )
 def state(dir: str, target: str | None, after: int | None, limit: int | None) -> None:
     """Fold the log onto the active revision and print the result as one JSON
-    object: the active revision's file, standing state, reports, open Asks,
+    object: the active revision's file, standing state, reports, open Questions,
     thread summaries, versions, presence, and bound data. Read the active
     revision's HTML beside it for the document.
 
@@ -386,7 +386,7 @@ def state(dir: str, target: str | None, after: int | None, limit: int | None) ->
     one, names its thread: the reading is that thread with a page of its messages,
     their frozen markup, and the state on its widgets, paged by --after and
     --limit. A widget on the page names itself: its element, the actions and reports
-    standing on it, its Asks, and its workflows."""
+    standing on it, its Questions, and its workflows."""
     from leaf.agent_state import cmd_page_state
 
     if target is None and (after is not None or limit is not None):
@@ -528,6 +528,68 @@ def events(dir: str, after: int, follow: bool) -> None:
     cmd_events(resolve_dir(dir), after, follow=follow)
 
 
+@page.command(short_help="Read browser interactions and request diagnostics.")
+@click.argument("dir", metavar="PAGE")
+@click.option(
+    "--session", help="Select one browser tab; excludes unassociated server requests."
+)
+@click.option(
+    "--since",
+    metavar="ISO_TIME",
+    help="Include observations at or after this time, with timezone offset.",
+)
+@click.option(
+    "--until",
+    metavar="ISO_TIME",
+    help="Exclude observations at or after this time, with timezone offset.",
+)
+@click.option(
+    "--type",
+    "types",
+    multiple=True,
+    help="Select an observation type; repeat to select several.",
+)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    help="Print complete reconstructed records as JSON lines.",
+)
+def interactions(
+    dir: str,
+    session: str | None,
+    since: str | None,
+    until: str | None,
+    types: tuple[str, ...],
+    as_json: bool,
+) -> None:
+    """Read diagnostics chronologically, without acknowledging user input.
+
+    Times print in the local timezone. Retries are deduplicated, split records
+    are reconstructed, and gaps remain visible even with a type filter.
+    """
+    from leaf.interaction_log import (
+        format_interaction,
+        interaction_time,
+        read_interactions,
+    )
+
+    try:
+        start = interaction_time(since) if since else None
+        stop = interaction_time(until) if until else None
+        if start is not None and stop is not None and start >= stop:
+            raise ValueError("--since must precede --until")
+        rows = read_interactions(
+            resolve_dir(dir), session=session, since=start, until=stop, types=types
+        )
+    except ValueError as error:
+        raise click.ClickException(str(error)) from error
+    for row in rows:
+        click.echo(
+            json.dumps(row, ensure_ascii=False) if as_json else format_interaction(row)
+        )
+
+
 @page.command(short_help="Take a page this session did not serve.")
 @click.argument("dir", metavar="PAGE")
 def claim(dir: str) -> None:
@@ -554,15 +616,34 @@ def delivery() -> None:
     """Handle transport-independent Leaf deliveries."""
 
 
-@delivery.command("read", short_help="Read one immutable delivery envelope.")
+@delivery.command("read", short_help="Read bounded immutable delivery input.")
 @click.argument("delivery_id", metavar="DELIVERY_ID")
-def delivery_read(delivery_id: str) -> None:
-    """Print DELIVERY_ID with its complete batches and response requirements. Where
-    a harness's hook offered it to this session as a pointer, reading it confirms
-    it, so the user's updates read Picked up."""
+@click.option(
+    "--part",
+    type=click.IntRange(min=1),
+    default=1,
+    help="Read this numbered part of a large delivery.",
+)
+def delivery_read(delivery_id: str, part: int) -> None:
+    """Read input without confirming it. Follow its next and acknowledgement instructions."""
     from leaf.delivery import cmd_delivery_read
 
-    cmd_delivery_read(delivery_id)
+    try:
+        cmd_delivery_read(delivery_id, part=part)
+    except ValueError as error:
+        raise click.ClickException(str(error)) from error
+
+
+@delivery.command("ack", short_help="Confirm complete delivery input reached context.")
+@click.argument("delivery_id", metavar="DELIVERY_ID")
+def delivery_ack(delivery_id: str) -> None:
+    """Attest complete receipt after reading every part of DELIVERY_ID."""
+    from leaf.delivery import cmd_delivery_ack
+
+    try:
+        cmd_delivery_ack(delivery_id)
+    except (OSError, RuntimeError) as error:
+        raise click.ClickException(str(error)) from error
 
 
 @cli.group(short_help="Open, answer, edit, summarize, or resolve a thread.")
@@ -600,6 +681,28 @@ def thread_summarize(
         cmd_summarize(
             resolve_dir(dir), from_message, through_message, text, label=label
         )
+    )
+
+
+@cli.group(short_help="Bind existing local files for editing on a page.")
+def file() -> None:
+    """Grant a page access to an explicitly chosen local text file."""
+
+
+@file.command("bind", short_help="Grant a page read/write access to one file.")
+@click.argument("dir", metavar="PAGE")
+@click.argument("binding", metavar="ID")
+@click.argument("path", type=click.Path(path_type=Path), metavar="PATH")
+def file_bind(dir: str, binding: str, path: Path) -> None:
+    """Use ID in <lf-file-editor binding=\"ID\"> to edit PATH."""
+    from leaf.file_bindings import FileBindingError, bind_file
+
+    try:
+        snapshot = bind_file(resolve_dir(dir), binding, path)
+    except (FileBindingError, OSError) as error:
+        raise click.ClickException(str(error)) from error
+    click.echo(
+        f"Bound {binding} to {path.expanduser().resolve()} ({snapshot['bytes']} bytes)."
     )
 
 
@@ -819,8 +922,9 @@ def status(dir: str, state: str, detail: str) -> None:
 @cli.command(
     short_help="Confirm a delivery, if given, then wait for the next batch.",
     help=(
-        "Watch every page this session holds — plus PAGE, claimed first, when "
-        "given.\n\n" + WAIT_BATCH_OUTPUT_INSTRUCTION
+        "Watch every page this session holds, or observe PAGE without taking "
+        "ownership. Claim a foreign page explicitly with `leaf page claim`.\n\n"
+        + WAIT_BATCH_OUTPUT_INSTRUCTION
     ),
 )
 @click.argument("dir", metavar="PAGE", required=False)
@@ -872,7 +976,7 @@ def _titled(page_dir: Path, title: str | None) -> None:
 @click.option("--section", metavar="ID", help="element ID to anchor or scope --quote")
 @click.option("--part", metavar="ID", help="declared visual part within --section")
 @click.option("--text", help="comment text (default: stdin)")
-@click.option("--markup", help="widget markup to render after the text, validated here")
+@click.option("--markup", help="HTML fragment after the text, validated here")
 @_title_option
 def thread_open(
     dir: str,
@@ -910,7 +1014,7 @@ def _reply_options(command):
         click.option("--detach", is_flag=True, help="remove the thread's page target"),
         click.option("--text", help="reply text (default: stdin)"),
         click.option(
-            "--markup", default="", help="frozen widget markup after the text"
+            "--markup", default="", help="frozen HTML fragment after the text"
         ),
         click.option(
             "--awaits", is_flag=True, help="the reply asks the user a question"
@@ -941,7 +1045,7 @@ def response_reply(
 ) -> None:
     """Answer the exact REFERENCE printed in a delivery's answer.ref.
 
-    Text, frozen widgets, prose questions, titles and anchor moves share this command.
+    Text, frozen HTML, prose questions, titles and anchor moves share this command.
     It validates and activates saved page edits, then commits the reply immediately.
     A provider's later final yields to the recorded answer; failure receipts are
     refused while that provider still owns the answer.
@@ -988,7 +1092,7 @@ def thread_edit(dir: str, message: str, text: str | None, title: str | None) -> 
     or with --title rename the thread MESSAGE is in, whoever opened it.
 
     The original and every revision remain in the append-only event log. Frozen
-    widget markup is not editable. Keep a title stable unless the thread's
+    markup is not editable. Keep a title stable unless the thread's
     subject changes.
     """
     from leaf.thread import cmd_edit, cmd_title
@@ -1083,10 +1187,10 @@ def task_start(dir: str, item: str, text: str) -> None:
 @click.argument("detail", metavar="[DETAIL]", required=False)
 def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> None:
     """End TASK with OUTCOME. DETAIL says where the result is, such as the
-    version or reply holding it, or why there is none. TASK may be one on the user:
-    one you opened `--on user`, or a question you left in a thread, by the id of the
-    reply that asks it. An Ask's task ends only when its widget answers it; retire an
-    Ask in a version."""
+    version or reply holding it, or why there is none. TASK may be an explicit task
+    on either side. A prose Question id (`reply:<message-id>`)
+    withdraws that request without creating a user answer. Widget Questions end
+    through their declared state or an authored withdrawal."""
     from leaf.tasks import cmd_end
 
     _print_records(cmd_end(resolve_dir(dir), task_id, outcome, detail))

@@ -22,12 +22,12 @@ from interact_support import (
     COMPOSITE_TIMEOUT,
     STATED_TIMEOUT,
     append_carried_log_record,
-    consume_pending_input,
     install_payload,
     wait_for,
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
+from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import files as files_model
@@ -49,6 +49,7 @@ from render_cases_navigation import (
     source_revision,
 )
 from render_harness import (
+    EXAMPLE_PACKAGES,
     REPLAYED_PAGE,
     example_media,
     leaf_page,
@@ -853,7 +854,7 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
     # what the browser says inside one is the fetch that was in flight rather than
     # the condition: a refused resource, a connection to a server that has gone, a
     # decoding that stopped halfway. The span is bracketed rather than the wordings
-    # listed (tests/AGENTS.md, "A test cannot assert over noise it makes itself").
+    # listed (tests/AGENTS.md, "Test-made noise").
     with restarting(page):
         page.goto(url, wait_until="load")
         status = page.get_by_text(
@@ -1116,8 +1117,12 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
         },
     )
     assert waiter.wait(timeout=STATED_TIMEOUT) == 0, waited.read_text()
-    assert "has new input" in waited.read_text()
-    [batch] = consume_pending_input(session)["batches"]
+    lines = waited.read_text().splitlines()
+    start = next(i for i, line in enumerate(lines) if line.startswith("{"))
+    payload = json.loads("\n".join(lines[start:]))
+    assert f"leaf wait --ack {payload['id']}" in payload["acknowledge"]
+    delivery_model.receive(payload, session)
+    [batch] = payload["batches"]
     assert [event["text"] for event in batch["events"]] == ["still there?"]
 
 
@@ -1624,7 +1629,7 @@ def test_playground_examples_keep_their_offline_interaction_mode(
         live.locator('.query-row[data-filter-id="filter-2"] input').fill("80")
         submit = playground.get_by_role("button", name="Build query")
     else:
-        playground.get_by_role("button", name="Wrapped reader").click()
+        playground.get_by_role("button", name="B at 320px").click()
         submit = playground.get_by_role("button", name="Apply treatment")
     with sending(live, f"the {stem} configuration"):
         submit.click()
@@ -1870,17 +1875,18 @@ def test_an_export_draws_a_chart_whose_body_is_plot_code(browser, serve, tmp_pat
     expect(page.locator("#c .lf-error")).to_have_count(0)
 
 
-def test_an_export_keeps_its_quiet_words_off_screen(browser, serve, tmp_path):
+def test_an_export_keeps_its_quiet_words_off_screen(
+    browser, serve, tmp_path, declared_reading_package
+):
     """A status word written for a user listening (`.lf-quiet`) is clipped on screen in
     an export as in the live page. The rule that clips it once lived only in the
-    chrome's sheet, which an export never adopts, so every milestone in an exported
-    file read "done" or "active" beside the dot that already said it."""
+    chrome's sheet, which an export never adopts, so status words in an exported file appeared on screen as well as their tint."""
     serve(
         leaf_page(
             "Quiet words",
-            '<h1>Quiet words</h1><lf-milestones><lf-milestone id="m" status="done">'
-            "<strong>Ship</strong></lf-milestone></lf-milestones>",
-        )
+            '<h1>Quiet words</h1><lf-reading id="m" state="done">Ship</lf-reading>',
+        ),
+        packages=(*EXAMPLE_PACKAGES, declared_reading_package),
     )
     out = tmp_path / "quiet.html"
     exporting_model.cmd_export(serve.page_dir, out, None)

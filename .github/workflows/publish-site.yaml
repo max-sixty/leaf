@@ -87,11 +87,8 @@ jobs:
           echo "LEAF_SITE_RELEASE=$release" >> "$GITHUB_ENV"
           LEAF_SITE_RELEASE="$release" uv run leaf-dev site
 
-      - run: npm run typecheck
-        working-directory: worker
-
-      - run: npm test
-        working-directory: worker
+      - name: Check website worker
+        run: npm run check:worker
 
       # Exercise the bundled graph through the same Worker and container boundary
       # before a deployment can make it public.

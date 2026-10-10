@@ -22,8 +22,9 @@
  * by press, key, Back, or Forward, is not fragment travel, because a view is not a
  * destination, so the strip stays where it is on screen and the view opens where this
  * user last read it, or at its start when they never read past it. Every other set is a
- * box ("box"): framed, its strip in flow, each panel a bounded box that what it holds
- * measures itself against, and a switch leaves the page where it stands. `list="side"`
+ * box ("box"): framed, its horizontal strip sticky within the set, each panel a bounded
+ * box that what it holds measures itself against. A switch leaves the page where it
+ * stands until the strip is pinned; then it opens the new panel at its start. `list="side"`
  * stands the list beside the panels, a queue beside the item it opens, walked up and
  * down as well as across (theme.css says where it stacks); a side list is a box even as
  * the root set, which keeps the root's history, and Back or Forward there lands the
@@ -40,11 +41,11 @@
  * side list stands each run of neighbouring panels that share a `group` under a label
  * of that group, which each of their tabs' descriptions names. A side list's row adds
  * the panel's `summary` under the name, and beside the name, once
- * every Ask its panel holds is answered, a check with the answer's own words where the
- * panel holds one Ask, or the check alone where it holds several. So a queue shows how
- * far the user has worked through it, and an undo that reopens an Ask takes the check
- * away again. Which Asks a panel holds and their answers are `answersWithin`'s, read
- * from the admitted Ask inventory. A row whose panel authors an Ask keeps the check's
+ * every Question its panel holds is answered, a check with the answer's own words where the
+ * panel holds one Question, or the check alone where it holds several. So a queue shows how
+ * far the user has worked through it, and an undo that reopens a Question takes the check
+ * away again. Which Questions a panel holds and their answers are the Questions API's, read
+ * from the admitted Question inventory. A row whose panel authors a Question keeps the check's
  * room either way, so an answer moves no row. While the
  * version diff is on, each tab counts the marked passages its panel holds, including
  * inactive panels. Unupgraded,
@@ -53,7 +54,10 @@
 import {
   HIDDEN,
   PRESS,
-  answersWithin,
+  readQuestions,
+  questionWords,
+  elementById,
+  under,
   backgroundFlash,
   beginWalk,
   capturePlace,
@@ -79,13 +83,15 @@ import {
   replaceEntry,
   restorePlace,
   scrollBehavior,
+  scrollIntoReadingBand,
   selectableOffer,
   setRuntimeRootStyle,
   sizeObserver,
   tabStore,
-  watchAsks,
+  watchQuestions,
   focusDestination,
   rove,
+  scrollIntoView,
 } from "/runtime/widget-api.js";
 
 // The page's navigation strip, where one stands: the first tab set in main, drawn as
@@ -110,7 +116,7 @@ customElements.define(
   class extends HTMLElement {
     #buttons = new Map(); // panel → its strip button
     #diffEvents = null;
-    #stopAsks = null;
+    #stopQuestions = null;
     #historyEvents = null;
     #active = null;
     #root = false;
@@ -129,7 +135,7 @@ customElements.define(
         this.#watchRootContext();
         this.#syncRootContext();
         this.#listenForHistory();
-        this.#listenForAsks();
+        this.#listenForQuestions();
         this.#watchStrip();
         this.#syncRegions();
         return this.#listenForDiff();
@@ -195,8 +201,8 @@ customElements.define(
           relabel(summary, panel.getAttribute("summary"), { says: true });
           btn.append(summary);
         }
-        // The row's answer, unsaid until every Ask in the panel is answered (`#marks`),
-        // stands where the panel authors an Ask; before the Δ count, which takes the
+        // The row's answer, unsaid until every Question in the panel is answered (`#marks`),
+        // stands where the panel authors a Question; before the Δ count, which takes the
         // next column.
         if (side && elementsDeclaring(panel, "x-awaits").length) {
           const answer = document.createElement("span");
@@ -307,7 +313,7 @@ customElements.define(
       }
       // The Δ count follows the version diff; the runtime announces each toggle.
       this.#listenForDiff();
-      this.#listenForAsks();
+      this.#listenForQuestions();
       this.#watchStrip();
       this.#syncRegions();
     }
@@ -371,7 +377,7 @@ customElements.define(
     }
 
     // What each panel holds, said with its summary as the tab's description: the
-    // version diff's marked passages, and in a side list the answer once its Asks are
+    // version diff's marked passages, and in a side list the answer once its Questions are
     // all answered.
     #marks() {
       for (const [panel, btn] of this.#buttons) {
@@ -381,9 +387,20 @@ customElements.define(
           changed ? `Δ${changed}` : "",
         );
         const slot = btn.querySelector(":scope > .lf-tab-answer");
-        const answers = slot ? answersWithin(panel) : [];
-        const answered = answers.length > 0 && !answers.includes(null);
-        const answer = answered && answers.length === 1 ? answers[0] : "";
+        const questions = slot
+          ? readQuestions().all.filter((question) => {
+              const source =
+                question.status !== "withdrawn" &&
+                question.source.kind === "widget" &&
+                elementById(question.source.id);
+              return source && under(source, panel);
+            })
+          : [];
+        const answered =
+          questions.length > 0 &&
+          questions.every((question) => question.status === "answered");
+        const only = questions.length === 1 ? questions[0] : null;
+        const answer = answered && only ? questionWords(only) : "";
         if (slot) {
           keeps(slot, "data-lf-answered", answered ? "" : null);
           keepsText(slot.firstElementChild, answer);
@@ -395,8 +412,8 @@ customElements.define(
           changed === 1 ? "1 change" : changed ? `${changed} changes` : "",
           !answered
             ? ""
-            : answers.length > 1
-              ? `All ${answers.length} Asks answered`
+            : questions.length > 1
+              ? `All ${questions.length} Questions answered`
               : answer
                 ? `Answered: ${answer}`
                 : "Answered",
@@ -407,10 +424,10 @@ customElements.define(
       }
     }
 
-    // A side list's answers follow the page's Ask reading.
-    #listenForAsks() {
-      if (!this.#side || !this.#buttons.size || this.#stopAsks) return;
-      this.#stopAsks = watchAsks(this, () => this.#marks());
+    // A side list's answers follow the page's Question reading.
+    #listenForQuestions() {
+      if (!this.#side || !this.#buttons.size || this.#stopQuestions) return;
+      this.#stopQuestions = watchQuestions(this, () => this.#marks());
     }
 
     #listenForDiff() {
@@ -434,6 +451,12 @@ customElements.define(
       // A press or a traversal between views switches them; a reveal is travel to
       // something inside the view, which the traveller lands.
       const switched = this.#pageFlow && ["ordinary", "history"].includes(reason);
+      const pinnedBox =
+        previous &&
+        !this.#pageFlow &&
+        !this.#side &&
+        reason === "ordinary" &&
+        this.getBoundingClientRect().top < this.#strip.getBoundingClientRect().top - 1;
       const change = () => {
         const from = pageScroller.scrollTop;
         if (this.#pageFlow && previous) this.#leave(previous);
@@ -470,6 +493,7 @@ customElements.define(
           this.#revealMotion = backgroundFlash(name, 650);
         }
         if (switched) this.#open(active, from);
+        else if (pinnedBox) scrollIntoReadingBand(this, this, "start", "instant");
         else if (reason === "history") this.#land();
         keepView(this, active);
         const presentation = [];
@@ -713,7 +737,7 @@ customElements.define(
     // where it is.
     #land() {
       if (this.getBoundingClientRect().top < 0)
-        this.scrollIntoView({ block: "start", behavior: "instant" });
+        scrollIntoView(this, { block: "start", behavior: "instant" });
     }
 
     #placeKey(panel) {

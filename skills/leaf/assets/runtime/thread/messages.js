@@ -24,7 +24,7 @@ import {
 import { reportPageError } from "../layer-client.js";
 import { isReaction, messageKey, moved } from "./model.js";
 import { tokenEntry } from "../registry.js";
-import { readPastedMedia, writePastedMedia } from "../media.js";
+import { readAttachedMedia, writeAttachedMedia } from "../media.js";
 import {
   rememberAuthoredParents,
   stageAuthoredStates,
@@ -49,7 +49,7 @@ import {
 import { rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";
 import { keeps } from "../keeps.js";
-import { motion } from "../motion.js";
+import { flashDuration, motion } from "../motion.js";
 
 export const loadMessageMarkdown = () =>
   loadMarkdown((error) =>
@@ -73,9 +73,9 @@ function proseReading(message) {
     reading.text !== text ||
     reading.markdown !== markdown
   ) {
-    const pasted = readPastedMedia(text);
+    const pasted = readAttachedMedia(text);
     const html = renderMarkdown(pasted.text);
-    const mediaHtml = renderMarkdown(writePastedMedia("", pasted.paths));
+    const mediaHtml = renderMarkdown(writeAttachedMedia("", pasted.paths));
     reading = Object.freeze({
       id: message.id,
       edited,
@@ -90,6 +90,7 @@ function proseReading(message) {
   return reading;
 }
 
+/** @param {import("../../../../../build/browser/domain.ts").Message | Extract<import("../../../../../build/browser/domain.ts").Command, {kind: "comment" | "reply"}>} message @returns {string} */
 export function messageText(message) {
   if (message.token) {
     const token = tokenEntry(message.token);
@@ -298,9 +299,9 @@ export class MessageView {
                 class="lf-btn lf-page-thread-open lf-ui"
                 data-lf-gen="1"
                 data-lf-offer="button"
-                @click=${() => this.#commands.showThread(this.#model.id)}
+                @click=${() => this.#commands.openThread(this.#model.id, { part: "message" })}
               >
-                Open interactive reply in Threads
+                Open interactive reply
               </button>`
             : nothing
         }
@@ -329,7 +330,7 @@ export class MessageView {
       this.#arrivalMotion = motion(
         this.node,
         [{ "--lf-msg-arrival": 1, offset: 0 }],
-        1200,
+        flashDuration(),
       );
     }
     return this.node;
@@ -379,12 +380,11 @@ function datumLabel(anchor) {
   return datum?.dataset.lfDatumLabel?.trim() ?? "";
 }
 
-export function anchorLabel(anchor, about) {
+function coordinateLabel(anchor, about) {
   if (about === "design") {
     const addressable = anchor?.section ? elementById(anchor.section) : null;
     const name = addressable ? designName(addressable) : anchor?.section || "the page";
-    const on = anchor?.part ? `${anchor.part} · ${name}` : name;
-    return anchor?.quote ? `design · ${on} · “${anchor.quote}”` : `design · ${on}`;
+    return anchor?.quote ? `${name} · “${anchor.quote}”` : name;
   }
   const datum = datumLabel(anchor);
   if (datum) return anchor?.quote ? `${datum} · “${anchor.quote}”` : `§ ${datum}`;
@@ -398,4 +398,12 @@ export function anchorLabel(anchor, about) {
   if (!addressable) return `§ ${anchor.section}`;
   const says = addressableLabel(addressable);
   return `§ ${[addressableWord(addressable), says].filter(Boolean).join(" · ")}`;
+}
+
+// A named control part belongs to the coordinate in every reading, not just Design.
+export function anchorLabel(anchor, about) {
+  const label = coordinateLabel(anchor, about);
+  return [about === "design" && "design", anchor?.part, label]
+    .filter(Boolean)
+    .join(" · ");
 }

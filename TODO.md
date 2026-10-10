@@ -14,6 +14,9 @@
   to start, find, and continue conversations about the whole page.
 - **Build coherent UI without repeated patches.** Improve the layout and
   interaction mechanisms so each new case does not require another fix.
+- **Reduce the burden of tests.** Tests now take long enough to meaningfully
+  slow development. Reduce their runtime and the work needed to run them while
+  preserving useful coverage.
 
 Priority runs from **Now** to **Next** to **Etc**. Themes group related work within
 each priority; bullets are outcomes, not implementation plans. Linked notes hold the
@@ -26,6 +29,12 @@ has tried; settle that before building it.
 
 ### User experience
 
+- **Verify cancellation when a browser document departs.** Reproduce navigation
+  away during registry loading, state response decoding, and presentation, plus
+  removal of a loading sample iframe. Confirm which work survives departure and
+  whether it produces errors before changing shared startup or presentation
+  lifetimes. Include real back/forward-cache restoration so cancellation cannot
+  break a returning page.
 - **#25 — Answer one decision beside its evidence and on a board.** A section's
   picker and its board card currently record independent facts. Choose the owner
   and test both views against one decision, including ordering, write-ins and
@@ -54,7 +63,7 @@ has tried; settle that before building it.
   [the comparison finding](notes/comparisons.md#phone-annotation-placement-2026-10-05).
 - **Make the next move and its result apparent.** Play through `review-a-plan`,
   `triage-board`, `pr-walkthrough`, and `ship-review`; fix dead ends and moves whose
-  result is hidden. Decide whether a page needs one progress reading across Asks,
+  result is hidden. Decide whether a page needs one progress reading across Questions,
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
 - **Keep Tab off page content a panel beside the page covers.** Threads and the
@@ -165,8 +174,8 @@ has tried; settle that before building it.
   available, such as a banner control under a coarse pointer, a reaction row on the
   sent card, or a control that keeps the field's measure
   (`skills/leaf/assets/runtime/composing/selection.js`).
-- **Give the thread panel's touch grip its own space.** Reserve room for the grip
-  and collapse inactive reply controls if more thread cards should fit.
+- **Reconsider thread navigation.** Decide how the Threads panel should change
+  before refining it (`skills/leaf/assets/AGENTS.md`, "Space and scrolling").
 
 ### Layout
 
@@ -266,9 +275,6 @@ that changes size after first paint, with its cause.
   it measures at that point. A held summary does not answer that cause. Check first whether a
   container or media query on the space beside the column can make the same decision
   in CSS.
-- **Find a first-paint fix for targeting.** `lf-targeting` has no recorded cause;
-  read `lf-targeting.js` for what it builds after first paint before choosing an
-  approach.
 - **Check that margin markers paint in place in their first frame.** The shift watch
   exempts the page until it is presented (`tests/shift_watch.js`), and #1603 records
   startup shifts only as diagnostics, so a marker drawn in the wrong place in its first
@@ -281,9 +287,9 @@ A queue is one `lf-tabs list="side"` beside its open item (`page-authoring.md`, 
 workspace"). The first real one, a 21-item triage page, showed these. Its list's
 height and where a switch lands wait on the workspace decision under Layout.
 
-- **Start `a` from the open item's Ask.** From a row, `a` goes to the queue's first
-  open Ask, and `1` then picks for an item the user isn't looking at. The walk
-  measures from focus (`askPosition` in `asks/view.js`), and the row precedes every
+- **Start `q` from the open item's Question.** From a row, `q` goes to the queue's first
+  open Question, and `1` then picks for an item the user isn't looking at. The walk
+  measures from focus (`queue-walk.js`), and the row precedes every
   panel; `t` and `T` measure the same way. A tab could stand at the view it opens for
   the walks (`standing-target.js`), while `c` on a row still names the row.
 - **Keep the open item's group named on a phone.** In the one-row strip a group's
@@ -349,16 +355,16 @@ on 2026-10-07.
   It runs a page once in the host's browser, about 1.3 s, where the page has a script
   or places a page widget or a data widget (`needs_browser`,
   `render_gate/page_code.py`); any other page checks in about 0.15 s. Widgets that fail on their attribute values
-  (`lf-playground`, `lf-targeting`, `lf-shot`, `lf-visual-review`, `lf-text-document`)
+  (`lf-playground`, `lf-shot`, `lf-visual-review`, `lf-text-document`)
   and every widget in thread markup report through `leaf wait` once a browser draws
   them, but nothing runs them first. Write `evals/` cases in which agents author each
   kind and measure how often what they write fails to draw, then run the kinds agents
   get wrong and stop running those they reliably get right.
-- **Derive the waiting banner from the page's open Ask.** Consider using the Ask's
+- **Derive the waiting banner from the page's open Question.** Consider using the Question's
   words when no explicit waiting detail is needed. **Unconfirmed:** try pages with
-  several open Asks and an informational page before choosing how the banner
+  several open Questions and an informational page before choosing how the banner
   explains who owes the next move. Keep explicit agent status available when the
-  Ask alone does not explain the wait.
+  Question alone does not explain the wait.
 
 ### Development velocity
 
@@ -441,7 +447,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
   [What needs you](notes/what-needs-you/page.html#task-hierarchy)). Trigger: a page
   whose work the user wants to see broken down.
 - **Tell the agent when to ask before ending its own task.** The agent ends its tasks
-  itself, and asks first, with an Ask or a thread question, when the result needs the
+  itself, and asks first, with a Question or a thread question, when the result needs the
   user's sign-off
   ([What needs you](notes/what-needs-you/page.html#task-done)). The shipped
   instructions don't yet say when that is. Trigger: an agent ends a task as done that
@@ -465,7 +471,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
   building a feed or presence on it.
 - **Show which pane has focus, and move between panes by key.** A terminal marks
   its active pane and one key moves to the next. In a workspace today the arrow keys
-  walk a side list, `a` reaches the next open Ask, and a pane body that scrolls is a
+  walk a side list, `q` reaches the next open Question, and a pane body that scrolls is a
   Tab stop, but nothing marks the active pane and no key moves from one pane to the
   next. Pane focus belongs to the panes and the keyboard layer, not the Layout, so it
   works the same wherever panes stand. Draw it as a playground before building it.
@@ -552,3 +558,5 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **MCP Apps:** rebuild inline hosting as the direct-resource design when a host
   the user runs renders MCP Apps. See [notes/mcp-apps/PROJECT.md](notes/mcp-apps/PROJECT.md).
 - **Release labels:** prefer an exact tag when Leaf adopts named releases.
+- **Diff controls:** consider author-configurable wrapping and per-file review tracking
+  when a page needs them. Keep their controls optional.

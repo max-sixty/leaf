@@ -126,6 +126,29 @@ def merge_data_document_readings(
     return bindings, errors
 
 
+def data_document_readings(
+    document: SourceDocument, label: str, registry: dict
+) -> list:
+    """Read one identity space and its sample children against their captured layer.
+
+    Samples inherit the parent's data store. Their consumers therefore belong in its
+    producer inventory, while their widget ids remain scoped to the child document.
+    A parent binding owns the producer when its sample reuses the source under a
+    different contract: the child reads that copied value under its own contract.
+    """
+    readings = []
+    for sample in document.samples:
+        readings.extend(
+            data_document_readings(
+                sample["document"],
+                f"{label} sample {sample['attrs'].get('id', '<unnamed>')!r}",
+                registry,
+            )
+        )
+    readings.append((document.lf_elements, label, registry))
+    return readings
+
+
 def page_data_document_readings(
     page_dir: Path, events: list, registry: dict
 ) -> list[tuple[list, str, dict]]:
@@ -141,15 +164,17 @@ def page_data_document_readings(
         reading = read_revision(page_dir, revision)
         registries[revision] = reading.registry
         documents.append(
-            (reading.document.lf_elements, f"revision r{revision}", reading.registry)
+            data_document_readings(
+                reading.document, f"revision r{revision}", reading.registry
+            )
         )
     active_document = documents.pop() if documents else None
     for event in events:
         if event.get("markup"):
             revision = event.get("revision") or max(registries, default=None)
             documents.append(
-                (
-                    logged_fragment(event).lf_elements,
+                data_document_readings(
+                    logged_fragment(event),
                     f"event {event['id']!r} markup",
                     registries[revision] if registries else registry,
                 )
@@ -157,7 +182,7 @@ def page_data_document_readings(
     # The active document owns current bindings ahead of older thread markup.
     if active_document is not None:
         documents.append(active_document)
-    return documents
+    return [reading for group in documents for reading in group]
 
 
 def working_data_document_readings(
@@ -165,36 +190,35 @@ def working_data_document_readings(
     registry: dict,
     events: list,
     *,
-    authored: list | None = None,
-    incoming: list[tuple[list, str]] | None = None,
+    authored: SourceDocument | None = None,
+    incoming: list[tuple[SourceDocument, str]] | None = None,
 ) -> list[tuple[list, str, dict]]:
     """Immutable readings plus candidate documents under the candidate registry."""
     documents = page_data_document_readings(page_dir, events, registry)
     if authored is None:
         source = page_dir / "index.html"
         if source.exists():
-            authored = SourceDocument(source.read_text(encoding="utf-8")).lf_elements
+            authored = SourceDocument(source.read_text(encoding="utf-8"))
     if authored is not None:
-        documents.append((authored, "index.html", registry))
-    documents.extend(
-        (lf_elements, document, registry) for lf_elements, document in (incoming or [])
-    )
+        documents.extend(data_document_readings(authored, "index.html", registry))
+    for document, label in incoming or []:
+        documents.extend(data_document_readings(document, label, registry))
     return documents
 
 
 def initial_data_document_readings(
-    authored: list, events: list, registry: dict
+    authored: SourceDocument, events: list, registry: dict
 ) -> list:
     """A fresh page's source and seeded markup share its initial registry."""
-    return [(authored, "index.html", registry)] + [
-        (
-            logged_fragment(event).lf_elements,
-            f"event {event['id']!r} markup",
-            registry,
-        )
-        for event in events
-        if event.get("markup")
-    ]
+    documents = data_document_readings(authored, "index.html", registry)
+    for event in events:
+        if event.get("markup"):
+            documents.extend(
+                data_document_readings(
+                    logged_fragment(event), f"event {event['id']!r} markup", registry
+                )
+            )
+    return documents
 
 
 def working_data_bindings(
@@ -311,8 +335,8 @@ def data_binding_errors(
     registry: dict,
     events: list,
     *,
-    authored: list | None = None,
-    incoming: list[tuple[list, str]] | None = None,
+    authored: SourceDocument | None = None,
+    incoming: list[tuple[SourceDocument, str]] | None = None,
 ) -> list[str]:
     """Conflicting simultaneous bindings inside the working documents."""
     documents = working_data_document_readings(

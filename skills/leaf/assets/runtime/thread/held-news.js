@@ -49,7 +49,7 @@
    A reply pinned to its scrollport lets a turn joining the thread's end grow up into
    the room scrolled past (thread-list.js, `followThreadEnd`), though nothing that
    changes above that end. A held change leaves the controls it touches drawn as they
-   were, and a press on one means what it drew (actions.js, `toggleReaction` and
+   were, and a press on one means what it drew (actions.js, `setReaction` and
    `settle`) and shows what the thread holds.
 
    `HeldNews` is that one owner for a seat, and `HeldArrivals` for the seats a widget has
@@ -61,12 +61,12 @@
    - pressing its notice, or its margin marker where a widget holds it out of the flow;
    - opening the thread: a folded outlet, or a panel card the list opens;
    - arriving at it: coming to stand in it from outside it, by a move of theirs, a t/T
-     walk, an Ask, a link, Tab, whatever route took them (focus.js, `onStanding`), or by
+     walk, a Question, a link, Tab, whatever route took them (focus.js, `onStanding`), or by
      a press on its title, which stands for the whole thread, whether or not it already
      stood open. Coming back to the thread they stood in is a stay, whatever puts them
      there, as when the runtime puts back a reply box a surface stopped drawing, and so
      is a move within it, such as Escape out of its reply box onto its title or going to
-     an Ask it already shows;
+     a Question it already shows;
    - acting in it (`gesturedOn`): a reply, a reaction on one of its messages, settling
      it, a move on a widget one of them holds, or a thread they start in the seat, which
      answers what came before it and so follows it;
@@ -75,7 +75,7 @@
    Held news also shows once none of the seat shows in the window, where its growth moves
    nothing anyone sees. A press into the thread, such as into its reply box, shows
    nothing: it asks for what it lands on, and drawing the news would move that under the
-   press. Where the destination is itself held, a message or an Ask in a held turn, or a
+   press. Where the destination is itself held, a message or a Question in a held turn, or a
    thread a seat holds whole, the route shows it first (`showHeld`), since nothing
    undrawn can take focus. Anything held in a seat is not drawn, so it stays unread until
    it shows.
@@ -297,17 +297,17 @@ function withheld(was, now) {
     const message = standing.get(messageKey(prior));
     if (!message) return isReaction(prior) || prior.provisional ? [prior] : [];
     // A streaming reply held as drawn is still the reply arriving, whatever completed it.
-    const { text, body, edited, provisional } = prior;
-    return [{ ...message, text, body, edited, provisional }];
+    const { text, body, edited, provisional, reactions } = prior;
+    return [Object.freeze({ ...message, text, body, edited, provisional, reactions })];
   });
-  return {
+  return Object.freeze({
     ...now,
     root:
       msgs.find((message) => messageKey(message) === messageKey(now.root)) ?? now.root,
     resolved: was.resolved,
-    msgs,
+    msgs: Object.freeze(msgs),
     summaries: was.summaries,
-  };
+  });
 }
 
 // Whether growth after `node` would move what the user sees: the node's foot stands
@@ -471,7 +471,7 @@ export class HeldNews {
   #shown = null;
   #known = new Set();
   #holds = new Set();
-  #released = new Set();
+  #released = new Map();
   #threads = new Set();
   #keys = new Map();
   #stopWatching = null;
@@ -491,6 +491,14 @@ export class HeldNews {
   // either. `row` says whether the seat draws a first-message row the user is not in, in
   // whose place a new thread's notice can stand.
   hold(reading, { row }) {
+    const candidate = this.prepare(reading, { row });
+    candidate.commit();
+    return candidate.reading;
+  }
+
+  // Required presenters prepare before yielding to package layout. Only the
+  // candidate actually painted becomes the baseline for the next comparison.
+  prepare(reading, { row }) {
     const read = readApplication().phase === "ready";
     if (!read || !readingIsContinuous()) this.#forget();
     const prior = read ? this.#shown : null;
@@ -498,15 +506,23 @@ export class HeldNews {
     for (const key of this.#threads) if (!keys.has(key)) this.#threads.delete(key);
     this.#keys = new Map(reading.threads.map(({ id, key }) => [id, key]));
     if (prior) this.#arrive(prior, reading, row);
-    this.#known = keys;
     const shown = this.#draw(prior, reading);
-    this.#released.clear();
-    this.#shown = read ? shown : null;
+    const released = new Map(this.#released);
     // Waiting for all of the seat to go keeps news held a little longer than it needs,
     // never shorter.
     if (this.#holding()) this.#stopWatching ??= whenOffScreen([this.#seat], this.#all);
     else this.#stop();
-    return shown;
+    return {
+      reading: shown,
+      commit: () => {
+        // A release issued while this candidate awaited paint belongs to the next
+        // reading. Consume only the intents this candidate actually drew.
+        for (const [key, token] of released)
+          if (this.#released.get(key) === token) this.#released.delete(key);
+        this.#known = keys;
+        this.#shown = read ? shown : null;
+      },
+    };
   }
 
   // Which of the threads new to the seat it holds back.
@@ -602,7 +618,7 @@ export class HeldNews {
     const first = threads && [...this.#threads][0];
     let changed = false;
     if (key && this.#holds.has(key) && !this.#released.has(key)) {
-      this.#released.add(key);
+      this.#released.set(key, Symbol("release"));
       // A thread held while the user acts in it has a newer reading on its way, which
       // draws it as it stands; drawing the one held now would show a state that reading
       // replaces in the same task.
@@ -632,7 +648,8 @@ export class HeldNews {
 
   // Every thread the seat holds shows on the next reading.
   #forget() {
-    for (const thread of this.#shown?.threads ?? []) this.#released.add(thread.key);
+    for (const thread of this.#shown?.threads ?? [])
+      this.#released.set(thread.key, Symbol("release"));
     this.#threads.clear();
   }
 

@@ -10,6 +10,7 @@
  * choice pressed never inserts a row that pushes the list down under the user. It never
  * reads its rendering back into user intent.
  */
+import { scrollIntoView } from "../landing-scroll.js";
 import {
   html,
   noChange,
@@ -17,7 +18,7 @@ import {
   render,
   repeat,
 } from "../../vendor/browser-runtime.js";
-import { offer, reserve } from "../widget-elements.js";
+import { searchField, reserve } from "../widget-elements.js";
 import { focusDestination } from "../focus.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
@@ -32,15 +33,13 @@ class ThreadNarrowingView extends HTMLElement {
   #reservedCounts = new WeakMap();
   #reset = null;
   #toggleUser = null;
-  #searchInput = offer("wa-input", "lf-find-box lf-label-hidden");
+  #searchInput = searchField("lf-find-box", {
+    name: "thread-search",
+    label: "Find in threads",
+  });
 
   constructor() {
     super();
-    this.#searchInput.type = "search";
-    this.#searchInput.size = "s";
-    this.#searchInput.name = "thread-search";
-    this.#searchInput.placeholder = "Find in threads";
-    this.#searchInput.label = "Find in threads";
     this.#searchInput.title = "Find in threads";
     this.#searchInput.addEventListener("input", () =>
       this.#changeWords?.(this.#searchInput.value),
@@ -115,7 +114,10 @@ class ThreadNarrowingView extends HTMLElement {
     const toggle =
       document.activeElement === event.currentTarget &&
       this.querySelector(".lf-thread-filter-toggle");
-    if (toggle) focusDestination(toggle, "return", { scroll: true });
+    if (toggle) {
+      focusDestination(toggle, "return");
+      scrollIntoView(toggle, { block: "nearest" });
+    }
     this.#reset();
   }
 

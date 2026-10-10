@@ -30,7 +30,7 @@ whole delivery in your context (`references/event-batches.md`, "One envelope on
 every transport") and confirms it, so the user's moves read **Picked up** and its
 `acknowledge` is null: run no acknowledgement command. Large input arrives as a
 `leaf delivery read <id>` pointer instead; run it before working or replying, since
-reading it is what confirms it. Input that arrives as a turn ends comes through the
+follow its confirmation instruction after the complete reading. Input that arrives as a turn ends comes through the
 Stop hook the same way. Where the user turned on Leaf's hooks module, the module
 keeps the same watch, and a wake it opens arrives as a message from the leaf plugin.
 
@@ -65,7 +65,7 @@ Keep either line to 200 characters or fewer, on its own line, not in a code bloc
 
 A subagent runs with this session's id and process, and nothing in its
 environment tells Leaf otherwise, so to Leaf it is this session. A page it
-claims, by serving it or naming it to `leaf wait`, is this session's, and this
+claims, by serving it or running `leaf page claim`, is this session's, and this
 session's Stop hook holds its turns open for every user move there. A
 `leaf wait` it starts competes for this session's one watcher: it is refused
 while the watch runs, and otherwise wakes the subagent instead of you, so the

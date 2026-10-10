@@ -67,7 +67,7 @@ def browser_thread(
     workflow says the agent is replying, and an empty message would only reserve a
     bubble with nothing in it."""
     events, threads = work.events, work.threads
-    reading, asks = work.thread, work.asks
+    reading, widget_questions = work.thread, work.widget_questions
     unread = unread_content(
         events, threads, reading.thread_by_name, reading.thread_by_widget
     )
@@ -78,17 +78,19 @@ def browser_thread(
         if is_answer(event):
             first_answers.setdefault(event["responds"], event["id"])
     for thread_id, thread in threads.items():
-        questions = work.questions[thread_id]
+        questions = work.thread_questions[thread_id]
         protected = set()
         if awaits_agent(thread):
             protected.add(unanswered_agent_turn(thread)["id"])
         if questions.prompt is not None:
             protected.add(questions.prompt["message"])
-        ask_sources = {
-            ask["source"] for ask in asks["unanswered"] if ask["thread"] == thread_id
+        question_sources = {
+            question["source"]["id"]
+            for question in widget_questions["unanswered"]
+            if question["thread"] == thread_id
         }
         for message_id, fragment in reading.structure.fragments.items():
-            if ask_sources.intersection(fragment.by_id):
+            if question_sources.intersection(fragment.by_id):
                 protected.add(message_id)
         summaries = summaries_for[thread_id]
         for summary in summaries:
@@ -155,11 +157,11 @@ def browser_thread(
             "projection": browser_projection(
                 reading.projection, scope="thread", within={}, floors={}
             ),
-            "asks": {key: asks[key] for key in ("all", "user", "unanswered")},
+            "questions": work.questions,
             "threads": rendered_threads,
-            # What the banner's own button reads to say whether the version has
-            # been signed off.
-            "done": work.approvals,
+            # Standing approvals across every stamp, for Threads' event timeline.
+            # Current-version approval state lives only in its Question.
+            "approval_history": work.approvals,
         },
         reading,
     )

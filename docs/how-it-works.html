@@ -122,10 +122,6 @@
         </nav>
         <p class="eyebrow">how it works</p>
         <h1>How leaf works</h1>
-        <p class="lede" id="lede">
-          A leaf is a page an agent hands you, and the loop that carries what you do on
-          it back to the agent.
-        </p>
       </header>
 
       <lf-tabs id="how">
@@ -258,12 +254,14 @@ leaf page check ./review
 leaf response reply &lt;answer.ref&gt; --text "The importer policy is updated."
 leaf status ./review waiting "Does the revised policy match the workload?"</code></pre>
               <p id="answers-kinds">
-                A comment receives a thread reply. A page can also contain an
-                <em>Ask</em>: a component requesting a user decision, such as a choice
-                between queue policies. Each Ask is a task on the user until answered.
-                The agent records that decision in a stamped revision. The browser
-                fetches the updated HTML and current state, so the user sees the result
-                on the same page.
+                A comment receives a thread reply. A page can also pose a
+                <em>Question</em> through a decision widget, such as a choice between
+                queue policies. Each Question contains its prompt, typed answer, and
+                lifecycle. The widget owns its value; a standalone decision widget also
+                creates a Question. An optional <code>lf-ask</code> supplies context
+                around it. The agent records that decision in a stamped revision. The
+                browser fetches the updated HTML and current state, so the user sees the
+                result on the same page.
               </p>
               <details id="decision-example">
                 <summary>Example: answer a page choice</summary>
@@ -305,13 +303,13 @@ leaf page stamp ./review --text "Queue policy: drop oldest"</code></pre>
                 </p>
                 <p id="answer-kinds-details">
                   A user comment requires a reply in its thread. A decision on a page
-                  Ask requires a stamped revision. If the Ask's component declares a
-                  record form, the revised HTML uses it to show the decision, such as
-                  the chosen option. An Ask embedded in a thread message receives a
-                  thread reply, because that message's HTML is fixed. Resolving a thread
-                  or moving a card can require no answer; the agent still receives the
-                  event. A multi-select Ask submits the choice when the user presses
-                  Done.
+                  Question requires a stamped revision. If the Question's component
+                  declares a record form, the revised HTML uses it to show the decision,
+                  such as the chosen option. A Question embedded in a thread message
+                  receives a thread reply, because that message's HTML is fixed.
+                  Resolving a thread or moving a card can require no answer; the agent
+                  still receives the event. A multi-select Question submits the choice
+                  when the user presses Done.
                 </p>
                 <p id="feedback-envelope">
                   A delivery uses the <code>leaf-delivery-v3</code> JSON format. Its
@@ -769,14 +767,14 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
             </table>
             <p id="stages-owed">
               A comment, or a reply in a thread, needs a reply in that thread. An answer
-              to an Ask needs a version whose markup records it. Resolving a thread,
-              editing a draft, and moving a card need no answer, though the agent still
-              reads them with the rest of the delivery. The label on a draft edit or a
-              card move clears once a version records or replaces the change; in a
-              widget inside a thread message, it clears once the agent next writes in
-              that thread or the thread is resolved. In an Ask with a Done button, a
-              pick has no label until you press Done, because the Ask is not answered
-              until then.
+              to a page-widget Question needs a version whose markup records it.
+              Resolving a thread, editing a draft, and moving a card need no answer,
+              though the agent still reads them with the rest of the delivery. The label
+              on a draft edit or a card move clears once a version records or replaces
+              the change; in a widget inside a thread message, it clears once the agent
+              next writes in that thread or the thread is resolved. In a Question with a
+              Done button, a pick has no label until you press Done, because the
+              Question is not answered until then.
             </p>
           </section>
           <section id="delivery">
@@ -1248,18 +1246,20 @@ flowchart TD
               session. A watcher is the background integration that receives feedback
               between turns.
             </p>
-            <lf-chronology id="updates-timeline">
-              <lf-chronology-entry id="updates-sent" at="0s" kind="observation">
-                <strong>Sent</strong> You comment on the lede. The page shows your
-                comment at once, marked Sent.
-              </lf-chronology-entry>
-              <lf-chronology-entry id="updates-picked" at="1s" kind="observation">
+            <ol id="updates-timeline">
+              <li id="updates-sent">
+                <time>0s</time> <small>observation</small> <strong>Sent</strong> You
+                comment on the lede. The page shows your comment at once, marked Sent.
+              </li>
+              <li id="updates-picked">
+                <time>1s</time> <small>observation</small>
                 <strong>Picked up</strong> Leaf's hook puts your comment in the agent's
                 turn and confirms receipt. Your comment reads Picked up, and until the
                 agent writes its own words the banner reads
                 <em>Claude working — picked up your comment</em>.
-              </lf-chronology-entry>
-              <lf-chronology-entry id="updates-reply" at="5s" kind="intervention">
+              </li>
+              <li id="updates-reply">
+                <time>5s</time> <small>intervention</small>
                 <strong>The work is named</strong> Before doing the work, the agent
                 replies in your thread with what it will do,
                 <code
@@ -1267,18 +1267,20 @@ flowchart TD
                   the lede to two sentences."</code
                 >, which also puts that line in the banner, and your comment reads
                 Working.
-              </lf-chronology-entry>
-              <lf-chronology-entry id="updates-phase" at="1m" kind="intervention">
+              </li>
+              <li id="updates-phase">
+                <time>1m</time> <small>intervention</small>
                 <strong>Each new phase gets a new line</strong> When the work moves from
                 editing to checking, the agent starts the same move again:
                 <em>Claude working — checking the page at phone width</em>.
-              </lf-chronology-entry>
-              <lf-chronology-entry id="updates-done" at="2m" kind="observation">
-                <strong>Answered</strong> The revision goes live, the agent's reply
-                reports it, and a waiting status names what the agent wants back:
+              </li>
+              <li id="updates-done">
+                <time>2m</time> <small>observation</small> <strong>Answered</strong> The
+                revision goes live, the agent's reply reports it, and a waiting status
+                names what the agent wants back:
                 <em>Claude awaits — does the shorter lede keep enough?</em>
-              </lf-chronology-entry>
-            </lf-chronology>
+              </li>
+            </ol>
           </section>
 
           <section id="updates-map">
@@ -1373,10 +1375,10 @@ flowchart LR
                 first reply promised.
               </li>
               <li id="updates-written-awaits">
-                <strong><code>leaf thread reply … --awaits</code></strong> A question
-                for you, which is a task on you until you answer it. The thread reads
-                <em>On you to answer</em>, and the question joins your Questions, in the
-                Questions panel.
+                <strong><code>leaf thread reply … --awaits</code></strong> A prose
+                Question for you, which stays open until you reply or settle it with a
+                reaction. The thread reads <em>On you to answer</em>, and the question
+                joins your Questions, in the Questions panel.
               </li>
               <li id="updates-written-on-you">
                 <strong><code>leaf task open … --on user</code></strong> Something the
@@ -1531,8 +1533,8 @@ flowchart TD
                 <tr id="updates-reading-held">
                   <td>Claude working — picked up your comment</td>
                   <td>
-                    The agent's running turn picked up your comment, or your answer to
-                    an Ask, and the agent has not yet said what it is doing.
+                    The agent's running turn picked up your comment, or your answer to a
+                    Question, and the agent has not yet said what it is doing.
                   </td>
                 </tr>
                 <tr id="updates-reading-steps">
@@ -1622,7 +1624,7 @@ flowchart TD
                 <tr id="updates-notice-input">
                   <td>Input needed, 2 items need your input</td>
                   <td>
-                    A new Ask requests a decision on the page or in a thread, or an
+                    A new Question requests a decision on the page or in a thread, or an
                     agent reply asks the user a question.
                   </td>
                 </tr>
@@ -1668,8 +1670,10 @@ flowchart TD
               A page requesting approval includes
               <code>&lt;meta name="lf-review" content="sign-off"&gt;</code>. A stamped
               version with this declaration offers an approval control in the banner.
-              The control becomes available after the user has answered every Ask, the
-              components requesting decisions on that page.
+              The version's sign-off is itself a Question. Its approval control becomes
+              available after every widget Question on the page and in unresolved
+              threads is answered or withdrawn. Prose Questions and widgets in resolved
+              threads do not block approval. Undo reopens the approval Question.
             </p>
           </section>
 
@@ -1782,17 +1786,20 @@ flowchart TD
               <lf-sample id="spec-options-frame" label="lf-options">
                 <lf-options id="spec-options">
                   <lf-option id="so-rewrite"
-                    ><lf-chip>effort: high</lf-chip><lf-chip>risk: med</lf-chip
+                    ><small class="tag">effort: high</small
+                    ><small class="tag">risk: med</small
                     ><strong>Rewrite the importer</strong> A clean slate on the new
                     schema; the old importer keeps running until parity.</lf-option
                   >
                   <lf-option id="so-shim"
-                    ><lf-chip>effort: low</lf-chip><lf-chip>risk: high</lf-chip
+                    ><small class="tag">effort: low</small
+                    ><small class="tag">risk: high</small
                     ><strong>Shim the old schema</strong> Fastest to ship; every future
                     field pays the translation tax.</lf-option
                   >
                   <lf-option id="so-stage"
-                    ><lf-chip>effort: med</lf-chip><lf-chip>risk: low</lf-chip
+                    ><small class="tag">effort: med</small
+                    ><small class="tag">risk: low</small
                     ><strong>Migrate in stages</strong> New fields land on the new
                     schema while reads fall back, table by table.
                     <em>My take: this keeps the rollback boundary small.</em></lf-option
@@ -2718,8 +2725,9 @@ flowchart TD
               least 9rem wide, placing as many cells in each row as fit. Cells in the
               same row have equal heights. A page can set its own columns when it needs
               a particular grouping, such as four tiles in two rows of two. A row of
-              headline numbers can use a <code>layout-tiles</code> block of
-              <code>lf-metric</code> elements.
+              headline numbers can use a <code>layout-tiles</code> block of native
+              <code>dl</code> elements with labels in <code>dt</code> and values in
+              <code>dd</code>.
             </p>
           </section>
 
@@ -2738,14 +2746,15 @@ flowchart TD
             <p id="chrome-what">
               Leaf adds controls around the authored HTML. This interface is called
               <em>chrome</em>: the top banner, bottom bar, comment and decision markers,
-              thread panels, and Questions panel. An Ask requests a user decision and is
-              a task on the user until answered. The Questions panel lists what each
-              side has to act on. Your Questions hold Asks, threads awaiting a reply,
-              and to-dos the agent put on you. The agent’s Tasks hold unanswered moves
-              and its open tasks. The banner's Questions door, beside Threads, counts
-              yours, and the Tasks count after the status counts the agent's; either
-              opens the panel. Opening these controls preserves the page's text wrapping
-              and reading position.
+              thread panels, and Questions panel. A Question contains a request for user
+              input, its answer, and its lifecycle; widgets own their typed answer
+              values. The Questions panel lists what each side has to act on. Your queue
+              holds widget and prose Questions, stamped-version sign-off, and explicit
+              work the agent put on you. The agent’s Tasks hold unanswered moves and its
+              open tasks. The banner's Questions door, beside Threads, counts yours, and
+              the Tasks count after the status counts the agent's; either opens the
+              panel. Opening these controls preserves the page's text wrapping and
+              reading position.
             </p>
             <p id="chrome-bars">
               The banner and bottom bar have fixed heights, and the page scrolls between
@@ -3239,11 +3248,10 @@ flowchart TD
                 </tbody>
               </table>
               <p id="navigation-go-to-filters">
-                Lowercase <kbd>m</kbd>, <kbd>t</kbd>, <kbd>a</kbd>, <kbd>h</kbd>, and
-                <kbd>f</kbd> narrow the hints to margin targets, thread controls, Ask
-                controls, hyperlinks, and folds respectively. The next hint letters
-                choose within that category. Thus g then t filters thread controls; g
-                then T opens Threads.
+                Lowercase <kbd>m</kbd>, <kbd>t</kbd>, <kbd>h</kbd>, and <kbd>f</kbd>
+                narrow the hints to margin targets, thread controls, hyperlinks, and
+                folds respectively. The next hint letters choose within that category.
+                Thus g then t filters thread controls; g then T opens Threads.
               </p>
               <p id="navigation-go-to-exit">
                 Tab / Shift+Tab browse hints and Enter takes the announced target.
@@ -3404,9 +3412,9 @@ flowchart TD
                     <td><kbd>c</kbd>, compose, send</td>
                     <td>
                       A reply leaves focus on its conversation card or title on every
-                      surface. The page comment card stays open and focused too. Press
-                      <kbd>c</kbd> to write again; Escape follows the card's usual exit
-                      route.
+                      surface. Sending a page comment closes its card and returns focus
+                      to its banner control. Press <kbd>c</kbd> to write again; Escape
+                      closes an unfinished comment, keeping its draft.
                     </td>
                   </tr>
                   <tr>
@@ -3442,7 +3450,7 @@ flowchart TD
                 <tbody>
                   <tr>
                     <td>
-                      t, a, a marker, or Page Map reaches a hidden or clipped
+                      t, q, a marker, or Page Map reaches a hidden or clipped
                       destination
                     </td>
                     <td>
@@ -3524,13 +3532,13 @@ flowchart TD
                 behind it inaccessible until it closes.
               </p>
               <p id="navigation-comment-return">
-                <kbd>q</kbd>, <kbd>c</kbd>, <kbd>Escape</kbd> returns focus to the Ask,
-                with its option keys available again. A second Escape lets go of the
-                Ask. Commenting from an option or by aiming at the same Ask follows the
-                same return route. A visual comment returns to its current response
-                proxy, by keyboard or pointer entry. A comment on the whole page returns
-                to its banner control; closing a comment on selected words clears the
-                selection.
+                <kbd>q</kbd>, <kbd>c</kbd>, <kbd>Escape</kbd> returns focus to the
+                Question, with its option keys available again. A second Escape lets go
+                of the Question. Commenting from an option or by aiming at the same
+                Question follows the same return route. A visual comment returns to its
+                current response proxy, by keyboard or pointer entry. A comment on the
+                whole page returns to its banner control; closing a comment on selected
+                words clears the selection.
               </p>
               <p id="navigation-panel-exchange">
                 Opening Pages or Questions in place of another auxiliary surface
@@ -3551,11 +3559,12 @@ flowchart TD
             <details id="navigation-queue-cases">
               <summary>The queue walk can leave the panel's filtered list</summary>
               <p id="navigation-queue-rule">
-                a walks work waiting on the user, including open Asks, thread questions,
-                and moves to send again. It can clear a thread filter that hides its
-                destination, or open a closed tab or disclosure. A single-choice Ask
-                ends when answered; a multiple-choice Ask waits for Done. A later a
-                press walks the remaining work.
+                <kbd>q</kbd> walks work waiting on the user, including open Questions,
+                version sign-off, explicit work, and moves to send again. It can clear a
+                thread filter that hides its destination, or open a closed tab or
+                disclosure. A single-choice Question ends when answered; a
+                multiple-choice Question waits for Done. A later <kbd>q</kbd> press
+                walks the remaining work.
               </p>
               <p id="navigation-tab-rule">
                 A tab strip's arrows select neighbouring tabs and wrap at its ends; Tab

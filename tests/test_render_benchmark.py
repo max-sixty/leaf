@@ -3,7 +3,13 @@
 from leaf.render_checks import rendered
 from leaf_dev.bench_latency import PROBE
 from playwright.sync_api import expect
-from render_harness import BOARD_PAGE, consume_browser_errors, leaf_page, open_page
+from render_harness import (
+    BOARD_PAGE,
+    consume_browser_errors,
+    holding,
+    leaf_page,
+    open_page,
+)
 
 
 def test_delivery_benchmark_does_not_borrow_an_older_thread_receipt(browser, serve):
@@ -45,6 +51,7 @@ def test_delivery_benchmark_does_not_borrow_an_older_thread_receipt(browser, ser
         with page.expect_request("**/api/event"):
             page.keyboard.press("Enter")
         page.wait_for_function("window.__leafBench.watch().goals[0].at !== null")
+        holding(page, held, 1, "the benchmark reply")
         [route] = held
         attempt = route.request.post_data_json["attempt"]
         goal = page.evaluate("window.__leafBench.watch().goals[1]")
@@ -111,6 +118,7 @@ def test_card_delivery_benchmark_tracks_the_card_unit_and_its_admission(browser,
     with page.expect_request("**/api/event"):
         page.keyboard.press("Enter")
     page.wait_for_function("window.__leafBench.watch().goals[0].at !== null")
+    holding(page, held, 1, "the benchmark card move")
     [route] = held
     posted = route.request.post_data_json
     assert posted["widget"] == "sprint"
@@ -139,6 +147,7 @@ def test_delivery_benchmark_reloads_with_its_exact_attempt(browser, serve):
     )
     with page.expect_request("**/api/event"):
         page.keyboard.press("Enter")
+    holding(page, held, 1, "the benchmark move before reload")
     [route] = held
     attempt = route.request.post_data_json["attempt"]
     # The server admits it while this document still awaits the answer. A reload

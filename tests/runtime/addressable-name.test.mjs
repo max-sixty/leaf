@@ -35,7 +35,7 @@ test("the contract's titles name their elements", () => {
   // A titled member's comparison chips stand before its title and are not its name.
   assert.equal(
     named(
-      '<lf-option id="it"><lf-chip>effort: low</lf-chip><strong>Flag first</strong> Ship dark.</lf-option>',
+      '<lf-option id="it"><small class="tag">effort: low</small><strong>Flag first</strong> Ship dark.</lf-option>',
     ),
     "Flag first",
   );
@@ -91,7 +91,7 @@ test("the attribute a tag declares with x-name names its element", () => {
   Object.assign(registry, {
     "lf-column": { "x-name": "label" },
     // An attribute shown first is not a title unless it is declared as one.
-    "lf-metric": { "x-says": { value: "before" } },
+    "lf-reading": { "x-says": { value: "before" } },
   });
   assert.equal(
     named(
@@ -99,7 +99,7 @@ test("the attribute a tag declares with x-name names its element", () => {
     ),
     "Ready",
   );
-  assert.equal(named('<lf-metric id="it" value="312">daily visits</lf-metric>'), "");
+  assert.equal(named('<lf-reading id="it" value="312">daily visits</lf-reading>'), "");
   // Without its attribute the element falls back to the contract's other titles.
   assert.equal(named('<lf-column id="it"><h3>Later</h3></lf-column>'), "Later");
   for (const tag of Object.keys(registry)) delete registry[tag];
@@ -127,7 +127,7 @@ test("the chrome names an element by its name before its words", () => {
   // A question is its heading, not its heading run into its options and their chips.
   assert.equal(
     labelled(
-      '<lf-ask id="it"><h4>How should it page?</h4><lf-options><lf-option><lf-chip>last week: 0</lf-chip><strong>Require three</strong> probes.</lf-option></lf-options></lf-ask>',
+      '<lf-ask id="it"><h4>How should it page?</h4><lf-options><lf-option><small class="tag">last week: 0</small><strong>Require three</strong> probes.</lf-option></lf-options></lf-ask>',
     ),
     "How should it page?",
   );

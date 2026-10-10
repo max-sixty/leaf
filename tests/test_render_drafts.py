@@ -55,7 +55,6 @@ from render_harness import (
     draft_control,
     draft_key,
     example_media,
-    expect_banner_control_offered,
     expect_comment_notes,
     held_stale,
     hold_pending_thread_presentation,
@@ -193,8 +192,8 @@ def test_typing_in_a_visible_inline_reply_keeps_the_reading_position(
     """Keeping a reply's controls visible does not reveal its already-scrolled-past turns."""
     content = """
 <div style="height:900px"></div>
-<lf-command id="hub" label="Tasks"><lf-task id="jobs" status="active" talk>
-What should we do next?</lf-task></lf-command>
+<lf-test-plan id="hub" label="Tasks"><lf-test-task id="jobs" status="active" talk>
+What should we do next?</lf-test-task></lf-test-plan>
 <div style="height:900px"></div>
 """
     if bounded:
@@ -355,7 +354,7 @@ def test_clicking_a_shadow_widget_input_keeps_its_focus_and_thread_reading(
             "parent": root["id"],
             "revision": 1,
             "text": "Filter the files in this patch.",
-            "markup": """<lf-diff id="reply-patch" data-height="201"><pre>
+            "markup": """<lf-diff id="reply-patch" data-height="151"><pre>
 diff --git a/reading.py b/reading.py
 --- a/reading.py
 +++ b/reading.py
@@ -1212,10 +1211,10 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "3")
 
 
-def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, serve):
+def test_an_empty_draft_survives_reload_and_a_live_revision(browser, serve):
     """Empty text is a real replacement, not the absence of a saved draft. Deleting
-    the whole body must hold a live editor on its version, survive reload, and arrive
-    in the log as an ordinary absolute edit."""
+    the whole body must survive a live revision and reload, then arrive in the log
+    as an ordinary absolute edit."""
     url = serve(JOURNEY_V1)
     page = open_page(browser, live_url(url))
     draft = page.locator("#draft-ops")
@@ -1226,7 +1225,9 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
     d = serve.page_dir
     stamp_page(d, JOURNEY_V2, "v2")
     told(page)
-    expect_banner_control_offered(page.locator(".lf-latest-chip"))
+    wait_for_revision(page, 2)
+    expect(draft.locator("leaf-text")).to_be_focused()
+    expect(draft.locator("leaf-text")).to_have_js_property("value", "")
     assert "/versions/" not in page.url
 
     page.reload(wait_until="load")
@@ -2158,8 +2159,8 @@ def test_a_comment_hidden_by_narrowing_is_revealed_in_the_open_panel(
         expect(thread.locator(":scope > .lf-thread-summary")).to_be_focused()
 
 
-def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, serve):
-    """An untouched reply is not a draft; an edit to empty is."""
+def test_an_untouched_and_an_emptied_reply_follow_live_revisions(browser, serve):
+    """Emptying a reply keeps its editing session while unrelated revisions arrive."""
     page = open_page(browser, live_url(serve(NOTED_PAGE)))
     resized(page, 1440, 900)
     select_words(page, "#p1")
@@ -2202,8 +2203,7 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
     )
     stamp_page(d, v3, "v3")
     told(page)
-    expect_banner_control_offered(page.locator(".lf-latest-chip"))
-    expect(page.locator(".lf-version")).to_contain_text("v2")
+    expect(page.locator(".lf-version")).to_contain_text("v3")
     expect(reply).to_have_js_property("value", "")
     expect(reply).to_be_focused()
 
@@ -3216,7 +3216,7 @@ def test_picture_paste_belongs_to_the_composer_not_the_shared_text_field(
         write(editor, "A later document edit")
         page.keyboard.press("Escape")
         compose(page, "#passage")
-        page.get_by_role("button", name="Remove pasted image 1", exact=True).click()
+        page.get_by_role("button", name="Remove attached image 1", exact=True).click()
         expect(page.locator(".lf-composer-media img")).to_have_count(0)
         page.locator("h1").click()
         page.keyboard.press("g")
@@ -3321,7 +3321,7 @@ def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(
     Both directions here, and the box the user opens next, because a shelf that
     outlived its send is an image that rides into the next passage's draft."""
     page = open_page(browser, serve(LONG_PAGE))
-    image_markdown = "![Pasted image](/media/051bee487bfb5d13.png)"
+    image_markdown = "![Attached image](/media/051bee487bfb5d13.png)"
     compose(page, "#p3")
     pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
@@ -5293,7 +5293,7 @@ def test_the_draft_box_is_its_own_door(browser, serve):
 
 # Generated editors carry native editing under their existing durable draft identity.
 def editing_revision_source(mode):
-    body = '<h1 id="subject">Editor continuity</h1><p id="passage">A stable passage stays exact across the revision.</p><textarea id="authored-draft" aria-label="Authored draft" style="height:80px"></textarea><lf-draft id="draft-root"><pre>Standing editable text.</pre></lf-draft><lf-ask id="choice-root"><h2>Which choice?</h2><lf-options id="options-root" choose><lf-option id="initial">Initial choice</lf-option></lf-options></lf-ask><lf-command id="command-root" label="Tasks"><lf-task id="seat-root" status="active" talk>What should we do?</lf-task></lf-command>'
+    body = '<h1 id="subject">Editor continuity</h1><p id="passage">A stable passage stays exact across the revision.</p><textarea id="authored-draft" aria-label="Authored draft" style="height:80px"></textarea><lf-draft id="draft-root"><pre>Standing editable text.</pre></lf-draft><lf-ask id="choice-root"><h2>Which choice?</h2><lf-options id="options-root" choose><lf-option id="initial">Initial choice</lf-option></lf-options></lf-ask><lf-test-plan id="command-root" label="Tasks"><lf-test-task id="seat-root" status="active" talk>What should we do?</lf-test-task></lf-test-plan>'
     module = """<script type="module">
 window.__rendererLifetime={birth:performance.timeOrigin,hits:0,version:'MODE'};
 addEventListener('renderer-lifetime-probe',()=>window.__rendererLifetime.hits++);
@@ -5561,7 +5561,7 @@ def test_delayed_thread_destination_yields_to_shared_generation_or_new_input(
       const drafts=await window.__lfRuntimeImport('/runtime/drafts.js');
       const {replyDestination}=await window.__lfRuntimeImport('/runtime/thread/focus.js');
       const {retainUserIntent,restrictUserIntent}=await window.__lfRuntimeImport('/runtime/user-intent.js');
-      const {openThread}=await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const {openThread}=await window.__lfRuntimeImport('/runtime/application.js');
       const button=document.createElement('button');button.id='held-reply-route';button.textContent='Continue the held reply';document.querySelector('main').append(button);
       button.onclick=()=>{
         const original=retainUserIntent();window.readOriginalIntent=original;

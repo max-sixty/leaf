@@ -144,7 +144,7 @@ export function createDrawers({
   const drawersEdge = drawnEdge({
     side: "left",
     noun: "drawer panel",
-    wide: DRAWER_SLOT_W,
+    defaultWidth: () => DRAWER_SLOT_W,
     min: DRAWER_SLOT_MIN,
     prop: DRAWER_SLOT_PROP,
     key: "lf-drawer-slot-width",

@@ -199,7 +199,11 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
                 now,
             )
         elif edit == "resize-insert":
-            assert now["height"] > before["height"] + 50, (before, now)
+            # Moving Send to the new last line can also remove a wrapped row.
+            assert now["height"] > before["height"], (before, now)
+            assert now["height"] == pytest.approx(
+                editor.evaluate("box => box.naturalBlockSize"), abs=0.5
+            ), (before, now)
         else:
             assert now["height"] < before["height"] - 50, (before, now)
         assert now["y"] == pytest.approx(before["y"], abs=0.5), (before, now)
@@ -406,7 +410,9 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
 
     tail = '<p id="continuity-tail">Review the next step here.</p>'
     if place == "seat":
-        authored = SEATED_QUESTION_PAGE.replace("</lf-command>", "</lf-command>" + tail)
+        authored = SEATED_QUESTION_PAGE.replace(
+            "</lf-test-plan>", "</lf-test-plan>" + tail
+        )
         anchor = {"section": "jobs"}
         selector = '[data-lf-thread-seat="jobs"] > .lf-page-thread'
     elif place in ("margin", "panel"):

@@ -118,6 +118,7 @@
       "diff": "diff --git a/atlas/api.py b/atlas/api.py\n--- a/atlas/api.py\n+++ b/atlas/api.py\n@@ -7,3 +7,3 @@ class ImportResult:\n-    errors: list[str]\n+    failures: tuple[ImportFailure, ...]\n     rows: int"
     }
   },
+  "dfg-patch-source": "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-return \"old\"\n+return \"new\"\n",
   "gallery-latency": 184,
   "gallery-markdown": "# Release ready\n\nThe **importer** now preserves field names.\n\n- Review the schema\n- Publish the release\n\n| Check | Result |\n| --- | --- |\n| Round trip | Passed |\n\n[Read the release](https://example.com/release)\n",
   "gallery-html": "<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><title>Release card</title><style>body{font:18px system-ui;margin:32px;color:#17352d}article{border:2px solid #25755c;padding:24px;max-width:420px}h1{font-size:28px}strong{color:#25755c}</style><article><h1>Importer release</h1><p>The schema round trip <strong>passed</strong>.</p><details><summary>Release checklist</summary><p>Review the schema, then publish the release.</p></details></article></html>",

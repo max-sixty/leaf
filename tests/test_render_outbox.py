@@ -1826,10 +1826,15 @@ def test_z_walks_back_through_gestures_rather_than_toggling_one(browser, serve):
     ]
 
 
-def test_an_undo_reveals_the_prior_winner_before_its_send_finishes(browser, serve):
+@pytest.mark.parametrize(
+    "refusal_first", [True, False], ids=["refusal-first", "poll-first"]
+)
+def test_an_undo_reveals_the_prior_winner_before_its_send_finishes(
+    browser, serve, refusal_first
+):
     """Optimistic withdrawal re-folds the coordinate instead of deleting its current
-    value. A prior durable action therefore appears immediately and stays through the
-    accepted undo response.
+    value. Another tab can withdraw that same action before this send reaches the
+    server: the refusal must carry its truth, even while all polls remain held.
     """
     page = open_page(browser, serve(UNDO_PAGE))
     page.locator("#opt-a").click()
@@ -1840,15 +1845,47 @@ def test_an_undo_reveals_the_prior_winner_before_its_send_finishes(browser, serv
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
+    cut = CutOff().hold(page)
     with page.expect_request("**/api/event"):
         page.keyboard.press("z")
     expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-a")
     holding(page, held, 1, "the optimistic withdrawal")
-    held[0].continue_()
+    other_undo = append_command(
+        serve.page_dir,
+        {"kind": "undo", "author": "user", "undoes": actions(serve.page_dir)[-1]["id"]},
+    )
+    response = held[0].fetch()
+    refusal = response.json()
+    assert response.status == 400 and "already been taken back" in refusal["error"]
+    assert other_undo in refusal["state"]["events"]
+    if not refusal_first:
+        cut.restore()
+        told(page)
+        cut.cut()
+        assert (
+            page.evaluate("""async () => {
+          const {readApplication} = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+          return readApplication().authoritative.taken;
+        }""")
+            > refusal["state"]["taken"]
+        )
+    page.evaluate("""async () => {
+      const {applicationState} = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+      const widget = document.querySelector('#opt-a').closest('lf-options').id;
+      window.refusalValues = [];
+      applicationState.select(root => root).subscribe(root => {
+        window.refusalValues.push(root.effective.widgets.get(widget).state.choose.value);
+      });
+    }""")
+    held[0].fulfill(response=response)
     page.unroute("**/api/event")
     round_trip(page)
 
     expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-a")
+    values = page.evaluate("window.refusalValues")
+    assert len(values) > 1 and all(value == ["opt-a"] for value in values), values
+    consume_browser_errors(page, "400")
+    cut.restore()
 
 
 def test_z_returns_a_recordless_decision_to_undecided(browser, serve):
@@ -2464,8 +2501,8 @@ def test_opening_the_panel_stands_down_the_field_without_losing_its_draft(
 
 def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, serve):
     """A draft survives the version it was written against even when that version's
-    replacement removes its passage. With no detached composer card, the compact field
-    stands down on the new page and the words return when the original passage does."""
+    replacement removes its passage. The editor stays available without attaching to
+    the rewritten words, and the draft returns to its passage when that version does."""
     url = serve(INLINE_PAGE)
     page = open_page(browser, url)
 
@@ -2493,7 +2530,11 @@ def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, se
     banner_control(page, ".lf-latest-chip").click()
     wait_for_revision(page, 2)
     expect(page).not_to_have_url(re.compile("/versions/"))
-    expect(page.locator(".lf-composer")).to_be_hidden()
+    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(page.locator(".lf-fab-input")).to_have_js_property(
+        "value", "half-written when the version turned over"
+    )
+    expect(page.locator("#lf-composer-quote")).to_have_text(f"“{passage}”")
     assert pending_text(page) == "", (
         "v2 rewrote the passage and the page marked it anyway"
     )

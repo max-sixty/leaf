@@ -118,6 +118,16 @@ describe("published runtime bundle", () => {
       expect(
         await readFile(join(output, "runtime", "layer-client.js"), "utf8"),
       ).toBeTruthy();
+      const verifier = await readFile(
+        fileURLToPath(new URL("../../dev/leaf_dev/verify_site_browser.js", import.meta.url)),
+        "utf8",
+      );
+      for (const [, name] of verifier.matchAll(/runtimeModule\("([^"]+)"\)/g)) {
+        expect(
+          await readFile(join(output, "runtime", `${name}.js`), "utf8"),
+          `the browser verifier imports bundled runtime/${name}.js`,
+        ).toBeTruthy();
+      }
       expect(bundled).not.toMatch(/from"\.\/runtime\/(?!bundle-)/);
       // The kernel holds the framework; the page still shares one Lit, which the
       // revision's import map sends to its own vendor directory.

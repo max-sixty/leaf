@@ -50,6 +50,12 @@ export function excludedByInert(node) {
 // The same step through the tree as rendered: a node slotted into a shadow tree renders
 // inside its slot, so the slot is where it is scrolled and ordered, not its light parent.
 export const renderedParent = (node) => node?.assignedSlot ?? upFrom(node);
+// Geometry walks the children that paint here: a host's shadow tree and a slot's
+// assigned (or fallback) content, rather than the separate light-DOM ownership tree.
+export const renderedChildren = (node) =>
+  node.localName === "slot"
+    ? node.assignedNodes({ flatten: true })
+    : (node.shadowRoot ?? node).childNodes;
 // Containment in the rendered tree includes slots and their shadow ancestors.
 export const renderedUnder = (node, root) => {
   for (let at = node; at; at = renderedParent(at)) if (at === root) return true;

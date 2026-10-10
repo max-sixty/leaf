@@ -650,7 +650,7 @@ def canonical_activity(
             "active": len(active_moves),
             "handling": len(handling),
             # Of those, the moves in a thread: comments. The rest are widget moves in
-            # an answered Ask, the only widget moves that owe an answer.
+            # an answered Question, the only widget moves that owe an answer.
             "handling_comments": sum(
                 item["subject"]["kind"] == "thread" for item in handling
             ),

@@ -20,12 +20,15 @@
  * widgets against the arriving source. A widget declaring `x-patch: members` is
  * patched inside its members instead, while the revision keeps its shell.
  *
- * Composition, unresolved delivery, and an open version menu defer either install.
+ * Composition defers a reload or a patch that would discard an active native editor
+ * or change a selected passage/comment's complete authored anchor scope. Runtime
+ * chrome stays outside the authored patch and follows its own editor continuation.
+ * Unresolved delivery and an open version menu defer either install.
  * Ending composition releases its hold on the next heartbeat; pressing the newest-version
  * chip explicitly releases that hold. The chip remains available while activation waits.
  *
  * Retained nodes keep their mechanical state. Replaced nodes use `carry.js`'s authored-id
- * contract, and the Ask view restores the selected Ask by id. Both installs restore these
+ * contract, and the Question view restores the selected Question by id. Both installs restore these
  * readings; the patch passes its retained nodes so restoration skips them. Unnamed
  * replaced controls receive no guessed focus. Authored controls and registered draft
  * editors carry native editing under their existing replacement identity; arbitrary
@@ -33,10 +36,10 @@
  * use their own stores.
  *
  * A fresh-document install stores a page-scoped, one-use handoff: reading position,
- * comparison, pointer, margin standing, mechanical carry, and Ask standing. A newer
+ * comparison, pointer, margin standing, mechanical carry, and Question standing. A newer
  * revision may consume it, but ordinary reloads and history travel cannot replay it.
  * Explicit historical travel carries reading position and the decision landmark, without
- * mechanical carry or Ask standing. State application serializes responses and remains
+ * mechanical carry or Question standing. State application serializes responses and remains
  * pending after navigation starts until the old document is discarded.
  *
  * `captureView` records a place (reading-place.js) for the page and each reading
@@ -45,8 +48,9 @@
  * `landArrival` runs after presentation: a valid revision handoff restores continuity;
  * unexpected mechanical failures report without blocking proved state or deferred
  * arrivals. Otherwise a fresh navigation aimed nowhere restores a saved view from a
- * different revision. Ordinary reloads and history travel keep the browser's restored offset
- * (history.js). Comparison is restored after activation because its base must be
+ * different revision. Ordinary reloads and full-document history travel keep the browser's
+ * restored offset; history.js owns same-document working-place checkpoints.
+ * Comparison is restored after activation because its base must be
  * fetched again. Reading position is restored even after a patch because content above
  * it may have changed height.
  *
@@ -72,9 +76,15 @@ import {
 } from "./drafts.js";
 import { heldThreadId, replyDestination } from "./thread/focus.js";
 import { restoreReplyEditing } from "./thread/replies.js";
-import { focusDestination, onStanding, focused, closeLayer } from "./focus.js";
+import {
+  focusDestination,
+  onStanding,
+  onUserInput,
+  focused,
+  closeLayer,
+} from "./focus.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
-import { patchTree } from "./dom-children.js";
+import { patchTree, patchRetains } from "./dom-children.js";
 import { labelOf, PRESS } from "./keyboard/bindings.js";
 import { commandShortcut } from "./keyboard/control-keys.js";
 import { keys, paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
@@ -251,8 +261,8 @@ export function createVersionController({
   syncLayout,
   captureRetainedStanding = () => null,
   restoreRetainedStanding = () => false,
-  captureAskStanding = () => null,
-  restoreAskStanding = () => {},
+  captureQuestionStanding = () => null,
+  restoreQuestionStanding = () => {},
 }) {
   let { authoredBodyAttributes, authoredHeadNodes, authoredHtmlAttributes } =
     initialDocument;
@@ -1281,16 +1291,39 @@ export function createVersionController({
     registry[before.localName]?.["x-patch"] === "members" &&
     sameAuthoredMarkup(shell(before), shell(after), arrivingRoot);
 
+  // Preparation and installation use the same matching, widget ownership, and resource
+  // equality. A retained subject is proved through every containing owner, not by an
+  // id or a matching digest alone.
+  function patchRules(doc) {
+    const source = doc.querySelector("body > main");
+    const arrivingWidgets = documentWidgetDigests(doc);
+    const arrivingRoot = artifactRoot(doc);
+    const heldKeys = widgetKeys(authoredSource);
+    const arrivingKeys = widgetKeys(source);
+    return {
+      pairs: sourcePairs,
+      contains: under,
+      declared: upgraded,
+      reaches: (before, after) => reachesMembers(before, after, arrivingRoot),
+      unchanged: (before, after) => {
+        const digest = authoredWidgets[heldKeys.get(before)];
+        return Boolean(digest) && arrivingWidgets[arrivingKeys.get(after)] === digest;
+      },
+      same: (before, after) => sameAuthoredMarkup(before, after, arrivingRoot),
+      sameValue: (name, held, value) => sameValue(name, held, value, arrivingRoot),
+    };
+  }
+
   // Patch against the authored baselines. Retained nodes keep their live state;
-  // replacement nodes recover eligible state through carry and Ask restoration.
+  // replacement nodes recover eligible state through carry and Question restoration.
   function captureEditingContinuity() {
     const draftEditing = captureDraftEditing();
     return {
       draftEditing,
       replyThread: draftEditing?.mirrored ? heldThreadId() : null,
-      // Ask standing is the fallback for unnamed controls. An exact editor already
-      // has a replacement identity, so its parent Ask does not also own focus.
-      askStanding: draftEditing ? null : captureAskStanding(),
+      // Question standing is the fallback for unnamed controls. An exact editor already
+      // has a replacement identity, so its parent Question does not also own focus.
+      questionStanding: draftEditing ? null : captureQuestionStanding(),
     };
   }
 
@@ -1307,8 +1340,8 @@ export function createVersionController({
 
   async function restoreEditingContinuity(continuity, currentIntent) {
     if (!currentIntent()) return;
-    const { draftEditing, replyThread, askStanding } = continuity;
-    restoreAskStanding(askStanding);
+    const { draftEditing, replyThread, questionStanding } = continuity;
+    restoreQuestionStanding(questionStanding);
     const mayRestore = restrictUserIntent(currentIntent, () =>
       draftEditingStands(draftEditing),
     );
@@ -1343,8 +1376,7 @@ export function createVersionController({
     const source = doc.querySelector("body > main");
     const arrivingWidgets = documentWidgetDigests(doc);
     const arrivingRoot = artifactRoot(doc);
-    const heldKeys = widgetKeys(authoredSource);
-    const arrivingKeys = widgetKeys(source);
+    const rules = patchRules(doc);
     retireProjectionCoverage();
     revisionDocuments.delete(target.revision);
 
@@ -1424,20 +1456,9 @@ export function createVersionController({
       // and the revision after this one is the patch that reads it.
       sourcePairs.set(source, live);
       patchTree(authoredSource, source, {
-        pairs: sourcePairs,
+        ...rules,
         arrive,
         generated,
-        declared: upgraded,
-        reaches: (before, after) => reachesMembers(before, after, arrivingRoot),
-        // The capture that wrote each revision said what every declared widget in it
-        // was written as. A widget the arriving revision spells the same way is the
-        // widget the user is holding, so it stays.
-        unchanged: (before, after) => {
-          const digest = authoredWidgets[heldKeys.get(before)];
-          return Boolean(digest) && arrivingWidgets[arrivingKeys.get(after)] === digest;
-        },
-        same: (before, after) => sameAuthoredMarkup(before, after, arrivingRoot),
-        sameValue: (name, held, value) => sameValue(name, held, value, arrivingRoot),
         touched: (element) => touched.push(element),
       });
       // The revision's sheets, in its head and in its body alike, keep off the layer.
@@ -1537,17 +1558,21 @@ export function createVersionController({
       target.revision <= runtime.currentRevision
     )
       return null;
-    const activates = () =>
+    const activates = (retains) =>
       target.revision > runtime.currentRevision &&
       !hasPending() &&
-      (!midComposition() || forceActivation) &&
+      (!midComposition(retains) || forceActivation) &&
       !versionMenuIsOpen();
     // The revision either install leaves this document showing. State application reads
     // it to judge the answer before the install edits anything, and adopts the answer
     // against it afterwards, so the document's revision and the state that speaks for it
     // become current in one reading.
     if (!servedExecutable || target.executable !== servedExecutable)
-      return { revision: target.revision, activates, install: reloadInto(target) };
+      return {
+        revision: target.revision,
+        activates: () => activates(),
+        install: reloadInto(target),
+      };
     let doc;
     try {
       doc = await revisionDocument(target);
@@ -1566,7 +1591,19 @@ export function createVersionController({
     }
     return {
       revision: target.revision,
-      activates,
+      activates: () =>
+        activates(
+          (node) =>
+            // Installation closes inline comparisons, which can own the comment’s
+            // rendered subject independently of the authored patch.
+            selectedBase() === null &&
+            patchRetains(
+              authoredSource,
+              doc.querySelector("body > main"),
+              node,
+              patchRules(doc),
+            ),
+        ),
       install: () => {
         forceActivation = false;
         return activateRevision(doc, target);
@@ -1854,14 +1891,19 @@ export function createVersionController({
     };
     onStanding(recordStanding);
     onReadingInput(recordStanding);
-    document.addEventListener("input", recordStanding);
+    // Caret and selection keys are work in the same focused destination even
+    // when they change no text and produce no input or focus event.
+    onUserInput((event) => {
+      if (event.type === "keydown" || event.type === "input") recordStanding();
+    });
     queueRecord();
   }
 
   function installArrival() {
     installReadingContinuity();
-    // Ordinary reload and history travel keep the offset the browser restores
-    // (history.js). The root is its document scrollport, so native restoration is both
+    // Ordinary reload and full-document history travel keep the browser's restored
+    // offset; history.js owns same-document working-place checkpoints. The root is
+    // its document scrollport, so native restoration is both
     // more complete and less surprising than a parallel session-store reading. Leaf
     // intervenes for two semantic cases the platform cannot know: a fresh URL aimed at a
     // target a widget generates, hides, or moves (`aimArrival`), and travel to a

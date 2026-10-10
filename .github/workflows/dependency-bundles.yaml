@@ -1,0 +1,30 @@
+name: dependency-bundles
+
+on:
+  pull_request:
+    paths: [package.json, package-lock.json]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - run: npm ci
+      - run: npm run build:browser
+      - run: uv run build/vendor.py
+      - run: node .github/scripts/dependency-bundles.mjs capture /tmp/bundles.json
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dependency-bundles
+          path: /tmp/bundles.json

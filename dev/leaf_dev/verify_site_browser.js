@@ -134,9 +134,9 @@
     const watchApplied = () => {
       if (!watch || watch.applied || !document.querySelector("script[data-lf-server]"))
         return;
-      watch.applied = runtimeModule("semantic-state").then((semantic) => {
-        apply(semantic.readApplication());
-        if (watch) watch.unsubscribe = semantic.watchSemantic(apply);
+      watch.applied = runtimeModule("check-api").then((checks) => {
+        apply(checks.readApplication());
+        if (watch) watch.unsubscribe = checks.watchSemantic(apply);
       });
     };
     watch = { mutations, intersections };

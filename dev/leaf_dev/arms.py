@@ -195,8 +195,26 @@ def copy_working(paths: Iterable[str], dest: Path) -> None:
             shutil.copy2(source, target, follow_symlinks=False)
 
 
-def extract_payload(dest: Path, ref: str | None = None) -> None:
-    """Write PAYLOAD at git `ref`, or as the working tree has it when `ref` is None
+def copy_committed(paths: Iterable[str], dest: Path, ref: str) -> None:
+    """Extract the requested paths present at `ref` into an existing destination."""
+    present = subprocess.run(
+        ["git", "-C", ROOT, "ls-tree", "--name-only", ref, *paths],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.split()
+    archive = subprocess.run(
+        ["git", "-C", ROOT, "archive", ref, *present],
+        capture_output=True,
+        check=True,
+    ).stdout
+    subprocess.run(["tar", "-x", "-C", dest], input=archive, check=True)
+
+
+def extract_payload(
+    dest: Path, ref: str | None = None, *, paths: Iterable[str] = PAYLOAD
+) -> None:
+    """Write `paths` at git `ref`, or as the working tree has it when `ref` is None
     (`copy_working`), into `dest`, replacing whatever was there."""
     if dest.exists():
         # A caller may have made an arm read-only.
@@ -204,28 +222,16 @@ def extract_payload(dest: Path, ref: str | None = None) -> None:
         shutil.rmtree(dest)
     dest.mkdir(parents=True)
     if ref is not None:
-        # An older ref lacks some of PAYLOAD, which `git archive` would refuse.
-        present = subprocess.run(
-            ["git", "-C", ROOT, "ls-tree", "--name-only", ref, *PAYLOAD],
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.split()
-        archive = subprocess.run(
-            ["git", "-C", ROOT, "archive", ref, *present],
-            capture_output=True,
-            check=True,
-        ).stdout
-        subprocess.run(["tar", "-x", "-C", dest], input=archive, check=True)
+        copy_committed(paths, dest, ref)
     else:
-        copy_working(PAYLOAD, dest)
+        copy_working(paths, dest)
 
 
-def build_arm(ref: str | None, dest: Path) -> str:
-    """Extract PAYLOAD at `ref`, or as the working tree has it when `ref` is None,
+def build_arm(ref: str | None, dest: Path, *, paths: Iterable[str] = PAYLOAD) -> str:
+    """Extract `paths` at `ref`, or as the working tree has it when `ref` is None,
     into `dest`, replacing any earlier arm there, and build its environment; return
     the commit, HEAD's for the working tree."""
-    extract_payload(dest, ref)
+    extract_payload(dest, ref, paths=paths)
     with tempfile.TemporaryDirectory() as state:
         run_leaf(dest, Path(state), "--root", check=True)
     return subprocess.run(

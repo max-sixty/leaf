@@ -18,12 +18,13 @@ import json
 import os
 import subprocess
 import tempfile
-from contextlib import redirect_stdout
+from contextlib import contextmanager, redirect_stdout
 from pathlib import Path
+from uuid import uuid4
 
 import click
 from leaf.delivery import freeze_delivery, pending_batches, receive_held
-from leaf.harness import session_harness
+from leaf.harness import detached_environment, session_harness
 from leaf.hosting import claim_and_start, cmd_stop
 from leaf.projection import folded_positions
 from leaf.publishing import cmd_stamp
@@ -111,7 +112,7 @@ def folded_board(page_dir: Path) -> dict[str, list[str]]:
 def demo_page(version: int, board: dict[str, list[str]] | None = None) -> str:
     progressed = version == 2
     progress = "3 of 4" if progressed else "2 of 4"
-    delta = ' delta="+1" direction="up-good"' if progressed else ""
+    delta = "<small>+1</small>" if progressed else ""
     shadow_status = "done" if progressed else "active"
     rollback_status = "active" if progressed else "planned"
     shadow_copy = (
@@ -134,6 +135,7 @@ def demo_page(version: int, board: dict[str, list[str]] | None = None) -> str:
 <head>
 <title>Migration plan</title>
 <meta name="lf-review" content="sign-off">
+<style>#demo-metrics dl {{ margin: 0; padding: var(--sp-3); border: 1px solid var(--rule); }} #demo-metrics dt {{ color: var(--muted); font: 500 var(--t-6)/1.3 var(--sans); }} #demo-metrics dd {{ margin: 0; font: 600 var(--t-2)/1.3 var(--sans); }} #demo-metrics dd small {{ font-size: var(--t-6); }}</style>
 </head>
 <body>
 <main class="layout-column">
@@ -145,9 +147,9 @@ new version as the checks finish.</p>
 </header>
 
 <div id="demo-metrics" class="layout-tiles">
-  <lf-metric id="demo-progress" value="{progress}"{delta}>checks complete</lf-metric>
-  <lf-metric id="demo-errors" value="0.08%">error rate</lf-metric>
-  <lf-metric id="demo-p95" value="181 ms">p95 latency</lf-metric>
+  <dl id="demo-progress"><dt>checks complete</dt><dd><strong>{progress}</strong> {delta}</dd></dl>
+  <dl id="demo-errors"><dt>error rate</dt><dd><strong>0.08%</strong></dd></dl>
+  <dl id="demo-p95"><dt>p95 latency</dt><dd><strong>181 ms</strong></dd></dl>
 </div>
 
 <section id="phases">
@@ -161,20 +163,20 @@ new version as the checks finish.</p>
 
 <section id="rehearsal">
 <h2>Rehearsal progress</h2>
-<lf-milestones id="demo-milestones">
-  <lf-milestone id="demo-ms-baseline" status="done" when="14:02">
+<ol id="demo-milestones">
+  <li id="demo-ms-baseline"><small>done · 14:02</small>
     <strong>Capture the baseline</strong> Counts and guardrails recorded.
-  </lf-milestone>
-  <lf-milestone id="demo-ms-shadow" status="{shadow_status}" when="14:08">
+  </li>
+  <li id="demo-ms-shadow"><small>{shadow_status} · 14:08</small>
     <strong>Shadow and backfill</strong> {shadow_copy}
-  </lf-milestone>
-  <lf-milestone id="demo-ms-rollback" status="{rollback_status}" when="next">
+  </li>
+  <li id="demo-ms-rollback"><small>{rollback_status} · next</small>
     <strong>Prove rollback</strong> {rollback_copy}
-  </lf-milestone>
-  <lf-milestone id="demo-ms-report" status="planned" when="last">
+  </li>
+  <li id="demo-ms-report"><small>planned · last</small>
     <strong>Publish the rehearsal report</strong>
-  </lf-milestone>
-</lf-milestones>
+  </li>
+</ol>
 </section>
 
 <section id="work">
@@ -339,7 +341,10 @@ def record(
     if page.url != live_url:
         raise RuntimeError(f"the live page navigated from {live_url} to {page.url}")
     wait_until_ready(page)
-    page.wait_for_selector(".lf-thread .lf-msg.agent")
+    # An idle open panel shows the answer directly; only an active composition holds news.
+    page.locator(".lf-thread .lf-msg.agent").get_by_text(
+        "Yes. The fixed rate limit keeps the backfill online.", exact=True
+    ).wait_for(state="visible")
     shot(2300)
 
     page.get_by_role("button", name="Close threads").click()
@@ -409,6 +414,25 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
             )
 
 
+@contextmanager
+def demo_session(scratch: Path):
+    """Own the recorder's state and delivery loop, independently of its invoking agent."""
+    previous = os.environ.copy()
+    recording_environment = detached_environment(None) | {
+        "XDG_STATE_HOME": str(scratch / "state"),
+        "CLAUDE_CODE_SESSION_ID": f"leaf-demo-{uuid4()}",
+        "CLAUDE_PID": str(os.getpid()),
+        "LEAF_AGENT": "Claude",
+    }
+    os.environ.clear()
+    os.environ.update(recording_environment)
+    try:
+        yield
+    finally:
+        os.environ.clear()
+        os.environ.update(previous)
+
+
 @click.command("record-demo")
 @click.option(
     "--output",
@@ -417,15 +441,13 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
 )
 def record_demo(output: Path | None) -> None:
     """Record the demo GIF, README stills and site card, and publish them."""
-    with tempfile.TemporaryDirectory(prefix="leaf-demo-") as scratch:
+    with (
+        tempfile.TemporaryDirectory(prefix="leaf-demo-") as scratch,
+        demo_session(Path(scratch)),
+    ):
         recording = Path(scratch) / "demo"
         recording.mkdir()
         page_dir = Path(scratch) / "page"
-        # A state home of its own, so the host's open pages stay out of the banner's
-        # `All leaves`. Set before any leaf command so each inherits it. The agent's
-        # name shows only under a harness session, which the recording keeps.
-        os.environ["XDG_STATE_HOME"] = f"{scratch}/state"
-        os.environ["LEAF_AGENT"] = "Claude"
         with redirect_stdout(io.StringIO()):
             cmd_init(page_dir)
         (page_dir / "index.html").write_text(demo_page(1), encoding="utf-8")

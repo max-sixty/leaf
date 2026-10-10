@@ -20,6 +20,7 @@ import test from "node:test";
 import { registry } from "/runtime/registry.js";
 import {
   closestAcross,
+  contextAround,
   elementReading,
   fencePassageParts,
   inChrome,
@@ -285,4 +286,36 @@ test("one element's two readings are kept apart", () => {
   assert.equal(elementReading(line, "says"), "Words generated");
   assert.equal(elementReading(line, "wrote"), "Words");
   assert.equal(elementReading(line), "Words generated");
+});
+
+// A display window may be shorter than a word, while stored quote context remains exact.
+// Completing rather than dropping that word preserves what distinguishes nearby matches.
+test("spoken context completes outer words in its local window", () => {
+  document.body.innerHTML =
+    "<main><p>Supercalifragilistic Primary <b>Notify me</b> for Backup release.</p></main>";
+  const node = document.querySelector("b").firstChild;
+  const segments = [{ node, start: 0, end: node.length }];
+  assert.deepEqual(contextAround(pageText(), segments, { before: 24, after: 15 }), {
+    before: "Supercalifragilistic Primary",
+    after: "for Backup release",
+  });
+  assert.deepEqual(contextAround(pageText(), segments, { before: 0, after: 3 }), {
+    before: "",
+    after: "for",
+  });
+});
+
+test("spoken context bounds unspaced languages and oversized tokens", () => {
+  for (const context of [
+    "这是一个很长的中文段落没有任何空格".repeat(40),
+    "a".repeat(3000),
+    "a".repeat(80) + " T",
+    "a".repeat(90) + " " + "b".repeat(10),
+  ]) {
+    document.body.innerHTML = `<main><p>${context}<b>needle</b>${context}</p></main>`;
+    const node = document.querySelector("b").firstChild;
+    const around = contextAround(pageText(), [{ node, start: 0, end: node.length }]);
+    assert.ok([...around.before].length <= 56);
+    assert.ok([...around.after].length <= 56);
+  }
 });

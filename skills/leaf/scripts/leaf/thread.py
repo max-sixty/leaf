@@ -5,7 +5,6 @@ from hashlib import sha256
 from pathlib import Path
 
 from leaf.activity import answer_command
-from leaf.asks import local_ask_entry
 from leaf.delivery import (
     ReceiptRefused,
     current_responses,
@@ -30,10 +29,11 @@ from leaf.projection import (
     retirement_outcomes,
     rewritten_bodies,
 )
+from leaf.questions import asking, local_question_entry, quoted_in
 from leaf.registry.schema import json_value
 from leaf.revision_artifact import active_enclosing, read_revision
 from leaf.schema import MESSAGE_KINDS
-from leaf.service import PageTransaction, delivery_reply_attempt
+from leaf.service import PageTransaction, delivery_reply_attempt, same_claim
 from leaf.tasks import start_line_error
 from leaf.thread_context import thread_message, thread_names
 from leaf.validation.admission import (
@@ -83,13 +83,21 @@ def thread_named(page_dir: Path, events: list, name: str) -> str:
     return thread_addressed(page_dir, events, name)[0]
 
 
-def reserve_delivery_reply(session_id: str, delivery_id: str, target: dict) -> None:
+def reserve_delivery_reply(
+    session_id: str,
+    delivery_id: str,
+    target: dict,
+    *,
+    expected_claim: dict | None = None,
+) -> None:
     """Reserve a delivery's response address before provider execution begins."""
     attempt = delivery_reply_attempt(delivery_id)
     with PageTransaction(Path(target["page"])) as page:
         claim = page.active_claim
         if claim is None or claim["id"] != session_id:
-            raise RuntimeError(f"page is not claimed by session {session_id!r}")
+            raise ReceiptRefused(f"page is not claimed by session {session_id!r}")
+        if expected_claim is not None and not same_claim(claim, expected_claim):
+            raise ReceiptRefused("the correction's page acquisition has ended")
         page.bind_delivery_reply(session_id, target["responds"], attempt)
 
 
@@ -409,9 +417,10 @@ def post_reply(
                 if when_settled == "skip":
                     return None
                 if when_settled != "post":
+                    held = logged_id(events, for_event, responses)
                     sys.exit(
                         f"event {for_event!r} no longer requires a reply to {to!r}; "
-                        "read the current delivery or thread state"
+                        + (held or "read the current delivery or thread state")
                     )
             elif ephemeral:
                 in_hand = for_event
@@ -547,13 +556,17 @@ def post_reply(
                 {
                     rec["tag"]
                     for rec in fragment.lf_elements
-                    if local_ask_entry(registry.get(rec["tag"]) or {})
+                    if local_question_entry(registry.get(rec["tag"]) or {})
+                    and asking(
+                        rec["attrs"], registry[rec["tag"]]["x-awaits"].get("when")
+                    )
+                    and not quoted_in(rec, registry)
                 }
             )
             if structural:
                 sys.exit(
                     "--awaits is for a prose question; reply markup already declares "
-                    "a local Ask "
+                    "a local Question "
                     f"({', '.join(f'<{tag}>' for tag in structural)})"
                 )
         if not source_matches_active:
@@ -685,7 +698,7 @@ def fail_answer(
     - a `reply` answer takes a reply carrying `failure` in its thread, which
       the user resends into; provider custody refuses it until its turn gives the
       reply up;
-    - a `markup` answer takes a failed pickup: the user's Ask answer stands in the
+    - a `markup` answer takes a failed pickup: the user's Question answer stands in the
       log, and answering again sends a new move.
 
     A move with no answer outstanding writes nothing, except that a repeated reply
@@ -787,20 +800,14 @@ def title_refusal(page_dir: Path, title: str) -> str | None:
     whose thread it names: a command that posts and names does neither when the name
     is refused, rather than posting and then failing."""
     from leaf.event_contracts import (
-        APPEND_STAMPED,
         admitting_registry,
-        command_record_schema,
+        command_error,
     )
     from leaf.page_view import PageView
-    from leaf.registry.schema import schema_error
 
     event = title_event("pending", title, message_identity())
     registry = admitting_registry(PageView(page_dir), event, read_events(page_dir))
-    error = schema_error(
-        command_record_schema(registry["$events"]["kinds"]["thread_title"]),
-        {**APPEND_STAMPED, **event},
-    )
-    return error and f"thread_title event is invalid: {error}"
+    return command_error(event, registry["$events"]["kinds"])
 
 
 def name_untitled(page, thread: str, title: str, identity: dict) -> dict | None:

@@ -2,7 +2,8 @@
  *
  * An element is the semantic hit and travel target; its optional visual `surface` changes
  * only contour paint. A passage carries text segments instead. Both kinds name `place`,
- * where panel order and attached chrome sit. Frame-bound paint uses only an exact
+ * where panel order and attached chrome sit: a verified control face for a named
+ * control passage, otherwise its readable block or authored item. Frame-bound paint uses only an exact
  * target; a fallback place remains useful for travel and attached chrome, but cannot
  * supply the original coordinates of an absent visual part. */
 
@@ -44,7 +45,18 @@ export const exactTarget = (resolved) =>
 // Native selections and durable passages read the same Range geometry.
 export const targetRange = (resolved) => {
   const segments = targetSegments(resolved);
-  return segments.length ? rangeOf(segments) : null;
+  // A document revision can shorten a live text node before the next anchor reading.
+  // Its old offsets no longer describe a passage; callers use the place until the
+  // publication resolves the anchor again.
+  if (
+    !segments.length ||
+    segments.some(
+      ({ node, start, end }) =>
+        !node.isConnected || start > node.length || end > node.length,
+    )
+  )
+    return null;
+  return rangeOf(segments);
 };
 
 export function rangeGeometry(range) {

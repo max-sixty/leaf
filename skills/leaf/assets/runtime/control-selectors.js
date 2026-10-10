@@ -65,8 +65,11 @@ const PRESS_SELECTORS = [
   "[role='textbox']",
   "[role='treeitem']",
 ];
+// Reach lends a mechanical tab stop to overflowing prose. That stop does not
+// turn its content into an authored interactive region.
+export const LENT_REACH_STOP = "data-lf-lent-reach-stop";
 const REGION_SELECTORS = [
-  "[tabindex]:not([tabindex='-1'])",
+  `[tabindex]:not([tabindex='-1']):not([${LENT_REACH_STOP}])`,
   "[contenteditable]:not([contenteditable='false'])",
   "[draggable='true']",
   "[role='application']",

@@ -45,7 +45,17 @@ export const exactTarget = (resolved) =>
 // Native selections and durable passages read the same Range geometry.
 export const targetRange = (resolved) => {
   const segments = targetSegments(resolved);
-  return segments.length ? rangeOf(segments) : null;
+  // A document revision can shorten a live text node before the next anchor reading.
+  // Its old offsets no longer describe a passage; callers use the place until the
+  // publication resolves the anchor again.
+  if (
+    !segments.length ||
+    segments.some(({ node, start, end }) =>
+      !node.isConnected || start > node.length || end > node.length,
+    )
+  )
+    return null;
+  return rangeOf(segments);
 };
 
 export function rangeGeometry(range) {

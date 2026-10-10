@@ -21,7 +21,7 @@ import {
   announce,
   commandScope,
   commands,
-  FOLD_MS,
+  foldDuration,
   keeps,
   contributionEntry,
   motion,
@@ -589,7 +589,7 @@ customElements.define(
         going.style.display = "block";
         going.style.boxSizing = "border-box";
         going.style.overflow = "hidden";
-        const played = motion(going, [from, to], FOLD_MS);
+        const played = motion(going, [from, to], foldDuration());
         const done = () => {
           going.style.display = "";
           going.style.boxSizing = "";

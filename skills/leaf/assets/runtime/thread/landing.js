@@ -66,6 +66,7 @@ import { showHeld } from "./held-news.js";
 import {
   focusedThreadTarget,
   focusThread,
+  threadFocusStop,
   heldThread,
   threadReplyInput,
   threadFocusDestination,
@@ -210,8 +211,11 @@ pageScope("text entry", {
         document.activeElement.blur();
         const target = back?.target ?? panelList;
         if (!target) return;
-        if (!target.matches?.(THREAD))
-          return focusDestination(target, "return", { scroll: true });
+        if (!target.matches?.(THREAD)) {
+          focusDestination(target, "return");
+          scrollIntoView(target, { block: "nearest" });
+          return;
+        }
         standOnThread(target);
       },
     },
@@ -222,9 +226,13 @@ pageScope("text entry", {
 // arrival. A thread too tall to show whole is already on screen around the box, and
 // landing its title would take the user away from the turn they were answering, so it
 // is a `return` the list leaves where it is. One that fits is a `move`, which the list
-// lands whole in view (`onStanding` below) as the browser's own scroll brings its title.
+// lands whole in view (`onStanding` below) as local scrolling reveals its title.
 export function standOnThread(thread) {
-  if (fitsWhole(thread)) return focusThread(thread, "move", { scroll: true });
+  if (fitsWhole(thread)) {
+    focusThread(thread, "move");
+    scrollIntoView(threadFocusStop(thread), { block: "nearest" });
+    return;
+  }
   focusThread(thread, "return");
 }
 

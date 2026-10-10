@@ -46,6 +46,17 @@ the user is unseated, `GET api/state` returns the published projection, and ever
 request waits behind a 503 until the rollout lands. All page records remain private
 to the browser identity that owns the Durable Object.
 
+Live samples use opaque iframe origins, so their native requests carry no browser
+session cookie. The Worker adds the allocating container's Durable Object ID to the
+sample URL, beside its independent random sample capability:
+`/<page>/api/samples/<sample-id>~<object-id>/`. Requests beneath that prefix go directly
+to that object before cookie routing; the Python server admits the sample capability.
+The object ID is a routing reference and cannot select that container for a parent
+page request. Nested samples retain the first sample's routing reference. Sample
+responses issue no session or active cookies. Published sample resources use the
+immutable release asset URLs, whose responses and preflights allow credentialless CORS;
+private revisions and sample state remain beneath the sample capability.
+
 The build gives every document, state response, and module graph one release digest.
 Runtime assets live behind release-addressed URLs with immutable cache headers, while
 the browser sends the document's release and layer identities to every API request. A

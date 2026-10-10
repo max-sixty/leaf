@@ -19,8 +19,8 @@ import { replyAvailable, replyControlDestination } from "./replies.js";
 // so their established root remains the destination.
 export const threadFocusStop = (thread) =>
   thread.querySelector(":scope > summary:not([hidden])") ?? thread;
-export function focusThread(thread, cause, options) {
-  focusDestination(threadFocusStop(thread), cause, options);
+export function focusThread(thread, cause) {
+  focusDestination(threadFocusStop(thread), cause);
 }
 // The Threads list handing the focus it is gaining on to the open thread's title.
 export function forwardToThread(thread) {

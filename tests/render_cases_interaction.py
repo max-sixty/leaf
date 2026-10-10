@@ -1140,7 +1140,6 @@ STANDING_ACTIONS = [
     ("ab-sug-logs", "decide", {"outcome": "reject"}),
     ("ab-triage", "choose", {"value": ["ab-capacity"]}),
     ("ab-triage", "answer", {}),
-    ("ab-patch", "review", {"file": "ab/bracket.py", "reviewed": True}),
     (
         "ab-visual",
         "review",

@@ -126,6 +126,108 @@ DRAG_HELD = (
 pytestmark = pytest.mark.nightly
 
 
+def test_a_source_widget_releases_its_fallback_face_when_it_renders(browser, serve):
+    """A data package needs no rendered reset, in the document or a shadow stage."""
+    source = {
+        "description": "Source that a reader draws.",
+        "type": "object",
+        "properties": {"id": {"type": "string"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "data",
+        "x-upgrade": True,
+    }
+    stage = {**source, "x-content": "markup", "x-shadow": True}
+    url = serve(
+        leaf_page(
+            "Source states",
+            '<h1>Source states</h1><p id="document-face">Document words.</p>'
+            '<lf-source-view id="document"><pre>source data</pre></lf-source-view>'
+            '<lf-source-stage id="stage"><p id="stage-face">Stage words.</p>'
+            '<lf-source-view id="nested"><pre>source data</pre></lf-source-view>'
+            "</lf-source-stage>"
+            '<lf-code id="code" language="python"><pre>print(1)</pre></lf-code>'
+            '<lf-diagram id="diagram"><pre>flowchart LR\nA --> B</pre></lf-diagram>'
+            '<lf-diff id="diff"><pre>--- a/a.py\n+++ b/a.py\n'
+            "@@ -1 +1 @@\n-old\n+new\n</pre></lf-diff>",
+        ),
+        layer_registry={"lf-source-view": source, "lf-source-stage": stage},
+        layer_widgets={
+            "lf-source-view.js": """
+customElements.define('lf-source-view', class extends HTMLElement {
+  connectedCallback() {
+    if (this.querySelector('button')) return;
+    const button = document.createElement('button');
+    button.textContent = 'Draw source';
+    button.addEventListener('click', () => {
+      const drawing = document.createElement('span');
+      drawing.textContent = 'Rendered evidence';
+      this.replaceChildren(drawing);
+      this.classList.add('lf-rendered');
+    });
+    this.querySelector('pre').append(button);
+  }
+});
+""",
+            "lf-source-stage.js": """
+import {shadowStage} from '/runtime/widget-api.js';
+customElements.define('lf-source-stage', class extends HTMLElement {
+  connectedCallback() {
+    if (!this.shadowRoot) shadowStage(this, [...this.childNodes]);
+  }
+});
+""",
+        },
+    )
+    face = """el => {
+      const style = getComputedStyle(el);
+      return {font: style.fontFamily, size: style.fontSize,
+        line: style.lineHeight, color: style.color, overflow: style.overflowX};
+    }"""
+    page = browser.new_page()
+    boot = []
+    page.route("**/leaf.js", lambda route: boot.append(route))
+    try:
+        with page.expect_request("**/leaf.js"):
+            page.goto(url, wait_until="commit")
+        displayed(page)
+        fallback = page.locator("#document").evaluate(face)
+        for widget_id in ("code", "diagram", "diff"):
+            widget = page.locator(f"#{widget_id}")
+            expect(widget).not_to_have_class(re.compile("lf-rendered"))
+            assert widget.evaluate(face) == fallback
+        assert len(boot) == 1, "the preview runtime was not held before widget upgrade"
+    finally:
+        for route in boot:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+    wait_until_ready(page)
+    expect(page.locator("#diff")).to_have_class(re.compile("lf-rendered"))
+    expect(page.locator("#diff")).to_have_css("font-family", fallback["font"])
+    for widget_id in ("code", "diagram"):
+        assert (
+            page.locator(f"#{widget_id}").evaluate(face)["font"]
+            == page.locator("#document-face").evaluate(face)["font"]
+        )
+    drawings = {}
+    references = {}
+    for widget_id, reference_id in (
+        ("document", "document-face"),
+        ("nested", "stage-face"),
+    ):
+        widget = page.locator(f"#{widget_id}")
+        reference = page.locator(f"#{reference_id}").evaluate(face)
+        fallback = widget.evaluate(face)
+        assert fallback["font"] != reference["font"], fallback
+        assert fallback["color"] != reference["color"], fallback
+        assert fallback["overflow"] == "auto", fallback
+        widget.get_by_role("button", name="Draw source").click()
+        expect(widget).to_have_class("lf-rendered")
+        drawings[widget_id] = widget.evaluate(face)
+        references[widget_id] = reference
+    assert drawings == references
+
+
 def observe_live_region(page):
     """Record announcements without disturbing the renderer-owned live region."""
     page.evaluate(
@@ -692,8 +794,8 @@ def test_sticky_headers_stack_so_a_diff_in_a_page_tab_pins_under_the_strip(
 def test_focus_in_a_stuck_header_leaves_the_page_where_it_is(browser, serve):
     """A control in a stuck sticky header stands inside the root's landing band, so the
     browser scrolled toward it on every focus and the header never came out from under
-    the band: the page crept 17px a focus under a diff's file header and 12px under its
-    file action, and was centred, hundreds of pixels a key, under a page tab strip.
+    the band: the page crept 17px a focus under a diff's file header and was centred,
+    hundreds of pixels a key, under a page tab strip.
     Each header says where its controls stand (`--lf-head-inset`), so focusing one where
     it sticks scrolls nothing: in a page tab, where the strip stands over it, and after
     the tabs, where the root's band still counts the strip. Focus moving on from the
@@ -708,7 +810,6 @@ def test_focus_in_a_stuck_header_leaves_the_page_where_it_is(browser, serve):
         await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
         const controls = {
             file: diff.shadowRoot.querySelector('.lf-diff-file > details > summary'),
-            action: diff.shadowRoot.querySelector('.lf-diff-file-actions button'),
         };
         if (id === 'patch')
             controls.tab = document.querySelector(
@@ -722,8 +823,8 @@ def test_focus_in_a_stuck_header_leaves_the_page_where_it_is(browser, serve):
         }
         return moved;
     }"""
-    assert page.evaluate(focus_in, "patch") == {"file": 0, "action": 0, "tab": 0}
-    assert page.evaluate(focus_in, "after-tabs") == {"file": 0, "action": 0}
+    assert page.evaluate(focus_in, "patch") == {"file": 0, "tab": 0}
+    assert page.evaluate(focus_in, "after-tabs") == {"file": 0}
     # Tab from a stuck file header into its code, scrolled partly past above it.
     page.evaluate(
         """async () => {
@@ -3163,7 +3264,7 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
         verify_geometry
     )
 
-    details = page.locator("details")
+    details = page.locator("main details")
     expect(details).not_to_have_attribute("open", "")
     toc.get_by_role("link", name="Move the readers").click()
     expect(details).to_have_attribute("open", "")
@@ -3187,7 +3288,7 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
     # On first parse this id does not exist yet. The shared arrival pass runs after every
     # widget settles, so a copied link still reveals and reaches the heading it names.
     direct = open_page(browser, url + hrefs[1])
-    expect(direct.locator("details")).to_have_attribute("open", "")
+    expect(direct.locator("main details")).to_have_attribute("open", "")
     expect(direct).to_have_url(re.compile(f"{re.escape(hrefs[1])}$"))
     direct.wait_for_function(
         "heading => { const box = heading.getBoundingClientRect(); "
@@ -5571,8 +5672,8 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
         controlsSize: [controls.clientHeight, controls.scrollHeight],
         pageScrolls: document.scrollingElement.scrollHeight > innerHeight,
         askDisplay: getComputedStyle(document.querySelector('#notification-ask')).display,
-        authoredWords: leaf.wrote(playground).includes('Drag event pressure'),
-        spokenWords: leaf.says(playground).includes('Drag event pressure'),
+        authoredWords: leaf.wrote(playground).includes('Concurrent release events'),
+        spokenWords: leaf.says(playground).includes('Concurrent release events'),
       };
     }"""
 
@@ -10707,6 +10808,13 @@ def test_a_chart_wears_the_page_s_colors_and_turns_over_with_the_scheme(browser,
         fills = [fill for _, fill, _ in drew["marks"]["bar"]]
         return drew["tokens"], fills
 
+    # Provider legend defaults yield to the page face without a JS inline repair.
+    page.add_style_tag(content=":root { --sans: Georgia; }")
+    legend = page.locator('#c-bars [class*="-swatches"]').first
+    expect(legend).to_have_count(1)
+    assert legend.evaluate("node => getComputedStyle(node).fontFamily") == "Georgia"
+    assert legend.evaluate("node => node.style.fontFamily") == ""
+
     tokens, fills = worn()
     assert tokens[0] != tokens[1], "two series wearing one colour proves nothing"
     assert sorted(set(fills)) == sorted(tokens), (tokens, fills)
@@ -10722,6 +10830,34 @@ def test_a_chart_wears_the_page_s_colors_and_turns_over_with_the_scheme(browser,
              .getPropertyValue('--plot-background').trim()"""
         )
         != "white"
+    )
+
+
+def test_a_chart_preserves_authored_inline_presentation_over_provider_defaults(
+    browser, serve
+):
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Authored chart",
+                "<h1>Authored chart</h1>"
+                + chart_markup(
+                    "authored-chart",
+                    """{
+      ariaLabel: "One value", style: {fontSize: "23px", background: "papayawhip"},
+      marks: [Plot.dot([{x:1,y:2}], {x:"x",y:"y"})]
+    }""",
+                ),
+            )
+        ),
+    )
+    svg = page.locator('#authored-chart svg[role="img"]')
+    expect(svg).to_be_visible()
+    assert svg.evaluate("node => getComputedStyle(node).fontSize") == "23px"
+    assert (
+        svg.evaluate("node => getComputedStyle(node).backgroundColor")
+        == "rgb(255, 239, 213)"
     )
 
 

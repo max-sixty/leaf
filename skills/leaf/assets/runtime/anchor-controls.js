@@ -10,7 +10,6 @@
  * only through the constructor.
  */
 import { scrollIntoView } from "./landing-scroll.js";
-
 import { nextRender } from "./rendering.js";
 import { holdFocus } from "./focus.js";
 import { sameAnchor } from "./anchor-coordinate.js";

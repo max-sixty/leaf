@@ -1,0 +1,53 @@
+name: publish-dependency-bundles
+
+on:
+  workflow_run:
+    workflows: [dependency-bundles]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+
+jobs:
+  publish:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    environment:
+      name: tend
+      deployment: false
+    steps:
+      # Always load the publisher from the trusted default branch. Never check out
+      # or execute the PR here: dependency scripts ran in the read-only build job.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/github-script@v8
+        id: artifact
+        with:
+          script: |
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+              ...context.repo, run_id: context.payload.workflow_run.id
+            });
+            core.setOutput('present', artifacts.some(a => a.name === 'dependency-bundles' && !a.expired));
+      - uses: actions/download-artifact@v8
+        if: steps.artifact.outputs.present == 'true'
+        with:
+          name: dependency-bundles
+          path: /tmp/dependency-bundles
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+      - uses: actions/github-script@v8
+        if: steps.artifact.outputs.present == 'true'
+        with:
+          # A bot token starts ordinary PR CI on the generated commit; GITHUB_TOKEN
+          # would suppress those workflow events. Reuse the maintenance bot.
+          github-token: ${{ secrets.TEND_BOT_TOKEN }}
+          script: |
+            const { readFileSync } = await import('node:fs');
+            const { publish } = await import(`${process.env.GITHUB_WORKSPACE}/.github/scripts/dependency-bundles.mjs`);
+            const artifact = JSON.parse(readFileSync('/tmp/dependency-bundles/bundles.json', 'utf8'));
+            const api = async (method, path, data) => (await github.request(`${method} ${path}`, data)).data;
+            core.info(await publish(api, process.env.GITHUB_REPOSITORY, context.payload.workflow_run, artifact));

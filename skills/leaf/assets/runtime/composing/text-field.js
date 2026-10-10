@@ -95,6 +95,7 @@ import {
   markdownLanguage,
   insertNewlineContinueMarkup,
 } from "../../vendor/codemirror.esm.js";
+import { LeafEditorView } from "../editor-view.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { loadMarkdown, markdownReady, placedMarkdownTokens } from "../markdown.js";
 import { sizeObserver } from "../rendering.js";
@@ -102,6 +103,14 @@ import { sizeObserver } from "../rendering.js";
 const sheet = new CSSStyleSheet();
 sheet.replaceSync(`
   :host { display: block; cursor: text; }
+  /* CodeMirror's provider places its defaults in lf-base. This control owns the
+     unlayered editor face: the host supplies type and colour, and these are the
+     only internal padding declarations before Markdown's explicit insets below. */
+  .cm-editor { font: inherit; color: inherit; background-color: transparent; }
+  .cm-editor.cm-focused { outline: none; }
+  .cm-scroller { font-family: inherit; line-height: inherit; overflow: visible; }
+  .cm-content { padding: 0; caret-color: currentColor; min-height: 1lh; }
+  .cm-line { padding: 0; }
   /* The placeholder is a layer under the words, as a textarea's is, never content in
      the line: a widget in an empty line is what the platform would draw the caret
      against. Both layers share one grid cell, inside the host's padding. */
@@ -144,27 +153,16 @@ sheet.replaceSync(`
   .lf-md-link { color: var(--accent); text-decoration: underline var(--link-underline);
     text-underline-offset: var(--link-underline-offset); }
   .lf-md-quote { border-inline-start: var(--quote-rule); font-style: var(--quote-style);
-    padding-inline-start: var(--quote-inset) !important; color: var(--muted); }
+    padding-inline-start: var(--quote-inset); color: var(--muted); }
   .lf-md-code-block { font-family: var(--mono); font-size: var(--code-size);
     line-height: var(--code-line); color: var(--code-ink); background: var(--pre-bg);
     font-variant-ligatures: none; border-inline: 1px solid var(--code-border);
-    padding-inline: var(--pre-inset) !important; }
+    padding-inline: var(--pre-inset); }
   .lf-md-code-first { border-block-start: 1px solid var(--code-border);
     border-start-start-radius: var(--r); border-start-end-radius: var(--r); }
   .lf-md-code-last { border-block-end: 1px solid var(--code-border);
     border-end-start-radius: var(--r); border-end-end-radius: var(--r); }
 `);
-
-// The editor wears the box's type and colour: the host is the textarea-shaped control
-// the page styles, and CodeMirror only lays the words out inside it. Its own theme
-// mechanism outranks its base theme, which would otherwise set monospace.
-const fieldTheme = EditorView.theme({
-  "&": { font: "inherit", color: "inherit", backgroundColor: "transparent" },
-  "&.cm-focused": { outline: "none" },
-  ".cm-scroller": { fontFamily: "inherit", lineHeight: "inherit", overflow: "visible" },
-  ".cm-content": { padding: "0", caretColor: "currentColor", minHeight: "1lh" },
-  ".cm-line": { padding: "0" },
-});
 
 // A step an owner recorded in the words' history (`record`): `run` makes it happen when
 // the history reaches it, and `back` is the step the other way.
@@ -457,7 +455,6 @@ class LeafText extends HTMLElement {
         new LanguageSupport(markdownLanguage),
         livePreview,
         lastLineRoom,
-        fieldTheme,
         EditorView.lineWrapping,
         this.#editable.of(EditorState.readOnly.of(this.#readOnly)),
         this.#attributes.of(EditorView.contentAttributes.of(this.#contentAttributes())),
@@ -485,7 +482,7 @@ class LeafText extends HTMLElement {
     if (!this.hasAttribute("tabindex")) this.tabIndex = 0;
     this.#internals ??= this.attachInternals();
     this.#root.adoptedStyleSheets = [sheet];
-    this.#view = new EditorView({
+    this.#view = new LeafEditorView({
       root: this.#root,
       parent: this.#frame,
       state: this.#model,
@@ -546,22 +543,12 @@ class LeafText extends HTMLElement {
       .filter(Boolean);
   }
 
-  // A focus through the element puts the caret back where it stood, as a textarea's
-  // does. The platform, delegating, lands it at the start of the words; CodeMirror's own
-  // focus leaves the page's selection wherever the user last pressed when its record of
-  // the DOM selection predates that press, and then reads the platform's caret back as
-  // the user's. So the element writes the page's selection from the field's own.
+  // The editor adapter places its recorded caret without native scrolling. The
+  // field reveals itself separately when its caller requests ordinary focus.
   focus(options) {
-    if (!this.#view) return super.focus(options);
-    const view = this.#view;
-    view.focus();
-    if (this.#root.activeElement !== view.contentDOM) return;
-    const { anchor, head } = view.state.selection.main;
-    const from = view.domAtPos(anchor);
-    const to = view.domAtPos(head);
-    // A shadow root answers for its own selection only in Chromium, as CodeMirror reads it.
-    const selection = this.#root.getSelection?.() ?? document.getSelection();
-    selection.setBaseAndExtent(from.node, from.offset, to.node, to.offset);
+    if (!this.#view) return;
+    this.#view.focus();
+    if (this.#root.activeElement !== this.#view.contentDOM) return;
     if (!options?.preventScroll) scrollIntoView(this, { block: "nearest" });
   }
 

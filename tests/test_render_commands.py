@@ -1127,6 +1127,88 @@ def test_a_shot_adopts_a_fallback_choice_when_the_divider_arrives(browser, serve
     ) == [False, ["before"]]
 
 
+def test_a_shot_owns_inspection_without_a_containing_package(browser, serve):
+    """A pair owns compare, crop and overlay paint, even without visual-review CSS.
+    A containing inspector only chooses local view parameters and its allocation.
+    """
+    url = serve(
+        leaf_page(
+            "Inspect an aligned pair",
+            f'''<h1>Inspect the pair</h1>
+<button id="inspect-pair">Change inspection</button>
+<lf-shot id="inspected-pair" alt="two aligned frames"
+  before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>''',
+        ),
+        media={SHOT_SRC[n]: data for n, data in SHOTS.items()},
+    )
+    context = browser.new_context(viewport={"width": 1200, "height": 900})
+    held = []
+    context.route("**/media/*.png", lambda route: held.append(route))
+    page = context.new_page()
+    page.goto(url, wait_until="domcontentloaded")
+    shot = page.locator("#inspected-pair")
+    expect(shot.locator(".lf-shotframe")).to_have_count(2)
+    # A supported partial request can arrive before decode and without an inspector
+    # metadata cache. Delivery's own dimensions reserve the image's complete view.
+    shot.evaluate("node => node.inspect({mode: 'overlay'})")
+    expect(shot).to_have_attribute("data-lf-shot-mode", "overlay")
+    for route in held:
+        route.continue_()
+    context.unroute("**/media/*.png")
+    page.wait_for_function("document.body.hasAttribute('data-lf-presented')")
+    page.evaluate("""() => {
+      const shot = document.querySelector('#inspected-pair');
+      window.inspection = {mode: 'compare', layout: 'side', scale: .5,
+        pixelRatio: 1, captureWidth: 600,
+        focus: {x: 100, y: 50, width: 200, height: 100}, crop: false,
+        labels: {before: 'Base', after: 'Candidate'}, opacity: .35};
+      document.querySelector('#inspect-pair').addEventListener('click',
+        () => shot.inspect(window.inspection));
+    }""")
+    change = page.get_by_role("button", name="Change inspection")
+    change.click()
+    frames = shot.locator(".lf-shotframe")
+    before, after = frames.evaluate_all(
+        "nodes => nodes.map(node => node.getBoundingClientRect())"
+    )
+    assert after["left"] > before["right"]
+    expect(shot.locator(".lf-shotrail")).to_be_hidden()
+    assert shot.locator(".lf-shot-frame-label").evaluate_all(
+        "nodes => nodes.map(node => node.dataset.label)"
+    ) == ["Base", "Candidate"]
+    assert shot.evaluate(
+        "node => node.captureGeometry.images.map(image => image.width)"
+    ) == [600, 600]
+    assert (
+        frames.first.evaluate("node => getComputedStyle(node, '::after').content")
+        == '""'
+    )
+
+    page.evaluate("window.inspection.crop = true")
+    change.click()
+    expect(frames.first.locator("img")).to_have_css(
+        "object-view-box", "inset(50px 300px 150px 100px)"
+    )
+    assert frames.first.locator("img").bounding_box()["width"] == pytest.approx(100)
+    assert frames.first.locator("img").bounding_box()["height"] == pytest.approx(50)
+    page.evaluate("window.inspection.mode = 'overlay'")
+    change.click()
+    before, after = frames.evaluate_all(
+        "nodes => nodes.map(node => node.getBoundingClientRect())"
+    )
+    assert before["left"] == after["left"]
+    assert before["top"] == after["top"]
+    expect(frames.nth(1)).to_have_css("opacity", "0.35")
+    page.evaluate("window.inspection.mode = 'flip'")
+    change.click()
+    expect(shot.locator(".lf-shotrail")).to_be_visible()
+    expect(shot.locator(".lf-shot-frame-label")).to_have_count(0)
+    shot.locator('.lf-shotcap[data-lf-state="after"]').click()
+    expect(shot.locator('.lf-shotcap[data-lf-state="after"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
+
+
 def test_a_shot_outlines_where_its_images_differ(browser, serve):
     """A reader shown one side of the divider, or a screenshot of the page, can't tell
     where a pair differs, or that it differs nowhere: a handoff once shipped a pair

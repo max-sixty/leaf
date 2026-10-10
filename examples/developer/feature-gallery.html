@@ -276,44 +276,6 @@
         opacity: 1;
       }
 
-      .interaction-keypress {
-        position: absolute;
-        z-index: 4;
-        right: 18px;
-        bottom: 18px;
-        padding: 7px 10px;
-        border: 1px solid var(--border-2);
-        border-radius: 8px;
-        background: var(--card);
-        box-shadow: 0 4px 14px var(--shade);
-        color: var(--ink);
-        font: 650 var(--t-6) / 1 var(--sans);
-        pointer-events: none;
-      }
-
-      .interaction-keypress[hidden] {
-        display: none;
-      }
-
-      .interaction-pointer {
-        position: absolute;
-        z-index: 5;
-        top: 0;
-        left: 0;
-        width: 22px;
-        height: 28px;
-        background: var(--ink);
-        clip-path: polygon(0 0, 78% 71%, 47% 73%, 63% 100%, 49% 100%, 34% 76%, 0 100%);
-        filter: drop-shadow(0 1px 0 var(--paper)) drop-shadow(0 2px 3px var(--shade));
-        pointer-events: none;
-        transform-origin: 2px 2px;
-        will-change: transform, opacity;
-      }
-
-      .interaction-pointer[hidden] {
-        display: none;
-      }
-
       .interaction-demo figcaption {
         max-width: 66ch;
         margin-top: 13px;
@@ -327,8 +289,7 @@
       }
 
       @media print {
-        .lf-interaction-controls,
-        .interaction-pointer {
+        .lf-interaction-controls {
           display: none !important;
         }
 
@@ -2835,7 +2796,6 @@ switch --readers checkout-api,orders-api</code></pre>
                       tabindex="-1"
                       aria-hidden="true"
                     ></iframe>
-                    <span class="interaction-pointer" hidden aria-hidden="true"></span>
                   </div>
                   <figcaption>
                     The pointer presses Accept; Leaf folds away the retired wording and
@@ -2868,7 +2828,6 @@ switch --readers checkout-api,orders-api</code></pre>
                       tabindex="-1"
                       aria-hidden="true"
                     ></iframe>
-                    <span class="interaction-pointer" hidden aria-hidden="true"></span>
                   </div>
                   <figcaption>
                     The pointer finds the card’s grip, then Leaf plays the same
@@ -2881,6 +2840,7 @@ switch --readers checkout-api,orders-api</code></pre>
                 <figure
                   class="interaction-demo"
                   data-interaction-demo="send-comment"
+                  data-interaction-keypress="Enter"
                   data-interaction-target="bg-thread-text"
                   data-interaction-thread-id="2be2443f0bb6cc49fc86b52f340e6073"
                 >
@@ -2904,12 +2864,6 @@ switch --readers checkout-api,orders-api</code></pre>
                       tabindex="-1"
                       aria-hidden="true"
                     ></iframe>
-                    <kbd
-                      class="interaction-keypress"
-                      data-interaction-keypress="Enter"
-                      hidden
-                    ></kbd>
-                    <span class="interaction-pointer" hidden aria-hidden="true"></span>
                   </div>
                   <figcaption>
                     Leaf’s real response field submits with <kbd>Enter</kbd>, then
@@ -2943,7 +2897,6 @@ switch --readers checkout-api,orders-api</code></pre>
                       tabindex="-1"
                       aria-hidden="true"
                     ></iframe>
-                    <span class="interaction-pointer" hidden aria-hidden="true"></span>
                   </div>
                   <figcaption>
                     The pointer presses the real top-bar control inside a zoomed-out

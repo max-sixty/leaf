@@ -21,7 +21,6 @@
  * walk. The theme's column heading is CSS generated content with empty alt
  * text, so the label reaches the tree once, as the list's name, rather than
  * twice. */
-import { scrollIntoView } from "/runtime/widget-api.js";
 import Sortable from "/vendor/sortable.esm.js";
 import {
   once,
@@ -50,6 +49,7 @@ import {
   keepsHidden,
   keepsText,
   focusDestination,
+  scrollIntoView,
 } from "/runtime/widget-api.js";
 
 customElements.define(

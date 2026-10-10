@@ -1,7 +1,6 @@
 /* Reading movement: walks, scrolling, and aligning the current item without travel.
  * Alignment reads the browser's current selection/focus and the owning reading region;
  * it changes only vertical scroll, retaining focus, selection and browser history. */
-import { scrollIntoView } from "./landing-scroll.js";
 import { cancelRender, nextFrame } from "./rendering.js";
 import { scrollGlides } from "./arrivals.js";
 import { clampedRow } from "./keyboard/bindings.js";
@@ -21,7 +20,7 @@ import { bannerStanding } from "./banner-toolbar.js";
 import { pageSelection } from "./composing/capture.js";
 import { blockAt, closestAcross, pageRange } from "./passages.js";
 import { readingBlock } from "./reading-place.js";
-import { scrollIntoReadingBand } from "./landing-scroll.js";
+import { scrollIntoReadingBand, scrollIntoView } from "./landing-scroll.js";
 import { THREAD } from "./thread/selectors.js";
 import { under } from "./shadow.js";
 import { retainUserIntent } from "./user-intent.js";

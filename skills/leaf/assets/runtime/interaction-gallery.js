@@ -1,20 +1,15 @@
-/* The developer interaction gallery replays focused demonstrations against real Leaf
- * surfaces in the product gallery. It owns only the illustrative pointer, timing
- * controls, and ephemeral orchestration of each surface's canonical transition.
- * Document-global chrome runs in a same-origin frame so it remains inside the sample;
- * each sequence invokes the surface's canonical transition without dispatching a
- * gesture or writing to the event log. The product gallery opts in with
- * data-interaction-gallery, so ordinary Leaf pages pay no runtime or behavior cost
- * for this developer surface. */
+/* The interaction gallery owns the outer playback controls and viewport. Every
+ * sample runs in an opaque sandbox: scenarios, illustrative pointer,
+ * and production transitions belong to its child document. The gallery exchanges
+ * cloneable configuration, commands and state notices over the sample bridge. It
+ * never reads a child DOM or calls functions across browsing contexts. */
 
-import { afterScript, nextFrame } from "./rendering.js";
+import { afterScript } from "./rendering.js";
 import { onMotionPreferenceChange, reducedMotion } from "./motion.js";
 import { mountSample } from "./sample.js";
 import { deferredArrival } from "./presentation.js";
 import { offer, reserve } from "./widget-elements.js";
-import { keeps, keepsHidden, keepsText } from "./keeps.js";
-
-class StaleDemo extends Error {}
+import { keeps, keepsText } from "./keeps.js";
 
 // Every word the playback control can say, out here because the row reserves the width
 // of all of them before it says the first. The button rewrites its own word as a demo
@@ -32,52 +27,19 @@ const TOGGLE_WORDS = {
 
 const VIEWPORT_SIZES = ["1", "2", "4"];
 
-const ARRIVAL_PAUSE = 900;
-const POINTER_TRAVEL = 1400;
-const RESULT_PAUSE = 1200;
-
-const delay = (demo, ms, generation) =>
-  demo.animate(
-    demo.stage,
-    [{ opacity: 1 }, { opacity: 1 }],
-    { duration: ms },
-    generation,
-  );
-
-async function boundedRead(
-  read,
-  message,
-  pause = () => new Promise((resolve) => setTimeout(resolve, 25)),
-) {
-  for (let attempt = 0; attempt < 120; attempt += 1) {
-    const value = read();
-    if (value) return value;
-    await pause();
-  }
-  throw new Error(message);
-}
-
 class Demo {
   constructor(panel, changed) {
     this.panel = panel;
     this.figure = panel.querySelector("[data-interaction-demo]");
-    this.name = this.figure.dataset.interactionDemo;
-    this.stage = this.figure.querySelector(".interaction-stage");
-    this.pointer = this.figure.querySelector(".interaction-pointer");
-    this.keypress = this.figure.querySelector("[data-interaction-keypress]");
     this.frameElement = this.figure.querySelector("[data-interaction-frame]");
     if (!this.frameElement)
-      throw new Error(`interaction gallery page is missing for ${this.name}`);
-    this.frameApi = null;
+      throw new Error(
+        `interaction gallery page is missing for ${this.figure.dataset.interactionDemo}`,
+      );
     this.changed = changed;
     this.loadState = "loading";
     this.state = "idle";
-    this.generation = 0;
-    this.animations = new Set();
-    this.pausedWidgetAnimations = new Set();
-    this.pointerPosition = null;
     this.pausedByView = false;
-    this.scenario = scenarios[this.name] ?? null;
   }
 
   async load() {
@@ -86,24 +48,22 @@ class Demo {
       template: template?.id,
       passive: true,
     });
+    this.stopNotices = this.sample.on("gallery.state", ({ state, pausedByView }) => {
+      this.pausedByView = pausedByView;
+      this.setState(state);
+    });
     await this.sample.ready;
-    const frameApi = this.frameElement.contentWindow?.leafInteractionGalleryFrame;
-    if (!frameApi)
-      throw new Error("the contained Leaf page did not expose its gallery adapter");
-    this.frameApi = frameApi;
-    this.frameApi.resetThreads();
+    await this.sample.call("gallery.configure", {
+      name: this.figure.dataset.interactionDemo,
+      target: this.figure.dataset.interactionTarget,
+      threadId: this.figure.dataset.interactionThreadId,
+      keypress: this.figure.dataset.interactionKeypress,
+      viewport: Number(
+        this.figure.closest("[data-interaction-gallery]").dataset.interactionViewport,
+      ),
+    });
     this.frameElement.toggleAttribute("data-interaction-ready", true);
-    if (!this.scenario)
-      throw new Error(`interaction gallery has no scenario for ${this.name}`);
     this.loadState = "ready";
-  }
-
-  // The sequence the replay is pressing, shown only while it is being pressed. The word
-  // travels as an attribute and lives in the caption for as long as the caption stands.
-  keypressCaption(shown) {
-    if (!this.keypress) return;
-    keepsText(this.keypress, shown ? this.keypress.dataset.interactionKeypress : "");
-    keepsHidden(this.keypress, !shown);
   }
 
   setState(state) {
@@ -111,359 +71,43 @@ class Demo {
     this.changed(this);
   }
 
-  assertCurrent(generation) {
-    if (generation !== this.generation) throw new StaleDemo();
-  }
-
-  reset() {
-    this.generation += 1;
-    this.stopAnimations();
-    keepsHidden(this.pointer, true);
-    this.keypressCaption(false);
-    this.pointerPosition = null;
-    this.pausedByView = false;
-    if (!this.scenario) {
+  command(method, detail) {
+    return this.sample.call(`gallery.${method}`, detail).catch((error) => {
+      if (!this.figure.isConnected && error.name === "AbortError") return;
+      console.error(error);
       this.setState("error");
-      return;
-    }
-    this.scenario.reset(this);
-    // Reset is the starting frame, not a third transition before the demonstration.
-    this.stopAnimations();
-    this.setState("ready");
+    });
   }
 
   activate() {
-    this.reset();
+    this.setState("ready");
+    void this.command("activate");
   }
-
   deactivate() {
-    this.generation += 1;
-    this.stopAnimations();
-    this.scenario?.deactivate?.(this);
-    this.setState(this.loadState === "error" ? "error" : "idle");
+    this.setState("idle");
+    if (this.loadState === "ready") void this.command("deactivate");
   }
-
-  async play() {
-    if (this.state === "paused") {
-      this.resume();
-      return;
-    }
-    if (this.state !== "ready") return;
-    const generation = this.generation;
-    this.setState("playing");
-    try {
-      await this.scenario.play(this, generation);
-      this.assertCurrent(generation);
-      this.setState("finished");
-    } catch (error) {
-      if (error instanceof StaleDemo) return;
-      if (generation === this.generation) {
-        console.error(error);
-        this.setState("error");
-      }
-    }
+  play() {
+    return this.command("play");
   }
-
   pause(byView = false) {
-    if (this.state !== "playing") return;
-    for (const animation of this.animations) animation.pause();
-    for (const animation of this.widgetAnimations()) {
-      if (animation.playState !== "running" || this.animations.has(animation)) continue;
-      animation.pause();
-      this.pausedWidgetAnimations.add(animation);
-    }
-    this.pausedByView = byView;
-    this.setState("paused");
+    if (this.loadState !== "ready") return;
+    return this.command("pause", byView);
   }
-
   resume() {
-    if (this.state !== "paused") return;
-    for (const animation of this.animations) animation.play();
-    for (const animation of this.pausedWidgetAnimations) {
-      if (animation.playState === "paused") animation.play();
-    }
-    this.pausedWidgetAnimations.clear();
-    this.pausedByView = false;
-    this.setState("playing");
+    return this.command("resume");
   }
-
   replay() {
-    this.reset();
-    return this.play();
+    return this.command("replay");
   }
-
-  stopAnimations() {
-    for (const animation of this.animations) animation.cancel();
-    this.animations.clear();
-    for (const animation of this.widgetAnimations()) animation.cancel();
-    this.pausedWidgetAnimations.clear();
+  viewport(size) {
+    return this.command("viewport", Number(size));
   }
-
-  widgetAnimations() {
-    // Replacement removes a frame's browsing context before this gallery's teardown
-    // runs. The frame is still the only subject; it simply has no document left whose
-    // animations need cancelling.
-    const frameAnimations =
-      this.frameElement.contentDocument?.getAnimations({ subtree: true }) ?? [];
-    return [...this.stage.getAnimations({ subtree: true }), ...frameAnimations];
-  }
-
-  async animate(element, keyframes, options, generation) {
-    const animation = element.animate(keyframes, { fill: "forwards", ...options });
-    await this.track(animation, generation);
-    return animation;
-  }
-
-  async track(animation, generation) {
-    if (!animation) {
-      this.assertCurrent(generation);
-      return null;
-    }
-    this.animations.add(animation);
-    if (this.state === "paused") animation.pause();
-    try {
-      await animation.finished;
-    } catch (error) {
-      if (animation.playState !== "idle") throw error;
-    } finally {
-      this.animations.delete(animation);
-    }
-    this.assertCurrent(generation);
-    return animation;
-  }
-
-  async wait(ms, generation) {
-    const animation = await delay(this, ms, generation);
-    animation.cancel();
-  }
-
-  async frame(generation) {
-    await new Promise((resolve) => nextFrame(resolve));
-    this.assertCurrent(generation);
-  }
-
-  async arrive(generation) {
-    this.showPointer();
-    await this.wait(ARRIVAL_PAUSE, generation);
-  }
-
-  async finish(generation) {
-    await this.wait(RESULT_PAUSE, generation);
-    await this.hidePointer(generation);
-  }
-
-  async waitFor(read, message, generation) {
-    return boundedRead(read, message, () => this.wait(25, generation));
-  }
-
-  query(selector) {
-    return this.frameElement.contentDocument.querySelector(selector);
-  }
-
-  pointAt(target) {
-    const stage = this.stage.getBoundingClientRect();
-    const box = target.getBoundingClientRect();
-    const frame = target.ownerDocument.defaultView.frameElement;
-    const frameBox = frame.getBoundingClientRect();
-    const scaleX = frameBox.width / frame.offsetWidth;
-    const scaleY = frameBox.height / frame.offsetHeight;
-    return {
-      x: frameBox.left + box.left * scaleX - stage.left + (box.width * scaleX) / 2,
-      y: frameBox.top + box.top * scaleY - stage.top + (box.height * scaleY) / 2,
-    };
-  }
-
-  showPointer() {
-    const from = {
-      x: this.stage.clientWidth * 0.16,
-      y: this.stage.clientHeight * 0.82,
-    };
-    this.pointerPosition = from;
-    keepsHidden(this.pointer, false);
-    this.pointer.style.transform = `translate(${from.x}px, ${from.y}px)`;
-    this.pointer.style.opacity = "1";
-  }
-
-  async movePointer(target, generation) {
-    const to = this.pointAt(target);
-    const from = this.pointerPosition;
-    const animation = await this.animate(
-      this.pointer,
-      [
-        { transform: `translate(${from.x}px, ${from.y}px)` },
-        { transform: `translate(${to.x}px, ${to.y}px)` },
-      ],
-      { duration: POINTER_TRAVEL, easing: "cubic-bezier(.22,.7,.2,1)" },
-      generation,
-    );
-    this.pointerPosition = to;
-    this.pointer.style.transform = `translate(${to.x}px, ${to.y}px)`;
-    animation.cancel();
-  }
-
-  async press(generation) {
-    const { x, y } = this.pointerPosition;
-    const animation = await this.animate(
-      this.pointer,
-      [
-        { transform: `translate(${x}px, ${y}px) scale(1)` },
-        { transform: `translate(${x}px, ${y}px) scale(.78)`, offset: 0.48 },
-        { transform: `translate(${x}px, ${y}px) scale(1)` },
-      ],
-      { duration: 260, easing: "ease-out" },
-      generation,
-    );
-    this.pointer.style.transform = `translate(${x}px, ${y}px)`;
-    animation.cancel();
-  }
-
-  async pressKeys(generation) {
-    if (!this.keypress) return;
-    this.keypressCaption(true);
-    const animation = await this.animate(
-      this.keypress,
-      [
-        { opacity: 0, transform: "translateY(4px) scale(.94)" },
-        { opacity: 1, transform: "translateY(0) scale(1)", offset: 0.35 },
-        { opacity: 1, transform: "translateY(0) scale(.96)", offset: 0.7 },
-        { opacity: 0, transform: "translateY(-2px) scale(1)" },
-      ],
-      { duration: 720, easing: "ease-out" },
-      generation,
-    );
-    animation.cancel();
-    this.keypressCaption(false);
-  }
-
-  async hidePointer(generation) {
-    const animation = await this.animate(
-      this.pointer,
-      [{ opacity: 1 }, { opacity: 0 }],
-      { duration: 220, easing: "linear" },
-      generation,
-    );
-    animation.cancel();
-    keepsHidden(this.pointer, true);
+  destroy() {
+    this.stopNotices?.();
+    return this.sample?.destroy();
   }
 }
-
-const placements = {
-  ready: {
-    "bg-motion-ready": ["bg-motion-card"],
-    "bg-motion-tried": [],
-  },
-  tried: {
-    "bg-motion-ready": [],
-    "bg-motion-tried": ["bg-motion-card"],
-  },
-};
-
-const scenarios = {
-  accept: {
-    reset(demo) {
-      demo
-        .query("#bg-motion-accept")
-        .renderState({ decide: { action: null, value: null, detail: {} } });
-    },
-    async play(demo, generation) {
-      await demo.arrive(generation);
-      const suggestion = demo.query("#bg-motion-accept");
-      const accept = await demo.waitFor(
-        () => demo.query('[data-lf-margin-for="bg-motion-accept"] .lf-sug-accept'),
-        "the suggestion did not expose its Accept control",
-        generation,
-      );
-      await demo.movePointer(accept, generation);
-      await demo.wait(360, generation);
-      await demo.press(generation);
-      suggestion.renderState({
-        decide: { action: "decide", value: "decide", detail: { outcome: "accept" } },
-      });
-      await demo.waitFor(
-        () => suggestion.dataset.lfState === "accept",
-        "the suggestion did not settle",
-        generation,
-      );
-      await demo.finish(generation);
-    },
-  },
-  "move-card": {
-    reset(demo) {
-      demo.query("#bg-motion-board").renderState({ move: { value: placements.ready } });
-    },
-    async play(demo, generation) {
-      await demo.arrive(generation);
-      const board = demo.query("#bg-motion-board");
-      const grip = await demo.waitFor(
-        () => demo.query("#bg-motion-card > .lf-grip"),
-        "the card did not expose its grip",
-        generation,
-      );
-      await demo.movePointer(grip, generation);
-      await demo.press(generation);
-      await demo.wait(480, generation);
-      board.renderState({ move: { value: placements.tried } });
-      await demo.waitFor(
-        () => demo.query("#bg-motion-card").parentElement?.id === "bg-motion-tried",
-        "the card did not move",
-        generation,
-      );
-      await demo.finish(generation);
-    },
-  },
-  "send-comment": {
-    reset(demo) {
-      demo.frameApi.resetComment(
-        demo.figure.dataset.interactionTarget,
-        "Gallery thread: should the practice exercise come before lunch? " +
-          "Try replying here; the agenda is fictional.",
-      );
-    },
-    async play(demo, generation) {
-      await demo.wait(ARRIVAL_PAUSE, generation);
-      await demo.pressKeys(generation);
-      const openThread = demo.frameApi.submitComment(
-        demo.figure.dataset.interactionThreadId,
-      );
-      const destination = await openThread();
-      demo.assertCurrent(generation);
-      if (!destination) throw new Error("the comment did not reach its Thread");
-      await demo.frame(generation);
-      await Promise.all(
-        demo
-          .widgetAnimations()
-          .filter((animation) => !demo.animations.has(animation))
-          .map((animation) => demo.track(animation, generation)),
-      );
-      await demo.wait(RESULT_PAUSE, generation);
-    },
-  },
-  "open-threads": {
-    reset(demo) {
-      demo.frameApi.resetThreads();
-    },
-    async play(demo, generation) {
-      await demo.arrive(generation);
-      const toggle = demo.frameApi.threadsButton();
-      await demo.movePointer(toggle, generation);
-      await demo.wait(360, generation);
-      await demo.press(generation);
-      // The panel stands and the page makes room for it in the press itself: nothing
-      // follows it to wait out, so the replay's pause on the result is the only hold.
-      demo.frameApi.setThreads(true);
-      await demo.waitFor(
-        demo.frameApi.threadsOpen,
-        "the Threads panel did not open",
-        generation,
-      );
-      await demo.wait(RESULT_PAUSE, generation);
-      await demo.movePointer(toggle, generation);
-      await demo.press(generation);
-      demo.frameApi.setThreads(false);
-      await demo.finish(generation);
-    },
-  },
-};
 
 let installedGallery = null;
 let uninstallGallery = () => {};
@@ -516,7 +160,20 @@ export function installInteractionGallery() {
   // deactivates one demo, readies the next and starts it), so the controls are painted
   // once, from where the script leaves them.
   const paintControls = () => afterScript(renderControls);
-  const demos = new Map(panels.map((panel) => [panel, new Demo(panel, paintControls)]));
+  const demos = new Map(
+    panels.map((panel) => [
+      panel,
+      new Demo(panel, (demo) => {
+        paintControls();
+        // Commands and view crossings can arrive in either order. Reconcile the
+        // acknowledged playback state against the current view. A motion preference
+        // blocks autoplay; the user's explicit Play still runs under reduced motion.
+        if (demo !== active) return;
+        if (demo.state === "playing" && !onScreen) demo.pause(true);
+        else if (demo.pausedByView) maybePlay();
+      }),
+    ]),
+  );
 
   function selectedPanel() {
     return panels.find((panel) => !panel.hasAttribute("hidden"));
@@ -584,6 +241,9 @@ export function installInteractionGallery() {
   };
   const changeViewport = () => {
     gallery.dataset.interactionViewport = viewport.value;
+    for (const demo of demos.values()) {
+      if (demo.loadState === "ready") void demo.viewport(viewport.value);
+    }
     if (!active || !["playing", "paused"].includes(active.state)) return;
     const paused = active.state === "paused";
     void active.replay();
@@ -626,8 +286,7 @@ export function installInteractionGallery() {
   uninstallGallery = () => {
     active?.deactivate();
     for (const demo of demos.values()) {
-      demo.stopAnimations();
-      void demo.sample?.destroy();
+      void demo.destroy();
     }
     tabObserver.disconnect();
     viewObserver.disconnect();

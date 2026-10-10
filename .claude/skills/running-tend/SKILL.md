@@ -176,18 +176,8 @@ run report.
 
 ## Weekly: vendored browser dependencies
 
-Dependabot's weekly grouped PR moves the root `package.json` and
-`package-lock.json` but not the committed bundles built from them, so its
-`check:browser` and vendored-bundle steps stay red until the output is rebuilt.
-On that PR's branch:
-
-```bash
-npm ci
-npm run build:browser
-uv run build/vendor.py
-```
-
-Commit the result to the same branch. Read each `*.LICENSES.txt` diff: a package
+Dependency automation rebuilds committed browser bundles on Dependabot's PR.
+Read each `*.LICENSES.txt` diff: a package
 listed at two versions means the bump split a closure (Shiki's packages pin each
 other exactly); `npm update <package>` moves a locked dependency within its dependant's
 range. Drop a Lit bump the Web Awesome build refuses. `esbuild` is left to move

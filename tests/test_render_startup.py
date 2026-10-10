@@ -230,6 +230,17 @@ def test_a_composed_page_does_not_offer_history_it_does_not_have(browser, serve)
     page.locator('[role="tab"][aria-controls="bg-view-page"]').click()
     expect(page.locator("#bg-durable-embedding")).to_have_attribute("hidden", "")
     assert page.locator("#bg-durable-frame").get_attribute("src") == "about:blank"
+    # Composition also carries the file example, whose local binding is deliberately
+    # absent. Its explained, read-only state is the corpus's declared behavior.
+    file = page.locator("#research-file")
+    expect(file.locator(".lf-file-editor-status")).to_have_text("Unavailable")
+    expect(file.locator(".lf-file-editor-explanation")).to_contain_text(
+        "research-notes"
+    )
+    expect(
+        file.get_by_role("textbox", name="File contents", include_hidden=True)
+    ).to_have_attribute("aria-readonly", "true")
+    consume_browser_errors(page, f"400 {urljoin(page.url, 'api/files/research-notes')}")
 
 
 def test_a_live_page_refuses_a_same_site_parent_at_another_port(browser, serve):

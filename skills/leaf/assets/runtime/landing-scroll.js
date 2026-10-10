@@ -66,7 +66,7 @@ function placementBy(where, block, box, margin) {
         ? room - rect.height - scrollMargin(where, "Bottom")
         : Math.max((room - rect.height) / 2, margin);
   const movement =
-    block === "nearest" && !(where instanceof Range)
+    block === "nearest"
       ? nearestScrollBy(
           rect.top - margin,
           rect.bottom + scrollMargin(where, "Bottom"),

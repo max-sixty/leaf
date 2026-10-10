@@ -1,3 +1,4 @@
+import { sampleNotice } from "../sample-child.js";
 /* The page's own parts: what the user is standing on when it belongs to no feature,
    the one press that lets go of it, and the foot of the Escape ladder.
 
@@ -168,12 +169,11 @@ pageRung("page", () => {
   // A sample has one more containing page. Its own controls and standing unwind
   // first; the frame's owner takes the focus back, not another keyboard listener
   // competing with this register.
-  const frame = window.frameElement;
-  return frame?.hasAttribute("data-lf-contained")
+  return document.documentElement.lfSample
     ? {
         title: "return to containing page",
         description: "Leave this sample and return to its containing page",
-        out: () => frame.dispatchEvent(new Event("lf-sample-return")),
+        out: () => sampleNotice("return"),
       }
     : null;
 });

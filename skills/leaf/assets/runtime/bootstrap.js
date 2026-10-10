@@ -17,13 +17,117 @@
   }
   const script = document.currentScript;
   const root = document.documentElement;
+  // The sample URL grants this document its own server operations. An opaque
+  // origin keeps it out of its parent's DOM and storage; native network APIs keep
+  // their ordinary browser behavior. Only presentation values use the private port.
+  if (root.hasAttribute("data-lf-sample")) {
+    if (window.lfSampleBridge) {
+      root.lfSample = window.lfSampleBridge;
+      root.lfSample.install();
+    } else {
+      let port;
+      let settings;
+      let readyResolve;
+      const ready = new Promise((resolve) => {
+        readyResolve = resolve;
+      });
+      const queued = [];
+      const listeners = new Set();
+      const send = (value) => (port ? port.postMessage(value) : queued.push(value));
+      const bridge = {
+        ready,
+        get settings() {
+          return settings;
+        },
+        send,
+        receive: (callback) => listeners.add(callback),
+        present() {
+          if (!settings.passive)
+            document.documentElement.lfInitial.setRuntimeRootAttribute(
+              document.body,
+              "inert",
+              null,
+            );
+        },
+      };
+      root.lfSample = bridge;
+      window.lfSampleBridge = bridge;
+      let worn = { attributes: {}, properties: {} };
+      const dress = (next = { attributes: {}, properties: {} }) => {
+        const root = document.documentElement;
+        for (const name of Object.keys(worn.attributes))
+          if (!Object.hasOwn(next.attributes, name))
+            root.lfInitial.setRuntimeRootAttribute(root, name, null);
+        for (const name of Object.keys(worn.properties))
+          if (!Object.hasOwn(next.properties, name))
+            root.lfInitial.removeRuntimeRootStyle(root, name);
+        for (const [name, value] of Object.entries(next.attributes))
+          root.lfInitial.setRuntimeRootAttribute(root, name, value);
+        for (const [name, value] of Object.entries(next.properties))
+          root.lfInitial.setRuntimeRootStyle(root, name, value);
+        worn = next;
+      };
+      // Aim cancels native mousedown focus and places its editor after layout. A
+      // trusted input enters the browsing context before those handlers run.
+      const nativeWindowFocus = window.focus;
+      const enterSample = (event) => {
+        if (event.isTrusted && !settings.passive && !document.hasFocus())
+          nativeWindowFocus.call(window);
+      };
+      bridge.install = () => {
+        const root = document.documentElement;
+        root.lfInitial.setRuntimeRootAttribute(
+          root,
+          "data-lf-sample-block",
+          !settings.passive && !settings.window ? "" : null,
+        );
+        dress(worn);
+        for (const type of ["pointerdown", "keydown"])
+          window.addEventListener(type, enterSample, true);
+      };
+      const sample = new URL(`${script.dataset.lfPageRoot}/`, location.origin).pathname;
+      const nonce = crypto.randomUUID();
+      const connect = (event) => {
+        if (
+          event.source !== window.parent ||
+          event.data?.sample !== sample ||
+          event.data.nonce !== nonce ||
+          !event.ports[0]
+        )
+          return;
+        window.removeEventListener("message", connect);
+        settings = event.data.settings;
+        port = event.ports[0];
+        // The bootstrap element owns diagnostic readings before the entry starts.
+        script.lfDocumentPort = port;
+        port.onmessage = ({ data }) => {
+          if (data.type === "dress") dress(data.detail);
+          else for (const callback of listeners) callback(data);
+        };
+        port.postMessage({ type: "connected", nonce });
+        bridge.install();
+        dress(settings.dress);
+        readyResolve();
+        for (const value of queued.splice(0)) port.postMessage(value);
+      };
+      window.addEventListener("message", connect);
+      window.parent.postMessage({ type: "leaf-sample-connect", sample, nonce }, "*");
+      window.addEventListener("pagehide", () => send({ type: "departed" }));
+    }
+    window.addEventListener("lf-startup-failed", () =>
+      root.lfSample.send({
+        type: "error",
+        detail: {
+          message:
+            document.documentElement.dataset.lfStartupError || "Sample could not start",
+        },
+      }),
+    );
+  }
   // A served page draws the live chrome, the banner and the bottom bar, so the theme
   // reserves their room from the first paint (`html[data-lf-live]`). An export runs the
   // runtime without them (prepaint.js).
   root.toggleAttribute("data-lf-live", true);
-  // A sample's child takes its form and its dress from its frame before it paints
-  // (sample.js).
-  window.frameElement?.lfDressRoot?.(root);
   const incarnation = script.dataset.lfServer;
   const layer = script.dataset.lfLayer;
   const release = script.dataset.lfRelease;
@@ -220,9 +324,12 @@
       const paint = performance
         .getEntriesByName("first-contentful-paint", "paint")
         .at(0);
-      navigator.sendBeacon(
-        new URL("api/performance", pageRoot),
-        JSON.stringify({
+      void fetch(new URL("api/performance", pageRoot), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        keepalive: true,
+        body: JSON.stringify({
           version: 2,
           loadId: crypto.randomUUID(),
           release,
@@ -239,7 +346,7 @@
           firstStateResponseMs,
           presentedMs,
         }),
-      );
+      }).catch(() => {});
     };
     const observer = new MutationObserver(() => {
       readMilestones();

@@ -194,38 +194,105 @@ describe("product-site delivery", () => {
     expect(env.ASSETS.fetch).toHaveBeenCalledTimes(3);
   });
 
-  it("routes sample documents, assets, and events to the private container without agent work", async () => {
+  it("routes opaque samples to their allocation's exact container without cookies or agent work", async () => {
     const sessionId = "03".repeat(16);
-    const sample = `/examples/triage-board/api/samples/${"04".repeat(16)}`;
-    const eventId = "05".repeat(16);
-    const attempt = "child-sample-comment";
-    const containerFetch = vi.fn(async () => Response.json({
-      ok: true,
-      state: {
-        events: [{ id: eventId, attempt, kind: "comment", revision: 1 }],
-        activity: { obligations: [{ input: eventId }] },
-      },
-    }));
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    const sampleId = "04".repeat(16);
+    const objectId = "06".repeat(32);
+    const allocated = `/examples/triage-board/api/samples/${sampleId}/`;
+    const sample = `/examples/triage-board/api/samples/${sampleId}~${objectId}`;
+    const id = { toString: () => objectId } as DurableObjectId;
+    const allocationFetch = vi.fn(async () => Response.json({ url: allocated }));
+    vi.mocked(getContainer).mockReturnValue({ fetch: allocationFetch } as never);
+    const containerFetch = vi.fn(async (request: Request) => {
+      if (request.method === "POST" && new URL(request.url).pathname.endsWith("/api/samples"))
+        return Response.json({ url: `${new URL(request.url).pathname}/${"07".repeat(16)}/` }, {
+          headers: { "Access-Control-Allow-Origin": "*" },
+        });
+      if (request.method === "OPTIONS")
+        return new Response(null, { status: 204, headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Headers": "*",
+        } });
+      return Response.json({ ok: true }, { headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Set-Cookie": "parent-cookie-must-not-reach-the-child=1",
+      } });
+    });
+    const pages = {
+      idFromName: vi.fn(() => id),
+      idFromString: vi.fn(() => id),
+      get: vi.fn(() => ({ fetch: containerFetch })),
+    };
+    const env = environment({ PAGES: pages as unknown as Env["PAGES"] });
     const waitUntil = vi.fn();
-    const env = environment();
-    for (const [method, path] of [
-      ["POST", "/examples/triage-board/api/samples"],
+    const ctx = { waitUntil } as unknown as ExecutionContext;
+    const allocation = await worker.fetch(new Request("https://leaf.page/examples/triage-board/api/samples", {
+      method: "POST",
+      headers: { Cookie: `__Host-leaf-page=${sessionId}` },
+      body: JSON.stringify({ template: "practice" }),
+    }), env, ctx);
+    expect(await allocation.json()).toEqual({ url: `${sample}/` });
+    expect(pages.idFromName).toHaveBeenCalledExactlyOnceWith(containerId(sessionId));
+
+    const paths = [
       ["GET", `${sample}/`],
       ["GET", `${sample}/revisions/r1-0123456789abcdef/leaf.js`],
       ["GET", `${sample}/api/state`],
       ["POST", `${sample}/api/event`],
-    ]) {
-      const response = await worker.fetch(new Request(`https://leaf.page${path}`, {
-        method,
-        headers: { Cookie: `__Host-leaf-page=${sessionId}`, "Content-Type": "application/json" },
-        ...(method === "POST" ? { body: JSON.stringify({ kind: "comment", attempt }) } : {}),
-      }), env, { waitUntil } as unknown as ExecutionContext);
-      expect(response.status).toBe(200);
+      ["OPTIONS", `${sample}/api/event`],
+      ["POST", `${sample}/api/samples`],
+      ["GET", `${sample}/api/samples/${"07".repeat(16)}/api/state`],
+    ];
+    for (const [method, path] of paths) {
+      // A different browser's optional cookie must not reassign the capability.
+      for (const cookie of [null, `__Host-leaf-page=${"08".repeat(16)}`]) {
+        const response = await worker.fetch(new Request(`https://leaf.page${path}`, {
+          method,
+          headers: { Origin: "null", ...(cookie ? { Cookie: cookie } : {}) },
+          ...(method === "POST" ? { body: JSON.stringify({ kind: "comment" }) } : {}),
+        }), env, ctx);
+        expect(response.status).toBe(method === "OPTIONS" ? 204 : 200);
+        expect(response.headers.get("Set-Cookie")).toBeNull();
+        expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
+        if (method === "POST" && path.endsWith("/api/samples"))
+          expect(await response.json()).toEqual({
+            url: `${sample}/api/samples/${"07".repeat(16)}/`,
+          });
+      }
     }
-    expect(containerFetch).toHaveBeenCalledTimes(5);
+    expect(allocationFetch).toHaveBeenCalledOnce();
+    expect(containerFetch).toHaveBeenCalledTimes(paths.length * 2);
+    expect(pages.idFromString).toHaveBeenCalledTimes(paths.length * 2);
+    expect(pages.idFromString.mock.calls.every(([value]) => value === objectId)).toBe(true);
+    expect(pages.get.mock.calls.every(([value]) => value === id)).toBe(true);
     expect(waitUntil).not.toHaveBeenCalled();
     expect(env.WEBSITE_EVENTS.writeDataPoint).not.toHaveBeenCalled();
+  });
+
+  it("never treats a routing reference outside a sample prefix as parent session identity", async () => {
+    const objectId = "06".repeat(32);
+    const pages = { idFromString: vi.fn(), get: vi.fn() };
+    const env = environment({ PAGES: pages as unknown as Env["PAGES"] });
+    const response = await worker.fetch(new Request(
+      `https://leaf.page/examples/triage-board/api/state?sample=${"04".repeat(16)}~${objectId}`,
+    ), env);
+    expect(response.headers.get("Leaf-Session")).toBe("passive");
+    expect(pages.idFromString).not.toHaveBeenCalled();
+    expect(pages.get).not.toHaveBeenCalled();
+  });
+
+  it("refuses an invalid namespace object ID before starting a sample container", async () => {
+    const pages = {
+      idFromString: vi.fn(() => { throw new TypeError("invalid Durable Object ID"); }),
+      get: vi.fn(),
+    };
+    const env = environment({ PAGES: pages as unknown as Env["PAGES"] });
+    const response = await worker.fetch(new Request(
+      `https://leaf.page/api/samples/${"04".repeat(16)}~${"06".repeat(32)}/api/state`,
+    ), env);
+    expect(response.status).toBe(404);
+    expect(response.headers.get("Set-Cookie")).toBeNull();
+    expect(pages.get).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -726,10 +793,21 @@ describe("product-site delivery", () => {
     expect(assetFetch.mock.calls[0][0].url).toBe(
       "https://leaf.page/examples/triage-board/runtime/state-feed.js",
     );
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
+    expect(response.headers.get("Access-Control-Expose-Headers")).toBe("*");
     expect(response.headers.get("Cache-Control")).toBe(
       "public, max-age=31536000, immutable",
     );
     expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
+    const preflight = await worker.fetch(new Request(
+      `https://leaf.page/_leaf-release/${RELEASE}/examples--triage-board/runtime/state-feed.js`,
+      { method: "OPTIONS", headers: { Origin: "null", "Access-Control-Request-Headers": "leaf-layer" } },
+    ), env);
+    expect(preflight.status).toBe(204);
+    expect(preflight.headers.get("Access-Control-Allow-Origin")).toBe("*");
+    expect(preflight.headers.get("Access-Control-Allow-Methods")).toBe("GET, HEAD, OPTIONS");
+    expect(preflight.headers.get("Access-Control-Allow-Headers")).toBe("*");
+    expect(assetFetch).toHaveBeenCalledOnce();
     expect(getContainer).not.toHaveBeenCalled();
   });
 

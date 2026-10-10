@@ -36,6 +36,7 @@
    capabilities; thread views register their template-owned trigger and palette.
    mount installs the mode teardown listeners after composition. */
 
+import { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
 import { whenOffScreen } from "./geometry.js";
 import { scrollIntoReadingBand } from "./landing-scroll.js";
 import { registerContribution } from "./contributions.js";
@@ -322,7 +323,7 @@ export function createReactionController({
     const picker = pickerFor(surface);
     // The platform hands focus back to the opener as the list closes, the layer's own
     // return (focus.js).
-    picker?.palette.hidePopover();
+    if (picker) closeNativeLayer(picker.palette);
     picker?.trigger.setAttribute("aria-expanded", "false");
   }
 
@@ -402,7 +403,7 @@ export function createReactionController({
         // scrolled out of the list: it comes into view to be answered, since a list
         // hung from a trigger out of view would neither show nor stay open.
         scrollIntoReadingBand(picker.trigger, picker.trigger, "nearest", "instant");
-        picker.palette.showPopover({ source: picker.trigger });
+        showNativeLayer(picker.palette, { source: picker.trigger });
         const opened = reactSurface;
         reactDeparture = whenOffScreen([picker.trigger], () => {
           if (reactSurface === opened) setReact(false);

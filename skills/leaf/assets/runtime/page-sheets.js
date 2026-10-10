@@ -111,7 +111,7 @@ function narrowSheet(sheet) {
   const owner = sheet.ownerNode;
   if (
     sheet.href &&
-    new URL(sheet.href).origin !== location.origin &&
+    new URL(sheet.href).origin !== window.origin &&
     !owner?.hasAttribute?.("crossorigin")
   )
     return;

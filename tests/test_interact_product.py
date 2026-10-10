@@ -40,6 +40,7 @@ from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import tasks as tasks_model
 from leaf.registry import storage as registry_storage
+from leaf.registry.contract import element_declarations
 from leaf.structure import SourceDocument
 from leaf.thread_context import thread_digest
 from leaf.validation import compatibility as validation_model
@@ -526,7 +527,7 @@ def test_every_widget_in_the_vocabulary_stands_in_a_corpus_source():
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
     # The corpus is generated from the others, so it can only repeat their coverage.
     authored = " ".join(path.read_text() for path in CORPUS_SOURCES)
-    tags = [tag for tag in registry if not tag.startswith("$")]
+    tags = element_declarations(registry)
     assert tags, "no widgets read — an empty vocabulary demonstrates itself"
     undemonstrated = [tag for tag in tags if not re.search(rf"<{tag}[\s>]", authored)]
     assert not undemonstrated, (

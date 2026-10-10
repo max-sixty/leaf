@@ -255,9 +255,12 @@ class SourceDocument:
     exact authored construction. It does not maintain a second element stack or
     tree-building grammar, and it keeps foreign SVG as exact source rather than
     reconstructing it.
+
+    Registry examples are fragments, so `fragment=True` parses in template context:
+    table rows, cells and select options survive without a surrounding document.
     """
 
-    def __init__(self, source: str):
+    def __init__(self, source: str, *, fragment: bool = False):
         self.html = source
         self.data = source.encode("utf-8")
         self.digest = f"sha256:{hashlib.sha256(self.data).hexdigest()}"
@@ -328,7 +331,7 @@ class SourceDocument:
         # (start, end) of the first html, head, and body start tag the source spells:
         # where delivery writes into the document.
         self.wrapper_tags = {}
-        self._finish()
+        self._finish(fragment=fragment)
 
     @staticmethod
     def _position(element) -> tuple[int, int]:
@@ -736,8 +739,17 @@ class SourceDocument:
         elif element.tag == "title":
             self.title += element.text
 
-    def _finish(self):
-        self.tree = turbohtml.parse(self._source, scripting=True, source_locations=True)
+    def _finish(self, *, fragment: bool):
+        self.tree = (
+            turbohtml.parse_fragment(
+                self._source,
+                context="template",
+                scripting=True,
+                source_locations=True,
+            ).parent
+            if fragment
+            else turbohtml.parse(self._source, scripting=True, source_locations=True)
+        )
         self._source_errors()
         for child in self.tree.children:
             if isinstance(child, turbohtml.Element):

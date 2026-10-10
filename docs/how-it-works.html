@@ -209,10 +209,11 @@ leaf server start ./review</code></pre>
                 <p id="package-instructions">
                   A package contains components and their instructions. Initialization
                   copies the selected packages into the page directory.
-                  <code>leaf page instructions ./review</code> lists the available
-                  instruction audiences;
+                  <code>leaf page instructions ./review</code> returns instructions by
+                  audience as JSON;
                   <code
-                    >leaf page instructions ./review author --widget lf-diagram</code
+                    >leaf page instructions ./review --use lf-diagram | jq -er
+                    '.author'</code
                   >
                   returns instructions for authoring a diagram.
                 </p>

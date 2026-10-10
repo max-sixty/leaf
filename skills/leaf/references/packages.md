@@ -143,9 +143,9 @@ Package checks refuse imports of private kernel modules as well as replacements,
 so source checkouts and prepared installations expose the same extension contract.
 `/runtime/widget-api.js` is the public behavior-module interface, shared with
 the running kernel rather than copied into each widget.
-A later package replaces a tag's complete element
-declaration and one member inside a shared `$` declaration. A tag can be added or
-replaced whole, but it has no deletion marker.
+A later package replaces a complete ordinary vocabulary entry, whether an element
+or an idiom, and one member inside a shared `$` declaration. An ordinary entry can
+be added or replaced whole, but it has no deletion marker.
 Shared `$` entries compose by member, and map-valued members compose one level further
 by key; `null` deletes at either of those shared-entry grains when the merged registry
 still validates. Instructions files with the same audience name concatenate in package order.
@@ -157,25 +157,23 @@ composed text sets each package's passage under a heading naming the package, so
 a file begins with its first rule rather than a title of its own. Packages define
 audiences such as `author`, `coordinator`, or `worker`; Leaf does not keep a role
 list. A data contract's `instructions` map holds audience-specific text beside
-its schema. A widget's `x-instructions` is one non-empty string for the page author.
+its schema. An ordinary vocabulary entry's `x-instructions` is one non-empty string for the page author.
 
 ```bash
-leaf page instructions PAGE
-leaf page instructions PAGE author --widget lf-options --widget lf-chart
-leaf page instructions PAGE producer --contract unified-diff
+leaf page instructions PAGE | jq 'keys'
+leaf page instructions PAGE --use lf-options --use .eyebrow | jq -er '.author'
+leaf page instructions PAGE --contract unified-diff | jq -er '.producer'
 ```
 
-With no audience, the command lists the audiences available for that selection
-as a JSON array.
-With an audience, it prints shared package instructions and instructions for the
-explicitly selected widgets and contracts. Without a selection, it prints only
-shared package instructions. Each repeated `--widget TAG` includes the widget's
-required members, custom tags in its worked example, and declared `x-data`
-contracts; the reader derives those dependencies from the registry. Widget
-instructions join the `author` audience. Contract instructions join their
-declared audience. The author instructions name other available audiences so
-an agent can assign work with the right instructions. "Read the registry" in
-`page-authoring.md` owns when an author reads each part.
+The command returns a JSON map from audience to complete instructions; no
+instructions is `{}`. Without a selection, it includes only shared package
+instructions. Each repeated `--use ENTRY` selects an ordinary registry entry,
+including an idiom. Its `x-instructions` joins the `author` audience. Elements and idioms used
+in its `x-example` and its declared `x-data` contracts join the selection
+recursively, once each. Contract instructions join their declared audiences.
+Whoever takes a role reads that audience's value for the same selection before
+acting. "Read the registry" in `page-authoring.md` owns when an author reads each
+part.
 
 The reader uses the candidate vocabulary: the layer just vendored and any
 `page/registry.json` declarations. It is available before the page has markup
@@ -196,10 +194,10 @@ Tokens change every surface that reads them: `--accent`, `--r`, the three faces
 `--serif` (body prose), `--sans` (apparatus: chrome, injected controls, and annotations
 embedded in evidence), and `--mono` (literal evidence). Ordinary selectors tune one
 element or widget. A shape the project reuses across pages is an idiom — declare it
-under `$idioms` in the package's
-`registry.json` (a selector, a description, an example) and style it in the layer's
+under its CSS selector in the package's `registry.json`, beside element names
+(a `description`, `x-example`, and optional `x-instructions`) and style it in the layer's
 `theme.css`; the page's merged `registry.json` then carries it beside the shipped ones.
-An idiom may declare one `x-` key, `x-space`, the width it takes, as `.callout` keeps
+An idiom may also declare `x-space`, the width it takes, as `.callout` keeps
 the column; delivery paints it on every element the selector matches.
 
 A package's rules read the box a widget is given and the theme's tokens, never the Layout

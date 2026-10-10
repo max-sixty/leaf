@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, replace
 
+from leaf.registry.contract import element_declarations
 from leaf.render_checks import RENDER_VIEWPORT, SERVED_TIMEOUT_MS
 
 from .readings import (
@@ -129,11 +130,7 @@ def _render_version_attempt(
     def once(page, registry):
         desktop = RENDER_VIEWPORTS[0]
         # First, at the first paint's viewport, which the sweep then leaves.
-        advice.extend(
-            unreserved_height_advice(
-                page, {tag: e for tag, e in registry.items() if tag.startswith("lf-")}
-            )
-        )
+        advice.extend(unreserved_height_advice(page, element_declarations(registry)))
         widths = sweep(page, RENDER_VIEWPORTS, open_widgets(registry))
         advice.extend(shrunk_label_advice(widths))
         advice.extend(overflowing_region_advice(widths, desktop["height"]))

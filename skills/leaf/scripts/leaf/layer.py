@@ -11,6 +11,7 @@ from typing import NamedTuple
 
 from .locations import located, locations_overlap
 from .machine import package_store
+from .registry.contract import element_declarations, is_element_name
 from .schema import (
     ASSETS,
     BROWSER_DIRS,
@@ -206,9 +207,7 @@ def widget_confinement(root: Path) -> tuple[str, str] | None:
     """
     registry = root / "registry.json"
     tags = (
-        sorted(
-            tag for tag in json.loads(registry.read_text()) if not tag.startswith("$")
-        )
+        sorted(element_declarations(json.loads(registry.read_text())))
         if registry.is_file()
         else []
     )
@@ -589,7 +588,7 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
     missing_modules = sorted(
         tag
         for tag, entry in incoming.items()
-        if tag.startswith("lf-")
+        if is_element_name(tag)
         and entry["x-upgrade"]
         and f"{tag}.js" not in directory_sources["widgets"]
     )

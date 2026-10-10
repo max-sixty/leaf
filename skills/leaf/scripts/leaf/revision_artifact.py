@@ -50,6 +50,7 @@ from tree_sitter import Language, Parser
 from leaf.files import file_stamp, latest_revision, list_revisions, revision_path
 from leaf.page_memory import Slot, memo
 from leaf.passages import SourceReading, enclosing_ids
+from leaf.registry.contract import is_element_name
 from leaf.render_checks import PROBE_SOURCES
 from leaf.schema import BROWSER_DIRS, CONTENT_TYPES, SERVED_PATH, VENDORED_FILES
 from leaf.state import fsync_parents
@@ -679,14 +680,14 @@ def _capture_artifact(
                 capture.add("/" + path.relative_to(page_dir).as_posix())
     resources["/registry.json"] = Resource(_json(registry), "application/json")
     for tag, entry in registry.items():
-        if tag.startswith("lf-") and (initial := entry.get("x-initial")):
+        if is_element_name(tag) and (initial := entry.get("x-initial")):
             capture.add(initial)
 
     if widget_sources is None:
         widget_sources = {
             tag: f"widgets/{tag}.js"
             for tag, entry in registry.items()
-            if tag.startswith("lf-")
+            if is_element_name(tag)
             and entry.get("x-upgrade")
             and f"/widgets/{tag}.js" in resources
         }

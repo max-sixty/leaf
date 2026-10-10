@@ -19,7 +19,7 @@ from leaf.projection import (
     retirement_outcomes,
     rewritten_bodies,
 )
-from leaf.registry.contract import retirement_slots
+from leaf.registry.contract import is_element_name, retirement_slots
 from leaf.registry.schema import json_value
 from leaf.render_checks import evaluate_probe, one_frame, rendered
 from leaf.structure import SourceDocument
@@ -430,7 +430,7 @@ def open_widgets(registry: dict) -> list[str]:
     return [
         tag
         for tag, entry in registry.items()
-        if tag.startswith("lf-") and entry.get("x-content") in ("markup", "members")
+        if is_element_name(tag) and entry.get("x-content") in ("markup", "members")
     ]
 
 

@@ -447,7 +447,7 @@ ATTRIBUTE_KEYS = (
 # whether the mark holds in a thread's message too:
 # each is the element's own fact wherever it renders, except the room, which is the
 # document's to hand out; a message renders in the panel, whose width bounds it.
-# `idiom` says an `$idioms` entry may declare the mark for the elements its selector
+# `idiom` says a selector entry may declare the mark for the elements its selector
 # matches, as `.callout` declares the room: the mark's every reader reads its paint and
 # nothing paints it in a message, so delivery's paint is the whole of it. The others
 # are also read by tag (the asks fold, the render checks, the runtime's descriptors).

@@ -18,7 +18,7 @@ from leaf.schema import (
     INSTRUCTIONS_SCHEMA,
 )
 
-from .contract import RegistryError, stamp_decisions
+from .contract import RegistryError, is_element_name, stamp_decisions
 from .kernel import kernel_event_kinds, kernel_event_ownership
 from .schema import (
     json_validator,
@@ -31,13 +31,10 @@ from .schema import (
 def merge_layer_declarations(merged: dict, declarations: dict) -> None:
     """Fold one layer's top-level registry declarations into the merge.
 
-    An element declaration replaces the earlier one whole; schemas never deep-merge,
-    because a half-old, half-new contract is no layer's vocabulary. A $ declaration
-    holds shared layer facts, so its members merge. Under replace-whole, a project
-    declaring one idiom vendored a $idioms holding exactly that idiom — its theme
-    rules kept styling, theme.css concatenating where the registry did not, while
-    the vendored registry silently dropped the shipped ten. A member that is itself
-    a map merges by its own keys for the same reason one level down:
+    Every authored vocabulary entry replaces the earlier one whole, whether an
+    element schema or a selector idiom: a half-old, half-new entry is no layer's
+    declaration. A $ declaration holds shared layer facts, so its members merge.
+    A member that is itself a map merges by its own keys:
     $languages.paths is indexed by extension, and a layer adding `.svelte` must not
     silently drop every shipped extension with it. Scalar and list members replace
     whole — a names list is one statement. `$events.kinds` and `$events.ownership`
@@ -169,33 +166,42 @@ def validate_layer_declarations(
             f"lint admits — missing {json_value(sorted(admitted - documented))}, "
             f"unadmitted {json_value(sorted(documented - admitted))}"
         )
-    # An idiom declares the marks `DECLARED_MARKS` admits on one (`idiom`), such as the
-    # room a `.callout` takes, which delivery paints on every element the idiom's
-    # selector matches (`revision_delivery.mark_declared`), so the selector has to be
-    # one delivery can match.
-    admitted = sorted(key for key, mark in DECLARED_MARKS.items() if mark.get("idiom"))
+    # Idioms share author-facing fields with elements; only marks whose readers
+    # consume delivery's paint can be declared on selectors. Validate every selector,
+    # even one without marks, because it remains an authored vocabulary identity.
+    marks = {key for key, mark in DECLARED_MARKS.items() if mark.get("idiom")}
+    allowed = {"description", "x-example", "x-instructions"} | marks
     probe = turbohtml.parse("<p></p>").find("p")
-    for selector, entry in (registry.get("$idioms") or {}).items():
-        if not isinstance(entry, dict):
+    for selector, entry in registry.items():
+        if selector.startswith("$") or is_element_name(selector):
             continue
-        declared = [key for key in entry if key.startswith("x-")]
-        for key in declared:
-            if key not in admitted or not Draft202012Validator(
-                EXTENSION_SCHEMA["properties"][key]
-            ).is_valid(entry[key]):
+        try:
+            probe.matches(selector)
+        except turbohtml.SelectorSyntaxError as error:
+            raise RegistryError(
+                f"{path}: idiom {selector!r} selector cannot be matched: {error}"
+            ) from None
+        if (
+            not isinstance(entry, dict)
+            or set(entry) - allowed
+            or not isinstance(entry.get("description"), str)
+            or not entry["description"].strip()
+            or not isinstance(entry.get("x-example"), str)
+            or not entry["x-example"].strip()
+        ):
+            raise RegistryError(
+                f"{path}: idiom {selector!r} must carry a non-empty description and "
+                "x-example, with optional x-instructions and "
+                + ", ".join(sorted(marks))
+            )
+        for key in set(entry) - {"description"}:
+            if not Draft202012Validator(EXTENSION_SCHEMA["properties"][key]).is_valid(
+                entry[key]
+            ):
                 raise RegistryError(
-                    f"{path}: $idioms {selector!r} declares {key}={json_value(entry[key])}; an "
-                    f"idiom may declare {', '.join(admitted)}, with a value its $keys "
-                    "entry admits"
+                    f"{path}: idiom {selector!r} declares {key}={json_value(entry[key])}; "
+                    "the value must satisfy its $keys declaration"
                 )
-        if declared:
-            try:
-                probe.matches(selector)
-            except turbohtml.SelectorSyntaxError as error:
-                raise RegistryError(
-                    f"{path}: $idioms {selector!r} declares {declared[0]}, and its "
-                    f"selector cannot be matched: {error}"
-                ) from None
     if (
         not isinstance(names, list)
         or not all(isinstance(name, str) for name in names)

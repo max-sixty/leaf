@@ -398,11 +398,10 @@ summary { align-content: center; }
    it covers. One disclosure beside that context controls the entire range. */
 .lf-thread-checkpoint { margin-block: 16px; }
 .lf-thread-checkpoint[hidden] { display: none; }
-/* The bracket joins the disclosure to exactly the messages it will hide. */
-.lf-thread-checkpoint[data-expanded="true"] { position: relative; }
-.lf-thread-checkpoint[data-expanded="true"]::before { content: ""; position: absolute;
-  inset-block: 4px; inset-inline-start: -10px; width: 6px;
-  border: 1px solid var(--muted-2); border-inline-end: 0; pointer-events: none; }
+/* An inset border groups the retained messages without changing their headers
+   or giving progress a separate background. Collapsed disclosures stay inline. */
+.lf-thread-checkpoint[data-expanded="true"] { margin-block: 12px;
+  border: 1px solid var(--rule); border-radius: 5px; padding: 6px 12px; }
 .lf-summary-checkpoint { padding-block: 4px; }
 /* Keep the context label readable when the disclosure needs another line. */
 .lf-summary-header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
@@ -421,9 +420,9 @@ summary { align-content: center; }
 .lf-msg-head > .lf-thread-disclosure { padding-block: 0; }
 .lf-thread-disclosure:hover { text-decoration: underline; text-underline-offset: 3px; }
 .lf-summary-required { margin-top: 6px; color: var(--turn-ink); font: 600 11px/1.4 var(--sans); }
-.lf-summary-originals { min-width: 0; padding-inline-start: 12px; }
+.lf-summary-originals { min-width: 0; }
 .lf-summary-originals[hidden] { display: none; }
-.lf-summary-originals > .lf-msg { margin-block: 16px; }
+.lf-summary-originals > .lf-msg { margin-block: 8px; }
 .lf-thread-disclosure:is(:focus-visible, .lf-focus-visible) {
   outline: var(--focus-ring); --lf-focus-ring: summary-fold;
   outline-offset: calc(-1 * var(--focus-ring-w)); }

@@ -30,11 +30,19 @@ published pages while the source retains its canonical path.
 For a vertical navigation that must retain sideways reading, use
 `scrollIntoReadingBand(target, holder, block, behavior)`: `target` is an element or
 Range, and `holder` is the element whose reading regions contain it. Element targets
-support `start`, `center`, or `nearest` for `block`; a Range is always centered. It places the
+support `start`, `center`, `end`, or `nearest` for `block`; `nearest` centers a Range. It places the
 target in the innermost reading band and reveals it in enclosing regions, across
 shadow roots, without changing horizontal offsets.
 Use it for an explicit arrival; entering visible controls and ordinary repainting
 preserve their current reading position.
+
+For an arrival that also reveals inner overflow, use
+`scrollIntoView(target, {block, behavior})`. Horizontal inspection is nearest;
+`block` defaults to `start` and accepts `center`, `end`, and `nearest`.
+It prepares inner scrollports, then places the destination through its enclosing
+reading regions. Both scrolling helpers stop at the current document, including
+inside a live sample. Native `Element.scrollIntoView` can scroll containing pages
+through same-origin iframes, so modules use these helpers instead.
 
 Registry `x-text-format: inline-markdown` formats direct authored text nodes;
 `markdown` renders a data body's exact source as safe block Markdown. The latter

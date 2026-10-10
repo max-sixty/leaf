@@ -167,7 +167,7 @@ button.lf-media-open { cursor: zoom-in; }
     inset-inline-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2);
     inset-block-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2); }
   /* The field keeps its full box while both actions occupy its trailing corner. */
-  .lf-fab-bar[data-lf-other-responses] .lf-compose-field {
+  .lf-fab-bar[data-lf-other-responses] {
     --lf-comment-send-room: calc(2 * var(--lf-icon-action-hit)); }
   .lf-fab-bar[data-lf-other-responses] .lf-compose-submit {
     inset-inline-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2 + var(--lf-icon-action-hit)); }

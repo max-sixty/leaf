@@ -1423,7 +1423,7 @@ leaf-text.lf-fab-input {
   inset-inline-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2);
   inset-block-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2);
 }
-.lf-fab-bar[data-lf-other-responses] .lf-compose-field {
+.lf-fab-bar[data-lf-other-responses] {
   --lf-comment-send-room: calc(2 * var(--lf-icon-action-hit));
 }
 .lf-fab-bar[data-lf-other-responses] .lf-compose-submit {

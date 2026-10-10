@@ -266,8 +266,7 @@ export function readBoxPlace(input) {
 // in the page instead.
 export function holdBox(control) {
   const held = control?.closest?.(SAYS_IN);
-  if (!held || control !== focusedInView())
-    return () => {};
+  if (!held || control !== focusedInView()) return () => {};
   const top = control.getBoundingClientRect().top;
   return () => {
     if (focused() !== control || !control.isConnected) return;

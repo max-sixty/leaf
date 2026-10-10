@@ -196,6 +196,22 @@ test("a card that only shrank is outlined between its two edges, not whole", asy
   assert.equal(describeDifference(reading), "1 changed area");
 });
 
+test("a rule drawn in the image's commonest colour still changes where it is drawn", async () => {
+  // A black rule on a white band of a black page: the rule's own colour is the page's
+  // ground, but not the band's it stands on.
+  const band = painted(
+    blank(300, 200),
+    [0, 0, 300, 200, undefined, 0],
+    [0, 20, 300, 80, undefined, 255],
+  );
+  const reading = await differingRegions(
+    painted(band, [0, 60, 300, 2, undefined, 0]),
+    painted(band, [0, 60, 300, 2, undefined, 120]),
+  );
+  assert.deepEqual(outlines(reading, "before"), outlines(reading, "after"));
+  assert.equal(outlines(reading, "before").length, 1);
+});
+
 test("crowded changes consolidate nearby fragments while a distant edit stays separate", async () => {
   // Adjacent fragments of the same hunk once kept separate outlines around line
   // numbers and individual words. The same two fragments merit separate attention

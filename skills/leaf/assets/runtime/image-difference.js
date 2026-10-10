@@ -40,17 +40,17 @@
  * Each image's blocks are then read against the other image. A block none of whose
  * squares holds a changed pixel is the same. A frame is a line, so it is the same
  * unless a pixel it draws changed: where only the ground beside a rule changed (the
- * colour most of its image has), as where the other image's border crossed it, the
- * change is the border's. A block that did change is looked for in the other image,
- * among its blocks of the same size that changed too, the nearest first: found there,
- * no pixel more than SLIGHT apart, it moved; found nowhere, it changed. Each frame of
- * the pair is outlined on its own, around its own blocks: where content changed, in
- * both frames at the place it has in each, and where it moved, at its old place in
- * before and its new place in after. So a list that moved beside a chart is outlined at
- * the foot of before and beside the chart in after, and nothing marks the empty place
- * it left. A change where neither image draws an edge, such as rows of ground only the
- * taller image has, lies inside no block; its struck squares are outlined as a change
- * in each image that reaches them, joined with the outlines they touch there.
+ * colour around it), as where the other image's border crossed it, the change is the
+ * border's. A block that did change is looked for in the other image, among its blocks
+ * of the same size that changed too, the nearest first: found there, no pixel more than
+ * SLIGHT apart, it moved; found nowhere, it changed. Each frame of the pair is outlined
+ * on its own, around its own blocks: where content changed, in both frames at the place
+ * it has in each, and where it moved, at its old place in before and its new place in
+ * after. So a list that moved beside a chart is outlined at the foot of before and
+ * beside the chart in after, and nothing marks the empty place it left. A change where
+ * neither image draws an edge, such as rows of ground only the taller image has, lies
+ * inside no block; its struck squares are outlined as a change in each image that
+ * reaches them, joined with the outlines they touch there.
  *
  * A block that holds another block is a container, such as a panel, a card or a lane.
  * One that changed and holds only what changed too, as a card whose text rewrapped, is
@@ -132,19 +132,17 @@ export async function differingRegions(a, b) {
   const after = blocksOf(b, other, columns);
   // A frame is a line, so it changed only where it is drawn. A struck square at its edge
   // can hold only the ground beside it, as where the other image's border crosses a rule:
-  // that is the border's change, not the rule's.
-  const ground = new Map([
-    [a, commonest(one)],
-    [b, commonest(other)],
-  ]);
+  // that is the border's change, not the rule's. The ground is the colour around the
+  // frame, just outside the edge pixels that bound it.
   const drawnChange = (block, image, pixels, otherImage, otherPixels) =>
     block.cells.some((cell) => {
       if (!struck[cell]) return false;
+      block.ground ??= around(block, image, pixels) ?? null;
       const box = block.boxes.get(cell);
       for (let y = box.y; y < box.y + box.height; y += 1)
         for (let x = box.x; x < box.x + box.width; x += 1) {
           const p = pixels[y * image.width + x];
-          if (distance(p, ground.get(image)) <= STEP) continue;
+          if (block.ground !== null && distance(p, block.ground) <= STEP) continue;
           const q =
             x < otherImage.width && y < otherImage.height
               ? otherPixels[y * otherImage.width + x]
@@ -579,14 +577,25 @@ function join(marks, DBSCAN) {
   ];
 }
 
-// The colour most pixels have: the image's ground.
-function commonest(pixels) {
+// The commonest colour on the ring of pixels just outside `block`'s box: the ground the
+// block stands on.
+function around({ x, y, width, height }, image, pixels) {
   const counts = new Map();
-  let best = pixels[0];
-  for (let i = 0; i < pixels.length; i += 7) {
-    const count = (counts.get(pixels[i]) ?? 0) + 1;
-    counts.set(pixels[i], count);
-    if (count > counts.get(best)) best = pixels[i];
+  let best;
+  const count = (column, row) => {
+    if (column < 0 || row < 0 || column >= image.width || row >= image.height) return;
+    const p = pixels[row * image.width + column];
+    const n = (counts.get(p) ?? 0) + 1;
+    counts.set(p, n);
+    if (best === undefined || n > counts.get(best)) best = p;
+  };
+  for (let column = x - 1; column <= x + width; column += 1) {
+    count(column, y - 1);
+    count(column, y + height);
+  }
+  for (let row = y; row < y + height; row += 1) {
+    count(x - 1, row);
+    count(x + width, row);
   }
   return best;
 }

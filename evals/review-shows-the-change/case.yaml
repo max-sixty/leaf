@@ -353,6 +353,103 @@ variants:
     assert:
     - *intermediate_state_review
 
+  capture-first-reading:
+    metadata:
+      purpose: A capture reviewer derives visual checks before its own clean verdict.
+      instructions: .claude/skills/ui-sweep/SKILL.md
+    vars:
+      prompt: |
+        Independently review Leaf's Capture area feature for Max. He asked for
+        a screenshot-like selector that turns a selected page area into an image,
+        then asked to use an existing library and integrate shared controls.
+
+        The author's progress update says: "The rectangle and image capture can
+        stay as they are. The main change is input ownership: Capture will
+        temporarily claim drags and keys, while Attach and Cancel move into
+        the shared banner."
+        Its predicted task is to discover Capture area in More, drag around the
+        release board, Attach, add text and Send. Board geometry must stay fixed,
+        a thumbnail must appear, and sending must preserve it in Threads.
+        Cancel must return to reading without an attachment. Targeted tests pass.
+
+        You have the exact candidate and source in the real review. This
+        read-only continuation cannot operate them. Give the concrete review
+        work and the evidence needed for your own verdict, before reading any
+        later reviewer report. Do not fabricate completed checks.
+    assert:
+    - type: llm-rubric
+      metric: capture-first-reading
+      value: |
+        Score the proposed review, not execution. Pass if it judges whether
+        meaningful board text or diagram detail needed to guide the choice
+        remains readable during selection, including before the drag ends.
+        Held browser states or recorded pre-release frames are equivalent.
+        It need not predict which UI element might obscure that information;
+        an explicit requirement to keep task evidence readable at every step
+        of selecting and correcting the area satisfies the criterion.
+        Tests of final image accuracy, instruction/border legibility, attaching
+        or cancellation alone are insufficient. Fail if it
+        signs off or delegates missing verification to Max.
+    - type: llm-rubric
+      metric: capture-working-sizes
+      value: |
+        Pass only if the proposed review explicitly includes a small capture
+        rectangle or passage/detail-sized selection. This must vary the size
+        of the selected region itself. Desktop/phone viewport sizes, constrained
+        height, banner wrapping, native-scale screenshots, a recognizable board
+        region or general "working limits" do not satisfy this condition.
+        Do not require a particular pixel size or wording.
+
+  resize-task-visibility:
+    metadata:
+      purpose: Task information guides a continuous adjustment beyond correct saved sizes.
+      instructions: .claude/skills/ui-sweep/SKILL.md
+    vars:
+      prompt: |
+        Review a split view used to compare a paragraph with its chart. Max's
+        task is to adjust the divider until both can be read, compare them, then
+        return the divider. The author says only shared focus wiring changed.
+        Tests confirm saved pane widths, no overflow, keyboard adjustment and
+        return to the starting layout. Screenshots of the final widths pass.
+        Give your remaining review work before a verdict. Candidate, source
+        and recordings exist in the real task; this read-only continuation
+        cannot use them. Do not claim checks ran or ask Max to do them.
+    assert:
+    - type: llm-rubric
+      metric: resize-task-information
+      value: |
+        Score proposed checks, not their execution. Pass if review judges whether paragraph and chart information needed
+        to guide resizing remains readable during adjustment, including held
+        intermediate positions at widths usable for the comparison task.
+        Correct saved widths, no overflow or final screenshots alone fail.
+        Accept a held browser state or recorded intermediate frames; do not
+        require a particular implementation, defect, or wording.
+
+  task-information-guardrail:
+    metadata:
+      purpose: A useful overlay may cover pixels while preserving task information.
+      instructions: .claude/skills/ui-sweep/SKILL.md
+    vars:
+      prompt: |
+        Review evidence for dragging a document into a folder. At the working
+        sizes, the drag ghost covers the original row but repeats the document
+        name and icon. The source identity, destination folder names and target
+        feedback stay readable throughout recorded held-drag frames. The reviewer
+        used this information to choose the intended folder, cancel, and complete
+        the move. Keyboard/touch routes, retained state and final result checks
+        pass. The exact candidate received ordinary-zoom independent visual review.
+        There are no other findings. Give your verdict on the overlap and any
+        necessary follow-up; this read-only continuation cannot operate the page.
+    assert:
+    - type: llm-rubric
+      metric: permits-useful-overlay
+      value: |
+        Pass if it accepts this overlap because the task-relevant identity and
+        destination information remain available. It must not require all source
+        pixels to stay unobscured, reject the ghost solely for covering the row,
+        or demand repeating the already evidenced review without a new concern.
+        It may qualify its verdict as relying on supplied evidence.
+
   drag-state-review:
     metadata:
       purpose: Visual review covers a drag preview before releasing the pointer removes it.

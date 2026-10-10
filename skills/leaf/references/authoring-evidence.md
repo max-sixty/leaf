@@ -106,6 +106,9 @@ coloring. Other previews, such as a diagram, image, or live sample, can share an
 with the source widget. Switching views is local reading state; it records no
 decision. When the user reviews an edit to source text, including prose or
 configuration, show its exact patch in `lf-diff` and explain the effect beside it.
+For updates or reviews of current work, consider including the patch so the user
+can inspect and comment on the changes. Choose the comparison that covers the work
+being discussed; `wt step diff`, when available, often fits a current branch's work.
 The per-file view makes insertions and deletions visible and gives each source
 line a stable comment coordinate. `lf-diff` and the
 `unified-diff` contract travel in the `diff` package: initialize such a page with
@@ -115,7 +118,7 @@ source its current contract:
 ```html
 <lf-text-document id="skill-source" source="leaf-skill" label="SKILL.md" language="markdown"></lf-text-document>
 
-<lf-diff id="review-patch" source="pr-patch-8f61c2a" collapsed><pre></pre></lf-diff>
+<lf-diff id="review-patch" source="review-patch" collapsed><pre></pre></lf-diff>
 ```
 
 Then set the source. Text is one JSON string, of the whole file or an inclusive line
@@ -126,8 +129,19 @@ jq -Rs . SKILL.md | leaf data set <page> leaf-skill
 sed -n '71,102p' SKILL.md | jq -Rs . | leaf data set <page> leaf-skill
 ```
 
-A patch goes through the `diff` package's producer script; the contract's
-instructions give the command:
+Pipe the chosen diff into the source as one JSON string; the widget parses and
+validates the patch:
+
+```bash
+wt step diff | jq -Rs . | leaf data set <page> review-patch
+```
+
+Rerun the pipeline with the same source id to refresh the open page; the widget's
+markup stays as written.
+
+The raw form transfers and renders the whole patch. For a large patch whose files
+should load only when opened, the `unified-diff` contract's producer instructions
+describe the optional file manifest:
 
 ```bash
 leaf page instructions <page> --contract unified-diff | jq -er '.producer'

@@ -743,7 +743,7 @@ def test_target_hints_name_only_addressable_elements_shown_by_a_disclosure(
     expect(hints).to_have_count(2)  # heading and disclosure
 
     page.keyboard.press("Escape")
-    page.locator("summary").click()
+    page.locator("#evidence > summary").click()
     page.keyboard.press("s")
     expect(hints).to_have_count(32)
 
@@ -758,7 +758,7 @@ def test_target_hints_name_only_addressable_elements_shown_by_a_disclosure(
         "keys => keys.map(key => [key.textContent, key.dataset.lfSequenceStepState])"
     ) == [[tail[0], "pressed"], [tail[1], "neutral"]]
     expect(continued).to_have_css("gap", "1px")
-    page.locator("summary").click()
+    page.locator("#evidence > summary").click()
     expect(hints).to_have_count(0)
 
 

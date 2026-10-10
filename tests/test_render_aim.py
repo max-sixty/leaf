@@ -2512,7 +2512,7 @@ def test_design_mode_owns_every_platform_control_from_the_shared_boundary(
     )
     page.keyboard.press("Escape")
     expect(page.locator(".lf-composer")).to_be_hidden()
-    disclosure = page.locator("details")
+    disclosure = page.locator("main details")
     summary = disclosure.locator("summary")
     summary.click()
     assert not disclosure.evaluate("el => el.open"), (

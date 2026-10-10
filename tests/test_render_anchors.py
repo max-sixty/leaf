@@ -1629,7 +1629,7 @@ def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, hold
     )
 
     opener = (
-        page.locator("summary")
+        page.locator("main summary")
         if holder == "disclosure"
         else page.get_by_role("tab", name="Code", exact=True)
     )

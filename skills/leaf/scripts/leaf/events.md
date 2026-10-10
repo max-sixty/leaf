@@ -253,8 +253,11 @@ an action on a widget one of the thread's messages carries, or an action
 whose admitted answer closes the thread. A move that changes a thread without naming
 it, such as a later decision on the suggestion that had answered it or an `undo`,
 does not count, and neither does a move the user took back. A later edit is unread
-even when the prior version was read. A
-summary does not mark read the messages it covers. `read_state.unread_content` is the
+even when the prior version was read. Completed progress is superseded by the next
+ordinary, non-failure agent reply in its thread and leaves unread when that reply
+arrives, including later edits to that progress; the reply still requires its own
+read evidence. An explicit summary does not mark read the messages it covers.
+`read_state.unread_content` is the
 one reading; it is published as each browser Thread's `unread` and each
 thread's `unread` in `page state`. Read records belong to the page log and apply
 across tabs and document revisions; they never answer a question, settle a workflow,

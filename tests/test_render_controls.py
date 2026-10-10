@@ -3507,7 +3507,12 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     expect(page.locator(".lf-banner-menu > .lf-version")).to_be_visible()
     expect(page.locator(".lf-banner-menu > .lf-banner-copy")).to_be_visible()
     expect(page.locator(".lf-banner-menu > .lf-share")).to_be_visible()
-    expect(page.locator(".lf-banner-menu > *:visible")).to_have_count(4)
+    # More also holds page commands; their number can grow without making the
+    # retired synthetic destinations reachable again.
+    expect(page.locator(".lf-banner-menu > .lf-secondary-destination")).to_have_count(7)
+    expect(
+        page.locator(".lf-banner-menu > .lf-secondary-destination:visible")
+    ).to_have_count(0)
     page.keyboard.press("Escape")
     expect(page.locator(".lf-banner-menu")).to_be_hidden()
     expect(page.locator(".lf-banner-more")).to_be_visible()
@@ -4440,7 +4445,7 @@ def test_a_phone_banner_keeps_fixed_primary_and_menu_seats(browser, serve, other
     expect(page.locator(".lf-banner-menu")).to_be_visible()
     expect(more).to_have_attribute("aria-expanded", "true")
     want = secondary.evaluate_all(
-        """els => els.filter(el => el.checkVisibility())
+        """els => els.filter(el => el.checkVisibility() && !el.disabled)
                      .map(el => (el.getAttribute('aria-label') || el.textContent).trim())"""
     )
     assert len(want) >= 2, f"only {want} stand in More, which walks nothing"

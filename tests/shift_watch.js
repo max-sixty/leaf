@@ -41,7 +41,7 @@
 // its solver dimensions, not the holder's rendered displacement, supply that credit.
 // Native anchored surfaces read their compositor source pose from an independent,
 // unpainted native anchor; their own displacement never selects that camera.
-// Observed page attachments in the window plane retain their carrying source offsets,
+// Observed source attachments in the window plane retain their carrying source offsets,
 // physical attachment point and written solver point. Source travel bounds physical
 // following, which bounds the solver's constrained movement. Only that written
 // movement is credited; extra holder/child movement still fails.
@@ -1857,6 +1857,43 @@
     }
     return motion;
   };
+  // A failure keeps the same historical attachment facts its motion judgment read.
+  // A later live DOM rectangle cannot explain an earlier compositor/solver boundary.
+  const attachmentEvidence = (node, from, to) => {
+    const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
+    const rect = (value) => value && [value.left, value.top, value.width, value.height];
+    const evidence = ancestryAt(element, to).flatMap((owner) => {
+      const selections = floating.get(owner);
+      if (!selections) return [];
+      const reading = (at) => {
+        const selected = selections.findLast((item) => item.at <= at)?.selection;
+        if (!selected) return null;
+        const { plane, point, edges, size, reference, frame, scrollOffsets } = selected;
+        const retained = readingAt(owner, at);
+        return {
+          plane,
+          point,
+          edges,
+          size,
+          reference,
+          frame: frame && name(frame),
+          source: frame && rect(boxAt(frame, at)),
+          sourceLayout: frame && layoutAt(frame, at),
+          nativeOrigin: retained?.nativeOrigin,
+          surface: rect(retained?.rect),
+          scrollOffsets: scrollOffsets?.map(({ source, left, top }) => ({
+            source: name(source),
+            left,
+            top,
+          })),
+        };
+      };
+      return [{ owner: name(owner), from: reading(from), to: reading(to) }];
+    });
+    return evidence.length
+      ? `; attachment evidence ${JSON.stringify({ from, to, evidence })}`
+      : "";
+  };
   const pendingMotion = [];
   const protectedMotion = (around) => {
     const growth = appendGrowth(around);
@@ -1993,12 +2030,19 @@
           carried(first.previousRect, last.currentRect, "left", "right");
         const stable = net && (!current || moved(current, first.previousRect));
         const proof = stable
-          ? { previousRect: first.previousRect, currentRect: last.currentRect }
+          ? {
+              before: first.before,
+              after: last.after,
+              previousRect: first.previousRect,
+              currentRect: last.currentRect,
+            }
           : chain.find(confirms);
         if (proof)
           report(
             `${name(node)} moved without input`,
-            by(proof.previousRect, proof.currentRect) + beside(entry.sources, node),
+            by(proof.previousRect, proof.currentRect) +
+              beside(entry.sources, node) +
+              attachmentEvidence(node, proof.before, proof.after),
           );
       }
     for (let i = pendingMotion.length - 1; i >= 0; i--)

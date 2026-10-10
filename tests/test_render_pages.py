@@ -3757,7 +3757,10 @@ DISCLOSURES = """() => [...document.querySelectorAll('details')]
     open: d.open,
     displayed: d.checkVisibility(),
     summary: (d.querySelector('summary')?.textContent || '').trim().slice(0, 40),
-    shown: [...d.children].filter(c => !c.matches('summary, script, style, template') && !c.hasAttribute('data-lf-gen'))
+    // An authored output placeholder that is explicitly hidden has no paper reading.
+    shown: [...d.children].filter(c =>
+      !c.matches('summary, script, style, template') &&
+      !c.hasAttribute('data-lf-gen') && !c.hidden)
       .every(c => c.checkVisibility()),
   }))"""
 

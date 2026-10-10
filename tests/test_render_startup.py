@@ -2293,7 +2293,9 @@ def test_foreign_state_waits_until_a_live_drag_releases_the_page(browser, serve)
         },
     )
     told(page)
-    expect(page.locator("#draft-ops .lf-draft-body")).to_have_text(DRAFT_TEXT)
+    expect(page.locator("#draft-ops .lf-draft-body")).to_have_text(
+        DRAFT_TEXT, use_inner_text=True
+    )
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "0")
 
     page.mouse.up()

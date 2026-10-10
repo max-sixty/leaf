@@ -7359,7 +7359,11 @@ def test_suggestion_emphasis_skips_generated_interface_between_changed_words(
     """A changed span may cross a nested widget without painting its generated UI."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     page.locator('[data-lf-margin-for="bg-route-ask"] .lf-margin-marker').click()
+    page.locator("#bg-route .lf-pick").first.focus()
     badges = page.locator("#bg-route > lf-option > .lf-key-badge")
+    expect(
+        page.locator("#bg-route > lf-option > .lf-key-badge[data-lf-binding-badge]")
+    ).to_have_count(2)
     expect(badges).to_have_text(["1", "2"])
 
     assert page.locator("#bg-nested-change > lf-new > p").evaluate(

@@ -121,16 +121,18 @@ def shift_watch_source():
             (
                 'import { WORKS } from "./skills/leaf/assets/runtime/control-selectors.js";'
                 'import { clippingAxes } from "./skills/leaf/assets/runtime/rect.js";'
-                'import { scrollAxes } from "./skills/leaf/assets/runtime/geometry.js";'
+                'import { elementAxes, scrollAxes } from "./skills/leaf/assets/runtime/geometry.js";'
                 'import { shadowHost, upFrom, renderedParent } from "./skills/leaf/assets/runtime/shadow.js";'
-                "process.stdout.write(JSON.stringify([WORKS,...[clippingAxes,shadowHost,upFrom,renderedParent,scrollAxes].map(fn=>fn.toString())]));"
+                "process.stdout.write(JSON.stringify([WORKS,...[clippingAxes,shadowHost,upFrom,renderedParent,elementAxes,scrollAxes].map(fn=>fn.toString())]));"
             ),
         ],
         cwd=ROOT,
         text=True,
         timeout=STATED_TIMEOUT,
     )
-    interactive, clipping, host, parent, rendered_parent, axes = json.loads(controls)
+    interactive, clipping, host, parent, rendered_parent, element_axes, axes = (
+        json.loads(controls)
+    )
     return (
         WATCH_PLATFORM_SOURCE.read_text()
         + "\n"
@@ -139,7 +141,7 @@ def shift_watch_source():
         + "const nativeTask = (callback, ...args) => window.lfWatchPlatform.later(callback, ...args);\n"
         + f"((interactive, clippingAxes) => {{\n"
         f"const shadowHost = {host};\nconst upFrom = {parent};\n"
-        f"const renderedParent = {rendered_parent};\nconst scrollAxes = {axes};\n"
+        f"const renderedParent = {rendered_parent};\nconst elementAxes = {element_axes};\nconst scrollAxes = {axes};\n"
         f"{SHIFT_WATCH_SOURCE.read_text()}\n}})({json.dumps(interactive)}, {clipping});"
     )
 
@@ -171,7 +173,6 @@ ANCHOR_SOURCES = (
     FEATURE_GALLERY,
     ROOT / "examples" / "pr-walkthrough.html",
     ROOT / "examples" / "ship-review.html",
-    ROOT / "examples" / "developer" / "swipe-gallery.html",
 )
 
 
@@ -304,7 +305,7 @@ SAID_PAGE = leaf_page(
     """
 <h1 id="h">This week</h1>
 <div class="layout-tiles" id="numbers">
-  <lf-metric id="m-open" value="1,204" delta="+18%" direction="up-good">Open sessions</lf-metric>
+  <dl id="m-open" class="panel"><dt>Open sessions</dt><dd><strong>1,204</strong> <small>+18%</small></dd></dl>
 </div>
 <lf-board id="board">
   <lf-column id="col-now" label="In flight">
@@ -518,7 +519,13 @@ def serve(tmp_path, monkeypatch, initialized_page):
         selected_packages = (
             fixture.packages
             if fixture is not None and packages is None
-            else EXAMPLE_PACKAGES
+            else (
+                *EXAMPLE_PACKAGES,
+                "~/"
+                + (ROOT / "tests/fixtures/packages/work")
+                .relative_to(Path.home())
+                .as_posix(),
+            )
             if packages is None
             else packages
         )
@@ -1106,7 +1113,7 @@ def undo(page):
 # A request a test stops is cancelled rather than failed. The page cannot tell the two
 # apart — both reject the fetch the runtime awaits and leave it on the same `catch`.
 # The console can tell them apart, which is what the reason is chosen for:
-# tests/AGENTS.md, "A test cannot assert over noise it makes itself". A refused event
+# tests/AGENTS.md, "Test-made noise". A refused event
 # request remains unresolved, deliberately: the outbox keeps its attempt and retries.
 def refuse(route):
     """Stop this request with nothing for the page's console to report."""
@@ -1343,8 +1350,7 @@ def watched(page, *, java_script_enabled=True):
     Call before navigation so the init scripts take effect. With scripting disabled,
     retain native console and page errors but install no script-driven sensors and
     await none at judgement.
-    Repeated calls return the existing list. `tests/AGENTS.md`, "Consume a browser
-    error where it is caused", owns consumption and cleanup policy."""
+    Repeated calls return the existing list. `tests/AGENTS.md`, "Browser errors", owns consumption and cleanup policy."""
     assert _BROWSER_PROBLEM_LISTS is not None, (
         "watched pages need the function-scoped browser fixture"
     )
@@ -1600,6 +1606,23 @@ def banner_control(page, selector):
     expect(control).to_be_visible()
     control.scroll_into_view_if_needed()
     return control
+
+
+def page_comment(page):
+    """Open the page comment card from the banner and return its box, focused.
+
+    The card is the one place a page thread starts (thread/page-comment.js): its control
+    stands on the banner's row on a desk and in More on a phone. A card already open, as
+    a send leaves it, is left open and its box pressed, so a caller comes back to the box
+    it writes in."""
+    card = page.locator(".lf-page-comment-card")
+    box = card.locator(".lf-general leaf-text")
+    if card.evaluate("card => card.matches(':popover-open')"):
+        box.click()
+    else:
+        banner_control(page, ".lf-page-comment").click()
+    expect(box).to_be_focused()
+    return box
 
 
 def expect_banner_control_offered(control, *, offered=True):
@@ -1902,7 +1925,7 @@ class WatchedBrowser:
     `unwatched` exposes the underlying browser for product gates that deliberately
     open faulty pages and report those faults themselves. Ordinary clean-page
     journeys use the wrapped browser. Fixture policy lives in `tests/AGENTS.md`,
-    "Consume a browser error where it is caused"."""
+    "Browser errors"."""
 
     def __init__(self, browser):
         self._browser = browser
@@ -1966,8 +1989,7 @@ def margins_laid_out(page):
     window — but only on the runs where the frame had not landed yet, which is why the
     same probe condensed on one run and not the next.
 
-    The pending frame is not a fact to wait a frame for (`tests/AGENTS.md`, "A wait
-    consumes a fact the system states"), so the work is run instead of guessed at.
+    The pending frame is not a fact to wait a frame for (`tests/AGENTS.md`, "Waits"), so the work is run instead of guessed at.
     Whether the observer schedules it at all is `test_render_margin.py`'s subject, not
     that of a test reading the layout it produces.
 

@@ -177,10 +177,10 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
             "</main>", '<a href="/missing-by-validation.png">A dead link</a></main>'
         )
         ordinary_build = tmp_path / "ordinary-site"
-        actual_leaf = site.leaf
+        run_leaf = site.checkout_leaf()
         interleaved = False
 
-        def validate_with_an_ordinary_build(env, *args, **kwargs):
+        def validate_with_an_ordinary_build(*args, **kwargs):
             nonlocal interleaved
             if not interleaved and args[:2] == ("page", "check"):
                 interleaved = True
@@ -193,18 +193,22 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
                 ordinary[home] = home.read_bytes()
                 # Another output builds the published bytes while draft validation
                 # is live; neither its sources nor its final stamp may see the draft.
-                site.build(ordinary_build, assets=checkout.path)
+                site.build(ordinary_build, run_leaf, assets=checkout.path)
                 ordinary_home = site.product_page(ordinary_build, "index.html")
                 ordinary_html = (ordinary_home / "index.html").read_text()
                 assert replacement in ordinary_html
                 assert next_address not in ordinary_html
                 assert "A concurrent authored edit" in ordinary_html
-            return actual_leaf(env, *args, **kwargs)
+            return run_leaf(*args, **kwargs)
 
-        monkeypatch.setattr(site, "leaf", validate_with_an_ordinary_build)
         draft_build = tmp_path / "draft-site"
         with pytest.raises(SystemExit, match="missing-by-validation.png"):
-            site.build(draft_build, assets=draft.path, source_markup=draft_markup)
+            site.build(
+                draft_build,
+                validate_with_an_ordinary_build,
+                assets=draft.path,
+                source_markup=draft_markup,
+            )
         assert interleaved
         draft_home = site.product_page(draft_build, "index.html")
         draft_html = (draft_home / "index.html").read_text()

@@ -1,8 +1,8 @@
 /* A visual run is one active-case review: a heading, then one evidence pane whose
- * header is the case navigation. Disposition stays above the evidence and supporting
+ * header is the case navigation. Disposition follows the evidence and supporting
  * capture facts follow it. The stage is as tall as its captures. In a document the page
  * scrolls through them; in a workspace that fills the window the evidence pane does,
- * and Fit sizes the captures to the pane (lf-visual-review.js), so it rarely has to. */
+ * and Fit sizes the captures to the pane (lf-visual-review.js). */
 :scope:is(lf-visual-review) {
   --lf-block-frame: 1;
   display: grid;
@@ -80,7 +80,9 @@
 
 .lf-vr-queue-region {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  /* Paired steps share one allocation; case text yields to both controls. */
+  --lf-vr-step-width: max(4.5rem, var(--aim-floor));
+  grid-template-columns: minmax(0, 1fr) repeat(2, var(--lf-vr-step-width));
   gap: var(--sp-2);
 }
 
@@ -91,7 +93,7 @@
 .lf-vr-case-select,
 .lf-vr-inspector-group,
 .lf-vr-inspector-choice {
-  --wa-form-control-height: 30px;
+  --wa-form-control-height: max(30px, var(--aim-floor));
 }
 
 .lf-vr-case-select {
@@ -101,7 +103,11 @@
 
 .lf-vr-previous,
 .lf-vr-next {
-  min-width: 5.5rem;
+  padding-inline: var(--sp-2);
+}
+
+.lf-vr-case-select::part(display-input) {
+  text-overflow: ellipsis;
 }
 
 .lf-vr-inspector {
@@ -110,6 +116,25 @@
   flex-wrap: wrap;
   gap: var(--sp-2);
   min-width: 0;
+}
+
+.lf-vr-inspection-summary {
+  width: fit-content;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+/* The inspector is a toolbar disclosure within the review, not another prose
+ * panel. Its summary keeps the shared hit target; the case grid owns spacing. */
+.lf-vr-inspection {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.lf-vr-inspection[open] > .lf-vr-inspector {
+  margin-block: var(--sp-2);
 }
 
 .lf-vr-toolbar-slot {
@@ -194,23 +219,31 @@
 .lf-vr-opacity-control {
   display: none;
   align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--sp-2);
   min-width: 0;
   flex: 1 1 11rem;
 }
 
 .lf-vr-opacity-control[data-active="true"] {
-  display: flex;
+  display: grid;
+}
+
+.lf-vr-opacity-control > .lf-vr-inspector-label {
+  grid-column: 1 / -1;
+  margin: 0;
+  white-space: normal;
 }
 
 .lf-vr-opacity {
   width: 100%;
-  min-width: 5.5rem;
+  min-width: 0;
   margin: 0;
 }
 
 .lf-vr-opacity-value {
   min-width: 3ch;
-  margin-left: var(--sp-2);
+  margin: 0;
   color: var(--ink-2);
   font: var(--t-6) / 1.3 var(--mono);
   text-align: end;
@@ -236,16 +269,12 @@
 }
 
 .lf-vr-case-head {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--sp-3);
+  min-width: 0;
 }
 
 .lf-vr-case-heading {
-  display: flex;
+  display: grid;
   align-items: baseline;
-  flex-wrap: wrap;
   gap: var(--sp-2);
   min-width: 0;
 }
@@ -318,6 +347,7 @@
 }
 
 .lf-vr-details {
+  grid-column: 1 / -1;
   box-sizing: border-box;
   min-width: 0;
   margin: 0;
@@ -329,7 +359,6 @@
 
 .lf-vr-details[open] {
   display: grid;
-  grid-column: 1 / -1;
   gap: var(--sp-2);
   width: auto;
 }
@@ -355,7 +384,7 @@
   font: var(--t-6) / 1.4 var(--sans);
 }
 
-.lf-vr-detail {
+.lf-vr-detail:not([hidden]) {
   display: grid;
   align-content: start;
   gap: 1px;
@@ -582,7 +611,22 @@
 }
 
 .lf-vr-review {
-  align-self: stretch;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  padding-block: var(--sp-2);
+}
+
+.lf-vr-review-status {
+  flex: 1 1 12rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--t-6);
+}
+
+.lf-vr-next-remaining {
+  min-height: max(38px, var(--aim-floor));
 }
 
 .lf-vr-disposition {
@@ -650,12 +694,6 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .lf-vr-previous,
-  .lf-vr-next {
-    min-width: 0;
-    padding-inline: var(--sp-2);
-  }
-
   .lf-vr-inspector {
     gap: var(--sp-2);
   }
@@ -665,11 +703,29 @@
   }
 }
 
+/* Keep the chooser's value and its native popup readable when three controls
+   cannot share a row. The two steps still receive the same track. */
+@container (max-width: 18rem) {
+  .lf-vr-queue-region {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .lf-vr-case-select {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  /* Two rows of controls, so the sticky header's stated height is two rows. */
+  .lf-vr-evidence-region {
+    --lf-vr-queue-h: calc(2 * max(30px, var(--aim-floor)) + 3 * var(--sp-2) + 1px);
+  }
+}
+
 @media print {
-  .lf-vr-dispositions,
+  .lf-vr-review,
   .lf-vr-frame-label,
   .lf-vr-queue,
-  .lf-vr-inspector {
+  .lf-vr-inspection {
     display: none !important;
   }
 
@@ -704,4 +760,10 @@
   .lf-vr-head {
     background: transparent;
   }
+}
+
+.lf-vr-analysis {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
 }

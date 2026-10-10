@@ -7,12 +7,6 @@
    containing it or by the page. CSS decides that from the space a workspace has
    (layouts.css, the workspace Layout), so nothing here chooses a posture.
 
-   A separately scrolling piece of a region's apparatus declares `apparatusFor`, the
-   owning region's id. It stays in the physical scroll inventory, while focus and
-   gestures there select its owner for reading. Containment still names the apparatus's
-   own box, so bringing its controls into view never mistakes the owner's reading body
-   for the box that actually carries them.
-
    Every box Leaf makes scroll vertically is a region, so every question that names the
    box scrolling a node (`scrollerFor`, and `scrollersOf` for the boxes around it) gets
    that box rather than the page: a pane's body, the Threads list, a compound widget's
@@ -75,14 +69,12 @@ export function compoundReadingRegionId(owner, localName) {
   return `lf-region:${owner.id}:${localName}`;
 }
 
-export function registerReadingRegion({ id, host, body, apparatusFor = null }) {
+export function registerReadingRegion({ id, host, body }) {
   if (typeof id !== "string" || !id || !host || !body)
     throw new Error("leaf: a reading region needs id, host, and body");
   if (live(regions.get(id)))
     throw new Error(`leaf: reading region ${id} is already live`);
-  if (apparatusFor !== null && !live(regions.get(apparatusFor)))
-    throw new Error("leaf: reading apparatus needs a live owning region");
-  const region = { id, host, body, apparatusFor, scroller: null, width: null };
+  const region = { id, host, body, scroller: null, width: null };
   const stopReaching = reachReadingScroller(body);
   regions.set(id, region);
   sizes.observe(host);
@@ -143,9 +135,7 @@ const regionAt = (node) => {
 
 export const readingRegionFor = (node) => {
   const region = regionAt(node);
-  return region?.apparatusFor
-    ? readingRegion(region.apparatusFor)
-    : region && regionRecord(region);
+  return region && regionRecord(region);
 };
 
 // The region the user is reading in, which the reading keys scroll and continuity

@@ -1,30 +1,31 @@
 """The served thread and workflow records the runtime's Node tests build on.
 
-`served_records.json` holds records exactly as `/api/state` serves them, folded here
-through `model_folds.reading` rather than written by hand, so a Node test starts from
+Each invocation emits records exactly as `/api/state` serves them, folded here
+through `model_folds.served_reading` rather than written by hand, so a Node test starts from
 every field the server sends and cannot omit one the runtime relies on. `thread` and
 `workflow` are one record of each, which `served.mjs` hands out for a test to change
-only the fields the server sends; `readings` holds whole served readings whose
-premise is the case under test. `test_model_folds` fails when the committed file
-drifts from this fold; rewrite it with:
-
-    uv run tests/served_records.py
+only the fields the server sends; `gestures` holds an admitted edit, undo, refusal
+and revision sequence shared across runtimes; `readings` holds whole served readings
+whose premise is the case under test. `served.mjs` reads this output directly, so its
+assertions always consume this checkout's server rather than a recorded copy.
 """
 
 import json
-from pathlib import Path
 
 from interact_support import model_layer
 from leaf.agent_state import queues
-from model_folds import leaf_page, reading
+from leaf.event_log import EventRefused
+from model_folds import leaf_page, served_reading
 
-RECORDS = Path(__file__).with_name("served_records.json")
 PAGE = leaf_page("Served records", '<h1 id="h">Steps</h1><p id="p">Two steps.</p>')
 
 
 def _served(events: tuple[dict, ...]) -> dict:
-    state = reading(PAGE, events)
-    return {"threads": state["thread"]["threads"], "workflows": state["workflows"]}
+    state = served_reading(PAGE, events)
+    return {
+        "threads": state["browser"]["thread"]["threads"],
+        "workflows": state["workflows"],
+    }
 
 
 def build() -> dict:
@@ -51,7 +52,16 @@ def build() -> dict:
     return {
         "thread": threads["e1"],
         "workflow": workflows["e4"],
+        "gestures": gesture_sequence(),
         "readings": {
+            # A required approval of the exact stamped document, with no other
+            # Questions. Keep the whole browser reading for local approval folds.
+            "approval": served_reading(
+                PAGE.replace(
+                    "</head>", '<meta name="lf-review" content="sign-off"></head>'
+                ),
+                ({"kind": "note", "author": "agent", "version": 1, "text": "Ready"},),
+            )["browser"],
             # The agent asks a question over a board it sent, and the user moves a
             # card on it without answering: the thread is the user's to answer, and
             # the move, which owes nothing, stands in it without holding it.
@@ -134,7 +144,6 @@ def build() -> dict:
                     {
                         "kind": "pickup",
                         "author": "page",
-                        "attention": False,
                         "events": ["e9"],
                         "phase": "failed",
                         "failure": "turn_failed",
@@ -219,22 +228,96 @@ ASK_PAGE = leaf_page(
 def _done(events: tuple[dict, ...]) -> dict:
     """The reading the browser selects what is done from, as it is handed it: the
     ended tasks served beside the open ones, the version's Asks' first."""
-    state = reading(ASK_PAGE, events)
+    state = served_reading(ASK_PAGE, events)
     return {
-        "tasks": state["views"]["1"]["document"]["ended_tasks"] + state["ended_tasks"]
+        "tasks": state["browser"]["views"]["1"]["document"]["ended_tasks"]
+        + state["browser"]["ended_tasks"]
     }
 
 
 def _queued(events: tuple[dict, ...]) -> dict:
     """The three readings `agent_state.queues` selects from, as the browser is handed
     them, and the two queues Python selects from them."""
-    state = reading(ASK_PAGE, events)
+    state = served_reading(ASK_PAGE, events)
     served = {
-        "threads": state["thread"]["threads"],
+        "threads": state["browser"]["thread"]["threads"],
         "workflows": state["workflows"],
-        "tasks": state["views"]["1"]["document"]["tasks"] + state["tasks"],
+        "tasks": state["browser"]["views"]["1"]["document"]["tasks"]
+        + state["browser"]["tasks"],
     }
     return {**served, "queues": queues(**served)}
+
+
+def gesture_sequence() -> dict:
+    """One real log through edits, undo, a refused duplicate, and two revisions.
+
+    The duplicate undo represents a second tab winning the race: the first tab
+    may still draw its pending undo when the log reveals the other's. Retraction
+    then replaces the surviving edit, and the next revision must carry that fact.
+    """
+    authored = {1: "Authored words.", 2: "Rewritten words.", 3: "Rewritten words."}
+    documents = {
+        revision: leaf_page(
+            "Gesture sequence",
+            f'<lf-draft id="draft-ops"{(" restated" if revision == 2 else "")}>'
+            f"<pre>{value}</pre></lf-draft>",
+        )
+        for revision, value in authored.items()
+    }
+    edits = ("First edit.", "Second edit.", "Authored words.")
+    commands = [
+        {
+            "kind": "action",
+            "widget": "draft-ops",
+            "action": "edit",
+            "detail": {"value": value},
+            "attempt": f"sequence-edit-{index:03}",
+        }
+        for index, value in enumerate(edits, 1)
+    ]
+    withdrawal = {"kind": "undo", "undoes": "e3", "attempt": "sequence-undo-003"}
+    commands.append(withdrawal)
+    commands.extend(
+        {
+            "kind": "note",
+            "author": "agent",
+            "version": revision - 1,
+            "revision": revision,
+            "text": "Rewrote the draft" if revision == 2 else "Unrelated edit",
+            **({"restated": ["draft-ops"]} if revision == 2 else {}),
+        }
+        for revision in (2, 3)
+    )
+    states = [
+        served_reading(
+            {rev: source for rev, source in documents.items() if rev <= revision},
+            commands[:through],
+        )
+        for through, revision in (
+            (0, 1),
+            (1, 1),
+            (2, 1),
+            (3, 1),
+            (4, 1),
+            (5, 2),
+            (6, 3),
+        )
+    ]
+    states.append(served_reading(documents, commands, view_revision=1))
+    duplicate = {**withdrawal, "attempt": "sequence-duplicate-undo"}
+    try:
+        served_reading({1: documents[1]}, [*commands[:4], duplicate])
+    except EventRefused as error:
+        assert "already been taken back" in str(error), str(error)
+    else:
+        raise AssertionError("The duplicate undo must be refused")
+    return {
+        "declaration": model_layer()["lf-draft"],
+        "authored": authored,
+        "commands": commands,
+        "states": states,
+        "refused": duplicate,
+    }
 
 
 def serialized() -> str:
@@ -242,4 +325,4 @@ def serialized() -> str:
 
 
 if __name__ == "__main__":
-    RECORDS.write_text(serialized())
+    print(serialized(), end="")

@@ -53,8 +53,8 @@
  *
  * It cannot live in runtime/chrome.css, which is adopted and so cascades after all of
  * them: the same declarations there beat every component's own rule, and .lf-ref drew
- * ink at 14px where it asked for muted at 11.5px while .lf-worktree-head and
- * .lf-swipe-progress drew sans where they asked for mono. Nothing catches that, because
+ * ink at 14px where it asked for muted at 11.5px while a widget
+ * asking for mono drew sans. Nothing catches that, because
  * no test and no browser gate reads a rule that never applied.
  *
  * The rest of the face is stated too, at no weight at all. A page's own rules select no
@@ -249,7 +249,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     - var(--lf-landing-room, 0px)); }
 [data-lf-offer]:where(:not([data-lf-offer=""])) { cursor: pointer; }
 [data-lf-offer]:where(:not([data-lf-offer=""])):hover:where(:not([aria-disabled="true"], :disabled)) {
-  box-shadow: inset 0 0 0 100px color-mix(in srgb, var(--ink) 7%, transparent); }
+  box-shadow: var(--offer-hover-shadow); }
 [data-lf-offer]:where(:not([data-lf-offer=""])):is([aria-disabled="true"], :disabled) {
   cursor: default; opacity: .55; }
 [data-lf-offer]:where(:not([data-lf-offer=""])):is(:focus-visible, .lf-focus-visible) {
@@ -305,6 +305,9 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-outline-chip:is(button, [role="button"]), .lf-thread-notice:is(button), .lf-react, .lf-react-trigger,
 .lf-margin-entry, .lf-thread-action, .lf-command-reference-command, .lf-quote {
   min-height: var(--aim-floor); }
+/* A native summary retains its list marker and centers its content within the
+   target floor. Extra hit area surrounds the label rather than trailing it. */
+summary { align-content: center; }
 /* --entry-floor under every field, beside --aim-floor under every aim. iOS Safari zooms
    the page onto a text field set under 16px as the field takes focus, and leaves the page
    zoomed once it is done: tapping the comment field jumped the view, then left the user
@@ -408,20 +411,20 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   overflow-wrap: anywhere; user-select: text; }
 .lf-summary-text > :first-child { margin-top: 0; }
 .lf-summary-text > :last-child { margin-bottom: 0; }
-.lf-summary-expand { min-height: var(--aim-floor); max-inline-size: 100%; flex-shrink: 0; border: 0;
+.lf-thread-disclosure { min-height: var(--aim-floor); max-inline-size: 100%; flex-shrink: 0; border: 0;
   padding: 4px 0; background: transparent; color: var(--accent); font: 600 11px/1.4 var(--sans);
   cursor: pointer; }
 /* Progress belongs to the completing reply's metadata, with no summary row.
    Flex wrapping keeps its complete label and hit target at narrow widths. */
 .lf-msg-head:has(> .lf-summary-expand) { flex-wrap: wrap; overflow: visible;
   white-space: normal; row-gap: 0; }
-.lf-msg-head > .lf-summary-expand { padding-block: 0; }
-.lf-summary-expand:hover { text-decoration: underline; text-underline-offset: 3px; }
+.lf-msg-head > .lf-thread-disclosure { padding-block: 0; }
+.lf-thread-disclosure:hover { text-decoration: underline; text-underline-offset: 3px; }
 .lf-summary-required { margin-top: 6px; color: var(--turn-ink); font: 600 11px/1.4 var(--sans); }
 .lf-summary-originals { min-width: 0; padding-inline-start: 12px; }
 .lf-summary-originals[hidden] { display: none; }
 .lf-summary-originals > .lf-msg { margin-block: 16px; }
-.lf-summary-expand:is(:focus-visible, .lf-focus-visible) {
+.lf-thread-disclosure:is(:focus-visible, .lf-focus-visible) {
   outline: var(--focus-ring); --lf-focus-ring: summary-fold;
   outline-offset: calc(-1 * var(--focus-ring-w)); }
 /* Held news and header words spend separate retained allocations. A receipt may
@@ -633,7 +636,7 @@ button.lf-thread-notice:is(:focus-visible, .lf-focus-visible) { outline: var(--f
 /* The outline chip: the kernel's chip geometry (the chip tokens in theme.css's :root)
    with a hairline edge on the card, the compact label the chrome and the thread
    surfaces share, stated here and nowhere else. It is not the default package's
-   lf-chip, whose face is the filled .tag, so it is named for the edge it adds. It
+   a label, whose face is the filled .tag, so it is named for the edge it adds. It
    stands in this file because a thread seated in a declared widget tree is out of
    every document selector's reach, and drew the platform's button instead: on the
    dark scheme its ButtonFace grey put the muted word at 1.86:1.
@@ -987,13 +990,12 @@ button.lf-media-open { cursor: zoom-in; }
   object-fit: cover; }
 /* Controls stay inside each tile, so the scrolling shelf never cuts their hit area.
    Images and drawings keep their own thumbnail dimensions beside full-height presses. */
-.lf-composer-drawing > .lf-composer-media-open { padding: 4px;
-  box-sizing: border-box; }
-.lf-composer-drawing > .lf-composer-media-open > svg { display: block; width: 100%;
-  height: 100%; overflow: visible; }
-.lf-composer-drawing > .lf-composer-media-open path { fill: none;
-  stroke: var(--accent); stroke-width: 2px; stroke-linecap: round;
-  stroke-linejoin: round; }
+.lf-composer-drawing > .lf-composer-media-open { padding: 0;
+  box-sizing: border-box; position: relative; }
+.lf-drawing-context-status { position: absolute; inset-inline: 0; inset-block-end: 0;
+  padding: 2px; font: 10px/1.2 var(--sans); background: var(--paper); color: var(--ink-2); }
+.lf-composer-drawing > .lf-composer-media-open > canvas { display: block; width: 100%;
+  height: 100%; object-fit: contain; }
 .lf-composer-media-item > button:not(.lf-media-open) { flex: none; display: grid; place-items: center;
   inline-size: max(26px, var(--aim-floor)); min-block-size: var(--aim-floor);
   padding: 0; border: 0; font: inherit;
@@ -1058,10 +1060,15 @@ button.lf-media-open { cursor: zoom-in; }
 .lf-fab-bar[data-lf-presentation="inline"].lf-response-open
           > .lf-response-options { display: inline-flex; align-items: center;
           flex-wrap: wrap; gap: 4px; max-width: 100%; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media {
+.lf-fab-bar .lf-composer-media {
           flex: none; max-width: 148px; padding: 0; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media-open {
+.lf-fab-bar .lf-composer-media:has(> .lf-composer-drawing) {
+          --lf-drawing-preview-width: 96px;
+          max-width: calc(var(--lf-drawing-preview-width) + 2 * max(26px, var(--aim-floor)) + 2px); }
+.lf-fab-bar .lf-composer-media-open {
           width: 42px; height: 34px; }
+.lf-fab-bar .lf-composer-drawing > .lf-composer-media-open {
+          width: var(--lf-drawing-preview-width); height: 64px; }
 @media print {
   .lf-fab-bar[data-lf-presentation="inline"] { display: none !important; }
 }
@@ -1122,22 +1129,25 @@ pre:hover + .lf-code-copy,
   .lf-code-copy { display: none; }
 }
 
-/* A thread's reply is one field on every surface; its container decides where it stands.
-   The wrapper wears the border and focus band around the editor and its Send action. */
-.lf-thread-reply { display: block; margin-top: var(--sp-3); min-width: 0; }
-.lf-thread-reply .lf-compose-field {
-          --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px);
+/* Standard comment boxes share one frame around their editor and Send. Other
+   uses of the shared editor plumbing, such as option entry and the extended
+   anchored response control, supply their own face. Containers place comment
+   boxes; they do not supply a second frame. */
+.lf-comment-box > .lf-compose-field {
           border: 1px solid var(--border-2);
-          border-radius: 6px; background: var(--card); }
-.lf-thread-reply .lf-compose-field:has(> leaf-text:is(:focus, .lf-focus)) {
+          border-radius: var(--r); background: var(--card); }
+.lf-comment-box > .lf-compose-field:has(> leaf-text:is(:focus, .lf-focus)) {
           outline: var(--focus-ring); --lf-focus-ring: text-box;
           outline-offset: 0; border-color: transparent; }
-.lf-thread-reply .lf-compose-field > leaf-text { display: block; min-width: 0;
+.lf-comment-box > .lf-compose-field > leaf-text {
           padding: 8px var(--lf-compose-pad-inline-start);
           border: 0; border-radius: 0; background: transparent;
           color: var(--ink); font: var(--t-5)/1.5 var(--sans);
           max-height: 50vh; overflow-y: auto; }
-.lf-thread-reply .lf-compose-field > leaf-text:is(:focus, .lf-focus) { outline: none; }
+.lf-comment-box > .lf-compose-field > leaf-text:is(:focus, .lf-focus) { outline: none; }
+.lf-thread-reply { display: block; margin-top: var(--sp-3); min-width: 0; }
+.lf-thread-reply .lf-compose-field {
+          --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px); }
 
 .lf-msg-body a.detached { color: var(--muted-2); text-decoration: underline dashed; cursor: default; }
 .lf-msg-body.lf-suggest-body { white-space: pre-wrap; }

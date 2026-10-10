@@ -9,25 +9,25 @@
       <p class="lede" id="lede">
         Two workers own the parser's open leaves, each in a worktree of its own.
       </p>
-      <lf-command id="hub" label="Replace the XML parser">
-        <lf-task id="goal-parser" status="active">
+      <lf-atlas-plan id="hub" label="Replace the XML parser">
+        <lf-atlas-task id="goal-parser" status="active">
           <strong>Replace the XML parser</strong>
-          <lf-task id="parser-entities" status="active">
+          <lf-atlas-task id="parser-entities" status="active">
             <strong>Entity boundaries</strong> Three corpus cases remain.
-            <lf-agent id="wren" state="working" on="parser-entities">
+            <lf-atlas-worker id="wren" state="working" on="parser-entities">
               <strong>wren</strong> Owns entity boundaries.
-              <lf-worktree id="tree-wren" source="project-worktrees"></lf-worktree>
-            </lf-agent>
-          </lf-task>
-          <lf-task id="parser-cdata" status="active">
+              <lf-atlas-tree id="tree-wren" source="project-worktrees"></lf-atlas-tree>
+            </lf-atlas-worker>
+          </lf-atlas-task>
+          <lf-atlas-task id="parser-cdata" status="active">
             <strong>CDATA edge cases</strong> Eleven legacy exports replay cleanly.
-            <lf-agent id="finch" state="working" on="parser-cdata">
+            <lf-atlas-worker id="finch" state="working" on="parser-cdata">
               <strong>finch</strong> Owns the escaped-markup cases.
-              <lf-worktree id="tree-finch" source="project-worktrees"></lf-worktree>
-            </lf-agent>
-          </lf-task>
-        </lf-task>
-      </lf-command>
+              <lf-atlas-tree id="tree-finch" source="project-worktrees"></lf-atlas-tree>
+            </lf-atlas-worker>
+          </lf-atlas-task>
+        </lf-atlas-task>
+      </lf-atlas-plan>
     </main>
   </body>
 </html>

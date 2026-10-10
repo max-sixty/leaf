@@ -24,7 +24,7 @@ import { PRESSES } from "../control-selectors.js";
 import { bottomChromeBoxes } from "./shortcut-bar.js";
 import { bannerFoot, shownParts, shownRect, startsAt } from "../geometry.js";
 import { clamp, overlaps } from "../rect.js";
-import { under } from "../shadow.js";
+import { renderedUnder } from "../shadow.js";
 
 // A rectangle, or nothing where its edges crossed. `clippedTop` records that the source
 // box began above the room the user has, which a chip hung on the surviving corner
@@ -174,7 +174,9 @@ export function keyBadgePlacement() {
         clamp((aim.top + aim.bottom) / 2, covered, innerHeight - 1),
       );
       if (!member) return !inChrome(onTop);
-      return exposure === "self" ? member.contains(onTop) : under(onTop, member);
+      return exposure === "self"
+        ? member.contains(onTop)
+        : renderedUnder(onTop, member);
     });
   };
 
@@ -205,7 +207,7 @@ export function keyBadgePlacement() {
       [box.right - inset, box.bottom - inset],
     ].some(([x, y]) => {
       const press = closestAcross(elementFromPointAcross(x, y), PRESSES);
-      return press && !under(press, owner) && !under(owner, press);
+      return press && !renderedUnder(press, owner) && !renderedUnder(owner, press);
     });
   }
 

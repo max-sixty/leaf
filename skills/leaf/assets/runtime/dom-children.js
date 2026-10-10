@@ -119,6 +119,69 @@ export function patchTree(before, after, rules) {
   patchChildren(tree(live), tree(before), tree(after), rules);
 }
 
+// Whether the authored patch preserves this native node. An owned target needs its
+// complete authored subtree and every containing owner kept; runtime chrome remains
+// with its own renderer. Use the patch's matching and ownership rules for both readings.
+// `contains(node, owner)` reads containment in the caller’s rendered tree. This is a
+// reading only; the commit rechecks it against the current source/live pairs.
+export function patchRetains(before, after, target, rules) {
+  if (!target?.isConnected) return false;
+  // Runtime chrome is outside the authored patch. Ask source pairs, not DOM place:
+  // eviction also removes authored nodes a page module moved outside main.
+  if (!sourceOwns(before, target, rules)) return true;
+  return retainedWithin(before, after, target, rules);
+}
+
+function sourceOwns(source, target, rules) {
+  const owns = (node) => rules.contains(target, rules.pairs.get(node));
+  if (owns(source)) return true;
+  for (const node of sourceNodes(source)) if (owns(node)) return true;
+  return false;
+}
+
+function retainedWithin(before, after, target, rules) {
+  const live = rules.pairs.get(before);
+  if (!live || !sourceOwns(before, target, rules)) return false;
+  // An unchanged source also preserves editors its renderer added underneath it.
+  if (kept(before, after, rules)) return true;
+  if (live === target) return false;
+  // A containing identity is part of the durable anchor even when the rendered
+  // subject is an anonymous paragraph. Keep its attributes as well as its node.
+  if (
+    before.attributes.length !== after.attributes.length ||
+    [...before.attributes].some(
+      ({ name, value }) =>
+        !after.hasAttribute(name) ||
+        !rules.sameValue(name, value, after.getAttribute(name)),
+    )
+  )
+    return false;
+  const children = [...tree(before).childNodes];
+  const matches = new Map(
+    [...matchNodes(children, [...tree(after).childNodes])].map(([wanted, held]) => [
+      held,
+      wanted,
+    ]),
+  );
+  for (const held of children) {
+    const node = rules.pairs.get(held);
+    if (node?.nodeType !== Node.ELEMENT_NODE || !sourceOwns(held, target, rules))
+      continue;
+    const wanted = matches.get(held);
+    if (!wanted) return false;
+    // Like patchTree, the root is traversed; atomic ownership is decided for each
+    // child by patchChildren, which either keeps that complete subtree or rebuilds it.
+    const retains = atomic(held, wanted, node, rules)
+      ? kept(held, wanted, rules)
+      : retainedWithin(held, wanted, target, rules);
+    if (!retains) return false;
+  }
+  // A moved editor can have a logical source owner and a different physical one.
+  // Every such path must survive, including an owned child absent from the new source.
+  // With no authored child owning it, the target is generated content the patch keeps.
+  return true;
+}
+
 // A template's tree is its content fragment, not its children; `childNodes` is empty
 // however much markup it holds.
 const tree = (node) => (node.localName === "template" ? node.content : node);

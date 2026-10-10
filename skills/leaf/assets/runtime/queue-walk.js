@@ -30,7 +30,7 @@
    walk's origin. The user stands on an item when they stand in its Ask, in its thread
    (`threadHere`), or in its widget or element, and the press steps off it. Standing on
    a task Done ends, `x` is that Done, a step on the banner's row under a finger
-   (`endTask`): the user's `task_end`, which leaves the queue in the turn it is pressed.
+   (`queue-api.js`, `done`): the user's `task_end`, which leaves the queue in the turn it is pressed.
 
    Page order is each item's place in the document: an Ask's own element, or its
    thread's passage for an Ask seated in a thread; a thread's passage; the widget a move
@@ -48,11 +48,13 @@ import { coarsePointer } from "./pointer.js";
 import { askHolding, placeOf, walkOrigin } from "./standing-target.js";
 import { elementById, inChrome } from "./passages.js";
 import { hostIn, inUi, under } from "./shadow.js";
-import { allAsks } from "./asks/model.js";
-import { endsByDone, taskNoun } from "./queues.js";
-import { readApplication, watchSemantic } from "./semantic-state.js";
+import { readAsks } from "./asks/model.js";
+import { readQueues, queueItemKey } from "./queue-api.js";
+import { taskNoun } from "./queues.js";
+import { watchSemantic } from "./semantic-state.js";
 import { retainUserIntent } from "./user-intent.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
+import { approvalTarget } from "./banner.js";
 
 const QUALIFIER = "waiting on you";
 const NOUNS = Object.freeze({
@@ -60,6 +62,7 @@ const NOUNS = Object.freeze({
   thread: "Thread",
   widget: "Move",
   page: "To do",
+  approval: "Approval",
 });
 // What a stop is called: by where it is arrived at, but a task on an element is a To do
 // rather than the Move a widget's stop otherwise is.
@@ -70,14 +73,14 @@ const nounOf = (item, stop) =>
 // the Ask's own id, anything else by the thread it stands in, a task on the page as a
 // whole at the page's head, or else the element it stands on, as a move is arrived at
 // on the widget it was made on.
-const stopOf = (item) =>
-  item.ends === "widget"
-    ? { kind: "ask", id: item.id, thread: item.thread }
-    : item.thread !== null
-      ? { kind: "thread", id: item.thread, thread: item.thread }
-      : item.subject.kind === "page"
-        ? { kind: "page", id: "page", thread: null }
-        : { kind: "widget", id: item.subject.id, thread: null };
+function stopOf(item) {
+  if (item.ends === "approval") return { kind: "approval", id: item.id, thread: null };
+  if (item.ends === "widget") return { kind: "ask", id: item.id, thread: item.thread };
+  if (item.thread !== null)
+    return { kind: "thread", id: item.thread, thread: item.thread };
+  if (item.subject.kind === "page") return { kind: "page", id: "page", thread: null };
+  return { kind: "widget", id: item.subject.id, thread: null };
+}
 const sameStop = (a, b) => a.kind === b.kind && a.id === b.id;
 
 // The page's head, where a task on the page as a whole is arrived at: its first
@@ -96,21 +99,21 @@ export function createQueueWalk({
   arrive,
   readableDestination,
   announce,
-  post,
+  actions,
 }) {
   // The element a stop stands at on the page, if it has one.
-  const stopElement = (stop) =>
-    stop.kind === "page"
-      ? pageHead()
-      : stop.thread !== null
-        ? threadTarget(stop.thread)
-        : elementById(stop.id);
+  function stopElement(stop) {
+    if (stop.kind === "approval") return approvalTarget();
+    if (stop.kind === "page") return pageHead();
+    if (stop.thread !== null) return threadTarget(stop.thread);
+    return elementById(stop.id);
+  }
 
   function stops() {
     const placed = [];
     const loose = [];
     const listed = new Set();
-    for (const item of readApplication().effective.queues.onYou) {
+    for (const item of readQueues().onYou) {
       const stop = stopOf(item);
       // Two items arrived at in one place, such as two tasks on one thread, are one
       // stop.
@@ -142,6 +145,8 @@ export function createQueueWalk({
   // a thread that holds an open Ask is not standing on that Ask, as it never was for
   // the Ask walk this replaces.
   function standingStop(list) {
+    if (documentFocused() === approvalTarget())
+      return list.find((stop) => stop.kind === "approval") ?? null;
     const held = threadHere();
     const thread = held?.dataset.id ?? held?.dataset.thread;
     if (thread) {
@@ -218,7 +223,7 @@ export function createQueueWalk({
   // rows return the user to one to review or revise it.
   function arriveAt(stop) {
     if (stop.kind === "ask") {
-      const record = allAsks().find((ask) => ask.id === stop.id);
+      const record = readAsks().all.find((ask) => ask.id === stop.id);
       return record ? arriveAtAsk(record) : Promise.resolve(false);
     }
     if (stop.kind === "thread") return arriveAtThread(stop.id);
@@ -260,8 +265,8 @@ export function createQueueWalk({
   // The task Done ends where the user stands on `stop`.
   const doneAt = (stop) =>
     stop
-      ? (readApplication().effective.queues.onYou.find(
-          (item) => endsByDone(item) && sameStop(stopOf(item), stop),
+      ? (readQueues().onYou.find(
+          (item) => item.offers.done && sameStop(stopOf(item), stop),
         ) ?? null)
       : null;
 
@@ -284,23 +289,21 @@ export function createQueueWalk({
       return shownFor;
     }
     shownFor =
-      readApplication().effective.queues.onYou.find(
-        (item) => item.id === shownFor?.id && endsByDone(item),
-      ) ?? null;
+      readQueues().onYou.find((item) => item.id === shownFor?.id && item.offers.done) ??
+      null;
     return shownFor;
   }
 
   // The user's Done on a task on them: their `task_end`, through the one append door.
   // The task leaves their queue in the turn they press it (`application.ts`).
   function endTask(id) {
-    void post({ kind: "task_end", task: id, outcome: "done" });
-    announce("Done");
+    return actions.done(queueItemKey({ kind: "task", id }));
   }
 
-  const offered = () => readApplication().effective.queues.onYou.length > 0;
+  const offered = () => readQueues().onYou.length > 0;
   const doneable = () =>
-    readApplication()
-      .effective.queues.onYou.filter(endsByDone)
+    readQueues()
+      .onYou.filter((item) => item.offers.done)
       .map((item) => item.id)
       .join(" ");
   let wasOffered = false;
@@ -376,5 +379,5 @@ export function createQueueWalk({
   // stands (queue-panel.js).
   const next = () => walk(1);
 
-  return { mount, arriveAtItem, endTask, next };
+  return { mount, arriveAtItem, next };
 }

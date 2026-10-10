@@ -1,10 +1,9 @@
 # Explain an interface with a live sample
 
-When a page explains how a Leaf widget, verb, or event flow behaves, let the user
-produce the behavior and watch what it writes, rather than describing it. A live
-`lf-sample` gives the user a disposable page with its own event log;
-`skills/leaf/references/page-authoring.md`, "Live samples", covers its markup and
-host behavior.
+A page that explains how a Leaf widget, verb, or event flow behaves lets the user
+produce the behavior and watch what it writes. A live `lf-sample` gives them a
+disposable page with its own event log (`skills/leaf/references/page-authoring.md`,
+"Live samples").
 
 ```html
 <p>Pick <em>Now</em> and then <em>Later</em>: each pick sends a
@@ -24,18 +23,13 @@ the second pick and watch the feed record it.</p>
 </lf-sample>
 ```
 
-The template holds only the demonstrated page: the interface under explanation,
-authored as a real page would author it, and an `lf-activity` feed of the sample's
-own log, so each gesture shows the event it writes as it lands. Without the feed,
-the user sees the widget change but not the log the page is about. Nothing in the
-template refers to the sample or tells the user how to operate it.
+The template holds only the demonstrated page: the interface, authored as a real page
+would author it, and an `lf-activity` feed of the sample's own log, so each gesture
+shows the event it writes. Nothing in it mentions the sample or how to operate it. The
+parent's prose directly above the sample lists the gestures to try, in an order that
+exercises each verb the page explains, undo included.
 
-The walkthrough goes in the parent's prose directly above the sample. It lists
-the gestures to try, in an order that exercises each verb the page explains, undo
-included.
-
-Before handing the page over, drive the sample from the parent page with only
-what the prose tells the user. A probe that knows more than the prose says shows
-that the sample works, but not that a user can get it to work. Then read
-every line the feed prints for the walkthrough's gestures; a verb the feed words
-badly misleads the user about the log the page explains.
+Before handing the page over, drive the sample from the parent page using only what
+the prose tells the user: a probe that knows more shows the sample works, not that a
+user can work it. Then read each line the feed prints for those gestures, since a
+badly worded line misleads the user about the log the page explains.

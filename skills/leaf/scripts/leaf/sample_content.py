@@ -14,11 +14,11 @@ from pathlib import Path
 
 from .anchor_capture import capture_anchor
 from .data_contracts import data_document_errors, initial_data_document_readings
-from .event_contracts import admitted_event, command_record_schema
+from .event_contracts import admitted_event, command_error
 from .event_meaning import AdmissionReadings
 from .page_view import InitialPageView
 from .projection import generated_children, retirement_outcomes, rewritten_bodies
-from .registry.schema import aware_instant, json_value, schema_error
+from .registry.schema import aware_instant, json_value
 from .state import now_iso
 from .structure import SourceDocument
 from .thread_context import sample_events, thread_structure
@@ -68,10 +68,12 @@ def _fixture_anchor(anchor: dict, readings: AdmissionReadings) -> dict:
         anchor.get("visual"),
         additions=generated_children(projection.desired, document.ids),
     )
-    # Context is derived by capture, including the absence of a neighbour at a
-    # document edge. A supplied stale prefix or suffix cannot override that proof.
+    # File capture proves a unique passage and derives its context, including absent
+    # neighbours. Supplied context or uncertainty cannot override that observation.
     authored = {
-        key: value for key, value in anchor.items() if key not in {"prefix", "suffix"}
+        key: value
+        for key, value in anchor.items()
+        if key not in {"prefix", "suffix", "detached"}
     }
     return {**authored, **captured}
 
@@ -149,10 +151,8 @@ def initial_sample_events(
             event["seq"] = seq
             if "revision" in spec["properties"]:
                 event["revision"] = 1
-            # Commands carry no server-derived meaning; validate their remaining
-            # shape before admission reads any kind-specific fields.
-            if error := schema_error(command_record_schema(kinds[kind]), event):
-                raise ValueError(f"{kind} event is invalid: {error}")
+            if error := command_error(event, kinds):
+                raise ValueError(error)
             if aware_instant(event["ts"]) is None:
                 raise ValueError("ts must be an ISO timestamp with a time zone")
             if any(logged["id"] == event["id"] for logged in events):
@@ -171,9 +171,7 @@ def initial_sample_events(
                 raise ValueError("; ".join(errors))
             if "markup" in event:
                 fragment = SourceDocument(event["markup"])
-                readings = initial_data_document_readings(
-                    child.lf_elements, events, registry
-                )
+                readings = initial_data_document_readings(child, events, registry)
                 readings.append(
                     (fragment.lf_elements, f"incoming {kind} markup", registry)
                 )

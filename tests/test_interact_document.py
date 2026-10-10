@@ -680,6 +680,32 @@ def test_file_readings_follow_browser_tree_recovery():
     assert passages.enclosing["grid"] == ("page", "grid")
 
 
+@pytest.mark.parametrize(
+    ("fragment", "tags", "ids"),
+    [
+        (
+            '<tr id="row"><td id="number">12</td></tr>',
+            ["tr", "td"],
+            {"row", "number"},
+        ),
+        (
+            (
+                '<option id="first">First</option><optgroup id="group">'
+                '<option id="second">Second</option></optgroup>'
+            ),
+            ["option", "optgroup", "option"],
+            {"first", "group", "second"},
+        ),
+    ],
+    ids=["table", "select"],
+)
+def test_example_fragments_retain_context_sensitive_elements(fragment, tags, ids):
+    parsed = structure_model.SourceDocument(fragment, fragment=True)
+    assert [node["tag"] for node in parsed.nodes] == tags
+    assert parsed.ids == ids
+    assert parsed.errors == [] and parsed.unclosed == []
+
+
 def test_option_passages_read_rendered_markdown_words():
     source = structure_model.SourceDocument(
         '<main><lf-options id="choices"><lf-option id="leave">'

@@ -7,8 +7,9 @@
  * CodeMirror transactions; a dirty one retains both versions for explicit review.
  * Ordinary writes have no status transition. A write pending for one second earns a
  * quiet, fixed status slot until the newest buffer is acknowledged. Failures and
- * conflicts remain visible. Connection lifetime pauses polling and listeners while
- * retaining the editor, its history and an in-flight write's receipt.
+ * conflicts remain visible. The compared disk version stays fixed for the reader's
+ * choice; saving the draft checks that revision again. Connection lifetime pauses
+ * polling and listeners while retaining the editor, its history and in-flight receipt.
  */
 import {
   afterPresentation,
@@ -238,7 +239,7 @@ customElements.define(
         }
       }
       async function refresh(returnFrom = null) {
-        if (!connected || busy || (failure && !returnFrom)) return;
+        if (!connected || busy || ((failure || latest) && !returnFrom)) return;
         busy = true;
         const seenGeneration = generation;
         try {

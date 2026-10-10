@@ -3,7 +3,7 @@
 from leaf.file_bindings import bind_file
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
-from render_harness import consume_browser_errors, leaf_page, open_page
+from render_harness import consume_browser_errors, leaf_page, open_page, primed
 
 
 def test_file_editor_saves_quietly_and_preserves_inflight_edits(
@@ -19,7 +19,7 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
         packages=["file-editor"],
     )
     bind_file(serve.page_dir, "notes", file)
-    page = open_page(browser, live_url(url))
+    page = open_page(primed(browser, lambda page: page.clock.install()), live_url(url))
     widget = page.locator("lf-file")
     editor = widget.get_by_role("textbox", name="File contents", exact=True)
     status = widget.locator(".lf-file-status")
@@ -31,11 +31,13 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
         editor.press("ControlOrMeta+a")
         page.keyboard.insert_text(text)
 
+    def file_write(request):
+        return request.method == "POST" and request.url.endswith("/api/files/notes")
+
     def receipt(text):
         return page.expect_response(
             lambda response: (
-                response.url.endswith("/api/files/notes")
-                and response.request.method == "POST"
+                file_write(response.request)
                 and response.status == 200
                 and response.request.post_data_json["text"] == text
             )
@@ -65,7 +67,6 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
 
     # Hold one real request; its old receipt must not erase later typing or clear
     # slow-save feedback while the following snapshot is still pending.
-    page.clock.install()
     held = []
 
     def hold_writes(route):
@@ -76,11 +77,7 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
             route.continue_()
 
     page.route("**/api/files/notes", hold_writes)
-    with page.expect_request(
-        lambda request: (
-            request.method == "POST" and request.url.endswith("/api/files/notes")
-        )
-    ):
+    with page.expect_request(file_write):
         replace("# Pending\n")
         page.clock.run_for(600)
     page.wait_for_function("window.heldFileWrites === 1")
@@ -90,7 +87,7 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     page.keyboard.insert_text("More typing.\n")
     with page.expect_request(
         lambda request: (
-            request.method == "POST"
+            file_write(request)
             and request.post_data_json["text"] == "# Pending\nMore typing.\n"
         )
     ):
@@ -136,7 +133,7 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     held.clear()
     page.evaluate("window.heldFileWrites = 0")
     page.route("**/api/files/notes", hold_writes)
-    with page.expect_request(lambda request: request.method == "POST"):
+    with page.expect_request(file_write):
         retry.click()
     page.wait_for_function("window.heldFileWrites === 1")
     # A retry can become a conflict while the reader resumes typing. The existing
@@ -151,11 +148,21 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     expect(editor).to_be_focused()
     caret_visible()
     page.unroute("**/api/files/notes", hold_writes)
+
+    # Keep the compared disk version stable until the reader chooses. A background
+    # read must not occupy the save path and silently swallow that choice.
+    def hold_reads(route):
+        if route.request.method == "POST":
+            route.continue_()
+
+    page.route("**/api/files/notes", hold_reads)
+    page.clock.run_for(2100)
     with receipt(failed_draft):
         widget.get_by_role("button", name="Save my version", exact=True).click()
     expect(status).to_have_text("")
     expect(editor).to_be_focused()
     assert file.read_text() == failed_draft
+    page.unroute("**/api/files/notes", hold_reads)
     consume_browser_errors(page, "Failed to load resource: net::ERR_FAILED", "409 ")
 
     # Two versions remain available after a stale save. Explicit replacement
@@ -164,7 +171,7 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     draft = "# My version\n" + "".join(f"Draft line {i}.\n" for i in range(40))
     page.evaluate("window.heldFileWrites = 0")
     page.route("**/api/files/notes", hold_writes)
-    with page.expect_request(lambda request: request.method == "POST"):
+    with page.expect_request(file_write):
         replace(draft)
         page.clock.run_for(600)
     page.wait_for_function("window.heldFileWrites === 1")
@@ -197,7 +204,7 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     held.clear()
     page.evaluate("window.heldFileWrites = 0")
     page.route("**/api/files/notes", hold_writes)
-    with page.expect_request(lambda request: request.method == "POST"):
+    with page.expect_request(file_write):
         retry.click()
     page.wait_for_function("window.heldFileWrites === 1")
     expect(retry).to_be_focused()

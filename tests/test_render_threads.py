@@ -11607,7 +11607,7 @@ CAPTURE_PAGE = leaf_page(
 )
 
 
-def capture_page(browser, serve, *, touch=False):
+def capture_page(browser, serve, *, touch=False, zoom=1):
     """A scrolled passage with real SVG paint inside a declared shadow widget."""
     declaration, _ = _shadow_tree_widget("lf-capture-art")
     module = """
@@ -11636,7 +11636,9 @@ customElements.define('lf-capture-art', class extends HTMLElement {
     page = open_page(
         browser,
         serve(
-            CAPTURE_PAGE,
+            CAPTURE_PAGE.replace(
+                "</head>", f"<style>html {{zoom:{zoom}}}</style></head>"
+            ),
             layer_registry={"lf-capture-art": declaration},
             layer_widgets={"lf-capture-art.js": module},
         ),
@@ -11696,10 +11698,24 @@ def test_capture_leaves_selected_content_visible_through_the_drag(
     page.keyboard.press("Escape")
 
 
+@pytest.mark.parametrize(
+    "zoom, subject",
+    [(0.8, "capture-target"), (1, "capture-target"), (1.25, "capture-art")],
+)
 def test_a_region_capture_keeps_scrolled_shadow_pixels_and_its_comment_anchor(
-    browser, serve
+    browser, serve, zoom, subject
 ):
-    page = capture_page(browser, serve)
+    page = capture_page(browser, serve, zoom=zoom)
+    # Put the gap on the preceding heading: a target-owned margin would mask a
+    # too-small clipped-placeholder gap through margin collapse at zoom below 1.
+    page.add_style_tag(
+        content="h1 {margin-bottom:700px} #capture-target {margin-top:0}"
+    )
+    # Keep that heading outside the crop at every zoom.
+    page.locator("#capture-target").evaluate(
+        "target => target.scrollIntoView({block: 'start'})"
+    )
+    scroll_settled(page)
     target = page.locator("#capture-target").bounding_box()
     left, top = int(target["x"]) + 10, int(target["y"]) + 10
     surface = open_capture_area(page)
@@ -11735,7 +11751,8 @@ def test_a_region_capture_keeps_scrolled_shadow_pixels_and_its_comment_anchor(
         field.press("ControlOrMeta+Enter")
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["kind"] == "comment"
-    assert sent["anchor"]["section"] == "capture-target"
+    # At the larger CSS zoom, the same client-sized area centers on the SVG widget.
+    assert sent["anchor"]["section"] == subject
     assert media_url in sent["text"]
     assert "Inspect this captured diagram." in sent["text"]
     page.reload()

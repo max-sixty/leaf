@@ -212,6 +212,18 @@ def build_photoswipe(work: Path) -> list[Path]:
 
 def build_snapdom(work: Path) -> list[Path]:
     """Browser-native DOM rasterization, loaded only when capturing a page region."""
+    # SnapDOM 3.3.0's clipped placeholders write client gaps as layout margins.
+    # Format its published ESM in a private package copy so the producer patch is
+    # readable, pinned by the lock and esbuild, and leaves npm's source intact.
+    # Remove this patch when locked SnapDOM converts clipped sibling gaps to layout
+    # units itself; the zoomed capture regression must still pass without it.
+    package = work / "node_modules/@zumer/snapdom"
+    shutil.copytree(NODE_MODULES / "@zumer/snapdom", package)
+    source = package / "dist/snapdom.mjs"
+    formatted = package / "dist/formatted.mjs"
+    esbuild(str(source), "--format=esm", f"--outfile={formatted}", cwd=work)
+    formatted.replace(source)
+    run("git", "apply", str(ROOT / "build/snapdom-zoom.patch"), cwd=work)
     out = ASSETS / "vendor/snapdom.esm.js"
     (work / "entry.mjs").write_text(
         'export { snapdom } from "@zumer/snapdom";\n', encoding="utf-8"

@@ -1,0 +1,19 @@
+--- a/node_modules/@zumer/snapdom/dist/snapdom.mjs
++++ b/node_modules/@zumer/snapdom/dist/snapdom.mjs
+@@ -2879,13 +2879,14 @@
+     }, u = t.getBoundingClientRect(), l = t.previousElementSibling;
+     for (; l && !c(l); ) l = l.previousElementSibling;
+     if (l) {
+-      let d = u.top - l.getBoundingClientRect().bottom;
++      // Clipped placeholders retain layout gaps, not zoomed client distances.
++      let d = (u.top - l.getBoundingClientRect().bottom) / (t.currentCSSZoom || 1);
+       d >= 0 && (r.style.marginTop = `${d}px`);
+     }
+     let f = t.nextElementSibling;
+     for (; f && !c(f); ) f = f.nextElementSibling;
+     if (f) {
+-      let d = f.getBoundingClientRect().top - u.bottom;
++      let d = (f.getBoundingClientRect().top - u.bottom) / (t.currentCSSZoom || 1);
+       d >= 0 && (r.style.marginBottom = `${d}px`);
+     }
+   }

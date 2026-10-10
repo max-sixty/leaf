@@ -8,7 +8,9 @@
  * what holds it there, so the page still answers for the upgrade as an arrival of its
  * own. A click on either image keeps
  * the quick endpoint toggle, while a click on the handle only puts the user on it.
- * Print stacks both frames.
+ * Separate Open before / Open after links inspect either full-size image in the
+ * shared media viewer; modified presses keep their native link destination.
+ * Both rail rows are reserved before upgrade. Print stacks both frames.
  *
  * Once the page has presented, the widget compares the two images pixel for pixel
  * (`runtime/image-difference.js` owns what counts as a difference) and puts its
@@ -79,6 +81,7 @@ customElements.define(
     #chose = false;
     #frames = [];
     #captions = new Map();
+    #openers = new Map();
     #settleDifference;
     difference = new Promise((resolve) => {
       this.#settleDifference = resolve;
@@ -118,6 +121,13 @@ customElements.define(
         frame.append(img);
         this.#frames.push(frame);
         this.append(frame);
+
+        const open = offer("a", "lf-media-open lf-shot-open", `Open ${state}`);
+        open.dataset.lfShotOpen = state;
+        open.href = img.src;
+        open.dataset.lfMediaUrl = img.src;
+        this.#openers.set(state, open);
+        rail.append(open);
       }
 
       const box = offer("input", "lf-shotflip", undefined, "checkbox");
@@ -188,8 +198,14 @@ customElements.define(
       this.#alt = this.getAttribute("alt");
       for (const [state, caption] of this.#captions)
         keeps(caption, "aria-label", `${state} — ${this.#alt}`);
-      for (const frame of this.#frames)
-        frame.querySelector("img").alt = `${frame.dataset.lfState}: ${this.#alt}`;
+      for (const frame of this.#frames) {
+        const state = frame.dataset.lfState;
+        const alt = `${state}: ${this.#alt}`;
+        frame.querySelector("img").alt = alt;
+        const open = this.#openers.get(state);
+        open.dataset.lfMediaAlt = alt;
+        keeps(open, "aria-label", `Open ${state} image — ${this.#alt}`);
+      }
       keeps(this.#box, "aria-label", `Compare before and after — ${this.#alt}`);
       this.#paint();
       this.#margin?.update();

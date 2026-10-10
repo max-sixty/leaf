@@ -191,6 +191,7 @@ def test_sample_native_departure_keeps_destination_and_reset(
     sample = page.locator("#practice")
     sample.evaluate("async sample => await sample.ready")
     child = sample.locator("iframe").element_handle().content_frame()
+    previous = child.url
     child.evaluate("""async () => {
       const {registerSampleCommand} = await __lfRuntimeImport('/runtime/sample-child.js');
       registerSampleCommand('thread', () => {
@@ -231,3 +232,19 @@ def test_sample_native_departure_keeps_destination_and_reset(
     expect(sample.frame_locator("iframe").get_by_role("heading")).to_have_text(
         "Practice page"
     )
+    replacement = sample.locator("iframe").element_handle().content_frame()
+    # A fresh header forces a new native preflight rather than reusing the old
+    # document's cached one. Revocation must remain an HTTP refusal in both engines.
+    assert (
+        replacement.evaluate(
+            """async previous => {
+          const response = await fetch(new URL('api/state', previous), {
+            headers: {'X-Leaf-Revocation-Probe': 'fresh'},
+          });
+          return response.status;
+        }""",
+            previous,
+        )
+        == 404
+    )
+    consume_browser_errors(page, "404 " + previous + "api/state")

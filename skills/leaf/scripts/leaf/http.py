@@ -278,6 +278,9 @@ class PageEndpoint:
         # bytes, which a document load asks for a few hundred times. A refusal or
         # fault on either is still traced.
         self.housekeeping = False
+        # Set when the route names a child capability, including a revoked one.
+        # The opaque child must be able to read refusals and faults as HTTP too.
+        self.sample_request = False
 
     @property
     def layer(self) -> str:
@@ -302,6 +305,8 @@ class PageEndpoint:
         if self.method == "HEAD":
             answer.body = b""
         answer.headers.update(self._delivery_headers())
+        if self.sample_request:
+            answer = self._sample_headers(answer)
         # The request boundary sees successful answers and refusals alike. Keep
         # query strings (including the access key) and request bodies out of it.
         if (
@@ -740,17 +745,20 @@ class PageEndpoint:
         )
         if match is None:
             return None
+        self.sample_request = True
+        # Preflight grants no page access. The actual request below checks the
+        # capability, so a late read can receive its 404 even after revocation.
+        if self.method == "OPTIONS":
+            return self._content(204, "text/plain", b"")
         segment, inside = match.groups()
         identity = segment.split("~", 1)[0]
         sample = self.server.samples.get(self.page_dir, identity)
         if sample is None:
             return self._not_found()
-        if self.method == "OPTIONS":
-            return self._sample_headers(self._content(204, "text/plain", b""))
         if self.method == "POST" and inside == "/api/release":
             self.read_body(MAX_MEDIA_UPLOAD_BYTES)
             self.server.samples.release(self.page_dir, identity)
-            return self._sample_headers(self._json({"released": True}))
+            return self._json({"released": True})
         child = SampleEndpoint(
             self.request,
             self.server,
@@ -768,10 +776,14 @@ class PageEndpoint:
             answer = child.respond()
             self.response_layer = child.response_layer
             self.housekeeping = child.housekeeping
-            return self._sample_headers(answer)
+            return answer
 
     def _sample_headers(self, response: Response) -> Response:
-        """Credentialless native loads share the scoped child path, never cookies."""
+        """Every child-capability answer is readable without parent credentials.
+
+        This includes revoked capabilities and faults: a late native request must
+        receive the HTTP result rather than an opaque browser CORS failure.
+        """
         response.headers.update(
             {
                 "Access-Control-Allow-Origin": "*",

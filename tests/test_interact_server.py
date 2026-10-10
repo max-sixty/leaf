@@ -579,6 +579,24 @@ def test_sample_capability_authorizes_only_its_live_descendants(page_dir, routed
         assert fetch(nested + "/", token=None)[0] == 200
         assert fetch(first + "/api/release", data=b"{}", token=None)[0] == 200
         assert fetch(first + "/", token=None)[0] == 404
+        # A read already sent by the opaque child can arrive after Reset revokes
+        # its capability. It still receives the HTTP refusal, not a CORS failure.
+        for method in ("GET", "OPTIONS"):
+            request = urllib.request.Request(
+                first + "/api/state", method=method, headers={"Origin": "null"}
+            )
+            if method == "OPTIONS":
+                # Browsers reject non-2xx preflights regardless of their headers.
+                with urllib.request.urlopen(request) as answer:
+                    assert answer.status == 204
+                    headers = answer.headers
+            else:
+                with pytest.raises(urllib.error.HTTPError) as refused:
+                    urllib.request.urlopen(request)
+                assert refused.value.code == 404
+                headers = refused.value.headers
+            assert headers["Access-Control-Allow-Origin"] == "*"
+            assert headers.get("Access-Control-Allow-Credentials") is None
         assert fetch(nested + "/", token=None)[0] == 404
         assert fetch(second + "/api/state", token=None)[0] == 200
         assert fetch(second + "/api/release", data=b"{}", token=None)[0] == 200

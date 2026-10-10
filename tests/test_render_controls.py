@@ -2709,7 +2709,7 @@ def test_live_samples_retire_before_navigation_and_coalesce_reset(browser, serve
 
 
 def test_live_samples_release_pending_allocations_and_can_reconnect(browser, serve):
-    """Destroy awaits allocation; a detached widget can create a fresh child later."""
+    """Destroy releases every startup phase; a detached widget can reconnect."""
     page = open_page(browser, serve(LIVE_SAMPLES_PAGE))
     sample = page.locator("#first-practice")
     reset = sample.get_by_role("button", name="Reset", exact=True)
@@ -2766,6 +2766,42 @@ def test_live_samples_release_pending_allocations_and_can_reconnect(browser, ser
     assert page.request.get(held[0].request.url + "api/state").status == 404
     held[0].abort()
     page.evaluate("pendingHost.destroy()")
+
+    # A destroyed queue entry cannot wait for unrelated children to load. It is
+    # removed without consuming the next slot a surviving queued child needs.
+    held.clear()
+    page.evaluate("""async () => {
+        const {mountSample} = await window.__lfRuntimeImport('/runtime/sample.js');
+        window.pendingResults = [];
+        window.pendingHosts = Array.from({length: 5}, (_, index) => {
+            const frame = document.createElement('iframe');
+            document.body.append(frame);
+            const host = mountSample(frame, {template: 'first-source'});
+            host.ready.then(
+                () => { pendingResults[index] = 'ready'; },
+                error => { pendingResults[index] = error.name; });
+            return host;
+        });
+    }""")
+    holding(page, held, 3, "three occupied sample admission slots")
+    page.evaluate("""() => {
+        window.queuedDestroyDone = false;
+        pendingHosts[3].destroy().then(() => { queuedDestroyDone = true; });
+    }""")
+    page.wait_for_function("queuedDestroyDone && pendingResults[3] === 'AbortError'")
+    assert len(held) == 3
+    page.evaluate("() => { void pendingHosts[0].destroy(); }")
+    holding(page, held, 4, "the surviving queued sample's admission")
+    page.evaluate("""() => {
+        window.allPendingDestroyed = false;
+        Promise.all(pendingHosts.map(host => host.destroy()))
+            .then(() => { allPendingDestroyed = true; });
+    }""")
+    page.wait_for_function("allPendingDestroyed")
+    assert page.evaluate("pendingResults") == ["AbortError"] * 5
+    for route in held:
+        assert page.request.get(route.request.url + "api/state").status == 404
+        route.abort()
 
 
 def test_slow_sample_state_does_not_hold_up_other_child_loads(browser, serve):

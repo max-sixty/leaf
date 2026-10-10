@@ -88,6 +88,26 @@ def sample_address(frame):
     return (frame.get_attribute("src") or "\0").partition("#")[0]
 
 
+def sample_allocation(page, url, template):
+    """Capture a template's child root before its allocation response is delivered.
+
+    Request callbacks read this producer-owned URL rather than querying iframe DOM
+    while a reload or mount may still be replacing it.
+    """
+    allocation = {"url": None}
+
+    def allocated(route):
+        if route.request.post_data_json["template"] == template:
+            response = route.fetch()
+            allocation["url"] = urljoin(url, response.json()["url"])
+            route.fulfill(response=response)
+        else:
+            route.continue_()
+
+    page.route("**/api/samples", allocated)
+    return allocation
+
+
 def pages_under(directory):
     """The pages a sweep walks, proved to exist before it walks them. Four of the
     checks below are loops over a glob and nothing else, so a directory that moved or
@@ -1810,17 +1830,15 @@ def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
     page = open_page(browser, f"{url}#bg-interactions", context=context)
     gallery = page.locator("#bg-interactions")
     gallery.get_by_role("tab", name="Send a comment").click()
-    previous_sample = sample_address(gallery.locator("#bg-interaction-comment iframe"))
     held = []
     held_once = False
+    allocation = sample_allocation(page, url, "bg-motion-comment-page")
 
     def hold_restored_state(route):
         nonlocal held_once
         if (
-            route.request.url.startswith(
-                sample_address(page.locator("#bg-interaction-comment iframe"))
-            )
-            and not route.request.url.startswith(previous_sample)
+            allocation["url"] is not None
+            and route.request.url.startswith(allocation["url"])
             and not held_once
         ):
             held_once = True
@@ -1831,10 +1849,8 @@ def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
     page.route("**/api/state*", hold_restored_state)
     with page.expect_request(
         lambda request: (
-            request.url.startswith(
-                sample_address(page.locator("#bg-interaction-comment iframe"))
-            )
-            and not request.url.startswith(previous_sample)
+            allocation["url"] is not None
+            and request.url.startswith(allocation["url"])
             and "/api/state" in request.url
         ),
         timeout=HANDOVER_DEADLINE_MS,
@@ -1873,13 +1889,13 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
     page = context.new_page()
     held = []
     held_once = False
+    allocation = sample_allocation(page, url, "bg-motion-accept-page")
 
     def hold_first_contained_state(route):
         nonlocal held_once
         if (
-            route.request.url.startswith(
-                sample_address(page.locator("#bg-interaction-accept iframe"))
-            )
+            allocation["url"] is not None
+            and route.request.url.startswith(allocation["url"])
             and not held_once
         ):
             held_once = True
@@ -1891,9 +1907,8 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
     try:
         with page.expect_request(
             lambda request: (
-                request.url.startswith(
-                    sample_address(page.locator("#bg-interaction-accept iframe"))
-                )
+                allocation["url"] is not None
+                and request.url.startswith(allocation["url"])
                 and "/api/state" in request.url
             )
         ):
@@ -2020,6 +2035,7 @@ def test_a_contained_page_retries_a_failed_first_state_read(serve, browser):
     context = browser.new_context(reduced_motion="reduce")
     page = context.new_page()
     failed = []
+    allocation = sample_allocation(page, url, "bg-motion-accept-page")
     news_requests = []
     context.on(
         "request",
@@ -2032,9 +2048,8 @@ def test_a_contained_page_retries_a_failed_first_state_read(serve, browser):
 
     def fail_first_contained_reads(route):
         if (
-            route.request.url.startswith(
-                sample_address(page.locator("#bg-interaction-accept iframe"))
-            )
+            allocation["url"] is not None
+            and route.request.url.startswith(allocation["url"])
             and len(failed) < 2
         ):
             failed.append(route.request.url)
@@ -2075,19 +2090,10 @@ def test_gallery_reports_sample_document_without_leaf(serve, browser, document_s
     context = browser.new_context(reduced_motion="reduce")
     page = context.new_page()
 
-    failed_sample = None
-
-    def allocated(route):
-        nonlocal failed_sample
-        if route.request.post_data_json["template"] == "bg-motion-comment-page":
-            response = route.fetch()
-            failed_sample = urljoin(url, response.json()["url"])
-            route.fulfill(response=response)
-        else:
-            route.continue_()
+    allocation = sample_allocation(page, url, "bg-motion-comment-page")
 
     def fail_inner_document(route):
-        if route.request.url == failed_sample:
+        if route.request.url == allocation["url"]:
             route.fulfill(
                 status=document_status,
                 content_type="text/html",
@@ -2096,9 +2102,9 @@ def test_gallery_reports_sample_document_without_leaf(serve, browser, document_s
         else:
             route.continue_()
 
-    page.route("**/api/samples", allocated)
     page.route(re.compile(r"/api/samples/[^/]+/$"), fail_inner_document)
     page.goto(f"{url}#bg-interactions", wait_until="domcontentloaded")
+    wait_until_ready(page)
     gallery = page.locator("#bg-interactions")
     gallery.get_by_role("tab", name="Send a comment").click()
     expect(gallery.locator("[data-interaction-status]")).to_have_text("Could not play")

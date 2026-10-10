@@ -9,7 +9,9 @@
  * Departed ports cannot settle the replacement's calls.
  * A block follows the child's reported height; a window keeps its own viewport.
  * Passive demonstrations remain inert. Removing a frame retires its realm before
- * releasing the allocation, including on reset and parent departure. */
+ * releasing the allocation, including on reset and parent departure. Destruction
+ * cancels pending admission and queue waits; an allocation already in flight is
+ * allowed to finish so its returned capability can be released. */
 import { layerHeaders } from "./layer-client.js";
 import { pageUrl, runtime } from "./context.js";
 import { dressFor, registerSampleDress } from "./dress.js";
@@ -32,9 +34,21 @@ import { nextRender, sizeObserver } from "./rendering.js";
 const MAX_LOADING_SAMPLES = 3;
 let loadingSamples = 0;
 const loadWaiters = [];
-async function loadWithinLimit(work) {
+async function loadWithinLimit(work, signal) {
+  signal.throwIfAborted();
   if (loadingSamples === MAX_LOADING_SAMPLES)
-    await new Promise((resolve) => loadWaiters.push(resolve));
+    await new Promise((resolve, reject) => {
+      const proceed = () => {
+        signal.removeEventListener("abort", cancel);
+        resolve();
+      };
+      const cancel = () => {
+        loadWaiters.splice(loadWaiters.indexOf(proceed), 1);
+        reject(signal.reason);
+      };
+      signal.addEventListener("abort", cancel, { once: true });
+      loadWaiters.push(proceed);
+    });
   else loadingSamples++;
   let released = false;
   const release = () => {
@@ -85,6 +99,7 @@ export function mountSample(
   let presenting = false;
   let hasConnected = false;
   let connectedNonce = null;
+  const lifetimeController = new AbortController();
   const candidates = new Set();
   const pending = new Map();
   const listeners = new Map();
@@ -346,6 +361,7 @@ export function mountSample(
           const admission = await fetch(current, {
             method: "HEAD",
             credentials: "omit",
+            signal: lifetimeController.signal,
           });
           if (!admission.ok || !admission.headers.has("Leaf-Document"))
             throw new Error("The sample document did not start Leaf");
@@ -362,7 +378,7 @@ export function mountSample(
         } finally {
           frame.removeEventListener("load", release);
         }
-      }),
+      }, lifetimeController.signal),
     );
   }
   function reset() {
@@ -408,6 +424,7 @@ export function mountSample(
     destroy() {
       if (closing) return closing;
       destroyed = true;
+      lifetimeController.abort(new DOMException("sample destroyed", "AbortError"));
       window.removeEventListener("message", connect);
       window.removeEventListener("pagehide", departing);
       window.removeEventListener("scroll", visibility, true);

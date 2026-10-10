@@ -7586,7 +7586,44 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     page.keyboard.press("?")
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_be_visible()
-    sweep("in the command reference")
+    search = page.locator(".lf-command-reference-search input")
+    assert search.evaluate(
+        "input => input.ariaControlsElements?.[0] === document.querySelector('.lf-command-reference-results')"
+    )
+    # The editor is inside Web Awesome's shadow root while its grid is outside it.
+    # Chromium exposes the element-reference relationship to assistive technology;
+    # axe reads only an aria-controls IDREF attribute, which cannot name across roots.
+    cdp = page.context.new_cdp_session(page)
+    try:
+        nodes = cdp.send("Accessibility.getFullAXTree")["nodes"]
+    finally:
+        cdp.detach()
+    combobox = next(
+        node
+        for node in nodes
+        if node.get("role", {}).get("value") == "combobox"
+        and node.get("name", {}).get("value") == "Search commands"
+    )
+    assert any(
+        prop["name"] == "controls"
+        and [related.get("idref") for related in prop["value"].get("relatedNodes", [])]
+        == ["lf-command-reference-results"]
+        for prop in combobox["properties"]
+    )
+    violations, report = serious_axe_violations(page)
+    violations = [
+        violation
+        for violation in violations
+        if not (
+            violation["id"] == "aria-required-attr"
+            and len(violation["nodes"]) == 1
+            and violation["nodes"][0]["target"]
+            == [[".lf-command-reference-search", "#input"]]
+            and [check.get("data") for check in violation["nodes"][0]["any"]]
+            == [["aria-controls"]]
+        )
+    ]
+    assert violations == [], f"in the command reference: {report}"
     page.keyboard.press("Escape")
     expect(page.locator(".lf-command-reference")).to_be_hidden()
     page_at_rest(page)

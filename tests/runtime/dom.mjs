@@ -25,6 +25,16 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 
 GlobalRegistrator.register({ url: "https://leaf.test/" });
+// happy-dom has no visual viewport, which geometry.js's `whenNone` listens to and its
+// `shownWindow` reads. This one is the whole window, unzoomed; boxes here have no size,
+// so nothing reads as seen through it.
+window.visualViewport = Object.assign(new window.EventTarget(), {
+  offsetLeft: 0,
+  offsetTop: 0,
+  scale: 1,
+  width: window.innerWidth,
+  height: window.innerHeight,
+});
 // What a delivered document's prepaint declares before any module runs
 // (`runtime/prepaint.js`): the page's storage scope, "" for a page at the origin's root.
 document.documentElement.dataset.lfPageScope = "";

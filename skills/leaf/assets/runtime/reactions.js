@@ -37,7 +37,7 @@
    mount installs the mode teardown listeners after composition. */
 
 import { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
-import { whenOffScreen } from "./geometry.js";
+import { seenRect, whenNone } from "./geometry.js";
 import { scrollIntoReadingBand } from "./landing-scroll.js";
 import { registerContribution } from "./contributions.js";
 import { runtime } from "./context.js";
@@ -391,11 +391,12 @@ export function createReactionController({
         const picker = pickerFor(reactSurface);
         // `e` opens the latest reply of the thread the user stands in, which may be
         // scrolled out of the list: it comes into view to be answered, since a list
-        // hung from a trigger out of view would neither show nor stay open.
+        // hung from a trigger out of view would neither show nor stay open, and it
+        // closes once none of the trigger is in front of the user (`seenRect`).
         scrollIntoReadingBand(picker.trigger, picker.trigger, "nearest", "instant");
         showNativeLayer(picker.palette, { source: picker.trigger });
         const opened = reactSurface;
-        reactDeparture = whenOffScreen([picker.trigger], () => {
+        reactDeparture = whenNone([picker.trigger], seenRect, () => {
           if (reactSurface === opened) setReact(false);
         });
         picker.trigger.setAttribute("aria-expanded", "true");

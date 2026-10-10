@@ -46,16 +46,11 @@ import { focusThread, threadFocusStop } from "./focus.js";
 import { renderMarkdown } from "../markdown.js";
 import { summaryRanges, unreadBoundaries } from "./summary-ranges.js";
 import { threadAttention } from "./workflow.js";
-import { seenRect, shownRect } from "../geometry.js";
+import { growthAfterIsSeen, growthIsSeen, seenRect, shownRect } from "../geometry.js";
 import { ago, shortAgo } from "../presence.js";
 import { retainUserIntent } from "../user-intent.js";
 import { scrollThreadIntoView, replyPinned } from "./reply-landing.js";
-import {
-  HeldNews,
-  newsNotice,
-  growthAfterIsSeen,
-  growthInsideIsSeen,
-} from "./held-news.js";
+import { HeldNews, newsNotice } from "./held-news.js";
 import { ReplyContinuity } from "./reply-continuity.js";
 
 function quoteReading(thread, anchors) {
@@ -522,17 +517,11 @@ export class ThreadView {
         ...[...changed].map((message) => this.#messageNode(message)),
         (news.appended || news.settled) && this.#foot,
       ].some((node) => node && node !== followed && growthAfterIsSeen(node)) ||
-      growthInsideIsSeen(
-        [
-          ...folds.messages.map((message) => this.#messageNode(message)),
-          ...folds.summaries.map((summary) => this.#summaryNode(summary)),
-        ].filter(Boolean),
-      ) ||
-      Boolean(
-        news.settled &&
-        this.#settlementRow &&
-        growthInsideIsSeen([this.#settlementRow]),
-      )
+      [
+        ...folds.messages.map((message) => this.#messageNode(message)),
+        ...folds.summaries.map((summary) => this.#summaryNode(summary)),
+      ].some((node) => node && growthIsSeen(node)) ||
+      Boolean(news.settled && this.#settlementRow && growthIsSeen(this.#settlementRow))
     );
   }
 

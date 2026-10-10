@@ -2482,6 +2482,21 @@
 :scope:is(lf-sample)[data-lf-sample-live] > [data-lf-said=label]::before {
   content: "live sample · ";
 }
+.lf-sample-view {
+  position: static;
+  display: contents;
+  width: auto;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+}
+:scope:is(lf-sample):has(> .lf-sample-view:modal) {
+  height: var(--lf-sample-height);
+}
 .lf-sample-controls {
   display: table-caption;
   margin-bottom: 10px;
@@ -2505,11 +2520,34 @@
   border-radius: var(--r);
   background: var(--paper);
 }
-:scope:is(lf-sample)[window] > .lf-sample-frame {
+:scope:is(lf-sample)[window] .lf-sample-frame {
   height: min(75vh, 48rem);
 }
+.lf-sample-view:modal {
+  position: fixed;
+  inset: 0;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding: max(var(--sp-3), env(safe-area-inset-top)) max(var(--sp-3), env(safe-area-inset-right)) max(var(--sp-3), env(safe-area-inset-bottom)) max(var(--sp-3), env(safe-area-inset-left));
+  background: var(--paper);
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+.lf-sample-view:modal::backdrop {
+  background: var(--paper);
+}
+.lf-sample-view:modal > .lf-sample-controls {
+  flex: none;
+}
+.lf-sample-view:modal > .lf-sample-frame {
+  flex: 1;
+  min-height: 0;
+}
 @scope (html[data-lf-sample-block] :scope) {
-  :scope:is(lf-sample)[window] > .lf-sample-frame {
+  :scope:is(lf-sample)[window] .lf-sample-frame {
     height: 32rem;
   }
 }

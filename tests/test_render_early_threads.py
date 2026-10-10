@@ -16,6 +16,7 @@ from render_harness import (
     leaf_page,
     open_page,
     page_comment,
+    panel_settled,
     round_trip,
     select,
     select_words,
@@ -336,11 +337,13 @@ def test_filtered_neighbors_cannot_hide_a_new_cards_visible_insertion(browser, s
         ),
     )
     page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
     title = page.locator('.lf-thread[data-id="visible"] > .lf-thread-summary')
     title.focus()
     page.keyboard.press("w")
     expect(page.locator('.lf-thread[data-id="hidden"]')).to_be_hidden()
     expect(title).to_be_visible()
+    rendered(page)
     before = title.bounding_box()["y"]
     append_carried_log_record(
         serve.page_dir,
@@ -400,8 +403,9 @@ def test_first_history_preserves_the_early_anchored_editor_and_caret(browser, se
 
 
 @pytest.mark.parametrize("first_history", [True, False])
+@pytest.mark.parametrize("resumed", [False, True])
 def test_saved_widget_words_cannot_dismiss_an_unfinished_comment(
-    browser, serve, first_history
+    browser, serve, first_history, resumed
 ):
     """An editor survives quoted words changing on initial or subsequent replay."""
     source = leaf_page(
@@ -411,7 +415,7 @@ def test_saved_widget_words_cannot_dismiss_an_unfinished_comment(
     )
     url = serve(source)
 
-    def replace_words():
+    def replace_words(value="Different saved words."):
         append_command(
             serve.page_dir,
             {
@@ -420,7 +424,7 @@ def test_saved_widget_words_cannot_dismiss_an_unfinished_comment(
                 "revision": 1,
                 "widget": "mutable",
                 "action": "edit",
-                "detail": {"value": "Different saved words."},
+                "detail": {"value": value},
             },
         )
 
@@ -443,9 +447,17 @@ def test_saved_widget_words_cannot_dismiss_an_unfinished_comment(
     editor = page.locator(".lf-fab-input")
     words = "Keep this unfinished observation."
     write(editor, words)
+    if resumed:
+        page.keyboard.press("Escape")
+        page.mouse.click(5, 600)
+        page.keyboard.press("g")
+        page.keyboard.press("i")
+        expect(editor).to_be_focused()
     editor.press("Home")
     editor.press("Shift+ArrowRight")
     caret = editor.evaluate("e => [e.selectionStart, e.selectionEnd]")
+    rendered(page)
+    editor_before = editor.bounding_box()
     if first_history:
         release()
         wait_until_ready(page)
@@ -453,10 +465,20 @@ def test_saved_widget_words_cannot_dismiss_an_unfinished_comment(
         replace_words()
         told(page)
     expect(shown).to_have_text("Different saved words.")
+    rendered(page)
+    editor_after = editor.bounding_box()
+    assert abs(editor_after["x"] - editor_before["x"]) < 1
+    assert abs(editor_after["y"] - editor_before["y"]) < 1
     expect(editor).to_be_visible()
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property("value", words)
     assert editor.evaluate("e => [e.selectionStart, e.selectionEnd]") == caret
+    replace_words("The words first shown.")
+    told(page)
+    rendered(page)
+    editor_restored = editor.bounding_box()
+    assert abs(editor_restored["x"] - editor_before["x"]) < 1
+    assert abs(editor_restored["y"] - editor_before["y"]) < 1
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     comments = [

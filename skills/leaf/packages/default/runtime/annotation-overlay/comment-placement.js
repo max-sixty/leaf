@@ -20,6 +20,8 @@
    or nothing where no row stands and its rows would be pins. A caller requesting
    window placement without a visible attachment supplies `clear: null` and stands
    at its upper inline edge through the same sizing and placement machinery.
+   An existing target with no drawn part has no attachment: both surfaces withhold
+   their native editing state until it returns, rather than standing by a zero box.
    The editing surface uses this solver for its initial attachment, then retains
    browser-owned following (`composing/floating-response.js`).
 
@@ -69,7 +71,10 @@
    clear of, so a reflow of what it is about carries it. The card keeps its reply row
    still that way while a turn joins the transcript above it.
 
-   Send hands the editor's frame to the card (`adopt`). Its next choice keeps the
+   A seated surface whose target or attachment kind changes carries its frame into
+   that new attachment (`adopt`), preserving its seat while its semantic target stays
+   with its own owner. Send uses the same handoff from the editor to the card.
+   Its next choice keeps the
    frame's side and inline start where the boundary still matches, and returns its
    block offsets for the card to hold. The attachment is then the card's current one:
    scrolling retains it, while a boundary or target-width change chooses afresh.
@@ -93,10 +98,10 @@ import {
   scrollAxes,
   shellRight,
   shownWindow,
-  shownExtent,
   shownParts,
   shownRect,
 } from "/runtime/geometry.js";
+import { drawn } from "/runtime/focus.js";
 import { clamp, union } from "/runtime/rect.js";
 import { moveScrollerBy } from "/runtime/scrolling.js";
 
@@ -136,16 +141,14 @@ export function commentAttachment({
       scroller: effectiveScroller(element),
     };
   }
+  const parts = shownParts(target).filter(drawn);
+  if (!parts.length) return null;
   const context = point ?? passage?.contextNode ?? target;
   const element = point ?? target;
   const geometry = floatingGeometry([element, context]);
   const clips = new Map();
-  const shown = union(
-    shownParts(target)
-      .map((part) => shownRect(part, clips))
-      .filter(Boolean),
-  );
-  const whole = shownExtent(target) ?? target.getBoundingClientRect();
+  const shown = union(parts.map((part) => shownRect(part, clips)).filter(Boolean));
+  const whole = union(parts.map((part) => part.getBoundingClientRect()));
   const extent = point ? pointBand(whole, point) : whole;
   const clear = point ? extent : (shown ?? whole);
   const region = containingReadingRegionFor(element);

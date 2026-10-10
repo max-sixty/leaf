@@ -3434,8 +3434,8 @@ def test_a_rejected_streamed_reply_still_releases_its_website_turn(page_dir):
 
 @pytest.mark.parametrize(
     ("read_elsewhere", "reveal"),
-    [(False, "click"), (False, "arrive"), (True, None)],
-    ids=["click", "arrive", "elsewhere"],
+    [(False, "click"), (False, "arrive"), (False, "focused-title"), (True, None)],
+    ids=["click", "arrive", "focused-title", "elsewhere"],
 )
 def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     browser, serve, read_elsewhere, reveal, request
@@ -3641,8 +3641,12 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
         if reveal == "click":
             journey.open_news(page, comment["id"])
         else:
-            # Choosing the thread's title is an arrival, which shows what it holds.
+            # Choosing the thread's title shows what it holds.
             title = thread.locator(":scope > .lf-thread-summary")
+            if reveal == "focused-title":
+                title.focus()
+                expect(title).to_be_focused()
+                expect(news).to_have_text("1 new reply")
             title.click()
             expect(title).to_be_focused()
             expect(thread).to_have_attribute("open", "")
@@ -4552,7 +4556,6 @@ def test_website_drafts_survive_stored_reads_and_container_replacement(
             assert documents == []
         finally:
             page.unroute_all(behavior="ignoreErrors")
-            page.close()
 
 
 def test_a_retried_agent_start_returns_the_accepted_task(page_dir, tmp_path):

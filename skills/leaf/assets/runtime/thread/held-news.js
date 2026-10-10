@@ -53,10 +53,11 @@
 
    - pressing its notice, or its margin marker where a widget holds it out of the flow;
    - opening the thread: a folded outlet, or a panel card the list opens;
+   - choosing a panel card by pressing its title (thread-card.js), which shows the whole
+     thread even when it already stood open or its title already held focus;
    - arriving at it: coming to stand in it from outside it, by a move of theirs, a t/T
-     walk, an Ask, a link, Tab, whatever route took them (focus.js, `onStanding`), or by
-     a press on its title, which stands for the whole thread, whether or not it already
-     stood open. Coming back to the thread they stood in is a stay, whatever puts them
+     walk, an Ask, a link, Tab, whatever route took them (focus.js, `onStanding`).
+     Coming back to the thread they stood in is a stay, whatever puts them
      there, as when the runtime puts back a reply box a surface stopped drawing, and so
      is a move within it, such as Escape out of its reply box onto its title or going to
      an Ask it already shows;
@@ -94,7 +95,7 @@ import { offer } from "../widget-elements.js";
 import { keeps, keepsText, layoutPx } from "../keeps.js";
 import { keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
-import { focusThread, threadFocusStop } from "./focus.js";
+import { focusThread } from "./focus.js";
 import { isReaction, threadKey, threadNames } from "./model.js";
 import { allThreads } from "./state.js";
 import { THREAD } from "./selectors.js";
@@ -379,13 +380,8 @@ onStanding((node, cause) => {
   if (cause === "drop") return;
   const thread = node && closestAcross(node, THREAD);
   const id = thread ? (thread.dataset.id ?? thread.dataset.thread) : null;
-  const title = thread && threadFocusStop(thread);
   const arrived =
-    id !== null &&
-    id !== standing &&
-    (cause === "move" ||
-      cause === "step" ||
-      (cause === "press" && title !== thread && node === title));
+    id !== null && id !== standing && (cause === "move" || cause === "step");
   standing = id;
   if (arrived) showHeld(id);
 });

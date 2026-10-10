@@ -25,6 +25,7 @@ from render_harness import (
     expect_asks_answered,
     holding,
     leaf_page,
+    nudge,
     open_page,
     page_comment,
     panel_settled,
@@ -1930,10 +1931,13 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         kept["id"],
     ), "successful list retry replaced a committed panel card, seat, or editor"
     expect(editor).to_have_js_property("value", "draft survives sibling rollback")
+    assert take_browser_errors(page) == [
+        "leaf: Presentation failed: injected complete-list failure"
+    ]
 
 
-def test_an_unavailable_list_preserves_the_selected_conversation(browser, serve):
-    """A placeholder has no identity inventory from which to retire a choice."""
+def test_a_failed_state_read_preserves_the_selected_conversation(browser, serve):
+    """A failed refresh retains the known inventory, selected thread, and focus."""
     url = serve(
         leaf_page(
             "Unavailable threads",
@@ -1963,37 +1967,23 @@ def test_an_unavailable_list_preserves_the_selected_conversation(browser, serve)
     selected.locator(".lf-thread-summary").click()
     expect(selected).to_have_attribute("open", "")
     general = page_comment(page)
-    # Exercise the presentation owner's real unavailable reading. Keep focus outside
-    # the list, so title restoration cannot conceal losing the selected conversation.
-    page.evaluate(
-        """async () => {
-          const list = document.querySelector('leaf-thread-list');
-          window.availableThreadReading = list.model;
-          const unavailable = {...list.model,
-            rows: [{kind: 'empty', key: 'unavailable',
-              text: 'Current threads temporarily unavailable.'}],
-            count: null,
-            pageSeats: new Map(),
-          };
-          await list.present(unavailable);
-          list.commit(unavailable);
-        }"""
-    )
-    expect(page.locator("leaf-thread-list")).to_contain_text(
-        "Current threads temporarily unavailable."
-    )
-    expect(selected).to_have_count(0)
-    expect(general).to_be_focused()
-    page.evaluate(
-        """async () => {
-          const list = document.querySelector('leaf-thread-list');
-          const available = window.availableThreadReading;
-          await list.present(available);
-          list.commit(available);
-        }"""
+    # A failed refresh keeps the accepted inventory. An unknown first inventory can
+    # contain local rows too, so count:null alone never means every row disappeared.
+    page.route("**/api/state*", lambda route: route.fulfill(status=503, body=""))
+    nudge(serve.page_dir)
+    expect(page.locator(".lf-status-detail")).to_contain_text(
+        "Server offline — reconnecting"
     )
     expect(selected).to_have_attribute("open", "")
     expect(general).to_be_focused()
+    expect(page.locator(".lf-thread")).to_have_count(2)
+    page.unroute("**/api/state*")
+    nudge(serve.page_dir)
+    told(page)
+    expect(page.locator(".lf-status-detail")).not_to_contain_text("Server offline")
+    expect(selected).to_have_attribute("open", "")
+    expect(general).to_be_focused()
+    consume_browser_errors(page, "503")
 
 
 def test_a_refused_thread_reading_leaves_a_user_who_moved_on_where_they_went(

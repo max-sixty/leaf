@@ -319,8 +319,12 @@ export function createResponseSurface({
     if (standsIn(anchor, found)) return found;
     // Reading saved edits or a later revision can replace the words under a live
     // draft. Its original anchor remains the event's meaning; its containing
-    // subject supplies only a place to keep the editor visible and editable.
-    return composerOpen && anchor.quote && sameAnchor(anchor, fabAnchor)
+    // subject supplies only a place to keep the editor visible and editable. An
+    // explicitly detached quote never named that subject as its resolved location.
+    return composerOpen &&
+      anchor.quote &&
+      !anchor.detached &&
+      sameAnchor(anchor, fabAnchor)
       ? resolveAnchor({ section: anchor.section })
       : null;
   };

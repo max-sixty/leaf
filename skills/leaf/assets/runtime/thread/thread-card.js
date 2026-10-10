@@ -376,6 +376,9 @@ export class ThreadView {
         if (event.target.closest(".lf-thread-summary")?.parentElement !== this.node)
           return;
         event.preventDefault();
+        // Choosing the title asks for the whole conversation, even when focus was
+        // already in its editor and the list keeps the same disclosure open.
+        this.#showNews();
         this.#commands.choose();
       });
     }

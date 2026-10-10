@@ -861,8 +861,10 @@ def test_local_thread_keys_distinguish_local_matches_from_complete_history(
     holding(page, held, 1, "the first private-state read")
     expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
     page.locator(".lf-threads-toggle").click()
-    write(page.locator(".lf-general leaf-text"), "Local words")
-    page.locator(".lf-general").get_by_role("button", name="Send", exact=True).click()
+    write(page_comment(page), "Local words")
+    page.locator(".lf-page-comment-card .lf-general").get_by_role(
+        "button", name="Send", exact=True
+    ).click()
     local = page.locator('.lf-thread[data-id^="pending:"] > .lf-thread-summary')
     expect(local).to_have_count(1)
     holding(page, posts, 1, "the local send")

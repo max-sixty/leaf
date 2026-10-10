@@ -7656,8 +7656,8 @@ def test_a_hidden_control_does_not_take_a_scroll_boxes_keyboard_route(browser, s
         '<h1>Review</h1><a id="before" href="#scroll">Read code</a>'
         '<div id="scroll" style="width:220px; overflow-x:auto; white-space:nowrap">'
         '<button style="visibility:hidden">Unavailable</button>'
-        '<span>alpha_function_name = compute_the_overly_long_value(first_argument, second_argument)</span>'
-        '</div>',
+        "<span>alpha_function_name = compute_the_overly_long_value(first_argument, second_argument)</span>"
+        "</div>",
     )
     page = open_page(browser, serve(markup))
     box = page.locator("#scroll")

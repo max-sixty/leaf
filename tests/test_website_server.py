@@ -333,10 +333,8 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
         publication = stored["publications"][-1]
 
         def body(path):
-            return b"".join(
-                stored["blobs"][digest]
-                for digest in publication["responses"][path]["chunks"]
-            )
+            response = publication["responses"][path]
+            return b"".join(stored["blobs"][digest] for digest in response["chunks"])
 
         state = json.loads(body("api/state"))
         assert {chosen["id"], comment["id"], reply["id"]} <= {
@@ -349,10 +347,12 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
         assert state["activity"].get("next_transition_at") is None
         assert body("api/news").decode() == state["reading"]
         assert b"Revised plan" in body("")
-        assert any(
-            key.startswith("revisions/r2-") and key.endswith("/leaf.js")
+        [private_entry] = [
+            key
             for key in publication["responses"]
-        )
+            if key.startswith("revisions/r2-") and key.endswith("/leaf.js")
+        ]
+        assert body(private_entry) == (private / "leaf.js").read_bytes()
         # Start a fresh filesystem from the same release image.
         replacement = tmp_path / "replacement"
         shutil.copytree(site, replacement, ignore=shutil.ignore_patterns("page"))

@@ -272,7 +272,7 @@ export class LeafWebsiteSession extends Container<Env> {
 
   constructor(ctx: DurableObject["ctx"], env: Env) {
     super(ctx, env);
-    this.pages = new PageStore(ctx.storage, env.ASSETS);
+    this.pages = new PageStore(ctx.storage);
     this.envVars = {
       LEAF_AGENT: "The agent",
       OPENAI_API_KEY: CODEX_PROXY_CREDENTIAL,
@@ -302,14 +302,6 @@ export class LeafWebsiteSession extends Container<Env> {
     const manifest = await siteManifest(new Request("https://leaf.page/"), this.env);
     if (!(publication.root in manifest.pages) || publication.release !== manifest.release) {
       throw new Error("publication does not name a page in this website release");
-    }
-    for (const response of Object.values(publication.responses)) {
-      if ("asset" in response) {
-        const asset = pageRoute(response.asset, manifest);
-        if (asset?.root !== publication.root || !asset.inside.startsWith("revisions/")) {
-          throw new Error("publication asset does not belong to this website page");
-        }
-      }
     }
     this.pages.publish(publication);
   }

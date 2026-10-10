@@ -4,7 +4,8 @@ Python remains the sole owner of activation, event admission and projection. A
 successful page transaction publishes its canonical record and asleep responses
 together to the container's Durable Object before acknowledging the write. The
 record overlays this release's immutable image on startup; captured responses are
-disposable delivery output and never an input to a fold.
+disposable delivery output and never an input to a fold. Responses retain their
+exact bytes: the separately bundled public assets are a different module graph.
 """
 
 from __future__ import annotations
@@ -28,7 +29,6 @@ from leaf.files import active_descriptor, latest_revision, revision_path
 from leaf.machine import state_home
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.revision_artifact import read_revision
-from leaf.revision_delivery import DeliveryAddress, delivered_resource
 from leaf.revisioning import activate_source
 from leaf.schema import (
     PAGE_OWNED_DIRS,
@@ -254,7 +254,6 @@ def _responses(
                 if spec["deferred"] in record
             )
     published = set(map(int, manifest["pages"][root]["states"]))
-    asset_aliases = {}
     for item, artifact in snapshot.artifacts.items():
         if item in published:
             continue
@@ -263,33 +262,6 @@ def _responses(
         for logical in set(artifact.resources) | set(artifact.widget_aliases):
             path = f"revisions/{name.removesuffix('.html')}{logical}"
             paths.add(path)
-            private_resource = delivered_resource(
-                artifact,
-                logical,
-                DeliveryAddress(
-                    root, f"{root.rstrip('/')}/revisions/{name.removesuffix('.html')}"
-                ),
-            )
-            for baseline_revision in sorted(published):
-                baseline_name = snapshot.revision_names[baseline_revision].removesuffix(
-                    ".html"
-                )
-                asset_root = (
-                    f"{manifest['pages'][root]['assets']}/revisions/{baseline_name}"
-                )
-                baseline_resource = delivered_resource(
-                    snapshot.artifacts[baseline_revision],
-                    logical,
-                    DeliveryAddress(root, asset_root),
-                )
-                if (
-                    baseline_resource is not None
-                    and private_resource.data == baseline_resource.data
-                ):
-                    asset_aliases[path] = (
-                        f"{root.rstrip('/')}/revisions/{baseline_name}{logical}"
-                    )
-                    break
     paths.update(
         f"versions/v{version['version']}.html" for version in snapshot.context.versions
     )
@@ -330,11 +302,7 @@ def _responses(
         result[path] = {
             "status": response.status_code,
             "headers": dict(response.headers),
-            **(
-                {"asset": asset_aliases[path]}
-                if path in asset_aliases
-                else blobs.chunks(response.body)
-            ),
+            **blobs.chunks(response.body),
         }
     return result
 

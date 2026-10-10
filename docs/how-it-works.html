@@ -3847,6 +3847,8 @@ flowchart TD
               storage without starting a container. A container runs the Python Leaf
               server that accepts changes and Codex for agent replies. It starts when a
               change needs it, restoring the saved page before accepting that change.
+              Operations that need Python, such as comparing versions or creating live
+              samples, can also start the container.
             </p>
             <p id="loading-container">
               The server accepts and saves comments before Codex is ready. A comment

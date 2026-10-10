@@ -17,8 +17,7 @@ describe("durable website page records", () => {
   it("commits matching records and streamed delivery atomically, without bulk RPC bodies", async () => {
     const { storage, close } = sqliteStorage();
     try {
-      const assets = { fetch: async () => new Response("immutable asset") } as unknown as Fetcher;
-      const store = new PageStore(storage, assets);
+      const store = new PageStore(storage);
       // Several valid uploads exceed the 32 MiB RPC limit cumulatively. Each
       // transfer remains at most 1 MiB and the publication contains references.
       const record: Record<string, { chunks: string[] }> = {};
@@ -38,18 +37,19 @@ describe("durable website page records", () => {
       const manifestBytes = new TextEncoder().encode(JSON.stringify(manifest));
       expect(manifestBytes.byteLength).toBeGreaterThan(2 * 1024 * 1024);
       const state = await upload(store, new TextEncoder().encode('{"saved":"choice","taken":1}'));
+      const entry = await upload(store, new TextEncoder().encode('import "./runtime/private.js";'));
       const publication = {
         root: "/examples/board", release: "release", record: { chunks: await upload(store, manifestBytes) },
         responses: {
           "api/state": { status: 200, headers: { "Content-Type": "application/json", "Content-Length": "28" }, chunks: state },
           "media/private.png": { status: 200, headers: { "Content-Type": "image/png" }, chunks: image },
-          "revisions/leaf.js": { status: 200, headers: {}, asset: "/baseline.js" },
+          "revisions/leaf.js": { status: 200, headers: {}, chunks: entry },
         },
       };
       expect(JSON.stringify(publication).length).toBeLessThan(10_000);
       store.publish(publication);
       store.publish({ root: "/", release: "release", record: { chunks: [] }, responses: {} });
-      const restored = new PageStore(storage, assets);
+      const restored = new PageStore(storage);
       expect(restored.missing([...image, "f".repeat(64), "f".repeat(64)]))
         .toEqual(["f".repeat(64)]);
       expect(restored.records()["/examples/board"]).toEqual(publication.record);
@@ -61,7 +61,7 @@ describe("durable website page records", () => {
       expect(response.headers.get("Cache-Control")).toBe("private, no-store");
       expect(await restored.response("/", "api/state", false)).toBeNull();
       expect(await (await restored.response("/examples/board", "media/private.png", true))!.text()).toBe("");
-      expect(await (await restored.response("/examples/board", "revisions/leaf.js", false))!.text()).toBe("immutable asset");
+      expect(await (await restored.response("/examples/board", "revisions/leaf.js", false))!.text()).toBe('import "./runtime/private.js";');
       const savedState = (await restored.response("/examples/board", "api/state", false))!;
       expect(savedState.headers.has("Content-Length")).toBe(false);
       expect(await savedState.json()).toMatchObject({ saved: "choice" });

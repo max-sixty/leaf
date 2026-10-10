@@ -15,18 +15,13 @@ const publicationSchema = z.strictObject({
   root: z.string(),
   release: z.string(),
   record: z.strictObject({ chunks }),
-  responses: z.record(z.string(), z.union([
+  responses: z.record(z.string(),
     z.strictObject({
       status: z.number().check(z.int(), z.minimum(200), z.maximum(599)),
       headers: z.record(z.string(), z.string()),
       chunks,
     }),
-    z.strictObject({
-      status: z.number().check(z.int(), z.minimum(200), z.maximum(599)),
-      headers: z.record(z.string(), z.string()),
-      asset: z.string(),
-    }),
-  ])),
+  ),
 });
 
 export type PagePublication = z.infer<typeof publicationSchema>;
@@ -40,11 +35,11 @@ export function readDigests(value: unknown): string[] {
 }
 
 export class PageStore {
-  constructor(private storage: DurableObjectStorage, private assets: Fetcher) {
+  constructor(private storage: DurableObjectStorage) {
     storage.sql.exec(`CREATE TABLE IF NOT EXISTS leaf_pages (
       root TEXT PRIMARY KEY, record TEXT
     ); CREATE TABLE IF NOT EXISTS leaf_responses (
-      root TEXT, path TEXT, status INTEGER, headers TEXT, chunks TEXT, asset TEXT,
+      root TEXT, path TEXT, status INTEGER, headers TEXT, chunks TEXT,
       PRIMARY KEY(root, path)
     ); CREATE TABLE IF NOT EXISTS leaf_blobs (
       digest TEXT PRIMARY KEY, bytes BLOB
@@ -79,7 +74,7 @@ export class PageStore {
     this.storage.transactionSync(() => {
       // Validate every reference before retiring any part of the old publication.
       const references = new Set([publication.record, ...Object.values(publication.responses)]
-        .flatMap((entry) => "chunks" in entry ? entry.chunks : []));
+        .flatMap((entry) => entry.chunks));
       const missing = this.missing([...references]);
       if (missing.length) throw new Error(`missing page storage chunk ${missing[0]}`);
       const root = publication.root;
@@ -87,10 +82,9 @@ export class PageStore {
       this.storage.sql.exec("INSERT OR REPLACE INTO leaf_pages VALUES (?, ?)",
         root, JSON.stringify(publication.record));
       for (const [path, response] of Object.entries(publication.responses)) {
-        this.storage.sql.exec("INSERT INTO leaf_responses VALUES (?, ?, ?, ?, ?, ?)",
+        this.storage.sql.exec("INSERT INTO leaf_responses VALUES (?, ?, ?, ?, ?)",
           root, path, response.status, JSON.stringify(response.headers),
-          "chunks" in response ? JSON.stringify(response.chunks) : null,
-          "asset" in response ? response.asset : null);
+          JSON.stringify(response.chunks));
       }
     });
   }
@@ -118,8 +112,8 @@ export class PageStore {
 
   async response(root: string, path: string, head: boolean): Promise<Response | null> {
     const rows = this.storage.sql.exec<{
-      status: number; headers: string; chunks: string | null; asset: string | null;
-    }>("SELECT status, headers, chunks, asset FROM leaf_responses WHERE root = ? AND path = ?",
+      status: number; headers: string; chunks: string;
+    }>("SELECT status, headers, chunks FROM leaf_responses WHERE root = ? AND path = ?",
       root, path).toArray();
     if (rows.length === 0) return null;
     const response = rows[0];
@@ -129,12 +123,7 @@ export class PageStore {
     if (head || response.status === 204 || response.status === 304) {
       return new Response(null, { status: response.status, headers });
     }
-    if (response.asset !== null) {
-      const asset = await this.assets.fetch(new Request(new URL(response.asset, "https://leaf.page")));
-      if (!asset.ok) throw new Error(`saved page asset returned ${asset.status}`);
-      return new Response(asset.body, { status: response.status, headers });
-    }
-    const body = this.body(JSON.parse(response.chunks!));
+    const body = this.body(JSON.parse(response.chunks));
     if (path === "api/state" || path.startsWith("api/state?")) {
       // Date this delivery so a tab can adopt its dormant reading after a live one;
       // Python's semantic clock and folded facts remain captured.

@@ -13,19 +13,24 @@ Reading a page, polling for changes and reporting optional browser geometry do n
 start a container. The next mutation starts Python, which restores the canonical
 record before accepting requests. Python remains the only event admission and
 projection implementation; stored responses never become fold inputs.
+Operations that need Python still start the container: version comparison projects
+a revision at an exact observed event boundary, live samples allocate disposable
+child pages, and bound-file reads access the live filesystem.
 
 `leaf_website.storage` publishes at successful `PageTransaction` completion under its
 append lease, including transactions in agent CLI subprocesses. The record and its
 matching dormant responses commit atomically before acknowledgement. The canonical
 page layout defines the record, including the event log and its acknowledgement
 cursor, the installed browser layer, package instructions and authored inputs.
-Process leases, status and browser diagnostics are disposable. Private bundles
-reuse unchanged resources from this release's image; new resource bytes are stored
-once as content-addressed chunks. Each changed publication negotiates missing
-digests with the Durable Object, uploads only those bounded chunks, then publishes
-the manifest. The Durable Object owns the blob inventory across container and CLI
-process replacements and streams stored bodies without buffering the page's complete
-media history. Unchanged transactions make no storage request.
+Process leases, status and browser diagnostics are disposable. Dormant responses
+retain the exact private document and resource bytes as content-addressed chunks;
+public assets are separately bundled and cannot substitute for those resources.
+The canonical record reuses unchanged files from this release's image. Each changed
+publication negotiates missing digests with the Durable Object, uploads only those
+bounded chunks, then publishes the manifest. The Durable Object owns the blob
+inventory across container and CLI process replacements and streams stored bodies
+without buffering the page's complete media history. Unchanged transactions make no
+storage request.
 A failed publication fails the request; an idempotent browser retry
 can finish it. Dormant activity is computed in Python without process evidence, and
 immutable publications schedule no activity transitions. Delivery stamps `taken`

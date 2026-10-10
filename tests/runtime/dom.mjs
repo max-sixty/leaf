@@ -58,13 +58,16 @@ const SCROLLING = /^(auto|scroll|hidden)$/;
 const declaredStyle = window.getComputedStyle.bind(window);
 window.getComputedStyle = (element, pseudo) => {
   const style = declaredStyle(element, pseudo);
-  const [x = "visible", y = x] = style.overflow.split(/\s+/).filter(Boolean);
-  const declared = { overflowX: style.overflowX || x, overflowY: style.overflowY || y };
+  // Read at each access, as a browser's computed style is live.
   const axis = (name) => {
-    const value = declared[name];
+    const [x = "visible", y = x] = style.overflow.split(/\s+/).filter(Boolean);
+    const declared = {
+      overflowX: style.overflowX || x,
+      overflowY: style.overflowY || y,
+    };
     const other = declared[name === "overflowX" ? "overflowY" : "overflowX"];
-    if (!SCROLLING.test(other)) return value;
-    return { visible: "auto", clip: "hidden" }[value] ?? value;
+    if (!SCROLLING.test(other)) return declared[name];
+    return { visible: "auto", clip: "hidden" }[declared[name]] ?? declared[name];
   };
   return new Proxy(style, {
     get(target, key) {

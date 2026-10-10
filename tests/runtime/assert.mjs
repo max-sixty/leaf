@@ -12,9 +12,12 @@
    node, so two nodes are equal only when they are the same node, as the tests mean them,
    and a failure writes the node as its opening tag and a number. Every container on the
    way to a node is copied with its prototype and every own property, so it compares as
-   it would have. A message function is still handed the values as given. `t.assert`,
-   from node:test, does not come through here. */
+   it would have; an object holding its value in an internal slot, such as a Date, is
+   compared whole, so a node among its own properties is written out in full. A message
+   function is still handed the values as given. Not covered: a node only a getter
+   reaches, and `t.assert` from node:test. */
 import strict from "node:assert/strict";
+import { types } from "node:util";
 
 class NodeReference {
   constructor(node, number) {
@@ -36,8 +39,24 @@ const referenceTo = (node) => {
   return references.get(node);
 };
 
-// The own values a comparison reads of an object: its data properties, and a Map's or
-// Set's members. No getter runs.
+// An object whose value lives in an internal slot (a Date's time, an Error's kind) is no
+// container to copy: Node compares it whole.
+const SLOTTED = [
+  types.isDate,
+  types.isRegExp,
+  types.isNativeError,
+  types.isBoxedPrimitive,
+  types.isArrayBufferView,
+  types.isAnyArrayBuffer,
+  types.isPromise,
+  types.isWeakMap,
+  types.isWeakSet,
+];
+const container = (value) =>
+  value !== null && typeof value === "object" && !SLOTTED.some((is) => is(value));
+
+// The own values a comparison reads of a container: its data properties, and a Map's or
+// Set's members. No getter runs, so a node a getter alone reaches is not seen.
 function* members(value) {
   for (const key of Reflect.ownKeys(value)) {
     const descriptor = Object.getOwnPropertyDescriptor(value, key);
@@ -46,19 +65,26 @@ function* members(value) {
   if (value instanceof Map) for (const entry of value) yield* entry;
   if (value instanceof Set) yield* value;
 }
-function holdsNode(value, seen = new Set()) {
+// Whether a node lies under the value, through containers. `holding` keeps each
+// container's answer for one comparison, a cycle reading as no node until it closes.
+function holdsNode(value, holding) {
   if (isNode(value)) return true;
-  if (value === null || typeof value !== "object" || seen.has(value)) return false;
-  seen.add(value);
-  for (const member of members(value)) if (holdsNode(member, seen)) return true;
+  if (!container(value)) return false;
+  if (holding.has(value)) return holding.get(value);
+  holding.set(value, false);
+  for (const member of members(value))
+    if (holdsNode(member, holding)) {
+      holding.set(value, true);
+      return true;
+    }
   return false;
 }
 
 // The value with each node it holds replaced by its reference. One reading per
 // comparison, so a value both sides share stays one value.
-function written(value, seen) {
+function written(value, seen, holding) {
   if (isNode(value)) return referenceTo(value);
-  if (value === null || typeof value !== "object" || !holdsNode(value)) return value;
+  if (!holdsNode(value, holding)) return value;
   if (seen.has(value)) return seen.get(value);
   const copy = Array.isArray(value)
     ? []
@@ -69,12 +95,13 @@ function written(value, seen) {
         : {};
   Object.setPrototypeOf(copy, Object.getPrototypeOf(value));
   seen.set(value, copy);
+  const write = (item) => written(item, seen, holding);
   if (value instanceof Map)
-    for (const [key, item] of value) copy.set(written(key, seen), written(item, seen));
-  if (value instanceof Set) for (const item of value) copy.add(written(item, seen));
+    for (const [key, item] of value) copy.set(write(key), write(item));
+  if (value instanceof Set) for (const item of value) copy.add(write(item));
   for (const key of Reflect.ownKeys(value)) {
     const descriptor = Object.getOwnPropertyDescriptor(value, key);
-    if ("value" in descriptor) descriptor.value = written(descriptor.value, seen);
+    if ("value" in descriptor) descriptor.value = write(descriptor.value);
     Object.defineProperty(copy, key, descriptor);
   }
   return copy;
@@ -95,7 +122,8 @@ Object.assign(assert, strict);
 for (const name of [...REFERENCE, ...DEEP]) {
   if (!strict[name]) continue;
   assert[name] = function compare(actual, expected, ...rest) {
-    if (!holdsNode(actual) && !holdsNode(expected))
+    const holding = new Map();
+    if (!holdsNode(actual, holding) && !holdsNode(expected, holding))
       return strict[name](actual, expected, ...rest);
     // A reference comparison is answered on the values as given, since a copy of an
     // object is never the object; only its failure is written with references.
@@ -105,7 +133,11 @@ for (const name of [...REFERENCE, ...DEEP]) {
       typeof rest[0] === "function" ? [() => rest[0](actual, expected)] : rest;
     const seen = new Map();
     try {
-      strict[name](written(actual, seen), written(expected, seen), ...message);
+      strict[name](
+        written(actual, seen, holding),
+        written(expected, seen, holding),
+        ...message,
+      );
     } catch (error) {
       if (error instanceof strict.AssertionError)
         Error.captureStackTrace(error, compare);

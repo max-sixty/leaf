@@ -665,6 +665,28 @@ def thread_summarize(
     )
 
 
+@cli.group(short_help="Bind existing local files for editing on a page.")
+def file() -> None:
+    """Grant a page access to an explicitly chosen local text file."""
+
+
+@file.command("bind", short_help="Grant a page read/write access to one file.")
+@click.argument("dir", metavar="PAGE")
+@click.argument("binding", metavar="ID")
+@click.argument("path", type=click.Path(path_type=Path), metavar="PATH")
+def file_bind(dir: str, binding: str, path: Path) -> None:
+    """Use ID in <lf-file-editor binding=\"ID\"> to edit PATH."""
+    from leaf.file_bindings import FileBindingError, bind_file
+
+    try:
+        snapshot = bind_file(resolve_dir(dir), binding, path)
+    except (FileBindingError, OSError) as error:
+        raise click.ClickException(str(error)) from error
+    click.echo(
+        f"Bound {binding} to {path.expanduser().resolve()} ({snapshot['bytes']} bytes)."
+    )
+
+
 @cli.group(short_help="Set or clear page-bound external data.")
 def data() -> None:
     """Manage each bound source's current value, one JSON file per source."""
@@ -934,7 +956,7 @@ def _titled(page_dir: Path, title: str | None) -> None:
 @click.option("--section", metavar="ID", help="element ID to anchor or scope --quote")
 @click.option("--part", metavar="ID", help="declared visual part within --section")
 @click.option("--text", help="comment text (default: stdin)")
-@click.option("--markup", help="widget markup to render after the text, validated here")
+@click.option("--markup", help="HTML fragment after the text, validated here")
 @_title_option
 def thread_open(
     dir: str,
@@ -972,7 +994,7 @@ def _reply_options(command):
         click.option("--detach", is_flag=True, help="remove the thread's page target"),
         click.option("--text", help="reply text (default: stdin)"),
         click.option(
-            "--markup", default="", help="frozen widget markup after the text"
+            "--markup", default="", help="frozen HTML fragment after the text"
         ),
         click.option(
             "--awaits", is_flag=True, help="the reply asks the user a question"
@@ -1003,7 +1025,7 @@ def response_reply(
 ) -> None:
     """Answer the exact REFERENCE printed in a delivery's answer.ref.
 
-    Text, frozen widgets, prose questions, titles and anchor moves share this command.
+    Text, frozen HTML, prose questions, titles and anchor moves share this command.
     It validates and activates saved page edits, then commits the reply immediately.
     A provider's later final yields to the recorded answer; failure receipts are
     refused while that provider still owns the answer.
@@ -1050,7 +1072,7 @@ def thread_edit(dir: str, message: str, text: str | None, title: str | None) -> 
     or with --title rename the thread MESSAGE is in, whoever opened it.
 
     The original and every revision remain in the append-only event log. Frozen
-    widget markup is not editable. Keep a title stable unless the thread's
+    markup is not editable. Keep a title stable unless the thread's
     subject changes.
     """
     from leaf.thread import cmd_edit, cmd_title

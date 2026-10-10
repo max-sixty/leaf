@@ -39,7 +39,7 @@ import {
   handBack,
   canPlaceFocus,
 } from "../focus.js";
-import { under } from "../shadow.js";
+import { renderedUnder } from "../shadow.js";
 
 const entries = [];
 const watchedRoots = new WeakSet();
@@ -92,7 +92,7 @@ function closing(event) {
     entry.fromNowhere &&
     !document.documentElement.inert &&
     canPlaceFocus() &&
-    under(focused(), event.target)
+    renderedUnder(focused(), event.target)
   )
     releaseFocus();
 }
@@ -135,7 +135,7 @@ export function closeNativeLayer(layer) {
   const standing = focused();
   const returnTo = entries.find((entry) => entry.root === layer)?.opener;
   const returnLocally =
-    document.documentElement.lfSample && standing && under(standing, layer);
+    document.documentElement.lfSample && standing && renderedUnder(standing, layer);
   const inhibited = document.documentElement.lfSample
     ? [
         document.documentElement,
@@ -196,10 +196,10 @@ export function nativeModalAdmits(node) {
   const reading = owner[NATIVE_LAYERS];
   if (reading) {
     const modal = reading().findLast((layer) => layer.kind === "modal")?.root;
-    return !modal || under(node, modal);
+    return !modal || renderedUnder(node, modal);
   }
   return [...owner.querySelectorAll("dialog:modal")].every((modal) =>
-    under(node, modal),
+    renderedUnder(node, modal),
   );
 }
 
@@ -209,7 +209,7 @@ export function nativeModalAdmits(node) {
 // turn, before any queued close event can see a descendant left closed.
 export function transitionNativeAncestor(root, transition) {
   const descendants = nativeLayers().filter(
-    (layer) => layer.root !== root && under(layer.root, root),
+    (layer) => layer.root !== root && renderedUnder(layer.root, root),
   );
   const held = holdFocus(root);
   closeLayer(

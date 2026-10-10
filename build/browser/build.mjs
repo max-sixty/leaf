@@ -34,6 +34,7 @@ import { fileURLToPath } from "node:url";
 import { parse } from "acorn";
 import { transformSync } from "amaro";
 import { build } from "esbuild";
+import { eventTypes } from "./event-types.mjs";
 import { initialOutputs } from "../initial.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./shipped.mjs";
 
@@ -144,6 +145,10 @@ function litModule(lit) {
 }
 
 export async function buildOutputs() {
+  const contractPath = path.join(root, sourceRoot, "event-contract.d.ts");
+  const contract = await eventTypes(new URL("../../", import.meta.url));
+  if ((await readFile(contractPath, "utf8")) !== contract)
+    throw new Error("Stale kernel event types; run npm run build:browser");
   const packageJson = JSON.parse(
     await readFile(path.join(root, "package.json"), "utf8"),
   );
@@ -270,6 +275,11 @@ async function main(args) {
   if (args.length > 1 || (args.length && args[0] !== "--check")) {
     throw new Error("Usage: node build/browser/build.mjs [--check]");
   }
+  if (args[0] !== "--check")
+    await writeFile(
+      path.join(root, sourceRoot, "event-contract.d.ts"),
+      await eventTypes(new URL("../../", import.meta.url)),
+    );
   const outputs = await buildOutputs();
   if (args[0] === "--check") await checkOutputs(outputs);
   else {

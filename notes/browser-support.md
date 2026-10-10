@@ -23,6 +23,26 @@ what fails and what still works.
 
 ## Supported APIs checked
 
+### Help search result relationships
+
+- **Owner:** `runtime/keyboard/command-reference.js`. The shared input keeps its
+  native editor in a shadow tree; `ariaControlsElements` and
+  `ariaActiveDescendantElement` connect that editor to Help's result grid and
+  selected row in the enclosing document. String identifier references cannot
+  cross this shadow boundary.
+- **Compatibility checked 2026-10-09:** both properties support Chrome/Edge 135+,
+  Firefox 136+, and Safari/iOS Safari 16.4+, according to
+  [MDN's compatibility data](https://github.com/mdn/browser-compat-data/blob/main/api/Element.json).
+  [WAI-ARIA defines element-reference reflection](https://w3c.github.io/aria/#idl-interface).
+- **Observed:** Chrome 155's native accessibility tree exposes the named
+  combobox, its controlled grid, and the selected row after filtering and Arrow
+  navigation. Desktop and touch journeys retain native editor focus and caret
+  selection. The browser tests in `test_render_navigation.py` check the
+  relationships through the native editor's element-reference properties.
+- **Disposition:** adopted without a fallback; no current browser support gap
+  was found in the compatibility data. Native accessibility behavior in Firefox
+  and Safari has not been exercised here.
+
 ### Task group names
 
 - **Owner:** `lf-task.js` in the Command Hub package. `ariaLabelledByElements`

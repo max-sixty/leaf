@@ -6,11 +6,15 @@
    in the rail, the strip beside `main` where the room there holds one, or as a pin over the
    page by its target, seated where it covers no words when there is room for it
    (`seatPins`). The stylesheet places each row from what this pass writes on it
-   (theme.css, at .lf-margin-cluster): its posture as `data-lf-place`, its seat as
-   `left` and `top`, including the push packing gives it. Scrolling moves a row with its target on the compositor, whether the
+   (annotation-theme.css, at .lf-margin-cluster): its posture as `data-lf-place`, its
+   seat as `--lf-margin-x` and `--lf-margin-y`, including the push packing gives it.
+   These measured coordinates keep their full layout precision in custom properties;
+   ordinary length serialization would round distant document positions before comparing
+   them. Scrolling moves a row with its target on the compositor, whether the
    document scrolls or a pane does, with no pass at all.
-   Resize deliveries settle placement before their native paint; deferring that pass
-   to the next frame would show a row at its stale seat after its target changed.
+   Mutation checkpoints and resize deliveries settle placement before native paint;
+   deferring that pass to the next frame would show a row at its stale seat after its
+   target changed.
 
    Zero-size lanes start at the document origin. Root scrolling carries their rows
    natively. A row whose target scrolls inside a box short of the document stands in
@@ -18,7 +22,9 @@
    through those scrolls too (`carrierFor`); native motion layers carry inner scrolling
    only where no anchor reaches, as inside a shadow tree. A lane's clip follows its
    region's outer scrollers.
-   Coordinates and scroll origins are one measurement, replaced together before paint.
+   Rows and clips use coordinates at their native sources' zero scroll offsets.
+   Remeasuring after a scroll therefore preserves placement while native effects
+   continue carrying it, without rebasing layout against an opposite translation.
    Layout owners announce same-size view rearrangements with `lf-layout`; resize
    observation covers the target's layout siblings and ancestors, including a bounded
    region whose outer height stayed fixed. Without a native linear scroll trajectory,
@@ -43,7 +49,12 @@
    `display: contents` while its rendered descendants remain usable, and a collapsed
    target has no rendered part to offer. */
 import { TAB_STOP } from "/runtime/control-selectors.js";
-import { cancelRender, nextRender, sizeObserver } from "/runtime/rendering.js";
+import {
+  afterScript,
+  cancelRender,
+  nextRender,
+  sizeObserver,
+} from "/runtime/rendering.js";
 import {
   shellRight,
   shownBand,
@@ -52,7 +63,14 @@ import {
   shownWindow,
   skipped,
 } from "/runtime/geometry.js";
-import { renderedParent, shadowHost, under, upFrom } from "/runtime/shadow.js";
+import {
+  renderedChildren,
+  renderedParent,
+  renderedUnder,
+  shadowHost,
+  under,
+  upFrom,
+} from "/runtime/shadow.js";
 import { scrollerFor } from "/runtime/reading-regions.js";
 import { boundedBlockOf } from "/runtime/bounds.js";
 import { pageScroller } from "/runtime/scrolling.js";
@@ -63,6 +81,7 @@ import {
   followScroll,
   scrollFollows,
   scrollMotions,
+  scrolledBy,
   scrollsContent,
 } from "/runtime/scroll-motion.js";
 import { residencyStarted } from "/runtime/content-layout.js";
@@ -107,12 +126,12 @@ function watchGeometry(geometry) {
   });
 }
 const GAP = 4;
-// The id of the thread card a margin row opens (margin-projection.js).
+// The id of the thread card a margin row opens (thread-preview.js).
 export const THREAD_CARD = "lf-margin-preview";
 // A row the user holds, which packing seats before every other (`packRows`): one under
 // the pointer, with focus in it, or whose entry has the thread card open, as that entry's
 // disclosure relation says (margin-projection.js, `syncReadingRelation`). The card stands
-// relative to its row (margin-projection.js), so a standing row whose target moves into
+// relative to its row (thread-preview.js), so a standing row whose target moves into
 // it would otherwise push the row down and the card the user is reading with it.
 const HELD = `:hover, :focus-within, :has([aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
 let pending = 0;
@@ -191,7 +210,7 @@ function carryScroll(node, motions) {
       );
     })
   )
-    return;
+    return scrolledBy(motions);
   const sameGraph =
     before.length === motions.length &&
     before.every(
@@ -234,15 +253,11 @@ function carryScroll(node, motions) {
       layers,
       motions,
       effects: motions.map((motion, i) =>
-        followScroll(
-          layers[i],
-          motion,
-          motion.scroll,
-          sameGraph ? record?.effects[i] : null,
-        ),
+        followScroll(layers[i], motion, 0, sameGraph ? record?.effects[i] : null),
       ),
     });
   else translations.delete(node);
+  return scrolledBy(motions);
 }
 
 // Every actual scrollport, including an inner table and a shadow root's scroller.
@@ -425,13 +440,20 @@ function hearTargetChanges(root) {
   root.addEventListener("slotchange", scheduleMarginLayout);
   // Resize delivery follows layout. A target or its anchored part removed by a widget
   // would therefore paint the row's fallback before the next layout pass withheld it.
-  // Hear those moves at their mutation checkpoint, before paint;
+  // Child-list changes in the measured layout can move a target without resizing it,
+  // including when native scroll anchoring preserves its viewport position.
+  // Hear those changes and target moves at their mutation checkpoint, before paint;
   // a remove-and-reinsert in one batch is a move, not a departure.
   new MutationObserver((records) => {
     if (
-      records.some((record) => record.type === "attributes" && !inChrome(record.target))
+      records.some(
+        (record) =>
+          !inChrome(record.target) &&
+          (record.type === "attributes" ||
+            (record.type === "childList" && wantedGeometry.has(record.target))),
+      )
     )
-      scheduleMarginLayout();
+      afterScript(layoutMarginRows);
     const moved = records
       .flatMap((record) => [...record.removedNodes, ...record.addedNodes])
       .filter((node) => node instanceof Element);
@@ -612,7 +634,7 @@ function coverIn(root, band, target, block, bands, stop) {
   const meets = (box) => box.bottom > band.top && box.top < band.bottom;
   const edges = ({ left, top, right, bottom }) => ({ left, top, right, bottom });
   const visit = (el) => {
-    for (const node of el.childNodes) {
+    for (const node of renderedChildren(el)) {
       if (node.nodeType === Node.TEXT_NODE) {
         if (!node.data.trim()) continue;
         const words = document.createRange();
@@ -629,7 +651,7 @@ function coverIn(root, band, target, block, bands, stop) {
       const box = node.getBoundingClientRect();
       const boxless = !box.width && !box.height;
       if (!boxless && !meets(box)) continue;
-      const holds = node !== target && under(target, node);
+      const holds = node !== target && renderedUnder(target, node);
       const control = node.matches(TAB_STOP);
       if (
         !boxless &&
@@ -651,7 +673,7 @@ function coverIn(root, band, target, block, bands, stop) {
           continue;
         }
         if (
-          !under(node, block) &&
+          !renderedUnder(node, block) &&
           !style.display.startsWith("inline") &&
           style.display !== "contents"
         )
@@ -664,7 +686,7 @@ function coverIn(root, band, target, block, bands, stop) {
         if (summary) visit({ childNodes: [summary] });
         continue;
       }
-      visit(node.shadowRoot ?? node);
+      visit(node);
     }
   };
   visit(root);
@@ -884,7 +906,8 @@ export function unregisterMarginRow(row) {
   if (row) {
     row.classList.toggle("lf-withheld", false);
     row.removeAttribute("data-lf-place");
-    for (const property of ["left", "top"]) row.style.removeProperty(property);
+    for (const property of ["--lf-margin-x", "--lf-margin-y"])
+      setStyle(row, property, null);
     pushes.delete(row);
     folded.delete(row);
   }
@@ -1278,6 +1301,8 @@ export function layoutMarginRows({ retainSeats = false } = {}) {
   const packed = packRows(standing, GAP);
   // A push says where a standing row stands, so a row that no longer stands has none.
   for (const row of pushes.keys()) if (!packed.has(row)) pushes.delete(row);
+  for (const [scroller, lane] of layer.lanes)
+    carryScroll(lane, laneMotions.get(scroller) ?? []);
   for (const { key: row, rect, read, visualLeft } of standing) {
     const push = packed.get(row) ?? 0;
     pushes.set(row, push);
@@ -1319,13 +1344,11 @@ export function layoutMarginRows({ retainSeats = false } = {}) {
         "left",
         carrierAxes.get(carrier) === "xy" ? from("left", read.carrierBox.left) : "0px",
       );
-      setStyle(row, "left", `${left}px`);
-      setStyle(row, "top", `${top}px`);
+      setStyle(row, "--lf-margin-x", layoutPx(left));
+      setStyle(row, "--lf-margin-y", layoutPx(top));
       carryScroll(row, []);
       continue;
     }
-    setStyle(row, "left", `${left + scrollX}px`);
-    setStyle(row, "top", `${top + scrollY}px`);
     const carried = laneMotions.get(read.scroller) ?? [];
     // The rail's horizontal coordinate belongs to the column. Nested scrollports
     // move its target's vertical coordinate alone; compensate the lane's horizontal
@@ -1344,7 +1367,10 @@ export function layoutMarginRows({ retainSeats = false } = {}) {
         };
       })
       .filter((motion) => motion.vector.x || motion.vector.y);
-    carryScroll(row, own);
+    const byRow = carryScroll(row, own);
+    const byLane = scrolledBy(translations.get(read.lane)?.motions ?? []);
+    setStyle(row, "--lf-margin-x", layoutPx(left + scrollX - byRow.x - byLane.x));
+    setStyle(row, "--lf-margin-y", layoutPx(top + scrollY - byRow.y - byLane.y));
   }
 
   // Each lane shows its region's rows only inside what that region shows, with room for a
@@ -1352,13 +1378,11 @@ export function layoutMarginRows({ retainSeats = false } = {}) {
   // is in the lane's own coordinates, so it is taken again whenever the pass runs, which
   // a resize of the region's box also brings.
   for (const [scroller, lane] of layer.lanes) {
-    carryScroll(lane, laneMotions.get(scroller) ?? []);
     const region = regions.get(scroller);
-    // Every native motion is rebased to the scroll offset measured by this pass.
-    // Its painted displacement is zero. A newly created effect may still be
-    // pending while script runs; reading its underlying transform here would
-    // mistake that transient value for the lane's document origin.
-    const at = { left: -scrollX, top: -scrollY };
+    // The retained motion reading gives the lane's origin even while a new native
+    // effect awaits its first sample; its underlying transform is not that reading.
+    const byLane = scrolledBy(translations.get(lane)?.motions ?? []);
+    const at = { left: byLane.x - scrollX, top: byLane.y - scrollY };
     const ring = 6;
     const right = (stands && railBeside(scroller) ? shell : region?.right) + ring;
     const clip = region

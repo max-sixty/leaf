@@ -63,6 +63,9 @@ ASCII_WHITESPACE = frozenset("\t\n\f\r ")
 # because the
 # registry's schemas already demand ids wherever pointing at one matters.
 POINTABLE_TAGS = {"section", "article", "aside", "pre", "table", "figure"}
+# Prose and headings can use their enclosing block's address, but without one
+# element selection has no target.
+PROSE_TAGS = {"p", "h1", "h2", "h3", "h4", "h5", "h6"}
 # Where an aim that found no tighter id has escaped to: naming one of these is
 # naming most of the page.
 SECTIONING_TAGS = {"section", "article", "main", "body"}
@@ -690,7 +693,7 @@ class SourceDocument:
             self.nodes.append(node)
             child_output = node["content"]
 
-            if element.tag in POINTABLE_TAGS and not attrs.get("id"):
+            if element.tag in POINTABLE_TAGS | PROSE_TAGS and not attrs.get("id"):
                 under = next(
                     (
                         (ancestor.tag, element_attrs(ancestor)["id"])

@@ -1,5 +1,5 @@
 /* The interaction gallery owns the outer playback controls and viewport. Every
- * sample runs in an opaque sandbox: scenarios, illustrative pointer, package imports,
+ * sample runs in an opaque sandbox: scenarios, illustrative pointer,
  * and production transitions belong to its child document. The gallery exchanges
  * cloneable configuration, commands and state notices over the sample bridge. It
  * never reads a child DOM or calls functions across browsing contexts. */
@@ -53,13 +53,11 @@ class Demo {
       this.setState(state);
     });
     await this.sample.ready;
-    const modulePath = this.figure.dataset.interactionModule;
     await this.sample.call("gallery.configure", {
       name: this.figure.dataset.interactionDemo,
       target: this.figure.dataset.interactionTarget,
       threadId: this.figure.dataset.interactionThreadId,
       keypress: this.figure.dataset.interactionKeypress,
-      modulePath: modulePath ?? null,
       viewport: Number(
         this.figure.closest("[data-interaction-gallery]").dataset.interactionViewport,
       ),

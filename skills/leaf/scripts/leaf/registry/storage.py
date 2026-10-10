@@ -43,8 +43,8 @@ def _read_layer(page_dir: Path, path: Path) -> dict | None:
     try:
         registry = read_registry_declarations(path)
         if registry is not None:
-            kinds = required_layer_declarations(registry, path)[0]
-            validate_event_contracts(kinds, path)
+            required_layer_declarations(registry, path)
+            validate_event_contracts(registry["$events"], path)
     except RegistryError as error:
         raise _revendor(page_dir, error) from None
     return registry

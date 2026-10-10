@@ -245,7 +245,7 @@ export async function settlePageInterface() {
 // .lf-quiet (the shared clip), and data-lf-gen (the diff looks away). One writer per
 // element, and the empty word removes what stands: a fact the page has stopped painting
 // must stop being said too, so a caller states the whole of what this element says
-// quietly and never appends to it. lf-task and lf-milestone each hand-copied this idiom
+// quietly and never appends to it. Content widgets once hand-copied this idiom
 // before it was one, and the copies had already diverged on whether a stale word was
 // removed first — which is now renderQuiet's to state for every widget that declares it.
 //
@@ -527,7 +527,7 @@ export function writePrepaint(root) {
 //
 // Each value goes at the edge its pseudo-element occupied (before = first child, after =
 // last) — the only placement a pseudo could ever have had, and so the line past which a
-// widget writes its own (lf-milestone's chips are a list and sit mid-element;
+// widget writes its own (a dashboard's labels may form a list mid-element;
 // lf-column's heading is its list's accessible name, which this pass knows nothing
 // about). Those write the same data-lf-said span, and the guard below means the two
 // compose rather than race. The pass runs after the upgrades, so a module that rebuilds
@@ -599,12 +599,12 @@ export function renderSaid(root) {
   }
 }
 
-// What a widget states without local words. A task's status marker, a milestone's dot, an
-// entry's kind band: each is a fact the eye reads off paint alone, so a user listening
+// What a widget states without local words. A paint-only status marker or kind band
+// is a fact the eye reads off paint alone, so a user listening
 // is handed every word around it and nothing of the fact itself — done sounded exactly
 // like blocked. Same reasoning as renderSaid, one rung quieter: the registry names the
 // attributes (x-paints) and one pass speaks them, because left to each module it is a
-// thing to remember, and lf-chronology-entry, which has no module at all, could never remember it.
+// thing to remember, and a declaration without a module could never remember it.
 //
 // The value is the word, or the attribute's own name where the value is empty: an enum
 // means what it says (`blocked`), and a flag attribute means what it is called.

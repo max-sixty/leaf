@@ -22,6 +22,31 @@ import { nativeModalAdmits } from "./keyboard/layer-stack.js";
 import { keeps } from "./keeps.js";
 import { nextRender, sizeObserver } from "./rendering.js";
 
+// A page can carry many samples. Their child documents each import the runtime;
+// presenting them together can exhaust the browser's request pool before any child
+// finishes loading its module graph. Bound simultaneous loads across this page. A
+// loaded child can keep reading slow state without holding up the next sample.
+const MAX_LOADING_SAMPLES = 3;
+let loadingSamples = 0;
+const loadWaiters = [];
+async function loadWithinLimit(work) {
+  if (loadingSamples === MAX_LOADING_SAMPLES)
+    await new Promise((resolve) => loadWaiters.push(resolve));
+  else loadingSamples++;
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    if (loadWaiters.length) loadWaiters.shift()();
+    else loadingSamples--;
+  };
+  try {
+    return await work(release);
+  } finally {
+    release();
+  }
+}
+
 async function request(url, body, headers = {}) {
   const response = await fetch(url, {
     method: "POST",
@@ -250,25 +275,29 @@ export function mountSample(
   }
   async function replace() {
     await retire();
-    if (destroyed) throw new DOMException("sample destroyed", "AbortError");
-    const { url } = await request(
-      pageUrl("api/samples"),
-      { template, passive },
-      revision ? { "Leaf-View-Revision": String(revision) } : {},
-    );
-    current = new URL(url, location.href).href;
-    if (destroyed) {
-      await retire();
-      throw new DOMException("sample destroyed", "AbortError");
-    }
-    const presented = presentation();
-    frame.src = current;
-    try {
-      return await presented;
-    } catch (error) {
-      await retire();
-      throw error;
-    }
+    return loadWithinLimit(async (release) => {
+      if (destroyed) throw new DOMException("sample destroyed", "AbortError");
+      const { url } = await request(
+        pageUrl("api/samples"),
+        { template, passive },
+        revision ? { "Leaf-View-Revision": String(revision) } : {},
+      );
+      current = new URL(url, location.href).href;
+      try {
+        if (destroyed) throw new DOMException("sample destroyed", "AbortError");
+        const presented = presentation();
+        // A loaded module graph frees its slot even while presentation waits on
+        // slow state. Native load needs no access to the opaque child document.
+        frame.addEventListener("load", release, { once: true });
+        frame.src = current;
+        return await presented;
+      } catch (error) {
+        await retire();
+        throw error;
+      } finally {
+        frame.removeEventListener("load", release);
+      }
+    });
   }
   function reset() {
     if (destroyed)
@@ -289,6 +318,11 @@ export function mountSample(
   const host = {
     ready: null,
     reset,
+    // Full view keeps the realm, log and native editor; only its allocation changes.
+    setWindow(value) {
+      asWindow = value;
+      return host.call("window", { window: value });
+    },
     async call(method, detail = {}) {
       const ready = host.ready;
       await ready;

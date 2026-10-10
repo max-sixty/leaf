@@ -41,6 +41,7 @@ from render_harness import (
     leaf_page,
     open_page,
     open_versions,
+    page_comment,
     panel_settled,
     resized,
     round_trip,
@@ -84,8 +85,7 @@ def test_refusal_notice_clears_live_reply_through_wrapping_and_expiry(
             if (!status.checkVisibility()) return;
             const r = node => node.getBoundingClientRect().toJSON();
             window.__noticeReplyFrames.push({status:r(status), field:r(field),
-                send:r(field.parentElement.querySelector('.lf-thread-send')),
-                general:r(document.querySelector('.lf-general leaf-text'))});
+                send:r(field.parentElement.querySelector('.lf-thread-send'))});
         }).observe(field);
     }""")
 
@@ -156,7 +156,7 @@ def test_refusal_notice_clears_live_reply_through_wrapping_and_expiry(
     frames = page.evaluate("window.__noticeReplyFrames")
     assert frames
     for frame in frames:
-        for key in ("field", "send", "general"):
+        for key in ("field", "send"):
             box, status = frame[key], frame["status"]
             assert (
                 status["right"] <= box["left"]
@@ -1327,8 +1327,9 @@ def test_live_revision_retains_the_runtime_favicon(browser, serve):
 
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
+@pytest.mark.parametrize("touch", [False, True], ids=["desktop", "touch"])
 def test_a_conversation_keeps_its_face_and_sends_from_margin_and_panel(
-    browser, serve, scheme
+    browser, serve, scheme, touch
 ):
     """One conversation has the same typography and reply field in both places.
 
@@ -1352,8 +1353,9 @@ def test_a_conversation_keeps_its_face_and_sends_from_margin_and_panel(
             + "Explain how the result was measured. " * 40,
         },
     )
-    page = open_page(browser, url, color_scheme=scheme)
-    resized(page, 1440, 900)
+    context = browser.new_context(has_touch=touch, is_mobile=touch, color_scheme=scheme)
+    page = open_page(browser, url, context=context)
+    resized(page, 390 if touch else 1440, 900)
     page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
     margin = page.locator(".lf-margin-preview .lf-page-thread")
     expect(margin.get_by_role("textbox", name="Reply", exact=True)).to_be_visible()
@@ -1557,7 +1559,7 @@ def test_a_news_resolved_card_keeps_its_place_after_an_offscreen_draft_is_cleare
     a move within the thread, so the card holds the settlement behind its notice until
     the user presses it, and stays put.
     """
-    url = serve(LONG_PAGE, comments=16)
+    url = serve(LONG_PAGE, comments=24)
     first, second = [
         event["id"]
         for event in events_model.read_events(serve.page_dir)
@@ -2265,7 +2267,7 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
         resized(page, width, 900)
         orders[width] = page.evaluate(BANNER_ORDER)
     phone = orders.pop(390)
-    moved = ["Approve version", "Comment on the page", "Questions: 4 waiting on you"]
+    moved = ["Approve version", "Comment on the page", "Questions"]
     assert phone[: len(moved)] == moved, phone
     rest = phone[len(moved) :]
     assert rest[:-1] + moved + rest[-1:] == orders[800], (phone, orders[800])
@@ -2970,11 +2972,7 @@ def test_a_draft_wears_the_faces_its_sent_message_wears(
         panel_settled(page)
         page.locator(".lf-thread-summary").first.click()
         thread = page.locator(".lf-thread[open]")
-        box_selector = (
-            ".lf-general leaf-text"
-            if surface == "general"
-            else ".lf-thread[open] .lf-thread-reply leaf-text"
-        )
+        box_selector = ".lf-thread[open] .lf-thread-reply leaf-text"
     body = thread.locator(".lf-msg-body").first
     expect(body.locator("blockquote")).to_be_visible()
     # A source renderer can leave the code's colors correct while turning an inline
@@ -2986,7 +2984,9 @@ def test_a_draft_wears_the_faces_its_sent_message_wears(
               code: code.getBoundingClientRect().top};
     }""")
     assert flow["code"] == pytest.approx(flow["words"], abs=4), flow
-    box = page.locator(box_selector)
+    # The page's general box stands in the page comment card, the one place a page
+    # thread starts.
+    box = page_comment(page) if surface == "general" else page.locator(box_selector)
     write(box, MARKDOWN)
     box.evaluate("box => box.id = 'draft-face-editor'")
 

@@ -1,5 +1,5 @@
 import {
-  openAsks,
+  readAsks,
   pageScroller,
   readingPosture,
   readingRegions,
@@ -11,6 +11,7 @@ import {
 import { laidOutItems } from "./framing.js";
 import { at as element, place } from "./locate.js";
 import { openRoots } from "./open-roots.js";
+import { scrollbarClearance } from "./scrollbars.js";
 import { shrunkLabelReading } from "./words.js";
 
 export const rootOverflow = () => pageScroller.scrollWidth - pageScroller.clientWidth;
@@ -42,6 +43,7 @@ export function geometryReading(open) {
   return {
     overflow: rootOverflow(),
     misplaced: misplacedBoxes(),
+    scrollbars: scrollbarClearance(),
     margin: marginResidents(),
     arrangement: arrangedBoxes(open),
     panes: heldPanes(),
@@ -150,8 +152,8 @@ export function overflowingRegions() {
         "layout");
   // Shown ones only: a queue's closed items hold open Asks too, and a region that
   // already is the queue is not stacking them.
-  const asks = openAsks()
-    .map((ask) => document.getElementById(ask.id))
+  const asks = readAsks()
+    .user.map((ask) => document.getElementById(ask.id))
     .filter((ask) => ask?.checkVisibility());
   return readingRegions().flatMap((region) => {
     if (!main.contains(region.host) || !screenRegion(region.host)) return [];

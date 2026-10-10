@@ -2,7 +2,8 @@
 
 The source tree contains no generated kernel bundles. CI builds this tree before
 publishing it to the moving `prepared` branch; native marketplace and Pi updates
-follow that branch. Nothing compiles during installation, page init, export, or
+follow that branch. The website build prepares one beside the site, which its page
+directories are vendored from and its container image installs (`leaf_dev.site`). Nothing compiles during installation, page init, export, or
 custom-package authoring. Package widgets remain native ESM and import the same
 widget-api entry as the compiled kernel, so their state has one owner.
 

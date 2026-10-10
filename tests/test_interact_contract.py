@@ -22,7 +22,6 @@ from interact_support import (
     COMMAND_HUB_PACKAGE,
     COMMENT,
     PAGE,
-    PAGE_PACKAGES,
     PILOT_PURGE,
     SHELVED,
     STATED_TIMEOUT,
@@ -58,8 +57,11 @@ from interact_support import (
     fresh_process,
     live_versions,
     lock_contention,
+    model_layer,
+    page_packages,
     publish,
     published,
+    queue_board_registry,
     read_page_data,
     stamp,
     stamp_activation,
@@ -261,9 +263,8 @@ STATED_LOG = [
 ]
 STATED_PICK = {"kind": "action", "author": "user", "revision": 1, "action": "choose"}
 
-# A deck with two cards still queued, so its first swipe classifies and only its
-# second empties the queue.
-STATED_DECK = """<!doctype html>
+# A queue with two cards: only the final move answers its Ask.
+STATED_QUEUE = """<!doctype html>
 <html lang="en">
 <head>
 <title>Triage</title>
@@ -272,24 +273,24 @@ STATED_DECK = """<!doctype html>
 <main>
 <lf-ask id="triage-decision">
   <h2>Which follow-ups should we keep?</h2>
-  <lf-swipe-deck id="triage">
-    <lf-swipe-pile id="queue" verdict="unseen">
-      <lf-swipe-card id="card-a"><strong>Rolling expiry</strong></lf-swipe-card>
-      <lf-swipe-card id="card-b"><strong>Bounded fallback</strong></lf-swipe-card>
-    </lf-swipe-pile>
-    <lf-swipe-pile id="keep" verdict="keep"></lf-swipe-pile>
-  </lf-swipe-deck>
+  <lf-board id="triage">
+    <lf-column id="queue" label="Queued">
+      <lf-card id="card-a"><strong>Rolling expiry</strong></lf-card>
+      <lf-card id="card-b"><strong>Bounded fallback</strong></lf-card>
+    </lf-column>
+    <lf-column id="keep" label="Kept"></lf-column>
+  </lf-board>
 </lf-ask>
 </main>
 </body>
 </html>
 """
-STATED_SWIPE = {
+STATED_MOVE = {
     "kind": "action",
     "author": "user",
     "revision": 1,
     "widget": "triage",
-    "action": "swipe",
+    "action": "move",
 }
 
 
@@ -419,30 +420,26 @@ def test_history_words_a_pick_of_an_added_option_by_what_the_user_wrote():
     ]
 
 
-def test_the_swipe_that_empties_the_queue_is_the_decks_answer():
-    """A deck's Ask is answered by its standing state, so admission marks the swipe
-    that empties the queue as the answer and no swipe before it.
+def test_the_move_that_empties_the_queue_answers_its_ask():
+    """Only moving the final real card answers the whole queue's Ask.
 
-    Every classification is the same verb carrying its own result, so the position
-    record is what keeps a crafted one honest: its unit must be a card the deck
-    actually holds, or a deck could stand answered on a classification that never
-    existed.
+    A crafted unknown unit must never count as completing the queue.
     """
-    page = ModelPage(STATED_DECK, packages=("swipe",))
+    page = ModelPage(STATED_QUEUE, registry=queue_board_registry(model_layer()))
 
     def admit(log, event):
         return event_contracts_model.admitted_event(page, log, dict(event))
 
     first = admit(
         [],
-        {**STATED_SWIPE, "detail": {"unit": "card-a", "value": "keep", "rank": "0i"}},
+        {**STATED_MOVE, "detail": {"unit": "card-a", "value": "keep", "rank": "0i"}},
     )
     assert first["meaning"]["unit"] == "card-a"
     assert "answer" not in first["meaning"]
     log = [{**first, "id": "s1", "ts": "2026-09-19T12:01:00+00:00", "seq": 1}]
     last = admit(
         log,
-        {**STATED_SWIPE, "detail": {"unit": "card-b", "value": "keep", "rank": "0r"}},
+        {**STATED_MOVE, "detail": {"unit": "card-b", "value": "keep", "rank": "0r"}},
     )
     assert last["meaning"]["answer"] is None
 
@@ -450,7 +447,7 @@ def test_the_swipe_that_empties_the_queue_is_the_decks_answer():
         admit(
             log,
             {
-                **STATED_SWIPE,
+                **STATED_MOVE,
                 "detail": {"unit": "not-a-card", "value": "keep", "rank": "0r"},
             },
         )
@@ -467,7 +464,10 @@ def test_admission_decides_from_the_markup_and_the_standing_log_alone():
     `ModelPage` is. Each verdict below comes from a different gate, so a gate
     that went back to opening a file of its own fails here.
     """
-    page = ModelPage(STATED_KIT)
+    captured = deepcopy(model_layer())
+    # Ownership belongs to the running transport, not the captured vocabulary.
+    del captured["$events"]["ownership"]
+    page = ModelPage(STATED_KIT, registry=captured)
 
     def admit(event):
         return event_contracts_model.admitted_event(page, STATED_LOG, dict(event))
@@ -492,6 +492,10 @@ def test_admission_decides_from_the_markup_and_the_standing_log_alone():
     answer = {"kind": "reply", "author": "agent", "revision": 1, "text": "The GPS."}
     assert refusal({**answer, "parent": "c9"}) == "unknown parent 'c9'"
     assert admit({**answer, "parent": "c1"})["parent"] == "c1"
+    for version in ([1], {"version": 1}, True):
+        assert "done event is invalid" in refusal(
+            {"kind": "done", "author": "user", "version": version}
+        )
 
 
 def test_a_created_child_is_its_actions_unit_and_its_words_stay_payload():
@@ -704,7 +708,10 @@ def test_server_takes_back_only_a_standing_gesture_of_the_users_own(server, page
     # Once, and never the undo itself: repeated presses walk back through the
     # user's history rather than toggling the last gesture on and off.
     status, body = fetch(f"{server}/api/event", data=json.dumps(undone).encode())
-    assert status == 400 and "already been taken back" in json.loads(body)["error"]
+    refusal = json.loads(body)
+    assert status == 400 and "already been taken back" in refusal["error"]
+    assert took_back in refusal["state"]["events"]
+    assert refusal["state"]["browser"]["basis"]["through_seq"] >= took_back["seq"]
     status, body = fetch(
         f"{server}/api/event",
         data=json.dumps({"kind": "undo", "undoes": took_back["id"]}).encode(),
@@ -919,7 +926,7 @@ def test_init_allows_a_log_holding_a_token_the_incoming_layer_dropped(
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -998,7 +1005,7 @@ def test_init_allows_retiring_a_logged_widgets_verb(page_dir):
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -1087,7 +1094,7 @@ def test_init_allows_changed_generated_child_semantics(page_dir, mutation):
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -1103,8 +1110,8 @@ def test_init_allows_a_logged_report_the_incoming_layer_no_longer_speaks(page_di
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-tasks id="tree"><lf-task id="t1" status="active">'
-            "<strong>Parse</strong></lf-task></lf-tasks></section>",
+            '<lf-test-tasks id="tree"><lf-test-task id="t1" status="active">'
+            "<strong>Parse</strong></lf-test-task></lf-test-tasks></section>",
         )
     )
     publish(page_dir)
@@ -1119,18 +1126,18 @@ def test_init_allows_a_logged_report_the_incoming_layer_no_longer_speaks(page_di
     )
 
     registry = json.loads((page_dir / "registry.json").read_text())
-    task = registry["lf-task"]
+    task = registry["lf-test-task"]
     task.pop("x-state")
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
-    (overlay / "registry.json").write_text(json.dumps({"lf-task": task}))
+    (overlay / "registry.json").write_text(json.dumps({"lf-test-task": task}))
 
     result = CliRunner().invoke(
         cli_model.cli,
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -1173,7 +1180,7 @@ def test_init_allows_to_orphan_a_logged_visual_anchor(page_dir):
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -1277,11 +1284,11 @@ def test_revendoring_serializes_with_a_worker_report_entering_the_log(
     _tasks_version(page_dir, "active")
     publish(page_dir)
     registry = json.loads((page_dir / "registry.json").read_text())
-    task = registry["lf-task"]
+    task = registry["lf-test-task"]
     task.pop("x-state")
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
-    (overlay / "registry.json").write_text(json.dumps({"lf-task": task}))
+    (overlay / "registry.json").write_text(json.dumps({"lf-test-task": task}))
     _, refusal = assert_revendor_serializes_writer(
         page_dir,
         monkeypatch,
@@ -1294,7 +1301,8 @@ def test_revendoring_serializes_with_a_worker_report_entering_the_log(
     assert refusal is None
     assert events_model.read_events(page_dir)[-1]["kind"] == "report"
     assert (
-        "x-state" not in json.loads((page_dir / "registry.json").read_text())["lf-task"]
+        "x-state"
+        not in json.loads((page_dir / "registry.json").read_text())["lf-test-task"]
     )
 
 
@@ -1305,7 +1313,7 @@ def test_revendoring_serializes_with_thread_markup_entering_the_log(
     overlay.mkdir(parents=True)
     local = element_declaration("lf-local-thread")
     (overlay / "registry.json").write_text(json.dumps({"lf-local-thread": local}))
-    vendoring_model.cmd_init(page_dir, selected=(*PAGE_PACKAGES, "./.leaf"))
+    vendoring_model.cmd_init(page_dir, selected=(*page_packages(), "./.leaf"))
     publish(page_dir)
     append_carried_log_record(
         page_dir,
@@ -1367,7 +1375,7 @@ def test_revendoring_can_change_frozen_thread_widget_vocabulary(
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -1738,6 +1746,58 @@ def test_candidate_vocabulary_changes_leave_old_actions_in_captured_history(page
     assert refused.revision == revision + 1
 
 
+def test_an_action_an_earlier_runtime_logged_is_left_out_of_the_fold(page_dir):
+    """A pick logged before admission recorded its state operation, in the payload
+    shape of its day, folds as absent: `leaf page state` reads on with the current
+    pick standing instead of failing on the old record."""
+    source = PAGE.replace(
+        "</section>",
+        '<lf-options id="picks" choose><lf-option id="first">First</lf-option>'
+        '<lf-option id="second">Second</lf-option></lf-options></section>',
+    )
+    (page_dir / "index.html").write_text(source)
+    publish(page_dir)
+    revision = files_model.latest_revision(page_dir)
+    current = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": revision,
+            "widget": "picks",
+            "action": "choose",
+            "detail": {"value": ["first"]},
+        },
+    )
+    # The shape a runtime before recorded state operations logged a pick in.
+    earlier = {
+        "kind": "action",
+        "revision": revision,
+        "widget": "picks",
+        "action": "choose",
+        "detail": {"options": ["second"]},
+        "author": "user",
+        "id": "earlier-pick",
+        "meaning": {
+            "scope": "page",
+            "unit": "picks",
+            "depends": ["picks", "second"],
+            "answer": None,
+        },
+        "attention": True,
+        "ts": "2026-10-06T20:14:37.092-07:00",
+    }
+    with (page_dir / schema_model.EVENTS_FILE).open("a") as log:
+        log.write(json.dumps(earlier) + "\n")
+
+    out = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
+
+    assert out.exit_code == 0, out.output
+    assert [(s["widget"], s["detail"]) for s in json.loads(out.stdout)["state"]] == [
+        ("picks", current["detail"])
+    ]
+
+
 def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(page_dir):
     """A retracted action on a removed sender is interpreted only in its old revision."""
     from leaf.projection import page_reading
@@ -2011,7 +2071,11 @@ def test_a_widget_data_input_is_one_complete_contract(page_dir, change, message)
         ("<div>", True, "must be one element"),
         ("<div><span>0</div>", True, "must be one element"),
         ('<div><span id="count">0</span></div>', True, "no id"),
-        ("<div><lf-chip>0</lf-chip></div>", True, "may not hold <lf-chip>"),
+        (
+            '<div><lf-gloss tip="Zero">0</lf-gloss></div>',
+            True,
+            "may not hold <lf-gloss>",
+        ),
         ({"as": "lf-nothing"}, True, "declares no x-prepaint markup"),
     ],
 )
@@ -2632,7 +2696,6 @@ def test_boolean_attribute_subschemas_validate_without_crashing(
         ("x-awaits", []),
         ("x-awaits", {"when": {"choose": True}}),
         ("x-thread-seat", False),
-        ("x-required-members", []),
         ("x-content", "words"),
         ("x-owners", []),
         # Each of these names attributes, so an empty one declares nothing while
@@ -2665,7 +2728,7 @@ def test_check_refuses_malformed_registry_extensions(page_dir, key, value):
     ("mutate", "message"),
     [
         (
-            lambda registry: registry["lf-chip"].update({"x-work": True}),
+            lambda registry: registry["lf-gloss"].update({"x-work": True}),
             "declares x-work but is inline",
         ),
         (
@@ -2677,46 +2740,6 @@ def test_check_refuses_malformed_registry_extensions(page_dir, key, value):
 def test_a_work_seat_declaration_is_checked_whole(page_dir, mutate, message):
     registry = json.loads((page_dir / "registry.json").read_text())
     mutate(registry)
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-
-    result = check(page_dir)
-
-    assert result.exit_code != 0
-    assert message in result.output
-
-
-@pytest.mark.parametrize(
-    ("mutation", "message"),
-    [
-        (
-            "unknown-child",
-            "x-required-members names unknown member declaration <lf-missing>",
-        ),
-        ("wrong-owner", "does not name it in x-owners"),
-        ("optional-role", "must name a required, non-empty string enum"),
-        ("open-role", "must name a required, non-empty string enum"),
-        ("markup-owner", "x-required-members requires x-content: members"),
-    ],
-)
-def test_one_each_child_declarations_are_checked_whole(page_dir, mutation, message):
-    registry = json.loads((page_dir / "registry.json").read_text())
-    option = registry["lf-option"]
-    option["properties"]["role"] = {"type": "string", "enum": ["first", "second"]}
-    option["required"].append("role")
-    registry["lf-options"]["x-required-members"] = {"lf-option": {"one-each": "role"}}
-
-    if mutation == "unknown-child":
-        registry["lf-options"]["x-required-members"] = {
-            "lf-missing": {"one-each": "role"}
-        }
-    elif mutation == "wrong-owner":
-        option["x-owners"] = ["lf-board"]
-    elif mutation == "optional-role":
-        option["required"].remove("role")
-    elif mutation == "open-role":
-        option["properties"]["role"] = {"type": "string"}
-    else:
-        registry["lf-options"]["x-content"] = "markup"
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
@@ -2824,7 +2847,7 @@ def test_generated_child_declaration_closes_its_boundary(page_dir, mutation, mes
     elif mutation == "wrong-id":
         option["properties"]["id"]["pattern"] = "^option-.+$"
     elif mutation == "report-creates":
-        registry["lf-agent"]["x-state"]["state"]["creates"] = {
+        registry["lf-test-worker"]["x-state"]["state"]["creates"] = {
             "child": "lf-option",
             "words": "doing",
         }
@@ -2864,7 +2887,7 @@ def test_unrecorded_fold_units_are_required_strings(page_dir):
     [
         ("lf-options", "choose", "unit"),
         ("lf-draft", "edit", "unit"),
-        ("lf-task", "status", "unit"),
+        ("lf-test-task", "status", "unit"),
         ("lf-board", "move", "widget"),
     ],
 )
@@ -2947,6 +2970,11 @@ def test_recorded_effect_payloads_are_validated_at_admission(page_dir):
         admitted = event_contracts_model.admitted_event(
             page, [], {**command, "detail": valid}
         )
+        for required in ("widget", "action", "detail", "revision"):
+            malformed = {**command, "detail": valid}
+            del malformed[required]
+            with pytest.raises(events_model.EventRefused, match="required property"):
+                event_contracts_model.admitted_event(page, [], malformed)
         assert admitted["detail"] == valid
         assert admitted["meaning"]["unit"] == (
             valid["unit"] if widget == "board" else widget
@@ -3050,7 +3078,7 @@ def test_recorded_declarations_cannot_override_the_fixed_payload(page_dir, mutat
     if mutation == "detail":
         spec["detail"] = {"type": "object", "additionalProperties": False}
     elif mutation == "update-field":
-        registry["lf-agent"]["x-state"]["state"]["update"] = "doing"
+        registry["lf-test-worker"]["x-state"]["state"]["update"] = "doing"
     else:
         spec["record"][mutation.removeprefix("record-")] = "custom"
     (page_dir / "registry.json").write_text(json.dumps(registry))
@@ -3063,7 +3091,10 @@ def test_recorded_declarations_cannot_override_the_fixed_payload(page_dir, mutat
 
 def test_value_records_use_the_string_type_html_attributes_carry(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-agent"]["properties"]["state"] = {"type": "integer", "minimum": 0}
+    registry["lf-test-worker"]["properties"]["state"] = {
+        "type": "integer",
+        "minimum": 0,
+    }
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
@@ -3076,7 +3107,8 @@ def test_report_update_prose_is_required_only_when_declared(page_dir):
     """The report flag fixes nonempty text; reports without it carry just their value."""
     registry = json.loads((page_dir / "registry.json").read_text())
     page = ModelPage(
-        '<lf-agent id="agent" state="working">Agent</lf-agent>', registry=registry
+        '<lf-test-worker id="agent" state="working">Agent</lf-test-worker>',
+        registry=registry,
     )
     command = {
         "kind": "report",
@@ -3104,9 +3136,10 @@ def test_report_update_prose_is_required_only_when_declared(page_dir):
             page, [], {**command, "kind": "action", "author": "user", "detail": detail}
         )
 
-    del registry["lf-agent"]["x-state"]["state"]["update"]
+    del registry["lf-test-worker"]["x-state"]["state"]["update"]
     page = ModelPage(
-        '<lf-agent id="agent" state="working">Agent</lf-agent>', registry=registry
+        '<lf-test-worker id="agent" state="working">Agent</lf-test-worker>',
+        registry=registry,
     )
     admitted = event_contracts_model.admitted_event(
         page, [], {**command, "detail": {"value": "waiting"}}
@@ -3120,7 +3153,7 @@ def test_report_update_prose_is_required_only_when_declared(page_dir):
     ("tag", "verb", "field"),
     [
         ("lf-suggestion", "decide", "unit"),
-        ("lf-task", "status", "unit"),
+        ("lf-test-task", "status", "unit"),
     ],
 )
 def test_every_fold_verb_declares_its_coordinate(page_dir, tag, verb, field):
@@ -3140,7 +3173,7 @@ def test_every_fold_verb_declares_its_coordinate(page_dir, tag, verb, field):
     [
         ("lf-draft", "edit", "body"),
         ("lf-board", "move", "position"),
-        ("lf-task", "status", "value `status`"),
+        ("lf-test-task", "status", "value `status`"),
         ("lf-options", "choose", "attribute `chosen`"),
     ],
 )
@@ -3167,17 +3200,12 @@ def test_physical_record_slots_remain_local_to_the_coordinate(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
 
     # A different host attribute is a different value slot on the same unit.
-    task = registry["lf-task"]
+    task = registry["lf-test-task"]
     owner = json.loads(json.dumps(task["x-state"]["status"]))
     owner["record"] = {"kind": "value", "attr": "owner"}
     task["properties"]["owner"] = {"type": "string"}
     task.setdefault("required", []).append("owner")
     task["x-state"]["owner"] = owner
-    registry["lf-tasks"]["x-example"] = re.sub(
-        r"<lf-task\b(?![^>]*\bowner=)",
-        '<lf-task owner="test"',
-        registry["lf-tasks"]["x-example"],
-    )
 
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
@@ -3402,13 +3430,13 @@ def test_withdrawal_may_name_an_outcome_that_retires_no_slots(trial_page):
             "a flag is there or it isn't",
         ),
         (
-            "lf-task",
+            "lf-test-task",
             "x-awaits",
             {"when": {"status": [True]}},
             "that attribute is not a flag",
         ),
         (
-            "lf-task",
+            "lf-test-task",
             "x-awaits",
             {"when": {"status": ["reviewing"]}},
             "its own enum does not admit",
@@ -3465,7 +3493,7 @@ def test_check_refuses_a_predicate_no_page_could_carry(
 )
 def test_a_local_ask_declares_its_answered_condition(page_dir, declaration, message):
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-task"]["x-awaits"] = declaration
+    registry["lf-test-task"]["x-awaits"] = declaration
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
@@ -3476,12 +3504,10 @@ def test_a_local_ask_declares_its_answered_condition(page_dir, declaration, mess
 
 def test_a_part_scoped_answering_verb_needs_an_empty_condition(page_dir):
     """A part record does not answer its whole Ask merely by standing."""
-    registry = json.loads((page_dir / "registry.json").read_text())
-    swipe = json.loads(
-        (schema_model.BUNDLED_PACKAGES / "swipe" / "registry.json").read_text()
+    registry = queue_board_registry(
+        json.loads((page_dir / "registry.json").read_text())
     )
-    registry.update(swipe)
-    registry["lf-swipe-deck"]["x-awaits"]["answered"]["swipe"].pop("empty")
+    registry["lf-board"]["x-awaits"]["answered"]["move"].pop("empty")
 
     with pytest.raises(
         registry_contract.RegistryError,
@@ -3577,16 +3603,16 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
     ("tag", "key", "value", "missing"),
     [
         (
-            "lf-chronology-entry",
+            "lf-gloss",
             "x-says",
-            {"at": "before", "colour": "after"},
+            {"tip": "after", "colour": "after"},
             "colour",
         ),
         ("lf-option", "x-refers", {"for": {}, "about": {}}, "about"),
-        ("lf-task", "x-paints", ["status", "urgency"], "urgency"),
+        ("lf-test-task", "x-paints", ["status", "urgency"], "urgency"),
         ("lf-code", "x-lines", ["hi", "upto"], "upto"),
         ("lf-code", "x-language", "dialect", "dialect"),
-        ("lf-chip", "x-tone", "shade", "shade"),
+        ("lf-column", "x-tone", "shade", "shade"),
     ],
 )
 def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
@@ -3621,7 +3647,7 @@ def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
             "names unknown registry map '$missing.widgets'",
         ),
         (
-            {"via": "$command.widgets", "where": {"role": "imaginary"}},
+            {"via": "$work.widgets", "where": {"role": "imaginary"}},
             "but no declared widget matches",
         ),
     ],
@@ -3652,7 +3678,7 @@ def test_init_inherits_contract_members_a_layer_does_not_state(
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -3685,7 +3711,7 @@ def test_a_layer_restates_one_kind_s_handling_and_inherits_the_rest(page_dir, tm
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -3729,7 +3755,7 @@ def test_init_refuses_handling_that_a_batch_could_not_carry(
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -3885,7 +3911,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         "comment with a drawing": {
             "kind": "comment",
             "drawing": {
-                "format": "leaf-drawing/2",
+                "format": "leaf-drawing/3",
                 "strokes": [[[0, 0], [9, 9]]],
                 "box": [640, 120],
                 "viewport": [1200, 900],
@@ -4208,7 +4234,7 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
             service_model.unacknowledged(transaction.events, transaction.cursor),
         )
     queued = codex_model.offer_delivery(
-        path, files_model.read_json(path), turn_replies=False
+        path, codex_model.read_record(path), transport="queue"
     )
     delivery_model.cmd_delivery_read(queued.payload["id"])
     read = capsys.readouterr().out
@@ -4321,7 +4347,7 @@ def test_init_requires_tones_to_be_a_list_membership_can_be_tested_against(
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -4344,7 +4370,7 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -4359,7 +4385,7 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -4369,11 +4395,17 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
     assert keys["x-says"]  # the rest of the shipped members stand
 
 
-def test_event_kinds_are_the_kernel_contract_not_a_layer_extension(page_dir, tmp_path):
+@pytest.mark.parametrize("key", ["kinds", "ownership"])
+def test_event_kinds_and_ownership_are_the_kernel_contract_not_a_layer_extension(
+    page_dir, tmp_path, key
+):
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["$events"]["kinds"]["signal"] = registry["$events"]["kinds"]["error"]
+    if key == "kinds":
+        registry["$events"][key]["signal"] = registry["$events"][key]["error"]
+    else:
+        registry["$events"][key]["browser_discard"] = []
     (overlay / "registry.json").write_text(json.dumps(registry))
 
     result = CliRunner().invoke(
@@ -4381,30 +4413,30 @@ def test_event_kinds_are_the_kernel_contract_not_a_layer_extension(page_dir, tmp
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
 
     assert result.exit_code != 0
-    assert "$events.kinds is Leaf's fixed transport contract" in result.output
+    assert f"$events.{key} is Leaf's fixed transport contract" in result.output
 
-    (overlay / "registry.json").write_text(json.dumps({"$events": {"kinds": None}}))
+    (overlay / "registry.json").write_text(json.dumps({"$events": {key: None}}))
     result = CliRunner().invoke(
         cli_model.cli,
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
     assert result.exit_code != 0
-    assert "$events.kinds is Leaf's fixed transport contract" in result.output
+    assert f"$events.{key} is Leaf's fixed transport contract" in result.output
 
     with pytest.raises(
         registry_contract.RegistryError,
-        match=r"\$events.kinds must equal Leaf's fixed transport contract",
+        match=rf"\$events.{key} must equal Leaf's fixed transport contract",
     ):
         registry_validation.validate_registry(registry, "incoming")
 
@@ -4534,7 +4566,7 @@ def test_check_rejects_an_unknown_authored_width(page_dir):
 
 def test_check_takes_a_stated_height_only_on_a_widget_that_draws_into_its_box(page_dir):
     """`data-height` states the box of a widget whose declaration says it draws into one
-    (x-height), in whole CSS pixels. A chart takes it; a table and a tree take the
+    (x-height), in whole CSS pixels. A chart takes it; a table and a code block take the
     height of what they hold, so the attribute there would clip their words."""
     chart = '<lf-chart id="c" data-height="{}"><pre>{{ariaLabel: "x", marks: []}}</pre></lf-chart>'
     (page_dir / "index.html").write_text(
@@ -4548,7 +4580,7 @@ def test_check_takes_a_stated_height_only_on_a_widget_that_draws_into_its_box(pa
             "<h2>Plan</h2>"
             + chart.format("240px")
             + '<table data-height="80"><tr><td>A</td></tr></table>'
-            + '<lf-tree id="t" data-height="80"><pre>src/</pre></lf-tree>',
+            + '<lf-code id="t" data-height="80"><pre>src/</pre></lf-code>',
         )
     )
     result = check(page_dir)
@@ -4560,7 +4592,7 @@ def test_check_takes_a_stated_height_only_on_a_widget_that_draws_into_its_box(pa
     assert "<table data-height> (line 9) states the height of a widget" in (
         result.output
     )
-    assert "<lf-tree> takes the height of what it holds" in result.output
+    assert "<lf-code> takes the height of what it holds" in result.output
 
 
 def test_check_takes_a_page_s_width_from_a_layout_and_not_from_data_width(page_dir):
@@ -4940,9 +4972,7 @@ def test_sample_checks_available_history_beside_forward_thread_references(
     )
     result = check(page_dir)
     assert result.exit_code != 0
-    assert (
-        'ids already taken by widget markup in a reply: ["duplicate"]' in result.output
-    )
+    assert 'ids already taken by message markup: ["duplicate"]' in result.output
 
 
 def test_check_tokenizes_only_the_page_stylesheet(page_dir, monkeypatch):
@@ -5058,8 +5088,8 @@ def test_init_allows_to_drop_the_contract_of_a_held_comment(page_dir):
     version.write_text(
         PAGE.replace(
             "</section>",
-            '<lf-tasks id="work"><lf-task id="goal" status="active" talk>'
-            "<strong>Goal</strong></lf-task></lf-tasks></section>",
+            '<lf-test-tasks id="work"><lf-test-task id="goal" status="active" talk>'
+            "<strong>Goal</strong></lf-test-task></lf-test-tasks></section>",
         )
     )
     publish(page_dir)
@@ -5076,7 +5106,7 @@ def test_init_allows_to_drop_the_contract_of_a_held_comment(page_dir):
     )
     registry_path = package / "registry.json"
     registry = json.loads(registry_path.read_text())
-    del registry["lf-task"]["x-thread-seat"]["hold"]
+    del registry["lf-test-task"]["x-thread-seat"]["hold"]
     registry_path.write_text(json.dumps(registry))
 
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
@@ -5609,7 +5639,6 @@ def test_sample_fixture_refusals_reach_page_check(
             '<lf-code id="child" language="python"><pre>1</pre></lf-code>',
             "already taken",
         ),
-        ("<p>Just prose</p>", "carries no widget"),
         (
             '<lf-code id="code" language="python"><pre>1</pre></lf-code><style>p {color:red}</style>',
             "stylesheet of the whole document",
@@ -5632,6 +5661,35 @@ def test_sample_fixture_message_markup_uses_the_message_gate(
     assert result.exit_code != 0, result.output
     assert "sample 'practice'" in result.output
     assert complaint in result.output
+
+
+def test_sample_fixture_accepts_native_message_markup(page_dir):
+    history = json.dumps(
+        [
+            {
+                "kind": "comment",
+                "id": "aabb0011",
+                "author": "agent",
+                "text": "Results:",
+                "markup": '<table id="results"><tr><td>Passed</td></tr></table>',
+            },
+            {
+                "kind": "reply",
+                "parent": "aabb0011",
+                "author": "agent",
+                "text": "Log:",
+                "markup": '<pre id="log">Ready\nDone</pre>',
+            },
+        ]
+    )
+    source = (
+        f'<script id="fixture" type="application/json">{history}</script>'
+        '<template id="practice" data-sample data-sample-events="fixture">'
+        '<h1 id="child">Child</h1></template>'
+    )
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", source + "</main>"))
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
 
 
 @pytest.mark.parametrize(

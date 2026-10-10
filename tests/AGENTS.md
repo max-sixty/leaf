@@ -7,12 +7,14 @@ not constrain new code: rewriting or deleting an overfit test is an ordinary par
 change, and the commit says which behavior moved.
 
 Prove each contract at the lowest boundary that preserves it, and keep a browser test
-only where it proves boundaries working together. Every run of the suite pays for each
-test's compute, so weigh that cost against how much the protected behavior matters
-before adding or keeping an expensive test: a long browser journey, a sweep across
-pages or widths, or a wide parametrization needs a contract important enough to pay
-for it. When a high-level browser test is slow, or fails on timing or geometry outside
-its contract, repair its arrangement or move its contract to the lower boundary.
+only where it proves boundaries working together. Before adding cases or steps, choose
+the smallest set that exposes distinct plausible failures beyond existing coverage.
+Retain a broad sweep only when its extra samples catch a failure that representative
+states or transitions miss; an investigation's sampling grid is not itself a regression
+requirement. Every run pays for the test's compute, so weigh the additional cost against
+the additional coverage. When a high-level browser test is slow, or fails on timing or
+geometry outside its contract, repair its arrangement or move its contract to the lower
+boundary.
 
 Each helper's docstring owns its contract, and code cites sections here by heading.
 
@@ -45,8 +47,9 @@ races are arrangements, not probabilities**), and fix that cause.
 
 The host supplies `wt`, `uv`, `jq` 1.6 or newer, and Node 22 or newer.
 `wt setup` installs Playwright's Chromium headless
-shell, WebKit, Firefox, and Chrome, the example assets, and the npm trees; `uv run` syncs
-Python.
+shell, WebKit, Firefox, and Chrome, their Linux system dependencies, the example assets,
+and the npm trees; `uv run` syncs Python. Cloud environments supply the host tools and
+fonts; checkout setup follows the same commands below.
 
 ```sh
 wt setup
@@ -87,7 +90,7 @@ diff.
 GitHub Actions on Ubuntu 24.04 is the Linux authority. Use the candidate's and base
 SHA's workflow runs for Linux-specific evidence; a local container is not that runner.
 The pull request's `test` job also owns the site build, Worker dry-run deploy, and
-`verify-site wrangler` delivery checks. Reserve local Docker runs for reproducing
+`verify-site website-worker` delivery checks. Reserve local Docker runs for reproducing
 concrete Worker/container failures. Wrangler's dry-run deploy builds the
 container image too, so it belongs to that same boundary.
 
@@ -101,9 +104,11 @@ File-side fixtures live in `interact_support.py`, browser fixtures in
 `tests/runtime/*.test.mjs` holds what one runtime module decides on its own, in the
 document `tests/runtime/dom.mjs` puts up; `build/browser/application.test.mjs` owns
 the publisher's composition of those folds. Both build served threads and workflows
-with `served.mjs` from what `served_records.py` folds through the server: a record
-that carries every field the server sends, with only the fields a case is about
-changed, or a whole reading where the case rests on how the server relates them.
+with `served.mjs` from what `served_records.py` folds through the server. The helper
+invokes that producer directly, including the shared admitted gesture sequence;
+there is no generated output to keep in sync. Each fixture carries every field the
+server sends, with only the fields a case is about changed, or a whole reading
+where the case rests on how the server relates them.
 `fixtures/pages/` holds full-page regressions under `examples/AGENTS.md`'s rules.
 
 A fold whose result rests on a platform primitive that differs between Node and
@@ -122,13 +127,12 @@ band a box shows, consume that answer instead of copying it: `root_overflow` for
 whether the page scrolls sideways, `draft_key` for where a draft is stored, and
 `event_log.read_events` for what the log holds. Page-side code reaches a runtime
 module through `window.__lfRuntimeImport`; a bare `/runtime/…` import loads a second
-instance that shares none of the page's module state.
+instance that shares none of the page's state.
 
-A corpus source gets its own case only when its content is the cause under test. Put
-a probe's independent faults on one composed page beside clean controls, assert the
-populations, then call the public gate once. A reading the layer makes from
-declarations runs on a widget that declares them, passed to `serve` as
-`layer_registry` and `layer_widgets`, rather than borrowing a shipped tag.
+A corpus source gets its own case only when its content is the cause under test. Put a
+probe's independent faults on one composed page beside clean controls and call the
+gate once. A reading the layer makes from declarations runs on a widget that declares
+them, passed to `serve` as `layer_registry` and `layer_widgets`.
 
 A test over prose compares it with something the machine states: a shown command
 against the click tree, an `x-` key against the guide, a table against its registry.
@@ -143,7 +147,7 @@ it; `document.body.focus()` does nothing, since body holds no stop. Read
 a ring's actual paint through `RINGS_DRAWN` and `ring_faults`, because an ancestor or
 linked carrier may draw it.
 
-## Fixtures own the world they create
+## Fixtures
 
 Every test runs under `isolated_session`, which moves the XDG state and Codex homes,
 clears an inherited App Server endpoint, and claims pages under the worker's pid;
@@ -153,12 +157,12 @@ environment in a test body.
 
 Choose the page fixture by boundary: `serve` for a complete page over real HTTP,
 `page_dir` for command-level files, `ModelPage` and `model_folds.py` for markup and a
-log put straight to admission or `browser_state`. Build fixture markup with
-`leaf_page`, and write a raw document only when source structure is the subject.
-`initialized_page` lends one prepared page per composition shape, with runtime and
-vendor hard-linked into it; a test of initialization crosses `page init` itself.
+log handed straight to admission or `browser_state`. Build markup with `leaf_page`, and
+write a raw document only when source structure is the subject. `initialized_page`
+lends one prepared page per composition shape, with runtime and vendor hard-linked in;
+a test of initialization runs `page init` itself.
 
-### A process the suite starts ends with the run
+### Processes and servers
 
 Many runs of the suite share one machine, from different worktrees and sessions, each
 with several workers. A process a test leaves running, or one that spends CPU while it
@@ -171,10 +175,10 @@ the session claim the worker holds, and a held process reads the worker's pipe.
 Take each resource from its owner: a child process from `spawn`, a page server from
 `_no_page_outlives_its_test`, a preview from `preview_slot` and `start_preview`, an
 in-process HTTP server from `running_http_server`, a Unix socket directory from
-`socket_dir`. `test_the_resources_a_fixture_owns_are_taken_from_that_fixture` enforces
-this. A test of a standing server stops it explicitly, and a `Popen` handle alone does
-not own a detached server's tree. A cleanup fixture takes the state home from
-`isolated_session`'s value and sweeps only it and `tmp_path`.
+`socket_dir` (`test_the_resources_a_fixture_owns_are_taken_from_that_fixture`). A test
+of a standing server stops it explicitly, since a `Popen` handle does not own a
+detached server's tree. The cleanup sweep reads only `isolated_session`'s state home
+and `tmp_path`, never the developer's.
 
 A process that waits for the test blocks reading a pipe the worker holds, as
 `session_process` does. The test releases it by closing the pipe, and the pipe also
@@ -192,22 +196,20 @@ Panel state and drafts live in `localStorage`, reading position in `sessionStora
 clear both for a first visit. Each `Browser.new_page` is its own context, so two tabs
 of one user share `one_user`.
 
-## Drive the browser a user gets
+## Driving the browser
 
-Drag selections with `select`; a synthetic `dispatchEvent` skips the event
-sequence the runtime listens to. `locator.click()` scrolls its target into view, so where the
-subject is a press's effect on scroll, scroll it into view first and read the baseline
-after.
+Drag selections with `select`; a synthetic `dispatchEvent` skips the event sequence
+the runtime listens to. `locator.click()` scrolls its target into view, so where a
+press's effect on scroll is the subject, scroll first and read the baseline after.
 
-Inject nothing to make observation easier. Traffic comes from the runtime's own
+Inject nothing to make observation easier: traffic comes from the runtime's own
 ledger, network conditions from `page.route`, errors from the browser fixture. An init
-script is justified only to record a sequence or an instant (see "Distinguish a frame,
-a sequence, and an instant"), and completion still comes from a fact visible outside
+script is justified only to record a sequence or an instant (see "Frames, sequences, and instants"), and completion still comes from a fact visible outside
 the page. A page the product opens for itself is the product's: `render_version`
 reports its errors as findings, so a gate test whose page is meant to be faulty hands
 over `browser.unwatched`.
 
-### Consume a browser error where it is caused
+### Browser errors
 
 The `browser` fixture instruments every page it makes and fails the test on any
 problem left at the end; do not install a second collector. Consume an expected fault
@@ -269,16 +271,12 @@ shrinks.
 
 Open pages through `open_page`, and call `wait_until_ready` (`leaf.render_checks`)
 after any manual navigation. It waits on the runtime's one readiness reading
-(`pageReadiness`): upgrade, replay, an `/api/state` answer the caller holds
-presented whole, current presentation, deferred arrivals, and settled rendering, in
-that order. `told` holds the answer the server gives now and asks only through the
-`state` stage, so it also answers behind a page held mid-gesture. They are independent facts, network quiet implies
-none of them, and a key pressed before replay can be lost silently. Never combine the
-stamps yourself, and never wait for a fixture's deferred widget by name; the arrived
-stage covers work an owner declares after presentation. Call `displayed` before a
-pre-runtime measurement.
+(`pageReadiness`), whose stages are independent: network quiet implies none of them,
+and a key pressed before replay can be lost silently. Never combine the stamps
+yourself or wait for a deferred widget by name. Call `displayed` before a pre-runtime
+measurement.
 
-## A wait consumes a fact the system states
+## Waits
 
 ### Functional results do not depend on execution speed
 
@@ -330,22 +328,23 @@ wait and `expect`, so it names no deadline unless it spans a page handover
 as `page.evaluate`, is bounded only by the per-test limit in `pyproject.toml`, which
 ends the worker with every thread's stack after half an hour.
 
-### A state the page passes through is not a state to poll for
+### Transient states
 
-Use `expect(...)` for a state that becomes stable and stays true. For a transient one,
-read once after the causal edge has completed; an auto-retrying assertion returns on
-the first matching frame even if the gesture goes on to another result. The edge
-helpers in `render_harness.py`:
+Use `expect(...)` for a state that becomes stable. For a transient one, read once after
+the causal edge has completed: an auto-retrying assertion returns on the first matching
+frame even if the gesture goes on to another result. The edge helpers in
+`render_harness.py`:
 
 - `sending` encloses a gesture whose own event the next read needs;
 - `round_trip` waits for delivery of everything sent, not for its application;
-- `told` waits until the page has applied what the server holds now;
+- `told` waits until the page has applied what the server holds now; call it after
+  changing a file behind a live page;
 - `nudge` gives the page a reason to read; `ticked` waits for its next tick;
 - `undo` presses `z` once it is offered and waits for the withdrawal's trip;
 - `rendered` (`leaf.render_checks`) waits for every repaint the input so far queued,
   and `shortcut_bar_text` reads the bar once after it;
-- `panel_settled`, `edge_settled`, `resized`, and `scroll_settled` end one kind of
-  motion.
+- `panel_settled`, `edge_settled`, and `resized` end their declared motion.
+  `scroll_settled` (`leaf_dev.browser`) waits for scroll completion.
 
 Choose a completion fact the gesture changes. An empty highlight registration or an
 optimistic `pending:` card satisfies an assertion early; wait for painted ranges
@@ -377,29 +376,29 @@ Chromium opened, observe the browser's record (`opened_tab`).
   still name the append, so arm listeners before the fetch, and call
   `page.unroute_all(behavior="wait")` before teardown even when the test fails.
 - `refuse` cancels without a console error; use a plain abort only when the error is
-  the subject. A standing refusal of `**/api/state*` keeps producing retries, and
+  the subject. A route that keeps refusing `**/api/state*` keeps producing retries, so
   `CutOff` holds state reads across a stale-state journey.
 
 Assert the ordering the route created, such as `Traffic.sends` before release, and for
-a stale state prove both the page's view and the server's newer one. Name an event
-from what the appending door returned (`append_event`, a model command, a CLI write's printed record); the
-log's tail may be a `read` an open page appended.
+a stale state prove both the page's view and the server's newer one. Name an
+event from what the appending door returned (`append_event`, a model command, a CLI
+write's printed record), since the log's tail may be a `read` an open page appended.
 
-### A test cannot assert over noise it makes itself
+### Test-made noise
 
-Instrumentation must not pollute the channel it asserts is quiet, which is why
-`refuse` uses the `aborted` reason. Assert a deliberate HTTP error through the
-collector's status-and-URL entry. Wrap a deliberate server interruption in
-`restarting`, and assert any diagnostic under test inside that block.
+Instrumentation must not pollute the channel it asserts is quiet; `refuse` uses the
+`aborted` reason for that. Assert a deliberate HTTP error through the collector's
+status-and-URL entry, and wrap a deliberate server interruption in `restarting`, with
+any diagnostic under test asserted inside that block.
 
-## Distinguish a frame, a sequence, and an instant
+## Frames, sequences, and instants
 
-A test must cross the transition that could reveal the fault; two reads within one
-final state say nothing about the motion between them.
+A test must cross the transition that could reveal the fault; two reads within one final
+state say nothing about the motion between them.
 
 - A frame is one held state. `HOLD_MOTION` pauses animations and `__lfHeld` lists what
   is still held; step or release each after the assertion.
-- A sequence is ordered evidence across frames, recorded inside the page only when
+- A sequence is ordered evidence across frames, recorded inside the page only when the
   intermediate order is the contract.
 - An instant exists within one rendering turn, such as layout when a stamp changes; a
   page-side observer captures it and the stamp marks completion.
@@ -436,21 +435,21 @@ boxes by its route. Run generated-markup probes (`undeclaredAttrs`,
 `relativeReplays`) through
 `leaf.render_checks.evaluate_probe` on fixtures that can trigger them.
 
-### An absence needs a control and a settled frame
+### Absences
 
 An absence asserted before the runtime's deferred step passes on the frame before the
-decision. Anchor it after the positive edge that would have caused the forbidden
-behavior, read once, and name a control that first produces the presence.
+decision. Read it once, after the positive edge that would have caused the forbidden
+behavior, and name a control that first produces the presence.
 
-### A sweep that walks controls by index must prove it pressed them
+### Sweeps over controls
 
 Pin the identities or count a sweep walks, before and after any reload, and assert a
 loop's declaration set is nonempty with every expected kind reached. Avoid a
 conditional assertion whose condition can vanish with the behavior.
 
-## Fail with the evidence needed to act
+## Failure messages
 
-Pair `capture_output=True` with `check=True` only when the exception is unpacked. A
-test that needs the streams asserts the return code and puts stdout and stderr in the
-message. Assert output by meaning: use `spoken` for the registry-backed reading,
-and match the attribute carrying a claim.
+Pair `capture_output=True` with `check=True` only when the exception is unpacked; a test
+that needs the streams asserts the return code and puts stdout and stderr in the
+message. Assert output by meaning: use `spoken` for the registry-backed reading, and
+match the attribute carrying a claim.

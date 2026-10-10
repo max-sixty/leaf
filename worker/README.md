@@ -54,6 +54,11 @@ Every ordinary visit and reload continues to use the edge document. The containe
 composes the private document against `/<page>/revisions/rN-<hash>/`, which is
 content-addressed over the document and its resources.
 
+The container image installs the prepared installation `leaf-dev site` built its
+pages with (`.tmp/site-install`), the tree consumer installs follow. A revision a
+hosted session writes therefore captures the compiled kernel the published revisions
+were built from, rather than the checkout's source modules.
+
 The deployment admits up to 5,990 concurrent `basic` containers. A prewarmed container
 with no interaction sleeps after ten idle minutes. After any page in a session is
 active, a visible active page holds its container through Leaf's finite freshness requests; a passive
@@ -328,8 +333,8 @@ debugging log. Live incidents use
 `wrangler tail`; historical incidents use the REST API or Cloudflare's Observability
 query builder.
 
-The local end-to-end journey (`leaf-dev journey local`) prints the same container
-records and leaves them at `.tmp/verify-site/run-*/website-agent-local.log` for a later
+The local end-to-end journey (`leaf-dev journey website-adapter`) prints the same
+container records and leaves them at `.tmp/verify-site/run-*/website-adapter.log` for a later
 agent to inspect. Each run builds its own site, binds an OS-assigned HTTP port, and gives
 each website harness a private App Server socket. It gives the child App
 Server a temporary plugin-free `CODEX_HOME` seeded with copies of the host login and

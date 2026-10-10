@@ -13,6 +13,13 @@ its URL with a status saying what you want back, and wait.
 Answer each delivered user move on the page and in its thread, stamp checkpoints,
 and idle the page when it is finished.
 
+Anything you need from the user must appear in **Questions**. Zero Questions
+means you need nothing from them now. Before handing over or waiting, read
+`leaf page state <page>` and reconcile `queues.on_you` (Questions) and
+`queues.on_agent` (Tasks) with the work and decisions still open.
+`references/conversation-loop.md`, "Questions and Tasks", owns what appears there
+and how to register each request.
+
 The input is a subject to present, or a delivery from a page already handed
 over: a named `leaf_delivery` tool output, a `leaf-delivery` element, or the
 envelope a `leaf wait` printed. A delivery starts at step 5 below; do
@@ -182,8 +189,8 @@ so a phase does not depend on discovering a chain of references.
 - `references/authoring-revisions.md`: before changing a handed-over page,
   proposing a rewrite, using a user-owned draft, or revising standing state.
 - `references/authoring-evidence.md`: before drawing a figure, or using measured
-  facts, diagrams, charts, source files, images, recordings, or before/after
-  captures.
+  facts, diagrams, charts, source files or text edits, images, recordings, or
+  before/after captures.
 
 ### First handoff
 

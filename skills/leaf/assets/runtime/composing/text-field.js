@@ -33,6 +33,8 @@
  * the clipboard's text, including text carried beside a picture.
  * `naturalBlockSize` reads the field's intrinsic border-box block size in CSS pixels,
  * before the host's block size or its minimum and maximum constrain the writing room.
+ * `writingInlineSize` reads the editor's allocated writing measure, including room
+ * reserved for its trailing action, in CSS pixels.
  *
  * The placeholder is a layer under the words, shown while the field is empty. It reads
  * the `placeholder` attribute, and a child in slot `placeholder` stands in its place when
@@ -593,11 +595,8 @@ class LeafText extends HTMLElement {
       .filter(Boolean);
   }
 
-  // A focus through the element puts the caret back where it stood, as a textarea's
-  // does. The platform, delegating, lands it at the start of the words; CodeMirror's own
-  // focus leaves the page's selection wherever the user last pressed when its record of
-  // the DOM selection predates that press, and then reads the platform's caret back as
-  // the user's. So the element writes the page's selection from the field's own.
+  // The editor adapter places its recorded caret without native scrolling. The
+  // field reveals itself separately when its caller requests ordinary focus.
   focus(options) {
     if (!canPlaceFocus()) return;
     if (!this.#view) return super.focus(options);
@@ -693,6 +692,11 @@ class LeafText extends HTMLElement {
       parseFloat(host.borderBlockStartWidth) +
       parseFloat(host.borderBlockEndWidth)
     );
+  }
+
+  get writingInlineSize() {
+    const frame = getComputedStyle(this.#frame);
+    return parseFloat(frame.inlineSize) + parseFloat(frame.paddingInlineEnd);
   }
 
   set value(text) {

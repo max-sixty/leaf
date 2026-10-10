@@ -32,7 +32,6 @@ from conftest import LEAF_COMMAND
 from interact_support import (
     COMPOSITE_TIMEOUT,
     PAGE,
-    PAGE_PACKAGES,
     STATED_TIMEOUT,
     TOKEN,
     append_carried_log_record,
@@ -45,6 +44,7 @@ from interact_support import (
     fetch,
     live_versions,
     neighbour_page,
+    page_packages,
     page_state,
     publish,
     read_page_data,
@@ -87,7 +87,6 @@ from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import server_rows as server_rows_model
 from leaf import service as service_model
-from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
@@ -121,6 +120,18 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
         fetch(f"{server}/api/interaction", data=b'{"session":"tab-1","entries":[]}')[0]
         == 400
     )
+    for entry in (
+        {"type": "interaction_part", "sequence": 1},
+        {"type": "keydown", "ts": 42},
+        {"type": "focusin", "target": [{}]},
+    ):
+        assert (
+            fetch(
+                f"{server}/api/interaction",
+                data=json.dumps({"session": "malformed", "entries": [entry]}).encode(),
+            )[0]
+            == 400
+        )
     assert (
         fetch(
             f"{server}/api/interaction", data=json.dumps(payload).encode(), token=None
@@ -185,7 +196,8 @@ def test_interaction_trace_is_writable_from_a_read_only_page_preview(page_dir):
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
         artifact_model.read_revision(page_dir, active["revision"]).document,
-        active,
+        active["revision"],
+        url=active["url"],
     )
     before = event_model.read_events(page_dir)
     with hosting_model.TemporaryPageServer(
@@ -255,21 +267,6 @@ def test_a_staged_write_moves_neither_the_page_nor_its_presence_reading(page_dir
     assert presence_model._page_stamp(page_dir) == presence_stamp
 
 
-def test_interaction_trace_does_not_keep_an_unattended_page_active(page_dir):
-    session_model.cmd_waiting(page_dir, "")
-    old = time.time() - schema_model.ACTIVITY_GRACE_SECS - 60
-    for entry in page_dir.iterdir():
-        os.utime(entry, (old, old))
-    claimed_at = datetime.fromtimestamp(old).astimezone().isoformat()
-    assert not service_model._touched_recently(page_dir, claimed_at)
-
-    interaction_model.append_interactions(page_dir, [{"source": "server"}])
-    assert not service_model._touched_recently(page_dir, claimed_at)
-
-    os.utime(page_dir / "status.json", None)
-    assert service_model._touched_recently(page_dir, claimed_at)
-
-
 def test_samples_use_captured_resources_and_independent_event_logs(server, page_dir):
     template = '<template id="practice" data-sample><h1>Practice</h1><p id="child-copy">Child text.</p><script type="module" src="/page/sample.js"></script></template>'
     (page_dir / "page").mkdir(exist_ok=True)
@@ -297,6 +294,7 @@ def test_samples_use_captured_resources_and_independent_event_logs(server, page_
     status, document = fetch(child + "/")
     assert status == 200, document
     assert b"Child text." in document
+    assert b"data-lf-share-url" not in document
     served = structure_model.SourceDocument(document.decode()).tree
     assert f'data-lf-page-root="{child.removeprefix(server)}"'.encode() in document
     assert "inert" in served.find("body").attrs
@@ -609,9 +607,7 @@ def test_frozen_preview_samples_use_snapshot_inputs_without_parent_writes(
         PAGE.replace("</main>", template + "</main>")
     )
     # The checked candidate is r2, absent from the mutable page's revision files.
-    snapshot = page_snapshot_model.capture_page_snapshot(
-        page_dir, document, {"revision": 2, "version": None, "url": "/"}
-    )
+    snapshot = page_snapshot_model.capture_page_snapshot(page_dir, document, 2, url="/")
     append_carried_log_record(
         page_dir,
         {
@@ -1579,10 +1575,35 @@ def test_server_round_trip(server, page_dir):
         cli_model.cli, ["page", "transcript", str(page_dir)]
     )
     assert "> § feeder-board · grip  — about the design" in transcript.output
+    status, _ = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {
+                "kind": "comment",
+                "revision": 2,
+                "text": "Keep this control readable",
+                "about": "design",
+                "anchor": {
+                    "section": "feeder-board",
+                    "part": "grip",
+                    "quote": "Remove",
+                },
+            }
+        ).encode(),
+    )
+    assert status == 200
+    transcript = CliRunner().invoke(
+        cli_model.cli, ["page", "transcript", str(page_dir)]
+    )
+    assert "> “Remove” · grip" in transcript.output
     drawing = {
-        "format": "leaf-drawing/2",
+        "format": "leaf-drawing/3",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
         "box": [640.5, 96],
+        "frame": {
+            "root": "figure",
+            "path": [{"tag": "svg", "index": 0, "siblings": 1}],
+        },
         "says": "to reap every process … before exporting",
         "viewport": [1280, 720],
         "scheme": "dark",
@@ -1680,7 +1701,7 @@ def test_server_round_trip(server, page_dir):
             "text": "x",
             "anchor": {"section": "feeder-board"},
             "drawing": {
-                "format": "leaf-drawing/2",
+                "format": "leaf-drawing/3",
                 "strokes": [[[10, 60]]],
             },
         },
@@ -1690,7 +1711,7 @@ def test_server_round_trip(server, page_dir):
             "text": "x",
             "anchor": {"section": "feeder-board"},
             "drawing": {
-                "format": "leaf-drawing/2",
+                "format": "leaf-drawing/3",
                 "strokes": [[[10], [50, 20]]],
             },
         },
@@ -1700,7 +1721,7 @@ def test_server_round_trip(server, page_dir):
             "text": "x",
             "anchor": {"section": "feeder-board"},
             "drawing": {
-                "format": "leaf-drawing/2",
+                "format": "leaf-drawing/3",
                 "strokes": [[[10, 60], [33554433, 20]]],
             },
         },
@@ -1717,6 +1738,15 @@ def test_server_round_trip(server, page_dir):
             "text": "x",
             "anchor": {"section": "feeder-board", "part": "Move"},
             "drawing": drawing,
+        },
+        {
+            "kind": "comment",
+            "revision": 2,
+            "anchor": {"section": "feeder-board"},
+            "drawing": {
+                **drawing,
+                "frame": {"root": "figure", "path": [{"tag": "svg", "index": 0}]},
+            },
         },
         {
             "kind": "comment",
@@ -3154,7 +3184,7 @@ def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring
             [
                 "page",
                 "init",
-                *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+                *package_selection_args((*page_packages(), "./.leaf")),
                 str(page_dir),
             ],
         )
@@ -3192,7 +3222,7 @@ def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring
             [
                 "page",
                 "init",
-                *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+                *package_selection_args((*page_packages(), "./.leaf")),
                 str(page_dir),
             ],
         )
@@ -4144,7 +4174,8 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
         artifact_model.read_revision(page_dir, active["revision"]).document,
-        active,
+        active["revision"],
+        url=active["url"],
     )
     preview = hosting_model.LeafHTTPServer(
         ("127.0.0.1", 0),
@@ -4371,7 +4402,8 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
         artifact_model.read_revision(page_dir, active["revision"]).document,
-        active,
+        active["revision"],
+        url=active["url"],
     )
     projection = served_service.PageStateService(
         page_dir, page_snapshot=snapshot
@@ -4457,7 +4489,8 @@ def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
         artifact_model.read_revision(page_dir, active["revision"]).document,
-        active,
+        active["revision"],
+        url=active["url"],
     )
     service = served_service.PageStateService(page_dir, page_snapshot=snapshot)
     before = service.page_state()
@@ -4478,6 +4511,8 @@ def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
     then = snapshot.through(picked["seq"]).context
     assert then.events[-1]["id"] == picked["id"]
     assert [version["version"] for version in then.versions] == [1]
+    assert then.active["version"] is None
+    assert then.active["label"] == "Draft after v1"
 
 
 def test_comparison_revision_reads_stay_inside_the_page_transaction(
@@ -4607,7 +4642,8 @@ def test_a_snapshot_holds_declared_data_media_with_the_current_value(
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
         artifact_model.read_revision(page_dir, active["revision"]).document,
-        active,
+        active["revision"],
+        url=active["url"],
     )
     assert set(snapshot.data_resources) == {urls[1]}
     assert snapshot.data_resources[urls[1]].data == second.read_bytes()
@@ -4644,7 +4680,8 @@ def test_a_snapshot_holds_declared_data_media_with_the_current_value(
     current = page_snapshot_model.capture_page_snapshot(
         page_dir,
         artifact_model.read_revision(page_dir, changed.revision).document,
-        {"revision": changed.revision, "version": None, "url": "/"},
+        changed.revision,
+        url="/",
     )
     assert current.data_resources == {}
     assert snapshot.data_resources[urls[1]].data == second.read_bytes()
@@ -4652,7 +4689,8 @@ def test_a_snapshot_holds_declared_data_media_with_the_current_value(
     revised = page_snapshot_model.capture_page_snapshot(
         page_dir,
         artifact_model.read_revision(page_dir, changed.revision).document,
-        {"revision": changed.revision, "version": None, "url": "/"},
+        changed.revision,
+        url="/",
     )
     assert set(revised.data_resources) == {urls[0]}
     assert revised.data_resources[urls[0]].data == first.read_bytes()
@@ -4674,7 +4712,8 @@ def test_a_preview_uses_the_validated_module_graph_after_a_later_edit(page_dir):
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
         checked.document,
-        {"revision": revision, "version": None, "url": "/"},
+        revision,
+        url="/",
         artifact=checked.artifact,
     )
     with hosting_model.TemporaryPageServer(
@@ -5248,18 +5287,26 @@ def test_server_bind_failure_preserves_the_real_socket_error(page_dir):
 
 
 def test_the_stated_host_wildcard_accepts_an_ipv4_user(page_dir):
-    """A stated host binds the wildcard of both families, so a v4 user reaches it.
+    """A stated host reaches IPv4 users, and IPv6 users where the kernel supports it.
 
     IPV6_V6ONLY is cleared before the bind; with it set, the address a `--host`
     serve records answers only the users who arrive over IPv6.
     """
+    ipv6 = socket.has_dualstack_ipv6()
     httpd = hosting_model.LeafHTTPServer(
         ("::", 0), http_model.page_endpoint(page_dir, TOKEN)
     )
-    assert httpd.socket.family == socket.AF_INET6
     with running_http_server(httpd):
+        assert httpd.socket.family == (socket.AF_INET6 if ipv6 else socket.AF_INET)
         port = httpd.server_address[1]
         assert fetch(f"http://127.0.0.1:{port}/api/state")[0] == 200
+        if ipv6:
+            client = http.client.HTTPConnection("::1", port, timeout=STATED_TIMEOUT)
+            try:
+                client.request("GET", f"/api/state?t={TOKEN}")
+                assert client.getresponse().status == 200
+            finally:
+                client.close()
 
 
 def test_the_stated_host_wildcard_binds_what_a_kernel_without_ipv6_has(
@@ -5288,11 +5335,11 @@ def test_the_stated_host_wildcard_binds_what_a_kernel_without_ipv6_has(
     httpd = hosting_model.LeafHTTPServer(
         ("::", 0), http_model.page_endpoint(page_dir, TOKEN)
     )
-    try:
+    with running_http_server(httpd):
         assert httpd.socket.family == socket.AF_INET
         assert httpd.server_address[0] == "0.0.0.0"
-    finally:
-        httpd.server_close()
+        port = httpd.server_address[1]
+        assert fetch(f"http://127.0.0.1:{port}/api/state")[0] == 200
 
 
 def test_the_address_and_key_outlive_the_session_that_first_served(
@@ -5432,8 +5479,7 @@ def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
     the sweep exactly like a page a test forgot: a held lease under an enabled
     service. The sweep once took its root from the environment before
     `isolated_session` had moved it, and stopped every such server on the
-    machine after every test (tests/AGENTS.md, "A process the suite starts ends
-    with the run").
+    machine after every test (tests/AGENTS.md, "Processes and servers").
 
     So a run is made against a home planted the way the developer's is, of the
     one test that leaves a page for the sweep. The planted page must come out as
@@ -5699,7 +5745,7 @@ def test_a_thread_predicate_cannot_follow_replayed_value_state(page_dir):
     """Thread seats are installed from authored predicates once. Refuse a
     declaration that would make replay and the POST hold gate disagree about one."""
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-task"]["x-thread-seat"]["when"] = {"status": ["blocked"]}
+    registry["lf-test-task"]["x-thread-seat"]["when"] = {"status": ["blocked"]}
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
@@ -5716,10 +5762,10 @@ def test_a_hold_comment_can_only_hold_its_declared_exact_section(server, page_di
     version.write_text(
         PAGE.replace(
             "</section>",
-            '<lf-tasks id="work"><lf-task id="goal" status="active" talk>'
-            "<strong>Goal</strong></lf-task>"
-            '<lf-task id="plain-goal" status="active"><strong>Plain</strong>'
-            "</lf-task></lf-tasks></section>",
+            '<lf-test-tasks id="work"><lf-test-task id="goal" status="active" talk>'
+            "<strong>Goal</strong></lf-test-task>"
+            '<lf-test-task id="plain-goal" status="active"><strong>Plain</strong>'
+            "</lf-test-task></lf-test-tasks></section>",
         )
     )
     publish(page_dir)

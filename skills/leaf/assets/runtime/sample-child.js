@@ -41,6 +41,16 @@ if (child) {
       sampleNotice("height", { height });
     }
   };
+  registerSampleCommand("window", async ({ window: asWindow }) => {
+    child.settings.window = asWindow;
+    document.documentElement.lfInitial.setRuntimeRootAttribute(
+      document.documentElement,
+      "data-lf-sample-block",
+      !child.settings.passive && !asWindow ? "" : null,
+    );
+    measure();
+    return { height };
+  });
   const inspect = () => {
     const error = document.documentElement.dataset.lfStartupError;
     if (error) sampleNotice("error", { message: error });
@@ -48,7 +58,7 @@ if (child) {
     presented = true;
     child.present();
     measure();
-    if (!child.settings.passive && !child.settings.window) {
+    if (!child.settings.passive) {
       const observer = new window.ResizeObserver(measure);
       observer.observe(document.body);
     }

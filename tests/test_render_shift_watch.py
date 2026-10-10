@@ -1602,6 +1602,49 @@ def test_a_press_in_the_page_holding_a_frame_is_input_to_it(browser):
     judge_watches()
 
 
+def test_disposing_a_frame_releases_parent_input_without_unwatching_its_sibling(
+    browser, serve
+):
+    """Removed documents stop reading parent edits; live siblings retain their sensor."""
+    child = """<div id="above"></div><p id="below">Below.</p><script>
+      const owner = parent, id = frameElement.id;
+      lfInputWork.subscribeEdits(() => owner.editCounts[id]++);
+    </script>"""
+    embedded = escape(child, quote=True)
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Frame lifetime",
+                '<script type="module">window.editCounts = {gone: 0, live: 0};</script>'
+                f'<iframe id="gone" srcdoc="{embedded}"></iframe>'
+                f'<iframe id="live" srcdoc="{embedded}"></iframe>'
+                '<textarea id="field"></textarea>'
+                "<button onclick=\"document.getElementById('gone').remove()\">Remove</button>",
+            )
+        ),
+    )
+    expect(page.frame_locator("#gone").locator("#below")).to_be_visible()
+    expect(page.frame_locator("#live").locator("#below")).to_be_visible()
+    page.locator("#field").fill("Before disposal.")
+    before = page.evaluate("editCounts")
+    assert before["gone"] > 0 and before["live"] > 0
+    page.get_by_role("button", name="Remove", exact=True).click()
+    expect(page.locator("#gone")).to_have_count(0)
+    page.locator("#field").fill("Still editing.")
+    judge_watches()
+    after = page.evaluate("editCounts")
+    assert after["gone"] == before["gone"]
+    assert after["live"] > before["live"]
+
+    # Input attribution must still reach a sibling. Its passive shift must also
+    # remain visible; dropping every child subscription would conceal that fault.
+    live = page.frame_locator("#live").locator("#above")
+    live.evaluate("element => { element.style.height = '40px'; }")
+    judge_watches()
+    consume_browser_errors(page, "#text in p#below moved without input")
+
+
 @pytest.mark.parametrize("surface", ["card", "panel", "inline"])
 def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
     browser, serve, surface
@@ -1614,9 +1657,9 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
     source = (
         leaf_page(
             "Inline task thread",
-            '<h1 id="title">Before the frost</h1><lf-command id="jobs" label="Jobs">'
-            '<lf-task id="bracket" status="active" talk>'
-            "<strong>Which jobs can share a visit?</strong></lf-task></lf-command>",
+            '<h1 id="title">Before the frost</h1><lf-test-plan id="jobs" label="Jobs">'
+            '<lf-test-task id="bracket" status="active" talk>'
+            "<strong>Which jobs can share a visit?</strong></lf-test-task></lf-test-plan>",
         )
         if surface == "inline"
         else ASK_PAGE
@@ -1919,23 +1962,32 @@ def test_native_modality_keeps_its_exposed_controls_in_place(
 
 @pytest.mark.parametrize("sticky", [False, True])
 @pytest.mark.parametrize("carry", [False, True])
+@pytest.mark.parametrize("slotted", [False, True])
 def test_typing_keeps_native_scroll_ownership_without_crediting_local_carry(
-    browser, sticky, carry
+    browser, sticky, carry, slotted
 ):
     position = "position:sticky;top:0" if sticky else ""
+    reading = f"""<div style="height:150px"></div>
+<header style="{position};height:50px">
+<textarea id="field" style="position:relative;top:0;display:block" rows="1"></textarea>
+</header><div style="height:700px">Following reading</div>"""
+    if slotted:
+        reading = f"""<div id="host"><section slot="reading">{reading}</section></div>
+<script>host.attachShadow({{mode:'open'}}).innerHTML =
+  '<div id="scroller" style="height:300px;overflow:auto;width:400px"><slot name="reading"></slot></div>';
+const scroller=host.shadowRoot.getElementById('scroller');</script>"""
+    else:
+        reading = f'<div id="scroller" style="height:300px;overflow:auto;width:400px">{reading}</div>'
     page = browser.new_page()
     page.goto(
         "data:text/html,"
         + quote(f"""<!doctype html><body style="margin:0">
-<div id="scroller" style="height:300px;overflow:auto;width:400px">
-<div style="height:150px"></div>
-<header style="{position};height:50px">
-<textarea id="field" style="position:relative;top:0;display:block" rows="1"></textarea>
-</header><div style="height:700px">Following reading</div></div>
+{reading}
 <p id="evidence" style="position:absolute;left:10px;top:400px">Painted source</p>
 <script>field.addEventListener('beforeinput', () => {{
   scroller.scrollTop += 6;
-  {'field.style.top = "20px"; evidence.style.left = "30px";' if carry else ""}
+  evidence.style.left = "30px";
+  {'field.style.top = "20px";' if carry else ""}
 }})</script></body>""")
     )
     page.evaluate("amount => scroller.scrollTop = amount", 170 if sticky else 100)

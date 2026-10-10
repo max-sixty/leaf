@@ -1,13 +1,13 @@
 # The Python side
 
-This directory is the project's module root, and `leaf/` is the package a harness
-installs. `leaf/__main__.py` is the CLI as `python -m leaf`, which `bin/leaf` and
-every leaf subprocess run; the `leaf` console script is the same entry. `leaf/cli.py`
-composes the commands and stays a facade: domain logic, and any branching across the
+`leaf/` is the package a harness installs. `leaf/cli.py` declares the commands, and
+`leaf/__main__.py` runs them as `python -m leaf`, the form `bin/leaf` and every leaf
+subprocess use. `cli.py` stays a facade: domain logic, and any branching across the
 owners below, belongs in the owning module.
 
-Each module owns one concern, and callers import the owning module directly. Each
-subpackage's initializer is only a marker, never a second API.
+Each module owns one concern and states its contract in its header. Callers import
+the owning module directly; a subpackage's initializer is only a marker, never a
+second API.
 
 ## Owners
 
@@ -17,6 +17,8 @@ subpackage's initializer is only a marker, never a second API.
 - `locations`: filesystem path identity, containment, and overlap;
 - `file_changes`: native subscriptions shared by page, session, and preview
   maintenance, with explicit ownership and canonical reads after notifications;
+- `file_bindings`: explicit local file grants, revision-checked writes, and
+  cross-page target locks, outside the page's event log;
 - `page_memory`: how long a process keeps what it read of a page: while the page is
   among the eight it read most recently;
 - `page`: vendored page instructions;
@@ -110,15 +112,16 @@ predecessor readings and automatic anchor relocation,
 
 ## Protocol references
 
-The references that own each boundary:
+Each boundary shared across modules or runtimes has its reference beside the code:
 
-- `leaf/page-storage.md` for page files and atomic state;
-- `leaf/events.md` for event shapes, threads, undo, edits, and reactions;
-- `leaf/layer-registry.md` for composition, vendoring, and layer generations;
-- `leaf/session-lifetime.md` for claims, watchers, and service lifetime;
-- `leaf/validation.md` for where each input is validated, static and browser checks,
+- `leaf/page-storage.md`: page files and atomic state;
+- `leaf/events.md`: what each event kind means, admission, threads, undo, edits, and
+  reactions;
+- `leaf/layer-registry.md`: composition, vendoring, and layer generations;
+- `leaf/session-lifetime.md`: claims, watchers, and service lifetime;
+- `leaf/validation.md`: where each input is validated, static and browser checks,
   parsed source, and file-side passages.
 
 `../references/packages.md` owns the public package contract, and
-`../assets/AGENTS.md` owns the browser's parallel projection, passage, registry, and
-render rules.
+`../assets/AGENTS.md` the browser's side of projection, passages, the registry,
+and rendering.

@@ -9,6 +9,7 @@
    question is the browser gate, which fails to parse every probe module at once. */
 export { LitElement, html, repeat } from "../vendor/browser-runtime.js";
 export { keyed, unsafeHTML } from "../vendor/lit.js";
+export { iconElement, iconTemplate } from "./icons.js";
 export { widgetController } from "./widget-controller.js";
 export { initialRender } from "./initial-render.js";
 export { watchOwner } from "./arrivals.js";
@@ -43,7 +44,7 @@ export {
 } from "./geometry.js";
 // Holding the user's place in a scroller whose contents a widget re-renders.
 export { placeKeeper } from "./user-place.js";
-export { inUi, uiInside, upFrom } from "./shadow.js";
+export { inUi, uiInside, upFrom, renderedParent } from "./shadow.js";
 // Putting the user on an element, saying what moved them there; holding their place,
 // caret included, across a move or re-render of the node they stand on, by key in a
 // list; where they stand and whether it is in a scope; recording where a layer opened
@@ -67,8 +68,18 @@ export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // Making an element's children a list, moving only what is out of place and keeping the
 // user standing in a node it moves.
 export { render, setChildren, setRenderedChildren } from "./dom-children.js";
-export { openAsks, watchAsks } from "./application.js";
-export { answersWithin } from "./asks/answer.js";
+export { readAsks, watchAsks } from "./asks/model.js";
+export {
+  readWork,
+  workRole,
+  workElements,
+  directWorkElements,
+  workAncestor,
+} from "./work.js";
+export { answersWithin, askAnswers } from "./asks/answer.js";
+export { readQueues, watchQueues, queueItemKey } from "./queue-api.js";
+export { queueTitle } from "./queue-title.js";
+export { queueActions } from "./application.js";
 export { registerVisualParts } from "./visual-parts.js";
 export {
   threadBox,
@@ -76,6 +87,7 @@ export {
   placePageThreads,
   consumeAnnotations,
   mountThreadViews,
+  registerThreadPresentation,
   threadActions,
 } from "./application.js";
 export { readThreads } from "./thread/state.js";
@@ -85,7 +97,7 @@ export { threadInput } from "./thread/landing.js";
 // Holding a region's rows the log or the clock decides while their growth would be seen
 // (assets/AGENTS.md, "Stability").
 export { HeldReading } from "./thread/held-news.js";
-export { landInThread, openThread } from "./application.js";
+export { landInThread } from "./application.js";
 export { wireInput } from "./application.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
 export { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
@@ -172,6 +184,7 @@ export { shadowStage } from "./shadow-stage.js";
 export { inBaseLayer } from "./stylesheets.js";
 export { revisionLabel, annotationMode } from "./context.js";
 export { loadDeferred, watchData } from "./data.js";
+export { boundFile } from "./file-api.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
 export {
   declarationFor,
@@ -196,11 +209,6 @@ export {
   isPagePaint,
   quietWord,
 } from "./presentation.js";
-export {
-  captureTargetReference,
-  resolveTargetReference,
-  targetCandidates,
-} from "./target-references.js";
 export { projectData } from "./application.js";
 export { copyCodeBlock } from "./code-copy.js";
 export { retainUserIntent } from "./user-intent.js";
@@ -232,6 +240,7 @@ export {
   reachedForWords,
   relabel,
   reserve,
+  searchField,
   selectableOffer,
   worksInside,
 } from "./widget-elements.js";

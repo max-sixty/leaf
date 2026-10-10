@@ -1,0 +1,13 @@
+{
+  "lf-conversation-workspace": {
+    "description": "A worked package reader sharing Leaf conversations and obligations.",
+    "type": "object",
+    "properties": { "id": { "type": "string" } },
+    "required": ["id"],
+    "additionalProperties": false,
+    "x-content": "empty",
+    "x-shadow": true,
+    "x-upgrade": true,
+    "x-example": "<lf-conversation-workspace id=\"reader-example\"></lf-conversation-workspace>"
+  }
+}

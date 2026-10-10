@@ -197,8 +197,7 @@ flowchart TD
   CLI -.- Dir
   Server -.- Dir
   class Dir dim
-</pre
-              >
+</pre>
             </lf-diagram>
             <ul id="architecture-parts">
               <li id="architecture-door">
@@ -661,8 +660,7 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
       Remind -. the agent acts, then ends again .-&gt; Stop
       class Hand,Remind goes
       class Ends ends
-    </pre
-                  >
+    </pre>
                 </lf-diagram>
                 <ul id="turn-end-rules">
                   <li id="turn-end-claim">
@@ -1244,8 +1242,7 @@ flowchart LR
   Turn --&gt; Beside
   Pickup --&gt; Beside
   class Pickup,Turn leaf
-</pre
-              >
+</pre>
             </lf-diagram>
 
             <h3 id="updates-written-heading">Written by the agent</h3>
@@ -1420,8 +1417,7 @@ flowchart TD
   Taking -- no --&gt; Stuck(["input stalled?"])
   Stuck -- yes --&gt; Nudge["Nudge Claude in terminal"]
   Stuck -- no --&gt; Away["Claude away"]
-</pre
-              >
+</pre>
             </lf-diagram>
             <p id="updates-believed">
               Leaf shows work as active when a start is still current, when the harness
@@ -3531,8 +3527,7 @@ flowchart TD
   Read --&gt; PageState["agent: leaf page state"]
   Browser -.- Local["this browser only: view state, drafts"]
   class Read computed
-</pre
-              >
+</pre>
             </lf-diagram>
             <p id="data-bookkeeping-lede">
               Leaf also records conversation and diagnostic information. These files
@@ -3762,8 +3757,7 @@ flowchart LR
   Server -- "answer, with a state reading" --&gt; Reading
   Server -- "GET /api/state when the freshness token changes" --&gt; Reading
   class Current computed
-</pre
-              >
+</pre>
             </lf-diagram>
             <p id="browser-one-reading">
               The runtime combines the three inputs in one place. Whenever one of them

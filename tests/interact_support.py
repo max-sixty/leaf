@@ -514,15 +514,19 @@ graph LR
 """
 
 
-# The fixture's own layer. PAGE holds an lf-diagram, and the interact suite borrows
-# lf-diagram and lf-diff declarations out of the vendored registry, so the selection
-# names the packages those three now travel in. The template cache is keyed by this
-# same list, so a page built for one selection is never handed to another.
-PAGE_PACKAGES = (
-    "~/" + COMMAND_HUB_PACKAGE.relative_to(Path.home()).as_posix(),
-    "diagram",
-    "diff",
-)
+def package_path(path: Path) -> str:
+    """Select a checkout fixture from the caller's cwd, wherever HOME lives."""
+    return "./" + os.path.relpath(path)
+
+
+def page_packages() -> tuple[str, ...]:
+    """The integration page's package selection, resolved where it is initialized.
+
+    PAGE holds an lf-diagram, and the interact suite borrows lf-diagram and
+    lf-diff declarations from the vendored registry. The template cache names
+    this composition so one selection is never handed to another.
+    """
+    return (package_path(COMMAND_HUB_PACKAGE), "diagram", "diff")
 
 
 @pytest.fixture
@@ -537,14 +541,14 @@ def page_dir(tmp_path, monkeypatch, initialized_page):
             [
                 "page",
                 "init",
-                *(arg for name in PAGE_PACKAGES for arg in ("--package", name)),
+                *(arg for name in page_packages() for arg in ("--package", name)),
                 str(template),
             ],
         )
         assert result.exit_code == 0, result.output
         (template / "index.html").write_text(PAGE)
 
-    initialized_page("work-" + "-".join(PAGE_PACKAGES[1:]), d, initialize)
+    initialized_page("work-" + "-".join(page_packages()[1:]), d, initialize)
     return d
 
 
@@ -1001,7 +1005,7 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
 
     def init_result():
         try:
-            vendoring_model.cmd_init(page_dir, selected=(*PAGE_PACKAGES, "./.leaf"))
+            vendoring_model.cmd_init(page_dir, selected=(*page_packages(), "./.leaf"))
         except SystemExit as error:
             return str(error)
         return None

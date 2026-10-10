@@ -27,6 +27,11 @@ query private chrome, or duplicate a runtime helper inside itself. Resolve canon
 generated images or links. It uses the page's public root across ordinary and
 published pages while the source retains its canonical path.
 
+Use `searchField(className, {name, label, placeholder = label})` for a search or
+filter field. It supplies the shared frame, accessible label, native editor and
+Clear; the caller owns its query and results. Put an auxiliary reading such as a
+match count in its `end` slot and reserve its longest value with `reserve`.
+
 For a vertical navigation that must retain sideways reading, use
 `scrollIntoReadingBand(target, holder, block, behavior)`: `target` is an element or
 Range, and `holder` is the element whose reading regions contain it. Element targets
@@ -873,6 +878,22 @@ publishes the source revision as ready only after the projection settles. A reje
 is that subscriber's page error and does not make later state reads repeat the
 page-wide failure. A rejection from the callback's first run permanently ends that
 registration.
+
+## Editing a bound file
+
+`boundFile(binding)` returns the transport for a file explicitly granted to this
+page with `leaf file bind`. Its `read()` returns `{label, text, revision, newline,
+bytes}`; `save({revision, text})` checks that exact revision before writing and
+returns the submitted snapshot. A stale save throws an error whose `current`
+holds the newer file. Other errors carry a message and leave the caller's buffer
+alone. `text` uses LF line endings; the host preserves the file's LF or CRLF form.
+
+The `writable` property is false in captured documents and exports. The transport
+owns page-relative routing and delivery checks; a widget never names a host path.
+The file remains external filesystem state: editing it does not append a Leaf
+action or participate in page Undo. CodeMirror owns editing history. Use the
+`file-editor` package's `lf-file` for this interface; use `lf-code` for a portable
+snapshot that should travel with the page.
 
 ## Reading and opening Threads from a widget
 

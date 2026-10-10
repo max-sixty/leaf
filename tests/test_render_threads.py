@@ -9908,6 +9908,76 @@ def pressed_send_surface(browser, serve, surface):
     return page, box, send, after, reply
 
 
+@pytest.mark.parametrize("touch", [False, True], ids=["desktop", "touch"])
+def test_contextual_messages_share_text_spacing_through_send_and_reopen(
+    browser, serve, touch
+):
+    """Every contextual turn uses the same header and paragraph spacing.
+
+    Opening a pre-existing thread misses the comment-to-message handoff. Measure
+    the actual first text line, since the retained viewport can pad inside a body
+    whose outer gap is already correct.
+    """
+    context = browser.new_context(has_touch=touch, is_mobile=touch)
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Message spacing",
+                '<h1>Review</h1><p id="target">A passage to discuss.</p>',
+            )
+        ),
+        context=context,
+    )
+    resized(page, 390 if touch else 1440, 900)
+    page.locator("#target").click(modifiers=["Alt"])
+    box = page.locator(".lf-fab-input")
+    box.click()
+    text = "First paragraph.\nIts second line.  \nIts third line.\n\nSecond paragraph.\n\n# A heading"
+    write(box, text)
+    with sending(page, "the opening comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_have_attribute(
+        "data-lf-comment-frame", "every-line" if touch else "last-line"
+    )
+    reply = preview.get_by_role("textbox", name="Reply", exact=True)
+    write(reply, text)
+    with sending(page, "the follow-up reply"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    expect(preview.locator(".lf-msg")).to_have_count(2)
+    for paragraph in preview.locator(".lf-msg-text > p:first-child").all():
+        assert paragraph.inner_text() == text.split("\n\n")[0].replace("  \n", "\n")
+    for message in preview.locator(".lf-msg").all():
+        body = message.locator(".lf-msg-body")
+        for property in ("font-size", "line-height"):
+            expect(message.locator("h1")).to_have_css(
+                property,
+                body.evaluate("(node, key) => getComputedStyle(node)[key]", property),
+            )
+    rendered(page)
+    preview.locator(".lf-thread-transcript").evaluate("node => { node.scrollTop = 0; }")
+    scroll_settled(page, ".lf-margin-preview .lf-thread-transcript")
+    measure_gaps = """messages => messages.map(message => {
+      const name = message.querySelector('.lf-msg-head b').getBoundingClientRect();
+      const paragraphs = message.querySelectorAll('.lf-msg-text p');
+      const range = document.createRange();
+      range.selectNodeContents(paragraphs[0]);
+      const firstLine = range.getClientRects()[0].top;
+      range.selectNodeContents(paragraphs[1]);
+      return [firstLine - name.bottom, range.getClientRects()[0].top - firstLine];
+    })"""
+    gaps = preview.locator(".lf-msg").evaluate_all(measure_gaps)
+    assert gaps[0] == pytest.approx(gaps[1], abs=0.1), gaps
+    page.locator(".lf-margin-preview-close").click()
+    expect(preview).to_be_hidden()
+    page.locator(".lf-margin-marker").click()
+    expect(preview).to_be_visible()
+    reopened = preview.locator(".lf-msg").evaluate_all(measure_gaps)
+    for before, after in zip(gaps, reopened, strict=True):
+        assert after == pytest.approx(before, abs=0.1), (gaps, reopened)
+
+
 @pytest.mark.parametrize(
     "surface",
     ["general", "panel", "card", "composer", "composer-panel", "composer-widget"],

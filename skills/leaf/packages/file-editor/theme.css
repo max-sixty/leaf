@@ -1,0 +1,19 @@
+/* The optional file editor reserves its frame before CodeMirror arrives. Internal
+ * presentation belongs to shadow.css, alongside the registered shadow stage. */
+:scope:is(lf-file) {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  block-size: calc(var(--lf-file-height) + 2.5rem);
+  margin-block: 1rem;
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--card);
+  overflow: clip;
+  font-family: var(--sans);
+  --lf-file-height: clamp(24rem, 60vh, 42rem);
+  --lf-file-size: .88rem;
+}
+.lf-file-opening { padding: .75rem 1rem; color: var(--muted); }
+@media (max-width: 36rem) {
+  :scope:is(lf-file) { --lf-file-height: max(22rem, 60vh); --lf-file-size: .82rem; }
+}

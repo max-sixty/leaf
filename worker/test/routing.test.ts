@@ -155,37 +155,29 @@ describe("website page routing", () => {
     expect(isPrivatePageRequest("/examples/triage-board/api/state")).toBe(false);
   });
 
-  it("marks private state for only the page that owns it", () => {
+  it("marks private state for only its page and release", () => {
     const root = "/examples/triage-board";
-    expect(
-      activeFromCookie(
-        `${ACTIVE_COOKIE_PREFIX}-page-examples_triage-board=1`,
-        true,
-        root,
-      ),
-    ).toBe(true);
-    expect(
-      activeFromCookie(
-        `${HTTP_ACTIVE_COOKIE_PREFIX}-page-examples_triage-board=1`,
-        false,
-        root,
-      ),
-    ).toBe(true);
-    expect(
-      activeFromCookie(
-        `${HTTP_ACTIVE_COOKIE_PREFIX}-page-examples_triage-board=1`,
-        true,
-        root,
-      ),
-    ).toBe(false);
-    expect(activeFromCookie(`${ACTIVE_COOKIE_PREFIX}-root=1`, true, root)).toBe(false);
-    expect(activeFromCookie(`${ACTIVE_COOKIE_PREFIX}=1`, true, root)).toBe(false);
-    expect(activeFromCookie(null, true, root)).toBe(false);
-    expect(activeCookie(true, root)).toBe(
-      `${ACTIVE_COOKIE_PREFIX}-page-examples_triage-board=1; Path=/; Secure; HttpOnly; SameSite=Lax`,
+    const release = manifest.release;
+    expect(activeFromCookie(
+      `${ACTIVE_COOKIE_PREFIX}-page-examples_triage-board=${release}`, true, root, release,
+    )).toBe(true);
+    expect(activeFromCookie(
+      `${HTTP_ACTIVE_COOKIE_PREFIX}-page-examples_triage-board=${release}`, false, root, release,
+    )).toBe(true);
+    expect(activeFromCookie(
+      `${HTTP_ACTIVE_COOKIE_PREFIX}-page-examples_triage-board=${release}`, true, root, release,
+    )).toBe(false);
+    expect(activeFromCookie(
+      `${ACTIVE_COOKIE_PREFIX}-page-examples_triage-board=${"b".repeat(64)}`, true, root, release,
+    )).toBe(false);
+    expect(activeFromCookie(`${ACTIVE_COOKIE_PREFIX}-root=${release}`, true, root, release)).toBe(false);
+    expect(activeFromCookie(`${ACTIVE_COOKIE_PREFIX}=${release}`, true, root, release)).toBe(false);
+    expect(activeFromCookie(null, true, root, release)).toBe(false);
+    expect(activeCookie(true, root, release)).toBe(
+      `${ACTIVE_COOKIE_PREFIX}-page-examples_triage-board=${release}; Path=/; Secure; HttpOnly; SameSite=Lax`,
     );
-    expect(activeCookie(false, "/")).toBe(
-      `${HTTP_ACTIVE_COOKIE_PREFIX}-root=1; Path=/; HttpOnly; SameSite=Lax`,
+    expect(activeCookie(false, "/", release)).toBe(
+      `${HTTP_ACTIVE_COOKIE_PREFIX}-root=${release}; Path=/; HttpOnly; SameSite=Lax`,
     );
   });
 

@@ -138,7 +138,8 @@ other page files and the external state listed below.
 - `viewed.json` — last visible browser attention, written by the server and absent until
   first viewed. `http.py` owns throttled renewal; hidden tabs do not renew it.
 
-- `cursor.json` — acknowledged position in this page's event log. Acknowledgement and
+- `cursor.json` — durable acknowledged position in this page's event log, retained
+  with that log when its serving process is replaced. Acknowledgement and
   log replacement rules are defined in [session-lifetime.md](session-lifetime.md).
 
 - `preview.json` — the preview identity browser chrome labels, written by

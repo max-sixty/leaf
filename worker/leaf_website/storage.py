@@ -15,10 +15,12 @@ import os
 import shutil
 import ssl
 import urllib.request
-from dataclasses import replace
+from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from pathlib import Path
+from tempfile import TemporaryFile
 from types import SimpleNamespace
+from typing import BinaryIO
 from urllib.parse import urlencode, urlsplit
 
 from leaf.data import deferred_records
@@ -28,7 +30,12 @@ from leaf.page_snapshot import capture_page_snapshot
 from leaf.revision_artifact import read_revision
 from leaf.revision_delivery import DeliveryAddress, delivered_resource
 from leaf.revisioning import activate_source
-from leaf.schema import UNNAMED_AGENT
+from leaf.schema import (
+    PAGE_OWNED_DIRS,
+    PAGE_OWNED_FILES,
+    PAGE_PROCESS_FILES,
+    UNNAMED_AGENT,
+)
 from leaf.service import PageTransaction
 from leaf.state import page_key, write_json
 from starlette.requests import Request
@@ -61,21 +68,28 @@ def _request(path: str, payload: dict | bytes | None = None) -> dict | bytes:
         return response.read() if binary else json.load(response)
 
 
-def _chunks(data: bytes) -> dict:
-    """Upload immutable chunks once per container, including agent subprocesses."""
-    store = hashlib.sha256(os.environ["LEAF_PAGE_STORE_URL"].encode()).hexdigest()
-    uploaded = state_home() / "website-blobs" / store
-    uploaded.mkdir(parents=True, exist_ok=True)
-    result = []
-    for offset in range(0, len(data), CHUNK_BYTES):
-        chunk = data[offset : offset + CHUNK_BYTES]
-        digest = hashlib.sha256(chunk).hexdigest()
-        receipt = uploaded / digest
-        if not receipt.exists():
-            _request(f"/blobs/{digest}", chunk)
-            receipt.touch()
-        result.append(digest)
-    return {"chunks": result}
+@dataclass
+class _BlobSet:
+    """One publication's unique chunk bytes, spooled without retaining media history."""
+
+    buffer: BinaryIO
+    offsets: dict[str, tuple[int, int]] = field(default_factory=dict)
+
+    def chunks(self, data: bytes) -> dict:
+        result = []
+        for offset in range(0, len(data), CHUNK_BYTES):
+            chunk = data[offset : offset + CHUNK_BYTES]
+            digest = hashlib.sha256(chunk).hexdigest()
+            if digest not in self.offsets:
+                self.offsets[digest] = (self.buffer.tell(), len(chunk))
+                self.buffer.write(chunk)
+            result.append(digest)
+        return {"chunks": result}
+
+    def body(self, digest: str) -> bytes:
+        offset, length = self.offsets[digest]
+        self.buffer.seek(offset)
+        return self.buffer.read(length)
 
 
 def restore(site_root: Path) -> None:
@@ -100,19 +114,19 @@ def restore(site_root: Path) -> None:
                 raise ValueError("invalid stored page record path")
             if "asset" in content:
                 source = (directory / content["asset"]).resolve()
-                if not target.is_relative_to(
-                    directory / "revisions"
-                ) or not source.is_relative_to(directory / "revisions"):
+                if not source.is_relative_to(directory / "revisions"):
                     raise ValueError("invalid stored page resource reference")
                 links.append((source, target))
             else:
                 targets.append((content["chunks"], target))
         # These trees are complete inputs, not patches over the release.
         # Replacing them also preserves deletion of a published input.
-        for name in ("page", "media", "data"):
+        for name in PAGE_OWNED_DIRS:
+            if name == "revisions":
+                continue
             if (directory / name).exists():
                 shutil.rmtree(directory / name)
-        for name in ("data.json", "files.json"):
+        for name in PAGE_OWNED_FILES:
             (directory / name).unlink(missing_ok=True)
         for chunks, target in targets:
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -122,17 +136,22 @@ def restore(site_root: Path) -> None:
         for source, target in links:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.unlink(missing_ok=True)
-            os.link(source, target)
+            if target.is_relative_to(directory / "revisions"):
+                os.link(source, target)
+            else:
+                shutil.copyfile(source, target)
     os.environ["LEAF_PAGE_COMMIT"] = "leaf_website.storage:publish"
 
 
 def _record_files(page_dir: Path, published: set[int]) -> list[Path]:
     files = [
-        page_dir / name
-        for name in ("index.html", "events.jsonl", "data.json", "files.json")
+        page_dir / name for name in PAGE_OWNED_FILES if name not in PAGE_PROCESS_FILES
     ]
-    for name in ("page", "media", "data"):
-        files.extend(path for path in (page_dir / name).rglob("*") if path.is_file())
+    for name in PAGE_OWNED_DIRS:
+        if name != "revisions":
+            files.extend(
+                path for path in (page_dir / name).rglob("*") if path.is_file()
+            )
     for path in (page_dir / "revisions").glob("r*-*"):
         # Published revisions already live in the same release's image. Only the
         # private additions belong to the per-session durable record.
@@ -156,19 +175,17 @@ def _baseline_files(page_dir: Path, published: tuple[int, ...]) -> dict[bytes, s
     return result
 
 
-def _record(page_dir: Path, files: list[Path], published: set[int]) -> dict:
+def _record(
+    page_dir: Path, files: list[Path], published: set[int], blobs: _BlobSet
+) -> dict:
     baseline = _baseline_files(page_dir, tuple(sorted(published)))
     record = {}
     for path in files:
         name = path.relative_to(page_dir).as_posix()
         data = path.read_bytes()
-        source = (
-            baseline.get(hashlib.sha256(data).digest())
-            if name.startswith("revisions/")
-            else None
-        )
-        record[name] = {"asset": source} if source is not None else _chunks(data)
-    return _chunks(json.dumps(record, separators=(",", ":")).encode())
+        source = baseline.get(hashlib.sha256(data).digest())
+        record[name] = {"asset": source} if source is not None else blobs.chunks(data)
+    return blobs.chunks(json.dumps(record, separators=(",", ":")).encode())
 
 
 def _responses(
@@ -177,6 +194,7 @@ def _responses(
     manifest: dict,
     root: str,
     source_error: str | None,
+    blobs: _BlobSet,
 ) -> dict:
     from leaf_website import WebsitePageEndpoint
 
@@ -315,7 +333,7 @@ def _responses(
             **(
                 {"asset": asset_aliases[path]}
                 if path in asset_aliases
-                else _chunks(response.body)
+                else blobs.chunks(response.body)
             ),
         }
     return result
@@ -358,18 +376,26 @@ def publish(page: PageTransaction) -> None:
     token = state_home() / "website-publications" / f"{page_key(page.page_dir)}.json"
     if token.is_file() and json.loads(token.read_text())["fingerprint"] == fingerprint:
         return
-    record = _record(
-        page.page_dir, files, set(map(int, manifest["pages"][root]["states"]))
-    )
-    responses = _responses(page, site_root, manifest, root, activation.error)
-    _request(
-        "/publication",
-        {
-            "root": root,
-            "release": manifest["release"],
-            "record": record,
-            "responses": responses,
-        },
-    )
+    with TemporaryFile() as buffer:
+        blobs = _BlobSet(buffer)
+        record = _record(
+            page.page_dir,
+            files,
+            set(map(int, manifest["pages"][root]["states"])),
+            blobs,
+        )
+        responses = _responses(page, site_root, manifest, root, activation.error, blobs)
+        missing = _request("/missing", {"digests": list(blobs.offsets)})["missing"]
+        for digest in missing:
+            _request(f"/blobs/{digest}", blobs.body(digest))
+        _request(
+            "/publication",
+            {
+                "root": root,
+                "release": manifest["release"],
+                "record": record,
+                "responses": responses,
+            },
+        )
     token.parent.mkdir(parents=True, exist_ok=True)
     write_json(token, {"fingerprint": fingerprint})

@@ -22,7 +22,7 @@ import {
 export { ContainerProxy } from "@cloudflare/containers";
 import { type DurableObject } from "cloudflare:workers";
 import * as z from "zod/mini";
-import { CHUNK_BYTES, PageStore, readPublication, type PagePublication } from "./storage";
+import { CHUNK_BYTES, PageStore, readDigests, readPublication, type PagePublication } from "./storage";
 
 import {
   activeCookie,
@@ -293,6 +293,10 @@ export class LeafWebsiteSession extends Container<Env> {
     return this.pages.blob(digest);
   }
 
+  missingBlobs(value: unknown): string[] {
+    return this.pages.missing(readDigests(value));
+  }
+
   async savePublication(value: unknown): Promise<void> {
     const publication = readPublication(value);
     const manifest = await siteManifest(new Request("https://leaf.page/"), this.env);
@@ -492,6 +496,9 @@ LeafWebsiteSession.outboundByHost = {
     const path = new URL(request.url).pathname;
     if (request.method === "GET" && path === "/records") {
       return Response.json(await session.savedRecords());
+    }
+    if (request.method === "PUT" && path === "/missing") {
+      return Response.json({ missing: await session.missingBlobs(await request.json()) });
     }
     const blob = /^\/blobs\/([0-9a-f]{64})$/.exec(path);
     if (blob !== null && request.method === "PUT") {
@@ -1066,7 +1073,7 @@ export default {
     const secure = url.protocol === "https:";
     const cookie = request.headers.get("Cookie");
     const existing = sessionFromCookie(cookie, secure);
-    const active = activeFromCookie(cookie, secure, route.root);
+    const active = activeFromCookie(cookie, secure, route.root, manifest.release);
     const sessionId = existing ?? randomSessionId();
     const privateContainer = containerId(sessionId, manifest.release);
     const reference = sessionReference(sessionId);
@@ -1165,7 +1172,7 @@ export default {
     if (existing === null) {
       headers.append("Set-Cookie", sessionCookie(sessionId, secure));
     }
-    if (!active) headers.append("Set-Cookie", activeCookie(secure, route.root));
+    if (!active) headers.append("Set-Cookie", activeCookie(secure, route.root, manifest.release));
     if (response.headers.get("Content-Type")?.startsWith("text/html")) {
       headers.set("Server-Timing", `leaf;dur=${Date.now() - requestStarted}`);
     }

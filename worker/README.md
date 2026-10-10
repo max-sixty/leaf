@@ -4,8 +4,9 @@
 
 Cloudflare serves untouched product and example pages from `.tmp/site-assets`.
 The HTML response issues a secure, HTTP-only browser identity cookie. A page-specific
-active cookie selects that page's private record; changing one page does not activate
-another. The existing session Durable Object stores the page's canonical files and
+active cookie names the current release and selects that page's private record;
+changing one page does not activate another, and a deployment returns to edge delivery.
+The existing session Durable Object stores the page's canonical files and
 Python-produced delivery publication. When its container is stopped, saved comments,
 choices, the private document and its resources are served from that publication.
 Reading a page, polling for changes and reporting optional browser geometry do not
@@ -15,11 +16,16 @@ projection implementation; stored responses never become fold inputs.
 
 `leaf_website.storage` publishes at successful `PageTransaction` completion under its
 append lease, including transactions in agent CLI subprocesses. The record and its
-matching dormant responses commit atomically before acknowledgement. Private bundles
+matching dormant responses commit atomically before acknowledgement. The canonical
+page layout defines the record, including the event log and its acknowledgement
+cursor, the installed browser layer, package instructions and authored inputs.
+Process leases, status and browser diagnostics are disposable. Private bundles
 reuse unchanged resources from this release's image; new resource bytes are stored
-once as content-addressed chunks. Python uploads each bounded chunk before publishing
-the manifest, and the Durable Object streams stored bodies without buffering the
-page's complete media history. Unchanged transactions make no storage request.
+once as content-addressed chunks. Each changed publication negotiates missing
+digests with the Durable Object, uploads only those bounded chunks, then publishes
+the manifest. The Durable Object owns the blob inventory across container and CLI
+process replacements and streams stored bodies without buffering the page's complete
+media history. Unchanged transactions make no storage request.
 A failed publication fails the request; an idempotent browser retry
 can finish it. Dormant activity is computed in Python without process evidence, and
 immutable publications schedule no activity transitions. Delivery stamps `taken`

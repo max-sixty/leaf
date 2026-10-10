@@ -14,6 +14,7 @@ from ..files import STAGED, entry_stamps, file_stamp
 from ..schema import (
     DATA_DIR,
     INTERACTIONS_FILE,
+    LOG_STATE_FILES,
     SESSION_FILES,
     USER_VIEWS_FILE,
     USER_VIEWS_LOCK,
@@ -86,14 +87,16 @@ def source_readings(page_dir: Path) -> tuple[str, str]:
     """The page's reading split in two: its source, and its history.
 
     The same stamps `page_reading` takes, less the claim and the session files
-    (`SESSION_FILES`), which say who is working on the page rather than what it is.
+    (`SESSION_FILES`), and its log acknowledgement (`LOG_STATE_FILES`).
     History is `HISTORY`; source is every other stamp, so a file nothing names here
     counts as source and moves the activation it could change. Leaving the session
     out is what lets an agent declare its status, acknowledge a delivery, or take a
     wait without the next state read validating the whole page again.
     """
     stamps = [
-        stamp for stamp in _page_stamps(page_dir) if stamp[0] not in SESSION_FILES
+        stamp
+        for stamp in _page_stamps(page_dir)
+        if stamp[0] not in (*SESSION_FILES, *LOG_STATE_FILES)
     ]
     return (
         _token([stamp for stamp in stamps if stamp[0] not in HISTORY]),

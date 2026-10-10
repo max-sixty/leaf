@@ -145,7 +145,7 @@ const startupReport = (overrides: Record<string, unknown> = {}) => ({
 });
 const cookieKey = (root: string) =>
   root === "/" ? "root" : `page-${root.slice(1).replaceAll("/", "_")}`;
-const activeMarker = (root: string) => `__Host-leaf-active-${cookieKey(root)}=1`;
+const activeMarker = (root: string, release = RELEASE) => `__Host-leaf-active-${cookieKey(root)}=${release}`;
 const containerId = (sessionId: string) => `${RELEASE}:${sessionId}`;
 
 function environment(overrides: Partial<Env> = {}): Env {
@@ -972,6 +972,27 @@ describe("product-site delivery", () => {
     expect(getContainer).not.toHaveBeenCalled();
   });
 
+  it("keeps an earlier release's active page passive after deployment", async () => {
+    const sessionId = "1c".repeat(16);
+    const cookie = `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board", "b".repeat(64))}`;
+    const env = environment({ ASSETS: {
+      fetch: async () => new Response("<!doctype html><title>New published release</title>", {
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      }),
+    } as unknown as Fetcher });
+    const document = await worker.fetch(new Request("https://leaf.page/examples/triage-board/", {
+      headers: { Cookie: cookie },
+    }), env);
+    expect(await document.text()).toContain("New published release");
+    expect(document.headers.get("Leaf-Release")).toBe(RELEASE);
+    const state = await worker.fetch(new Request("https://leaf.page/examples/triage-board/api/state", {
+      headers: { Cookie: cookie },
+    }), env);
+    expect(state.headers.get("Leaf-Session")).toBe("passive");
+    expect(await state.json()).toMatchObject({ reading: "published", release: RELEASE });
+    expect(getContainer).not.toHaveBeenCalled();
+  });
+
   it("activates a container for a private read the edge cannot answer", async () => {
     const sessionId = "1b".repeat(16);
     const containerFetch = vi.fn(async () =>
@@ -994,7 +1015,7 @@ describe("product-site delivery", () => {
     expect(response.headers.get("Leaf-Session")).toBe("active");
     expect(response.headers.get("Leaf-Session-Reference")).toBe("610422516507");
     expect(response.headers.get("Set-Cookie")).toBe(
-      "__Host-leaf-active-page-examples_triage-board=1; Path=/; Secure; HttpOnly; SameSite=Lax",
+      `__Host-leaf-active-page-examples_triage-board=${RELEASE}; Path=/; Secure; HttpOnly; SameSite=Lax`,
     );
   });
 
@@ -1041,7 +1062,7 @@ describe("product-site delivery", () => {
       expect(response.headers.get("Leaf-Session")).toBe("active");
       expect(response.headers.get("Leaf-Session-Reference")).toBe(reference);
       expect(response.headers.get("Set-Cookie")).toBe(
-        "__Host-leaf-active-page-examples_triage-board=1; Path=/; Secure; HttpOnly; SameSite=Lax",
+        `__Host-leaf-active-page-examples_triage-board=${RELEASE}; Path=/; Secure; HttpOnly; SameSite=Lax`,
       );
     }
   });
@@ -1216,10 +1237,16 @@ describe("website page agent", () => {
       const bytes = new TextEncoder().encode("private saved bytes");
       const digest = Buffer.from(await crypto.subtle.digest("SHA-256", bytes)).toString("hex");
       const context = { containerId: "trusted-owner", className: "LeafWebsiteSession" };
+      const absent = "f".repeat(64);
+      const missing = () => handler(new Request("https://leaf-state.internal/missing", {
+        method: "PUT", body: JSON.stringify({ digests: [digest, absent] }),
+      }) as never, env as never, context as never);
+      expect(await (await missing()).json()).toEqual({ missing: [digest, absent] });
       const put = await handler(new Request(`https://leaf-state.internal/blobs/${digest}`, {
         method: "PUT", body: bytes, headers: { Cookie: "__Host-leaf-page=another-user" },
       }) as never, env as never, context as never);
       expect(put.status).toBe(204);
+      expect(await (await missing()).json()).toEqual({ missing: [absent] });
       const answer = await handler(new Request(`https://leaf-state.internal/blobs/${digest}`) as never,
         env as never, context as never);
       expect(await answer.text()).toBe("private saved bytes");

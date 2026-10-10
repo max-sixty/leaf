@@ -35,6 +35,10 @@ export function readPublication(value: unknown): PagePublication {
   return publicationSchema.parse(value);
 }
 
+export function readDigests(value: unknown): string[] {
+  return z.strictObject({ digests: chunks }).parse(value).digests;
+}
+
 export class PageStore {
   constructor(private storage: DurableObjectStorage, private assets: Fetcher) {
     storage.sql.exec(`CREATE TABLE IF NOT EXISTS leaf_pages (
@@ -64,17 +68,20 @@ export class PageStore {
     return rows[0]?.bytes ?? null;
   }
 
+  missing(names: string[]): string[] {
+    return [...new Set(names)].filter((name) =>
+      this.storage.sql.exec("SELECT digest FROM leaf_blobs WHERE digest = ?", name)
+        .toArray().length === 0,
+    );
+  }
+
   publish(publication: PagePublication): void {
     this.storage.transactionSync(() => {
       // Validate every reference before retiring any part of the old publication.
       const references = new Set([publication.record, ...Object.values(publication.responses)]
         .flatMap((entry) => "chunks" in entry ? entry.chunks : []));
-      for (const name of references) {
-        const rows = this.storage.sql.exec(
-          "SELECT digest FROM leaf_blobs WHERE digest = ?", name,
-        ).toArray();
-        if (rows.length === 0) throw new Error(`missing page storage chunk ${name}`);
-      }
+      const missing = this.missing([...references]);
+      if (missing.length) throw new Error(`missing page storage chunk ${missing[0]}`);
       const root = publication.root;
       this.storage.sql.exec("DELETE FROM leaf_responses WHERE root = ?", root);
       this.storage.sql.exec("INSERT OR REPLACE INTO leaf_pages VALUES (?, ?)",

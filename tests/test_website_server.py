@@ -28,7 +28,9 @@ from interact_support import (
     PAGE,
     STATED_TIMEOUT,
     Prose,
+    add_test_widget,
     append_command,
+    page_packages,
     publish,
     running_http_server,
     take_stream_activity,
@@ -41,21 +43,23 @@ from interact_support import (
 from leaf import codex as leaf_codex
 from leaf.codex import AppServerRequestRejected, accept_codex_delivery, delivery_records
 from leaf.codex_state import delivery_lock_path
-from leaf.delivery import current_responses
-from leaf.event_log import read_events
-from leaf.files import revision_path
+from leaf.delivery import current_responses, receive_batch
+from leaf.event_log import read_cursor, read_events
+from leaf.files import latest_revision, revision_path
 from leaf.hosting import LeafHTTPServer
 from leaf.http import page_delivery
 from leaf.leases import take_lease, waiter_lease_path
 from leaf.machine import pid_alive
+from leaf.packages import cmd_package_install
 from leaf.render_checks import rendered
 from leaf.revision_artifact import capture_artifact
 from leaf.revision_delivery import compose_document
 from leaf.served_state import page as served_page
-from leaf.service import PageTransaction, delivery_reply_attempt
+from leaf.service import PageTransaction, delivery_reply_attempt, unacknowledged
 from leaf.state import flocked, open_session_turn, session_record, start_session_turn
 from leaf.structure import SourceDocument
 from leaf.thread import cmd_resolve, post_reply
+from leaf.vendoring import cmd_init
 from leaf_dev import example_previews, journey, startup, verify_site
 from playwright.sync_api import expect
 from render_harness import (
@@ -156,7 +160,8 @@ def durable_page_store():
         "publications": [],
         "records": {},
         "blobs": {},
-        "uploads": 0,
+        "uploads": [],
+        "inventories": 0,
         "fail": False,
     }
 
@@ -177,7 +182,24 @@ def durable_page_store():
                 digest = self.path.removeprefix("/blobs/")
                 assert hashlib.sha256(body).hexdigest() == digest
                 stored["blobs"][digest] = body
-                stored["uploads"] += 1
+                stored["uploads"].append(digest)
+            elif self.path == "/missing":
+                stored["inventories"] += 1
+                digests = json.loads(body)["digests"]
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(
+                    json.dumps(
+                        {
+                            "missing": [
+                                digest
+                                for digest in digests
+                                if digest not in stored["blobs"]
+                            ]
+                        }
+                    ).encode()
+                )
+                return
             else:
                 assert self.path == "/publication"
                 publication = json.loads(body)
@@ -256,6 +278,11 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
                 "text": "Retain this reply",
             },
         )
+        with (
+            PageTransaction(private) as page,
+            receive_batch(page, {"events": [chosen, comment, reply]}, session_id=None),
+        ):
+            pass
         (private / "index.html").write_text(
             (private / "index.html")
             .read_text()
@@ -282,19 +309,26 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
                 media_answer = json.load(response)
                 assert "path" in media_answer, media_answer
                 media_path = media_answer["path"]
-        # A fresh agent CLI process reuses acknowledged immutable chunks rather
-        # than retransmitting the page's growing media history on every write.
-        uploads = stored["uploads"]
+        # A fresh process with no local receipts negotiates against the store's
+        # inventory. Only newly captured responses may need new chunks.
+        uploads = len(stored["uploads"])
+        previous = set(stored["blobs"])
+        inventories = stored["inventories"]
         subprocess.run(
             [
                 sys.executable,
                 "-c",
-                "from pathlib import Path; import sys; from leaf_website.storage import _chunks; _chunks(Path(sys.argv[1]).read_bytes())",
-                str(private / media_path.lstrip("/")),
+                (
+                    "from pathlib import Path; import sys; from leaf.service import PageTransaction; "
+                    "page = PageTransaction(Path(sys.argv[1])); page.__enter__(); page.__exit__(None, None, None)"
+                ),
+                str(private),
             ],
+            env={**os.environ, "XDG_STATE_HOME": str(tmp_path / "fresh-process-state")},
             check=True,
         )
-        assert stored["uploads"] == uploads
+        assert not previous.intersection(stored["uploads"][uploads:])
+        assert stored["inventories"] == inventories + 1
         publication = stored["publications"][-1]
 
         def body(path):
@@ -307,6 +341,8 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
         assert {chosen["id"], comment["id"], reply["id"]} <= {
             event["id"] for event in state["events"]
         }
+        assert state["cursor"] == reply["seq"]
+        assert state["pending"] == 0
         assert state["active"]["revision"] == 2
         assert state["session_alive"] is None and state["listening"] is False
         assert state["activity"].get("next_transition_at") is None
@@ -323,6 +359,7 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
         restore(replacement)
         recovered = replacement / "page"
         assert read_events(recovered) == read_events(private)
+        assert read_cursor(recovered) == reply["seq"]
         assert (recovered / "index.html").read_bytes() == (
             private / "index.html"
         ).read_bytes()
@@ -367,6 +404,100 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
         invalid_state = json.loads(body("api/state"))
         assert invalid_state["source_error"]
         assert invalid_state["active"]["revision"] == 2
+        monkeypatch.setenv("LEAF_SITE_ROOT", str(replacement))
+        next_comment = append_command(
+            recovered,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 2,
+                "text": "Only this needs delivery",
+                "attempt": "saved-comment-0003",
+            },
+        )
+        assert [
+            event["id"]
+            for event in unacknowledged(read_events(recovered), read_cursor(recovered))
+        ] == [next_comment["id"]]
+
+
+def test_saved_website_record_restores_an_installed_layer(
+    page_dir, tmp_path, monkeypatch
+):
+    """A package vendored by the agent remains usable in a fresh release image."""
+    from leaf_website.storage import restore
+
+    publish(page_dir)
+    (page_dir / "vendor" / "obsolete.txt").write_text("Remove this installed input")
+    site = tmp_path / "site"
+    private = site / "page"
+    shutil.copytree(page_dir, private)
+    write_manifest(site, {"/example": ("page", "example")})
+    manifest_path = site / website_server.SITE_MANIFEST
+    manifest = json.loads(manifest_path.read_text())
+    manifest["pages"]["/example"]["states"] = {"1": "unused"}
+    manifest_path.write_text(json.dumps(manifest))
+    source = tmp_path / "saved-widget"
+    add_test_widget(source, "lf-restored", upgrade=True)
+    (source / "instructions" / "author.md").write_text(
+        "Use lf-restored to preserve the installed widget.\n"
+    )
+    cmd_package_install(source)
+    monkeypatch.setenv("LEAF_SITE_ROOT", str(site))
+    monkeypatch.delenv("LEAF_PAGE_COMMIT", raising=False)
+    with durable_page_store() as (store_url, stored):
+        monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
+        restore(site)
+        cmd_init(private, (*page_packages(), "saved-widget"))
+        (private / "index.html").write_text(
+            (private / "index.html")
+            .read_text()
+            .replace(
+                "</main>",
+                '<lf-restored id="installed">Installed widget</lf-restored></main>',
+            )
+        )
+        with PageTransaction(private):
+            pass
+        revision = latest_revision(private)
+        assert "lf-restored" in json.loads((private / "registry.json").read_text())
+        replacement = tmp_path / "replacement"
+        shutil.copytree(site, replacement, ignore=shutil.ignore_patterns("page"))
+        shutil.copytree(page_dir, replacement / "page")
+        monkeypatch.setenv("LEAF_SITE_ROOT", str(replacement))
+        monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "empty-machine-state"))
+        restore(replacement)
+        recovered = replacement / "page"
+        assert not (recovered / "vendor" / "obsolete.txt").exists()
+        for name in (
+            "registry.json",
+            "leaf.js",
+            "widgets/lf-restored.js",
+            "runtime/layer-generation.js",
+        ):
+            assert (recovered / name).read_bytes() == (private / name).read_bytes()
+        assert (recovered / "instructions" / "author.md").read_bytes() == (
+            private / "instructions" / "author.md"
+        ).read_bytes()
+        # Mutable restored layer files must not share writable inodes with the
+        # immutable same-release revision used as their storage reference.
+        baseline = revision_path(recovered, 1).with_suffix("") / "resources" / "leaf.js"
+        original = baseline.read_bytes()
+        (recovered / "leaf.js").write_bytes(b"edited mutable layer")
+        assert baseline.read_bytes() == original
+        (recovered / "leaf.js").write_bytes((private / "leaf.js").read_bytes())
+        state = website_server.initial_state(
+            recovered, "/example", "example", manifest["release"]
+        )
+        assert state["source_error"] is None
+        assert state["active"]["revision"] == revision
+        assert "lf-restored" in json.loads((recovered / "registry.json").read_text())
+        # A restored process negotiates once and never retransmits stored blobs.
+        uploads = len(stored["uploads"])
+        previous = set(stored["blobs"])
+        with PageTransaction(recovered):
+            pass
+        assert not previous.intersection(stored["uploads"][uploads:])
 
 
 def hosted_follower(
@@ -4357,30 +4488,55 @@ def test_website_drafts_survive_stored_reads_and_container_replacement(
                     else None
                 ),
             )
+            assert (
+                page.locator("script[data-lf-server]").get_attribute("data-lf-release")
+                == "0" * 64
+            )
+            page.evaluate("window.__originalDocument = true")
             box = page_comment(page)
             write(box, "Keep this unfinished comment through the next wake")
-            for server in (
+            box.evaluate("box => box.setSelectionRange(9, 9)")
+            server = [httpd.server_id]
+
+            def delivery(route):
+                answer = route.fetch()
+                route.fulfill(
+                    response=answer,
+                    headers={
+                        **answer.headers,
+                        "leaf-session": "active",
+                        "leaf-server": server[0],
+                    },
+                )
+
+            page.route("**/api/news", delivery)
+            for identity in (
                 httpd.server_id,
                 f"website-{'0' * 64}",
                 "replacement-container-server",
             ):
-                admitted = page.evaluate(
-                    """async server => {
-                  const client = await window.__lfRuntimeImport('/runtime/layer-client.js');
-                  return client.admitResponse(new Response('', {headers: {
-                    'Leaf-Session': 'active', 'Leaf-Server': server,
-                    'Leaf-Release': '0'.repeat(64)
-                  }}));
-                }""",
-                    server,
-                )
-                assert admitted
+                server[0] = identity
+                # The next poll cannot start until the previous answer has passed
+                # through the actual freshness consumer and response admission.
+                for _ in range(2):
+                    with page.expect_response(
+                        lambda response, identity=identity: (
+                            response.url.endswith("/api/news")
+                            and response.header_value("Leaf-Server") == identity
+                        )
+                    ):
+                        pass
+                assert page.evaluate("window.__originalDocument === true")
                 expect(box).to_be_focused()
                 expect(box).to_have_js_property(
                     "value", "Keep this unfinished comment through the next wake"
                 )
+                assert box.evaluate(
+                    "box => [box.selectionStart, box.selectionEnd]"
+                ) == [9, 9]
             assert documents == []
         finally:
+            page.unroute_all(behavior="ignoreErrors")
             page.close()
 
 

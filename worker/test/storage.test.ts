@@ -50,6 +50,8 @@ describe("durable website page records", () => {
       store.publish(publication);
       store.publish({ root: "/", release: "release", record: { chunks: [] }, responses: {} });
       const restored = new PageStore(storage, assets);
+      expect(restored.missing([...image, "f".repeat(64), "f".repeat(64)]))
+        .toEqual(["f".repeat(64)]);
       expect(restored.records()["/examples/board"]).toEqual(publication.record);
       for (const [part, entry] of Object.values(record).entries()) {
         expect(Buffer.from(restored.blob(entry.chunks[0])!).equals(Buffer.alloc(CHUNK_BYTES, part))).toBe(true);

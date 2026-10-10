@@ -256,11 +256,7 @@ def chat_exists(record: dict | None) -> bool:
     on archive and removes it on delete. Missing source evidence owns nothing.
     """
     source = record.get("transcript_path") if record else None
-    return (
-        isinstance(source, str)
-        and Path(source).is_absolute()
-        and Path(source).is_file()
-    )
+    return source is not None and Path(source).is_file()
 
 
 def new_session(session_id: str, lifetime: dict) -> dict:

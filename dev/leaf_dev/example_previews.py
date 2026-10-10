@@ -56,8 +56,8 @@ def serve_examples(site: Path) -> Iterator[str]:
                 yield f"http://127.0.0.1:{server.server_address[1]}"
             finally:
                 server.shutdown()
-                server.server_close()
                 thread.join()
+                server.server_close()
         finally:
             if previous_state_home is None:
                 os.environ.pop("XDG_STATE_HOME")

@@ -403,9 +403,9 @@ def running_http_server(httpd):
         yield httpd
     finally:
         httpd.shutdown()
-        httpd.server_close()
         thread.join(timeout=STATED_TIMEOUT)
         assert not thread.is_alive(), "the fixture HTTP server did not stop"
+        httpd.server_close()
 
 
 def pytest_configure(config):

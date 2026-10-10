@@ -4440,7 +4440,7 @@ def test_a_phone_banner_keeps_fixed_primary_and_menu_seats(browser, serve, other
     expect(page.locator(".lf-banner-menu")).to_be_visible()
     expect(more).to_have_attribute("aria-expanded", "true")
     want = secondary.evaluate_all(
-        """els => els.filter(el => el.checkVisibility())
+        """els => els.filter(el => el.checkVisibility() && !el.disabled)
                      .map(el => (el.getAttribute('aria-label') || el.textContent).trim())"""
     )
     assert len(want) >= 2, f"only {want} stand in More, which walks nothing"

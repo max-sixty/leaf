@@ -1831,28 +1831,28 @@ def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
     gallery = page.locator("#bg-interactions")
     gallery.get_by_role("tab", name="Send a comment").click()
     held = []
-    held_once = False
     allocation = sample_allocation(page, url, "bg-motion-comment-page")
 
-    def hold_restored_state(route):
-        nonlocal held_once
-        if (
+    def is_restored_entry(request):
+        return (
             allocation["url"] is not None
-            and route.request.url.startswith(allocation["url"])
-            and not held_once
-        ):
-            held_once = True
-            held.append(route)
-            return
-        route.continue_()
+            and request.frame.url.partition("#")[0] == allocation["url"]
+            and urlsplit(request.url).path.endswith("/leaf.js")
+        )
 
-    page.route("**/api/state*", hold_restored_state)
+    def hold_restored_entry(route):
+        if is_restored_entry(route.request):
+            held.append(route)
+        else:
+            route.continue_()
+
+    # State may remain pending after deliberate offline presentation. The runtime
+    # entry is a true prerequisite of readiness, independent of restoration time.
+    # Frame identity is supplied by the browser request, without a DOM query or
+    # intercepting the native navigation response (which changes its address space).
+    page.route("**/leaf.js", hold_restored_entry)
     with page.expect_request(
-        lambda request: (
-            allocation["url"] is not None
-            and request.url.startswith(allocation["url"])
-            and "/api/state" in request.url
-        ),
+        is_restored_entry,
         timeout=HANDOVER_DEADLINE_MS,
     ):
         page.reload(wait_until="domcontentloaded")
@@ -1865,11 +1865,17 @@ def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
         "Loading", timeout=HANDOVER_DEADLINE_MS
     )
     expect(toggle).to_be_disabled(timeout=HANDOVER_DEADLINE_MS)
-    assert held, "the restored frame never requested its state"
+    assert held, "the restored frame never requested its runtime entry"
+    bootstrap = gallery.locator("#bg-interaction-comment iframe").content_frame.locator(
+        "script[data-lf-entry]"
+    )
+    assert held[0].request.url == urljoin(
+        allocation["url"], bootstrap.get_attribute("data-lf-entry")
+    )
     held.pop().continue_()
     page.wait_for_load_state("load", timeout=HANDOVER_DEADLINE_MS)
     wait_until_ready(page)
-    page.unroute("**/api/state*", hold_restored_state)
+    page.unroute("**/leaf.js", hold_restored_entry)
     expect(gallery.locator("[data-interaction-status]")).to_have_text(
         "Ready — motion will start only when you press Play",
         timeout=HANDOVER_DEADLINE_MS,
@@ -1914,8 +1920,7 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
         ):
             page.goto(f"{url}#bg-interactions", wait_until="domcontentloaded")
         gallery = page.locator("#bg-interactions")
-        expect(gallery.locator("[data-interaction-status]")).to_have_text("Loading")
-        assert held, "no contained state read was held"
+        holding(page, held, 1, "the contained page's first state read")
         held.pop().continue_()
         page.wait_for_load_state("load")
         wait_until_ready(page)

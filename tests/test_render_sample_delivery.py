@@ -1,11 +1,17 @@
 """Opaque samples use ordinary native delivery and reconnect after a reload."""
 
 import re
+from urllib.parse import urlsplit
 
 import pytest
 from leaf.render_checks import HANDOVER_DEADLINE_MS
 from playwright.sync_api import expect
-from render_harness import consume_browser_errors, holding, open_page
+from render_harness import (
+    consume_browser_errors,
+    holding,
+    open_page,
+    take_browser_errors,
+)
 from test_render_controls import leaf_page
 
 
@@ -204,10 +210,22 @@ def test_sample_native_departure_keeps_destination_and_reset(
         () => 'completed', error => error.name);
     }""")
     child.wait_for_function("window.waitingCommand")
-    if navigation == "form":
-        child.get_by_role("button", name="Search docs").click()
-    else:
-        child.evaluate("location.assign('https://docs.example.invalid/reference.html')")
+    assert take_browser_errors(page) == []
+    # Exercise departure while the real feed has a native read outstanding.
+    # WebKit stops the old document's loads when navigation starts, before
+    # pagehide. Reads during that interval are logged as access-control refusals.
+    held = []
+    page.route(previous + "api/news", lambda route: held.append(route))
+    holding(page, held, 1, "the departing document's freshness read")
+    with page.expect_event(
+        "requestfailed", predicate=lambda request: request == held[0].request
+    ):
+        if navigation == "form":
+            child.get_by_role("button", name="Search docs").click()
+        else:
+            child.evaluate(
+                "location.assign('https://docs.example.invalid/reference.html')"
+            )
     expect(child.get_by_role("heading")).to_have_text("External reference")
     assert page.evaluate("window.departedCall") == "AbortError"
     assert (
@@ -233,6 +251,17 @@ def test_sample_native_departure_keeps_destination_and_reset(
         "Practice page"
     )
     replacement = sample.locator("iframe").element_handle().content_frame()
+    # Only account for teardown refusals from the proven departing capability.
+    # The replacement and the fresh revoked-capability probe below stay strict.
+    departed = urlsplit(previous)
+    cancellation_error = re.compile(
+        rf".*{re.escape(departed.netloc + departed.path)}\S*"
+        r" due to access control checks\."
+    )
+    departure_errors = take_browser_errors(page)
+    assert all(cancellation_error.fullmatch(error) for error in departure_errors), (
+        departure_errors
+    )
     # A fresh header forces a new native preflight rather than reusing the old
     # document's cached one. Revocation must remain an HTTP refusal in both engines.
     assert (

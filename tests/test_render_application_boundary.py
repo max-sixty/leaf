@@ -2462,11 +2462,20 @@ def test_frozen_question_reveals_its_exact_message_in_a_selective_primary(
 
 
 @pytest.mark.parametrize(
-    ("primary", "travel", "source_top"),
-    [(True, True, 0), (True, True, 200), (True, False, 200), (False, True, 1000)],
+    ("primary", "travel", "source_top", "cross_boundary", "fault"),
+    [
+        (True, True, 0, False, None),
+        (True, True, 200, False, None),
+        (True, False, 200, False, None),
+        (False, True, 1000, False, None),
+        (False, True, 1000, True, None),
+        (False, True, 1000, True, "holder"),
+        (False, True, 1000, True, "child"),
+        (False, True, 1000, True, "inset"),
+    ],
 )
 def test_primary_arrival_records_a_return_place_only_when_travelling(
-    browser, serve, primary, travel, source_top
+    browser, serve, primary, travel, source_top, cross_boundary, fault
 ):
     """Back restores the working place left by a jump to the primary reader."""
     url = package_workspace(
@@ -2497,6 +2506,12 @@ def test_primary_arrival_records_a_return_place_only_when_travelling(
     }""",
         source_top,
     )
+    if cross_boundary:
+        # Long native frames expose the compositor's one-frame anchor delay as the
+        # contextual card travels into the viewport and changes placement plane.
+        page.context.new_cdp_session(page).send(
+            "Emulation.setCPUThrottlingRate", {"rate": 6}
+        )
     entries = page.evaluate("history.length")
     assert page.evaluate(
         """async ({travel, primary}) => {
@@ -2516,6 +2531,69 @@ def test_primary_arrival_records_a_return_place_only_when_travelling(
     if travel:
         # Back is ordinary input as soon as arrival returns, during smooth placement.
         page.wait_for_function("top => scrollY !== top", arg=source_top)
+        if cross_boundary:
+            page.wait_for_function("scrollY < 200")
+            expect(page.locator("#lf-margin-preview")).to_be_in_viewport()
+            if fault:
+                scroll_settled(page)
+                page.evaluate("scrollTo({top:180, behavior:'instant'})")
+                page.wait_for_function(
+                    """() => document.querySelector('script[data-lf-entry]').lfFloatingSelections().some(item => item.floating.id === 'lf-margin-preview' && item.plane === 'page')"""
+                )
+                scroll_settled(page)
+                page.evaluate("lfShiftsJudged()")
+                assert take_browser_errors(page) == []
+                # Carry the exposed card in its native page plane. Displace its
+                # holder, held inset or child while the source still travels;
+                # matching a historical source pose cannot grant that motion.
+                displacement = page.evaluate(
+                    """async fault => {
+                  const paint = async () => {
+                    await new Promise(requestAnimationFrame);
+                    await new Promise(requestAnimationFrame);
+                  };
+                  const source = document.querySelector('#notes');
+                  const sourceBefore = source.getBoundingClientRect().top;
+                  scrollTo({top:160, behavior:'instant'});
+                  await paint();
+                  const owner = document.querySelector('#lf-margin-preview');
+                  const selection = document.querySelector('script[data-lf-entry]').lfFloatingSelections().find(item => item.floating === owner);
+                  const node = fault === 'child' ? owner.querySelector('leaf-text') : owner;
+                  const before = node.getBoundingClientRect().top;
+                  if (fault === 'child') {
+                    node.style.position = 'relative';
+                    node.style.top = '-20px';
+                  } else if (fault === 'inset') {
+                    const edge = selection.edges.top;
+                    node.style[edge] = `calc(${edge === 'top' ? -20 : 20}px + ${node.style[edge]})`;
+                  } else node.style.marginTop = '-20px';
+                  const result = {before, after:node.getBoundingClientRect().top, scroll:scrollY, plane:selection.plane, sourceTravel:source.getBoundingClientRect().top - sourceBefore};
+                  await paint();
+                  scrollTo({top:140, behavior:'instant'});
+                  await paint();
+                  scrollTo({top:100, behavior:'instant'});
+                  return result;
+                }""",
+                    fault,
+                )
+                assert displacement["plane"] == "page"
+                assert displacement["scroll"] == 160
+                assert displacement["sourceTravel"] == pytest.approx(20)
+                assert displacement["after"] - displacement["before"] == pytest.approx(
+                    -20
+                )
+                scroll_settled(page)
+                page.evaluate("lfShiftsJudged()")
+                errors = consume_browser_errors(page, "moved without input")
+                assert any(
+                    (
+                        "lf-msg-head moved without input"
+                        if fault != "child"
+                        else "leaf-text.lf-ui moved without input"
+                    )
+                    in error
+                    for error in errors
+                ), errors
         page.go_back()
         expect(heading).to_be_focused()
         scroll_settled(page)

@@ -1057,51 +1057,48 @@ def test_a_long_comment_stays_in_view_when_its_target_fills_the_viewport(
     assert field.evaluate("node => node.scrollHeight > node.clientHeight")
 
 
-TALL_DIFF_PAGE = leaf_page(
-    "A tall diff",
-    '<h1>Review</h1><p>One file, commented on whole.</p><lf-diff id="whole"><pre>'
-    "diff --git a/src/lib.rs b/src/lib.rs\n--- a/src/lib.rs\n+++ b/src/lib.rs\n"
-    "@@ -0,0 +1,80 @@\n"
-    + "\n".join(f"+    let value_{n} = compute({n});" for n in range(80))
-    + "\n</pre></lf-diff><p>After the diff.</p>",
+TALL_ROWS_PAGE = leaf_page(
+    "A tall section",
+    "<h1>Review</h1><p>These rows are commented on as one section.</p>"
+    '<section id="whole"><h2>Rows</h2>'
+    + "".join(f"<p>Row {n}: compute({n});</p>" for n in range(80))
+    + "</section><p>After the rows.</p>",
 )
 # Where the pointed row, the comment box and the margin cluster stand in the window.
 POINTED_ROW = """() => {
-  const row = document.querySelector('lf-diff').shadowRoot
-    .querySelectorAll('[data-line]')[50].getBoundingClientRect();
+  const row = document.querySelectorAll('#whole p')[50].getBoundingClientRect();
   const top = (selector) =>
     document.querySelector(selector)?.getBoundingClientRect().top ?? null;
   return { row: row.top, height: row.height, bar: top('.lf-fab-bar'),
            cluster: top('.lf-margin-cluster'), card: top('.lf-margin-preview'),
-           diff: document.querySelector('lf-diff').getBoundingClientRect().top };
+           section: document.querySelector('#whole').getBoundingClientRect().top };
 }"""
 
 
 def test_a_comment_on_a_whole_target_stands_by_the_row_it_was_pointed_at(
     browser, serve
 ):
-    """⌥-clicking a line deep in an unbound diff comments on the whole diff, which is
-    the target the registry gives it, but the user pointed at that line. The box to
-    write in, the cluster the sent comment leaves and the card it opens stand level with
-    it rather than at the diff's top, a screen above; `t` travels back to that row. The
-    event still names the whole diff: where the comment stands is presentation."""
-    page = open_page(browser, serve(TALL_DIFF_PAGE))
+    """⌥-clicking a row deep in a section comments on the whole section, while
+    the user pointed at that row. The box to write in, the cluster the sent
+    comment leaves and the card it opens stand level with it rather than at the
+    section's top, a screen above; `t` travels back to that row.
+    The event still names the whole section: where the comment stands is presentation."""
+    page = open_page(browser, serve(TALL_ROWS_PAGE))
     resized(page, 1440, 900)
-    expect(page.locator("lf-diff.lf-rendered")).to_have_count(1)
-    row = page.locator("lf-diff [data-line]").nth(50)
+    row = page.locator("#whole p").nth(50)
     row.scroll_into_view_if_needed()
     rendered(page)
     row.click(modifiers=["Alt"], position={"x": 60, "y": 5})
     field = open_compact_comment(page)
     rendered(page)
     at = page.evaluate(POINTED_ROW)
-    assert at["diff"] < -at["height"] * 20, f"the diff's top must be off screen: {at}"
+    assert at["section"] < -at["height"] * 20, at
     assert abs(at["bar"] - at["row"]) <= 2 * at["height"], (
         f"the comment box stands {at['row'] - at['bar']:.0f}px from the row: {at}"
     )
 
     write(field, "Why this line?")
-    with sending(page, "the comment on the whole diff"):
+    with sending(page, "the comment on the whole section"):
         page.keyboard.press("Enter")
     sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["anchor"]) == ("comment", {"section": "whole"})
@@ -1160,18 +1157,18 @@ def test_a_pointed_comment_moves_only_its_own_row(browser, serve, case):
         url, target = serve(TALL_ASK_PAGE), "way"
         row = f"#{target} p >> nth=25"
     else:
-        url, target = serve(TALL_DIFF_PAGE), "whole"
+        url, target = serve(TALL_ROWS_PAGE), "whole"
         first = append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "comment",
                 "author": "user",
                 "revision": 1,
-                "text": "The whole diff first.",
+                "text": "The whole section first.",
                 "anchor": {"section": "whole"},
             },
         )["id"]
-        row = "lf-diff [data-line] >> nth=50"
+        row = "#whole p >> nth=50"
     page = open_page(browser, url)
     resized(page, 1440, 900)
     rendered(page)
@@ -1220,16 +1217,14 @@ def test_a_pointed_comment_moves_only_its_own_row(browser, serve, case):
         assert abs(card["y"] - top) <= 60, (card, top)
 
 
-def test_a_pointed_comment_finds_its_row_again_after_a_revision_rewrites_it(
+def test_a_pointed_comment_finds_its_row_again_after_a_revision_replaces_it(
     browser, serve
 ):
-    """A revision that rewrites the diff replaces every row the comment was pointed at.
-    The comment's row keeps its place by the words of the row it was pointed at, which
-    the new rendering still holds, rather than falling back to the diff's top."""
-    page = open_page(browser, live_url(serve(TALL_DIFF_PAGE)))
+    """A revision replaces the pointed row's DOM nodes but keeps its words.
+    The comment keeps its place beside that row."""
+    page = open_page(browser, live_url(serve(TALL_ROWS_PAGE)))
     resized(page, 1440, 900)
-    expect(page.locator("lf-diff.lf-rendered")).to_have_count(1)
-    row = page.locator("lf-diff [data-line]").nth(50)
+    row = page.locator("#whole p").nth(50)
     row.scroll_into_view_if_needed()
     rendered(page)
     row.click(modifiers=["Alt"], position={"x": 60, "y": 5})
@@ -1238,22 +1233,16 @@ def test_a_pointed_comment_finds_its_row_again_after_a_revision_rewrites_it(
         page.keyboard.press("Enter")
     page.keyboard.press("Escape")
     rendered(page)
-    page.evaluate(
-        "() => { window.__row = document.querySelector('lf-diff').shadowRoot"
-        ".querySelectorAll('[data-line]')[50]; }"
-    )
-
+    page.evaluate("() => { window.__row = document.querySelectorAll('#whole p')[50]; }")
     (serve.page_dir / "index.html").write_text(
-        TALL_DIFF_PAGE.replace("A tall diff", "A tall diff, revised").replace(
-            "compute(3);", "compute(3 + 0);"
-        )
+        TALL_ROWS_PAGE.replace("A tall section", "A tall section, revised")
+        .replace('<section id="whole">', '<article id="whole">')
+        .replace("</section>", "</article>")
     )
     told(page)
-    expect(page).to_have_title("A tall diff, revised")
+    expect(page).to_have_title("A tall section, revised")
     page.wait_for_function(
-        "() => { const rows = document.querySelector('lf-diff').shadowRoot"
-        ".querySelectorAll('[data-line]'); return rows.length === 80"
-        " && rows[50] !== window.__row; }"
+        "() => document.querySelectorAll('#whole p')[50] !== window.__row"
     )
     rendered(page)
     at = page.evaluate(POINTED_ROW)
@@ -1264,8 +1253,8 @@ def test_a_pointed_comment_finds_its_row_again_after_a_revision_rewrites_it(
 
 
 def point_a_comment(page, text, x=60):
-    """⌥-click row 51 of the tall diff at `x` and send `text`, leaving the card."""
-    row = page.locator("lf-diff [data-line]").nth(50)
+    """⌥-click row 51 of the tall section at `x` and send `text`, leaving the card."""
+    row = page.locator("#whole p").nth(50)
     row.scroll_into_view_if_needed()
     rendered(page)
     row.click(modifiers=["Alt"], position={"x": x, "y": 5})
@@ -1278,11 +1267,11 @@ def point_a_comment(page, text, x=60):
 
 def test_a_pointed_cards_reply_brings_the_pointed_row_back(browser, serve):
     """Typing in a card scrolled away brings it back, and for a pointed comment what it
-    stands by is its row: the diff around it still overlaps the window, so bringing the
-    diff into view moved nothing and left the reply below the window."""
-    page = open_page(browser, serve(TALL_DIFF_PAGE))
+    stands by is its row: the section around it still overlaps the window, so bringing
+    the section into view moved nothing and left the reply below the window."""
+    page = open_page(browser, serve(TALL_ROWS_PAGE))
     resized(page, 1440, 900)
-    expect(page.locator("lf-diff.lf-rendered")).to_have_count(1)
+    expect(page.locator("#whole p")).to_have_count(80)
     point_a_comment(page, "Why this line?")
     page.evaluate("() => scrollTo({ top: 0, behavior: 'instant' })")
     rendered(page)
@@ -1308,11 +1297,11 @@ def test_a_pointed_cards_reply_brings_the_pointed_row_back(browser, serve):
 
 def test_comments_pointed_at_one_row_stand_as_one_margin_row(browser, serve):
     """Two comments pointed at one line, at two places along it, stand as one margin row
-    at the line, as two comments on the diff's own top share its row; the row the first
+    at the line, as two comments on the section's own top share its row; the row the first
     made is the one the second joins."""
-    page = open_page(browser, serve(TALL_DIFF_PAGE))
+    page = open_page(browser, serve(TALL_ROWS_PAGE))
     resized(page, 1440, 900)
-    expect(page.locator("lf-diff.lf-rendered")).to_have_count(1)
+    expect(page.locator("#whole p")).to_have_count(80)
     point_a_comment(page, "First about this line.", x=60)
     first = page.evaluate(ROWS_ON, ["whole"])
     point_a_comment(page, "Second about this line.", x=200)
@@ -1324,18 +1313,17 @@ def test_comments_pointed_at_one_row_stand_as_one_margin_row(browser, serve):
 
 def test_a_pointed_row_is_announced_where_it_stands_and_by_its_words(browser, serve):
     """A listener places a margin row by how far down the page it is and tells rows
-    apart by their names. A pointed row stands two-thirds of the way down the diff, and
-    it is named by the line it stands by, not only by the diff the target's own row
+    apart by their names. A pointed row stands two-thirds of the way down the section, and
+    it is named by the line it stands by, not only by the section the target's own row
     names."""
-    page = open_page(browser, serve(TALL_DIFF_PAGE))
+    page = open_page(browser, serve(TALL_ROWS_PAGE))
     resized(page, 1440, 900)
-    expect(page.locator("lf-diff.lf-rendered")).to_have_count(1)
+    expect(page.locator("#whole p")).to_have_count(80)
     point_a_comment(page, "Why this line?")
     spoken = page.evaluate(
         """() => {
           const main = document.querySelector('main');
-          const row = document.querySelector('lf-diff').shadowRoot
-            .querySelectorAll('[data-line]')[50].getBoundingClientRect();
+          const row = document.querySelectorAll('#whole p')[50].getBoundingClientRect();
           const host = [...document.querySelectorAll('[data-lf-margin-for]')]
             .find((host) => host.lfTarget?.id === 'whole');
           return {
@@ -1347,7 +1335,7 @@ def test_a_pointed_row_is_announced_where_it_stands_and_by_its_words(browser, se
     )
     said = re.search(r"(\d+) percent down", spoken["name"])
     assert said and abs(int(said[1]) - spoken["at"]) <= 3, spoken
-    assert "let value_50 = compute(50);" in spoken["name"], spoken
+    assert "Row 50: compute(50);" in spoken["name"], spoken
 
 
 POINTED_WITHIN = {
@@ -1509,20 +1497,20 @@ def test_a_reflow_keeps_a_pointed_comment_in_its_row_and_its_card_open(browser, 
 def test_undoing_a_settle_brings_a_pointed_comment_back_to_its_row(browser, serve):
     """Settling a pointed comment and taking that back returns it where it stood, next to
     its line, whatever else is open on the target."""
-    url = serve(TALL_DIFF_PAGE)
+    url = serve(TALL_ROWS_PAGE)
     append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "text": "Another thread, still open on the diff.",
+            "text": "Another thread, still open on the section.",
             "anchor": {"section": "whole"},
         },
     )
     page = open_page(browser, live_url(url))
     resized(page, 1440, 900)
-    expect(page.locator("lf-diff.lf-rendered")).to_have_count(1)
+    expect(page.locator("#whole p")).to_have_count(80)
     point_a_comment(page, "Why this line?")
     pointed = page.evaluate(ROWS_ON, ["whole"])
     assert len(pointed) == 2, pointed

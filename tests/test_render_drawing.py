@@ -211,7 +211,8 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     )
     # The scroll carries the mark rather than a repaint redrawing it.
     assert stable_mark.evaluate("node => node.isConnected")
-    page.locator(".lf-threads-toggle").click()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
     panel_settled(page)
     assert mark_relation(page, posted, "#bg-choice-trail") == pytest.approx(
         relation, abs=0.02
@@ -1327,12 +1328,21 @@ def test_draw_mode_leaves_chrome_controls_usable(browser, serve):
     page = open_page(browser, serve(TARGETS_PAGE))
     page.keyboard.press("w")
 
-    page.locator(".lf-threads-toggle").click()
+    exit_mode = page.get_by_role("button", name="Exit Draw mode")
+    expect(exit_mode).to_be_visible()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
     panel_settled(page)
 
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
+    exit_mode.click()
+    expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
+    threads = page.locator(".lf-banner-actions .lf-threads-toggle")
+    expect(threads).to_be_visible()
+    threads.click()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
 
 def test_draw_mode_keeps_the_separate_design_mode_binding(browser, serve):

@@ -127,7 +127,7 @@ test("two mounted panel controllers keep independent visibility and keyboard run
   second.dispose();
 });
 
-const NO_DOCUMENT = { descriptors: new Map(), messageBodies: new Map() };
+const NO_DOCUMENT = { registry: {}, descriptors: new Map(), messageBodies: new Map() };
 
 const agent = (id, extra = {}) => ({
   id,

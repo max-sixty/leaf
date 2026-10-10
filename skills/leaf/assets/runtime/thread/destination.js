@@ -25,7 +25,7 @@ import { retainUserIntent } from "../user-intent.js";
 import { replyAvailable } from "./replies.js";
 import { allThreads, readThreads } from "./state.js";
 import { heldThread } from "./focus.js";
-import { showHeldThread } from "./held-news.js";
+import { showHeld, showHeldThread } from "./held-news.js";
 import { revealHeld, surfaceFocusTarget } from "./surfaces.js";
 import { reveal } from "../widget-elements.js";
 import { renderedUnder } from "../shadow.js";
@@ -99,11 +99,19 @@ export function createThreadDestinations({
     if (selected?.owner.isConnected) {
       const thread = threadNames(readThreads().threads).get(id);
       if (!thread) return null;
+      showHeld(id);
       opening?.abort();
       const abort = new AbortController();
       opening = abort;
+      const cancelled = new Promise((resolve) =>
+        abort.signal.addEventListener("abort", () => resolve(null), { once: true }),
+      );
+      const whileCurrent = (work) => Promise.race([work, cancelled]);
       const request = {
-        message: focus === "message" ? id : null,
+        message:
+          focus === "message"
+            ? (thread.msgs.find((message) => message.id === id)?.key ?? null)
+            : null,
         focus,
         signal: abort.signal,
         current: () =>
@@ -113,22 +121,19 @@ export function createThreadDestinations({
           (focus === false ? intent.available() : intent()),
       };
       const result = selected.open(thread.key, request);
-      const destination = result?.then
-        ? await Promise.race([
-            result,
-            new Promise((resolve) =>
-              abort.signal.addEventListener("abort", () => resolve(null), {
-                once: true,
-              }),
-            ),
-          ])
-        : result;
+      const selectedLayout = result?.then ? await whileCurrent(result) : result;
       const mayPresent = () =>
         !abort.signal.aborted &&
         presentation === selected &&
         selected.owner.isConnected &&
         (focus === false ? intent.available() : intent());
       if (!mayPresent()) return null;
+      if (selectedLayout !== false) await whileCurrent(selected.reader.update());
+      if (!mayPresent()) return null;
+      const destination =
+        selectedLayout === false
+          ? null
+          : selected.reader.destination(thread.key, request);
       if (destination !== null) {
         if (
           !(destination instanceof Element) ||
@@ -139,7 +144,7 @@ export function createThreadDestinations({
           throw new TypeError(
             "A Thread destination must be a retained part of its registered presentation",
           );
-        await reveal(destination, intent).ready;
+        await whileCurrent(reveal(destination, intent).ready);
         if (!mayPresent()) return null;
         if (focus !== false)
           intent.handoff(() => {

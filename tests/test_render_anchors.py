@@ -2998,12 +2998,16 @@ def test_tab_between_two_staged_controls_turns_the_shortcut_bar_over(browser, se
 
     Such a move reaches the document as no focus event at all, so a repaint that waits
     for one leaves the line naming the keys of the control the user left, until the
-    heartbeat or a resize repaints it. A file's title and its Reviewed button make
+    heartbeat or a resize repaints it. A file's title and its comment button make
     different presses, and the line names them differently."""
-    page = open_page(
-        browser,
-        serve(DIFF_PAGE.replace('<lf-diff id="patch">', '<lf-diff id="patch" review>')),
+    url = serve(
+        DIFF_PAGE.replace(
+            '<lf-diff id="patch">', '<lf-diff id="patch" source="review-patch">'
+        )
     )
+    patch = DIFF_PAGE.split("<pre>", 1)[1].split("</pre>", 1)[0]
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
+    page = open_page(browser, url)
     page.keyboard.press("Tab")  # keyboard modality, as a user reaching the title has
     title = page.locator("lf-diff summary.lf-diff-head").first
     title.scroll_into_view_if_needed()
@@ -3013,7 +3017,7 @@ def test_tab_between_two_staged_controls_turns_the_shortcut_bar_over(browser, se
     assert "hide this file" in on_title, on_title
 
     page.keyboard.press("Tab")
-    expect(page.locator("lf-diff .lf-diff-review:focus")).to_have_count(1)
+    expect(page.locator("lf-diff .lf-diff-file-comment:focus")).to_have_count(1)
     said = shortcut_bar_text(page)
     assert "next hunk" in said, said
     assert "this file" not in said, said
@@ -6441,7 +6445,7 @@ def test_a_hunk_step_waiting_on_a_file_leaves_a_user_who_moved_on(browser, serve
     page.locator("lf-diff summary").first.click()
     first = page.locator('lf-diff [data-lf-datum=\'["first.py","new",1]\']')
     expect(first).to_have_count(1)
-    page.locator("lf-diff .lf-diff-wrap").focus()
+    page.locator("lf-diff").evaluate("node => { node.tabIndex = -1; node.focus(); }")
     page.keyboard.press("]")
     expect(page.locator(".lf-walk-position")).to_have_text("Hunk 1 of 1")
 

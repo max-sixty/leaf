@@ -552,3 +552,5 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **MCP Apps:** rebuild inline hosting as the direct-resource design when a host
   the user runs renders MCP Apps. See [notes/mcp-apps/PROJECT.md](notes/mcp-apps/PROJECT.md).
 - **Release labels:** prefer an exact tag when Leaf adopts named releases.
+- **Diff controls:** consider author-configurable wrapping and per-file review tracking
+  when a page needs them. Keep their controls optional.

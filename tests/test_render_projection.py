@@ -736,7 +736,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
 <h1 id="title">Request call change</h1>
 <pre id="code-surface">reference code surface</pre>
 <lf-call-diff id="request-calls" source="request-call-diff" diff="patch"></lf-call-diff>
-<lf-diff id="patch" source="review-patch" collapsed review><pre></pre></lf-diff>
+<lf-diff id="patch" source="review-patch" collapsed><pre></pre></lf-diff>
 """,
     )
     url = serve(authored, packages=("diff",))
@@ -809,7 +809,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     assert lines.nth(0).evaluate("line => line.scrollWidth <= line.clientWidth")
     # Ordinary buttons keep the same ink on tinted document and shadow surfaces.
     colors = []
-    for control in (".lf-call-toggle", ".lf-diff-next", ".lf-diff-review"):
+    for control in (".lf-call-toggle", ".lf-diff-file-comment"):
         colors.append(
             page.locator(control).first.evaluate("""button => {
             const parent = button.parentElement;
@@ -821,7 +821,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
             return [before, tinted];
         }""")
         )
-    assert len({color for pair in colors for color in pair}) == 1, colors
+    assert all(before == tinted for before, tinted in colors), colors
     widget.locator(".lf-call-toggle").click()
     expect(group).not_to_have_attribute("open", "")
     expect(widget.locator(".lf-call-toggle")).to_have_text("Expand all")
@@ -2142,13 +2142,11 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     assert reopened["y"] == pytest.approx(datum["y"] + datum["height"] + 8, abs=2)
 
 
-def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
-    browser, serve
-):
+def test_a_large_diff_filters_and_navigates_lazy_files(browser, serve):
     authored = leaf_page(
         "large diff review",
         '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
-        "collapsed review><pre></pre></lf-diff>",
+        "collapsed><pre></pre></lf-diff>",
     )
     url = serve(authored)
     manifest = {
@@ -2175,49 +2173,18 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
     diff = page.locator("#patch")
     progress = diff.locator(".lf-diff-progress")
     summaries = diff.locator("summary")
-    reviews = diff.locator(".lf-diff-review")
-
-    expect(progress).to_have_text("0 of 3 reviewed")
+    expect(progress).to_have_text("3 files")
     expect(summaries).to_have_count(3)
-    expect(reviews).to_have_count(3)
     expect(diff.locator("[data-line]")).to_have_count(0)
 
-    reviews.nth(0).click()
-    round_trip(page)
-    expect(reviews.nth(0)).to_have_attribute("aria-pressed", "true")
-    expect(reviews.nth(0)).to_have_text("✓ Reviewed")
-    expect(progress).to_have_text("1 of 3 reviewed")
-    event = actions(serve.page_dir)[-1]
-    assert event["widget"] == "patch"
-    assert event["action"] == "review"
-    assert event["detail"] == {"file": "src/first.py", "reviewed": True}
-
-    # A source refresh rebuilds the file shells. The current reviewed set comes back
-    # from the action projection rather than from those replaced nodes.
+    # A source refresh rebuilds file shells; lazy rows inherit its new revision.
     refreshed = json.loads(json.dumps(manifest))
     refreshed["files"][0]["additions"] = 2
     data_model.cmd_data_set(serve.page_dir, "review-patch", refreshed)
     refreshed_revision = source_revision(serve.page_dir, "review-patch")
     told(page)
-    reviews = diff.locator(".lf-diff-review")
-    expect(reviews.nth(0)).to_have_text("✓ Reviewed")
-
-    page.reload(wait_until="load")
-    page.wait_for_function(
-        "() => document.querySelector('lf-diff.lf-rendered') !== null"
-    )
-    diff = page.locator("#patch")
-    summaries = diff.locator("summary")
-    reviews = diff.locator(".lf-diff-review")
-    progress = diff.locator(".lf-diff-progress")
-    expect(reviews.nth(0)).to_have_text("✓ Reviewed")
-    expect(progress).to_have_text("1 of 3 reviewed")
-
-    next_unreviewed = diff.locator(".lf-diff-next")
-    next_unreviewed.click()
-    expect(summaries.nth(1)).to_be_focused()
-    next_unreviewed.click()
-    expect(summaries.nth(2)).to_be_focused()
+    summaries.nth(1).click()
+    summaries.nth(2).click()
     expect(diff.locator("[data-line]")).to_have_count(4)
     origins = diff.locator("[data-lf-origin]").evaluate_all(
         "nodes => nodes.map(node => JSON.parse(node.dataset.lfOrigin))"
@@ -2244,7 +2211,7 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
     expect(summaries.nth(0)).to_be_hidden()
     expect(summaries.nth(1)).to_be_visible()
     expect(summaries.nth(2)).to_be_hidden()
-    expect(progress).to_have_text("1 of 3 reviewed · 1 matching")
+    expect(progress).to_have_text("1 of 3")
 
     # The frame belongs to the diff, not to the query value globally. Leaving the widget
     # retires it: Escape over page prose must not clear a hidden filter or pull focus back.
@@ -2271,16 +2238,13 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
 
     page.keyboard.press("/")
     search.fill("second")
-    expect(progress).to_have_text("1 of 3 reviewed · 1 matching")
+    expect(progress).to_have_text("1 of 3")
 
     summaries.nth(1).focus()
-    page.keyboard.press("Alt+ArrowDown")
+    page.keyboard.press("}")
     expect(summaries.nth(1)).to_be_focused()
     expect(diff.locator("details").nth(1)).to_have_attribute("open", "")
     expect(diff.locator("[data-line]")).to_have_count(4)
-    reviews.nth(1).click()
-    round_trip(page)
-    expect(progress).to_have_text("2 of 3 reviewed · 1 matching")
 
     resized(page, 390, 900)
     assert root_overflow(page) == 0
@@ -2296,12 +2260,10 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
     expect(diff.locator(".lf-diff-tools")).to_be_hidden()
     for index in range(3):
         expect(summaries.nth(index)).to_be_visible()
-    expect(reviews.nth(0)).to_be_visible()
-    expect(reviews.nth(2)).to_be_hidden()
     page.emulate_media(media="screen")
 
 
-def test_a_diff_without_review_tracking_keeps_the_browsing_tools(browser, serve):
+def test_a_diff_counts_and_filters_inline_files(browser, serve):
     authored = leaf_page(
         "diff evidence",
         """
@@ -2334,9 +2296,7 @@ diff --git a/tests/second.py b/tests/second.py
     diff = page.locator("#patch")
 
     expect(page.locator("#single .lf-diff-progress")).to_have_text("1 file")
-    expect(diff.locator(".lf-diff-review, .lf-diff-next")).to_have_count(0)
     expect(diff.locator(".lf-diff-progress")).to_have_text("2 files")
-    expect(diff.locator(".lf-diff-wrap")).to_be_visible()
     search = diff.locator(".lf-diff-search input")
     search.fill("second")
     expect(diff.locator(".lf-diff-progress")).to_have_text("1 of 2")

@@ -8,7 +8,8 @@
    Draft, sent-message, and authored links to their own image open one native modal
    viewer. PhotoSwipe supplies image zoom, pan, and touch gestures on demand; native
    modality, retained controls, and focus return remain Leaf's. An authored figure
-   caption stays outside the image in a readable footer; alt text stays with the image.
+   caption or an inspection link's explicit caption stays outside the image in a readable
+   footer; alt text stays with the image.
    Links to other destinations and modified link presses keep their authored meaning. The document
    declares its public page root because a website module may live under an immutable
    release URL shared with a sample. All three resolve
@@ -173,7 +174,9 @@ const open = (url, alt, from) => {
   presentViewer({ url, alt });
   render(html`<img src=${url} alt=${alt} />`, stage);
   const description =
-    from.closest("figure")?.querySelector("figcaption")?.textContent.trim() || "";
+    from.dataset.lfMediaCaption ||
+    from.closest("figure")?.querySelector("figcaption")?.textContent.trim() ||
+    "";
   keepsText(caption, description);
   keepsHidden(caption, !description);
   keepsText(viewerZoom, "100%");

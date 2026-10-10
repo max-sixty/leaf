@@ -1688,7 +1688,8 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
     assert broken.returncode == 1, broken.stdout + broken.stderr
     assert "Error: page code reported 2 errors" in broken.stderr
     assert "map is not a function" in broken.stderr
-    assert "/page/film.js:2)" in broken.stderr
+    assert "at paint (" in broken.stderr
+    assert "/page/film.js:2:" in broken.stderr
     assert "Error: the trace never loaded" in broken.stderr
     assert "/page/widgets/lf-loader.js:3" in broken.stderr
 

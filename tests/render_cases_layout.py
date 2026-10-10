@@ -143,7 +143,7 @@ def arrival_findings(browser, url):
         target.append(message.text)
 
     page.on("console", console_message)
-    page.on("pageerror", lambda e: errors.append(str(e)))
+    render_gate_model.collect_page_exceptions(page, errors)
     page.on(
         "response",
         lambda r: errors.append(f"{r.status} {r.url}") if r.status >= 400 else None,

@@ -194,11 +194,11 @@ describe("product-site delivery", () => {
     const allocated = `/examples/triage-board/api/samples/${sampleId}/`;
     const sample = `/examples/triage-board/api/samples/${sampleId}~${objectId}`;
     const id = { toString: () => objectId } as DurableObjectId;
-    const allocationFetch = vi.fn(async () => Response.json({ url: allocated }));
+    const allocationFetch = vi.fn(async () => Response.json({ url: allocated, page: `/api/samples/${sampleId}` }));
     vi.mocked(getContainer).mockReturnValue({ fetch: allocationFetch } as never);
     const containerFetch = vi.fn(async (request: Request) => {
       if (request.method === "POST" && new URL(request.url).pathname.endsWith("/api/samples"))
-        return Response.json({ url: `${new URL(request.url).pathname}/${"07".repeat(16)}/` }, {
+        return Response.json({ url: `${new URL(request.url).pathname}/${"07".repeat(16)}/`, page: `/api/samples/${"07".repeat(16)}` }, {
           headers: { "Access-Control-Allow-Origin": "*" },
         });
       if (request.method === "OPTIONS")
@@ -224,7 +224,7 @@ describe("product-site delivery", () => {
       headers: { Cookie: `__Host-leaf-page=${sessionId}` },
       body: JSON.stringify({ template: "practice" }),
     }), env, ctx);
-    expect(await allocation.json()).toEqual({ url: `${sample}/` });
+    expect(await allocation.json()).toEqual({ url: `${sample}/`, page: `/api/samples/${sampleId}~${objectId}` });
     expect(pages.idFromName).toHaveBeenCalledExactlyOnceWith(containerId(sessionId));
 
     const paths = [
@@ -250,6 +250,7 @@ describe("product-site delivery", () => {
         if (method === "POST" && path.endsWith("/api/samples"))
           expect(await response.json()).toEqual({
             url: `${sample}/api/samples/${"07".repeat(16)}/`,
+            page: `/api/samples/${"07".repeat(16)}`,
           });
       }
     }

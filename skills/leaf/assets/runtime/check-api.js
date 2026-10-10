@@ -1,5 +1,6 @@
 /* Browser render checks share these observations with the running kernel. This
    diagnostic entry is separate from the package authoring API. */
+export { exceptionText } from "./layer-client.js";
 export { validationWidgetStates } from "./validation.js";
 export { unrevealedVisualParts, visualPartProblems } from "./visual-parts.js";
 export {

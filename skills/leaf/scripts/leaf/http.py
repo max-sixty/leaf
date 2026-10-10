@@ -161,6 +161,11 @@ def scope_page_urls(value, page_root: str):
     return scoped
 
 
+def child_interaction_page(page_root: str, owner_root: str) -> str:
+    """The child identity in its containing page's diagnostic stream."""
+    return page_root[len(owner_root) :]
+
+
 def page_delivery(
     resources: Mapping[str, Resource],
     *,
@@ -1133,7 +1138,11 @@ class PageEndpoint:
             # page, with the scoped address identifying which child produced it.
             owner = getattr(self, "parent", None)
             directory = owner.page_dir if owner is not None else self.page_dir
-            page = self.page_root[len(owner.page_root) :] if owner is not None else "/"
+            page = (
+                child_interaction_page(self.page_root, owner.page_root)
+                if owner is not None
+                else "/"
+            )
             try:
                 records = client_records(session, page, entries)
             except (TypeError, ValueError) as error:
@@ -1217,7 +1226,13 @@ class PageEndpoint:
                 )
             except ValueError as error:
                 return self._refuse(str(error))
-            return self._json({"url": f"{self.page_root}/api/samples/{identity}/"})
+            root = f"{self.page_root}/api/samples/{identity}"
+            return self._json(
+                {
+                    "url": root + "/",
+                    "page": child_interaction_page(root, self.page_root),
+                }
+            )
         if path == "/api/media":
             try:
                 media_path = store_uploaded_media(

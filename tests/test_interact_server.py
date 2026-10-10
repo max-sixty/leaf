@@ -290,7 +290,8 @@ def test_samples_use_captured_resources_and_independent_event_logs(server, page_
         headers={"Leaf-View-Revision": "1"},
     )
     assert status == 200, raw
-    child = server + json.loads(raw)["url"].rstrip("/")
+    allocated = json.loads(raw)
+    child = server + allocated["url"].rstrip("/")
     status, document = fetch(child + "/")
     assert status == 200, document
     assert b"Child text." in document
@@ -350,7 +351,7 @@ def test_samples_use_captured_resources_and_independent_event_logs(server, page_
     assert any(
         row["source"] == "client"
         and row["session"] == "child-tab"
-        and row["page"] == child.removeprefix(server)
+        and row["page"] == allocated["page"]
         for row in map(
             json.loads,
             (page_dir / interaction_model.INTERACTIONS_FILE).read_text().splitlines(),
@@ -573,6 +574,27 @@ def test_sample_capability_authorizes_only_its_live_descendants(page_dir, routed
         with urllib.request.urlopen(first + "/") as answer:
             assert answer.headers.get("Content-Security-Policy") is None
         assert fetch(first + "/api/state", token=None)[0] == 200
+        assert (
+            fetch(
+                first + "/api/interaction",
+                token=None,
+                data=json.dumps(
+                    {"session": "routed-sample", "entries": [{"type": "checkpoint"}]}
+                ).encode(),
+            )[0]
+            == 204
+        )
+        routed_trace = next(
+            row
+            for row in map(
+                json.loads,
+                (page_dir / interaction_model.INTERACTIONS_FILE)
+                .read_text()
+                .splitlines(),
+            )
+            if row.get("session") == "routed-sample"
+        )
+        assert routed_trace["page"] == first.removeprefix(origin)
         assert fetch(origin + "/api/state", token=None)[0] == 401
         assert fetch(origin + "/api/samples/" + "0" * 32 + "/", token=None)[0] == 404
         nested = create(first, "inner", None)

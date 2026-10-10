@@ -1172,7 +1172,7 @@ export default {
     }
     let body: BodyInit | null = response.body;
     if (request.method === "POST" && route.inside === "api/samples" && response.ok) {
-      const answer = await response.json() as { url: string };
+      const answer = await response.json() as { url: string; page: string };
       const allocated = new URL(answer.url, request.url);
       const tail = allocated.pathname.slice(pathname.length);
       if (allocated.origin !== url.origin || !allocated.pathname.startsWith(`${pathname}/`) ||
@@ -1182,6 +1182,7 @@ export default {
       const objectId = env.PAGES.idFromName(privateContainer).toString();
       allocated.pathname = `${allocated.pathname.slice(0, -1)}~${objectId}/`;
       answer.url = allocated.pathname;
+      answer.page = `${answer.page}~${objectId}`;
       body = JSON.stringify(answer);
     }
     const headers = new Headers(response.headers);

@@ -6634,7 +6634,7 @@ def test_a_failed_leaves_restore_keeps_application_presentation_pending(
           return presentation.readApplicationPresentation().pending.includes('leaves');
         }"""
     )
-    assert take_browser_errors(page) == [
+    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
         (
             "leaf: Presentation failed: Leaves presentation and retention failed: "
             "deliberate leaves failure; deliberate leaves failure"

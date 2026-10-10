@@ -217,7 +217,7 @@ export function createStateApplication({
           });
         }
       } catch (error) {
-        reportPageError(`State presentation failed: ${error?.message ?? error}`);
+        reportPageError(error, `State presentation failed`);
         throw error;
       } finally {
         stateApplying = false;

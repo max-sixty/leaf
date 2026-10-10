@@ -283,10 +283,6 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   .lf-region-selection { position: absolute; box-sizing: border-box;
     border: 2px solid var(--accent); outline: 1px solid var(--paper);
     box-shadow: 0 0 0 100vmax rgb(0 0 0 / 40%); }
-  .lf-region-guide { position: absolute; top: 4px; left: 4px; max-width: calc(100vw - 16px);
-    margin: 0; padding: 4px 8px; border-radius: var(--r-sm);
-    background: var(--card); color: var(--ink); font: 12px/1.4 var(--sans);
-    font-variant-numeric: tabular-nums; }
 
   /* The layer is the runtime's, not the document's, so it never prints — one rule
      for all of it, rather than each piece remembering. :scope is the container

@@ -11421,6 +11421,40 @@ def open_capture_area(page, *, touch=False):
     return surface
 
 
+@pytest.mark.parametrize("touch", [False, True])
+def test_capture_leaves_selected_content_visible_through_the_drag(
+    browser, serve, touch
+):
+    page = capture_page(browser, serve, touch=touch)
+    baseline = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
+    target = page.locator("#capture-copy").bounding_box()
+    left, top = int(target["x"]) + 100, int(target["y"]) + 4
+    surface = open_capture_area(page, touch=touch)
+    page.mouse.move(left, top)
+    page.mouse.down()
+    # Judge the selected content while the pointer is held, including a small
+    # rectangle and a reversal. A successful final attachment cannot prove this.
+    for dx, dy in ((4, 4), (88, 44), (180, 90), (-88, -44)):
+        page.mouse.move(left + dx, top + dy, steps=3)
+        selected = surface.locator(".lf-region-selection").bounding_box()
+        inset = 3  # Leave the selection border out of the content comparison.
+        crop = tuple(
+            round(value * 2)
+            for value in (
+                selected["x"] + inset,
+                selected["y"] + inset,
+                selected["x"] + selected["width"] - inset,
+                selected["y"] + selected["height"] - inset,
+            )
+        )
+        actual = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
+        assert actual.crop(crop).tobytes() == baseline.crop(crop).tobytes(), (
+            f"Capture paint obscures the selected content during a {dx}×{dy} drag"
+        )
+    page.mouse.up()
+    page.keyboard.press("Escape")
+
+
 def test_a_region_capture_keeps_scrolled_shadow_pixels_and_its_comment_anchor(
     browser, serve
 ):

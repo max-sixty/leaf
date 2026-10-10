@@ -2,7 +2,9 @@
  *
  * The page command owner supplies input and registers this controller's rows with the
  * shared keyboard and banner controls. The overlay only paints: it never intercepts
- * hit testing or introduces a modal. Pointer drags set a rectangle; arrows move it and
+ * hit testing or introduces a modal. Its border leaves the selected content clear;
+ * instructions and errors belong to the shared controls and notice line. Pointer
+ * drags set a rectangle; arrows move it and
  * Shift+arrows resize it, so capturing never requires a drag. The selected pixels stay
  * in viewport coordinates until confirmation, when SnapDOM takes a document-coordinate
  * crop of the live DOM, excluding the selector and shortcut bar. SnapDOM owns cloning,
@@ -22,6 +24,7 @@ import { keeps, keepsText } from "../keeps.js";
 import { runtime } from "../context.js";
 import { nextRender } from "../rendering.js";
 import { clamp } from "../rect.js";
+import { notice } from "../notifications.js";
 
 const MIN_SIZE = 8;
 const STEP = 10;
@@ -42,8 +45,6 @@ export function createRegionSelector({
   overlay.tabIndex = -1;
   const selection = el("div", "lf-region-selection");
   selection.setAttribute("aria-hidden", "true");
-  const guide = el("p", "lf-region-guide");
-  selection.append(guide);
   const status = el("p", "lf-live lf-region-status");
   status.setAttribute("role", "status");
   overlay.append(selection, status);
@@ -58,17 +59,12 @@ export function createRegionSelector({
   let attempt = 0;
   let ended = false;
 
-  function say(message) {
-    keepsText(status, message);
-    keepsText(guide, message);
-  }
-
   function paint() {
     selection.style.left = `${box.x}px`;
     selection.style.top = `${box.y}px`;
     selection.style.width = `${box.width}px`;
     selection.style.height = `${box.height}px`;
-    say(`${box.width} × ${box.height} pixels · Drag to select`);
+    keepsText(status, `${box.width} × ${box.height} pixels`);
     paintKeys();
   }
 
@@ -145,7 +141,7 @@ export function createRegionSelector({
     const clip = { ...box, x: box.x + scrollX, y: box.y + scrollY };
     busy = true;
     keeps(overlay, "aria-busy", "true");
-    say("Capturing…");
+    keepsText(status, "Capturing…");
     paintKeys();
     try {
       const { snapdom } = await import("../../vendor/snapdom.esm.js");
@@ -175,7 +171,9 @@ export function createRegionSelector({
       if (ended || ticket !== attempt) return;
       busy = false;
       keeps(overlay, "aria-busy", null);
-      say(`Could not capture — ${error.message}`);
+      const message = `Could not capture — ${error.message}`;
+      keepsText(status, message);
+      notice(message, { announce: false });
       paintKeys();
     }
   }

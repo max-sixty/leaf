@@ -11428,6 +11428,8 @@ def test_a_rewrite_of_a_comment_just_sent_stands_where_its_words_did(
         before[1]["y"],
         before[1]["height"],
     ), (box, before[1])
+    # The rewrite's frame and focus ring reach past its box, so nothing clips it.
+    assert editor.evaluate("el => getComputedStyle(el).overflow") == "visible"
 
 
 def test_a_scaled_floating_draft_keeps_its_room_when_its_passage_scrolls_away(

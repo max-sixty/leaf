@@ -22,7 +22,7 @@ second fold.
 | the harness runs Leaf's hooks for this session | `sessions/<session>.hooks` | every Leaf hook the harness runs for the session | removed by its SessionEnd hook |
 | acknowledgement cursor | `cursor.json` | whatever confirms the complete delivery reached its durable consumer: a Claude Code or Pi hook once it has published an inline delivery, the session's `leaf delivery read` of a hook's pointer, `leaf wait --ack` after a printed one, or the Codex adapter | when its seq is past the log's end, or a fresh log replaces the one it named; monotonic within one log |
 | pickup transition | a `pickup` event in `events.jsonl` | the adapter records `queued` when Codex accepts a batch it does not observe; whatever puts the batch into a turn records `opened` with session and turn identity: a direct `leaf wait --ack` confirmation, a hook's or a pointer read's confirmation of a Claude Code or Pi hook delivery, the prompt hook re-presenting an acknowledged unanswered move, or an App Server turn start | never; each event/phase/session/turn transition is idempotent |
-| page claim: unique acquisition, session generation, display name, harness, page freshness | `~/.local/state/leaf/claims/<page-key>.json`; the session partition holds a symlink locator to it | `server start` from an agent harness; references the session lifetime publication | `released` is set, the referenced generation ended or was replaced, or the shared harness lifetime is gone: the pid, the background job's directory, or — for a harness that multiplexes every session into one process, where there is no pid to name — the page going untouched for ACTIVITY_GRACE_SECS, which a *visible* tab's `viewed.json` writes keep renewing — a backgrounded tab stops its freshness reads and stops renewing |
+| page claim: unique acquisition, session generation, display name, harness | `~/.local/state/leaf/claims/<page-key>.json`; the session partition holds a symlink locator to it | `server start` from an agent harness; references the session lifetime publication | `released` is set, the referenced generation ended or was replaced, or the shared harness lifetime is gone: the pid, the background job's directory, or the desktop Codex chat's validated native transcript at the path in its session record; archive moves that source and delete removes it |
 | service lifetime | `service.json` | `server start` at launch: session, or standing | `leaf server stop`; a session server also retires when no live claim holds it |
 | Codex delivery record | `sessions/<session>.deliveries/` in the state home | the detached adapter or an embedded App Server harness | an unaccepted record is inactive while the session owns no page; an accepted record moves under `history/` after every batch is receipted; a record, live or archived, goes at the next scan that finds its pages all gone: its own task's reading, its next archiving, or any Codex adapter's retirement, which scans every task's records and removes a directory it empties |
 | Codex adapter log | `sessions/<session>.codex.log` | the detached adapter's own output, begun afresh when serving or `leaf codex start` starts a new adapter | removed when the adapter retires owning no page; a run that ended any other way leaves it for the next start of that task |
@@ -166,8 +166,9 @@ unknown prompt-created lifetime; replacing known provenance starts a generation.
 SessionEnd ends a process-backed generation without page discovery or page locks;
 a resumed process-backed harness ID gets a new generation, leaving old claims
 inactive. Desktop Codex unloading closes its instance observations and retains
-the chat generation, so resuming that chat retains its page ownership. Activity-backed ownership freshness remains per page: one
-visible sibling does not renew every page in a multiplexed harness. Where nothing answers for the declaration, activity reports the page
+the chat generation, so resuming that chat retains its page ownership. The native
+chat source keeps every page it owns alive, independently of browser attention.
+Where nothing answers for the declaration, activity reports the page
 unheld rather than repeating it. Unheld is not a fault: a standing page spends most
 of its life unheld and picks up again when a session takes it.
 
@@ -454,12 +455,16 @@ remains at its permanent path for a turn whose acceptance may have raced the fai
 response.
 
 Each delivery has one globally addressed immutable envelope and one mutable delivery
-record. The record carries collecting, offering, accepted, or abandoned state;
-after the freeze it retains only the event identities needed for page receipts.
-Once a cursor advances, the
-delivery record keeps that receipt so
-reinitializing the same page path cannot revive old transport work; a
-reinitialized page whose events no longer match retires its old batch. The
+record. Its variants describe capture (`collecting`), a frozen pointer (`offering`),
+an offer reserved to a turn (`hook`), an uncertain provider start (`starting`),
+durable queue acceptance (`queued`), proven context entry (`opened`), or abandonment
+(`abandoned`). After freezing, it retains only the event identities needed for
+page receipts. Only an accepted or abandoned outcome has pending receipts.
+Recovery repeats the outcome's idempotent page effects before removing each pending
+receipt; the cursor alone cannot prove that exact pickup evidence was written.
+An outcome with no pending receipts moves to history, including when a crash left
+it in the live directory. Reinitializing a page path cannot revive a completed
+receipt; a page whose events no longer match retires its old batch. The
 adapter has a second lease because a generic wait lease cannot prove its output can
 enter a later Codex turn. Leaf's unobserved queue command never calls `turn/start`.
 With an App Server the adapter's `TaskConnection` owns one subscribed connection.
@@ -582,10 +587,14 @@ the page goes idle or changes hands.
 ### Adapter lifetime
 
 Desktop Codex unloads an idle running instance without ending the chat. Its
-activity-backed lifecycle retains the generation at `SessionEnd`, closes an open
+persisted-chat lifecycle retains the generation at `SessionEnd`, closes an open
 turn, and retires hook capability observations while keeping the claimed-page
 marker. The next prompt and tool hook therefore resume the same ownership and
-delivery route. Per-page activity expiry, release and transfer still retire them.
+delivery route. The session record owns the one validated `transcript_path`;
+lifetime records only `chat: true`. Missing source evidence refuses a new desktop
+start. An existing
+chat keeps its server, preview and adapter across inactivity and unload; archival
+or deletion of its native source, release and transfer retire ownership.
 Process-backed harness sessions invalidate their generation at `SessionEnd`.
 
 Desktop user previews also detach their input watcher from the launching command.
@@ -598,5 +607,5 @@ The detached Codex adapter follows active session/page ownership, including when
 all owned pages declare idle. Idle pages deliver no input and direct waits end;
 a later start or waiting declaration resumes delivery through the existing adapter. The adapter
 waits for page news while idle and retires once ownership ends through release,
-transfer, expiry or a process-backed SessionEnd. Serving a closed page therefore
+transfer, chat archival/deletion or a process-backed SessionEnd. Serving a closed page therefore
 does not lose its adapter before the agent's next declaration.

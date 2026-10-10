@@ -514,15 +514,19 @@ graph LR
 """
 
 
-# The fixture's own layer. PAGE holds an lf-diagram, and the interact suite borrows
-# lf-diagram and lf-diff declarations out of the vendored registry, so the selection
-# names the packages those three now travel in. The template cache is keyed by this
-# same list, so a page built for one selection is never handed to another.
-PAGE_PACKAGES = (
-    "~/" + COMMAND_HUB_PACKAGE.relative_to(Path.home()).as_posix(),
-    "diagram",
-    "diff",
-)
+def package_path(path: Path) -> str:
+    """Select a checkout fixture from the caller's cwd, wherever HOME lives."""
+    return "./" + os.path.relpath(path)
+
+
+def page_packages() -> tuple[str, ...]:
+    """The integration page's package selection, resolved where it is initialized.
+
+    PAGE holds an lf-diagram, and the interact suite borrows lf-diagram and
+    lf-diff declarations from the vendored registry. The template cache names
+    this composition so one selection is never handed to another.
+    """
+    return (package_path(COMMAND_HUB_PACKAGE), "diagram", "diff")
 
 
 @pytest.fixture
@@ -537,14 +541,14 @@ def page_dir(tmp_path, monkeypatch, initialized_page):
             [
                 "page",
                 "init",
-                *(arg for name in PAGE_PACKAGES for arg in ("--package", name)),
+                *(arg for name in page_packages() for arg in ("--package", name)),
                 str(template),
             ],
         )
         assert result.exit_code == 0, result.output
         (template / "index.html").write_text(PAGE)
 
-    initialized_page("work-" + "-".join(PAGE_PACKAGES[1:]), d, initialize)
+    initialized_page("work-" + "-".join(page_packages()[1:]), d, initialize)
     return d
 
 
@@ -679,6 +683,33 @@ def page_state(d):
     return served_page.full_state(d, events)
 
 
+@pytest.fixture
+def native_codex_chat(tmp_path):
+    """Publish a native chat's validated source through its ordinary prompt hook."""
+    from leaf.hooks import cmd_hook
+
+    def create(session_id):
+        source = tmp_path / "sessions" / f"{session_id}.jsonl"
+        source.parent.mkdir(exist_ok=True)
+        source.write_text(
+            json.dumps({"type": "session_meta", "payload": {"id": session_id}}) + "\n"
+        )
+        cmd_hook(
+            "codex",
+            {
+                "hook_event_name": "UserPromptSubmit",
+                "session_id": session_id,
+                "transcript_path": str(source),
+            },
+        )
+        assert cleanup_model.session_record(session_id)["transcript_path"] == str(
+            source
+        )
+        return source
+
+    return create
+
+
 def record_claim(page, /, harness="claude-code", **fields):
     """Write the canonical claim shape for lifecycle fixtures.
 
@@ -701,7 +732,7 @@ def record_claim(page, /, harness="claude-code", **fields):
         "turn_closed": observed["turn_closed"] if observed else None,
         **fields,
     }
-    lifetime = {key: record[key] for key in ("job", "activity") if key in record}
+    lifetime = {key: record[key] for key in ("job", "chat") if key in record}
     if not lifetime:
         lifetime = {"pid": record["pid"]}
     turn = {key: record[key] for key in ("turn", "turn_opened", "turn_closed")}
@@ -710,7 +741,7 @@ def record_claim(page, /, harness="claude-code", **fields):
     record = {
         key: value
         for key, value in record.items()
-        if key not in {"job", "activity", "pid", "turn", "turn_opened", "turn_closed"}
+        if key not in {"job", "chat", "pid", "turn", "turn_opened", "turn_closed"}
     }
     record["generation"] = session["generation"]
     record["acquisition"] = fields.get("acquisition", secrets.token_hex(16))
@@ -974,7 +1005,7 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
 
     def init_result():
         try:
-            vendoring_model.cmd_init(page_dir, selected=(*PAGE_PACKAGES, "./.leaf"))
+            vendoring_model.cmd_init(page_dir, selected=(*page_packages(), "./.leaf"))
         except SystemExit as error:
             return str(error)
         return None
@@ -1332,8 +1363,8 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
     Both roots are the run's own: `tmp_path`, and the state home as
     `isolated_session`'s value. Read from the environment here instead, at setup
     or after the yield, the root is the developer's `~/.local/state/leaf`, and
-    this sweep stopped every server standing there (tests/AGENTS.md, "A process
-    the suite starts ends with the run")."""
+    this sweep stopped every server standing there (tests/AGENTS.md, "Processes and
+    servers")."""
     yield
     retire_test_services(tmp_path, isolated_session)
 
@@ -1834,7 +1865,7 @@ def standing_server(spawn, sessionless):
 
     Standing is the serve nothing reaps: it declines the claim, so no watcher
     starts, and a run killed while one is up leaves a process only a person can
-    stop (tests/AGENTS.md, "A process the suite starts ends with the run"). A
+    stop (tests/AGENTS.md, "Processes and servers"). A
     child of the worker is as close as the suite gets."""
 
     def start(page_dir):

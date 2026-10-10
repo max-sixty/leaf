@@ -60,9 +60,21 @@ test("a rendered Markdown caret keeps its exact source position in long and stru
       assert.equal(
         markdownSourceOffset(body, node, at + 2),
         source.indexOf("word300") + 2,
+        source,
       );
     }
     assert.equal(matches, 1);
+  }
+  for (const source of ["First\nword300", "First  \nword300"]) {
+    const body = document.createElement("div");
+    paintMarkdown(body, source);
+    const node = body.querySelector("p").lastChild;
+    for (const offset of [0, 2])
+      assert.equal(
+        markdownSourceOffset(body, node, offset),
+        source.indexOf("word300") + offset,
+        source,
+      );
   }
 });
 
@@ -83,7 +95,7 @@ test("Markdown body readings share file dialect, safe destinations and native st
   body.innerHTML = renderMarkdown("<div>\n**bold**\n</div>\n\n<div>\nHeading\n---");
   assert.equal(
     body.innerHTML,
-    "<p>&lt;div&gt;<br>\n<strong>bold</strong><br>\n&lt;/div&gt;</p>\n<h2>&lt;div&gt;<br>\nHeading</h2>\n",
+    "<p>&lt;div&gt;<br><strong>bold</strong><br>&lt;/div&gt;</p>\n<h2>&lt;div&gt;<br>Heading</h2>\n",
   );
   body.innerHTML = renderMarkdown("- [x] Done\n- [ ] Todo");
   assert.deepEqual(
@@ -111,6 +123,12 @@ test("Markdown body readings share file dialect, safe destinations and native st
   );
   assert.equal(body.querySelector("img").alt, "A B & code C");
   assert.equal(renderInlineMarkdown("first\nsecond", false), "first\nsecond");
+  // Formatting whitespace must not add a second line in space-preserving messages;
+  // excerpts still read the semantic break as separation between the words.
+  for (const source of ["first\nsecond", "first  \nsecond"]) {
+    assert.equal(renderInlineMarkdown(source), "first<br>second");
+    assert.equal(renderedWords(renderInlineMarkdown(source)), "first\nsecond");
+  }
 });
 
 test("editor tokens retain native constructs and exact source syntax after parser joining", async () => {

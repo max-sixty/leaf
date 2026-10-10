@@ -580,8 +580,7 @@ diff --git a/deploy/Dockerfile b/deploy/Dockerfile
 </pre></lf-diff>
 """,
 )
-# A page carrying both kinds of native control a widget injects: a checkbox in the light
-# DOM and a <summary> the widget staged in a shadow tree.
+# A page carrying a comparison handle and a <summary> staged in widget shadow trees.
 NATIVE_CONTROL_PAGE = DIFF_PAGE.replace(
     "</main>",
     f"""<lf-shot id="shot-keys" alt="the navigation rail"

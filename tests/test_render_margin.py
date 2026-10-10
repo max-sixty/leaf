@@ -2875,14 +2875,20 @@ def test_page_map_filtering_keeps_search_and_close_in_place(browser, serve, view
     groups = dialog.locator(".lf-page-map-group:visible")
     expect(groups).to_have_count(12)
     expect(search).to_be_focused()
-    before = {"search": search.bounding_box(), "close": close.bounding_box()}
+    search_field = dialog.locator(".lf-page-map-search")
+    before = {"search": search_field.bounding_box(), "close": close.bounding_box()}
     top = dialog.bounding_box()["y"]
 
     for query, count in [("Map note 12", 1), ("No such map entry", 0), ("", 12)]:
-        search.fill(query)
+        if query:
+            search.fill(query)
+        else:
+            search_field.get_by_role("button", name="Clear entry").click()
+            expect(search).to_have_value("")
+            expect(search).to_be_focused()
         expect(groups).to_have_count(count)
         rendered(page)
-        assert search.bounding_box() == before["search"]
+        assert search_field.bounding_box() == before["search"]
         assert close.bounding_box() == before["close"]
         assert dialog.bounding_box()["y"] == top
         assert (
@@ -5531,17 +5537,24 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
           const {contributionEntry, registerContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
           let primaryVisible = true;
+          let peers = [];
           const registration = registerContribution({
             key: 'fixture', target: document.querySelector('#how-cap'),
             read: () => ({entries: [contributionEntry({
               key: 'act', glyph: 'A', label: 'Act', behavior: 'action',
               visible: primaryVisible
-            })]}), activate: () => {}
+            }), ...peers]}), activate: () => {}
           });
           window.lfThreadOwner = {
             registration,
             showPrimary(visible) {
               primaryVisible = visible;
+              registration.update({immediate: true});
+            },
+            addPeers() {
+              peers = [1, 2, 3].map(i => contributionEntry({
+                key: `peer-${i}`, glyph: 'P', label: `Peer ${i}`, behavior: 'action'
+              }));
               registration.update({immediate: true});
             }
           };
@@ -5579,7 +5592,7 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     expect(thread).to_have_attribute("data-stable-proof", "same-thread-button")
     expect(thread).to_have_attribute("aria-expanded", "true")
 
-    append_carried_log_record(
+    second = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -5625,6 +5638,22 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(thread).to_have_attribute("aria-expanded", "false")
     assert page.evaluate("() => document.activeElement === document.body")
+
+    page.evaluate("window.lfThreadOwner.addPeers()")
+    expect(options).to_be_hidden()
+    comment_note(page, "#how-cap").press("Enter")
+    expect(options).to_be_visible()
+    assert page.evaluate(
+        """async id => {
+          const {openThread} = await window.__lfRuntimeImport('/runtime/application.js');
+          return Boolean(await openThread(id, {focus: 'thread'}));
+        }""",
+        second["id"],
+    )
+    expect(options).to_be_visible()
+    expect(thread).to_have_attribute("aria-expanded", "true")
+    page.locator(".lf-margin-preview-close").click()
+    expect(options).to_be_hidden()
 
 
 def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(
@@ -6623,7 +6652,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(marker).to_be_focused()
     page.keyboard.press("Enter")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("back to page")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("back to element")
     expect(preview.locator(".lf-page-thread")).to_be_focused()
     expect(preview.locator("leaf-text")).to_be_visible()
     expect(preview.locator("leaf-text")).to_have_js_property(
@@ -6798,26 +6827,49 @@ def test_anchored_thread_reading_keys_and_page_return(browser, serve):
 
 
 def test_a_thread_card_is_unseen_until_its_first_placement_lands(browser, serve):
-    """A card opened before it has anywhere to stand is neither seen nor pressed at the
-    corner it opens in, and appears once its placement lands."""
+    """An unplaced card is unseen; switching and closing retire its pending work."""
     context = browser.new_context(viewport={"width": 1440, "height": 900})
     held = []
     context.route("**/vendor/floating-ui.esm.js", lambda route: held.append(route))
     page = open_page(
         browser,
-        serve(ASK_PAGE, events=[COMMENT_ON_ASK]),
+        serve(
+            ASK_PAGE,
+            events=[
+                COMMENT_ON_ASK,
+                {
+                    **COMMENT_ON_ASK,
+                    "text": "Check the tools separately.",
+                    "anchor": {"section": "tools"},
+                },
+            ],
+        ),
         context=context,
         upgraded=False,
     )
     preview = page.locator(".lf-margin-preview")
     try:
         holding(page, held, 1, "the positioning module")
-        page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
+        first = page.locator('[data-lf-margin-for="bracket"] .lf-margin-marker')
+        second = page.locator('[data-lf-margin-for="tools"] .lf-margin-marker')
+        first.click()
         expect(preview).not_to_have_attribute("hidden", "")
         expect(preview).to_have_css("opacity", "0")
         expect(preview).to_have_css("pointer-events", "none")
 
+        second.click()
+        expect(preview).to_contain_text("Check the tools separately.")
+        page.keyboard.press("Escape")
+        expect(preview).to_be_hidden()
+        page.locator(".lf-threads-toggle").focus()
+
         held.pop(0).continue_()
+        rendered(page)
+        expect(preview).to_be_hidden()
+        expect(page.locator(".lf-threads-toggle")).to_be_focused()
+        expect(preview).not_to_have_attribute("data-lf-thread-placement")
+
+        first.click()
         expect(preview).to_have_attribute("data-lf-thread-placement", re.compile(r".+"))
         expect(preview).to_have_css("opacity", "1")
         expect(preview).to_have_css("pointer-events", "auto")
@@ -7576,6 +7628,29 @@ def send_anchored_comment(page, text):
     for actual, expected in zip(accepted, lines, strict=True):
         assert actual == pytest.approx(expected, abs=0.5), (lines, accepted)
     return frame["x"], len(lines)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "better; is there a way of shortening? or maybe we just remove it??",
+        "Check the January failure mode before accepting this design. " * 3,
+    ],
+)
+@pytest.mark.parametrize("zoom", [1, 1.1])
+def test_a_sent_comment_keeps_its_text_viewport(browser, serve, text, zoom):
+    """Carrying the editor's measure leaves the sent words inside their scrollport."""
+    page = open_page(browser, serve(ASK_PAGE), init_script=MARGIN_EDITOR_ROOTS)
+    resized(page, 1200, 900)
+    page.evaluate("zoom => document.documentElement.style.zoom = zoom", zoom)
+    send_anchored_comment(page, text.rstrip())
+    reading = page.locator(".lf-margin-preview")
+    overflow = reading.evaluate("""card => [...card.querySelectorAll('*')]
+        .filter(node => node.clientWidth && /auto|scroll/.test(getComputedStyle(node).overflow))
+        .filter(node => node.scrollWidth > node.clientWidth || node.scrollHeight > node.clientHeight)
+        .map(node => ({class: node.className, width: node.clientWidth,
+            scrollWidth: node.scrollWidth, height: node.clientHeight, scrollHeight: node.scrollHeight}))""")
+    assert not overflow, overflow
 
 
 @pytest.mark.parametrize("wrapping", [False, True])
@@ -10449,6 +10524,55 @@ def test_a_pin_keeps_clear_only_of_controls_the_user_can_see(browser, serve):
     assert tops["marker"] == pytest.approx(tops["heading"], abs=1), tops
 
 
+def test_a_pin_keeps_clear_of_controls_slotted_into_its_reading_region(browser, serve):
+    """A native control in a slotted Ask takes presses before the Ask's overlay pin."""
+    source = leaf_page(
+        "A slotted Ask",
+        '<h1>Reading region</h1><div id="reader-host">'
+        '<lf-ask id="slotted-ask">'
+        "<h3>Which channel?</h3>"
+        '<button id="ask-help" style="position:absolute; top:0; right:0; '
+        'width:120px; height:44px">Explain channels</button>'
+        '<lf-options id="channel" choose><lf-option id="email">Email</lf-option>'
+        '<lf-option id="chat">Chat</lf-option></lf-options></lf-ask></div>',
+        head="<style>#slotted-ask { position:relative; height:180px; margin:0; }</style>",
+        layout="wide",
+    )
+    page = open_page(browser, serve(source))
+    page.evaluate("""async () => {
+      const { registerReadingRegion } =
+        await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const host = document.getElementById('reader-host');
+      const root = host.attachShadow({mode:'open'});
+      root.innerHTML = '<section style="height:240px; overflow:auto">'
+        + '<slot></slot><div style="height:400px"></div></section>';
+      const body = root.querySelector('section');
+      window.stopSlottedRegion = registerReadingRegion({id:'slotted-reader', host, body});
+      document.getElementById('ask-help').addEventListener('click', event => {
+        event.currentTarget.textContent = 'Channel explanation';
+      });
+    }""")
+    margins_laid_out(page)
+    row = page.locator('[data-lf-margin-for="slotted-ask"]')
+    expect(row).to_have_attribute("data-lf-place", "pin")
+    expect(row).to_be_visible()
+    reading = page.evaluate("""() => {
+      const edges = ({left, top, right, bottom}) => ({left, top, right, bottom});
+      const row = document.querySelector('[data-lf-margin-for="slotted-ask"]');
+      return {
+        controls: [...row.querySelectorAll('.lf-margin-entry')]
+          .filter(node => node.checkVisibility()).map(node => edges(node.getBoundingClientRect())),
+        help: edges(document.getElementById('ask-help').getBoundingClientRect()),
+      };
+    }""")
+    assert reading["controls"], reading
+    assert not any(
+        _meets(control, reading["help"]) for control in reading["controls"]
+    ), reading
+    page.get_by_role("button", name="Explain channels", exact=True).click()
+    expect(page.locator("#ask-help")).to_have_text("Channel explanation")
+
+
 @pytest.mark.parametrize("target_tree", ["shadow", "slotted"])
 @pytest.mark.parametrize("native_scroll", [True, False])
 def test_a_row_follows_its_target_through_a_scroller_inside_a_shadow_tree(
@@ -11418,6 +11542,56 @@ def test_rail_ask_draft_and_optimistic_undo(browser, serve):
     undo(page)
     expect(page.locator("#route-a")).not_to_have_attribute("chosen", "")
     expect(ask).to_be_visible()
+
+
+def test_rail_actions_wrap_and_hold_a_new_row_until_revealed(browser, serve):
+    """Actions stay reachable without sideways scrolling; foreign growth still waits."""
+    source = page_annotation_action_source().replace(
+        "width:430px", "width:100%;max-width:430px"
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 390, 844)
+    page.evaluate("""async () => {
+      const {registerContribution, contributionEntry} =
+        await window.__lfRuntimeImport('/runtime/widget-api.js');
+      window.__railActions = {count: 6, activated: null};
+      const state = window.__railActions;
+      state.registration = registerContribution({key: 'review-actions',
+        target: document.querySelector('#subject'),
+        read: () => ({entries: Array.from({length: state.count}, (_, i) =>
+          contributionEntry({key: String(i), label: `Review reading ${i}`, glyph: '→'}))}),
+        activate: key => {state.activated = key},
+      });
+    }""")
+    rendered(page)
+    rail = page.locator("#annotations")
+    notice = rail.get_by_role("button", name="Show updated annotations", exact=True)
+    notice.click()
+    actions = rail.locator(".lf-ar-action-controls").filter(
+        has=page.get_by_role("button", name="Review reading 0", exact=True)
+    )
+    expect(actions.get_by_role("button")).to_have_count(6)
+    ask = rail.get_by_role("button", name="Which route? · Waiting on you", exact=True)
+    before = ask.bounding_box()
+    height = actions.evaluate("el => el.clientHeight")
+    page.evaluate("""() => {
+      window.__railActions.count = 12;
+      window.__railActions.registration.update();
+    }""")
+    rendered(page)
+    expect(notice).to_be_enabled()
+    expect(actions.get_by_role("button")).to_have_count(6)
+    assert ask.bounding_box() == before
+    notice.click()
+    expect(actions.get_by_role("button")).to_have_count(12)
+    assert actions.evaluate("el => el.clientHeight") > height
+    for width in (320, 1200):
+        resized(page, width, 844)
+        assert actions.evaluate("el => el.scrollWidth <= el.clientWidth")
+    last = actions.get_by_role("button", name="Review reading 11", exact=True)
+    last.focus()
+    page.keyboard.press("Space")
+    page.wait_for_function("window.__railActions.activated === '11'")
 
 
 def test_draw_mode_leaves_page_annotation_controls_usable(browser, serve):

@@ -1,11 +1,14 @@
 /* Atlas owns roster composition. A visible report keeps its reading until the
  * user asks for updates, while identity and state come from the public projection. */
 import {
+  ago,
   HeldReading,
+  html,
   keeps,
   keepsText,
   once,
   readWork,
+  render,
   updateSequence,
   watchOwner,
   watchUpdates,
@@ -24,8 +27,9 @@ customElements.define(
         const summary = document.createElement("summary");
         summary.append(
           this.querySelector(":scope > strong"),
-          Object.assign(document.createElement("output"), {
+          Object.assign(document.createElement("span"), {
             className: "atlas-worker-state",
+            role: "status",
           }),
         );
         const body = document.createElement("div");
@@ -41,11 +45,11 @@ customElements.define(
       }
       this.reading = new HeldReading(
         () => [this.querySelector(".atlas-worker-body")],
-        () => this.paint(),
+        () => this.watching.refresh(),
       );
       watchOwner(this, { disconnect: () => this.reading.dispose() });
       this.#controller.subscribe(() => {});
-      watchUpdates(this, () => this.paint());
+      this.watching = watchUpdates(this, () => this.paint());
     }
     renderState(state) {
       keeps(this, "state", state.state.value);
@@ -67,9 +71,16 @@ customElements.define(
       });
       const shown = this.reading.hold(next);
       const reading = JSON.parse(shown);
-      keepsText(
+      render(
+        html`${reading.text}${
+          reading.heard
+            ? html` Last heard
+                <time datetime=${reading.heard} title=${reading.heard}
+                  >${ago(reading.heard)}</time
+                >`
+            : ""
+        }`,
         this.querySelector(".atlas-worker-report"),
-        `${reading.text}${reading.heard ? ` Last heard ${reading.heard}.` : ""}`,
       );
       if (this.pending !== (next !== shown)) {
         this.pending = next !== shown;

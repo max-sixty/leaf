@@ -81,8 +81,8 @@ wa-select::part(combobox) {
 /* A text field's Tab stop and the box that rings it both sit inside the vendor's shadow
    root, where the host rule a Leaf control wears reaches neither. The band is therefore
    drawn and named on the field's own part: --lf-focus-ring does not inherit, and the
-   layer credits a ring to the rule that names it. Leaf enables none of the buttons the
-   field can carry beside its input, so focus inside it is focus in the input. */
+   layer credits a ring to the rule that names it. The frame's band covers its native
+   editor and any auxiliary control, including Clear. */
 wa-input:focus-within::part(base) {
   outline: var(--focus-ring);
   --lf-focus-ring: text-entry;

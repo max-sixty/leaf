@@ -12,6 +12,7 @@ Commands:
   codex     Launch Codex and connect Leaf pages to its tasks.
   data      Set or clear page-bound external data.
   delivery  Read input delivered by any Leaf harness.
+  file      Bind existing local files for editing on a page.
   package   Create, check, install, and run packages.
   page      Create, check, stamp, and read pages.
   response  Answer exact response references carried by a delivery.
@@ -85,6 +86,7 @@ Commands:
   export        Export a stamped version to one HTML file.
   init          Create or re-vendor a page directory.
   instructions  Read instructions for selected components and audience.
+  interactions  Read browser interactions and request diagnostics.
   media         Add images, video, or audio and print their page paths.
   picture       Picture a drawing comment as the user saw it.
   report        Report a state change onto a page widget, as a worker.

@@ -407,8 +407,8 @@
     "x-example": "<h3>The option cards</h3>\n<p>The chips now sit above the title, so a scanning eye reads cost before prose.</p>\n<lf-shot id=\"shot-cards\" outlines alt=\"the decision page's option cards\" before=\"/media/0f2c91a4b7de3105.png\" after=\"/media/6b40ac7719ee5d82.png\"></lf-shot>"
   },
   "lf-board": {
-    "description": "A kanban board whose cards the user can move between columns and reorder.",
-    "x-instructions": "When revising, keep each moved card in the column the user chose unless the revision explicitly retracts that decision with restated on the card. Read authoring-revisions.md, Honor user state. A rewrite that invalidates a move restates the card, not the board.",
+    "description": "Cards grouped into columns for scanning work and status, with movement and reordering available.",
+    "x-instructions": "Use primarily to display grouped work and status. Prefer explicit controls or lf-options when the user needs to make changes or decisions; the board is not the primary interaction surface. When revising, keep each moved card in the column the user chose unless the revision explicitly retracts that decision with restated on the card. Read authoring-revisions.md, Honor user state. A rewrite that invalidates a move restates the card, not the board.",
     "type": "object",
     "properties": {
       "id": {

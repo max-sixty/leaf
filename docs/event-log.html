@@ -53,24 +53,26 @@
       </aside>
 
       <section id="layers">
-        <h2>Leaf owns the log, and a package owns its verbs</h2>
+        <h2>Event validation and widget state</h2>
         <p id="layers-lede">
-          A widget sends a verb. Leaf checks it at the one append door, stores it, and
-          folds the log back into the state the widget draws. Nothing in Leaf's server
-          or runtime names a package's verbs.
+          A widget submits an action. Leaf validates it against the package's registry
+          declaration and appends it to the log. Leaf derives widget state from the
+          authored initial values and logged actions. Packages declare their own verbs;
+          Leaf processes those declarations without package-specific code.
         </p>
         <lf-diagram
           id="layers-flow"
           data-height="720"
-          parts="node:Widget node:Door node:Log node:Fold"
+          parts="node:Widget node:Door node:Log node:Initial node:Fold"
         >
           <pre>
 flowchart TD
-  accTitle: Widget actions become replayed state
-  accDescr: A widget submits a verb to the append door, which records it in events.jsonl. Folding the log yields state that renders back into the widget.
-  Widget["Widget"] -- "verb" --&gt; Door{"Append door"}
+  accTitle: Widget actions update widget state
+  accDescr: Leaf validates a widget's action and records it in events.jsonl. The authored initial values and logged actions determine the widget's state.
+  Widget["Widget"] -- "action" --&gt; Door{"Validate and append"}
   Door -- "record" --&gt; Log[("events.jsonl")]
-  Log -- "fold" --&gt; Fold["State"]
+  Log -- "derive state" --&gt; Fold["State"]
+  Initial["Authored initial values"] --&gt; Fold
   Fold -- "renderState" --&gt; Widget
 </pre>
         </lf-diagram>
@@ -95,7 +97,7 @@ flowchart TD
               <td>Event</td>
               <td>
                 The command the sender wrote, plus the <code>author</code>,
-                <code>id</code>, and time the door adds, and a widget event's
+                <code>id</code>, and time Leaf adds, and a widget event's
                 <code>meaning</code>
               </td>
               <td>Leaf</td>
@@ -110,7 +112,7 @@ flowchart TD
             </tr>
             <tr>
               <td>Widget</td>
-              <td>Sends verbs, and draws the folded state, unset values included</td>
+              <td>Submits actions and renders current state, including unset values</td>
               <td>Package, in its module</td>
             </tr>
           </tbody>
@@ -118,7 +120,7 @@ flowchart TD
       </section>
 
       <section id="try">
-        <h2>Try it: each gesture lands as one event</h2>
+        <h2>Try actions and undo</h2>
         <p id="try-walkthrough">
           The sample below is a complete Leaf page with a log of its own, and its feed
           lists that log newest first. Open <strong>Show activity</strong>, then type
@@ -150,7 +152,7 @@ flowchart TD
       </section>
 
       <section id="verbs">
-        <h2>A verb is a registry declaration</h2>
+        <h2>Verb declarations</h2>
         <p id="verbs-lede">
           This is everything <code>lf-options</code> tells Leaf about its three verbs
           and when its question counts as answered.
@@ -184,39 +186,40 @@ flowchart TD
             <code>action</code>.</lf-note
           >
           <lf-note at="3"
-            >One unit for the whole group, so every pick lands on the same coordinate
-            and a later pick replaces an earlier one.</lf-note
+            >One unit for the whole group, so every pick uses the same coordinate and a
+            later pick replaces an earlier one.</lf-note
           >
           <lf-note at="4"
-            >How the standing pick reads in markup: <code>chosen</code> on each picked
-            option. This effect also determines the payload: <code>detail.value</code>
+            >How the current selection appears in markup: <code>chosen</code> on each
+            picked option. This effect also determines the payload:
+            <code>detail.value</code>
             must be an array of owned option ids. The agent writes the pick into the
             next version, and
             <code>page check</code> refuses a version that contradicts it.</lf-note
           >
           <lf-note at="11"
             >The unit is the value of <code>detail.option</code>, so each added option
-            stands on a coordinate of its own.</lf-note
+            has a coordinate of its own.</lf-note
           >
           <lf-note at="12"
-            >The action brings a real <code>lf-option</code> into the group, with
-            <code>detail.text</code> as its words.</lf-note
+            >The action adds an <code>lf-option</code> to the group, with
+            <code>detail.text</code> as its text.</lf-note
           >
           <lf-note at="14"
             ><code>answer</code> is the Done press that closes a
             <code>multiple</code> group.</lf-note
           >
           <lf-note at="17"
-            >The Ask is answered while this condition on the standing state holds: a
-            standing pick for a single-choice group, a standing Done for a
-            <code>multiple</code> one.</lf-note
+            >A single-choice group is answered when an option is selected. A
+            multiple-choice group is answered when the user presses Done. Undo can make
+            the group unanswered again.</lf-note
           >
         </lf-code>
         <p id="coordinate">
           An action's <strong>coordinate</strong> is its widget, its unit, and its verb.
           <code>unit: "widget"</code> means the widget itself; any other value names the
-          detail field that holds the unit. A pick therefore lands on
-          <code>[ship, ship, choose]</code>, and adding an option lands on
+          detail field that holds the unit. A pick therefore uses
+          <code>[ship, ship, choose]</code>, and adding an option uses
           <code>[ship, &lt;new option id&gt;, add]</code>. Two actions compete only when
           their coordinates are equal, so a pick never displaces an added option.
         </p>
@@ -269,12 +272,6 @@ flowchart TD
                 <td>body</td>
               </tr>
               <tr>
-                <td><code>lf-diff</code></td>
-                <td><code>review</code></td>
-                <td>file</td>
-                <td>none</td>
-              </tr>
-              <tr>
                 <td><code>lf-playground</code></td>
                 <td><code>choose</code></td>
                 <td>widget</td>
@@ -292,11 +289,9 @@ flowchart TD
       </section>
 
       <section id="fold">
-        <h2>The fold keeps the latest standing action at each coordinate</h2>
+        <h2>Widget state after each action</h2>
         <p id="fold-lede">
-          These are the sample's gestures above, made in Chrome against a copy of the
-          sample's page. The group shows the fold of whatever still stands after each
-          one.
+          The table shows the options group after each action and undo in the sample.
         </p>
         <table id="fold-steps">
           <thead>
@@ -320,13 +315,13 @@ flowchart TD
               <td><code>choose</code> on <code>ship</code></td>
               <td>
                 Later picked. It supersedes the first pick; the added option stays,
-                because it stands on another coordinate.
+                because it has a different coordinate.
               </td>
             </tr>
             <tr>
               <td><kbd>z</kbd></td>
               <td>undoes the pick of Later</td>
-              <td>The new option picked again, since the pick it superseded stands</td>
+              <td>The new option picked again, restoring the previous selection</td>
             </tr>
             <tr>
               <td><kbd>z</kbd></td>
@@ -344,7 +339,7 @@ flowchart TD
           <code>leaf page events</code> printed the log below, one record per line; here
           each record is broken over a few lines. The first line of the log, at
           <code>seq</code> 1, is the <code>note</code> that published the page's first
-          version. The browser minted the added option's id and each
+          version. The browser generated the added option's id and each
           <code>attempt</code>.
         </p>
         <!-- Captured by driving this page's sample markup in Chrome on a scratch
@@ -420,22 +415,21 @@ flowchart TD
           <lf-note at="1"
             >The browser sent <code>kind</code>, <code>revision</code>,
             <code>widget</code>, <code>action</code>, <code>detail</code>, and
-            <code>attempt</code>, its retry key. The door stamped the rest.
-            <code>attention</code> records whether the move changes work the agent
+            <code>attempt</code>, its retry key. Leaf added the remaining fields.
+            <code>attention</code> records whether the action changes work the agent
             owes.</lf-note
           >
           <lf-note at="19"
-            >The door derives <code>meaning</code> and refuses a sender that supplies
-            it. It keeps only what a reader without the registry could not recover:
-            whether the action was made on the page or in a thread (<code>scope</code>),
-            its fold <code>unit</code>, the element ids it <code>depends</code> on, the
-            child tag it <code>creates</code>, and the operation's
-            <code>state</code> definition. That definition records the operation and its
-            allowed detail values so later revisions can tell whether the decision still
-            applies.</lf-note
+            >Leaf derives <code>meaning</code> and refuses a sender that supplies it. It
+            keeps only what a reader without the registry could not recover: whether the
+            action was made on the page or in a thread (<code>scope</code>), its fold
+            <code>unit</code>, the element ids it <code>depends</code> on, the child tag
+            it <code>creates</code>, and the operation's <code>state</code> definition.
+            That definition records the operation and its allowed detail values so later
+            revisions can tell whether the decision still applies.</lf-note
           >
           <lf-note at="5"
-            >The door mints the eight-hex <code>id</code>; <code>seq</code> is the
+            >Leaf generates the eight-hex <code>id</code>; <code>seq</code> is the
             record's line in the log.</lf-note
           >
           <lf-note at="37"
@@ -444,59 +438,58 @@ flowchart TD
             <code>resolves</code> attribute would name one here.</lf-note
           >
           <lf-note at="58"
-            >An undo names one gesture and nothing else. The folds drop the gesture it
-            names, and both records stay in the log.</lf-note
+            >An undo names the gesture to withdraw. Leaf excludes that gesture when
+            deriving state, and both records stay in the log.</lf-note
           >
         </lf-code>
       </section>
 
       <section id="taking-back">
-        <h2>Three things take an action back, and none of them deletes it</h2>
+        <h2>Replacing and withdrawing actions</h2>
         <ul id="taking-back-ways">
           <li>
             <strong>A later action at the same coordinate</strong> supersedes it, as the
-            pick of Later did. Undo the later one and the earlier one stands again.
+            pick of Later did. Undoing the later action restores the earlier one.
           </li>
           <li>
             <strong>The user's <code>undo</code></strong> withdraws one gesture of their
-            own: an action, a resolve or reopen, or an approval. Messages stand once
-            sent.
+            own: an action, a resolve or reopen, or an approval. Sent messages cannot be
+            withdrawn.
           </li>
           <li>
             <strong>The author's <code>restated</code></strong
             >: a stamped version lists element ids it deliberately rewrote, and every
-            earlier action that depends on one of them stops standing.
+            earlier action that depends on one of them is retracted.
           </li>
         </ul>
         <p id="taking-back-markup">
-          Once the agent writes a standing decision into the markup, such as the added
+          Once the agent records a current decision in the markup, such as the added
           option as an ordinary <code>lf-option</code> with the same id and words, the
           document carries it and the action no longer changes what the page shows.
         </p>
       </section>
 
       <section id="reports">
-        <h2>An agent's state moves through the same fold</h2>
+        <h2>Agent-reported state</h2>
         <p id="reports-writer">
-          A verb that declares <code>"writer": "agent"</code> is the agent's:
-          <code>leaf page report</code> appends a <code>report</code> at a coordinate
-          like an action's, and it stands until a stamped version answers it. The
+          A verb declared with <code>"writer": "agent"</code> accepts reports from the
+          agent. <code>leaf page report</code> appends a <code>report</code> event,
+          which updates the widget until a stamped version settles the report. The
           package contract's
           <a
             href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md#user-state"
             >User state</a
           >
-          gives the whole rule.
+          gives the complete rules.
         </p>
       </section>
 
       <section id="follow">
-        <h2>A program can follow the log as it grows</h2>
+        <h2>Following new events</h2>
         <p id="follow-feed">
-          <code>leaf page events PAGE --follow</code> prints every stored record and
-          then each one the door admits as it lands, and a reader that restarts with
-          <code>--after</code> the last <code>seq</code> it printed picks up where it
-          stopped.
+          <code>leaf page events PAGE --follow</code> prints every stored record, then
+          each new record as Leaf appends it. To resume after the last printed record,
+          pass its <code>seq</code> value to <code>--after</code>.
         </p>
         <p id="follow-data">
           Typed external data under <code>data/</code> is replaced in place rather than

@@ -1229,9 +1229,10 @@ def test_serving_preserves_a_direct_codex_wait(
 import json, subprocess, sys, time
 from pathlib import Path
 from leaf.leases import wait_is_live, adapter_is_live
-from leaf.service import PageTransaction
+from leaf.service import PageTransaction, claim_page
 from leaf.session import cmd_waiting
 page = Path(sys.argv[1])
+claim_page(page)
 cmd_waiting(page, "Review this page")
 watch = subprocess.Popen([sys.executable, "-m", "leaf", "wait", str(page)],
                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)

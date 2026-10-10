@@ -59,6 +59,9 @@
     // CodeMirror reapplies this line decoration when the editor view updates, even
     // when the last line still holds the same words and the class is unchanged.
     /^class on div\.cm-line\.lf-field-last in shadow of leaf-text/,
+    // CodeMirror's GutterElement.setMarkers restates its class as marker sets
+    // change, including when the resulting gutter class remains the same.
+    /^class on div\.cm-gutterElement(?:\.| in shadow|$)/,
     // Web Awesome's components reflect each property onto the attribute it came from
     // as they update, and restate what their own shadow trees hold.
     /^[\w-]+ on wa-/,

@@ -8690,14 +8690,14 @@ def test_only_controls_and_boxes_with_something_out_of_sight_take_a_tab_stop(
                  }))"""
     )
     assert stops, "the reference offers no tab stop at all, not even its search box"
-    controls = {"BUTTON", "INPUT"}
+    controls = {"BUTTON", "INPUT", "WA-INPUT"}
     dead = [s for s in stops if s["tag"] not in controls and not s["scrolls"]]
     assert dead == [], f"tab stops on boxes with nothing out of sight: {dead}"
-    # The preference checkbox and command search each keep their native stop.
+    # The preference checkbox and the command search host each keep one stop.
     assert [s["tag"] for s in stops if s["tag"] in controls] == [
         "BUTTON",
         "INPUT",
-        "INPUT",
+        "WA-INPUT",
         "BUTTON",
     ]
 

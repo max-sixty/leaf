@@ -18,7 +18,10 @@ POSTs could complete before capture.
 A state is an example, a viewport, a color scheme and a pointer, and the input that
 brings a fresh tab there (`DRIVERS`, which `leaf-dev probe --do drive:NAME` also runs).
 The catalogue (`STATES`) covers states a user reaches by acting, not only pages at rest;
-add one where a change touches a surface it does not reach.
+add one where a change touches a surface it does not reach. A state may name a
+region whose before/after bounds frame the comparison, retaining related controls
+without shrinking their details behind unrelated viewport changes. Raw screenshots
+always preserve the full viewport and its geometry.
 Use repeated `--state` options to compare only the states a change touches.
 
 Whether a state changed, and where, is `lf-shot`'s reading of its two stills, from the
@@ -1121,11 +1124,12 @@ STATES = (
 )
 
 
-def capture(browser, address: str, state: State, path: Path) -> None:
+def capture(browser, address: str, state: State, path: Path) -> dict | None:
     """Bring a fresh tab to `state` and screenshot its viewport to `path`, at the
     density of the displays its pairs are read on, so a crop shows text and hairlines
     as the reader's screen draws them."""
-    with tab(browser, state.viewport, state.scheme, state.touch, scale=2) as page:
+    scale = 2
+    with tab(browser, state.viewport, state.scheme, state.touch, scale=scale) as page:
         load(page, address)
         state.drive(page)
         settle(page)
@@ -1146,7 +1150,8 @@ def capture(browser, address: str, state: State, path: Path) -> None:
                 "height": min(state.viewport[1], bounds["y"] + bounds["height"] + room)
                 - y,
             }
-        page.screenshot(path=path, clip=clip)
+        page.screenshot(path=path)
+        return {key: value * scale for key, value in clip.items()} if clip else None
 
 
 def differences(browser, names: list[str], out: Path) -> dict[str, dict]:
@@ -1189,18 +1194,21 @@ def differences(browser, names: list[str], out: Path) -> dict[str, dict]:
         context.close()
 
 
-def crop(folder: Path, regions: list[dict]) -> None:
-    """Write the crops of the two stills in `folder` around `regions`, and the diff."""
+def crop(
+    folder: Path, regions: list[dict], *, framing: list[dict] | None = None
+) -> None:
+    """Crop both stills around framing (or changed regions); retain actual diff outlines."""
     base = Image.open(folder / "base.png").convert("RGB")
     head = Image.open(folder / "head.png").convert("RGB")
+    framing = regions if framing is None else framing
     box = (
         (
-            max(min(r["x"] for r in regions) - CROP_MARGIN, 0),
-            max(min(r["y"] for r in regions) - CROP_MARGIN, 0),
-            min(max(r["x"] + r["width"] for r in regions) + CROP_MARGIN, head.width),
-            min(max(r["y"] + r["height"] for r in regions) + CROP_MARGIN, head.height),
+            max(min(r["x"] for r in framing) - CROP_MARGIN, 0),
+            max(min(r["y"] for r in framing) - CROP_MARGIN, 0),
+            min(max(r["x"] + r["width"] for r in framing) + CROP_MARGIN, head.width),
+            min(max(r["y"] + r["height"] for r in framing) + CROP_MARGIN, head.height),
         )
-        if regions
+        if framing
         else (0, 0, head.width, head.height)
     )
     base.crop(box).save(folder / "base-crop.png")
@@ -1236,6 +1244,7 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
     states = [state for state in STATES if not names or state.name in names]
     out = run_directory(OUT)
     failed: dict[str, str] = {}
+    crop_regions: dict[str, list[dict]] = {}
     with tempfile.TemporaryDirectory(prefix="leaf-stills-") as built:
         scratch = Path(built)
         arms, commits = build_pair(base_ref, scratch)
@@ -1263,7 +1272,11 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                             source_roots[arm] / "examples" / f"{state.source}.html",
                             scratch / f"{arm}-{state.name}",
                         ) as address:
-                            capture(browser, address, state, folder / f"{arm}.png")
+                            region = capture(
+                                browser, address, state, folder / f"{arm}.png"
+                            )
+                            if region:
+                                crop_regions.setdefault(state.name, []).append(region)
                     except click.ClickException as error:
                         failed[state.name] = (
                             f"on {arm}: {error.message.strip().splitlines()[-1].split('; ')[0]}"
@@ -1282,7 +1295,7 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
         if state.name in failed:
             click.echo(f"  failed  {state.name} {failed[state.name]}")
         elif (difference := read[state.name])["changed"]:
-            crop(folder, difference["regions"])
+            crop(folder, difference["regions"], framing=crop_regions.get(state.name))
             click.echo(
                 f"  changed {state.name}: {difference['changed']} px -> {folder}"
             )

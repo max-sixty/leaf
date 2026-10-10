@@ -14,7 +14,7 @@ before editing. `data_bindings` names each external source and the widgets that 
 it, and `data/<source>.json` holds its value; change one with `leaf data set` or by
 rewriting that file. `leaf page state <page> <id>` narrows the reading to what the id
 names: a page widget's element, standing moves, Asks and workflows, or a thread's
-messages with their frozen widget content, which changes only through that thread.
+messages with their frozen HTML content, which changes only through that thread.
 
 ## Publish several authored files together
 

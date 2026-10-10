@@ -4920,9 +4920,7 @@ def test_sample_checks_available_history_beside_forward_thread_references(
     )
     result = check(page_dir)
     assert result.exit_code != 0
-    assert (
-        'ids already taken by widget markup in a reply: ["duplicate"]' in result.output
-    )
+    assert 'ids already taken by message markup: ["duplicate"]' in result.output
 
 
 def test_check_tokenizes_only_the_page_stylesheet(page_dir, monkeypatch):
@@ -5589,7 +5587,6 @@ def test_sample_fixture_refusals_reach_page_check(
             '<lf-code id="child" language="python"><pre>1</pre></lf-code>',
             "already taken",
         ),
-        ("<p>Just prose</p>", "carries no widget"),
         (
             '<lf-code id="code" language="python"><pre>1</pre></lf-code><style>p {color:red}</style>',
             "stylesheet of the whole document",
@@ -5612,6 +5609,35 @@ def test_sample_fixture_message_markup_uses_the_message_gate(
     assert result.exit_code != 0, result.output
     assert "sample 'practice'" in result.output
     assert complaint in result.output
+
+
+def test_sample_fixture_accepts_native_message_markup(page_dir):
+    history = json.dumps(
+        [
+            {
+                "kind": "comment",
+                "id": "aabb0011",
+                "author": "agent",
+                "text": "Results:",
+                "markup": '<table id="results"><tr><td>Passed</td></tr></table>',
+            },
+            {
+                "kind": "reply",
+                "parent": "aabb0011",
+                "author": "agent",
+                "text": "Log:",
+                "markup": '<pre id="log">Ready\nDone</pre>',
+            },
+        ]
+    )
+    source = (
+        f'<script id="fixture" type="application/json">{history}</script>'
+        '<template id="practice" data-sample data-sample-events="fixture">'
+        '<h1 id="child">Child</h1></template>'
+    )
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", source + "</main>"))
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
 
 
 @pytest.mark.parametrize(

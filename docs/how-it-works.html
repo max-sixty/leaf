@@ -298,10 +298,11 @@ leaf server start ./review</code></pre>
                 <p id="package-instructions">
                   Each package adds instructions for its components, written for an
                   audience such as the page's author.
-                  <code>leaf page instructions ./review</code> lists the audiences the
-                  page's packages serve;
+                  <code>leaf page instructions ./review</code> prints the packages'
+                  shared instructions as JSON, keyed by audience;
                   <code
-                    >leaf page instructions ./review author --widget lf-diagram</code
+                    >leaf page instructions ./review --use lf-diagram | jq -er
+                    '.author'</code
                   >
                   prints how to author a diagram.
                 </p>

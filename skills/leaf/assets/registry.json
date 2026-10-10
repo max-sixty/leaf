@@ -1245,72 +1245,69 @@
     "description": "The semantic tints this layer paints, and the whole vocabulary an author may declare: what the lint refuses a word outside, and what the theme has a rule for. It is a property of the page rather than of any widget, which is why it lives here and not under the schema of whichever tag happens to take a `tone` — a widget declares that one of its attributes names one (x-tone) and the lint reads the list from here, so a second tag taking a tone costs a declaration and no new reader. The list is short on purpose: a page that can paint anything paints nothing, and three is what the palette already answers for. Which facts earn a tint is never the theme's to decide — `ok` on one page's chip and `danger` on another's may be the same word, because the author is the only one who knows whether the answer is good news.",
     "names": ["ok", "warn", "danger"]
   },
-  "$idioms": {
-    "description": "Recurring shapes the theme styles directly — no element declaration, no JS. Plain semantic HTML gets the theme's voice for free; these classes cover what HTML lacks an element for. Each key is the CSS selector the shape is written as, and the example beside it is that markup. A layer adds one by declaring it here and styling it in its theme.css; members merge across layers, so the declaration joins this catalog rather than replacing it.",
-    "button.button": {
-      "description": "A page-local action button. The button class supplies the layer's control typography, frame, hover and focus treatment. A toggle states its selection with aria-pressed; true draws the selected face. These classes supply presentation; the page module owns the action and state.",
-      "example": "<button type=\"button\" class=\"button\" aria-pressed=\"true\">Anchored threads</button>"
-    },
-    "select.field, input.field": {
-      "description": "A labeled page-local select or single-line text field, using the same typography, frame and height as the layer's buttons. Use the existing control face rather than rebuilding it in page CSS; page CSS arranges the row.",
-      "example": "<label for=\"preview-case\">Conversation</label>\n<select id=\"preview-case\" class=\"field\"><option>Short exchange</option><option>Long exchange</option></select>"
-    },
-    ".eyebrow": {
-      "description": "A small-caps label above a heading.",
-      "example": "<p class=\"eyebrow\">design proposal</p>\n<h1>Widgets</h1>"
-    },
-    ".lede": {
-      "description": "The opening paragraph, set slightly larger.",
-      "example": "<p class=\"lede\">One paragraph saying what this page decides.</p>"
-    },
-    ".tag": {
-      "description": "An inline chip label. Add `ok`, `warn` or `danger` to draw it in that status tone.",
-      "example": "<span class=\"tag\">experimental</span>"
-    },
-    ".callout": {
-      "description": "An aside set off from the prose — a tinted field with a hairline border. For something the user must not miss; a note they lose nothing by skipping goes in the margin (aside.sidenote). Add `ok`, `warn` or `danger` when the callout reports a status, as `class=\"callout warn\"` for a paused release; its tint and title take the tone and its prose stays in the body's ink. On a wide page it keeps the prose's width; one holding a chart or table that needs more takes `data-width`.",
-      "x-space": "column",
-      "example": "<aside class=\"callout\" id=\"rollback-note\">Rollback is one flag flip; the backfill is idempotent.</aside>"
-    },
-    "section.panel": {
-      "description": "One titled region of a wide page (`<main class=\"layout-sidebar\">` or another wide Layout): a card holding one surface, such as a table, a log or a list of steps, with a short heading that names it. Lay a dashboard out as panels in the Layout's tracks so every region is drawn alike; the page's argument stays in the prose and the callout.",
-      "example": "<section class=\"panel\" id=\"checks\">\n  <h2>Checks</h2>\n  <table>…</table>\n</section>"
-    },
-    "aside.sidebar": {
-      "description": "Page-level supporting material in the left margin: local navigation, a compact legend, or stable reference facts that remain useful while the user moves through a long page. Use one, as a direct child of main near the page's opening, rather than beside the one paragraph it concerns; that local annotation is an aside.sidenote. On a roomy live screen the first such child of a column page sits left of the prose and sticks beneath Leaf's banner, the column moving right to make the room; a fine-pointer lf-toc can use that margin as a fixed reading map instead. Where the window has no room for the strip beside the column and its rail, and on paper, the sidebar returns to ordinary flow where it was authored. An accidental second sidebar also stays in flow instead of occupying the first. Keep the contents compact enough to scan in about 240px. The wrapper supplies placement, not a visual panel, so what it holds keeps its own voice; an lf-toc is the usual navigation occupant but the idiom is not coupled to that widget. Its content remains part of the page and may be selected or commented on unless the occupant itself declares apparatus.",
-      "example": "<aside class=\"sidebar\" id=\"page-route\">\n  <nav aria-label=\"On this page\"><strong>On this page</strong><ol><li><a href=\"#prepare\">Prepare</a></li><li><a href=\"#move\">Move</a></li></ol></nav>\n</aside>"
-    },
-    "aside.sidenote": {
-      "description": "A note in the page's right margin: a caveat, a provenance, a figure the sentence had no room for. It is read where it stands and skipped at no cost, where a .callout sits in the column the user is reading down and a <details> asks for a click. Write it immediately before the paragraph, list or block it annotates, and it comes out level with that block's first line; before a heading it sits above the heading instead, a heading carrying more room over it than the block before it leaves. A second note written soon after the first stacks under it, so a long note pushes the next one down the margin and away from its own block. It reaches the margin through any box that doesn't clip — a section, a tab panel, a disclosure; written inside one that does, a choose group or a board or a table, it is drawn nowhere at all, and `page check --render` refuses the version rather than letting it ship. It stands there where the window holds the strip beside the column, and beside a sidebar, which takes the margin first; the column moves left to make the room. Elsewhere, and on paper, it is a small indented block where it was written, so nothing it says rests on the margin being there. A suggestion's accept and reject controls hang in the same margin, level with the change they decide, and are drawn over a note that stands level with them: write the note a paragraph clear of a change if its first line has to be read. These are the page's own words, so the user can select, quote and comment on one. A stable id lets Alt-click point at the whole note. The margin holds about fifty-six characters to the line; a note running past a few lines wants to be a paragraph in the column instead.",
-      "example": "<aside class=\"sidenote\" id=\"logout-frequency\">Support runs \"log out all devices\" during account-takeover response, about twice a month.</aside>\n<p>Logout must revoke immediately, which rules out any store whose invalidation is eventually consistent.</p>"
-    },
-    ".facts": {
-      "description": "A label/value grid for summary facts, as a definition list. Inside a card that stands for one alternative in a group, it docks right as a fixed-width rail instead, aligning each item's scalars down the group.",
-      "example": "<dl class=\"facts\">\n  <dt>Owner</dt><dd>payments</dd>\n  <dt>Rollout</dt><dd>behind a flag</dd>\n</dl>"
-    },
-    "ol.steps": {
-      "description": "An ordered procedure with numbered markers.",
-      "example": "<ol class=\"steps\">\n  <li>Backfill the new store.</li>\n  <li>Verify counts, then flip reads.</li>\n</ol>"
-    },
-    "svg.drawing": {
-      "description": "A schematic drawing the page makes itself — a layout, a mechanism, alternatives compared in one frame — as inline SVG inside a `<figure>`, with `role=\"img\"` and a `<title>` stating its claim. Its marks take classes whose paint is theme tokens, so the drawing follows the light and dark palettes: `.frame` and `.frame-head` for a window or pane and its header, `.line` (`.soft`) for a line of text, `.box` (`.hot` for the one that matters), `.highlight`, `.ghost` for where something would be, `.guide` and `.dim` for alignment and dimension lines, `.arrow` with `.tip` (`.hot`) on its marker, `.mark` for an accent dot and `.glyph` for the character on it, `.ok`, `.warn` and `.danger` fills, and `.strong`, `.small` and `.mono` for text, which is muted otherwise. Without a `width` it fills its figure; give a thumbnail one. A mark particular to the subject takes a page-local class on the same tokens.",
-      "example": "<figure id=\"sidebar-width\">\n  <svg class=\"drawing\" viewBox=\"0 0 320 120\" role=\"img\" aria-labelledby=\"sidebar-width-t\">\n    <title id=\"sidebar-width-t\">The sidebar takes 240px left of the column</title>\n    <rect class=\"frame\" x=\"4\" y=\"4\" width=\"312\" height=\"112\" rx=\"6\"/>\n    <rect class=\"box hot\" x=\"16\" y=\"20\" width=\"72\" height=\"84\" rx=\"3\"/>\n    <rect class=\"line\" x=\"104\" y=\"24\" width=\"180\" height=\"6\" rx=\"3\"/>\n    <rect class=\"line soft\" x=\"104\" y=\"38\" width=\"150\" height=\"6\" rx=\"3\"/>\n    <text class=\"strong\" x=\"52\" y=\"66\" text-anchor=\"middle\">240</text>\n  </svg>\n  <figcaption>In a narrow window the sidebar returns to the column.</figcaption>\n</figure>"
-    },
-    "table": {
-      "description": "Rows of one shape, compared column by column: ceilings per plan, runs per configuration. Columns take the width of what they hold, and a table wider than the measure wraps its cells or, failing that, scrolls inside itself — so nothing in one needs a width. An identifier — a test name, a path — is one word to the line breaker: in `<code>` it breaks inside its cell where it must, so a column of them takes a share of the measure beside the prose; bare, it holds its column to its own width and squeezes the rest to a word a line, and `page check --render` refuses a table that scrolls sideways with a cell in it wrapped. `<th scope=\"row\">` names a row in the page's own voice; a bare `<th>` is a column heading, set in small caps as one. A `<caption>` above the rows says what the columns mean where the section's heading doesn't. Reach for a KPI widget when the numbers are a handful of headline figures rather than a grid, and a decision widget when the rows are alternatives the user picks between.",
-      "example": "<table id=\"tiers\">\n  <caption>Ceilings per plan, and what each is counted against.</caption>\n  <thead><tr><th>Plan</th><th class=\"num\">A minute</th><th>Counted against</th></tr></thead>\n  <tbody>\n    <tr><th scope=\"row\">Free</th><td class=\"num\">60</td><td>the token</td></tr>\n    <tr><th scope=\"row\">Team</th><td class=\"num\">600</td><td>the token</td></tr>\n  </tbody>\n</table>"
-    },
-    "td.num": {
-      "description": "A cell holding a quantity, right-aligned so a column of them lines up on its last digit — the comparison a column of figures is there for. Say it on the column's heading cell too, or the heading hangs left of its own figures. Nothing is guessed from the text: \"60\" and \"60 sessions\" are the same shape and different things.",
-      "example": "<tr><th scope=\"row\">Enterprise</th><td class=\"num\">6,000</td><td class=\"num\">12,000</td></tr>"
-    },
-    "details": {
-      "description": "Evidence: a claim as the <summary>, its backing collapsed beneath. Native disclosure; find-in-page reaches the collapsed content.",
-      "example": "<details>\n  <summary>The parser drops the slash on self-closed custom tags</summary>\n  <pre><code>document.querySelector(\"lf-code\").textContent\n// → \"rest of the paragraph\"</code></pre>\n</details>"
-    },
-    "pre > code[class*=\"language-\"]": {
-      "description": "A literal the user can select and quote: a command to run, a config file, a snippet of output. Name the language to color it — one of $languages, the same list a widget's own language attribute is held to; a language outside it stays uncolored. Leave the class off where the body isn't source; nothing is guessed from the text. Reach for an annotated code block instead when the block is a walkthrough: numbered lines, highlighted ranges, remarks anchored at a line.",
-      "example": "<pre><code class=\"language-bash\">leaf page check ~/.local/state/leaf/pages/auth-diagnosis --render</code></pre>"
-    }
+  "button.button": {
+    "description": "A page-local action button. The button class supplies the layer's control typography, frame, hover and focus treatment. A toggle states its selection with aria-pressed; true draws the selected face. These classes supply presentation; the page module owns the action and state.",
+    "x-example": "<button type=\"button\" class=\"button\" aria-pressed=\"true\">Anchored threads</button>"
+  },
+  "select.field, input.field": {
+    "description": "A labeled page-local select or single-line text field, using the same typography, frame and height as the layer's buttons. Use the existing control face rather than rebuilding it in page CSS; page CSS arranges the row.",
+    "x-example": "<label for=\"preview-case\">Conversation</label>\n<select id=\"preview-case\" class=\"field\"><option>Short exchange</option><option>Long exchange</option></select>"
+  },
+  ".eyebrow": {
+    "description": "A small-caps label above a heading.",
+    "x-example": "<p class=\"eyebrow\">design proposal</p>\n<h1>Widgets</h1>"
+  },
+  ".lede": {
+    "description": "The opening paragraph, set slightly larger.",
+    "x-example": "<p class=\"lede\">One paragraph saying what this page decides.</p>"
+  },
+  ".tag": {
+    "description": "An inline chip label. Add `ok`, `warn` or `danger` to draw it in that status tone.",
+    "x-example": "<span class=\"tag\">experimental</span>"
+  },
+  ".callout": {
+    "description": "An aside set off from the prose — a tinted field with a hairline border. For something the user must not miss; a note they lose nothing by skipping goes in the margin (aside.sidenote). Add `ok`, `warn` or `danger` when the callout reports a status, as `class=\"callout warn\"` for a paused release; its tint and title take the tone and its prose stays in the body's ink. On a wide page it keeps the prose's width; one holding a chart or table that needs more takes `data-width`.",
+    "x-space": "column",
+    "x-example": "<aside class=\"callout\" id=\"rollback-note\">Rollback is one flag flip; the backfill is idempotent.</aside>"
+  },
+  "section.panel": {
+    "description": "One titled region of a wide page (`<main class=\"layout-sidebar\">` or another wide Layout): a card holding one surface, such as a table, a log or a list of steps, with a short heading that names it. Lay a dashboard out as panels in the Layout's tracks so every region is drawn alike; the page's argument stays in the prose and the callout.",
+    "x-example": "<section class=\"panel\" id=\"checks\">\n  <h2>Checks</h2>\n  <table>…</table>\n</section>"
+  },
+  "aside.sidebar": {
+    "description": "Page-level supporting material in the left margin: local navigation, a compact legend, or stable reference facts that remain useful while the user moves through a long page. Use one, as a direct child of main near the page's opening, rather than beside the one paragraph it concerns; that local annotation is an aside.sidenote. On a roomy live screen the first such child of a column page sits left of the prose and sticks beneath Leaf's banner, the column moving right to make the room; a fine-pointer lf-toc can use that margin as a fixed reading map instead. Where the window has no room for the strip beside the column and its rail, and on paper, the sidebar returns to ordinary flow where it was authored. An accidental second sidebar also stays in flow instead of occupying the first. Keep the contents compact enough to scan in about 240px. The wrapper supplies placement, not a visual panel, so what it holds keeps its own voice; an lf-toc is the usual navigation occupant but the idiom is not coupled to that widget. Its content remains part of the page and may be selected or commented on unless the occupant itself declares apparatus.",
+    "x-example": "<aside class=\"sidebar\" id=\"page-route\">\n  <nav aria-label=\"On this page\"><strong>On this page</strong><ol><li><a href=\"#prepare\">Prepare</a></li><li><a href=\"#move\">Move</a></li></ol></nav>\n</aside>"
+  },
+  "aside.sidenote": {
+    "description": "A note in the page's right margin: a caveat, a provenance, a figure the sentence had no room for. It is read where it stands and skipped at no cost, where a .callout sits in the column the user is reading down and a <details> asks for a click. Write it immediately before the paragraph, list or block it annotates, and it comes out level with that block's first line; before a heading it sits above the heading instead, a heading carrying more room over it than the block before it leaves. A second note written soon after the first stacks under it, so a long note pushes the next one down the margin and away from its own block. It reaches the margin through any box that doesn't clip — a section, a tab panel, a disclosure; written inside one that does, a choose group or a board or a table, it is drawn nowhere at all, and `page check --render` refuses the version rather than letting it ship. It stands there where the window holds the strip beside the column, and beside a sidebar, which takes the margin first; the column moves left to make the room. Elsewhere, and on paper, it is a small indented block where it was written, so nothing it says rests on the margin being there. A suggestion's accept and reject controls hang in the same margin, level with the change they decide, and are drawn over a note that stands level with them: write the note a paragraph clear of a change if its first line has to be read. These are the page's own words, so the user can select, quote and comment on one. A stable id lets Alt-click point at the whole note. The margin holds about fifty-six characters to the line; a note running past a few lines wants to be a paragraph in the column instead.",
+    "x-example": "<aside class=\"sidenote\" id=\"logout-frequency\">Support runs \"log out all devices\" during account-takeover response, about twice a month.</aside>\n<p>Logout must revoke immediately, which rules out any store whose invalidation is eventually consistent.</p>"
+  },
+  ".facts": {
+    "description": "A label/value grid for summary facts, as a definition list. Inside a card that stands for one alternative in a group, it docks right as a fixed-width rail instead, aligning each item's scalars down the group.",
+    "x-example": "<dl class=\"facts\">\n  <dt>Owner</dt><dd>payments</dd>\n  <dt>Rollout</dt><dd>behind a flag</dd>\n</dl>"
+  },
+  "ol.steps": {
+    "description": "An ordered procedure with numbered markers.",
+    "x-example": "<ol class=\"steps\">\n  <li>Backfill the new store.</li>\n  <li>Verify counts, then flip reads.</li>\n</ol>"
+  },
+  "svg.drawing": {
+    "description": "A schematic drawing the page makes itself — a layout, a mechanism, alternatives compared in one frame — as inline SVG inside a `<figure>`, with `role=\"img\"` and a `<title>` stating its claim. Its marks take classes whose paint is theme tokens, so the drawing follows the light and dark palettes: `.frame` and `.frame-head` for a window or pane and its header, `.line` (`.soft`) for a line of text, `.box` (`.hot` for the one that matters), `.highlight`, `.ghost` for where something would be, `.guide` and `.dim` for alignment and dimension lines, `.arrow` with `.tip` (`.hot`) on its marker, `.mark` for an accent dot and `.glyph` for the character on it, `.ok`, `.warn` and `.danger` fills, and `.strong`, `.small` and `.mono` for text, which is muted otherwise. Without a `width` it fills its figure; give a thumbnail one. A mark particular to the subject takes a page-local class on the same tokens.",
+    "x-example": "<figure id=\"sidebar-width\">\n  <svg class=\"drawing\" viewBox=\"0 0 320 120\" role=\"img\" aria-labelledby=\"sidebar-width-t\">\n    <title id=\"sidebar-width-t\">The sidebar takes 240px left of the column</title>\n    <rect class=\"frame\" x=\"4\" y=\"4\" width=\"312\" height=\"112\" rx=\"6\"/>\n    <rect class=\"box hot\" x=\"16\" y=\"20\" width=\"72\" height=\"84\" rx=\"3\"/>\n    <rect class=\"line\" x=\"104\" y=\"24\" width=\"180\" height=\"6\" rx=\"3\"/>\n    <rect class=\"line soft\" x=\"104\" y=\"38\" width=\"150\" height=\"6\" rx=\"3\"/>\n    <text class=\"strong\" x=\"52\" y=\"66\" text-anchor=\"middle\">240</text>\n  </svg>\n  <figcaption>In a narrow window the sidebar returns to the column.</figcaption>\n</figure>"
+  },
+  "table": {
+    "description": "Rows of one shape, compared column by column: ceilings per plan, runs per configuration. Columns take the width of what they hold, and a table wider than the measure wraps its cells or, failing that, scrolls inside itself — so nothing in one needs a width. An identifier — a test name, a path — is one word to the line breaker: in `<code>` it breaks inside its cell where it must, so a column of them takes a share of the measure beside the prose; bare, it holds its column to its own width and squeezes the rest to a word a line, and `page check --render` refuses a table that scrolls sideways with a cell in it wrapped. `<th scope=\"row\">` names a row in the page's own voice; a bare `<th>` is a column heading, set in small caps as one. A `<caption>` above the rows says what the columns mean where the section's heading doesn't. Reach for a KPI widget when the numbers are a handful of headline figures rather than a grid, and a decision widget when the rows are alternatives the user picks between.",
+    "x-example": "<table id=\"tiers\">\n  <caption>Ceilings per plan, and what each is counted against.</caption>\n  <thead><tr><th>Plan</th><th class=\"num\">A minute</th><th>Counted against</th></tr></thead>\n  <tbody>\n    <tr><th scope=\"row\">Free</th><td class=\"num\">60</td><td>the token</td></tr>\n    <tr><th scope=\"row\">Team</th><td class=\"num\">600</td><td>the token</td></tr>\n  </tbody>\n</table>"
+  },
+  "td.num": {
+    "description": "A cell holding a quantity, right-aligned so a column of them lines up on its last digit — the comparison a column of figures is there for. Say it on the column's heading cell too, or the heading hangs left of its own figures. Nothing is guessed from the text: \"60\" and \"60 sessions\" are the same shape and different things.",
+    "x-example": "<tr><th scope=\"row\">Enterprise</th><td class=\"num\">6,000</td><td class=\"num\">12,000</td></tr>"
+  },
+  "details": {
+    "description": "Evidence: a claim as the <summary>, its backing collapsed beneath. Native disclosure; find-in-page reaches the collapsed content.",
+    "x-example": "<details>\n  <summary>The parser drops the slash on self-closed custom tags</summary>\n  <pre><code>document.querySelector(\"lf-code\").textContent\n// → \"rest of the paragraph\"</code></pre>\n</details>"
+  },
+  "pre > code[class*=\"language-\"]": {
+    "description": "A literal the user can select and quote: a command to run, a config file, a snippet of output. Name the language to color it — one of $languages, the same list a widget's own language attribute is held to; a language outside it stays uncolored. Leave the class off where the body isn't source; nothing is guessed from the text. Reach for an annotated code block instead when the block is a walkthrough: numbered lines, highlighted ranges, remarks anchored at a line.",
+    "x-example": "<pre><code class=\"language-bash\">leaf page check ~/.local/state/leaf/pages/auth-diagnosis --render</code></pre>"
   }
 }

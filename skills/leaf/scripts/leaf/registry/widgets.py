@@ -1,7 +1,5 @@
 """Widget structure and interaction contract validation."""
 
-import re
-
 import turbohtml
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
@@ -10,8 +8,6 @@ from leaf.schema import (
     ATTRIBUTE_KEYS,
     DATA_SOURCE_NAME,
     EXTENSION_SCHEMA,
-    WIDGET_NAME,
-    WIDGET_NAME_RULE,
 )
 
 from .contract import (
@@ -29,20 +25,6 @@ from .state import (
     validate_widget_retirement,
     validate_widget_state_relations,
 )
-
-
-def element_declarations(registry: dict, path) -> dict:
-    invalid_names = [
-        tag
-        for tag in registry
-        if not tag.startswith("$") and re.fullmatch(WIDGET_NAME, tag) is None
-    ]
-    if invalid_names:
-        raise RegistryError(
-            f"{path}: invalid element declaration names {json_value(invalid_names)}: "
-            f"{WIDGET_NAME_RULE}"
-        )
-    return {tag: entry for tag, entry in registry.items() if not tag.startswith("$")}
 
 
 def validate_widget_schemas(declarations: dict, data: dict, path) -> None:

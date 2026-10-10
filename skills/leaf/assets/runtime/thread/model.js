@@ -27,8 +27,51 @@ import { PENDING } from "./identity.js";
 
 /** @param {{token?: string}} message */
 export const isReaction = (message) => Boolean(message.token);
-/** @param {Message} message */
+/** @param {Pick<Message, "addressable">} message */
 export const isAddressable = (message) => message.addressable !== false;
+
+/** @param {Thread} thread @param {boolean} ready */
+const threadOffers = (thread, ready) => ({
+  open: ready,
+  reply: ready && !thread.settling,
+  resolve: ready && !thread.resolved && !thread.settling,
+  reopen: ready && Boolean(thread.resolved) && !thread.settling,
+});
+
+// The publisher supplies the vocabulary; controls and commands read these same
+// choices, including the exact standing reaction an explicit removal withdraws.
+/** @template {Pick<Message, "id" | "author" | "parent" | "token" | "addressable" | "agent"> & {key: string}} T
+ * @param {{key: string, resolved: Thread["resolved"], msgs: T[]}} thread
+ * @param {T} message
+ * @param {Record<string, {glyph: string, means?: string}>} tokens
+ */
+function reactionChoices(thread, message, tokens) {
+  if (
+    thread.resolved ||
+    message.author !== "agent" ||
+    !isAddressable(message) ||
+    !Object.keys(tokens).length
+  )
+    return null;
+  const latest = thread.msgs.findLast(
+    (item) => item.author === "agent" && isAddressable(item),
+  );
+  const standing = thread.msgs.filter(
+    (item) => isReaction(item) && item.author === "user" && item.parent === message.id,
+  );
+  return {
+    thread: thread.key,
+    message: message.key,
+    latest: latest?.id === message.id,
+    agent: message.agent,
+    choices: Object.entries(tokens).map(([name, entry]) => ({
+      name,
+      glyph: entry.glyph,
+      label: entry.means ? `${name} — ${entry.means}` : name,
+      standing: standing.find((item) => item.token === name) ?? null,
+    })),
+  };
+}
 /** @param {Thread} thread */
 const spoken = (thread) => thread.msgs.filter((message) => !isReaction(message));
 /** @template {{id: string, token?: string}} T @param {{msgs: T[], root: {id: string}}} thread */
@@ -241,6 +284,7 @@ const versionKey = ({ message, version }) => `${message}\u0000${version}`;
  * @param {ReturnType<typeof import("../projection/model.js").foldWidgetStates>} widgets
  * @param {import("../../../../../build/browser/application.ts").Workflow[]} workflows
  * @param {import("../../../../../build/browser/domain.ts").ContentVersion[]} markingRead
+ * @param {boolean} ready
  */
 export function readThreadRecords(
   threads,
@@ -248,6 +292,7 @@ export function readThreadRecords(
   widgets,
   workflows,
   markingRead = [],
+  ready = true,
 ) {
   const locallyRead = new Set(markingRead.map(versionKey));
   /** @type {Map<string | undefined, {id: string, tag: string, state: import("../../../../../build/browser/domain.ts").AuthoredWidget["state"]}[]>} */
@@ -307,14 +352,25 @@ export function readThreadRecords(
         ),
       };
     });
-    const root = msgs.find((message) => message.id === thread.root.id);
+    const reactions = { key: threadKey(thread), resolved: thread.resolved, msgs };
+    const messages = msgs.map((message) => ({
+      ...message,
+      reactions: ready
+        ? reactionChoices(
+            reactions,
+            message,
+            document.registry.$reactions?.tokens ?? {},
+          )
+        : null,
+    }));
+    const root = messages.find((message) => message.id === thread.root.id);
     if (!root) throw new Error(`Thread ${thread.id} has no root message`);
     return {
       id: thread.id,
       key: threadKey(thread),
       title: thread.title,
       root,
-      msgs,
+      msgs: messages,
       unread: Object.freeze(unread),
       anchor: thread.anchor,
       detached_from: thread.detached_from,
@@ -327,6 +383,7 @@ export function readThreadRecords(
       bare_reaction: thread.bare_reaction,
       seat: thread.seat,
       summaries: thread.summaries,
+      offers: threadOffers(thread, ready),
     };
   });
 }

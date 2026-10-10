@@ -24,12 +24,7 @@ import {
   targetParts,
   targetRange,
 } from "/runtime/resolved-target.js";
-import {
-  blockAt,
-  pageRange,
-  quoteFrom,
-  segmentsIn,
-} from "/runtime/passages.js";
+import { blockAt, pageRange, quoteFrom, segmentsIn } from "/runtime/passages.js";
 import { pageSelection, selectionAnchor } from "/runtime/composing/capture.js";
 import { closeLayer, holdFocus, focusDestination } from "/runtime/focus.js";
 import { coarsePointer } from "/runtime/pointer.js";

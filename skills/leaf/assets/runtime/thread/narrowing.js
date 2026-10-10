@@ -169,17 +169,19 @@ function presentationReading(reading, threads, shown, places, complete) {
   const lifecycle = reading.status === "all" ? "" : `${reading.status} `;
   const amount =
     shown.length === baseline ? `${shown.length}` : `${shown.length} of ${baseline}`;
-  const summary = complete ? [
-    `${amount} ${lifecycle}${baseline === 1 ? "thread" : "threads"}`,
-    reading.waiting === "all"
-      ? null
-      : `On ${reading.waiting === "user" ? "you" : "agent"}`,
-    reading.scope !== "all" ? labelFor("scope", reading.scope) : null,
-    reading.subject !== "all" ? labelFor("subject", reading.subject) : null,
-    reading.onlyUnplaced ? labelFor("unplaced", "unplaced") : null,
-  ]
-    .filter(Boolean)
-    .join(" · ") : "";
+  const summary = complete
+    ? [
+        `${amount} ${lifecycle}${baseline === 1 ? "thread" : "threads"}`,
+        reading.waiting === "all"
+          ? null
+          : `On ${reading.waiting === "user" ? "you" : "agent"}`,
+        reading.scope !== "all" ? labelFor("scope", reading.scope) : null,
+        reading.subject !== "all" ? labelFor("subject", reading.subject) : null,
+        reading.onlyUnplaced ? labelFor("unplaced", "unplaced") : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
 
   const order = Object.freeze({
     kind: ORDER.kind,

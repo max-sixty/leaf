@@ -13,7 +13,7 @@ import { watchProjection } from "../projection-watch.js";
 export const readQuestions = () => readApplication().effective.questions;
 
 export const questionEntry = (question) => registry[question?.source.tag]?.["x-awaits"];
-// Approval is irreversible, so its gate never reads an unknown as an empty list: with
+// Approval needs an admitted inventory, so its gate never reads unknown as empty: with
 // no admitted reading nothing says which Questions still stand, and this answers null.
 export function approvalBlockingQuestions() {
   const reading = readQuestions();

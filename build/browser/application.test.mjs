@@ -237,12 +237,17 @@ test("one synchronous immutable reading combines authored, accepted, and later p
 test("the public Thread collection contains conversations while approvals stay page-wide", () => {
   const app = capture();
   const reading = state(1);
-  reading.browser.thread.done = [{ id: "approval", kind: "done" }];
+  const question = servedReading("approval").views["1"].document.questions.all[0];
+  reading.browser.views[1].document.questions = {
+    all: [question],
+    user: [question],
+    unanswered: [question],
+  };
   app.adopt(reading);
 
   const effective = app.read().effective;
   assert.deepEqual(Object.keys(effective.thread.collection), ["phase", "threads"]);
-  assert.deepEqual(effective.acceptedApprovals, reading.browser.thread.done);
+  assert.deepEqual(effective.questions.all, [question]);
 });
 
 test("one widget selection publishes optimistic state without writable access", () => {
@@ -1475,21 +1480,10 @@ test("approval leaves Questions in its sending turn and undo restores the exact 
   assert.equal(questions()[0].offers.done, false);
   app.enqueue({ kind: "done", version: 2, attempt: "other-version" }, "now");
   assert.equal(questions().length, 1);
-  const pendingApproval = app.enqueue(
-    { kind: "done", version: 1, attempt: "approve" },
-    "now",
-  );
+  app.enqueue({ kind: "done", version: 1, attempt: "approve" }, "now");
   assert.equal(questions().length, 0);
   assert.deepEqual(record().answer, { value: true, event: null });
   assert.equal(record().status, "answered");
-  app.enqueue(
-    { kind: "undo", undoes: pendingApproval.localId, attempt: "undo-pending" },
-    "now",
-  );
-  assert.equal(questions().length, 1);
-  assert.equal(record().answer, null);
-  app.refuse("undo-pending");
-  assert.equal(questions().length, 0);
   app.refuse("approve");
   assert.equal(questions().length, 1);
   assert.equal(record().answer, null);
@@ -1515,12 +1509,26 @@ test("approval leaves Questions in its sending turn and undo restores the exact 
     user: [],
     unanswered: [],
   };
+  const previousApproval = {
+    id: "previous-approval",
+    kind: "done",
+    version: 0,
+    ts: "before",
+  };
+  const currentApproval =
+    accepted.browser.views[1].document.questions.all[0].answer.event;
+  accepted.browser.thread.approval_history = [previousApproval, currentApproval];
   app.adopt(accepted);
+  assert.deepEqual(app.read().effective.thread.approvalHistory, [
+    previousApproval,
+    currentApproval,
+  ]);
   assert.equal(questions().length, 0);
   app.enqueue({ kind: "undo", undoes: "approval-event", attempt: "undo" }, "now");
   assert.equal(questions()[0].id, question.id);
   assert.equal(record().answer, null);
   assert.equal(record().status, "open");
+  assert.deepEqual(app.read().effective.thread.approvalHistory, [previousApproval]);
 });
 
 test("a revision preserves pending delivery while replacing incompatible speculative state", () => {

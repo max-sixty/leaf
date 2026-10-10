@@ -27,6 +27,7 @@ import {
   registerNoticePresentation,
 } from "./notifications.js";
 import { watchProjection } from "./projection-watch.js";
+import { readQuestions } from "./questions/model.js";
 import { createBannerApprovalFace } from "./banner-approval.js";
 import { createBannerStatusView } from "./banner-status-view.js";
 import { declareBanner } from "./geometry.js";
@@ -79,6 +80,7 @@ export function setThreadCounts(open, unread) {
   paintThreadCounts();
 }
 const approveBtn = el("button", "lf-btn primary lf-signoff");
+approveBtn.id = "lf-approve";
 // The queue arrives at the one approval control, including its overflow seat.
 export const approvalTarget = () => (signoff ? approveBtn : null);
 approveBtn.title = "Approve this work; the page stays open for follow-up";
@@ -852,9 +854,9 @@ let approving = false;
 
 // `blockingQuestions` is the unanswered Questions that hold approval, or null before the page has
 // read the log and so cannot say which those are.
-export function paintApproval(pendingApprovals, blockingQuestions, acceptedApprovals) {
-  const approved = [...acceptedApprovals, ...pendingApprovals].some(
-    (e) => e.kind === "done" && e.version === runtime.currentStamp,
+export function paintApproval(blockingQuestions) {
+  const approved = readQuestions().all.some(
+    (question) => question.source.kind === "approval" && question.status === "answered",
   );
   // The word and the title turn over together. The title read "Approve this work; the
   // page stays open for follow-up" whether or not the work had been approved, so the one

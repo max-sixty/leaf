@@ -122,9 +122,9 @@ def browser_thread(
             ),
             "questions": work.questions,
             "threads": rendered_threads,
-            # What the banner's own button reads to say whether the version has
-            # been signed off.
-            "done": work.approvals,
+            # Standing approvals across every stamp, for Threads' event timeline.
+            # Current-version approval state lives only in its Question.
+            "approval_history": work.approvals,
         },
         reading,
     )

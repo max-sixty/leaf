@@ -77,8 +77,6 @@ export function mountApplication(dependencies) {
   const stateApplying = () => stateApplication?.isApplying() ?? false;
 
   const currentReceipts = () => readApplication().authoritative?.browser.receipts ?? [];
-  const pendingApprovals = () => readApplication().effective.pendingApprovals;
-  const acceptedApprovals = () => readApplication().effective.acceptedApprovals;
   const approvalBlockingQuestions = readApprovalBlockingQuestions;
 
   // Retire the entries the ledger's lifecycle says wait only for release, once every
@@ -560,8 +558,6 @@ export function mountApplication(dependencies) {
     mountRead: read.mount,
     registerThreadPresentation,
     navigateToDatum: dependencies.anchorTravel.navigateToDatum,
-    pendingApprovals,
-    acceptedApprovals,
     post,
     projectData: dataProjection.projectData,
     readAndApply: feed.readAndApply,
@@ -612,8 +608,6 @@ export const navigateToDatum = (...args) => app().navigateToDatum(...args);
 // The one route to a thread by its root id: the thread's inline destination while
 // it has one, Threads otherwise, the same choice a mark and t/T make.
 export const openThread = (...args) => app().threadDestinations.openPageThread(...args);
-export const pendingApprovals = (...args) => app().pendingApprovals(...args);
-export const acceptedApprovals = (...args) => app().acceptedApprovals(...args);
 export const post = commandDispatch.post;
 export const projectData = (...args) => app().projectData(...args);
 export const readAndApply = (...args) => app().readAndApply(...args);

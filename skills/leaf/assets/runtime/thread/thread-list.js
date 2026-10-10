@@ -250,7 +250,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
         }),
       );
     }
-    for (const e of readApplication().effective.acceptedApprovals)
+    for (const e of readApplication().effective.thread.approvalHistory) {
       rows.push(
         Object.freeze({
           kind: "system",
@@ -259,6 +259,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
           text: `✓ Approved ${ago(e.ts)}`,
         }),
       );
+    }
     return Object.freeze({
       rows: Object.freeze(rows),
       intent: narrowing.intent,

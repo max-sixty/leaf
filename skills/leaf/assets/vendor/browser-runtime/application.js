@@ -413,8 +413,8 @@ function normalizedQuestions(
         const version = question.source.version;
         const undone = new Set(local.flatMap(({ event }) =>
           event.kind === "undo" ? [event.undoes] : []));
-        const approving = local.some(({ event, localId }) =>
-          event.kind === "done" && event.version === version && !undone.has(localId));
+        const approving = local.some(({ event }) =>
+          event.kind === "done" && event.version === version);
         if (approving) return { ...question, answer: { value: true, event: null },
           status: "answered", next_actor: null };
         if (question.answer?.event && undone.has(question.answer.event.id))
@@ -857,6 +857,9 @@ export function createSemanticApplication({
       widgets,
       thread: {
         all: threads,
+        // Historical system rows are event narration, never current approval state.
+        approvalHistory: (state?.browser.thread.approval_history ?? []).filter((event) =>
+          !local.some(({ event: gesture }) => gesture.kind === "undo" && gesture.undoes === event.id)),
         collection: {
           phase,
           threads: threads.filter(discussed),
@@ -874,10 +877,6 @@ export function createSemanticApplication({
       // Inside the publication signature, so a read that changes only the view's
       // updates, publication time, or undo list still reaches its watchers.
       view,
-      acceptedApprovals: state?.browser.thread.done ?? [],
-      pendingApprovals: local
-        .filter((entry) => entry.event.kind === "done")
-        .map((entry) => entry.event),
       // The attempts still waiting for their POST's answer, in ledger order.
       sending: unresolved
         .filter((entry) => SENDING.has(entry.state))

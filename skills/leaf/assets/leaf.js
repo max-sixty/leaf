@@ -234,12 +234,7 @@ const narrowing = createThreadNarrowing({
   ready: () => runtime.statePhase === "ready",
   repaint: () => app.presentThread(),
 });
-const paintVersionApproval = () =>
-  paintApproval(
-    app.pendingApprovals(),
-    app.approvalBlockingQuestions(),
-    app.acceptedApprovals(),
-  );
+const paintVersionApproval = () => paintApproval(app.approvalBlockingQuestions());
 let threadPanelController;
 let drawers;
 let layout;

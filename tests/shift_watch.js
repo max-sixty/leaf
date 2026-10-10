@@ -458,7 +458,7 @@
       }
     const readings = new Map();
     for (const [owner, selection] of selections) {
-      if (!selection.frame) continue;
+      if (!(selection.frame instanceof Element)) continue;
       const style = getComputedStyle(owner);
       if (
         !["fixed", "absolute"].includes(style.position) ||

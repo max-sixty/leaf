@@ -2376,6 +2376,11 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
     workspace = page.locator("#workspace")
     email = workspace.locator("lf-option#email")
     expect(email).to_be_visible()
+    if width < 500:
+        # Playwright's automatic click scroll has no trusted input for the
+        # shift watcher; move the short reader with a user scroll first.
+        workspace.locator(".reader").hover()
+        page.mouse.wheel(0, 100)
     page.evaluate(
         "window.originalOption = document.querySelector('#workspace').querySelector('#email')"
     )

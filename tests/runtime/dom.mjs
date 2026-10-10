@@ -46,8 +46,34 @@ for (const [name, read] of Object.entries({
   height: () => innerHeight,
   scale: () => 1,
 }))
-  Object.defineProperty(viewport, name, { get: read });
+  Object.defineProperty(viewport, name, { configurable: true, get: read });
 window.visualViewport ??= viewport;
+// happy-dom's computed style is the declared style: no initial values, and no
+// shorthand expanded. The runtime names the values it acts on, so a property left
+// unset reads as its initial value, but it reads overflow per axis, which a test may
+// declare with the shorthand. So each axis computes as CSS says: from its own
+// declaration or the shorthand, and `visible` (or `clip`) beside an axis that scrolls
+// computes `auto` (or `hidden`).
+const SCROLLING = /^(auto|scroll|hidden)$/;
+const declaredStyle = window.getComputedStyle.bind(window);
+window.getComputedStyle = (element, pseudo) => {
+  const style = declaredStyle(element, pseudo);
+  const [x = "visible", y = x] = style.overflow.split(/\s+/).filter(Boolean);
+  const declared = { overflowX: style.overflowX || x, overflowY: style.overflowY || y };
+  const axis = (name) => {
+    const value = declared[name];
+    const other = declared[name === "overflowX" ? "overflowY" : "overflowX"];
+    if (!SCROLLING.test(other)) return value;
+    return { visible: "auto", clip: "hidden" }[value] ?? value;
+  };
+  return new Proxy(style, {
+    get(target, key) {
+      if (key === "overflowX" || key === "overflowY") return axis(key);
+      const value = Reflect.get(target, key, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+};
 // What a delivered document's prepaint declares before any module runs
 // (`runtime/prepaint.js`): the page's storage scope, "" for a page at the origin's root.
 document.documentElement.dataset.lfPageScope = "";

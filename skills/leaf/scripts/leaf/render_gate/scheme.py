@@ -66,7 +66,7 @@ def rendered_revision(url: str, state: dict) -> int:
 
 def _projection_was_applied(failed_stage: str | None) -> bool:
     """Whether the readiness failure happened after authoritative presentation."""
-    return failed_stage in (None, "arrived", "rendering", "pageSettled")
+    return failed_stage in (None, "arrived", "contained", "rendering", "pageSettled")
 
 
 RESIZE_OBSERVER_ERROR = "window error: ResizeObserver loop"

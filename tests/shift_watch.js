@@ -18,6 +18,12 @@
 // expressions, ambiguous names and rules that disagree receive no inferred ownership.
 //
 // Each trusted gesture owns its counted rendering until declared completion.
+// Input creation order comes from the canonical input-work stream. Older callbacks
+// keep bounded rendering and their gesture's effects without ending a newer edit;
+// typing is judged by the window covering the paint, independently of other work.
+// Effects acquire their executing source at native script operations or callback
+// style checkpoints, never by time proximity. News seals that source's future
+// continuations; an already owned effect retains only its admitted playback.
 // Native effects it began retain only their sampled displacement within their
 // own subtree; their continued lifetime never owns unrelated page movement.
 // Native scroll effects belong to their retained scroll source, regardless of the
@@ -41,7 +47,7 @@
 // its solver dimensions, not the holder's rendered displacement, supply that credit.
 // Native anchored surfaces read their compositor source pose from an independent,
 // unpainted native anchor; their own displacement never selects that camera.
-// Observed page attachments in the window plane retain their carrying source offsets,
+// Observed attachments in the window plane retain their carrying source offsets,
 // physical attachment point and written solver point. Source travel bounds physical
 // following, which bounds the solver's constrained movement. Only that written
 // movement is credited; extra holder/child movement still fails.
@@ -73,7 +79,14 @@
 // input, focus, scroll, drag, resize, load, reset and beforetoggle events; the
 // emulated media tests change; this frame's own visibility; and the calls that
 // restyle without a DOM write (custom states, constructed and adopted sheets,
-// form-control values and ranges, animation mutators). Every VERIFY-th unannounced
+// form-control values, ranges and validity, CSSOM declarations/rules/media and
+// adopted-sheet array mutations, animation mutators). Native input creation also flushes style to discover default-input
+// effects (such as checkbox preactivation). That forced discovery depends on these
+// mutation announcements: pending passive style must be discovered in its own
+// callback before a later input can flush its native default. Borrowed methods announce
+// the document their receiver changes, including a constructed sheet's construction
+// document. Hidden owner layout can settle without an event in its child, so a
+// document whose paint is withheld always reads completely. Every VERIFY-th unannounced
 // frame, and the first one once the fixture asks for the test's verdict, reads
 // completely and fails the test where any reading differs, naming the innermost
 // node that changed, so a source missing from this list is found rather than
@@ -141,17 +154,13 @@
       ),
     ),
   ];
-  // Native timeline startTime changes when playback rate changes. Input ownership
-  // follows the operation that began motion, not that mutable clock coordinate.
-  const beganAt = new WeakMap();
-  // Motion begun since `start` that moves a box; one still pending begins now.
-  const begun = (start) =>
-    allAnimations().filter(
-      (animation) =>
-        animation.playState === "running" &&
-        (beganAt.get(animation)?.at ?? animation.startTime ?? Infinity) >= start &&
-        moves(animation),
-    );
+  // Each playback beginning retains its exact source and whether that source
+  // admitted the effect before news. Reusing the animation starts a new ownership.
+  const beginnings = new WeakMap();
+  const startMotion = (animation, source) => {
+    flushNews();
+    beginnings.set(animation, { source, owned: !!source && permitted(source) });
+  };
   // A direct native anchor inset, not an unused var() fallback or a named
   // different anchor inside the expression. Floating placement writes this form.
   const anchorInset = (value, axis) => {
@@ -300,8 +309,103 @@
   // complete one (the header's "Unchanged frames"). Each source sets it in the same
   // task as the change it announces, so it is set before the next frame's reading.
   let unread = true;
+  let effectsDirty = true;
   const announce = () => {
     unread = true;
+    effectsDirty = true;
+  };
+  // Borrowed prototype methods still change their receiver's document. Constructed
+  // sheets are confined to their construction document, even though ownerNode is
+  // null; animation targets may instead belong to another accessible document.
+  const HOME = Symbol.for("lfShiftWatch.document");
+  const WATCH = Symbol.for("lfShiftWatch.watch");
+  const ownerOf = (value) => {
+    if (!value) return null;
+    if (value.nodeType === 9) return value;
+    // Native collections expose named items as properties, including ownerDocument.
+    // Their explicit getter owner takes precedence over those incidental names.
+    if (Object.hasOwn(value, HOME)) return ownerOf(value[HOME]);
+    return (
+      value.ownerDocument ??
+      ownerOf(
+        value.ownerNode ??
+          value.parentRule ??
+          value.parentStyleSheet ??
+          value.target ??
+          value.effect?.target,
+      ) ??
+      ownerOf(value[HOME])
+    );
+  };
+  const announceOwner = (value) => ownerOf(value)?.[WATCH]?.announce();
+  const changing = (receiver, work) => {
+    announceOwner(receiver);
+    const result = work();
+    // Retargeting an effect changes both the former and the new document.
+    announceOwner(receiver);
+    return result;
+  };
+  // Native declarations have exotic own properties or subtype setters; adopted
+  // sheets have an ObservableArray. One cached proxy observes native mutations
+  // without changing names, parsing, array semantics or identity across getters.
+  // The shared symbol unwraps a native receiver even for borrowed realm methods.
+  const MUTABLE = Symbol.for("lfShiftWatch.mutable");
+  const receiverOf = (value) => value[MUTABLE] ?? value;
+  const PROXY = Symbol.for("lfShiftWatch.mutableProxy");
+  const mutable = (value) => {
+    let proxy = value[PROXY];
+    if (!proxy) {
+      proxy = new Proxy(value, {
+        get(target, key) {
+          return key === MUTABLE ? target : Reflect.get(target, key, target);
+        },
+        set(target, key, value) {
+          return changing(target, () => Reflect.set(target, key, value, target));
+        },
+        defineProperty(target, key, descriptor) {
+          return changing(target, () =>
+            Reflect.defineProperty(target, key, descriptor),
+          );
+        },
+        deleteProperty(target, key) {
+          return changing(target, () => Reflect.deleteProperty(target, key));
+        },
+      });
+      Object.defineProperty(value, PROXY, { value: proxy });
+    }
+    return proxy;
+  };
+  // Native declaration interfaces (including CSSStyleProperties) brand-check
+  // borrowed getters and setters. Wrap the actual native prototype chain once;
+  // the shared marker prevents a foreign getter from wrapping it a second time.
+  const DECLARATION_PROTO = Symbol.for("lfShiftWatch.declarationPrototype");
+  const wrapDeclarations = (proto) => {
+    for (; Object.getPrototypeOf(proto); proto = Object.getPrototypeOf(proto)) {
+      if (Object.hasOwn(proto, DECLARATION_PROTO)) continue;
+      Object.defineProperty(proto, DECLARATION_PROTO, { value: true });
+      Object.defineProperty(proto, HOME, { value: document });
+      const descriptors = Object.getOwnPropertyDescriptors(proto);
+      for (const name of Reflect.ownKeys(descriptors)) {
+        if (name === "constructor") continue;
+        const descriptor = descriptors[name];
+        const wrapped = { ...descriptor };
+        for (const kind of ["get", "set", "value"])
+          if (typeof descriptor[kind] === "function")
+            wrapped[kind] = function (...args) {
+              const receiver = receiverOf(this);
+              const work = () => Reflect.apply(descriptor[kind], receiver, args);
+              return kind === "set" || ["setProperty", "removeProperty"].includes(name)
+                ? changing(receiver, work)
+                : work();
+            };
+        Object.defineProperty(proto, name, wrapped);
+      }
+    }
+  };
+  wrapDeclarations(CSSStyleDeclaration.prototype);
+  const declaration = (value) => {
+    wrapDeclarations(Object.getPrototypeOf(value));
+    return mutable(value);
   };
   const writes = new MutationObserver(announce);
   // Input, scrolling, loads and native element state, heard in each tree they are
@@ -365,12 +469,13 @@
     matchMedia(query).addEventListener("change", announce);
   // Page state that matches selectors or applies style without a DOM write.
   const announcing = (proto, names) => {
+    Object.defineProperty(proto, HOME, { value: document });
     for (const name of names) {
       const own = Object.getOwnPropertyDescriptor(proto, name);
       const original = own.set ?? own.value;
       const wrapped = function (...args) {
-        announce();
-        return Reflect.apply(original, this, args);
+        const receiver = receiverOf(this);
+        return changing(receiver, () => Reflect.apply(original, receiver, args));
       };
       Object.defineProperty(
         proto,
@@ -384,10 +489,73 @@
     "replaceSync",
     "insertRule",
     "deleteRule",
+    "addRule",
+    "removeRule",
   ]);
-  announcing(StyleSheet.prototype, ["disabled"]);
-  announcing(Document.prototype, ["adoptedStyleSheets"]);
-  announcing(ShadowRoot.prototype, ["adoptedStyleSheets"]);
+  // Native mutable handles without an owner link retain the getter's receiver.
+  // Borrowing a getter therefore retains the actual rule or select, not its realm.
+  const nativeValueOwner = (proto, name) => {
+    const descriptor = Object.getOwnPropertyDescriptor(proto, name);
+    Object.defineProperty(proto, name, {
+      ...descriptor,
+      get() {
+        const value = Reflect.apply(descriptor.get, this, []);
+        // A native rule's style getter returns a declaration, including native
+        // subtypes; its constructor and interface tag may differ across realms.
+        if (name === "style") return declaration(value);
+        const kind = value?.[Symbol.toStringTag];
+        if (
+          [
+            "MediaList",
+            "StylePropertyMap",
+            "CSSFontFeatureValuesMap",
+            "HTMLOptionsCollection",
+          ].includes(kind)
+        )
+          Object.defineProperty(value, HOME, { value: this, configurable: true });
+        return value;
+      },
+    });
+  };
+  for (const name of Object.getOwnPropertyNames(window)) {
+    if (!name.startsWith("CSS")) continue;
+    const proto = window[name]?.prototype;
+    if (!proto) continue;
+    // Page scripts can capture a native setter before any rule style is read.
+    if (CSSStyleDeclaration.prototype.isPrototypeOf(proto)) wrapDeclarations(proto);
+    if (!CSSRule.prototype.isPrototypeOf(proto)) continue;
+    const descriptors = Object.getOwnPropertyDescriptors(proto);
+    const mutations = Object.entries(descriptors)
+      .filter(
+        ([name, descriptor]) =>
+          descriptor.set ||
+          (["insertRule", "deleteRule", "appendRule"].includes(name) &&
+            descriptor.value),
+      )
+      .map(([name]) => name);
+    if (mutations.length) announcing(proto, mutations);
+    for (const [name, descriptor] of Object.entries(descriptors))
+      if (descriptor.get) nativeValueOwner(proto, name);
+  }
+  nativeValueOwner(StyleSheet.prototype, "media");
+  announcing(MediaList.prototype, ["mediaText", "appendMedium", "deleteMedium"]);
+  if (window.StylePropertyMap)
+    announcing(StylePropertyMap.prototype, ["set", "append", "delete", "clear"]);
+  if (window.CSSFontFeatureValuesMap)
+    announcing(CSSFontFeatureValuesMap.prototype, ["set", "delete", "clear"]);
+  announcing(StyleSheet.prototype, ["disabled", "media"]);
+  for (const proto of [Document.prototype, ShadowRoot.prototype]) {
+    const descriptor = Object.getOwnPropertyDescriptor(proto, "adoptedStyleSheets");
+    Object.defineProperty(proto, "adoptedStyleSheets", {
+      ...descriptor,
+      get() {
+        const value = Reflect.apply(descriptor.get, this, []);
+        Object.defineProperty(value, HOME, { value: this, configurable: true });
+        return mutable(value);
+      },
+    });
+    announcing(proto, ["adoptedStyleSheets"]);
+  }
   announcing(Animation.prototype, [
     "cancel",
     "finish",
@@ -404,32 +572,52 @@
   ]);
   announcing(KeyframeEffect.prototype, ["setKeyframes", "target", "composite"]);
   announcing(AnimationEffect.prototype, ["updateTiming"]);
-  announcing(HTMLInputElement.prototype, [
-    "value",
-    "checked",
-    "indeterminate",
-    "setRangeText",
-    "stepUp",
-    "stepDown",
-  ]);
-  announcing(HTMLTextAreaElement.prototype, ["value", "setRangeText"]);
-  announcing(HTMLSelectElement.prototype, ["value", "selectedIndex"]);
+  announcing(HTMLInputElement.prototype, ["setRangeText", "stepUp", "stepDown"]);
+  announcing(HTMLTextAreaElement.prototype, ["setRangeText"]);
   announcing(HTMLOptionElement.prototype, ["selected"]);
+  nativeValueOwner(HTMLSelectElement.prototype, "options");
+  announcing(HTMLOptionsCollection.prototype, ["selectedIndex"]);
+  // Native validity changes selector matching without changing an attribute.
+  // Discover the installed capability, including form-associated custom hosts,
+  // rather than duplicating the platform's list of validation-enabled elements.
+  for (const name of Object.getOwnPropertyNames(window)) {
+    const proto = name.startsWith("HTML") && window[name]?.prototype;
+    if (
+      proto &&
+      Element.prototype.isPrototypeOf(proto) &&
+      Object.hasOwn(proto, "setCustomValidity")
+    ) {
+      // Alternate native representations (valueAsNumber/valueAsDate) do not call
+      // value's setter. Each installed state setter is itself the producer.
+      const setters = Object.entries(Object.getOwnPropertyDescriptors(proto))
+        .filter(([, descriptor]) => descriptor.set)
+        .map(([name]) => name);
+      announcing(proto, [...setters, "setCustomValidity"]);
+    }
+  }
+  announcing(ElementInternals.prototype, ["setValidity"]);
   // A custom state matches `:state()`; the runtime restates them freely, so only a
   // call that changes the set announces.
   const states = CustomStateSet.prototype;
+  const attachInternals = HTMLElement.prototype.attachInternals;
+  HTMLElement.prototype.attachInternals = function (...args) {
+    const internals = Reflect.apply(attachInternals, this, args);
+    for (const value of [internals, internals.states])
+      Object.defineProperty(value, HOME, { value: this });
+    return internals;
+  };
   const { add, delete: remove, clear, has } = states;
   Object.assign(states, {
     add(state) {
-      if (!has.call(this, state)) announce();
+      if (!has.call(this, state)) announceOwner(this);
       return add.call(this, state);
     },
     delete(state) {
-      if (has.call(this, state)) announce();
+      if (has.call(this, state)) announceOwner(this);
       return remove.call(this, state);
     },
     clear() {
-      if (this.size) announce();
+      if (this.size) announceOwner(this);
       return clear.call(this);
     },
   });
@@ -438,10 +626,16 @@
   const attachShadow = Element.prototype.attachShadow;
   Element.prototype.attachShadow = function (init) {
     const root = attachShadow.call(this, init);
-    roots.add(root);
-    watchTree(root);
-    announce();
+    this.ownerDocument[WATCH]?.watchRoot(root);
     return root;
+  };
+  document[WATCH] = {
+    announce,
+    watchRoot(root) {
+      roots.add(root);
+      watchTree(root);
+      announce();
+    },
   };
   // A zero-sized native anchor independently exposes the compositor source pose
   // consumed by an anchored floating surface. Its own point stays at the source's
@@ -532,6 +726,17 @@
         top: property.endsWith("Top") || property === "top" ? parseFloat(value) : 0,
       };
     return null;
+  };
+  const sameTranslation = (property, expected, actual) => {
+    if (expected === undefined) return false;
+    const before = animationTranslation(property, expected);
+    const after = animationTranslation(property, actual);
+    return (
+      before &&
+      after &&
+      Math.abs(before.left - after.left) < 0.01 &&
+      Math.abs(before.top - after.top) < 0.01
+    );
   };
   const translationAxes = (target) => {
     const parent = elementAxes(up(target));
@@ -627,9 +832,8 @@
   Element.prototype.animate = function (...args) {
     announce();
     const values = underlying(this);
-    const at = nativePerformance.now();
     const animation = animate.apply(this, args);
-    beganAt.set(animation, { at });
+    startMotion(animation, window.lfInputWork.current());
     origins.set(
       animation,
       Object.fromEntries(
@@ -652,16 +856,48 @@
         this.effect.getComputedTiming().progress === null
           ? underlying(this.effect.target, this)
           : null;
-      const at = nativePerformance.now();
       const result = original.apply(this, args);
       if (beginning) {
-        beganAt.set(this, { at });
+        startMotion(this, window.lfInputWork.current());
         if (origin) origins.set(this, origin);
       }
       return result;
     };
   }
   const observedStates = new WeakMap();
+  // getAnimations flushes style, so a callback's CSS effects are present at its
+  // completion checkpoint. Passive callbacks and native paint record their own
+  // beginnings too; a later input cannot adopt them because they began nearby.
+  const recordBeginning = (animation, source = null) => {
+    const priorState = observedStates.get(animation);
+    if (!beginnings.has(animation)) startMotion(animation, source);
+    else if (
+      priorState?.state === "paused" &&
+      animation.playState === "running" &&
+      priorState.beginning === beginnings.get(animation)
+    )
+      // CSS play-state can resume without calling the native play producer.
+      // An explicit play() already supplied a new operation; never restamp it.
+      startMotion(animation, source);
+    observedStates.set(animation, {
+      state: animation.playState,
+      beginning: beginnings.get(animation),
+    });
+    // A CSS transition retires into its declared destination. Its native final
+    // keyframe supplies that endpoint just as animate() supplies its underlying
+    // no-fill return; otherwise its last fraction of travel has no sampled proof.
+    if (animation instanceof CSSTransition && !origins.has(animation)) {
+      const destination = animation.effect.getKeyframes().at(-1);
+      origins.set(
+        animation,
+        Object.fromEntries(
+          animationProperties(animation)
+            .filter((property) => property in destination)
+            .map((property) => [property, destination[property]]),
+        ),
+      );
+    }
+  };
   const readMotion = (at, ending = null) => {
     const effects = [
       ...new Set([
@@ -671,21 +907,7 @@
     ].filter((animation) => animation.effect?.target && moves(animation));
     const uses = new Map();
     for (const animation of effects) {
-      const priorState = observedStates.get(animation);
-      if (!beganAt.has(animation))
-        beganAt.set(animation, { at: animation.startTime ?? at });
-      else if (
-        priorState?.state === "paused" &&
-        animation.playState === "running" &&
-        priorState.beginning === beganAt.get(animation)
-      )
-        // CSS play-state can resume without calling the native play producer.
-        // An explicit play() already supplied a new operation; never restamp it.
-        beganAt.set(animation, { at });
-      observedStates.set(animation, {
-        state: animation.playState,
-        beginning: beganAt.get(animation),
-      });
+      recordBeginning(animation);
       if (
         animation.effect.getComputedTiming().progress === null &&
         animation !== ending
@@ -724,7 +946,8 @@
             (property) =>
               replace &&
               uses.get(effect.target)?.get(property) === 1 &&
-              (!returning || origin?.[property] === style[property]),
+              (!returning ||
+                sameTranslation(property, origin?.[property], style[property])),
           )
           .map((property) => [property, style[property]]),
       );
@@ -792,10 +1015,13 @@
     // or leaves the set settles the last of them.
     const animations = allAnimations();
     const running = animations.some(({ playState }) => playState === "running");
-    if (writes.takeRecords().length) unread = true;
-    // An embedding page can hide this document's frame without telling it.
+    if (writes.takeRecords().length) announce();
+    // A hidden owner's native layout can settle after its visibility transition,
+    // without a child resize event or a document-local mutation. Read that layout
+    // completely while paint is withheld; visible documents retain announcement reuse.
     const drawn = drawing();
     const announced =
+      !drawn ||
       unread ||
       drawn !== wasDrawn ||
       running ||
@@ -864,7 +1090,9 @@
           start: time,
           nodes,
           motion: animations.filter(
-            (animation) => animated.get(animation)?.at(-1)?.scroll,
+            (animation) =>
+              (animation.playState === "running" && beginnings.get(animation)?.owned) ||
+              animated.get(animation)?.at(-1)?.scroll,
           ),
           complete: true,
         }
@@ -1045,7 +1273,7 @@
     if (entry) entry.written = written;
     // A page that wrote while it was read, as a reading that patches the DOM API
     // does, announced its own change.
-    if (writes.takeRecords().length) unread = true;
+    if (writes.takeRecords().length) announce();
     else if (misses.length) missed(misses);
     return at;
   };
@@ -1122,13 +1350,19 @@
     }
     return { left, top, right: left + rect.width, bottom: top + rect.height };
   };
-  // Each input's rendering: when it began; the latest frame it owns; the motion
-  // it began; whether news has landed since; and a keystroke's typing, which holds
+  // Each input's rendering: when it began; the latest frame it owns;
+  // whether news has landed since; and a keystroke's typing, which holds
   // its field; the box of the field
   // and of each element holding it at the key; the animations already moving any of
   // them; and until when the typing rule reads it.
   const renderings = [];
   let open = null;
+  let latestInput = -Infinity;
+  let newsBefore = -Infinity;
+  const sealed = (source, start) =>
+    (source ? source.order - nativePerformance.timeOrigin : start) <= newsBefore;
+  const permitted = (source, start) =>
+    source?.event.type !== "storage" && !sealed(source, start);
   // The typing rule stops reading the open rendering, which runs on.
   const unwatch = () => {
     if (open?.typing?.until === Infinity)
@@ -1137,24 +1371,30 @@
   const end = () => {
     unwatch();
     // Seal effects the gesture already began before a newer input replaces it.
-    if (open && !open.told) {
-      for (const animation of begun(open.start)) open.own.add(animation);
-      open.told = true;
-    }
+    if (open) open.told = true;
     open = null;
   };
-  const begin = (start, typing = null, own = new Set()) => {
-    end();
-    open = {
+  const begin = (start, typing = null, source = null) => {
+    const order = source?.order ?? nativePerformance.timeOrigin + start;
+    const allowed = permitted(source, start);
+    const older = order < latestInput;
+    if (!older) {
+      end();
+      latestInput = order;
+    }
+    const rendering = {
       start,
-      first: true,
-      through: Infinity,
-      own,
-      told: false,
+      source,
+      first: allowed,
+      through: allowed ? Infinity : frames.at(-1).at,
+      told: !allowed,
       last: false,
       typing,
     };
-    renderings.push(open);
+    renderings.push(rendering);
+    // Older continuations keep their own two-frame rendering and retained effects;
+    // they cannot replace the newer input or close its typing window.
+    if (!older) open = rendering;
   };
   // Shifts whose frame has no reading after it yet.
   const waiting = [];
@@ -1164,8 +1404,6 @@
       // Effects begun before news retain their exact property evidence below.
       // A persistent attachment or a still-running time effect does not keep the
       // creator's counted input rendering open after its declared completion.
-      if (!open.told)
-        for (const animation of begun(open.start)) open.own.add(animation);
       if (open.last) end();
       // A settled reading here counts updates before this one; this frame's own
       // callbacks may still move a box, so the rendering runs through the next.
@@ -1182,40 +1420,50 @@
         rendering.through = at;
       rendering.first = false;
     }
-    const motion = frames.at(-1).motion;
-    for (const rendering of renderings)
-      for (const animation of rendering.own)
-        if (animation.playState === "running") motion.push(animation);
     audit();
     judge(waiting.splice(0));
     nativeFrame(tick);
   };
   nativeFrame(tick);
-  window.lfInputWork.subscribeEdits(({ node: field }) => {
+  window.lfInputWork.subscribeInputs((source, edit) => {
+    discoverMotion(source, true);
+    const { node: field, event } = source;
+    if (event.type === "input" && open?.typing) {
+      latestInput = Math.max(latestInput, source.order);
+      return;
+    }
+    if (!edit) {
+      begin(nativePerformance.now(), null, source);
+      return;
+    }
     const holding = [];
     for (let at = field; at instanceof Element; at = up(at)) holding.push(at);
     const start = nativePerformance.now();
     const at = read(start, false);
-    begin(start, {
-      field,
-      at,
-      found: boxes(
-        holding.filter((node) => {
-          const paint = paintAt(node, at);
-          return (
-            node === field ||
-            paint.reading ||
-            paint.control ||
-            paint.reflow ||
-            paintedHolder(node)
-          );
-        }),
-      ),
-      moving: holding
-        .flatMap((node) => node.getAnimations())
-        .filter((animation) => animation.playState === "running" && moves(animation)),
-      until: Infinity,
-    });
+    begin(
+      start,
+      {
+        field,
+        at,
+        found: boxes(
+          holding.filter((node) => {
+            const paint = paintAt(node, at);
+            return (
+              node === field ||
+              paint.reading ||
+              paint.control ||
+              paint.reflow ||
+              paintedHolder(node)
+            );
+          }),
+        ),
+        moving: holding
+          .flatMap((node) => node.getAnimations())
+          .filter((animation) => animation.playState === "running" && moves(animation)),
+        until: Infinity,
+      },
+      source,
+    );
   });
   // A viewport resize is input, and its new size is the fact. Chrome lays out the
   // resized viewport before dispatching resize, which precedes the frame's callbacks,
@@ -1233,42 +1481,46 @@
   };
   listen(window, "resize", resized);
   // When the page adopted each server reading.
-  new MutationObserver(() => {
+  const adoptNews = () => {
+    newsBefore = nativePerformance.now();
     unwatch();
-    if (open) open.told = true;
-  }).observe(document, { subtree: true, attributeFilter: ["data-lf-reading"] });
-  // Press, drag, release and native activation are phases of one pointer gesture.
-  // Each phase keeps its own paint boundary while sharing the effects that press
-  // began. A later press starts fresh; native timeline reassignment cannot adopt
-  // an unrelated older effect into it.
-  const presses = new Map();
-  const heard = (event) => {
-    if (!event.isTrusted || (event.type === "pointermove" && !event.buttons)) return;
-    if (event.type === "pointerdown") presses.set(event.pointerId, new Set());
-    begin(nativePerformance.now(), null, presses.get(event.pointerId) ?? new Set());
-    if (event.type === "click") presses.delete(event.pointerId);
-  };
-  for (let view = window; ; view = view.parent) {
-    let held;
-    try {
-      held = view.document;
-    } catch {
-      break;
+    for (const rendering of renderings) {
+      rendering.told = true;
+      // News may share the original input's first frame, not a fresh allowance
+      // minted by one of its delayed callbacks. Seal older work at the last pose.
+      const created = rendering.source
+        ? rendering.source.order - nativePerformance.timeOrigin
+        : rendering.start;
+      if (created <= frames.at(-2)?.start) {
+        rendering.through = Math.min(rendering.through, frames.at(-1).at);
+        rendering.first = false;
+      }
     }
-    // A gesture has press, active movement and activation/release phases. Hover
-    // supplies no geometry ownership; native click also covers keyboard activation.
-    for (const type of [
-      "keydown",
-      "pointerdown",
-      "pointermove",
-      "pointerup",
-      "click",
-      "wheel",
-    ])
-      listen(held, type, heard, true);
-    listen(held, "pointercancel", (event) => presses.delete(event.pointerId), true);
-    if (view === view.parent) break;
-  }
+  };
+  const news = new MutationObserver(adoptNews);
+  news.observe(document, { subtree: true, attributeFilter: ["data-lf-reading"] });
+  const flushNews = () => {
+    if (news.takeRecords().length) adoptNews();
+  };
+  // Only a write, native announcement or input can start a CSS effect. Idle
+  // Promise checkpoints do not flush the whole composed tree's style.
+  const discoverMotion = (source, input = false) => {
+    if (writes.takeRecords().length) announce();
+    if (!effectsDirty && !input) return;
+    effectsDirty = false;
+    for (const animation of allAnimations()) recordBeginning(animation, source);
+  };
+  // Exact callback sources also cross private document ports, where DOM capture
+  // cannot hear the parent input. A delayed continuation starts its own counted
+  // rendering when it runs; an unrelated passive callback never gains that credit.
+  window.lfInputWork.subscribe((source) => {
+    flushNews();
+    discoverMotion(source);
+    if (!source || !permitted(source)) return;
+    if (source.event.type === "input" && open?.typing) return;
+    if (open?.source?.event === source.event) return;
+    begin(nativePerformance.now(), null, source);
+  });
   const reported = new Set();
   const report = (what, detail) => {
     if (reported.has(what)) return;
@@ -1934,12 +2186,15 @@
   };
   const inputOwns = (at) =>
     renderings.some((gesture) => at >= gesture.start && at <= gesture.through);
+  const typingAt = (at) =>
+    renderings.findLast(
+      ({ start, typing }) => typing && start <= at && at <= typing.until,
+    )?.typing;
   const audit = () => {
     if (frames.length < 2) return;
     const at = nativePerformance.now(),
       frame = frames.at(-1).at;
-    const rendering = renderings.findLast(({ start }) => start <= at);
-    if (rendering?.typing && at <= rendering.typing.until) return;
+    if (typingAt(at)) return;
     const entry = { startTime: at, sources: [] };
     // Gesture ownership is its bounded rendering, not Chrome's half-second credit.
     if (presenting(entry) || inputOwns(frame)) return;
@@ -1952,7 +2207,7 @@
   // A painted layout transition admits the retained landmark ledger. Chrome's
   // source list never selects which landmarks get checked; source geometry only
   // corroborates a sampled roundtrip already undone by the time it is heard.
-  const admittedMotion = (entry, next, rendering) => {
+  const admittedMotion = (entry, next) => {
     if (presenting(entry)) return;
     const admitted = pendingMotion.filter(
       (move) => move.before <= entry.startTime && move.after <= next,
@@ -2049,16 +2304,15 @@
         waiting.push(entry);
         continue;
       }
-      const rendering = renderings.findLast(({ start }) => start <= at);
       if (observed && frame !== -1)
         protectedMotion([frames[frame], frames[frame], observed]);
-      const typing = rendering?.typing;
-      if (typing && at <= typing.until) {
+      const typing = typingAt(at);
+      if (typing) {
         // A later frame may include the next gesture; typed() caps its reading at
         // the closing pose captured before that gesture began.
         if (frame !== -1) typed(entry, typing, next);
       }
-      admittedMotion(entry, next ?? nativePerformance.now(), rendering);
+      admittedMotion(entry, next ?? nativePerformance.now());
     }
   };
   // Native records, delivered to the observer or taken at a paint checkpoint. A
@@ -2134,8 +2388,7 @@
       if (
         rendering !== open &&
         rendering.through < retainedFrom &&
-        (rendering.typing?.until ?? -Infinity) < retainedFrom &&
-        ![...rendering.own].some(({ playState }) => playState === "running")
+        (rendering.typing?.until ?? -Infinity) < retainedFrom
       )
         renderings.splice(i, 1);
     }
@@ -2164,9 +2417,22 @@
   checkpoint();
   const drawing = () => {
     if (document.hidden) return false;
-    // Frame-owner visibility belongs to the driver, which can read across
-    // origins and refreshes this fact while draining. A document's ancestor
-    // window walk can lose access when a same-origin blank frame is sandboxed.
+    // Read only owners whose parent document is accessible. WebKit reports an
+    // opaque frameElement access as a page error even when that getter returns
+    // null; parent.document instead exposes the origin boundary as an exception.
+    for (let view = window; view !== view.parent;) {
+      let parentDocument;
+      try {
+        parentDocument = view.parent.document;
+      } catch {
+        break;
+      }
+      const owner = view.frameElement;
+      if (!owner) break;
+      if (!owner.checkVisibility()) return false;
+      view = parentDocument.defaultView;
+    }
+    // The driver supplies the rest of the chain across an opaque boundary.
     if (window.lfWatchJudgement?.ancestorsDrawn === false) return false;
     return true;
   };

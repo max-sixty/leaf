@@ -33,7 +33,7 @@
    existing focus owner only when that graph changes. The frame ignores pointer input;
    each surface's own CSS retains its interaction policy. Without the needed native
    capability, the existing observed placement path invalidates on scroll instead.
-   A page attachment solved in the window plane retains its physical attachment point,
+   An attachment solved in the window plane retains its physical attachment point,
    carrying sources' measured scroll offsets, and written solver point. The physical
    point may move less than those scrolls (a sticky boundary), and the solver may move
    less than that point (a viewport constraint). Readers can distinguish both from
@@ -486,9 +486,7 @@ export function floatingPlacement({ floating, update }) {
             at,
             reference: Object.freeze({ left: point.left, top: point.top }),
             scrollOffsets:
-              wanted === "page" && plane === "window"
-                ? answer.middlewareData.anchorAt.scrollOffsets
-                : null,
+              plane === "window" ? answer.middlewareData.anchorAt.scrollOffsets : null,
           }
         : null;
       return answer;

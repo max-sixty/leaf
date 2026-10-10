@@ -1349,17 +1349,72 @@ def judge_watches():
 
 
 def _frame_owners_drawn(frame):
-    """Read current ancestor visibility across origin boundaries for the sensor."""
+    """Read each owner's paint opportunity from the outside in across origins.
+
+    Chrome can suspend native animation frames in an offscreen opaque document
+    while its owner still passes `checkVisibility`. Native intersection says what
+    the user can see across viewport and ancestor clipping, supplying the reading
+    an isolated child cannot make. A same-origin chain keeps its existing native
+    paint drain outside that intersection; its records never rely on the parent's
+    observer delivery. CSS visibility and opacity do not prove paint has stopped.
+    Read outer owners first and retain them throughout the bounded wait: an observer
+    inside a suppressed ancestor cannot run, even if suppression begins mid-reading.
+    """
+    owners = []
     ancestor = frame
     while ancestor.parent_frame is not None:
-        owner = ancestor.frame_element()
-        try:
-            if not owner.evaluate("element => element.checkVisibility()"):
-                return False
-        finally:
-            owner.dispose()
+        owners.append(ancestor)
         ancestor = ancestor.parent_frame
-    return True
+    opaque = """() => {
+      if (window === window.parent) return false;
+      try { return !window.parent.document; }
+      catch { return true; }
+    }"""
+    if not any(owner.evaluate(opaque) for owner in owners):
+        for ancestor in owners:
+            owner = ancestor.frame_element()
+            try:
+                if not owner.evaluate("element => element.checkVisibility()"):
+                    return False
+            finally:
+                owner.dispose()
+        return True
+    readings = []
+    deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
+    try:
+        for ancestor in reversed(owners):
+            owner = ancestor.frame_element()
+            reading = owner.evaluate_handle("""element => {
+                const reading = { drawn: null, observer: null };
+                reading.observer = new IntersectionObserver(([entry]) => {
+                  reading.drawn = entry.intersectionRect.width > 0 &&
+                    entry.intersectionRect.height > 0;
+                });
+                reading.observer.observe(element);
+                return reading;
+            }""")
+            readings.append((ancestor.parent_frame, owner, reading))
+        while True:
+            ready = True
+            for parent, owner, reading in readings:
+                drawn = parent.evaluate(
+                    """({element, reading}) => !document.hidden && element.checkVisibility()
+                          ? reading.drawn : false""",
+                    {"element": owner, "reading": reading},
+                )
+                if drawn is False:
+                    return False
+                ready = ready and drawn is True
+            if ready:
+                return True
+            if time.monotonic() >= deadline:
+                raise PlaywrightTimeout(f"frame visibility did not arrive: {frame.url}")
+            frame.page.wait_for_timeout(100)
+    finally:
+        for _, owner, reading in readings:
+            reading.evaluate("reading => reading.observer.disconnect()")
+            reading.dispose()
+            owner.dispose()
 
 
 def watched(page, *, java_script_enabled=True):

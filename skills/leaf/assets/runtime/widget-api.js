@@ -36,6 +36,7 @@ export { navigateToDatum } from "./application.js";
 // Experimental: one widget marking part of another (indication.js).
 export { indicate } from "./indication.js";
 export {
+  elementAxes,
   landingInsets,
   shownBand,
   shownBox,
@@ -201,12 +202,14 @@ export {
   reducedMotion,
   scrollBehavior,
 } from "./motion.js";
-// `afterPresentation` is the package's whole route past presentation: it waits and
-// declares the arrival in one call, so a widget cannot defer without the page knowing.
+// `afterPresentation` waits for presentation and declares subsequent layout work.
+// Before parent presentation, `deferredArrival(work, {layout: false})` declares a
+// stable contained document: complete pictures await it while the parent is usable.
 export {
   PAGE_INTERFACE,
   PRESENTATION,
   afterPresentation,
+  deferredArrival,
   isPagePaint,
   quietWord,
 } from "./presentation.js";

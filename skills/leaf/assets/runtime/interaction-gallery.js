@@ -297,9 +297,8 @@ export function installInteractionGallery() {
   };
 
   for (const demo of demos.values()) {
-    // A contained document lays itself out in this page's process when it arrives, and
-    // it arrives after the page has presented. The page carries that as its own
-    // unfinished arrival, so nothing outside it has to know the gallery is here.
+    // The stable frame isolates its child's layout from the containing page. Pictures
+    // await this document; parent interaction and fragment landing do not.
     void deferredArrival(
       demo
         .load()
@@ -312,6 +311,7 @@ export function installInteractionGallery() {
         .finally(() => {
           if (gallery === installedGallery) syncActive();
         }),
+      { layout: false },
     );
   }
   syncActive();

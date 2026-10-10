@@ -10934,8 +10934,8 @@ def test_a_row_behind_an_inactive_tab_is_withheld(browser, serve):
     expect(row).to_be_visible()
 
 
-def test_a_touch_pin_stays_inside_a_non_scrolling_sample(browser, serve):
-    """A content-height sample keeps the complete finger-sized receipt in its frame."""
+def test_a_touch_pin_stays_inside_a_compact_sample(browser, serve):
+    """A compact sample keeps the complete finger-sized receipt in its frame."""
     source = leaf_page(
         "A receipt inside a block sample",
         """
@@ -10965,13 +10965,16 @@ def test_a_touch_pin_stays_inside_a_non_scrolling_sample(browser, serve):
         '.lf-margin-entry[data-lf-kinds="sent"]'
     )
     expect(status).to_be_visible()
+    # The compact viewport scrolls; a status near its bottom must be reachable
+    # whole rather than relying on the child expanding its containing page.
+    status.scroll_into_view_if_needed()
     reading = status.evaluate("""pin => ({
       rect: pin.getBoundingClientRect().toJSON(),
       height: innerHeight,
       overflow: getComputedStyle(document.documentElement).overflowY,
       touch: matchMedia('(pointer: coarse)').matches,
     })""")
-    assert reading["touch"] and reading["overflow"] == "hidden", reading
+    assert reading["touch"] and reading["overflow"] == "scroll", reading
     assert reading["rect"]["height"] >= 44, reading
     assert (
         0 <= reading["rect"]["top"] < reading["rect"]["bottom"] <= reading["height"]

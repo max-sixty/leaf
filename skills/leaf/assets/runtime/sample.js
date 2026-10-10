@@ -7,7 +7,7 @@
  * private port; an ordinary reload reconnects with a fresh presentation promise.
  * An opaque parent cannot classify a later document which has no Leaf bootstrap.
  * Departed ports cannot settle the replacement's calls.
- * A block follows the child's reported height; a window keeps its own viewport.
+ * Each frame keeps its own viewport; child loading never sizes its parent.
  * Passive demonstrations remain inert. Removing a frame retires its realm before
  * releasing the allocation, including on reset and parent departure. Destruction
  * cancels pending admission and queue waits; an allocation already in flight is
@@ -206,6 +206,7 @@ export function mountSample(
     });
   }
   function failure(error) {
+    disconnect(error);
     if (presenting) readyReject(error);
     else {
       begin(settle(Promise.reject(error)));
@@ -389,6 +390,11 @@ export function mountSample(
   }
   const host = {
     ready: null,
+    // Only a presented Leaf document can answer its private commands. Loading,
+    // failure retirement and native departure retain a visible frame without one.
+    get presented() {
+      return channel !== null && !presenting;
+    },
     reset,
     // Full view keeps the realm, log and native editor; only its allocation changes.
     setWindow(value) {

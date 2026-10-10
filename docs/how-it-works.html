@@ -3848,7 +3848,14 @@ flowchart TD
               server that accepts changes and Codex for agent replies. It starts when a
               change needs it, restoring the saved page before accepting that change.
               Operations that need Python, such as comparing versions or creating live
-              samples, can also start the container.
+              samples, can also start the container. A request with no saved copy starts
+              it too.
+            </p>
+            <p id="loading-samples">
+              Live examples load independently inside scrolling frames. Their loading
+              status appears while the surrounding page is ready for comments. Each
+              frame keeps its size as its document and saved state arrive. Full view
+              expands the same example, preserving its choices and unfinished text.
             </p>
             <p id="loading-container">
               The server accepts and saves comments before Codex is ready. A comment

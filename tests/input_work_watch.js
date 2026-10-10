@@ -7,8 +7,10 @@
 // synchronously before awaiting delivery (drafts.js). A reactive element's update is
 // the exception the watch follows itself: Lit defers it behind a native await, and the
 // request that starts it names its cause (`adoptReactive`).
-// Native edit starts identify their field through DOM capture or EditContext's
-// attachment; a watch confirms the value that field's input commits.
+// The canonical input-start stream names each trusted input's creation order and
+// whether it starts an edit. Consumers select edits there; callbacks retain the
+// original source instead of minting another input. DOM capture and EditContext's
+// attachment identify the field; a watch confirms the value its input commits.
 // Parent input bridges belong to the child document. Pagehide releases them before
 // its realm goes away; a back-forward cache return reconnects the same bridges.
 // Explicitly enrolled document ports carry the exact scheduling source between
@@ -22,7 +24,7 @@
   const nativeDefaults = new Map();
   const finished = new Set();
   const subscribers = new Set();
-  const editSubscribers = new Set();
+  const inputSubscribers = new Set();
   const sources = new WeakMap();
   // Native input creation order is comparable across document realms. Delivery
   // can be delayed beyond a newer edit, so arrival must never mint a newer input.
@@ -111,6 +113,9 @@
   const editorCommands = Object.freeze(["cut", "paste", "drop"]);
   const inputTypes = [
     "pointerdown",
+    "pointermove",
+    "pointercancel",
+    "wheel",
     "mousedown",
     "touchstart",
     "pointerup",
@@ -121,8 +126,24 @@
     "keydown",
     "beforeinput",
     "input",
+    "cancel",
     ...editorCommands,
   ];
+  // Native dialog cancellation is a browser input in its own dispatch, after
+  // Escape's key dispatch has ended. requestClose fires the same trusted event
+  // synchronously from script: preserve that caller's cause instead of granting
+  // the script a new input. Synthetic cancel never starts an input either.
+  const REQUESTING_CLOSE = Symbol.for("lfInputWork.requestingClose");
+  const requestClose = HTMLDialogElement.prototype.requestClose;
+  HTMLDialogElement.prototype.requestClose = function (...args) {
+    // A borrowed method still dispatches cancel in the receiver's document.
+    this[REQUESTING_CLOSE] = (this[REQUESTING_CLOSE] ?? 0) + 1;
+    try {
+      return requestClose.apply(this, args);
+    } finally {
+      this[REQUESTING_CLOSE]--;
+    }
+  };
   // Native summary activation belongs to the nearest interactive content, not an
   // enclosing summary around a button or link (HTML's interactive-content category).
   const nativeActivation =
@@ -226,7 +247,7 @@
     if (GESTURES.has(event.type)) nativeDefaults.clear();
     const source = { event, node, order: inputOrder() };
     sources.set(event, source);
-    if (edit) for (const subscriber of editSubscribers) subscriber(source);
+    for (const subscriber of inputSubscribers) subscriber(source, edit);
     microtask(() => checkpoint(source));
     endDispatch(source);
     return source;
@@ -270,8 +291,12 @@
       sourceIds.set(source.event, id);
       messageSources.set(id, source);
     }
-    const { type, key, code, defaultPrevented } = source.event;
-    return { id, order: source.order, event: { type, key, code, defaultPrevented } };
+    const { type, key, code, pointerId, buttons, defaultPrevented } = source.event;
+    return {
+      id,
+      order: source.order,
+      event: { type, key, code, pointerId, buttons, defaultPrevented },
+    };
   };
   const unpackSource = (packed) => {
     if (!packed) return null;
@@ -331,25 +356,30 @@
       const parent = view.lfInputWork;
       parents.push(parent);
       connectParent(() => {
-        const stopEdits = parent.subscribeEdits((source) => {
-          for (const subscriber of editSubscribers) subscriber(localSource(source));
+        const stopInputs = parent.subscribeInputs((source, edit) => {
+          for (const subscriber of inputSubscribers)
+            subscriber(localSource(source), edit);
         });
         const stop = parent.subscribe((source, completedEdit) => {
           if (!source) return checkpoint(source, completedEdit);
           checkpoint(localSource(source), completedEdit);
         });
         return () => {
-          stopEdits();
+          stopInputs();
           stop();
         };
       });
-      if (view === view.parent) break;
-      continue;
+      // This instrumented ancestor forwards the rest of its chain. Subscribing
+      // farther up would announce the same input creation and callback twice.
+      break;
     }
     const callbacks = [];
     for (const type of inputTypes) {
       const callback = (event) => {
-        if (!event.isTrusted) return;
+        if (!event.isTrusted || (event.type === "pointermove" && !event.buttons))
+          return;
+        if (event.type === "cancel" && event.composedPath()[0][REQUESTING_CLOSE])
+          return;
         beginSource(
           event,
           event.composedPath()[0],
@@ -509,9 +539,11 @@
       subscribers.add(callback);
       return () => subscribers.delete(callback);
     },
-    subscribeEdits(callback) {
-      editSubscribers.add(callback);
-      return () => editSubscribers.delete(callback);
+    // Input creation, before any effect: the source's original order never
+    // changes when its callbacks run later or cross a document boundary.
+    subscribeInputs(callback) {
+      inputSubscribers.add(callback);
+      return () => inputSubscribers.delete(callback);
     },
   };
 })();

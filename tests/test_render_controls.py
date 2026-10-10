@@ -1532,6 +1532,7 @@ def test_live_sample_full_view_keeps_the_child_and_returns_after_inner_escape(
     ).to_have_attribute("aria-checked", "false")
 
     full.click()
+    expect(back).to_be_focused()
     sample.get_by_role("button", name="Reset", exact=True).click()
     sample.evaluate("sample => sample.ready")
     expect(back).to_be_visible()
@@ -2197,12 +2198,14 @@ def test_live_samples_keep_real_gestures_and_drafts_inside_the_child(browser, se
     assert child.url != other.url
     # A child's startup does not take focus from the page it arrives in.
     assert page.evaluate("document.activeElement.tagName") != "IFRAME"
-    # Each frame takes its page's height, so the containing page scrolls it whole:
-    # the child's viewport ends where its page does.
+    # Each compact child keeps its own scrollport inside the parent's allocation.
     for practice in (child, other):
-        assert practice.evaluate(
-            "Math.abs(document.querySelector('main').getBoundingClientRect().bottom"
-            " - innerHeight) <= 1"
+        assert practice.evaluate("innerHeight") == 254
+        assert (
+            practice.locator("html").evaluate(
+                "root => getComputedStyle(root).overflowY"
+            )
+            == "scroll"
         )
 
     # The first click lands on the child's control; there is no entry step.
@@ -2305,7 +2308,6 @@ def test_a_window_sample_is_a_whole_leaf_window_that_scrolls_inside(browser, ser
     )
     page = open_page(browser, serve(source))
     sample = page.locator("#window-sample")
-    reading = sample.evaluate("async sample => await sample.ready")
     child_frame = sample.locator("iframe").element_handle().content_frame()
     child = child_frame.evaluate(
         """() => ({
@@ -2314,7 +2316,6 @@ def test_a_window_sample_is_a_whole_leaf_window_that_scrolls_inside(browser, ser
           page: document.documentElement.scrollHeight,
         })"""
     )
-    assert reading["block"] == child["block"]
     assert not child["block"]
     assert child["bar"] != "none"
     frame = sample.locator("iframe")
@@ -2334,9 +2335,12 @@ def test_a_window_sample_is_a_whole_leaf_window_that_scrolls_inside(browser, ser
     assert frame.bounding_box()["height"] == box["height"]
 
     sample.get_by_role("button", name="Full view", exact=True).click()
+    expect(
+        sample.get_by_role("button", name="Return to page", exact=True)
+    ).to_be_focused()
     assert frame.bounding_box()["height"] > page.viewport_size["height"] * 0.8
     sample.get_by_role("button", name="Return to page", exact=True).click()
-    assert child_frame.evaluate("scrollY") == scroll_before + 300
+    child_frame.wait_for_function("y => scrollY === y", arg=scroll_before + 300)
     assert frame.bounding_box()["height"] == box["height"]
 
     # A fragment set during startup must not prevent Reset or reload from presenting.

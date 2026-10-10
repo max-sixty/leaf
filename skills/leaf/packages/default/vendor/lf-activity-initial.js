@@ -115,6 +115,37 @@
     return { notice, list, empty, rows, reading, restored: saved !== null };
   }
 
+  // skills/leaf/packages/default/widgets/sample-view.js
+  function initialSample(host, { offer }) {
+    const template = host.querySelector(":scope > template[data-sample]");
+    if (!template) return null;
+    host.dataset.lfSampleLive = "";
+    const frame = document.createElement("iframe");
+    frame.className = "lf-sample-frame";
+    frame.title = host.getAttribute("label") || "Leaf sample";
+    const view = document.createElement("dialog");
+    view.className = "lf-sample-view";
+    view.setAttribute("open", "");
+    view.setAttribute("role", "presentation");
+    const controls = document.createElement("div");
+    controls.className = "lf-sample-controls lf-ui";
+    controls.dataset.lfGen = "1";
+    const actions = document.createElement("div");
+    const reset = offer("button", "lf-btn", "Reset");
+    reset.disabled = true;
+    reset.setAttribute("aria-disabled", "true");
+    const full = offer("button", "lf-btn", "Full view");
+    full.disabled = true;
+    const status = offer("span", "lf-sample-status", "Loading sample\u2026");
+    status.setAttribute("role", "status");
+    actions.append(reset, full, status);
+    controls.append(actions);
+    view.append(controls, frame);
+    host.append(view);
+    return { template, frame, view, controls, reset, full, status };
+  }
+
   // skills/leaf/packages/default/initial.js
   document.documentElement.lfInitial.register("lf-activity", initialActivity);
+  document.documentElement.lfInitial.register("lf-sample", initialSample);
 })();

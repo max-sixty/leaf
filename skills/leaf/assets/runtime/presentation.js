@@ -29,20 +29,20 @@
    still outstanding, and the entry script hands it to every such reader as
    `lfReadiness`.
 
-   Presentation is not the end of the page's arrival. An owner may deliberately keep work
-   off the presentation path — a widget's progressive upgrade, a developer surface's
-   contained documents — and that work still moves boxes when it lands. `deferredArrival`
-   is where such an owner says so, and the `arrived` stage of `pageReadiness` answers
-   whether any of it is still outstanding. Startup waits for these arrivals before
-   its final retained fragment landing, so late geometry keeps the requested place.
+   Presentation is not the end of the page's arrival. An owner declares deferred work
+   with `deferredArrival`. Work that changes the containing layout belongs to `arrived`;
+   documents inside a stable allocation declare `{layout: false}` and belong to the
+   later `contained` stage. Startup waits only for layout arrivals before its final
+   retained fragment landing. A picture waits for both, so it shows the contained
+   document rather than its loading surface without delaying the parent's interaction.
    A reader outside the page waits on the
    page rather than on a widget it had to know about. Without it the only thing outside
    the page that knows a deferred upgrade exists is whoever remembered to name it, which
    is a reader repeating what the page should settle.
 
-   `afterPresentation` is the whole of that for a widget: it is the wait and the
-   declaration together, so there is no way to hold work until the page has presented
-   without the page counting it. A package never reaches the two halves separately.
+   `afterPresentation` waits for presentation and declares a subsequent layout arrival
+   together. A stable contained document instead registers its existing readiness work
+   directly with `deferredArrival(work, {layout: false})` before parent presentation.
 
    If registry declarations and the log contain enough information to implement a
    behavior, the layer implements it once. Current examples are:
@@ -130,19 +130,27 @@ export function markPagePresented() {
 // Registration is synchronous at the point the owner decides to defer — before
 // presentation for anything a page starts with — so the page never reads as arrived in
 // the window between presenting and its first deferred upgrade taking hold.
-const arriving = new Set();
+const arriving = new Map();
 
-/** Declare work this page finishes after presenting, and hand back its promise. */
-export function deferredArrival(work) {
-  arriving.add(work);
+/** Declare deferred work and hand back its promise. Stable contained documents use
+    `{layout: false}`: pictures await them, but retained fragment landing does not. */
+export function deferredArrival(work, { layout = true } = {}) {
+  arriving.set(work, layout);
   const landed = () => arriving.delete(work);
   work.then(landed, landed);
   return work;
 }
 
-/** Wait for declared arrivals, including any they introduce while settling. */
+const layoutArrivals = () =>
+  [...arriving].filter(([, layout]) => layout).map(([work]) => work);
+
+/** Wait for layout arrivals, including any they introduce while settling. */
 export async function whenArrived() {
-  while (arriving.size) await Promise.allSettled(arriving);
+  for (;;) {
+    const pending = layoutArrivals();
+    if (!pending.length) return;
+    await Promise.allSettled(pending);
+  }
 }
 
 /** Run `work` once the page has presented, as an arrival the page answers for. */
@@ -180,7 +188,8 @@ const READINESS = [
         held.taken * 1000 < appliedState.lapses),
   ],
   ["presented", () => pagePresented() && applicationPresented()],
-  ["arrived", () => arriving.size === 0],
+  ["arrived", () => layoutArrivals().length === 0],
+  ["contained", () => arriving.size === 0],
   ["rendering", () => renderingSettled()],
 ];
 const READINESS_STAGES = new Set(READINESS.map(([stage]) => stage));
@@ -190,7 +199,8 @@ const READINESS_STAGES = new Set(READINESS.map(([stage]) => stage));
 
     The stages: `upgraded`; `log`, some log coverage applied; `state`, the answer the
     reader holds applied; `presented`, the initial milestone and the coordinator's
-    current reading; `arrived`, nothing deferred past presentation still outstanding;
+    current reading; `arrived`, no deferred containing layout still outstanding;
+    `contained`, no deferred document in a stable allocation still outstanding;
     `rendering`, nothing queued for a rendering update. A reading is a digest with no
     order, and the server may move past the answer held — a source rewritten, a claim
     aged, a neighbour started — so a page that applied an answer the server took later

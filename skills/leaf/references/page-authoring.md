@@ -592,8 +592,11 @@ host controls, and instructions about using the sample outside that gutter;
 instructions that belong to the demonstrated page remain inside it.
 
 The child uses the parent's selected layer and starts with its own event log. It
-stands in the surrounding page as a block as tall as its content, with only the
-Threads row of its chrome. When the window itself is what the sample shows, such as
+stands in a compact scrolling viewport, with only the Threads row of its chrome.
+The surrounding page is usable while the sample loads; the frame keeps its size
+when the child and its saved history arrive. The compact frame is `16rem` high;
+ordinary page CSS can change it, such as `#practice .lf-sample-frame { height: 24rem; }`.
+When the window itself is what the sample shows, such as
 Leaf's banner, bottom bar, or drawers, the boolean `window` attribute makes the child
 a whole Leaf window instead, chrome included, at a fixed height that scrolls inside.
 A click or Tab reaches the child directly; its normal widget controls, keyboard
@@ -601,7 +604,8 @@ routes, comments, and replies work there. Escape closes the child's open control
 before returning to the surrounding page. Every live sample supplies **Full view**,
 which expands the same child to a whole Leaf window at viewport size. **Return to
 page**, or Escape after closing the child's controls, restores the embedded view
-with its choices, drafts, and history intact. Reset creates a fresh page from the template.
+at its original reading place, with its choices, drafts, and history intact.
+Reset creates a fresh page from the template.
 Child decisions and comments do not change the parent's log or Question inventory.
 Set a page-wide body declaration, such as `data-annotations="page"`, on the sample
 template when the child needs it. Leaf carries that declaration onto the child's

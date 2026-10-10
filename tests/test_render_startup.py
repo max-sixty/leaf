@@ -280,7 +280,7 @@ def test_a_live_page_refuses_a_same_site_parent_at_another_port(browser, serve):
 
 
 def test_a_gallery_import_settles_before_initial_presentation(browser, serve):
-    """The page-interface barrier includes loading its optional owner's module."""
+    """The owner import gates upgrade; its stable child does not gate fragment landing."""
     source = leaf_page(
         "Deferred gallery",
         """<h1>Deferred gallery</h1>
@@ -306,6 +306,9 @@ def test_a_gallery_import_settles_before_initial_presentation(browser, serve):
         "document.addEventListener('lf-page-interface', () => { window.interfaceStarted = true; });"
     )
     held = []
+    histories = []
+    history = re.compile(r"/api/samples/[^/]+/api/state(?:\?.*)?$")
+    page.route(history, lambda route: histories.append(route))
     page.route("**/runtime/interaction-gallery.js", lambda route: held.append(route))
     page.goto(live_url(serve(source)) + "#destination", wait_until="domcontentloaded")
     page.wait_for_function("() => window.interfaceStarted === true")
@@ -319,6 +322,19 @@ def test_a_gallery_import_settles_before_initial_presentation(browser, serve):
     expect(page.locator("body")).not_to_have_attribute("data-lf-upgraded", "1")
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     held.pop().continue_()
+    holding(page, histories, 1, "the contained demonstration's history")
+    wait_until_ready(page, through="arrived")
+    assert (
+        page.evaluate(
+            "document.querySelector('script[data-lf-entry]').lfReadiness(null)"
+        )
+        == "contained"
+    )
+    expect(page.locator("[data-interaction-ready]")).to_have_count(0)
+    expect(page.locator("#destination")).to_be_in_viewport()
+    page.unroute(history)
+    for route in histories:
+        route.continue_()
     wait_until_ready(page)
     expect(page.locator("[data-interaction-ready]")).to_have_count(1)
     expect(page.locator("#destination")).to_be_in_viewport()
@@ -2029,7 +2045,32 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
 
 def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     """Core page visuals paint after upgrade while agent state still waits."""
-    url = serve(FEATURE_GALLERY)
+    # Exercise optional-interface settlement with its own gallery, independently
+    # of the feature corpus's unrelated examples.
+    url = serve(
+        leaf_page(
+            "Page interface settlement",
+            """<h1>Page interface settlement</h1>
+<lf-tabs id="startup-tabs">
+  <lf-tab id="overview" label="Overview"><p>Read this while the interface starts.</p></lf-tab>
+  <lf-tab id="interactions" label="Interactions">
+    <section id="startup-gallery" data-interaction-gallery data-interaction-viewport="2">
+      <lf-tabs id="demo-tabs"><lf-tab id="accept-demo" label="Accept a suggestion">
+        <figure data-interaction-demo="accept">
+          <template id="startup-sample" data-sample>
+            <p>The importer <lf-suggestion id="bg-motion-accept"><lf-old>usually finishes</lf-old><lf-new>finishes</lf-new></lf-suggestion>.</p>
+          </template>
+          <div class="interaction-stage">
+            <iframe data-interaction-frame title="Contained suggestion"></iframe>
+            <span class="interaction-pointer" hidden></span>
+          </div>
+        </figure>
+      </lf-tab></lf-tabs>
+    </section>
+  </lf-tab>
+</lf-tabs>""",
+        )
+    )
     held = []
     release_state = False
     page = browser.new_page(viewport={"width": 1440, "height": 900})
@@ -2057,7 +2098,7 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     page.wait_for_function("() => window.releaseHeldPageInterface !== undefined")
     expect(page.locator("body")).not_to_have_attribute("data-lf-upgraded", "1")
     assert held, "the positive control did not hold the first state response"
-    gallery = page.locator("#bg-interactions")
+    gallery = page.locator("#startup-gallery")
     expect(gallery).to_have_attribute("data-interaction-installed", "1")
     controls = gallery.locator(".lf-interaction-controls")
     expect(controls).to_have_count(1)
@@ -2065,7 +2106,7 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     expect(page.locator(".lf-status-text")).to_have_text("Loading…")
     page.evaluate("releaseHeldPageInterface()")
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
-    page.locator("#bg-gallery-tabs").get_by_role(
+    page.locator("#startup-tabs").get_by_role(
         "tab", name="Interactions", exact=True
     ).click()
     expect(controls).to_be_visible()

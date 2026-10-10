@@ -238,6 +238,25 @@ def command_reference_search(page: Page) -> None:
     page.get_by_role("combobox", name="Search commands").fill("comment")
 
 
+def live_sample(page: Page) -> None:
+    """A compact live example beside its host controls and surrounding page."""
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Page & layout", exact=True
+    ).click()
+    page.locator("#bg-live-sample").scroll_into_view_if_needed()
+
+
+def live_sample_full(page: Page) -> None:
+    """The same child expanded through its ordinary Full view control."""
+    live_sample(page)
+    page.locator("#bg-live-sample").get_by_role(
+        "button", name="Full view", exact=True
+    ).click()
+    expect(page.locator("#bg-live-sample .lf-sample-view")).to_have_attribute(
+        "role", "dialog"
+    )
+
+
 def retained_quote(page: Page) -> None:
     """A detached passage's compact reading inside its native sample thread."""
     page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
@@ -981,6 +1000,13 @@ STATES = (
         viewport=(390, 844),
         touch=True,
     ),
+    State(
+        "live-sample",
+        "developer/feature-gallery",
+        live_sample,
+        region="#bg-live-practice",
+    ),
+    State("live-sample-full", "developer/feature-gallery", live_sample_full),
     State("retained-quote", "developer/feature-gallery", retained_quote),
     State("retained-quote-full", "developer/feature-gallery", retained_quote_full),
     State(

@@ -2289,6 +2289,7 @@ def _author_lying_callout(tmp_path):
     [
         ("pageSettled", True),
         ("arrived", True),
+        ("contained", True),
         ("presented", False),
         ("log", False),
         ("state", False),

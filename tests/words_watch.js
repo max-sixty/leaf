@@ -121,7 +121,8 @@
   // the user typed.
   const edited = new Map();
   const hostEdits = new Map();
-  window.lfInputWork.subscribeEdits((source) => {
+  window.lfInputWork.subscribeInputs((source, edit) => {
+    if (!edit) return;
     const { event, node: field } = source;
     if (!typed(field)) return;
     if (event.type !== "beforeinput") {

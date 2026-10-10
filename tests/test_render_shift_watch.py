@@ -76,6 +76,60 @@ def test_typing_that_carries_its_field_fails_at_the_last_keystroke(browser):
     consume_browser_errors(page, "typing in textarea#field moved textarea#field")
 
 
+@pytest.mark.parametrize(
+    "older_callback", ["none", "keydown", "earlier-click", "parent-click"]
+)
+def test_an_older_callback_cannot_close_the_current_typing_window(
+    browser, older_callback
+):
+    """Earlier click/key work cannot hide the field carried by its latest edit."""
+    page = field_page(browser)
+    setup = """older => {
+      const field = document.querySelector('#field');
+      field.addEventListener('beforeinput', () => requestAnimationFrame(() => {
+        document.querySelector('#above').style.height = '80px';
+        window.fieldMoved = true;
+      }));
+      if (older === 'keydown')
+        field.addEventListener('keydown', () => requestAnimationFrame(() => {}));
+      if (older.endsWith('click')) {
+        const button = document.createElement('button');
+        button.id = 'start';
+        button.textContent = 'Start older work';
+        button.style.cssText = 'position:fixed;right:0;bottom:0';
+        button.onclick = () => {
+          window.looping = true;
+          requestAnimationFrame(function again() {
+            if (window.looping) requestAnimationFrame(again);
+          });
+        };
+        document.body.append(button);
+      }
+    }"""
+    page.evaluate(setup, older_callback)
+    receiver = page
+    if older_callback == "parent-click":
+        page.evaluate(
+            """source => {
+          const frame = document.createElement('iframe');
+          frame.srcdoc = source;
+          document.body.append(frame);
+        }""",
+            FIELD,
+        )
+        receiver = page.frames[1]
+        receiver.locator("#field").wait_for()
+        receiver.evaluate(setup, "none")
+    if older_callback.endswith("click"):
+        page.locator("#start").click()
+    receiver.locator("#field").press("a")
+    receiver.wait_for_function("window.fieldMoved === true")
+    page.screenshot()
+    page.evaluate("window.looping = false")
+    judge_watches()
+    consume_browser_errors(page, "typing in textarea#field moved textarea#field")
+
+
 def test_typing_may_grow_its_field(browser):
     page = field_page(browser, "grow")
     page.locator("#field").fill("a")
@@ -183,6 +237,52 @@ def test_hidden_opaque_frames_drain_without_waiting_for_suppressed_paint(
     finally:
         child_frame.evaluate("restoreFrames()")
         page.evaluate("removeEventListener('message', hideDrainingFrame)")
+
+
+def test_offscreen_opaque_frame_drains_and_resumes_native_evidence(browser):
+    """A clipped child needs no paint, but keeps shift and lost-word evidence."""
+    child = (
+        '<!doctype html><body><button id="reading" style="display:block">A control</button>'
+        "<textarea></textarea>"
+    )
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="height:4000px">'
+            '<div id="clip" style="position:absolute;top:2000px;width:500px;height:100px;overflow:hidden">'
+            '<iframe style="margin-top:200px;width:500px;height:300px" '
+            f'sandbox="allow-scripts" srcdoc="{escape(child, quote=True)}"></iframe></div>'
+        )
+    )
+    frame = page.frames[1]
+    expect(frame.locator("#reading")).to_have_text("A control")
+    assert page.locator("iframe").evaluate("element => element.checkVisibility()")
+    assert frame.evaluate("window.frameElement === null && !document.hidden")
+    judge_watches()
+
+    page.locator("#clip").scroll_into_view_if_needed()
+    judge_watches()
+    page.locator("#clip").evaluate("element => { element.style.overflow = 'visible'; }")
+    page.locator("iframe").scroll_into_view_if_needed()
+    frame.evaluate(PAINTED)
+    page.screenshot()
+    frame.locator("#reading").evaluate(
+        "element => { element.style.marginTop = '30px'; }"
+    )
+    frame.evaluate(PAINTED)
+    page.screenshot()
+    judge_watches()
+    assert any(
+        "button#reading moved without input" in error for error in page.lf_errors
+    )
+    consume_browser_errors(page, "moved without input")
+
+    frame.locator("textarea").fill("An unfinished observation")
+    page.evaluate("scrollTo(0, 0)")
+    frame.locator("textarea").evaluate("element => { element.value = ''; }")
+    judge_watches()
+    consume_browser_errors(page, "typed words left the screen without a key or press")
 
 
 def test_hidden_returns_protect_only_the_resumed_reading(browser, serve):
@@ -1152,12 +1252,102 @@ def test_shift_judgement_waits_for_paint_instead_of_a_time_cap(browser):
     consume_browser_errors(page, "textarea#field moved without input by (0, 40)px")
 
 
+@pytest.mark.parametrize("direction", ["parent-to-child", "child-to-parent"])
+@pytest.mark.parametrize("sheet_kind", ["owned", "constructed"])
+def test_cross_realm_changes_keep_owner_readings_complete(
+    browser, direction, sheet_kind
+):
+    """Borrowed CSSOM and field mutators announce the document they change."""
+    page = browser.new_page()
+    source = FIELD.replace("<body", "<style>#above{height:0}</style><body", 1)
+    source += """<script>window.sheet = new CSSStyleSheet();</script>
+      <select id="selection" required style="position:fixed;right:0;bottom:0">
+        <option value="">Choose</option><option id="ownerDocument" value="ready" selected>Ready</option>
+      </select><style>body:has(#selection:invalid) #field {opacity:.5}</style>"""
+    page.goto(
+        "data:text/html,"
+        + quote(
+            source
+            + f'<iframe style="position:fixed;bottom:0;right:0" srcdoc="{escape(source, quote=True)}"></iframe>'
+        )
+    )
+    receiver = page.frames[1] if direction == "parent-to-child" else page
+    receiver.locator("#field").fill("A thought kept in the receiving document.")
+    judge_watches()
+    page.evaluate(
+        """async ({direction, sheetKind, rule}) => {
+      const child = document.querySelector('iframe').contentWindow;
+      const caller = direction === 'parent-to-child' ? window : child;
+      const receiver = direction === 'parent-to-child' ? child : window;
+      const sheet = sheetKind === 'owned' ? receiver.document.styleSheets[0] : receiver.sheet;
+      if (sheetKind === 'constructed') {
+        Object.getOwnPropertyDescriptor(caller.Document.prototype, 'adoptedStyleSheets').set.call(
+          receiver.document, [sheet]);
+        const adopted = Object.getOwnPropertyDescriptor(caller.Document.prototype, 'adoptedStyleSheets').get.call(receiver.document);
+        if (adopted !== receiver.document.adoptedStyleSheets || !Array.isArray(adopted))
+          throw new Error('Borrowed getter changed native adopted-sheet array identity');
+      }
+      caller.CSSStyleSheet.prototype.insertRule.call(sheet, rule, sheet.cssRules.length);
+      const changedRule = sheet.cssRules[sheet.cssRules.length - 1];
+      const declaration = Object.getOwnPropertyDescriptor(caller.CSSStyleRule.prototype, 'style').get.call(changedRule);
+      if (declaration !== changedRule.style) throw new Error('Borrowed getter changed native declaration identity');
+      declaration.opacity = '.5';
+      caller.CSSStyleDeclaration.prototype.setProperty.call(declaration, 'opacity', '.6');
+      await receiver.lfShiftsJudged();
+    }""",
+        {
+            "direction": direction,
+            "sheetKind": sheet_kind,
+            "rule": "#above { height:40px }",
+        },
+    )
+    judge_watches()
+    consume_browser_errors(page, "textarea#field moved without input by (0, 40)px")
+
+    # A native options collection has no public link back to its select. Borrowing
+    # the getter and setter must retain that host, rather than the calling realm.
+    page.evaluate(
+        """async direction => {
+      const child = document.querySelector('iframe').contentWindow;
+      const caller = direction === 'parent-to-child' ? window : child;
+      const receiver = direction === 'parent-to-child' ? child : window;
+      const select = receiver.document.querySelector('#selection');
+      const options = Object.getOwnPropertyDescriptor(caller.HTMLSelectElement.prototype, 'options').get.call(select);
+      if (options !== select.options) throw new Error('Borrowed getter changed native options identity');
+      Object.getOwnPropertyDescriptor(caller.HTMLOptionsCollection.prototype, 'selectedIndex').set.call(options, 0);
+      if (select.selectedIndex !== 0 || !select.matches(':invalid'))
+        throw new Error('Borrowed collection setter changed the wrong select');
+      await receiver.lfShiftsJudged();
+    }""",
+        direction,
+    )
+    expect(receiver.locator("#field")).to_have_css("opacity", "0.5")
+    judge_watches()
+
+    page.evaluate(
+        """async direction => {
+      const child = document.querySelector('iframe').contentWindow;
+      const caller = direction === 'parent-to-child' ? window : child;
+      const receiver = direction === 'parent-to-child' ? child : window;
+      Object.getOwnPropertyDescriptor(caller.HTMLTextAreaElement.prototype, 'value').set.call(
+        receiver.document.querySelector('#field'), '');
+      await receiver.lfShiftsJudged();
+    }""",
+        direction,
+    )
+    judge_watches()
+    consume_browser_errors(page, "typed words left the screen without a key or press")
+
+
 @pytest.mark.parametrize(
     "when",
     [
         "already-hidden",
         "hidden-during-drain",
         "resize-during-drain",
+        "resize-after-hidden-drain",
+        "opaque-resize-after-hidden-drain",
+        "same-origin-before-driver",
         "cssom-during-drain",
     ],
 )
@@ -1171,16 +1361,16 @@ def test_a_hidden_frame_judges_existing_records_without_awaiting_paint(browser, 
       document.head.append(style);
       const frame = document.createElement('iframe');
       if (when === 'already-hidden') frame.style.display = 'none';
+      if (when === 'opaque-resize-after-hidden-drain') frame.sandbox = 'allow-scripts';
       frame.srcdoc = '<!doctype html><body><button>Hidden control</button></body>';
       document.body.append(frame);
     }""",
         when,
     )
-    page.wait_for_function(
-        "document.querySelector('iframe').contentDocument?.readyState === 'complete'"
-    )
     frame = page.frames[1]
-    frame.evaluate("""() => {
+    frame.wait_for_function("document.readyState === 'complete'")
+    frame.evaluate(
+        """drawn => {
       const nativeFrame = window.lfWatchPlatform.frame;
       const held = [];
       window.lfWatchPlatform.frame = callback => { held.push(callback); return 0; };
@@ -1191,27 +1381,57 @@ def test_a_hidden_frame_judges_existing_records_without_awaiting_paint(browser, 
       // The driver publishes owner visibility; this sensor-level fixture supplies
       // the same fact while holding paint. Opaque-frame integration is above.
       window.lfWatchJudgement = {
-        ancestorsDrawn: window.frameElement.checkVisibility(),
+        ancestorsDrawn: drawn,
       };
       window.hiddenJudged = false;
       window.lfShiftsJudged().then(() => window.hiddenJudged = true);
-    }""")
+    }""",
+        page.locator("iframe").evaluate("node => node.checkVisibility()"),
+    )
     try:
         if when != "already-hidden":
             assert frame.evaluate("window.hiddenJudged") is False
-            if when == "resize-during-drain":
+            if when.endswith("resize-after-hidden-drain"):
+                # The owner can withhold paint before the child's native layout
+                # settles. Three checkpoints finish the visibility transition,
+                # its following-frame allowance, and an unchanged reading before
+                # the resize. The later hidden layout has no child announcement.
+                frame.evaluate("""async () => {
+                  lfWatchJudgement.ancestorsDrawn = false;
+                  for (let checkpoint = 0; checkpoint < 3; checkpoint++)
+                    await lfShiftsJudged();
+                }""")
                 page.set_viewport_size({"width": 500, "height": 600})
-            elif when == "cssom-during-drain":
+                frame.evaluate("lfShiftsJudged()")
+            elif when == "resize-during-drain":
+                page.set_viewport_size({"width": 500, "height": 600})
+            elif when in ("cssom-during-drain", "same-origin-before-driver"):
                 page.evaluate(
                     "document.querySelector('style').sheet.insertRule('iframe{display:none}', 0)"
                 )
             else:
                 page.evaluate("document.querySelector('iframe').style.display = 'none'")
-        frame.evaluate(
-            "lfWatchJudgement.ancestorsDrawn = frameElement.checkVisibility()"
-        )
+        if when == "same-origin-before-driver":
+            # A locally readable owner can hide before the driver has published
+            # its first visibility fact. Drain directly with native paint held.
+            assert frame.evaluate("""async () => {
+              delete lfWatchJudgement;
+              let complete = false;
+              lfShiftsJudged().then(() => complete = true);
+              await Promise.resolve();
+              return complete;
+            }""")
+        else:
+            frame.evaluate(
+                "drawn => lfWatchJudgement.ancestorsDrawn = drawn",
+                page.locator("iframe").evaluate("node => node.checkVisibility()"),
+            )
         frame.wait_for_function("window.hiddenJudged === true", polling=100)
-        assert frame.evaluate("window.frameElement.checkVisibility()") is False
+        assert (
+            page.locator("iframe").evaluate("node => node.checkVisibility()") is False
+        )
+        if when.startswith("opaque-"):
+            assert frame.evaluate("window.frameElement === null")
     finally:
         frame.evaluate("window.restoreFrame(); delete window.lfWatchJudgement")
 
@@ -1471,6 +1691,404 @@ def test_sampled_native_translation_distinguishes_press_from_news(browser, motio
         assert take_browser_errors(page) == []
     else:
         consume_browser_errors(page, "div#below moved without input")
+
+
+@pytest.mark.parametrize("news", [False, True])
+@pytest.mark.parametrize("effect", ["layout", "replayed-animation"])
+def test_delayed_input_callbacks_cannot_reopen_rendering_after_news(
+    browser, news, effect
+):
+    """Completion seals the source, including continuations not yet executed."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><body>
+      <button id="press">Press</button><div id="above"></div><p id="below">Below</p>
+      <script>
+        press.onclick = () => {
+          if (document.body.dataset.effect === 'layout') {
+            window.commit = lfInputWork.capture(() => above.style.height = '80px');
+          } else {
+            window.motion = below.animate([{marginTop:'0px'}, {marginTop:'80px'}],
+              {duration:400,fill:'forwards'});
+            motion.pause();
+            window.commit = lfInputWork.capture(() => motion.play());
+          }
+        };
+      </script>""")
+    )
+    paint(page)
+    page.evaluate("effect => document.body.dataset.effect = effect", effect)
+    page.locator("#press").click()
+    if news:
+        page.evaluate("document.body.setAttribute('data-lf-reading', 'news')")
+    judge_watches()
+    page.evaluate("commit()")
+    if effect == "replayed-animation":
+        page.evaluate("motion.finished")
+    judge_watches()
+    if news:
+        consume_browser_errors(page, "p#below moved without input")
+
+
+@pytest.mark.parametrize(
+    "effect,owned,news",
+    [
+        ("script", False, False),
+        ("css", False, False),
+        ("script", True, False),
+        ("css", True, False),
+        ("css", True, True),
+    ],
+)
+def test_callback_rendering_owns_only_the_animation_its_source_began(
+    browser, effect, owned, news
+):
+    """A passive effect between input callbacks cannot join their retained effects."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><body>
+      <style>#below {margin-top:0;transition:margin-top 400ms linear}
+        #below.slide {margin-top:80px}</style>
+      <button id="press">Press</button><p id="below">Below</p>
+      <script>
+        window.stop = false;
+        const loop = () => { if (!window.stop) requestAnimationFrame(loop); };
+        window.slide = () => {
+          if (document.body.dataset.effect === 'css') below.classList.add('slide');
+          else below.animate([{marginTop:'0px'}, {marginTop:'80px'}],
+            {duration:400,fill:'forwards'});
+        };
+        press.onclick = () => {
+          window.commit = lfInputWork.capture(slide);
+          requestAnimationFrame(loop);
+        };
+      </script>""")
+    )
+    page.evaluate("effect => document.body.dataset.effect = effect", effect)
+    paint(page)
+    page.locator("#press").click()
+    page.evaluate(PAINTED)
+    page.evaluate("owned => { window.stop = true; (owned ? commit : slide)(); }", owned)
+    if news:
+        page.evaluate("document.body.setAttribute('data-lf-reading', 'news')")
+    page.evaluate(
+        "Promise.all(below.getAnimations().map(animation => animation.finished))"
+    )
+    judge_watches()
+    if not owned:
+        consume_browser_errors(
+            page,
+            "p#below.slide moved without input"
+            if effect == "css"
+            else "p#below moved without input",
+        )
+
+
+@pytest.mark.parametrize("input_owned", [False, True])
+@pytest.mark.parametrize(
+    "mutation",
+    ["declaration", "replace", "sheets", "validity", "number", "internals", "options"],
+)
+def test_css_rule_changes_keep_their_source_before_the_next_native_input(
+    browser, input_owned, mutation
+):
+    """Queued keyboard input cannot adopt a passive CSSOM transition."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><body>
+      <style>#below {margin-top:0;transition:margin-top 400ms steps(1,end)}</style>
+      <script>
+      customElements.define('native-validity', class extends HTMLElement {
+        static formAssociated = true;
+        constructor() { super(); this.internals = this.attachInternals(); }
+      });
+      </script>
+      <button id="press">Press</button><input id="validation"><native-validity id="custom"></native-validity>
+      <select id="selection" required><option value="">Choose</option><option id="ownerDocument" value="ready" selected>Ready</option></select><p id="below">Below</p>
+      <style>#validation:invalid ~ #below, native-validity:invalid ~ #below, #selection:invalid ~ #below {margin-top:80px}</style>
+      <script>
+      function move() { document.styleSheets[0].cssRules[0].style.marginTop = '80px'; }
+      press.onclick = () => move();
+      </script>""")
+    )
+    if mutation == "replace":
+        page.evaluate("""() => {
+          window.replacement = new CSSStyleSheet();
+          replacement.replaceSync('#below {margin-top:0;transition:margin-top 400ms steps(1,end)}');
+          document.adoptedStyleSheets = [replacement];
+          window.move = () => replacement.replace('#below {margin-top:80px;transition:margin-top 400ms steps(1,end)}');
+        }""")
+    elif mutation == "sheets":
+        page.evaluate("""() => {
+          window.extraSheet = new CSSStyleSheet();
+          extraSheet.replaceSync('#below {margin-top:80px}');
+          window.move = () => document.adoptedStyleSheets.push(extraSheet);
+        }""")
+    elif mutation == "validity":
+        page.evaluate(
+            "() => { window.move = () => validation.setCustomValidity('bad'); }"
+        )
+    elif mutation == "number":
+        page.evaluate("""() => {
+          validation.type = 'number';
+          validation.max = '5';
+          window.move = () => { validation.valueAsNumber = 10; };
+        }""")
+    elif mutation == "internals":
+        page.evaluate("""() => {
+          window.move = () => custom.internals.setValidity({customError:true}, 'bad');
+        }""")
+    elif mutation == "options":
+        page.evaluate(
+            "() => { window.move = () => { selection.options.selectedIndex = 0; }; }"
+        )
+    page.locator("#press").focus()
+    paint(page)
+    if input_owned:
+        page.locator("#press").click()
+    else:
+        page.evaluate("""() => setTimeout(() => {
+          move();
+          const until = lfWatchPlatform.performance.now() + 300;
+          while (lfWatchPlatform.performance.now() < until) {}
+        }, 0)""")
+        page.keyboard.press("Shift")
+    expect(page.locator("#below")).to_have_css("margin-top", "80px")
+    page.evaluate(
+        "Promise.all(below.getAnimations().map(animation => animation.finished))"
+    )
+    judge_watches()
+    if not input_owned:
+        consume_browser_errors(page, "p#below moved without input")
+
+
+@pytest.mark.parametrize("cause", ["storage", "click"])
+def test_cross_tab_storage_effects_do_not_acquire_input_ownership(one_user, cause):
+    """A real trusted storage event remains passive; the same click effect is owned."""
+    page = one_user.new_page()
+    other = one_user.new_page()
+    source = """<!doctype html><body><button id="press">Press</button><p id="below">Below</p>
+      <script>
+      function move() {
+        window.cause = lfInputWork.current()?.event.type;
+        window.motion = below.animate([{marginTop:'0px'},{marginTop:'80px'}],
+          {duration:400,fill:'forwards'});
+      }
+      press.addEventListener('click', move);
+      addEventListener('storage', move);
+      </script>"""
+    for tab in (page, other):
+        tab.route(
+            "http://leaf.test/**",
+            lambda route: route.fulfill(body=source, content_type="text/html"),
+        )
+        tab.goto("http://leaf.test/storage")
+    paint(page)
+    if cause == "storage":
+        other.evaluate("localStorage.setItem('motion', 'start')")
+    else:
+        page.locator("#press").click()
+    page.wait_for_function("window.motion !== undefined")
+    assert page.evaluate("window.cause") == cause
+    page.evaluate("motion.finished")
+    judge_watches()
+    if cause == "storage":
+        consume_browser_errors(page, "p#below moved without input")
+
+
+@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
+def test_cssom_mutation_families_announce_their_native_style_changes(request, engine):
+    """Native declarations, structural rules, media and keyframes share one owner."""
+    page = request.getfixturevalue(engine).new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><body><style>
+      #declaration {opacity:1}
+      #renamed {opacity:.5}
+      @media all {#grouped {opacity:1}}
+      @media not all {#media {opacity:.5}}
+      @keyframes fade {from {opacity:1}to {opacity:1}}
+      #animated {animation:fade 1s steps(1,end) both}
+    </style><button id="press">Change declaration</button><p id="declaration">Declaration</p><p id="selected">Selected</p>
+      <p id="grouped">Grouped</p><p id="media">Media</p><p id="animated">Animated</p>
+      <script>
+        // Capture before a style getter can lazily wrap the native subtype.
+        window.opacitySetter = window.CSSStyleProperties &&
+          Object.getOwnPropertyDescriptor(CSSStyleProperties.prototype, 'opacity')?.set;
+        window.rules = document.styleSheets[0].cssRules;
+        window.motion = animated.getAnimations()[0]; motion.pause(); motion.currentTime = 1000;
+        press.onclick = () => { rules[0].style.opacity = '.8'; };
+      </script>""")
+    )
+    paint(page)
+    changes = [
+        ("rules[0].style.opacity = '.5'", "declaration", "0.5"),
+        ("rules[0].style.cssText = 'opacity:.6'", "declaration", "0.6"),
+        (
+            "CSSStyleDeclaration.prototype.setProperty.call(rules[0].style, 'opacity', '.7')",
+            "declaration",
+            "0.7",
+        ),
+        ("rules[0].style.removeProperty('opacity')", "declaration", "1"),
+        ("rules[1].selectorText = '#selected'", "selected", "0.5"),
+        ("rules[2].insertRule('#grouped {opacity:.5}', 1)", "grouped", "0.5"),
+        ("rules[2].deleteRule(1)", "grouped", "1"),
+        ("rules[3].media.appendMedium('all')", "media", "0.5"),
+        ("rules[3].media.deleteMedium('all')", "media", "1"),
+        ("rules[3].media.mediaText = 'all'", "media", "0.5"),
+        ("rules[3].media = 'not all'", "media", "1"),
+        ("rules[4].appendRule('100% {opacity:.5}')", "animated", "0.5"),
+        ("rules[4].findRule('100%').style.opacity = '.6'", "animated", "0.6"),
+        ("rules[4].deleteRule('100%')", "animated", "1"),
+    ]
+    assert page.evaluate("rules[0].style === rules[0].style")
+    for call, target, opacity in changes:
+        page.evaluate(call)
+        expect(page.locator(f"#{target}")).to_have_css("opacity", opacity)
+        judge_watches()
+    # Borrowing a native subtype setter must accept the same declaration proxy.
+    page.evaluate("""() => {
+      const style = rules[0].style;
+      if (opacitySetter) opacitySetter.call(style, '.7');
+      else CSSStyleDeclaration.prototype.setProperty.call(style, 'opacity', '.7');
+    }""")
+    expect(page.locator("#declaration")).to_have_css("opacity", "0.7")
+    judge_watches()
+    page.locator("#press").click()
+    expect(page.locator("#declaration")).to_have_css("opacity", "0.8")
+    judge_watches()
+
+    # The native ObservableArray remains one array while its indexed writes and
+    # Array methods keep their stylesheet-adoption effects.
+    page.evaluate("""() => {
+      window.adopted = document.adoptedStyleSheets;
+      if (adopted !== document.adoptedStyleSheets || !Array.isArray(adopted))
+        throw new Error('Native adopted-sheet array identity changed');
+      window.extra = new CSSStyleSheet();
+      extra.replaceSync('#declaration {opacity:.4}');
+      window.other = new CSSStyleSheet();
+      other.replaceSync('#declaration {opacity:.3}');
+    }""")
+    for call, opacity in [
+        ("adopted.push(extra)", "0.4"),
+        ("adopted[0] = other", "0.3"),
+        ("adopted.splice(0, 1)", "0.8"),
+        ("adopted.push(extra)", "0.4"),
+    ]:
+        page.evaluate(call)
+        expect(page.locator("#declaration")).to_have_css("opacity", opacity)
+        assert page.evaluate("adopted === document.adoptedStyleSheets")
+        judge_watches()
+    # Engines differ on when a length truncation invalidates the cascade; the
+    # instrumented array must preserve its native array result in either case.
+    page.evaluate("adopted.length = 0")
+    assert page.evaluate(
+        "adopted.length === 0 && adopted === document.adoptedStyleSheets"
+    )
+    judge_watches()
+
+
+def test_idle_callbacks_do_not_repeatedly_flush_native_animation_style(browser):
+    """A Promise-heavy boot pays for CSS discovery only after an actual change."""
+    page = field_page(browser)
+    scans = page.evaluate("""async () => {
+      await Promise.resolve().then(() => {});
+      let count = 0;
+      const original = document.getAnimations;
+      document.getAnimations = function(...args) {
+        count++;
+        return original.apply(this, args);
+      };
+      try {
+        let chain = Promise.resolve();
+        for (let i = 0; i < 100; i++) chain = chain.then(() => {});
+        await chain;
+        return count;
+      } finally { document.getAnimations = original; }
+    }""")
+    assert scans == 0
+
+
+@pytest.mark.parametrize("event", ["beforeinput", "input"])
+def test_edit_listener_animation_keeps_its_source_without_reopening_typing(
+    browser, event
+):
+    """Input after beforeinput belongs to the edit even without another rendering."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><body>
+      <textarea id="field"></textarea><p id="below">Below</p>
+    """)
+    )
+    paint(page)
+    page.evaluate(
+        """event => field.addEventListener(event, () => {
+      window.motion = below.animate([{marginTop:'0px'}, {marginTop:'80px'}],
+        {duration:400,fill:'forwards'});
+    }, {once:true})""",
+        event,
+    )
+    page.locator("#field").press("x")
+    page.evaluate("motion.finished")
+    judge_watches()
+
+
+@pytest.mark.parametrize("native", [False, True])
+@pytest.mark.parametrize("control", ["check", "field"])
+def test_native_activation_owns_css_effects_but_passive_state_changes_do_not(
+    browser, native, control
+):
+    """Native preactivation changes state before the click's handlers run."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><body>
+      <style>#below {margin-top:0;transition:margin-top 400ms linear}
+        input:checked ~ #below, textarea:not(:placeholder-shown) ~ #below {margin-top:80px}</style>
+      <input id="check" type="checkbox"><textarea id="field" placeholder="Type"></textarea><p id="below">Below</p>
+    """)
+    )
+    paint(page)
+    if native:
+        if control == "check":
+            page.locator("#check").click()
+        else:
+            page.locator("#field").press("x")
+    else:
+        page.evaluate(
+            "check.checked = true" if control == "check" else "field.value = 'x'"
+        )
+    page.evaluate(
+        "Promise.all(below.getAnimations().map(animation => animation.finished))"
+    )
+    judge_watches()
+    if not native:
+        consume_browser_errors(page, "p#below moved without input")
+
+
+def test_css_transform_endpoint_keeps_its_proof_beside_a_passive_layout_shift(browser):
+    """A native layout entry must not report a separately owned transform's endpoint."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><body>
+      <style>#below {transform:translateY(0);transition:transform 400ms steps(1, end)}
+        #below.slide {transform:translateY(80px)}</style>
+      <button id="press">Press</button><p id="below">Below</p>
+      <button id="fault" style="position:absolute;top:200px">Passive landmark</button>
+      <script>press.onclick = () => below.classList.add('slide');</script>
+    """)
+    )
+    paint(page)
+    page.locator("#press").click()
+    page.evaluate("""() => Promise.all(below.getAnimations().map(animation =>
+      animation.finished)).then(() => {fault.style.marginLeft = '80px';})""")
+    judge_watches()
+    consume_browser_errors(page, "button#fault moved without input")
 
 
 @pytest.mark.parametrize("motion", ["none", "scroll", "stalled", "finite", "unbounded"])
@@ -1733,7 +2351,7 @@ def test_disposing_a_frame_releases_parent_input_without_unwatching_its_sibling(
     """Removed documents stop reading parent edits; live siblings retain their sensor."""
     child = """<div id="above"></div><p id="below">Below.</p><script>
       const owner = parent, id = frameElement.id;
-      lfInputWork.subscribeEdits(() => owner.editCounts[id]++);
+      lfInputWork.subscribeInputs((source, edit) => { if (edit) owner.editCounts[id]++; });
     </script>"""
     embedded = escape(child, quote=True)
     page = open_page(
@@ -3120,6 +3738,77 @@ def test_owned_native_finish_records_the_applied_endpoint(browser, fault, fill):
         assert not errors, errors
 
 
+@pytest.mark.parametrize("fault", [None, "holder", "child"])
+def test_opposite_window_clamps_retain_source_scroll_and_reject_extra_motion(
+    browser, serve, fault
+):
+    """Both endpoints can be window-bound while source scroll carries the card."""
+    source = leaf_page(
+        "Opposite window clamps",
+        '<div style="height:180px"></div>'
+        '<p id="subject" style="margin:0;height:30px;width:200px">Source</p>'
+        '<div id="holder" style="visibility:hidden;position:fixed;'
+        'width:220px;height:148px;background:white">'
+        '<textarea id="field" style="height:30px"></textarea></div>'
+        '<div style="height:1600px"></div>',
+        layout=None,
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 900, 320)
+    start = page.evaluate("""() => {
+      const start = subject.getBoundingClientRect().top + scrollY - 34;
+      scrollTo(0, start);
+      return start;
+    }""")
+    paint(page)
+    before = page.evaluate("""async () => {
+      const module = await __lfRuntimeImport('/runtime/annotation-overlay/floating.js');
+      const ui = await module.floatingUi();
+      const subject = document.querySelector('#subject'), holder = document.querySelector('#holder');
+      const owner = module.floatingPlacement({floating:holder, update:()=>void place()});
+      async function place() {
+        owner.begin();
+        const answer = await owner.position(ui.computePosition, subject,
+          {placement:'right-start',middleware:[ui.shift({crossAxis:true,padding:50})]},
+          answer => Math.abs(answer.middlewareData.shift?.y ?? 0) > .5 ? 'window' : 'page', subject);
+        if (answer) owner.stand(answer);
+      }
+      owner.watch(subject, subject, ui.autoUpdate);
+      await place();
+      holder.style.visibility = 'visible';
+      window.readClamp = () => {
+        const selection = module.floatingSelections().find(item => item.floating === holder);
+        return {plane:selection.plane, edge:selection.edges.top,
+          source:subject.getBoundingClientRect().top,
+          holder:holder.getBoundingClientRect().top,
+          field:document.querySelector('#field').getBoundingClientRect().top};
+      };
+      return readClamp();
+    }""")
+    paint(page)
+    judge_watches()
+    assert take_browser_errors(page) == []
+    page.evaluate(
+        """({start, fault}) => {
+      const target = fault === 'child' ? document.querySelector('#field') : holder;
+      if (fault) target.style.transform = 'translateY(20px)';
+      scrollTo(0, start - 130);
+    }""",
+        {"start": start, "fault": fault},
+    )
+    paint(page)
+    judge_watches()
+    after = page.evaluate("readClamp()")
+    assert before["plane"] == after["plane"] == "window"
+    assert before["edge"] == "top" and after["edge"] == "bottom"
+    assert after["source"] - before["source"] == pytest.approx(130)
+    assert after["field"] - before["field"] == pytest.approx(72 + (20 if fault else 0))
+    if fault:
+        consume_browser_errors(page, "textarea#field moved without input")
+    else:
+        assert take_browser_errors(page) == []
+
+
 @pytest.mark.parametrize(
     "case",
     ["root", "scaled", "fixed-both", "sticky", "fixed-fault", "clamp", "clamp-fault"],
@@ -3249,9 +3938,16 @@ RESTYLES = {
     "range text": ("ranged.setRangeText('', 0, 1)", "#ranged", None),
     # Still running when the sensor checks: shadow trees hold their own animations.
     "shadow transition": ("inner.style.opacity = '.2'", "#host", ("opacity", "1")),
-    # A rule's own declaration, which the sensor does not hear: only its check can
-    # find the change.
-    "unannounced": ("rules.cssRules[0].style.opacity = '.5'", "#unheard", None),
+    "rule declaration": ("rules.cssRules[0].style.opacity = '.5'", "#unheard", None),
+    # Deliberately break the announcement producer to prove the full-reading audit.
+    "unannounced": (
+        (
+            "document[Symbol.for('lfShiftWatch.watch')].announce = () => {}; "
+            "rules.cssRules[0].style.opacity = '.5'"
+        ),
+        "#unheard",
+        None,
+    ),
 }
 
 
@@ -3311,6 +4007,37 @@ def test_an_unchanged_frame_misses_no_restyle(browser, call):
             page,
             "missed a change to #text in p#unheard (opacity) and to 1 other node:",
         )
+
+
+def test_borrowed_state_and_animation_methods_announce_the_current_owner(browser):
+    """An adopted custom-state host and a foreign animation target keep their owner."""
+    page = restyle_page(browser)
+    page.evaluate("""async () => {
+      const frame = document.createElement('iframe');
+      frame.style.cssText = 'position:fixed;bottom:0;right:0';
+      frame.srcdoc = '<!doctype html><body>';
+      const loaded = new Promise(done => frame.onload = done);
+      document.body.append(frame);
+      await loaded;
+      const child = frame.contentWindow;
+      child.customElements.define('custom-words', class extends child.HTMLElement {
+        constructor() { super(); this.internals = this.attachInternals(); }
+      });
+      const adopted = child.document.createElement('custom-words');
+      adopted.id = 'custom';
+      adopted.textContent = 'Adopted custom';
+      document.querySelector('#custom').replaceWith(document.adoptNode(adopted));
+    }""")
+    judge_watches()
+    page.evaluate("""() => {
+      const child = document.querySelector('iframe').contentWindow;
+      child.CustomStateSet.prototype.add.call(custom.internals.states, 'on');
+      Object.getOwnPropertyDescriptor(child.Animation.prototype, 'currentTime').set.call(fade, 500);
+    }""")
+    expect(page.locator("#custom")).to_have_css("opacity", "0.5")
+    expect(page.locator("#faded")).to_have_css("opacity", "0.5")
+    page.evaluate(FRAMES, 40)
+    judge_watches()
 
 
 def test_unavailable_computed_padding_keeps_an_unchanged_reading(browser):

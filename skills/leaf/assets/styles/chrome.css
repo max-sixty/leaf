@@ -1627,9 +1627,8 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   @media (pointer: coarse) {
     .lf-shortcut-bar { display: none; }
   }
-  /* A block sample stands in its page as a block with no agent of its own, and its
-     fixed bar would stand over its own last block, since its window is exactly as tall
-     as its page. Its banner keeps the one row of actions (theme.css sizes the room); the
+  /* A compact sample reserves its viewport for practice content, with no agent of its
+     own. Its banner keeps the one row of actions (theme.css sizes the room); the
      keys remain behind `?`. A window sample keeps its whole chrome. */
   html[data-lf-sample-block] :scope {
     .lf-banner-status, .lf-status-queues, .lf-shortcut-bar { display: none; }

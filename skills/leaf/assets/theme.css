@@ -256,7 +256,6 @@ html {
     --lf-bottom-bar-h: 0px;
     --lf-bottom-status-bottom: calc(14px + var(--lf-safe-bottom));
     --lf-bottom-status-translate: none;
-    overflow-y: hidden;
     body {
       min-height: 0;
     }

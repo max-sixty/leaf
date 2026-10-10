@@ -1,4 +1,6 @@
-/* Activity owns its initial drawing; the live module adopts the same nodes and
- * retains tab-local reading through executable replacement. */
+/* Package-owned initial drawings paint before modules; live modules adopt the
+ * same nodes, retaining tab-local reading and stable sample allocations. */
 import { initialActivity } from "./widgets/activity-view.js";
+import { initialSample } from "./widgets/sample-view.js";
 document.documentElement.lfInitial.register("lf-activity", initialActivity);
+document.documentElement.lfInitial.register("lf-sample", initialSample);

@@ -83,6 +83,11 @@ it earns the right to load only once the user has the page — runs that work th
 `afterPresentation(() => …)`, which is both the wait and the declaration. The page then
 answers for it: until every such arrival lands, the page reads as still arriving, so a
 user outside it waits on the page rather than on a widget it would have to know about.
+An independent document loading inside a frame whose allocation is already stable
+registers `deferredArrival(ready, {layout: false})` before parent presentation.
+The parent's interaction and retained fragment landing proceed; complete pictures
+and render checks wait for the contained document through the page's `contained`
+readiness stage.
 A declared `x-shadow` widget gets the same transition protection when it builds its root
 with `shadowStage`.
 

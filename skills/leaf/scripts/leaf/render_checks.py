@@ -195,6 +195,7 @@ _UNREADY = {
     "state": "the runtime never applied the state the server held (reading {reading})",
     "presented": "the runtime never presented the page after applying its current state",
     "arrived": "work the page deferred past presentation never landed",
+    "contained": "a document in the page's stable allocation never finished loading",
     "rendering": "the page's rendering never settled",
 }
 # How long a page that has missed its deadline gets to say which stage it is at.

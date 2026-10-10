@@ -1,5 +1,9 @@
 /* The isolated child's explicit interface to its containing page. Values cross the
  * port; documents, DOM nodes, functions and browser owners remain in this realm. */
+import { capturePlace, restorePlace } from "./reading-place.js";
+import { cancelRender, nextRender } from "./rendering.js";
+import { retainUserIntent } from "./user-intent.js";
+
 const child = document.documentElement.lfSample;
 const commands = new Map();
 const observers = new Map();
@@ -32,15 +36,41 @@ if (child)
 
 if (child) {
   let presented = false;
-  let height = null;
-  const measure = () => {
-    if (!document.body) return;
-    const next = Math.ceil(document.body.getBoundingClientRect().height);
-    if (next !== height) {
-      height = next;
-      sampleNotice("height", { height });
-    }
+  let embeddedPlace = null;
+  let returning = null;
+  let restoration = null;
+  const restoreEmbedded = () => {
+    if (!returning || restoration !== null) return;
+    restoration = nextRender(() => {
+      restoration = null;
+      if (!returning()) {
+        returning = null;
+        embeddedPlace = null;
+        return;
+      }
+      restorePlace(embeddedPlace, null, returning);
+    });
   };
+  addEventListener("resize", restoreEmbedded);
+  // Capture before the parent enlarges the viewport: resizing can clamp its
+  // scroll before any later command arrives. The live landmark stays in this
+  // realm, beside the controls and unfinished editors it describes.
+  registerSampleCommand("inspection", ({ opening }) => {
+    if (opening) {
+      // A rapid reopen under the same reading intent keeps the original landmark,
+      // including while the native return resize is still in flight.
+      if (restoration !== null) cancelRender(restoration);
+      restoration = null;
+      if (!returning?.()) embeddedPlace = capturePlace();
+      returning = null;
+    } else if (embeddedPlace) {
+      // Port delivery and native viewport resize have no shared ordering. Keep
+      // this local landmark through the return's native resizes, while its
+      // original intent holds; an early clamped restore is corrected at resize.
+      returning = retainUserIntent();
+      restoreEmbedded();
+    }
+  });
   registerSampleCommand("window", async ({ window: asWindow }) => {
     child.settings.window = asWindow;
     document.documentElement.lfInitial.setRuntimeRootAttribute(
@@ -48,8 +78,6 @@ if (child) {
       "data-lf-sample-block",
       !child.settings.passive && !asWindow ? "" : null,
     );
-    measure();
-    return { height };
   });
   const inspect = () => {
     const error = document.documentElement.dataset.lfStartupError;
@@ -57,15 +85,7 @@ if (child) {
     if (presented || !document.body?.hasAttribute("data-lf-presented")) return;
     presented = true;
     child.present();
-    measure();
-    if (!child.settings.passive) {
-      const observer = new window.ResizeObserver(measure);
-      observer.observe(document.body);
-    }
-    sampleNotice("ready", {
-      height,
-      block: document.documentElement.hasAttribute("data-lf-sample-block"),
-    });
+    sampleNotice("ready");
   };
   const observer = new MutationObserver(inspect);
   observer.observe(document, {

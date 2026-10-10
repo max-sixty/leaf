@@ -50,8 +50,10 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
     old = f"/media/{media_name(preview.read_bytes(), preview.suffix)}"
     (docs / "examples.html").write_text(
         f'<a class="example-link" href="/examples/decision/">\n'
-        f'  <span><img src="{old}"></span>\n</a>\n'
-        f'<a class="example-link" href="/examples/retained/"><img src="{old}"></a>\n'
+        f'  <span><img src="{old}"></span>\n'
+        '  <p class="example-description">A decision</p>\n</a>\n'
+        f'<a class="example-link" href="/examples/retained/"><img src="{old}">'
+        '<p class="example-description">A retained preview</p></a>\n'
     )
     (docs / "index.html").write_text(
         f'<a href="/examples/decision/"><img src="{old}" loading="lazy"></a>\n'

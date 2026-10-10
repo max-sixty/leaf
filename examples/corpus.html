@@ -3037,10 +3037,9 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
 
           <lf-playground-preview id="notification-preview">
             <p>
-              Drag event pressure from a routine release to a burst. Both formats
-              receive the same updates, so their scan cost stays comparable. The Format
-              control selects the requested output while leaving both candidates visible
-              for comparison.
+              Increase Concurrent release events to compare both formats with more
+              notifications. Both show the same events. The Format control selects the
+              requested output while leaving both candidates visible for comparison.
             </p>
             <notification-simulator
               id="notification-simulator"
@@ -3113,8 +3112,9 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
 <lf-tab id="corpus-code-comparison" label="Code comparison">
 <h1>Compare built code readers</h1>
       <p class="lede">
-        Both candidates are the shipped <code>lf-code</code> widget. One width gesture
-        reaches both; candidate settings stay explicit and copyable.
+        Both examples use Leaf's <code>lf-code</code> widget. Comparison viewport
+        changes both widths. The density controls change each example separately. Copy A
+        to B and Copy B to A copy the density and line-wrapping settings.
       </p>
       <lf-ask id="code-comparison-ask" data-width="available">
         <h2>Which built code-reader treatment should the agent keep?</h2>
@@ -4012,7 +4012,8 @@ export const summarize = checks =>
             >Worktrunk PR #3865</a
           >
           adds a unified-diff preview for the switch picker. The captured revision is
-          awaiting a merge decision; its exact 46-file patch closes the review.
+          awaiting a merge decision. Its complete 46-file patch appears below for
+          review.
         </p>
         <p id="pr-tags">
           <span class="tag ok">Safe to approve</span>
@@ -4357,9 +4358,7 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
                     >
                   </td>
                   <td><span class="tag ok">passed</span></td>
-                  <td>
-                    Also makes glob escaping load-bearing through a bracketed path.
-                  </td>
+                  <td>Also tests glob escaping with a bracketed path.</td>
                 </tr>
                 <tr>
                   <th scope="row">Off-screen worktrees are demand-loaded</th>
@@ -4487,7 +4486,7 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
           <lf-merge-film id="merge-film"></lf-merge-film>
         </lf-pane>
         <lf-pane id="merge-steps-pane" label="Steps">
-          <header><h2>The steps, as this run takes them</h2></header>
+          <header><h2>Steps in the selected run</h2></header>
           <div>
             <p id="lede">
               Worktrunk's <code>wt merge</code> takes a finished branch to main in one
@@ -5062,9 +5061,7 @@ flowchart LR
         </section>
 
         <section id="security-states">
-          <h2 id="security-states-heading">
-            The job has an irreversible handoff, not a hand-back
-          </h2>
+          <h2 id="security-states-heading">Sandbox execution and cleanup</h2>
           <lf-diagram
             id="security-proposed-states"
             parts="node:S0 node:S1 node:S2 node:S3 node:S4 node:S5 node:S6 node:S7 node:F"
@@ -5187,7 +5184,7 @@ stateDiagram-v2
         </section>
 
         <section id="security-bottlenecks">
-          <h2 id="security-bottlenecks-heading">Put policy at four bottlenecks</h2>
+          <h2 id="security-bottlenecks-heading">Boundary enforcement</h2>
           <table id="security-bottleneck-table">
             <thead>
               <tr>
@@ -5270,9 +5267,7 @@ stateDiagram-v2
         </section>
 
         <section id="security-vendor-sandboxes">
-          <h2 id="security-vendor-heading">
-            One outer sandbox is the enforcement seam for both harnesses
-          </h2>
+          <h2 id="security-vendor-heading">Shared sandbox for Claude and Codex</h2>
           <table id="security-vendor-table">
             <thead>
               <tr>
@@ -5342,7 +5337,7 @@ stateDiagram-v2
         </section>
 
         <section id="security-contracts">
-          <h2 id="security-contracts-heading">Setup becomes a clean ownership seam</h2>
+          <h2 id="security-contracts-heading">Runner setup and sandbox setup</h2>
           <table id="security-setup-contract">
             <thead>
               <tr>
@@ -5403,9 +5398,7 @@ stateDiagram-v2
         </section>
 
         <section id="security-implementation">
-          <h2 id="security-implementation-heading">
-            The proposal cut the work into three slices
-          </h2>
+          <h2 id="security-implementation-heading">Implementation steps</h2>
           <ol class="steps" id="security-implementation-steps">
             <li>
               <strong>Prove one shared outer adapter.</strong> On
@@ -5449,7 +5442,7 @@ stateDiagram-v2
         </section>
 
         <section id="security-proof">
-          <h2 id="security-proof-heading">Acceptance is end-to-end and adversarial</h2>
+          <h2 id="security-proof-heading">Integration and adversarial tests</h2>
           <table id="security-proof-table">
             <thead>
               <tr>
@@ -5798,7 +5791,7 @@ stateDiagram-v2
 
 <lf-tab id="corpus-command-hub" label="Command">
 <header>
-        <p class="eyebrow">command hub · the plan is the interface</p>
+        <p class="eyebrow">command hub · importer rewrite</p>
         <h1>Atlas importer rewrite</h1>
         <p class="lede" id="hub-lede">
           Get the new importer through one shadow week with no unexplained variance. The
@@ -5827,9 +5820,8 @@ stateDiagram-v2
               </summary>
               <div class="atlas-worker-body">
                 <p class="atlas-worker-report"></p>
-                Coordinates the whole rewrite: routes decisions, watches progress, and
-                changes focus wherever the tree needs it. Its placement is the
-                project-wide remit; it does not pretend to have one leaf assignment.
+                Coordinates the whole rewrite by routing decisions, monitoring progress,
+                and choosing which tasks to focus on.
               </div>
             </details></lf-atlas-worker
           >
@@ -5852,8 +5844,7 @@ stateDiagram-v2
           <lf-atlas-task id="goal-parser" status="active" when="week 3" talk>
             <strong>Replace the XML parser</strong>
             Two workers own separate worktrees; open each worker to inspect its
-            evidence. The stalled dedupe leaf filed itself around this goal rather than
-            turning a worker into a pet.
+            evidence. The stalled deduplication task appears under this goal.
             <lf-atlas-worker id="w-1" state="working" on="parser-declarations"
               ><details>
                 <summary>
@@ -5963,8 +5954,8 @@ stateDiagram-v2
           </lf-atlas-task>
 
           <lf-atlas-task id="goal-schema" status="active" when="week 3" talk>
-            <strong>Reconcile schema and ledger</strong> Two goals and the nightly wait
-            behind the schema choice.
+            <strong>Reconcile schema and ledger</strong> The schema decision blocks the
+            backfill, ledger fixture, and nightly variance report.
             <lf-atlas-task
               id="schema-choice"
               status="review"
@@ -6013,9 +6004,10 @@ stateDiagram-v2
               needs="schema-choice"
               stopped-at="2026-08-21T09:04:00-07:00"
             >
-              <strong>Bring one replica-only ledger fixture</strong> Run the exact
-              credentialed command, inspect the full cargo below, trim it, then save the
-              draft. The edit receipt tells the orchestrator that w-8 can resume.
+              <strong>Bring one replica-only ledger fixture</strong> Run the command
+              below, paste its CSV output into the draft, and remove
+              <code>customer_name</code> and <code>billing_email</code> before saving.
+              Saving the draft tells the orchestrator that w-8 can resume.
               <lf-ask id="decision-ledger-fixture-region">
                 <h3>Which replica-only ledger fixture should the worker use?</h3>
                 <pre><code class="language-bash">psql "$ATLAS_REPLICA" -c "\copy (select * from ledger_entry
@@ -6031,15 +6023,15 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
               status="planned"
               needs="schema-choice ledger-fixture"
             >
-              <strong>Nightly variance report</strong> Unreachable until both inputs
-              stand.
+              <strong>Nightly variance report</strong> Waiting for the schema decision
+              and ledger fixture.
             </lf-atlas-task>
           </lf-atlas-task>
 
           <lf-atlas-task id="goal-api" status="active" when="week 4" talk>
-            <strong>Publish the parser contract</strong> Review the branch, not its
-            author. A line comment routes to a fresh evidence worker and stays anchored
-            here.
+            <strong>Publish the parser contract</strong> Review the public API branch. A
+            line comment goes to a new evidence worker and stays attached to the source
+            line.
             <lf-atlas-task
               id="api-shape"
               status="review"
@@ -6149,10 +6141,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
         </section>
         <section class="panel" id="hub-record">
           <h2>Record</h2>
-          <p>
-            Every consequential gesture, newest first. Each row leads back to what it
-            moved.
-          </p>
+          <p>Recent actions, newest first. Each row links to the affected item.</p>
           <lf-activity id="atlas-record"></lf-activity>
         </section>
       </aside>
@@ -7557,6 +7546,46 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   <lf-conversation-workspace
                     id="conversation-workspace"
                   ></lf-conversation-workspace>
+                </template>
+              </lf-sample>
+            </section>
+            <section id="bg-native-replies">
+              <h3>Native HTML in replies</h3>
+              <p>
+                Open Threads in the sample. Read the checks table, then open Deploy log
+                by click or keyboard. Both are ordinary HTML carried by the reply,
+                without a widget wrapper.
+              </p>
+              <script id="bg-native-reply-history" type="application/json">
+                [
+                  {
+                    "id": "deploy-question",
+                    "kind": "comment",
+                    "author": "user",
+                    "text": "Did the deploy pass?"
+                  },
+                  {
+                    "id": "deploy-answer",
+                    "kind": "reply",
+                    "author": "agent",
+                    "parent": "deploy-question",
+                    "text": "The deploy passed both checks.",
+                    "markup": "<table><caption>Deploy checks</caption><thead><tr><th scope=\"col\">Check</th><th scope=\"col\">Result</th></tr></thead><tbody><tr><td>Build</td><td>Passed</td></tr><tr><td>Smoke test</td><td>Passed</td></tr></tbody></table><details><summary>Deploy log</summary><pre>Build complete&#10;Smoke test passed&#10;Ready</pre></details>"
+                  }
+                ]
+              </script>
+              <lf-sample
+                id="bg-native-reply-sample"
+                label="Native reply evidence"
+                window
+              >
+                <template
+                  id="bg-native-reply-page"
+                  data-sample
+                  data-sample-events="bg-native-reply-history"
+                >
+                  <h1>Deploy review</h1>
+                  <p>The release is ready. Open Threads to read the checks and log.</p>
                 </template>
               </lf-sample>
             </section>

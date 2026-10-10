@@ -9065,9 +9065,8 @@ def test_the_questions_panel_names_an_ask_a_message_carries(browser, serve):
 def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, serve):
     """A measurement is a measurement wherever the widget was built, or it is a zero.
 
-    Two shipped widgets take a number off a live box at upgrade — the room a card keeps
-    clear of its grip and the width of a roster's state column — because a constant goes
-    stale in the next face. A widget
+    The shipped board takes a number off a live box at upgrade — the room a card keeps
+    clear of its grip — because a constant goes stale in the next face. A widget
     upgrades wherever the runtime connects it, and one of those places is a message body
     inside a thread panel nobody has opened: `display: none`, so every box under it is
     zero. `once` then refuses the second upgrade that would put it right and the body is
@@ -9078,8 +9077,7 @@ def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, 
     into boxes and was always right. Rooms are compared rather than named, because the
     number is the face's and this is about whether it was ever read.
 
-    Both of them, because `measure` is the primitive and each module's wiring to it is
-    its own line."""
+    The board exercises `measure` through the same module in both places."""
     url = serve(MESSAGE_ROOM_PAGE)
     d = serve.page_dir
     append_carried_log_record(

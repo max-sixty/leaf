@@ -7639,6 +7639,29 @@ def send_anchored_comment(page, text):
     return frame["x"], len(lines)
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "better; is there a way of shortening? or maybe we just remove it??",
+        "Check the January failure mode before accepting this design. " * 3,
+    ],
+)
+@pytest.mark.parametrize("zoom", [1, 1.1])
+def test_a_sent_comment_keeps_its_text_viewport(browser, serve, text, zoom):
+    """Carrying the editor's measure leaves the sent words inside their scrollport."""
+    page = open_page(browser, serve(ASK_PAGE), init_script=MARGIN_EDITOR_ROOTS)
+    resized(page, 1200, 900)
+    page.evaluate("zoom => document.documentElement.style.zoom = zoom", zoom)
+    send_anchored_comment(page, text.rstrip())
+    reading = page.locator(".lf-margin-preview")
+    overflow = reading.evaluate("""card => [...card.querySelectorAll('*')]
+        .filter(node => node.clientWidth && /auto|scroll/.test(getComputedStyle(node).overflow))
+        .filter(node => node.scrollWidth > node.clientWidth || node.scrollHeight > node.clientHeight)
+        .map(node => ({class: node.className, width: node.clientWidth,
+            scrollWidth: node.scrollWidth, height: node.clientHeight, scrollHeight: node.scrollHeight}))""")
+    assert not overflow, overflow
+
+
 @pytest.mark.parametrize("wrapping", [False, True])
 def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
     browser, serve, wrapping

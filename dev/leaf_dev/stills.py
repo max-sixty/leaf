@@ -355,6 +355,22 @@ def composer_sent(page: Page) -> None:
     page.mouse.move(0, 0)
 
 
+def composer_sent_zoomed(page: Page) -> None:
+    """A short sent comment at fractional zoom must keep its one-line viewport."""
+    page.evaluate("document.documentElement.style.zoom = '1.1'")
+    page.locator("#plan-lede").click(click_count=3)
+    page.locator(".lf-fab-input").click()
+    page.keyboard.insert_text(
+        "better; is there a way of shortening? or maybe we just remove it??"
+    )
+    page.keyboard.press("Enter")
+    page.locator(".lf-margin-preview[data-lf-comment-frame]").wait_for()
+    page.wait_for_function(
+        "() => !document.querySelector('.lf-margin-preview [aria-busy=\"true\"]')"
+    )
+    page.mouse.move(0, 0)
+
+
 def card_reply_long(page: Page) -> None:
     """The first margin card with a reply of two wrapped paragraphs being typed."""
     card_by_keyboard(page)
@@ -659,6 +675,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         composer,
         composer_long,
         composer_sent,
+        composer_sent_zoomed,
         card_reply_long,
         panel_reply_long,
         page_comment_long,
@@ -1025,6 +1042,12 @@ STATES = (
         touch=True,
     ),
     State("triage-composer-sent", "triage-board", composer_sent),
+    State(
+        "plan-composer-sent-zoomed",
+        "review-a-plan",
+        composer_sent_zoomed,
+        viewport=(1200, 900),
+    ),
     State("triage-composer-sent-dark", "triage-board", composer_sent, scheme="dark"),
     State(
         "triage-composer-sent-beside", "triage-board", composer_sent, viewport=BESIDE

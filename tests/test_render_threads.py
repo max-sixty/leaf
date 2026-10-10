@@ -11664,15 +11664,34 @@ def test_a_region_capture_keeps_scrolled_shadow_pixels_and_its_comment_anchor(
 
 def test_touch_capture_can_cancel_and_reopen_before_attaching(browser, serve):
     page = capture_page(browser, serve, touch=True)
+
+    def drag_area():
+        target = page.locator("#capture-target").bounding_box()
+        left, top = int(target["x"]) + 10, int(target["y"]) + 20
+        touch = page.context.new_cdp_session(page)
+        try:
+            for kind, points in (
+                ("touchStart", [{"x": left, "y": top}]),
+                ("touchMove", [{"x": left + 180, "y": top + 130}]),
+                ("touchEnd", []),
+            ):
+                touch.send(
+                    "Input.dispatchTouchEvent", {"type": kind, "touchPoints": points}
+                )
+        finally:
+            touch.detach()
+
     before = events_model.read_events(serve.page_dir)
     before_media = sorted((serve.page_dir / "media").iterdir())
     surface = open_capture_area(page, touch=True)
+    drag_area()
     page.get_by_role("button", name="Cancel capture", exact=True).tap()
     expect(surface).to_be_hidden()
     expect(page.locator(".lf-composer-media-item")).to_have_count(0)
     assert events_model.read_events(serve.page_dir) == before
     assert sorted((serve.page_dir / "media").iterdir()) == before_media
     surface = open_capture_area(page, touch=True)
+    drag_area()
     page.get_by_role("button", name="Cancel capture", exact=True).press("Enter")
     expect(surface).to_be_hidden()
     expect(page.locator(".lf-composer-media-item")).to_have_count(0)
@@ -11681,23 +11700,18 @@ def test_touch_capture_can_cancel_and_reopen_before_attaching(browser, serve):
     expect(surface).to_be_hidden()
     expect(page.locator(".lf-composer-media-item")).to_have_count(0)
     surface = open_capture_area(page, touch=True)
-    target = page.locator("#capture-target").bounding_box()
-    left, top = int(target["x"]) + 10, int(target["y"]) + 20
-    touch = page.context.new_cdp_session(page)
-    try:
-        for kind, points in (
-            ("touchStart", [{"x": left, "y": top}]),
-            ("touchMove", [{"x": left + 180, "y": top + 130}]),
-            ("touchEnd", []),
-        ):
-            touch.send(
-                "Input.dispatchTouchEvent", {"type": kind, "touchPoints": points}
-            )
-    finally:
-        touch.detach()
+    # A new press must belong to its own gesture, even before queued work from
+    # the preceding drag runs. Keep that ordering independent of machine load.
+    page.clock.install(time=0)
+    page.clock.pause_at(1)
+    drag_area()
     expect(surface.locator(".lf-region-selection")).to_be_visible()
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
         page.get_by_role("button", name="Attach capture", exact=True).tap()
+        assert surface.get_attribute("aria-busy") == "true", (
+            "the first confirmation tap must start capture before drag timers run"
+        )
+        page.clock.resume()
     expect(surface).to_be_hidden()
     attachment = page.locator(".lf-composer-media-item img")
     expect(attachment).to_be_visible()

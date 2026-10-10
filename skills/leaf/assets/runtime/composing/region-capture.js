@@ -29,7 +29,6 @@ export function createRegionCapture({
   let selector = null;
   let claimedPointer = null;
   let throughClick = false;
-  let releaseTimer = null;
   const active = () => opening;
   const claim = (event) => {
     event.preventDefault();
@@ -41,23 +40,22 @@ export function createRegionCapture({
     document.addEventListener(
       type,
       (event) => {
+        // A claimed drag owns its compatibility mouse events, even after release.
+        // The next primary press starts a new gesture, including on a chrome control.
+        // A timer cannot delimit that ownership: its work may outlive the next tap.
+        if (type === "pointerdown" && event.isPrimary) throughClick = false;
         const held = event.pointerId === claimedPointer;
         if (!held && (!selector || leafSurface(event.composedPath()[0]))) return;
         if (type === "pointerdown") {
           if (!event.isPrimary || event.button !== 0) return;
-          clearTimeout(releaseTimer);
           claimedPointer = event.pointerId;
           throughClick = true;
           document.documentElement.setPointerCapture(event.pointerId);
         }
         claim(event);
         selector?.pointer(event);
-        if (held && (type === "pointerup" || type === "pointercancel")) {
+        if (held && (type === "pointerup" || type === "pointercancel"))
           claimedPointer = null;
-          releaseTimer = setTimeout(() => {
-            throughClick = false;
-          });
-        }
       },
       { capture: true },
     );

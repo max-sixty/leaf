@@ -93,16 +93,23 @@ timing is diagnostic rather than an acceptance threshold.
 
 ## Phase 6: Example subjects
 
-Rewrite examples around a plausible task rather than an explanation of Leaf controls.
-Check the PR walkthrough's invented labels and Rust assertions against its linked
-source before changing them.
+The focused example pass (#19) explains the reader's task in the release-query
+and code-reader pages. Release-query filters are conjunctive; its generated
+instruction now says so. Presets name only the row limit, panel width, or
+candidate they set. The PR walkthrough identifies itself as a replay of a merged
+change and quotes its captured test assertions and temporary-index implementation.
+Its displayed excerpts are checked against the patch's source lines. The rollout
+chart follows its log's timestamps and latest error rate, and its rollback result
+distinguishes the final zero delta from earlier batches. Metrics omit comparisons
+that have no bundled baseline. The security example separates real SRT and adapter
+checks from the stubbed Claude and Codex executables used in integration tests.
 
-Generate catalog descriptions from each page's existing description rather than
-maintain a second summary. Keep seeded comments in the user's voice and verify
-their claims.
+The site build derives active catalog descriptions from each page's metadata;
+`leaf-dev catalog` refreshes the committed catalog. Seeded comment quotes were
+checked against their authored versions. The retention objections now ask
+plainly about the missing request id and investigations absent from query history,
+without assuming the proposed retention limit is already in force.
 
-**Decision E — playground examples.** Recommend keeping the notification playground
-in the catalog with a real subject, and moving code comparison and data explorer to
-the developer playground entry. Alternatives are giving each a real user task or
-keeping them in place with prose edits only. Inspect the rendered examples before
-choosing; this note is the brief for that comparison.
+Code comparison remains unlisted, linked from the specialized examples introduction.
+The release query remains public with a report-building task. No placement decision
+is open.

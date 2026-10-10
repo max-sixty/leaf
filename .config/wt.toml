@@ -48,13 +48,13 @@ node = "npm ci"
 assets = "uv run --frozen leaf-dev fetch-assets"
 
 [[aliases.setup]]
-chromium = "uv run --frozen playwright install chromium --only-shell"
+chromium = "uv run --frozen playwright install --with-deps chromium --only-shell"
 
 [[aliases.setup]]
-webkit = "uv run --frozen playwright install webkit"
+webkit = "uv run --frozen playwright install --with-deps webkit"
 
 [[aliases.setup]]
-firefox = "uv run --frozen playwright install firefox"
+firefox = "uv run --frozen playwright install --with-deps firefox"
 
 [[aliases.setup]]
 chrome = "uv run --frozen playwright install chrome"

@@ -22,7 +22,6 @@ from interact_support import (
     COMMAND_HUB_PACKAGE,
     COMMENT,
     PAGE,
-    PAGE_PACKAGES,
     PILOT_PURGE,
     SHELVED,
     STATED_TIMEOUT,
@@ -59,6 +58,7 @@ from interact_support import (
     live_versions,
     lock_contention,
     model_layer,
+    page_packages,
     publish,
     published,
     queue_board_registry,
@@ -926,7 +926,7 @@ def test_init_allows_a_log_holding_a_token_the_incoming_layer_dropped(
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -1005,7 +1005,7 @@ def test_init_allows_retiring_a_logged_widgets_verb(page_dir):
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -1094,7 +1094,7 @@ def test_init_allows_changed_generated_child_semantics(page_dir, mutation):
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -1137,7 +1137,7 @@ def test_init_allows_a_logged_report_the_incoming_layer_no_longer_speaks(page_di
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -1180,7 +1180,7 @@ def test_init_allows_to_orphan_a_logged_visual_anchor(page_dir):
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -1313,7 +1313,7 @@ def test_revendoring_serializes_with_thread_markup_entering_the_log(
     overlay.mkdir(parents=True)
     local = element_declaration("lf-local-thread")
     (overlay / "registry.json").write_text(json.dumps({"lf-local-thread": local}))
-    vendoring_model.cmd_init(page_dir, selected=(*PAGE_PACKAGES, "./.leaf"))
+    vendoring_model.cmd_init(page_dir, selected=(*page_packages(), "./.leaf"))
     publish(page_dir)
     append_carried_log_record(
         page_dir,
@@ -1375,7 +1375,7 @@ def test_revendoring_can_change_frozen_thread_widget_vocabulary(
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -3626,7 +3626,7 @@ def test_init_inherits_contract_members_a_layer_does_not_state(
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -3659,7 +3659,7 @@ def test_a_layer_restates_one_kind_s_handling_and_inherits_the_rest(page_dir, tm
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -3703,7 +3703,7 @@ def test_init_refuses_handling_that_a_batch_could_not_carry(
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -4295,7 +4295,7 @@ def test_init_requires_tones_to_be_a_list_membership_can_be_tested_against(
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -4318,7 +4318,7 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -4333,7 +4333,7 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -4361,7 +4361,7 @@ def test_event_kinds_and_ownership_are_the_kernel_contract_not_a_layer_extension
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -4375,7 +4375,7 @@ def test_event_kinds_and_ownership_are_the_kernel_contract_not_a_layer_extension
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -4920,9 +4920,7 @@ def test_sample_checks_available_history_beside_forward_thread_references(
     )
     result = check(page_dir)
     assert result.exit_code != 0
-    assert (
-        'ids already taken by widget markup in a reply: ["duplicate"]' in result.output
-    )
+    assert 'ids already taken by message markup: ["duplicate"]' in result.output
 
 
 def test_check_tokenizes_only_the_page_stylesheet(page_dir, monkeypatch):
@@ -5589,7 +5587,6 @@ def test_sample_fixture_refusals_reach_page_check(
             '<lf-code id="child" language="python"><pre>1</pre></lf-code>',
             "already taken",
         ),
-        ("<p>Just prose</p>", "carries no widget"),
         (
             '<lf-code id="code" language="python"><pre>1</pre></lf-code><style>p {color:red}</style>',
             "stylesheet of the whole document",
@@ -5612,6 +5609,35 @@ def test_sample_fixture_message_markup_uses_the_message_gate(
     assert result.exit_code != 0, result.output
     assert "sample 'practice'" in result.output
     assert complaint in result.output
+
+
+def test_sample_fixture_accepts_native_message_markup(page_dir):
+    history = json.dumps(
+        [
+            {
+                "kind": "comment",
+                "id": "aabb0011",
+                "author": "agent",
+                "text": "Results:",
+                "markup": '<table id="results"><tr><td>Passed</td></tr></table>',
+            },
+            {
+                "kind": "reply",
+                "parent": "aabb0011",
+                "author": "agent",
+                "text": "Log:",
+                "markup": '<pre id="log">Ready\nDone</pre>',
+            },
+        ]
+    )
+    source = (
+        f'<script id="fixture" type="application/json">{history}</script>'
+        '<template id="practice" data-sample data-sample-events="fixture">'
+        '<h1 id="child">Child</h1></template>'
+    )
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", source + "</main>"))
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
 
 
 @pytest.mark.parametrize(

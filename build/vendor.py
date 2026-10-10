@@ -216,7 +216,25 @@ def build_photoswipe(work: Path) -> list[Path]:
 
 
 def build_snapdom(work: Path) -> list[Path]:
-    """Browser-native DOM rasterization, loaded only when capturing a page region."""
+    """Browser-native DOM rasterization, loaded only when capturing a page region.
+
+    After a capture, SnapDOM counts each later mutation against the target's ancestors,
+    climbing out of a shadow tree through `getRootNode().host`. A target removed with
+    its subtree has that subtree's top element as its root, and an `<a>` there answers
+    `host` with its URL's host string. SnapDOM 3.3.0 to 3.3.3 then use that string as a
+    WeakMap key, so a removed link throws from the observer, an uncaught page error.
+    Climb only from an element whose parent is a shadow root. Refuse a changed upstream
+    seam so an upgrade rechecks this adaptation.
+    """
+    package = work / "node_modules/@zumer/snapdom"
+    shutil.copytree(NODE_MODULES / "@zumer/snapdom", package)
+    source_path = package / "dist/snapdom.mjs"
+    source = source_path.read_text(encoding="utf-8")
+    original = "for(;r;r=r.parentElement||r.getRootNode?.()?.host)"
+    replacement = "for(;r;r=r.parentElement||(r.parentNode?.nodeType===11?r.parentNode.host:null))"
+    if source.count(original) != 1:
+        raise ValueError(f"SnapDOM mutation-ancestor seam changed: {original}")
+    source_path.write_text(source.replace(original, replacement), encoding="utf-8")
     out = ASSETS / "vendor/snapdom.esm.js"
     (work / "entry.mjs").write_text(
         'export { snapdom } from "@zumer/snapdom";\n', encoding="utf-8"

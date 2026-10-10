@@ -278,7 +278,7 @@ export function createThreadDestinations({
     }
     if (!allThreads().some((each) => each.msgs.some(({ id }) => id === name)))
       return null;
-    const landed = await openPageThread(name, { part: "message", intent });
+    const landed = await showThread(name, { part: "message", intent });
     const card = landed && closestAcross(landed, THREAD);
     return card ? openMessageEditIn(card, name) : null;
   }

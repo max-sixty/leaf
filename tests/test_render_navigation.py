@@ -2215,9 +2215,13 @@ def test_thread_navigation_lands_after_resizing_an_open_reply(browser, serve):
     resized(page, 1280, 720)
     card = page.locator(".lf-margin-preview")
     thread = card.get_by_role("group", name="Thread, Is lunch provided", exact=False)
-    page.keyboard.press("t")
+    # The walk reaches the lunch thread wherever the gallery's order puts it.
+    for _ in range(4):
+        page.keyboard.press("t")
+        scroll_settled(page)
+        if thread.count() and thread.evaluate("el => el === document.activeElement"):
+            break
     expect(thread).to_be_focused()
-    scroll_settled(page)
     page.keyboard.press("t")
     expect(
         card.get_by_role("group", name="Thread, Workshop room photo")

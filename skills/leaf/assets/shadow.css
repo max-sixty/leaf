@@ -673,7 +673,7 @@ leaf-text.lf-fab-input,
   margin: var(--lf-msg-body-gap) 0 0;
   overflow-wrap: anywhere;
 }
-.lf-msg-text {
+:is(.lf-msg-text, .lf-msg-editor) {
   display: block;
   padding-block: var(--lf-thread-text-pad-block, 0px);
 }

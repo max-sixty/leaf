@@ -11388,6 +11388,48 @@ def test_a_zoomed_floating_draft_and_sent_comment_fit_a_narrow_window(browser, s
     assert 0 <= bounds["x"] and bounds["x"] + bounds["width"] <= 605.1, bounds
 
 
+@pytest.mark.parametrize("touch", [False, True], ids=["desktop", "touch"])
+def test_a_rewrite_of_a_comment_just_sent_stands_where_its_words_did(
+    browser, serve, touch
+):
+    """The card holding a comment just sent keeps its words in the room the draft had,
+    clear of Send (`data-lf-comment-frame`); a rewrite opened there stands in that same
+    room, so the message keeps its place and its words their lines."""
+    context = browser.new_context(has_touch=touch, is_mobile=touch)
+    page = open_page(browser, serve(LONG_PAGE), context=context)
+    resized(page, 390 if touch else 1200, 900)
+    page.locator("#p1").click(modifiers=["Alt"])
+    field = page.locator(".lf-fab-input")
+    field.click()
+    write(
+        field,
+        "Shorten this paragraph and keep its example, since the example is what "
+        "readers remember once the rest of the section has gone by them.",
+    )
+    with sending(page, "the comment to rewrite"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    round_trip(page)
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_attribute(
+        "data-lf-comment-frame", "every-line" if touch else "last-line"
+    )
+    message = card.locator(".lf-msg").first
+    words = message.locator(".lf-msg-text")
+    rendered(page)
+    before = message.bounding_box(), words.bounding_box()
+    message.locator(".lf-msg-edit").click()
+    editor = message.locator(".lf-msg-editor")
+    expect(editor.locator("leaf-text")).to_be_focused()
+    rendered(page)
+    assert message.bounding_box() == before[0]
+    box = editor.bounding_box()
+    assert (box["x"], box["y"], box["height"]) == (
+        before[1]["x"],
+        before[1]["y"],
+        before[1]["height"],
+    ), (box, before[1])
+
+
 def test_a_scaled_floating_draft_keeps_its_room_when_its_passage_scrolls_away(
     browser, serve
 ):

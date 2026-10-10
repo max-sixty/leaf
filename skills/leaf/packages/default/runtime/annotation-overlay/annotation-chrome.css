@@ -195,10 +195,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* Only the submitted words inherit the editor's viewport. Message metadata,
      such as the drawing reference, is added after Send and keeps its own room.
      The viewport shrinks with its transcript track when the card loses room. */
-  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body > :not(.lf-msg-text) {
+  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body > :not(.lf-msg-text, .lf-msg-editor) {
     flex: none;
   }
-  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text {
+  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body
+    > :is(.lf-msg-text, .lf-msg-editor) {
     box-sizing: border-box; min-height: 0;
     max-height: var(--lf-comment-message-height); overflow-y: auto;
     padding-inline: 0 var(--lf-comment-text-pad-end);
@@ -207,7 +208,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      (text-field.js, `endRoom`): on every line, after the last words only — the last
      paragraph of words, before any pasted images, or a suggestion's text — or, where
      the draft ended on a blank line, nowhere. */
-  .lf-margin-preview[data-lf-comment-frame="every-line"] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text {
+  .lf-margin-preview[data-lf-comment-frame="every-line"] .lf-msg:first-of-type > .lf-msg-body
+    > :is(.lf-msg-text, .lf-msg-editor) {
     padding-inline-end: calc(var(--lf-comment-text-pad-end) + var(--lf-comment-send-room)); }
   .lf-margin-preview[data-lf-comment-frame="last-line"] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text
     > p:is(:last-child, :has(+ p > .lf-message-media:only-child)):not(:has(> .lf-message-media:only-child))::after,

@@ -233,7 +233,8 @@ export class MessageView {
 
   present(model, { arrived = false, headerControls = nothing } = {}) {
     const prior = this.#model;
-    // A surface that seats no rewrite, as a package's mirror of one message, offers none.
+    // A surface that seats no rewrite offers none: a primary reader drawing one message
+    // of a conversation it lays out itself has no thread card to open it in.
     if (model.editable && !this.#commands.edit) model = { ...model, editable: false };
     this.#model = model;
     const panel = model.panel;

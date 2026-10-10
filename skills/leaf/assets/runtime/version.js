@@ -75,7 +75,13 @@ import {
 } from "./drafts.js";
 import { heldThreadId, replyDestination } from "./thread/focus.js";
 import { restoreReplyEditing } from "./thread/replies.js";
-import { focusDestination, onStanding, focused, closeLayer } from "./focus.js";
+import {
+  focusDestination,
+  onStanding,
+  onUserInput,
+  focused,
+  closeLayer,
+} from "./focus.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { patchTree, patchRetains } from "./dom-children.js";
 import { labelOf, PRESS } from "./keyboard/bindings.js";
@@ -1884,7 +1890,11 @@ export function createVersionController({
     };
     onStanding(recordStanding);
     onReadingInput(recordStanding);
-    document.addEventListener("input", recordStanding);
+    // Caret and selection keys are work in the same focused destination even
+    // when they change no text and produce no input or focus event.
+    onUserInput((event) => {
+      if (event.type === "keydown" || event.type === "input") recordStanding();
+    });
     queueRecord();
   }
 

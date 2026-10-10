@@ -185,10 +185,11 @@ export class MessageEditor {
     this.node.append(this.input, this.foot, actions);
     // The words a closed rewrite left, or the message's own. An empty draft is none.
     this.input.value = loadDraft(ctx) || said();
-    // Words the message already says, and no words, are no change.
+    // Words the message already says, exactly, and no words, are no change. Leading and
+    // trailing space is part of what a rewrite sends, as a suggestion's newline is.
     const unchanged = () => {
-      const words = this.input.value.trim();
-      return !words || words === said().trim();
+      const words = this.input.value;
+      return !words.trim() || words === said();
     };
     const leave = (discard, { landing = true, says = null, painting = true } = {}) => {
       if (landing) land();
@@ -224,8 +225,8 @@ export class MessageEditor {
         saveDraft(ctx, value, { over: base });
         tellDraft(ctx, value, { over: base });
       },
-      send: async (text, raw, owns) => {
-        if (text === said().trim()) return leave(true, { says: "No change to save" });
+      send: async (_text, raw, owns) => {
+        if (unchanged()) return leave(true, { says: "No change to save" });
         sending.add(id);
         // The send's own paint, which draws the new words on the message, closes the
         // editor too, so the message changes once: a paint of its own here drew the old

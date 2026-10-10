@@ -11983,6 +11983,27 @@ def test_an_emptied_rewrite_keeps_nothing(browser, serve):
     expect(editor).to_have_js_property("value", "Fit the north bracket.")
 
 
+def test_a_rewrite_saves_its_exact_words(browser, serve):
+    """Saving the message's own words changes nothing, but a rewrite that changes only
+    their leading or trailing space saves it: that space is part of what a rewrite
+    sends, as a suggestion's newline is, and the editor once compared trimmed words and
+    dropped it as "No change to save"."""
+    page, _, message = _rewrite_surface(browser, serve, "panel")
+    editor = message.locator(".lf-msg-editor leaf-text")
+    message.locator(".lf-msg-text").dblclick()
+    expect(editor).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(message.locator(".lf-msg-editor")).to_have_count(0)
+    message.locator(".lf-msg-text").dblclick()
+    expect(editor).to_be_focused()
+    page.keyboard.type(" ")
+    page.keyboard.press("Enter")
+    expect(message.locator(".lf-msg-editor")).to_have_count(0)
+    round_trip(page)
+    edits = [e for e in events_model.read_events(serve.page_dir) if e["kind"] == "edit"]
+    assert [e["text"] for e in edits] == ["Fit the north bracket. "]
+
+
 def test_a_rewrite_never_replaces_words_it_did_not_see(browser, serve):
     """Another tab holding a message's old words behind its news notice opened a rewrite
     on them, and its save silently took the place of the rewrite the first tab had made.

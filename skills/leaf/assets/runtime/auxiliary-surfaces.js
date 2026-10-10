@@ -44,7 +44,12 @@
    Entering the covering boundary dismisses pre-existing outside popovers. Native dialogs
    and popovers opened inside the foreground then join the browser's own layer order. */
 
-import { openPopovers, transitionNativeAncestor } from "./keyboard/layer-stack.js";
+import {
+  openPopovers,
+  transitionNativeAncestor,
+  showNativeLayer,
+  closeNativeLayer,
+} from "./keyboard/layer-stack.js";
 import { registerCoveringAuxiliarySurface } from "./keyboard/register.js";
 import { hides, placeHolder } from "./geometry.js";
 import { under } from "./shadow.js";
@@ -105,7 +110,7 @@ export function createAuxiliarySurfaces({
     const changedPosture = Boolean(active) !== Boolean(next);
     if (next)
       for (const popover of openPopovers())
-        if (!under(popover, next.surface)) popover.hidePopover();
+        if (!under(popover, next.surface)) closeNativeLayer(popover);
     const held = holdFocus(document);
     closeLayer(
       () => {
@@ -115,15 +120,9 @@ export function createAuxiliarySurfaces({
         keeps(band, "inert", next && !next.underBand ? "" : null);
         if (next) keeps(next.surface, "data-lf-covered", "");
         if (changedPosture || !envelope.open) {
-          // Opening a restored sample must not take focus from its containing page.
-          // Native modality still begins while its own focusing steps are suppressed.
           transitionNativeAncestor(envelope, () => {
-            if (envelope.open) envelope.close();
-            const unfocused = !document.hasFocus();
-            if (unfocused) envelope.inert = true;
-            if (next) envelope.showModal();
-            else envelope.show();
-            if (unfocused) envelope.inert = false;
+            if (envelope.open) closeNativeLayer(envelope);
+            showNativeLayer(envelope, { modal: Boolean(next) });
           });
         }
         band.toggleAttribute("data-lf-over-covering", Boolean(next?.underBand));

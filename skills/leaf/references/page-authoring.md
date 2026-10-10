@@ -652,10 +652,27 @@ replies remain independent. A template chooses either `data-sample-events` or
 
 The child is a document of its own: a `<style>` or module script in the template
 applies to the child alone, and the surrounding page's styles and scripts do not
-reach it. A page module can await the element's `ready` promise to receive the child
-`Document`, and await `reset()` to replace it. The bubbling `lf-sample-ready`
-event carries `detail.document` after each child presents, including Reset, so
+reach it. The child has an opaque sandbox origin: neither page can access the other's
+DOM, browser storage, or runtime functions. A page module can await the element's
+`ready` promise for its presentation, and await `reset()` to replace it. The bubbling
+`lf-sample-ready` event carries `detail.sample` after each child presents, including Reset, so
 host controls can reapply a selected view without inspecting the Reset button.
+Leaf’s own navigation stays inside the child: focus placement requires the child
+to own input, reveals stop at its document, and native layer transitions prevent
+automatic focus before placing their intended arrival. Scripts and embedded frames
+remain permitted. The sandbox isolates DOM and data; arbitrary scripts calling
+native browser focus or reveal APIs keep those APIs’ browser behavior. Forms, popups,
+downloads and pointer lock keep their native routes. The child's unguessable URL
+authorizes its own document, captured assets and APIs, so native resource loaders and
+module-relative URLs work directly. It grants no parent routes. Child responses
+suppress referrers; external requests retain the browser's opaque-origin CORS rules.
+Reload reconnects the child; Reset replaces it with a fresh copy of its initial state.
+Initial document admission failures reject `ready` after releasing the failed
+allocation; the sample keeps its error and Reset control. Later native navigation
+keeps the destination in the frame and Reset available. While that document has no
+Leaf connection, `ready` and presentation commands reject with `AbortError`; a
+valid Leaf reload reconnects. The containing page cannot distinguish an external
+destination from a failed reload inside the opaque frame.
 To select a conversation, call `await sample.showThread(id)` with its root event id;
 this shows the same page destination as its marker. To inspect it in Threads,
 call `await sample.showThread(id, {surface: "panel"})`. The panel view accepts

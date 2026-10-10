@@ -6,6 +6,7 @@
  * this adapter choreographs production transitions without recording gestures. */
 
 import { retainUserIntent } from "./user-intent.js";
+import { mountPlayback } from "./interaction-gallery-playback.js";
 
 let commands;
 
@@ -18,13 +19,10 @@ function neutralChrome() {
 
 export function mountReplay(capabilities) {
   commands = capabilities;
-  window.leafInteractionGalleryFrame = {
+  mountPlayback({
     resetComment(section, text) {
       neutralChrome();
       commands.openComposer({ section }, text, { focus: false });
-    },
-    commentInput() {
-      return commands.fabInput;
     },
     submitComment(threadId) {
       const intent = retainUserIntent();
@@ -53,5 +51,5 @@ export function mountReplay(capabilities) {
     setThreads(open) {
       commands.setPanel(open, { remember: false });
     },
-  };
+  });
 }

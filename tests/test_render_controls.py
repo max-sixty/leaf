@@ -1425,6 +1425,14 @@ VISUAL_REVIEW_GALLERY = next(
 )
 
 
+SAMPLE_STARTUP_FAILURE = """<script type="module">
+if (new URL(location.href).searchParams.has('startup-failure'))
+  window.dispatchEvent(new CustomEvent('lf-startup-failed', {
+    detail: {reason: 'Practice could not start'},
+  }));
+</script>"""
+
+
 LIVE_SAMPLES_PAGE = leaf_page(
     "Independent practice pages",
     """
@@ -1452,7 +1460,18 @@ LIVE_SAMPLES_PAGE = leaf_page(
   </template>
 </lf-sample>
 """,
-)
+).replace("</template>", SAMPLE_STARTUP_FAILURE + "</template>")
+
+
+def fail_sample_startup(route):
+    """The real child reports its fixture's failure over the private bridge.
+
+    Keep native document delivery: an intercepted synthetic response has no network
+    address space, so Chromium refuses its opaque origin's real loopback resources.
+    """
+    route.fulfill(
+        status=307, headers={"Location": route.request.url + "?startup-failure"}
+    )
 
 
 def test_live_sample_full_view_keeps_the_child_and_returns_after_inner_escape(
@@ -1635,26 +1654,19 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     expect(reset).to_be_focused()
     expect(anchored).to_be_visible()
 
-    # A cancelled arrival must leave newer focus inside the child alone.
+    # Parent view commands change presentation without borrowing child focus.
+    views["you"].locator(".lf-threads-toggle").click()
+    child_find = views["you"].get_by_role("searchbox", name="Find in threads")
+    child_find.click()
+    expect(child_find).to_be_focused()
     assert (
         page.locator("#on-you-sample").evaluate(
-            """async sample => {
-          const frame = sample.querySelector('iframe');
-          const real = frame.lfShowThread;
-          frame.lfShowThread = (...args) => {
-            const operation = real(...args);
-            frame.contentDocument.querySelector('.lf-threads-toggle').focus();
-            return operation;
-          };
-          try { return await sample.showThread('98850286'); }
-          finally { frame.lfShowThread = real; }
-        }"""
+            "sample => sample.showThread('98850286', {surface: 'panel'})"
         )
-        is False
+        is True
     )
-    expect(views["you"].locator(".lf-threads-toggle")).to_be_focused()
+    expect(child_find).to_be_focused()
 
-    views["you"].get_by_role("button", name=re.compile("Open threads")).click()
     expect(views["you"].locator(".lf-thread-panel")).to_be_visible()
     expect(views["you"].locator(".lf-thread-view-summary")).to_have_text(
         "1 open thread"
@@ -1714,8 +1726,7 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
             expand = card.get_by_role("button", name="Show 2 progress messages")
             page.locator("#bg-panel-sample").scroll_into_view_if_needed()
             expect(expand).to_be_in_viewport()
-            expand.focus()
-            page.keyboard.press("Enter")
+            expand.click()
             expect(earlier).to_be_visible()
             expect(earlier).to_contain_text("Checking the total practice time.")
             expect(earlier).to_contain_text(
@@ -1731,7 +1742,10 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
             ).to_contain_text("The workshop fits, including a fifteen-minute break.")
 
     page.locator('#bg-panel-presets [data-view="you"]').click()
-    frame.get_by_role("searchbox", name="Find in threads").fill("xyz-nothing")
+    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(2)
+    find = frame.get_by_role("searchbox", name="Find in threads")
+    find.click()
+    find.fill("xyz-nothing")
     expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(0)
     page.locator('#bg-panel-presets [data-view="resolved"]').click()
     resolved = frame.locator('.lf-thread[data-id="bab3cdfcfb8c02aacbb27da731de947a"]')
@@ -1758,26 +1772,14 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
     expect(
         frame.locator('.lf-thread[data-id="bab3cdfcfb8c02aacbb27da731de947a"]')
     ).to_have_attribute("open", "")
-    # Completion is the presented view, not a request to press private controls.
+    # Latest commands and Reset cancel pending presentation across the port.
     result = page.locator("#bg-panel-sample").evaluate(
-        """async sample => {
-          const frame = sample.querySelector('iframe');
-          const real = frame.lfShowThread;
-          let started;
-          const invocation = new Promise(resolve => started = resolve);
-          frame.lfShowThread = (...args) => {
-            const operation = real(...args);
-            started();
-            return operation;
-          };
-          const first = sample.showThread('2be2443f0bb6cc49fc86b52f340e6073',
-            {surface: 'panel', waiting: 'user'});
-          await invocation;
-          frame.lfShowThread = real;
-          const latest = sample.showThread('bab3cdfcfb8c02aacbb27da731de947a',
-            {surface: 'panel', status: 'resolved'});
-          return Promise.all([first, latest]);
-        }"""
+        """sample => Promise.all([
+          sample.showThread('2be2443f0bb6cc49fc86b52f340e6073',
+            {surface: 'panel', waiting: 'user'}),
+          sample.showThread('bab3cdfcfb8c02aacbb27da731de947a',
+            {surface: 'panel', status: 'resolved'})
+        ])"""
     )
     assert result == [False, True]
     expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(1)
@@ -1786,19 +1788,8 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
     ).to_have_text("Projector map")
     result = page.locator("#bg-panel-sample").evaluate(
         """async sample => {
-          const frame = sample.querySelector('iframe');
-          const real = frame.lfShowThread;
-          let started;
-          const invocation = new Promise(resolve => started = resolve);
-          frame.lfShowThread = (...args) => {
-            const operation = real(...args);
-            started();
-            return operation;
-          };
           const old = sample.showThread('2be2443f0bb6cc49fc86b52f340e6073',
             {surface: 'panel', waiting: 'user'});
-          await invocation;
-          frame.lfShowThread = real;
           await sample.reset();
           return old;
         }"""
@@ -1880,12 +1871,9 @@ def test_sample_fixture_history_presents_before_ready_and_returns_on_reset(
         </script>
         <script type="module">
           let arrivals = 0;
-          document.addEventListener('lf-sample-ready', event => {
-            const child = event.detail.document;
-            const row = child.querySelector('.lf-thread[data-id="question"]');
-            if (!row || !row.textContent.includes('both weekend days'))
-              throw new Error('sample announced before fixture presentation');
-            child.querySelector('.lf-threads-toggle').click();
+          document.addEventListener('lf-sample-ready', async event => {
+            const sample = event.detail.sample;
+            await sample.showThread('question', {surface: 'panel'});
             document.querySelector('#arrivals').textContent = String(++arrivals);
           });
         </script>
@@ -1905,7 +1893,7 @@ def test_sample_fixture_history_presents_before_ready_and_returns_on_reset(
         "data-resolved", "true"
     )
     other_events = page.request.get(
-        other.locator("body").evaluate("location.href") + "api/state"
+        other.locator("body").evaluate("new URL('api/state', document.baseURI).href")
     ).json()["events"]
     assert [event["kind"] for event in other_events if event["kind"] != "read"] == [
         "comment",
@@ -1918,7 +1906,7 @@ def test_sample_fixture_history_presents_before_ready_and_returns_on_reset(
     expect(page.locator("#arrivals")).to_have_text("3")
     expect(first.locator(".lf-thread-panel")).to_be_visible()
     state = page.request.get(
-        first.locator("body").evaluate("location.href") + "api/state"
+        first.locator("body").evaluate("new URL('api/state', document.baseURI).href")
     ).json()
     assert [event["kind"] for event in state["events"] if event["kind"] != "read"] == [
         "comment",
@@ -2128,6 +2116,7 @@ def test_sample_reset_keeps_the_keyboard_position_while_loading(browser, serve):
 </lf-sample>
 """,
     )
+    source = source.replace("</template>", SAMPLE_STARTUP_FAILURE + "</template>")
     page = open_page(browser, serve(source))
     sample = page.locator("#practice")
     reset = sample.get_by_role("button", name="Reset", exact=True)
@@ -2135,7 +2124,14 @@ def test_sample_reset_keeps_the_keyboard_position_while_loading(browser, serve):
     expect(reset).to_be_enabled()
     held = []
     navigation = re.compile(r"/api/samples/[^/]+/$")
-    page.route(navigation, lambda route: held.append(route))
+    page.route(
+        navigation,
+        lambda route: (
+            held.append(route)
+            if route.request.is_navigation_request()
+            else route.continue_()
+        ),
+    )
     onward.focus()
     onward.press("Tab")
     expect(reset).to_be_focused()
@@ -2164,10 +2160,7 @@ def test_sample_reset_keeps_the_keyboard_position_while_loading(browser, serve):
     reset.press("Space")
     holding(page, held, 2, "the failed replacement practice page")
     expect(reset).to_be_focused()
-    held[1].fulfill(
-        content_type="text/html",
-        body='<html data-lf-startup-error="Practice could not start"><body></body></html>',
-    )
+    fail_sample_startup(held[1])
     expect(sample.get_by_role("status")).to_have_text("Practice could not start")
     expect(reset).to_be_enabled()
     expect(reset).to_be_focused()
@@ -2200,7 +2193,7 @@ def test_live_samples_keep_real_gestures_and_drafts_inside_the_child(browser, se
     child = first.locator("iframe").element_handle().content_frame()
     other = second.locator("iframe").element_handle().content_frame()
     child.lf_traffic = Traffic(child)
-    child_url = child.url
+    child_url = urlsplit(child.url)._replace(fragment="").geturl()
     assert child.url != other.url
     # A child's startup does not take focus from the page it arrives in.
     assert page.evaluate("document.activeElement.tagName") != "IFRAME"
@@ -2229,7 +2222,7 @@ def test_live_samples_keep_real_gestures_and_drafts_inside_the_child(browser, se
         "value", "Keep this draft while I resize the page."
     )
     expect(draft).to_be_focused()
-    assert child.url == child_url
+    assert urlsplit(child.url)._replace(fragment="").geturl() == child_url
     with sending(child, "the sample comment"):
         draft.press("ControlOrMeta+Enter")
     child.locator(".lf-threads-toggle").click()
@@ -2242,7 +2235,12 @@ def test_live_samples_keep_real_gestures_and_drafts_inside_the_child(browser, se
     state = state_response.json()
     assert [event["kind"] for event in state["events"]] == ["action", "comment"]
     assert state["events"][-1]["text"] == "Keep this draft while I resize the page."
-    assert page.request.get(other.url + "api/state").json()["events"] == []
+    assert (
+        page.request.get(
+            other.evaluate("new URL('api/state', document.baseURI).href")
+        ).json()["events"]
+        == []
+    )
     assert events_model.read_events(serve.page_dir) == parent_before
 
     write(page_comment(child), "Discard this unsent practice draft on reset.")
@@ -2250,13 +2248,10 @@ def test_live_samples_keep_real_gestures_and_drafts_inside_the_child(browser, se
         localStorage.setItem('parent-draft', 'retain');
         sessionStorage.setItem('parent-tab', 'retain');
     }""")
-    old_scope = child.evaluate("location.pathname")
-    assert page.evaluate(
-        "scope => Object.keys(localStorage).some(key => key.startsWith(scope))",
-        old_scope,
+    parent_storage = page.evaluate(
+        "[Object.keys(localStorage), Object.keys(sessionStorage)]"
     )
     write(page_comment(other), "Keep the other sample's draft.")
-    other_scope = other.evaluate("location.pathname")
     reset.scroll_into_view_if_needed()
     reset_scroll = page.evaluate("scrollY")
     reset.click()
@@ -2274,17 +2269,13 @@ def test_live_samples_keep_real_gestures_and_drafts_inside_the_child(browser, se
     )
     assert page.request.get(child_url + "api/state").status == 404
     assert events_model.read_events(serve.page_dir) == parent_before
-    assert page.evaluate(
-        """scope => [localStorage, sessionStorage].every(store =>
-        Object.keys(store).every(key => !key.startsWith(scope)))""",
-        old_scope,
+    assert (
+        page.evaluate("[Object.keys(localStorage), Object.keys(sessionStorage)]")
+        == parent_storage
     )
     assert page.evaluate(
-        """scope =>
-        localStorage.getItem('parent-draft') === 'retain' &&
-        sessionStorage.getItem('parent-tab') === 'retain' &&
-        Object.keys(localStorage).some(key => key.startsWith(scope))""",
-        other_scope,
+        "localStorage.getItem('parent-draft') === 'retain' && "
+        "sessionStorage.getItem('parent-tab') === 'retain'"
     )
     expect(other.locator(".lf-general leaf-text")).to_have_js_property(
         "value", "Keep the other sample's draft."
@@ -2314,18 +2305,16 @@ def test_a_window_sample_is_a_whole_leaf_window_that_scrolls_inside(browser, ser
     )
     page = open_page(browser, serve(source))
     sample = page.locator("#window-sample")
-    child = sample.evaluate(
-        """async sample => {
-          const doc = await sample.ready;
-          await new Promise(requestAnimationFrame);
-          await new Promise(requestAnimationFrame);
-          return {
-            block: doc.documentElement.hasAttribute('data-lf-sample-block'),
-            bar: getComputedStyle(doc.querySelector('.lf-shortcut-bar')).display,
-            page: doc.documentElement.scrollHeight,
-          };
-        }"""
+    reading = sample.evaluate("async sample => await sample.ready")
+    child_frame = sample.locator("iframe").element_handle().content_frame()
+    child = child_frame.evaluate(
+        """() => ({
+          block: document.documentElement.hasAttribute('data-lf-sample-block'),
+          bar: getComputedStyle(document.querySelector('.lf-shortcut-bar')).display,
+          page: document.documentElement.scrollHeight,
+        })"""
     )
+    assert reading["block"] == child["block"]
     assert not child["block"]
     assert child["bar"] != "none"
     frame = sample.locator("iframe")
@@ -2371,6 +2360,288 @@ def test_a_window_sample_is_a_whole_leaf_window_that_scrolls_inside(browser, ser
     )
 
 
+@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
+def test_sample_editor_focus_preserves_outer_scroll_and_the_caret(
+    request, serve, engine
+):
+    """The editor owns focus policy even when its dependency's browser policy differs."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Editor focus containment",
+                """
+<h1>Containing page</h1><div style="height:1400px"></div>
+<lf-sample id="practice" label="Editor practice" window>
+  <template id="practice-source" data-sample>
+    <h1>Practice page</h1><button id="entry">Enter practice</button>
+        <script type="module">
+          import {focusDestination} from '/runtime/widget-api.js';
+          window.placeEditor = () => focusDestination(document.querySelector('#editor'), 'move');
+        </script>
+  </template>
+</lf-sample>
+""",
+            )
+        ),
+    )
+    sample = page.locator("#practice")
+    sample.evaluate("async sample => await sample.ready")
+    child = sample.locator("iframe").element_handle().content_frame()
+    child.evaluate("""async () => {
+      const editor = document.createElement('leaf-text');
+      editor.id = 'editor';
+      editor.value = 'Words stay here';
+      document.querySelector('main').append(editor);
+      editor.setSelectionRange(6, 10);
+    }""")
+    child.locator("#entry").click()
+    page.evaluate("scrollTo(0, 0)")
+    scroll_settled(page)
+    assert child.evaluate("document.hasFocus()")
+    for _ in range(3):
+        child.evaluate("placeEditor()")
+        scroll_settled(page)
+        assert page.evaluate("scrollY") == 0
+        expect(child.locator("#editor")).to_be_focused()
+        child.locator("#entry").click()
+        page.evaluate("scrollTo(0, 0)")
+        scroll_settled(page)
+    child.evaluate("placeEditor()")
+    # Real editing proves the arrival used the retained caret, not the browser's
+    # initial caret. The browser may reveal its context for this deliberate input.
+    page.keyboard.insert_text("remain")
+    expect(child.locator("#editor")).to_have_js_property("value", "Words remain here")
+
+
+def test_sample_browser_boundary_contains_focus_scroll_and_parent_access(
+    browser, serve
+):
+    """Leaf navigation stays local without changing authored native browser APIs."""
+    filler = "".join(f"<p>Child passage {number}.</p>" for number in range(40))
+    source = leaf_page(
+        "Isolated sample",
+        f"""
+<h1>Review page</h1><button id="outer-control">Choose a conversation</button>
+<div style="height:800px"></div>
+<lf-sample id="isolated-practice" label="Isolated practice" window>
+  <template id="isolated-source" data-sample>
+    <h1>Practice page</h1><button id="child-control">Practice action</button>
+    {filler}
+    <div id="inner-scroll" tabindex="0" style="height:160px;overflow:auto">
+      <div style="height:600px"></div><button id="deep-control">Nested action</button>
+    </div>
+    <svg><a id="svg-control" href="#child-control" tabindex="0"><text y="20">SVG action</text></a></svg>
+    <dialog id="practice-modal"><input></dialog>
+    <dialog id="practice-inner-modal"><input></dialog>
+    <div id="practice-popover" popover><input></div>
+    <iframe title="Authored embedded page" srcdoc="<p>Embedded content is allowed</p>"></iframe>
+    <script type="module">
+      import {{ closeNativeLayer, focusDestination, scrollIntoView, showNativeLayer }} from '/runtime/widget-api.js';
+      window.leafNavigation = {{ closeNativeLayer, focusDestination, scrollIntoView, showNativeLayer }};
+      for (const input of document.querySelectorAll('dialog input, [popover] input'))
+        input.autofocus = true;
+      window.leafFocusEvents = [];
+      document.addEventListener('focusin', event => leafFocusEvents.push(event.target.id), true);
+      window.addEventListener('message', event => {{
+        if (event.data === 'close-child-modal') {{
+          closeNativeLayer(document.querySelector('#practice-inner-modal'));
+          closeNativeLayer(document.querySelector('#practice-modal'));
+          parent.postMessage({{type: 'closed-child-modal', focused: document.hasFocus()}}, '*');
+          return;
+        }}
+        if (event.data !== 'attempt-child-focus') return;
+        leafFocusEvents.length = 0;
+        document.dispatchEvent(new PointerEvent('pointerdown', {{bubbles: true}}));
+        scrollIntoView(document.querySelector('#deep-control'));
+        focusDestination(document.querySelector('#deep-control'), 'move');
+        focusDestination(document.querySelector('#svg-control'), 'move');
+        const dialog = document.querySelector('#practice-modal');
+        for (const modal of [true, false]) {{
+          showNativeLayer(dialog, {{modal}});
+          closeNativeLayer(dialog);
+        }}
+        const popover = document.querySelector('#practice-popover');
+        showNativeLayer(popover);
+        closeNativeLayer(popover);
+        parent.postMessage({{
+          type: 'attempted-child-focus', focused: document.hasFocus(),
+          activated: navigator.userActivation.hasBeenActive, focusEvents: leafFocusEvents,
+        }}, '*');
+      }});
+    </script>
+  </template>
+</lf-sample>
+""",
+    )
+    page = open_page(browser, serve(source))
+    sample = page.locator("#isolated-practice")
+    sample.evaluate("async sample => await sample.ready")
+    child = sample.locator("iframe").element_handle().content_frame()
+    assert child.evaluate(
+        """() => {
+          try { parent.document; return false; }
+          catch (error) { return error.name === 'SecurityError'; }
+        }"""
+    )
+    assert sample.locator("iframe").evaluate("frame => frame.contentDocument === null")
+    # External data uses native CORS with the child's opaque origin, never the
+    # containing page's authenticated relay. The route stands in for a remote API.
+    remote = "https://cors.example.invalid/sample.json"
+    external_requests = []
+
+    def cors_response(route):
+        external_requests.append(route.request.headers)
+        route.fulfill(
+            headers={"Access-Control-Allow-Origin": "*"},
+            json={"reading": "external data"},
+        )
+
+    page.route(remote, cors_response)
+    assert child.evaluate("async url => (await fetch(url)).json()", remote) == {
+        "reading": "external data"
+    }
+    assert len(external_requests) == 1
+    assert external_requests[0]["origin"] == "null"
+    assert "cookie" not in external_requests[0]
+    page.unroute(remote)
+    # Scripts and nested embeds are still admitted; native methods are untouched.
+    assert child.evaluate("""() =>
+      [HTMLElement.prototype.focus, Element.prototype.scrollIntoView]
+        .every(method => Function.prototype.toString.call(method).includes('[native code]'))
+    """)
+    expect(child.locator('iframe[title="Authored embedded page"]')).to_have_count(1)
+    outer = page.locator("#outer-control")
+    outer.click()
+    scroll_settled(page)
+    before = page.evaluate("scrollY")
+    page.evaluate("""() => {
+      window.outerTransitions = [];
+      for (const type of ['focusin', 'scroll'])
+        document.addEventListener(type, event => outerTransitions.push(type), true);
+    }""")
+    child.evaluate("""() => {
+      const {closeNativeLayer, focusDestination, scrollIntoView, showNativeLayer} = window.leafNavigation;
+      leafFocusEvents.length = 0;
+      focusDestination(document.querySelector('#child-control'), 'move');
+      scrollIntoView(document.querySelector('#deep-control'));
+      focusDestination(document.querySelector('#deep-control'), 'move');
+      focusDestination(document.querySelector('#svg-control'), 'move');
+      const dialog = document.querySelector('#practice-modal');
+      showNativeLayer(dialog);
+      closeNativeLayer(dialog);
+      const popover = document.querySelector('#practice-popover');
+      showNativeLayer(popover);
+      closeNativeLayer(popover);
+    }""")
+    page.evaluate(
+        "async () => { await new Promise(requestAnimationFrame); await new Promise(requestAnimationFrame); }"
+    )
+    expect(outer).to_be_focused()
+    assert page.evaluate("scrollY") == before
+    assert page.evaluate("outerTransitions") == []
+    assert child.evaluate("leafFocusEvents") == []
+    assert child.evaluate("scrollY") > 0
+    assert child.locator("#inner-scroll").evaluate("node => node.scrollTop") > 0
+
+    # A deliberate pointer entry gets real child focus and ordinary local keys.
+    sample.scroll_into_view_if_needed()
+    child.locator("#child-control").click()
+    expect(child.locator("#child-control")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(child.locator("#child-control")).not_to_be_focused()
+    page.keyboard.press("Escape")
+    expect(sample).to_be_focused()
+
+    # Previous user entry cannot let later script calls take ownership back.
+    outer.click()
+    page.evaluate(
+        "async () => { await new Promise(requestAnimationFrame); await new Promise(requestAnimationFrame); }"
+    )
+    before = page.evaluate("scrollY")
+    page.evaluate("outerTransitions.length = 0")
+    assert page.evaluate("""() => new Promise(resolve => {
+      window.addEventListener('message', function report(event) {
+        if (event.data?.type !== 'attempted-child-focus') return;
+        window.removeEventListener('message', report);
+        resolve({focused: event.data.focused, activated: event.data.activated, focusEvents: event.data.focusEvents});
+      });
+      document.querySelector('#isolated-practice iframe').contentWindow
+        .postMessage('attempt-child-focus', '*');
+    })""") == {"focused": False, "activated": True, "focusEvents": []}
+    page.evaluate(
+        "async () => { await new Promise(requestAnimationFrame); await new Promise(requestAnimationFrame); }"
+    )
+    expect(outer).to_be_focused()
+    assert page.evaluate("scrollY") == before
+    assert page.evaluate("outerTransitions") == []
+
+    # Native close remembers a previous focus target even after the parent has
+    # reclaimed input. A return into another modal also escapes ancestor inertness.
+    sample.scroll_into_view_if_needed()
+    child.locator("#child-control").click()
+    child.evaluate("""() => {
+      const {focusDestination, showNativeLayer} = leafNavigation;
+      for (const id of ['practice-modal', 'practice-inner-modal']) {
+        const dialog = document.getElementById(id);
+        showNativeLayer(dialog);
+        focusDestination(dialog.querySelector('input'), 'move');
+      }
+    }""")
+    expect(child.locator("#practice-inner-modal input")).to_be_focused()
+    outer.click()
+    scroll_settled(page)
+    before = page.evaluate("scrollY")
+    page.evaluate("outerTransitions.length = 0")
+    child.evaluate("leafFocusEvents.length = 0")
+    assert (
+        page.evaluate("""() => new Promise(resolve => {
+      window.addEventListener('message', function report(event) {
+        if (event.data?.type !== 'closed-child-modal') return;
+        window.removeEventListener('message', report);
+        resolve(event.data.focused);
+      });
+      document.querySelector('#isolated-practice iframe').contentWindow
+        .postMessage('close-child-modal', '*');
+    })""")
+        is False
+    )
+    expect(outer).to_be_focused()
+    assert page.evaluate("scrollY") == before
+    assert page.evaluate("outerTransitions") == []
+    assert child.evaluate("leafFocusEvents") == []
+    expect(
+        child.locator("#practice-modal[open], #practice-inner-modal[open]")
+    ).to_have_count(0)
+
+    # A child-owned close preserves its ordinary opener return without native
+    # scrolling, and a layer opened from nowhere releases its hidden editor.
+    sample.scroll_into_view_if_needed()
+    child.locator("#child-control").click()
+    scroll_settled(page)
+    before = page.evaluate("scrollY")
+    child.evaluate("""() => {
+      const {closeNativeLayer, focusDestination, showNativeLayer} = leafNavigation;
+      const popover = document.querySelector('#practice-popover');
+      showNativeLayer(popover);
+      focusDestination(popover.querySelector('input'), 'move');
+      closeNativeLayer(popover);
+    }""")
+    expect(child.locator("#child-control")).to_be_focused()
+    assert page.evaluate("scrollY") == before
+    child.evaluate("""() => {
+      const {closeNativeLayer, focusDestination, showNativeLayer} = leafNavigation;
+      focusDestination(document.body, 'move');
+      document.body.blur();
+      const popover = document.querySelector('#practice-popover');
+      showNativeLayer(popover);
+      focusDestination(popover.querySelector('input'), 'move');
+      closeNativeLayer(popover);
+    }""")
+    assert child.evaluate("document.activeElement === document.body")
+    assert page.evaluate("scrollY") == before
+
+
 def test_live_samples_retire_before_navigation_and_coalesce_reset(browser, serve):
     """A held replacement navigation cannot keep a released child alive."""
     page = open_page(browser, serve(LIVE_SAMPLES_PAGE))
@@ -2381,7 +2652,9 @@ def test_live_samples_retire_before_navigation_and_coalesce_reset(browser, serve
         window.practiceHost = mountSample(practiceFrame, {template: 'first-source'});
         await practiceHost.ready;
     }""")
-    previous = page.evaluate("practiceFrame.src")
+    previous = page.evaluate(
+        "new URL(practiceFrame.src).origin + new URL(practiceFrame.src).pathname"
+    )
     held = []
     released = []
     page.route(re.compile(r"/api/samples/[^/]+/$"), lambda route: held.append(route))
@@ -2418,13 +2691,7 @@ def test_live_samples_retire_before_navigation_and_coalesce_reset(browser, serve
     page.unroute(re.compile(r"/api/samples/[^/]+/$"))
 
     # A failed presentation is retired too; Reset can then start a healthy child.
-    page.route(
-        re.compile(r"/api/samples/[^/]+/$"),
-        lambda route: route.fulfill(
-            content_type="text/html",
-            body='<html data-lf-startup-error="Practice could not start"><body></body></html>',
-        ),
-    )
+    page.route(re.compile(r"/api/samples/[^/]+/$"), fail_sample_startup)
     assert (
         page.evaluate("""async () => {
         const {mountSample} = await window.__lfRuntimeImport('/runtime/sample.js');
@@ -2436,20 +2703,23 @@ def test_live_samples_retire_before_navigation_and_coalesce_reset(browser, serve
     assert page.evaluate("!practiceFrame.hasAttribute('src')")
     page.unroute(re.compile(r"/api/samples/[^/]+/$"))
     page.evaluate("practiceHost.reset().then(() => {})")
-    assert page.evaluate(
-        "practiceFrame.contentDocument.body.hasAttribute('data-lf-presented')"
-    )
+    replacement_frame = page.locator("iframe").last.element_handle().content_frame()
+    expect(replacement_frame.locator("body[data-lf-presented]")).to_be_attached()
     page.evaluate("practiceHost.destroy()")
 
 
 def test_live_samples_release_pending_allocations_and_can_reconnect(browser, serve):
-    """Destroy awaits allocation; a detached widget can create a fresh child later."""
+    """Destroy releases every startup phase; a detached widget can reconnect."""
     page = open_page(browser, serve(LIVE_SAMPLES_PAGE))
     sample = page.locator("#first-practice")
     reset = sample.get_by_role("button", name="Reset", exact=True)
     expect(reset).to_be_enabled()
     sample.get_by_role("button", name="Full view", exact=True).click()
-    previous = sample.locator("iframe").get_attribute("src")
+    previous = (
+        urlsplit(sample.locator("iframe").get_attribute("src"))
+        ._replace(fragment="")
+        .geturl()
+    )
     page.evaluate("""() => {
         window.detachedPractice = document.querySelector('#first-practice');
         detachedPractice.remove();
@@ -2497,6 +2767,42 @@ def test_live_samples_release_pending_allocations_and_can_reconnect(browser, ser
     held[0].abort()
     page.evaluate("pendingHost.destroy()")
 
+    # A destroyed queue entry cannot wait for unrelated children to load. It is
+    # removed without consuming the next slot a surviving queued child needs.
+    held.clear()
+    page.evaluate("""async () => {
+        const {mountSample} = await window.__lfRuntimeImport('/runtime/sample.js');
+        window.pendingResults = [];
+        window.pendingHosts = Array.from({length: 5}, (_, index) => {
+            const frame = document.createElement('iframe');
+            document.body.append(frame);
+            const host = mountSample(frame, {template: 'first-source'});
+            host.ready.then(
+                () => { pendingResults[index] = 'ready'; },
+                error => { pendingResults[index] = error.name; });
+            return host;
+        });
+    }""")
+    holding(page, held, 3, "three occupied sample admission slots")
+    page.evaluate("""() => {
+        window.queuedDestroyDone = false;
+        pendingHosts[3].destroy().then(() => { queuedDestroyDone = true; });
+    }""")
+    page.wait_for_function("queuedDestroyDone && pendingResults[3] === 'AbortError'")
+    assert len(held) == 3
+    page.evaluate("() => { void pendingHosts[0].destroy(); }")
+    holding(page, held, 4, "the surviving queued sample's admission")
+    page.evaluate("""() => {
+        window.allPendingDestroyed = false;
+        Promise.all(pendingHosts.map(host => host.destroy()))
+            .then(() => { allPendingDestroyed = true; });
+    }""")
+    page.wait_for_function("allPendingDestroyed")
+    assert page.evaluate("pendingResults") == ["AbortError"] * 5
+    for route in held:
+        assert page.request.get(route.request.url + "api/state").status == 404
+        route.abort()
+
 
 def test_slow_sample_state_does_not_hold_up_other_child_loads(browser, serve):
     """A child waiting for state releases its load slot for the next sample."""
@@ -2529,7 +2835,8 @@ def test_live_samples_preserve_optimistic_refusal_and_child_escape(browser, serv
     child = sample.locator("iframe").element_handle().content_frame()
     child.lf_traffic = Traffic(child)
     held = []
-    page.route(child.url + "api/event", lambda route: held.append(route))
+    event_url = child.evaluate("new URL('api/event', document.baseURI).href")
+    page.route(event_url, lambda route: held.append(route))
     choice = child.locator("#child-a .lf-pick")
     choice.click()
     holding(page, held, 1, "the child's held choice")
@@ -2544,8 +2851,13 @@ def test_live_samples_preserve_optimistic_refusal_and_child_escape(browser, serv
     )
     round_trip(child)
     expect(choice).to_have_attribute("aria-checked", "false")
-    assert page.request.get(child.url + "api/state").json()["events"] == []
-    page.unroute(child.url + "api/event")
+    assert (
+        page.request.get(
+            child.evaluate("new URL('api/state', document.baseURI).href")
+        ).json()["events"]
+        == []
+    )
+    page.unroute(event_url)
 
     child.locator(".lf-threads-toggle").click()
     expect(child.locator(".lf-threads-toggle")).to_have_attribute(

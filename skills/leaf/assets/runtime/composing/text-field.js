@@ -95,6 +95,7 @@ import {
   markdownLanguage,
   insertNewlineContinueMarkup,
 } from "../../vendor/codemirror.esm.js";
+import { LeafEditorView } from "../editor-view.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { loadMarkdown, markdownReady, placedMarkdownTokens } from "../markdown.js";
 import { sizeObserver } from "../rendering.js";
@@ -481,7 +482,7 @@ class LeafText extends HTMLElement {
     if (!this.hasAttribute("tabindex")) this.tabIndex = 0;
     this.#internals ??= this.attachInternals();
     this.#root.adoptedStyleSheets = [sheet];
-    this.#view = new EditorView({
+    this.#view = new LeafEditorView({
       root: this.#root,
       parent: this.#frame,
       state: this.#model,
@@ -542,22 +543,12 @@ class LeafText extends HTMLElement {
       .filter(Boolean);
   }
 
-  // A focus through the element puts the caret back where it stood, as a textarea's
-  // does. The platform, delegating, lands it at the start of the words; CodeMirror's own
-  // focus leaves the page's selection wherever the user last pressed when its record of
-  // the DOM selection predates that press, and then reads the platform's caret back as
-  // the user's. So the element writes the page's selection from the field's own.
+  // The editor adapter places its recorded caret without native scrolling. The
+  // field reveals itself separately when its caller requests ordinary focus.
   focus(options) {
-    if (!this.#view) return super.focus(options);
-    const view = this.#view;
-    view.focus();
-    if (this.#root.activeElement !== view.contentDOM) return;
-    const { anchor, head } = view.state.selection.main;
-    const from = view.domAtPos(anchor);
-    const to = view.domAtPos(head);
-    // A shadow root answers for its own selection only in Chromium, as CodeMirror reads it.
-    const selection = this.#root.getSelection?.() ?? document.getSelection();
-    selection.setBaseAndExtent(from.node, from.offset, to.node, to.offset);
+    if (!this.#view) return;
+    this.#view.focus();
+    if (this.#root.activeElement !== this.#view.contentDOM) return;
     if (!options?.preventScroll) scrollIntoView(this, { block: "nearest" });
   }
 

@@ -51,7 +51,6 @@
  * inactive panels. Unupgraded,
  * panels stack as labeled sections; authored content is never replaced, so
  * there is no failSoft. */
-import { scrollIntoView } from "/runtime/widget-api.js";
 import {
   HIDDEN,
   PRESS,
@@ -92,6 +91,7 @@ import {
   watchQuestions,
   focusDestination,
   rove,
+  scrollIntoView,
 } from "/runtime/widget-api.js";
 
 // The page's navigation strip, where one stands: the first tab set in main, drawn as

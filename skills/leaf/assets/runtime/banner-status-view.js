@@ -17,6 +17,7 @@
  * them while it lasts; elsewhere the bottom status shows it (chrome.css,
  * `--lf-notice-seat`).
  */
+import { closeNativeLayer } from "./keyboard/layer-stack.js";
 import { html, nothing, render } from "../vendor/browser-runtime.js";
 import { el, reserve } from "./widget-elements.js";
 import { keeps, keepsText } from "./keeps.js";
@@ -105,7 +106,7 @@ class BannerStatusView extends HTMLElement {
     )
       throw new Error("Banner status presentation models must be immutable");
     if (model.publication && this.#detail.matches(":popover-open"))
-      this.#detail.hidePopover();
+      closeNativeLayer(this.#detail);
 
     this.#queues.toggleAttribute("hidden", !model.queues);
     keeps(this.#dot, "class", "lf-dot" + (model.tone ? " " + model.tone : ""));

@@ -24,6 +24,8 @@
    mount attaches the dialog and binds controls; importing the module does not
    install application callbacks or activate the map. */
 
+import { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
+import { scrollIntoView } from "./landing-scroll.js";
 import { nextRender } from "./rendering.js";
 import { blockAt, says } from "./passages.js";
 import {
@@ -184,7 +186,7 @@ export function createPageMapDialog({
     }
     const returnTo = openerOf(dialog);
     closeLayer(
-      () => dialog.close(),
+      () => closeNativeLayer(dialog),
       () => handBack(returnTo),
     );
     contributionSource(offered).registration.activate(record.key, {
@@ -372,7 +374,7 @@ export function createPageMapDialog({
       dialogSearch.value = "";
     }
     renderSheet();
-    if (!dialog.open) dialog.showModal();
+    if (!dialog.open) showNativeLayer(dialog);
     const index = entry
       ? entries.findIndex((candidate) => candidate.key === entry.key)
       : -1;
@@ -414,7 +416,7 @@ export function createPageMapDialog({
   // its disclosure can use the registration's surface reading to return here.
   function leavePageMap() {
     if (!dialog.open) return;
-    dialog.close();
+    closeLayer(() => closeNativeLayer(dialog));
   }
 
   function cancelPageMap() {
@@ -470,7 +472,11 @@ export function createPageMapDialog({
           description: "Go from the search to the first entry",
           title: "to the entries",
           when: hasRows,
-          run: () => focusDestination(mapRows()[0], "move", { scroll: true }),
+          run: () => {
+            const row = mapRows()[0];
+            focusDestination(row, "move");
+            scrollIntoView(row, { block: "nearest" });
+          },
         },
         {
           id: "map.search.open",

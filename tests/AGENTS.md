@@ -262,6 +262,13 @@ trusted handler and invokes that callback after `await`; the capture states the
 cause instead of guessing among concurrent operations. Leaf's draft sends put words
 away synchronously before awaiting delivery.
 
+Private document-channel endpoints publish `lfDocumentPort` on the bootstrap
+element before their first message. The harness enrolls those endpoints in input
+provenance observation, retaining each message's exact enqueue source across an
+opaque frame. The setter stays active when a reload or Reset replaces the endpoint.
+Unclassified ports, including authored Worker and SharedWorker peers, retain native
+message values and never acquire an input from nearby document traffic.
+
 Leaf's own widgets are held to the widget quality report `package check --render`
 gives a package's author (`leaf/render_gate/widget_quality.py`):
 `test_widget_quality.py` runs it over the base layer and every bundled package.

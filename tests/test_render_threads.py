@@ -9569,17 +9569,25 @@ def test_walking_the_list_lands_each_thread_on_its_latest_message(browser, serve
     )
 
 
-# Who wrote the words just under the card's top row, and whose name that row shows.
+# Whose name the card's top row shows, and who wrote the words just under it. The row
+# is the first name painted in the card: where the top falls in the gap before a
+# message, a pushed-off head leaves only its blank foot above that message's name.
 CARD_TOP_AUTHORS = """transcript => {
   const box = transcript.getBoundingClientRect();
   const x = box.left + 30;
-  const row = transcript.querySelector('.lf-msg-head').getBoundingClientRect();
-  const at = y => document.elementFromPoint(x, y)?.closest('.lf-msg');
-  const named = document.elementFromPoint(x, box.top + row.height / 2)
-    ?.closest('.lf-msg-head')?.closest('.lf-msg');
-  const under = at(box.top + row.height + 6);
   const messages = [...transcript.querySelectorAll('.lf-msg')];
+  const shown = message => {
+    const name = message.querySelector(':scope > .lf-msg-head b').getBoundingClientRect();
+    const y = name.top + name.height / 2;
+    return y > box.top && y < box.bottom
+      && document.elementFromPoint(name.left + 1, y)?.closest('.lf-msg') === message;
+  };
+  const named = messages.find(shown);
+  const head = named?.querySelector(':scope > .lf-msg-head').getBoundingClientRect();
+  const under = document.elementFromPoint(x, (head?.bottom ?? box.top) + 6)
+    ?.closest('.lf-msg');
   return {named: messages.indexOf(named), under: messages.indexOf(under),
+          row: head ? head.top - box.top < head.height : false,
           scrolled: transcript.scrollTop > 0};
 }"""
 
@@ -9619,9 +9627,8 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
     shown = transcript.bounding_box()
     assert latest["y"] + latest["height"] <= shown["y"] + shown["height"] + 1
     landed = transcript.evaluate(CARD_TOP_AUTHORS)
-    # Just under the row may fall between two messages; the row names a later one.
-    assert landed["scrolled"] and landed["named"] > 0, landed
-    assert landed["under"] in (landed["named"], -1), landed
+    assert landed["scrolled"] and landed["named"] > 0 and landed["row"], landed
+    assert landed["under"] == landed["named"], landed
     # Reading back up, the row names each message whose words stand under it.
     for index in (3, 2, 1, 0):
         transcript.evaluate(
@@ -9638,7 +9645,7 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
         )
         rendered(page)
         reading = transcript.evaluate(CARD_TOP_AUTHORS)
-        assert reading["named"] == reading["under"] == index, reading
+        assert reading["named"] == reading["under"] == index and reading["row"], reading
 
 
 SEAT_FILLER = "".join(

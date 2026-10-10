@@ -27,7 +27,7 @@ import {
   layoutPx,
   once,
   offer,
-  openThread,
+  threadActions,
   registerReadingRegion,
   setChildren,
 } from "/runtime/widget-api.js";
@@ -157,9 +157,9 @@ customElements.define(
         const outlet = make("div", "lf-ar-outlet");
         const button = make("button", "lf-ar-open lf-btn", "Open thread");
         button.type = "button";
-        row = { node, outlet, button, id: thread.id };
+        row = { node, outlet, button };
         button.addEventListener("click", async () => {
-          await openThread(row.id, { focus: "thread", travel: false });
+          await threadActions.open(thread.key, { focus: "thread", travel: false });
         });
         node.append(button, outlet);
         group.rows.append(node);
@@ -170,7 +170,6 @@ customElements.define(
         group.rows.append(row.node);
         restore?.();
       }
-      row.id = thread.id;
       keepsText(
         row.button,
         `Open thread · ${anchorLabel(thread.anchor, thread.root.about) || "The page"}`,
@@ -289,9 +288,9 @@ customElements.define(
       );
       if (view.arriving) this.#actionOrder.release();
       let shown = this.#actionOrder.hold(wanted);
-      // A strip owns its whole allocated width. A trailing action that fits there
-      // changes no surviving slot or neighbouring row, so it is already drawable.
-      // Changed ordering, new rows and overflow still wait at the notice.
+      // Trailing actions may fill the existing rows without moving a surviving slot
+      // or a neighbouring source. Another wrapped row changes the allocation, so it
+      // waits at the same notice as changed ordering and a new source group.
       if (shown !== wanted) {
         const shape = JSON.parse(shown);
         for (const rowShape of shape) {
@@ -303,6 +302,7 @@ customElements.define(
             continue;
           const { row } = reading;
           const previous = [...row.body.children];
+          const height = row.body.getBoundingClientRect().height;
           const slots = next.map((id) => {
             const slot = row.slots.get(id);
             setChildren(slot.node, [reading.allocations.get(id)]);
@@ -310,7 +310,12 @@ customElements.define(
           });
           setChildren(row.body, slots);
           const width = row.body.clientWidth;
-          if (width > 0 && row.body.scrollWidth <= width) rowShape[1] = next;
+          if (
+            width > 0 &&
+            row.body.scrollWidth <= width &&
+            row.body.getBoundingClientRect().height <= height
+          )
+            rowShape[1] = next;
           setChildren(row.body, previous);
         }
         const fitting = JSON.stringify(shape);

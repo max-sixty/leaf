@@ -204,7 +204,7 @@ import {
 import { announce, liveEl, notice } from "./runtime/notifications.js";
 import { mediaViewer } from "./runtime/media.js";
 import { offer } from "./runtime/widget-elements.js";
-import { retainUserIntent } from "./runtime/user-intent.js";
+import { retainUserIntent, restrictUserIntent } from "./runtime/user-intent.js";
 
 // Automatic recovery belongs to this arrival. A press made while its presentation
 // waits owns the page; recovery must not capture a fresh focus intent after that wait.
@@ -416,7 +416,7 @@ const version = createVersionController({
   openThread: (id, options) =>
     app.threadDestinations.openPageThread(id, { ...options, travel: false }),
   refreshThread: () => app.refreshThread(),
-  midComposition: () => app.midComposition(),
+  midComposition: (...args) => app.midComposition(...args),
   hasPending: () => app.hasPending(),
   readAndApply: (...args) => app.readAndApply(...args),
   retireProjectionCoverage: () => app.retireProjectionCoverage(),
@@ -779,11 +779,13 @@ if (window.frameElement?.hasAttribute("data-lf-contained")) {
   ) => {
     if (surface === "panel")
       return threadPanelController.showView({ thread: id, status, waiting, signal });
-    const intent = retainUserIntent({ available: () => !signal.aborted });
+    const retained = retainUserIntent({ available: () => !signal.aborted });
+    // A host view never takes focus, but newer child input still supersedes it.
+    const intent = restrictUserIntent(retained, retained);
     intent.handoff(() => threadPanelController.setPanel(false));
     return Boolean(
       await app.threadDestinations.openPageThread(id, {
-        focus: "thread",
+        focus: false,
         travel: false,
         intent,
       }),

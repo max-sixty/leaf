@@ -52,6 +52,37 @@ checks still apply. Report verified findings, coverage and unresolved judgments.
 A comparison of review methods records matched inputs and cost separately from
 ordinary review; finding counts alone do not establish a tool's contribution.
 
+## Review a design system
+
+For changes to the theme or reusable controls, judge the affected design decisions
+across foundations, component states, and a real user task. Extend the existing
+gallery or package scenarios to make those decisions visible; size the review to
+what changed.
+
+Read any design brief and the existing theme before editing. Map the affected color
+roles, type scale, spacing, radius, elevation, and control sizes to their canonical
+tokens and component styles. Keep related controls aligned when dimensions change.
+Distinguish the brief's choices from anything inferred, such as a dark scheme.
+
+Show text on the surfaces it actually uses, labeled with the tokens, resolved
+colors, and measured contrast. Measure the rendered foreground/background pairs
+in the affected schemes and states, including translucent layers. Judge them
+against the current accessibility guidance from "External review"; a specified
+color can still fail it.
+
+For primitives, show representative variants and default, hover, focus, pressed,
+and disabled states side by side where they apply, with labels outside the control.
+Use the component's real renderer and styles, and confirm the states with ordinary
+input in the live component. For composed controls, show the typical use and the
+edge cases that change its behavior or layout, such as long content, empty, error,
+or loading. Choose cases that expose different decisions rather than every
+combination.
+
+Use a realistic composed example built from the same tokens and components, with
+task-specific content. Exercise its user journey to judge whether the hierarchy,
+density, and control relationships work together. The specimens make individual
+choices inspectable; the composed example shows how they serve the task.
+
 ## Challenge
 
 Before validating a proposed result, write competing failure hypotheses for the
@@ -89,7 +120,7 @@ observed result, with the evidence that decides the claim. Read focus, surface
 and owner identities, and retained values where those matter. Measure geometry
 for spatial claims; inspect paired screenshots for hierarchy, spacing, and paint.
 For motion, capture the path as well as endpoints: `tests/AGENTS.md`,
-"Distinguish a frame, a sequence, and an instant", owns the recording and
+"Frames, sequences, and instants", owns the recording and
 `HOLD_MOTION` mechanics. The hold patches `Element.prototype.animate`; CSS
 animations bypass it, so sample their geometry frame by frame. Settled boxes
 cannot establish a smooth transition.

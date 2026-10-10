@@ -13,7 +13,7 @@
   <body>
     <main class="layout-sidebar">
       <header>
-        <p class="eyebrow">command hub · the plan is the interface</p>
+        <p class="eyebrow">command hub · importer rewrite</p>
         <h1>Atlas importer rewrite</h1>
         <p class="lede" id="hub-lede">
           Get the new importer through one shadow week with no unexplained variance. The
@@ -37,13 +37,13 @@
           <lf-atlas-worker id="atlas-lead" state="working"
             ><details>
               <summary>
-                <strong>atlas-lead</strong><output class="atlas-worker-state"></output>
+                <strong>atlas-lead</strong
+                ><span class="atlas-worker-state" role="status"></span>
               </summary>
               <div class="atlas-worker-body">
                 <p class="atlas-worker-report"></p>
-                Coordinates the whole rewrite: routes decisions, watches progress, and
-                changes focus wherever the tree needs it. Its placement is the
-                project-wide remit; it does not pretend to have one leaf assignment.
+                Coordinates the whole rewrite by routing decisions, monitoring progress,
+                and choosing which tasks to focus on.
               </div>
             </details></lf-atlas-worker
           >
@@ -66,12 +66,12 @@
           <lf-atlas-task id="goal-parser" status="active" when="week 3" talk>
             <strong>Replace the XML parser</strong>
             Two workers own separate worktrees; open each worker to inspect its
-            evidence. The stalled dedupe leaf filed itself around this goal rather than
-            turning a worker into a pet.
+            evidence. The stalled deduplication task appears under this goal.
             <lf-atlas-worker id="w-1" state="working" on="parser-declarations"
               ><details>
                 <summary>
-                  <strong>w-1</strong><output class="atlas-worker-state"></output>
+                  <strong>w-1</strong
+                  ><span class="atlas-worker-state" role="status"></span>
                 </summary>
                 <div class="atlas-worker-body">
                   <p class="atlas-worker-report"></p>
@@ -90,7 +90,8 @@
                 <lf-atlas-worker id="w-2" state="working" on="parser-cdata"
                   ><details>
                     <summary>
-                      <strong>w-2</strong><output class="atlas-worker-state"></output>
+                      <strong>w-2</strong
+                      ><span class="atlas-worker-state" role="status"></span>
                     </summary>
                     <div class="atlas-worker-body">
                       <p class="atlas-worker-report"></p>
@@ -114,7 +115,8 @@
               <lf-atlas-worker id="w-5" state="reaped" on="parser-dedupe"
                 ><details>
                   <summary>
-                    <strong>w-5</strong><output class="atlas-worker-state"></output>
+                    <strong>w-5</strong
+                    ><span class="atlas-worker-state" role="status"></span>
                   </summary>
                   <div class="atlas-worker-body">
                     <p class="atlas-worker-report"></p>
@@ -174,8 +176,8 @@
           </lf-atlas-task>
 
           <lf-atlas-task id="goal-schema" status="active" when="week 3" talk>
-            <strong>Reconcile schema and ledger</strong> Two goals and the nightly wait
-            behind the schema choice.
+            <strong>Reconcile schema and ledger</strong> The schema decision blocks the
+            backfill, ledger fixture, and nightly variance report.
             <lf-atlas-task
               id="schema-choice"
               status="review"
@@ -186,7 +188,8 @@
               <lf-atlas-worker id="w-8" state="waiting" on="schema-choice"
                 ><details>
                   <summary>
-                    <strong>w-8</strong><output class="atlas-worker-state"></output>
+                    <strong>w-8</strong
+                    ><span class="atlas-worker-state" role="status"></span>
                   </summary>
                   <div class="atlas-worker-body">
                     <p class="atlas-worker-report"></p>
@@ -223,9 +226,10 @@
               needs="schema-choice"
               stopped-at="2026-08-21T09:04:00-07:00"
             >
-              <strong>Bring one replica-only ledger fixture</strong> Run the exact
-              credentialed command, inspect the full cargo below, trim it, then save the
-              draft. The edit receipt tells the orchestrator that w-8 can resume.
+              <strong>Bring one replica-only ledger fixture</strong> Run the command
+              below, paste its CSV output into the draft, and remove
+              <code>customer_name</code> and <code>billing_email</code> before saving.
+              Saving the draft tells the orchestrator that w-8 can resume.
               <lf-ask id="decision-ledger-fixture-region">
                 <h3>Which replica-only ledger fixture should the worker use?</h3>
                 <pre><code class="language-bash">psql "$ATLAS_REPLICA" -c "\copy (select * from ledger_entry
@@ -241,15 +245,15 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
               status="planned"
               needs="schema-choice ledger-fixture"
             >
-              <strong>Nightly variance report</strong> Unreachable until both inputs
-              stand.
+              <strong>Nightly variance report</strong> Waiting for the schema decision
+              and ledger fixture.
             </lf-atlas-task>
           </lf-atlas-task>
 
           <lf-atlas-task id="goal-api" status="active" when="week 4" talk>
-            <strong>Publish the parser contract</strong> Review the branch, not its
-            author. A line comment routes to a fresh evidence worker and stays anchored
-            here.
+            <strong>Publish the parser contract</strong> Review the public API branch. A
+            line comment goes to a new evidence worker and stays attached to the source
+            line.
             <lf-atlas-task
               id="api-shape"
               status="review"
@@ -259,7 +263,8 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
               <lf-atlas-worker id="w-3" state="waiting" on="api-shape"
                 ><details>
                   <summary>
-                    <strong>w-3</strong><output class="atlas-worker-state"></output>
+                    <strong>w-3</strong
+                    ><span class="atlas-worker-state" role="status"></span>
                   </summary>
                   <div class="atlas-worker-body">
                     <p class="atlas-worker-report"></p>
@@ -358,10 +363,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
         </section>
         <section class="panel" id="hub-record">
           <h2>Record</h2>
-          <p>
-            Every consequential gesture, newest first. Each row leads back to what it
-            moved.
-          </p>
+          <p>Recent actions, newest first. Each row links to the affected item.</p>
           <lf-activity id="atlas-record"></lf-activity>
         </section>
       </aside>

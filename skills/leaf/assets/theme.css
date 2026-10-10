@@ -394,6 +394,8 @@
      someone reacted to reads as touched and a passage someone commented on reads as
      annotated, and the two never look alike side by side. */
   --react: light-dark(#dfd1ed40, #6152a036);
+  /* A control's hover wash can follow its visible face inside a larger hit target. */
+  --offer-hover-shadow: inset 0 0 0 100px color-mix(in srgb, var(--ink) 7%, transparent);
   /* The focus ring: a control or bounded decision receiving the user's next press
      wears one consistent band. A large composite surface would turn that band into a
      second box around the box; it instead uses a quiet ground.

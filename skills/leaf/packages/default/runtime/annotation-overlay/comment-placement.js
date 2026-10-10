@@ -1,6 +1,6 @@
 /* Where a comment's surfaces stand: the comment box the user types in
    (composing/surface.js) and the thread card the sent comment becomes
-   (margin-projection.js). They are one comment at two moments, so one rule places
+   (thread-preview.js). They are one comment at two moments, so one rule places
    both, and Send changes the surface without moving the place. Floating UI does the
    placing (floating.js): this module chooses the side and names the boxes, and
    Floating UI's offset, size and shift do the rest.
@@ -55,9 +55,9 @@
    Floating UI's shift keeps it inside, and its limiter lets it leave beside with
    `row` or `lastRow`, whichever the scroll carries away, or with `clear` under or
    over. Beside an element whose top has scrolled away, the card therefore waits at the
-   window's top, in the window's plane, until the element's foot passes it. A surface whose
-   `clear` has not stood in the boundary since its side was chosen, as after a resize
-   that left what it is about out of the window, stays in the window until it has.
+   window's top, in the window's plane, until the element's foot passes it. Arrival
+   and departure use this same attachment limit, including the first placement:
+   an offscreen target carries its surface into view as scrolling approaches it.
    Growing never scrolls the page. A surface that outgrows the room on its side slides
    inside the boundary, over its passage or element if it must, and once it fills the
    boundary scrolls its own content. Only a card opening under or over its target
@@ -341,8 +341,6 @@ export function commentPlacement() {
   let carriedInline = null;
   let initialHold = null;
   let quoted = false;
-  // Whether `clear` has stood in the boundary since the side was chosen.
-  let seen = false;
   // The edge held at the last landing and the reading it answered (`holding`), and the
   // reading the placement in flight answers, which its landing records.
   let held = null;
@@ -354,7 +352,6 @@ export function commentPlacement() {
     pending = null;
     carriedInline = null;
     initialHold = null;
-    seen = false;
     held = null;
     reading = null;
   };
@@ -372,7 +369,7 @@ export function commentPlacement() {
     },
     // Mechanical handoff between the editor's transparent frame and its sent card.
     capture() {
-      return { side, boundary: input?.slice(1, 5) ?? null, seen };
+      return { side, boundary: input?.slice(1, 5) ?? null };
     },
     adopt(frame) {
       forget();
@@ -446,7 +443,7 @@ export function commentPlacement() {
       if (adopted) {
         // A draft can have lost its visible attachment before Send. Its card still
         // starts at that frame, then follows the card's attachment from this choice.
-        ({ side, seen } = frame.placement);
+        ({ side } = frame.placement);
         if (side !== "left")
           carriedInline = frame.box.left - (column ?? clear?.left ?? boundary.left);
         const top = frame.box.top - line(clear, row);
@@ -494,8 +491,6 @@ export function commentPlacement() {
       // Floating UI reads a window attachment point for the unanchored posture,
       // sharing the same sizing, shift and coordinate conversion as an anchored box.
       clear ??= new DOMRect(boundary.left, boundary.top, minimumWidth, 0);
-      seen ||=
-        !unanchored && clear.bottom > boundary.top && clear.top < boundary.bottom;
       // Beside on the right, keep the margin row usable when the room past it
       // holds the card's minimum; otherwise the surface stands over it.
       const past =
@@ -653,13 +648,15 @@ export function commentPlacement() {
           limiter: {
             ...attachment,
             fn(state) {
-              if (!seen) {
+              if (unanchored) {
                 heldIn = true;
                 return { x: state.x, y: state.y };
               }
-              // Beside, it stays level with its lines, overlapping them by no less
-              // than an edge, and goes with the first or the last; under or over, with
-              // the box it keeps clear of.
+              // shift first keeps the card inside the visible boundary. Limit that
+              // correction to keep it attached: beside the target, its vertical
+              // interval must overlap the target's first-to-last line; above/below,
+              // Floating UI limits separation from the reference box. Only current
+              // geometry decides, so reversing a scroll retraces the same positions.
               const limited = across
                 ? attachment.fn(state)
                 : {

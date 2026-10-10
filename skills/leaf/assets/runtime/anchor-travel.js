@@ -44,7 +44,6 @@ import {
   clippedContents,
   clipsPast,
   landingBand,
-  localScrollBy,
   placeHolder,
   shownBox,
   shownRect,
@@ -53,8 +52,7 @@ import { scrollBehavior } from "./motion.js";
 import { onReadingInput, scrollersOf } from "./reading-regions.js";
 import { prepareEntry } from "./history.js";
 import { pageScroller } from "./scrolling.js";
-import { scrollIntoReadingBand } from "./landing-scroll.js";
-import { renderedParent } from "./shadow.js";
+import { scrollIntoView } from "./landing-scroll.js";
 import { PRESSABLE, reveal } from "./widget-elements.js";
 import { threadNames } from "./thread/model.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
@@ -65,13 +63,15 @@ import { PRESSES } from "./control-selectors.js";
 import { typesText } from "./focus.js";
 import { openingPassage, passageBlock } from "./reading-place.js";
 
+const scrollingBoxFor = (element) => scrollersOf(element).next().value ?? null;
+
 // The browser's rule for landing the element a fragment names: its start at its
 // scroller's landing edge, which a sticky header's stated height keeps clear. Travel
 // applies it where the browser's own landing does not reach the element: at an arrival
 // the page reshapes after the browser landed it (version.js, `aimArrival`), and at a
 // traversal, where the browser restores an offset instead (`returnToFragment`).
 export function scrollToFragment(element) {
-  element.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
+  scrollIntoView(element, { behavior: "auto", block: "start" });
 }
 
 export function createAnchorTravel({
@@ -244,7 +244,7 @@ export function createAnchorTravel({
           if (!current) return;
           if (!readableDestination(current.where))
             mayArrive.handoff(() => {
-              scrollRevealedPlace(current.where, current.where, "instant", "center");
+              scrollIntoView(current.where, { behavior: "instant", block: "center" });
             });
           if (current.open)
             mayArrive.handoff(() => {
@@ -411,7 +411,6 @@ export function createAnchorTravel({
   // Reading-region membership also covers fixed chrome, but its viewport position does
   // not move with that region, so a fixed boundary ends the scrollers that move it
   // (`scrollersOf`); a scroller inside that boundary still owns its ordinary descendants.
-  const scrollingBoxFor = (element) => scrollersOf(element).next().value ?? null;
 
   function placeScroll(
     { at, align = at, block = "center", behavior = scrollBehavior(), when },
@@ -419,7 +418,12 @@ export function createAnchorTravel({
   ) {
     if (when && !when()) return;
     if (block === "fragment") scrollToFragment(at);
-    else scrollRevealedPlace(at, align, replacedView ? "instant" : behavior, block);
+    else
+      scrollIntoView(at, {
+        alignment: align,
+        behavior: replacedView ? "instant" : behavior,
+        block,
+      });
   }
 
   // Synchronous: the move is the caller's gesture, so its intent is the one standing now.
@@ -460,56 +464,6 @@ export function createAnchorTravel({
       close(seen.bottom, destination.bottom) &&
       close(seen.left, destination.left)
     );
-  }
-
-  // Native nearest alignment: a destination spanning both edges stays; one larger
-  // than the viewport lands its nearer edge rather than hiding its opening words.
-  function nearestBy(start, end, low, high) {
-    if (start < low && end > high) return 0;
-    const oversized = end - start > high - low;
-    if (start < low) return oversized ? end - high : start - low;
-    if (end > high) return oversized ? start - low : end - high;
-    return 0;
-  }
-
-  // Prepare only scrollports inside the owning reading region. Snapping the owning
-  // region (or the document) into view first consumes the distance the glide should
-  // travel, so a far destination appears to teleport before a tiny alignment move.
-  // Elements and passages share this placement, including horizontal inspection.
-  function scrollRevealedPlace(where, alignment, behavior, block) {
-    if (block === "nearest" && where instanceof Element) {
-      where.scrollIntoView({ block, inline: "nearest", behavior });
-      return;
-    }
-    const holder = placeHolder(alignment);
-    if (!holder) return;
-    const targetScroller = scrollingBoxFor(holder);
-    if (!targetScroller) return;
-    // Horizontal inspection can belong to any ancestor, the owning region included.
-    // Only inner scrollports prepare Y; the region and its outers glide below.
-    let inside = true;
-    for (
-      let box = placeHolder(where);
-      box instanceof Element;
-      box = renderedParent(box)
-    ) {
-      if (box === targetScroller) inside = false;
-      const band = landingBand(box);
-      if (!band) continue;
-      const { left, right, top, bottom } = band;
-      const destination = where.getBoundingClientRect();
-      const byX = nearestBy(destination.left, destination.right, left, right);
-      const byY = inside
-        ? nearestBy(destination.top, destination.bottom, top, bottom)
-        : 0;
-      if (byX || byY)
-        box.scrollBy({
-          ...localScrollBy(box, { x: byX, y: byY }),
-          behavior: "instant",
-        });
-      if (box === pageScroller || getComputedStyle(box).position === "fixed") break;
-    }
-    scrollIntoReadingBand(alignment, holder, block, behavior);
   }
 
   function scrollToRange(where, behavior = scrollBehavior()) {

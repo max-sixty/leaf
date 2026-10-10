@@ -9,15 +9,13 @@
    no box of its own: it is where a thread lives once started, not where one starts, and
    the card hangs over it when it is open. In Design mode the box comments on the design.
 
-   The card starts page threads; their conversations live in Threads. A send leaves
-   focus on the open card and flashes Threads without opening the panel; its count
-   rises for the new thread, and an open panel reveals the thread in its list. `c`
-   enters the card's box again. A refused send returns to the editor only while the
-   user still stands on the card. The box keeps the room its words took until the user
-   writes in it again or puts the card away: a send leaves Send under the press, and words
-   a refusal hands back return to the room they left, so neither moves the card's controls
-   without the user's gesture. A revision arriving while the user writes in the card
-   opens it again through its Resume writing route (drafts.js).
+   The card starts page threads; their conversations live in Threads. Sending closes
+   the card, returns focus to its banner door and flashes Threads without opening the
+   panel. Its count rises for the new thread, and an open panel reveals the thread in
+   its list. `c` opens the card again. A refused send restores the draft and reopens
+   the editor only while the send still owns the user's intent at that door. A revision
+   arriving while the user writes in the card opens it again through its Resume writing
+   route (drafts.js).
 
    The card is an auto popover, so a press outside puts it away. Escape is its own row in
    the register, so the shortcut line says whether the words stay. Either way focus goes
@@ -30,7 +28,7 @@
 import { el } from "../widget-elements.js";
 import { iconElement } from "../icons.js";
 import { textField } from "../composing/text-field.js";
-import { focusDestination } from "../focus.js";
+import { closeLayer, focusDestination } from "../focus.js";
 import { retainUserIntent } from "../user-intent.js";
 import { loadDraft, mirrorDraft, saveDraft, sendMessage } from "../drafts.js";
 import { FLASH_MS, backgroundFlash } from "../motion.js";
@@ -74,7 +72,7 @@ export function createPageComment({
   const input = textField();
   input.name = "comment";
   const send = el("button", "lf-btn", "Send");
-  const composer = el("div", "lf-general");
+  const composer = el("div", "lf-general lf-comment-box");
   composer.append(input, send);
   card.append(composer);
 
@@ -127,18 +125,6 @@ export function createPageComment({
     focusDestination(input, "move");
   }
 
-  // The room a sent draft took: the field's until the user writes again, and its
-  // attachments' above the field until the card goes (chrome.css, `.lf-general`).
-  const release = (...names) => {
-    for (const name of names)
-      if (composer.style.getPropertyValue(name)) composer.style.removeProperty(name);
-  };
-  input.addEventListener("input", () => release("--lf-held-field", "--lf-held-grow"));
-  card.addEventListener("toggle", (event) => {
-    if (event.newState === "closed")
-      release("--lf-held-field", "--lf-held-grow", "--lf-held-gap");
-  });
-
   let sync = () => {};
   const stops = [];
   function mount(chromeRoot) {
@@ -158,31 +144,31 @@ export function createPageComment({
       sends: "send",
       sendBtn: send,
       save: (text) => saveDraft("general", text),
-      send: async (_text, raw, owns) => {
-        const top = composer.getBoundingClientRect().top;
-        const field = input.closest(".lf-compose-field")?.getBoundingClientRect();
-        if (field?.height) {
-          composer.style.setProperty("--lf-held-gap", `${field.top - top}px`);
-          composer.style.setProperty("--lf-held-field", `${field.height}px`);
-          composer.style.setProperty("--lf-held-grow", "0");
-        }
+      send: (_text, raw, owns) => {
         let flight = null;
-        const handle = await sendMessage("general", owns, (attempt) => {
+        const handle = sendMessage("general", owns, (attempt) => {
           const event = { attempt, text: raw };
           if (designModeActive()) event.about = "design";
           return (flight = createPageComment(event));
         });
         if (!handle) return;
-        focusDestination(card, "return");
-        const mayRestore = retainUserIntent({ source: card, available: cardIsOpen });
+        const door = bannerControlDoor(control);
+        closeLayer(
+          () => card.hidePopover(),
+          () => focusDestination(door, "return"),
+        );
+        const mayRestore = retainUserIntent({
+          source: door,
+          available: () => card.isConnected && !cardIsOpen(),
+        });
         // Open, Threads shows the thread where it lands, as it does an anchored comment's
-        // (composing/selection.js); the user stays on the card.
+        // (composing/selection.js); the user returns to the banner door.
         if (panelIsOpen()) void showThread(handle.id, { focus: false, flash: false });
         backgroundFlash(threadsToggle, FLASH_MS);
         // Delivery may refuse long after Send. Restore text entry only while the user
-        // still stands on the card; a later gesture owns its focus and disclosure.
+        // still stands at the door; a later gesture owns its focus and disclosure.
         void Promise.resolve(flight).then((accepted) => {
-          if (!accepted && document.activeElement === card && mayRestore())
+          if (!accepted && document.activeElement === door && mayRestore())
             mayRestore.handoff(open);
         });
       },

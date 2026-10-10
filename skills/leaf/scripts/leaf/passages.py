@@ -103,8 +103,6 @@ def _inline_markdown(added: bool):
     parser = MarkdownIt("gfm-like", {"html": False, "breaks": added}).use(
         tasklists_plugin
     )
-    # Match the browser: dotted prose remains words without an explicit URL or email.
-    parser.linkify.set({"fuzzy_link": False})
     # The browser accepts syntax first, then removes unsafe link destinations while
     # retaining their label. Parse those links here too, where only visible text is read.
     parser.validateLink = lambda _url: True

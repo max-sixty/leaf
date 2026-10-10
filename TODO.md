@@ -422,6 +422,11 @@ Revisit these when their stated trigger becomes real; they are not an active que
 
 ### Product and harness ideas
 
+- **Link filenames to their repository context.** When a page or thread knows the
+  repository and revision, offer a GitHub source link for a filename such as
+  `AGENTS.md` rather than treating it as a web domain. Establish how that context
+  reaches Markdown before inferring a destination from the filename alone.
+
 - **Assess whether automatic measurement freshness is useful (#7 in the simplification audit).**
   Keep the current `lf-num` source/write-time reminder for now. Look for cases where
   its warnings lead an author to update a stale claim, and weigh that benefit against

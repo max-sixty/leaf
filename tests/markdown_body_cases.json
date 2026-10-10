@@ -73,6 +73,10 @@
     "words": "www.example.com and reader@example.com",
     "links": [
       {
+        "text": "www.example.com",
+        "href": "http://www.example.com"
+      },
+      {
         "text": "reader@example.com",
         "href": "mailto:reader@example.com"
       }
@@ -104,9 +108,13 @@
     "links": []
   },
   {
-    "source": "AGENTS.md CLAUDE.md main.rs config.json widget.name www.example.com https://AGENTS.md reader@example.com [instructions](CLAUDE.md)",
-    "words": "AGENTS.md CLAUDE.md main.rs config.json widget.name www.example.com https://AGENTS.md reader@example.com instructions",
+    "source": "`AGENTS.md` `CLAUDE.md` `main.rs` `config.json` www.example.com https://AGENTS.md reader@example.com [instructions](CLAUDE.md)",
+    "words": "AGENTS.md CLAUDE.md main.rs config.json www.example.com https://AGENTS.md reader@example.com instructions",
     "links": [
+      {
+        "text": "www.example.com",
+        "href": "http://www.example.com"
+      },
       {
         "text": "https://AGENTS.md",
         "href": "https://AGENTS.md"
@@ -136,6 +144,96 @@
       {
         "text": "AGENTS.md",
         "href": "AGENTS.md"
+      }
+    ]
+  },
+  {
+    "source": "Visit example.com, docs.example.org/guide and example.net#start.",
+    "words": "Visit example.com, docs.example.org/guide and example.net#start.",
+    "links": [
+      {
+        "text": "example.com",
+        "href": "http://example.com"
+      },
+      {
+        "text": "docs.example.org/guide",
+        "href": "http://docs.example.org/guide"
+      },
+      {
+        "text": "example.net#start",
+        "href": "http://example.net#start"
+      }
+    ]
+  },
+  {
+    "source": "`README.md` `main.rs` `setup.py` `build.sh` github.io example.uk `config.json`",
+    "words": "README.md main.rs setup.py build.sh github.io example.uk config.json",
+    "links": [
+      {
+        "text": "github.io",
+        "href": "http://github.io"
+      },
+      {
+        "text": "example.uk",
+        "href": "http://example.uk"
+      }
+    ]
+  },
+  {
+    "source": "www.readme.md/guide www.github.io https://main.rs //example.uk reader@readme.md [source](main.rs)",
+    "words": "www.readme.md/guide www.github.io https://main.rs //example.uk reader@readme.md source",
+    "links": [
+      {
+        "text": "www.readme.md/guide",
+        "href": "http://www.readme.md/guide"
+      },
+      {
+        "text": "www.github.io",
+        "href": "http://www.github.io"
+      },
+      {
+        "text": "https://main.rs",
+        "href": "https://main.rs"
+      },
+      {
+        "text": "//example.uk",
+        "href": "//example.uk"
+      },
+      {
+        "text": "reader@readme.md",
+        "href": "mailto:reader@readme.md"
+      },
+      {
+        "text": "source",
+        "href": "main.rs"
+      }
+    ]
+  },
+  {
+    "source": "`example.com` and [example.com](https://other.example.org)",
+    "words": "example.com and example.com",
+    "links": [
+      {
+        "text": "example.com",
+        "href": "https://other.example.org"
+      }
+    ]
+  },
+  {
+    "source": "AGENTS.md main.rs example.com",
+    "words": "AGENTS.md main.rs example.com",
+    "links": [
+      {
+        "text": "AGENTS.md",
+        "href": "http://AGENTS.md"
+      },
+      {
+        "text": "main.rs",
+        "href": "http://main.rs"
+      },
+      {
+        "text": "example.com",
+        "href": "http://example.com"
       }
     ]
   }

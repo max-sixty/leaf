@@ -43,7 +43,7 @@ import { setChildren } from "/runtime/dom-children.js";
 import { effectiveScroller, registerReadingRegion } from "/runtime/reading-regions.js";
 import { declareOffFlowSurface } from "/runtime/off-flow.js";
 import { chromeRoot, chromeForeground } from "/runtime/chrome.js";
-import { motion, scrollBehavior } from "/runtime/motion.js";
+import { motion } from "/runtime/motion.js";
 import { closestAcross } from "/runtime/passages.js";
 import { allThreads } from "/runtime/thread/state.js";
 import { threadNames, turns } from "/runtime/thread/model.js";
@@ -782,10 +782,6 @@ export function createThreadPreview({
     }
     keepsHidden(preview, false);
     buildThreadCard(entry, selected.id);
-    previewList.firstElementChild?.scrollIntoView({
-      behavior: scrollBehavior(),
-      block: "nearest",
-    });
     const positioned = placedThreadPreview();
     return origin ? revealThread(origin, positioned) : positioned;
   }

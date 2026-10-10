@@ -55,7 +55,6 @@ from render_harness import (
     draft_control,
     draft_key,
     example_media,
-    expect_banner_control_offered,
     expect_comment_notes,
     held_stale,
     hold_pending_thread_presentation,

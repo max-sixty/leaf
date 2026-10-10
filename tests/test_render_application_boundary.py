@@ -2380,7 +2380,7 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
         "window.originalOption = document.querySelector('#workspace').querySelector('#email')"
     )
     with sending(page, "answer the package's native Ask"):
-        email.click()
+        email.get_by_role("checkbox").click()
     expect(workspace.locator(".counts")).to_contain_text("Email")
     workspace.get_by_role("button", name="Keep it concise.", exact=True).click()
     editor = workspace.get_by_role("textbox", name="Reply", exact=True)

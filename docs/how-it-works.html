@@ -182,8 +182,8 @@ flowchart TD
               <li id="architecture-reading">
                 <strong>One reading of the page.</strong> From the directory and the
                 session's records, Leaf's Python code derives current component state,
-                threads, Asks, which moves still need an answer, and what the banner
-                says, all from one consistent snapshot.
+                threads, Questions, which moves still need an answer, and what the
+                banner says, all from one consistent snapshot.
                 <code>leaf page state</code> prints a selection of the reading the
                 browser receives.
               </li>
@@ -3722,14 +3722,14 @@ flowchart TD
               <pre>
 flowchart LR
   accTitle: Browser runtime inputs
-  accDescr: The authored document, the server's latest state reading, and the moves awaiting an answer combine into one current state that components, threads, Asks and the Questions panel draw. Moves go to the page server, whose answers and later state reads update the reading.
+  accDescr: The authored document, the server's latest state reading, and the moves awaiting an answer combine into one current state that components, threads and the Questions panel draw. Moves go to the page server, whose answers and later state reads update the reading.
   subgraph Inputs["inputs"]
     Doc["authored document: initial values"]
     Reading["server's latest state reading"]
     Pending["moves awaiting an answer, in order"]
   end
   Current["current state, one read-only reading"]
-  Parts["components · threads · Asks · Questions panel"]
+  Parts["components · threads · Questions panel"]
   Server["page server"]
   User["user's move"]
   User --&gt; Pending
@@ -3747,18 +3747,18 @@ flowchart LR
             <p id="browser-one-reading">
               The runtime combines the three inputs in one place. Whenever one of them
               changes, it computes a complete, read-only reading of current state: each
-              component's state, each thread and whose turn it is, the open Asks, and
-              the Questions panel's lists. Components, threads and Leaf's controls draw
-              from that reading. None of them keeps its own copy of state or reads state
-              back from the page.
+              component's state, each thread and whose turn it is, the open Questions,
+              and the Questions panel's lists. Components, threads and Leaf's controls
+              draw from that reading. None of them keeps its own copy of state or reads
+              state back from the page.
             </p>
             <p id="browser-server-folds">
               The server does most of the computation, as
               <a href="#data-fold">Current state</a>
               describes. Each reading it sends names the recorded actions still in
-              effect for the revision the tab shows, along with the threads, Asks and
-              agent activity. The browser applies those actions to the authored initial
-              values and adds only the moves it is still sending.
+              effect for the revision the tab shows, along with the threads, Questions
+              and agent activity. The browser applies those actions to the authored
+              initial values and adds only the moves it is still sending.
             </p>
           </section>
 
@@ -3824,13 +3824,15 @@ flowchart LR
               refused comment's words return to the box they were typed in.
             </p>
             <p id="browser-moves-asks">
-              Which Asks the page still holds, and which of them the user still owes,
-              depend on the whole log, so only the server computes them. Answering an
-              Ask changes its component at once. The Ask leaves the Questions panel when
-              the tab adopts the state reading in the server's answer to that move, a
-              moment later. Whose turn a thread is also comes from the server, with two
-              local adjustments: a comment the tab is still sending passes the turn to
-              the agent, and a refused one passes it back to the user.
+              Which widget Questions are open, answered or withdrawn depends on the
+              whole log, so only the server computes it. Answering one changes its
+              component, and the answer the Questions panel shows, at once. The Question
+              leaves the user's list when the tab adopts the state reading in the
+              server's answer to that move, a moment later. Approving a version and
+              replying to a question in a thread take effect at once. Whose turn a
+              thread is also comes from the server, with two local adjustments: a
+              comment the tab is still sending passes the turn to the agent, and a
+              refused one passes it back to the user.
             </p>
           </section>
 
@@ -3839,22 +3841,22 @@ flowchart LR
             <p id="browser-drawing-proof">
               Computing current state and drawing it are separate steps. Each part of
               the page that draws state registers with the runtime: every component, the
-              threads, the Asks, the Questions panel, and the marks Leaf adds to
-              authored elements, such as whether the user or the agent set a value and
-              whether an Ask is settled. Each new reading of current state is numbered,
-              and each part reports when it has drawn the newest number. Leaf calls this
-              record
+              threads, the Question view, the Questions panel, and the marks Leaf adds
+              to authored elements, such as whether the user or the agent set a value
+              and whether a Question is settled. Each new reading of current state is
+              numbered, and each part reports when it has drawn the newest number. Leaf
+              calls this record
               <em>presentation proof</em>. It is kept apart from current state, so a
               slow or failed drawing never changes what the state is.
             </p>
             <p id="browser-drawing-order">
               Leaf's own parts draw in a fixed order. The marks on authored elements
               come first, since they can add words to the text. The threads follow and
-              find their passages in that text, then the Asks, which read where the
-              threads landed, then the Questions panel, which names Asks and threads by
-              the words both have drawn. The order is declared once, so code that
-              changes state only publishes the change and never names the parts that
-              must redraw.
+              find their passages in that text, then the Question view, which finds each
+              widget Question's element among the nodes the threads placed, then the
+              Questions panel, which shows each answer against that element. The order
+              is declared once, so code that changes state only publishes the change and
+              never names the parts that must redraw.
             </p>
             <p id="browser-drawing-hold">
               A part may hold a reading back while drawing it would disturb the user,
@@ -3962,7 +3964,7 @@ flowchart LR
               </li>
               <li id="browser-startup-presentation">
                 <strong>Authoritative presentation.</strong> The runtime applies the
-                first state answer, so recorded choices, threads, Asks and agent
+                first state answer, so recorded choices, threads, Questions and agent
                 activity appear, and marks the page presented. Only then do components
                 accept moves, and the held keys run in order, since a key such as
                 <kbd>t</kbd>, which walks the threads, needs the threads that answer

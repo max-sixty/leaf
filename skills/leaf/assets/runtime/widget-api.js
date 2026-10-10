@@ -44,7 +44,7 @@ export {
 } from "./geometry.js";
 // Holding the user's place in a scroller whose contents a widget re-renders.
 export { placeKeeper } from "./user-place.js";
-export { inUi, uiInside, upFrom } from "./shadow.js";
+export { inUi, uiInside, upFrom, renderedParent } from "./shadow.js";
 // Putting the user on an element, saying what moved them there; holding their place,
 // caret included, across a move or re-render of the node they stand on, by key in a
 // list; where they stand and whether it is in a scope; recording where a layer opened
@@ -78,6 +78,7 @@ export {
 } from "./work.js";
 export { answersWithin, askAnswers } from "./asks/answer.js";
 export { readQueues, watchQueues, queueItemKey } from "./queue-api.js";
+export { queueTitle } from "./queue-title.js";
 export { queueActions } from "./application.js";
 export { registerVisualParts } from "./visual-parts.js";
 export {
@@ -96,7 +97,7 @@ export { threadInput } from "./thread/landing.js";
 // Holding a region's rows the log or the clock decides while their growth would be seen
 // (assets/AGENTS.md, "Stability").
 export { HeldReading } from "./thread/held-news.js";
-export { landInThread, openThread } from "./application.js";
+export { landInThread } from "./application.js";
 export { wireInput } from "./application.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
 export { HOLDS_WORD } from "./held-word.js";
@@ -146,7 +147,7 @@ export {
   differenceKind,
 } from "./image-difference.js";
 export { pageScroller } from "./scrolling.js";
-export { scrollIntoReadingBand } from "./landing-scroll.js";
+export { scrollIntoReadingBand, scrollIntoView } from "./landing-scroll.js";
 // The user's place as a landmark, and the history entries a widget adds.
 export { capturePlace, restorePlace } from "./reading-place.js";
 export { claimTraversals, pushEntry, replaceEntry } from "./history.js";
@@ -182,6 +183,7 @@ export { shadowStage } from "./shadow-stage.js";
 export { inBaseLayer } from "./stylesheets.js";
 export { revisionLabel, annotationMode } from "./context.js";
 export { loadDeferred, watchData } from "./data.js";
+export { boundFile } from "./file-api.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
 export {
   declarationFor,

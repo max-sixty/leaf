@@ -548,7 +548,9 @@
           #build() {
             const toolbar = document.createElement("div");
             toolbar.className = "query-toolbar";
-            toolbar.append(document.createTextNode("Filters run from top to bottom."));
+            toolbar.append(
+              document.createTextNode("Releases must match every filter."),
+            );
             const add = offer("button", "lf-btn query-add", "Add filter");
             add.addEventListener("click", () => {
               const id = `filter-${this.#next++}`;
@@ -610,11 +612,11 @@
               );
               const conditions = rows
                 .map((row) => `${row.field} ${row.operator} ${row.value}`)
-                .join(", then ");
+                .join(" and ");
               const filterTask = conditions
-                ? `Apply ${conditions}`
+                ? `Require ${conditions}`
                 : "Apply no filters";
-              return `Implement the release query in release-report.sql. ${filterTask}, return at most ${values.limit} releases in that order, and show the query plus its result-table test.`;
+              return `Implement the release query in release-report.sql. ${filterTask}. Return at most ${values.limit} matching releases in source order, and show the query plus its result-table test.`;
             });
           }
 
@@ -764,7 +766,7 @@
             }
             keepsText(
               this.#count,
-              `${filtered.length} matching ${filtered.length === 1 ? "release" : "releases"}`,
+              `${filtered.length} ${filtered.length === 1 ? "release" : "releases"} shown`,
             );
             layoutChanged(this);
           }
@@ -1981,6 +1983,10 @@
         box-shadow: 0 18px 46px color-mix(in srgb, var(--ink) 11%, transparent);
       }
 
+      #bg-rollout-tabs {
+        max-inline-size: 26rem;
+      }
+
       .interaction-gallery .lf-interaction-controls {
         display: flex;
         flex-wrap: wrap;
@@ -2725,8 +2731,9 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
         <h2>Most raw-log reads are within six weeks</h2>
         <p id="ret-why-body">
           Across eighteen months of query history, 90% of reads touch logs less than a
-          week old and 95% stay within 42 days. Query history cannot reveal work that
-          retention prevented, so I checked two years of incident write-ups as well.
+          week old and 95% stay within 42 days. Query history cannot reveal
+          investigations abandoned or solved another way, so I checked two years of
+          incident write-ups as well.
         </p>
         <p id="ret-why-margin">
           The 45-day limit rounds the observed six-week boundary up by three days.
@@ -3075,8 +3082,8 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
 <lf-tab id="corpus-data-explorer" label="Data explorer">
 <h1>Shape a release query</h1>
       <p class="lede">
-        Compose ordered filters against a captured release set. The table and final
-        instruction derive from the same structured configuration.
+        Choose which releases to include in the report. Add filters, check the matching
+        rows, then ask the agent to build the query.
       </p>
       <lf-ask id="release-query-ask" data-width="available">
         <h2>Which release query should the agent build?</h2>
@@ -3090,10 +3097,10 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
             max="6"
             step="1"
           ></lf-playground-control>
-          <lf-playground-preset label="Focused query">
+          <lf-playground-preset label="Up to 4 results">
             <lf-playground-setting for="limit" value="4"></lf-playground-setting>
           </lf-playground-preset>
-          <lf-playground-preset label="Broad query">
+          <lf-playground-preset label="Up to 6 results">
             <lf-playground-setting for="limit" value="6"></lf-playground-setting>
           </lf-playground-preset>
           <lf-playground-preview id="release-query-preview">
@@ -3110,14 +3117,13 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
 </lf-tab>
 
 <lf-tab id="corpus-code-comparison" label="Code comparison">
-<h1>Compare built code readers</h1>
+<h1>Choose a code reader treatment</h1>
       <p class="lede">
-        Both examples use Leaf's <code>lf-code</code> widget. Comparison viewport
-        changes both widths. The density controls change each example separately. Copy A
-        to B and Copy B to A copy the density and line-wrapping settings.
+        Compare a scrolling code reader with a wrapping one. Adjust their spacing and
+        shared width, then choose the treatment to keep.
       </p>
       <lf-ask id="code-comparison-ask" data-width="available">
-        <h2>Which built code-reader treatment should the agent keep?</h2>
+        <h2>Which code-reader treatment should the agent keep?</h2>
         <lf-playground id="code-comparison-playground" submit-label="Apply treatment">
           <lf-playground-control
             name="width"
@@ -3138,11 +3144,11 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
             <lf-playground-choice value="A" label="A"></lf-playground-choice>
             <lf-playground-choice value="B" label="B"></lf-playground-choice>
           </lf-playground-control>
-          <lf-playground-preset label="Compact reader">
+          <lf-playground-preset label="A at 420px">
             <lf-playground-setting for="width" value="420"></lf-playground-setting>
             <lf-playground-setting for="chosen" value="A"></lf-playground-setting>
           </lf-playground-preset>
-          <lf-playground-preset label="Wrapped reader">
+          <lf-playground-preset label="B at 320px">
             <lf-playground-setting for="width" value="320"></lf-playground-setting>
             <lf-playground-setting for="chosen" value="B"></lf-playground-setting>
           </lf-playground-preset>
@@ -3213,7 +3219,7 @@ export function releaseLabels(releases) {
         </p>
         <section id="target-reader-artifact" class="code-candidate">
           <h3 id="target-reader-heading" class="reader-treatment-title">
-            Built reader treatment
+            Reader sample
           </h3>
           <lf-code id="target-built-code" language="javascript" hi="2">
             <pre>
@@ -3248,11 +3254,11 @@ export const summarize = checks =>
             </dl>
             <dl id="lp-k-checks" class="panel">
               <dt>checks passing</dt>
-              <dd><strong>4 of 5</strong> <small>change: -1</small></dd>
+              <dd><strong>4 of 5</strong></dd>
             </dl>
             <dl id="lp-k-latency" class="panel">
               <dt>p95 latency</dt>
-              <dd><strong>184 ms</strong> <small>change: -6 ms</small></dd>
+              <dd><strong>184 ms</strong></dd>
             </dl>
             <dl id="lp-k-observed" class="panel">
               <dt>last observation</dt>
@@ -3292,22 +3298,22 @@ export const summarize = checks =>
           <lf-chart id="lp-traffic-chart" data-height="220">
             <pre>
 {
-  ariaLabel: "Share of checkout traffic on checkout-v2 by minute since deploy: 0, 5, 10, then 25% from minute 3",
+  ariaLabel: "Share of checkout traffic on checkout-v2: 5% at 7 seconds, 10% at 23 seconds, then 25% from 35 seconds through the last observation at 163 seconds",
   marginBottom: 40,
-  x: {label: "minutes since deploy", ticks: 7},
+  x: {label: "seconds since deploy", ticks: 5},
   y: {grid: true, label: "share of checkout traffic (%)", domain: [0, 30]},
   marks: [
     Plot.lineY(
       [
-        {minute: 0, share: 0},
-        {minute: 1, share: 5},
-        {minute: 2, share: 10},
-        {minute: 3, share: 25},
-        {minute: 4, share: 25},
-        {minute: 5, share: 25},
-        {minute: 6, share: 25},
+        {second: 0, share: 0},
+        {second: 7, share: 5},
+        {second: 23, share: 10},
+        {second: 35, share: 25},
+        {second: 138, share: 25},
+        {second: 158, share: 25},
+        {second: 163, share: 25},
       ],
-      {x: "minute", y: "share", stroke: "var(--series-1)", strokeWidth: 2},
+      {x: "second", y: "share", curve: "step-after", stroke: "var(--series-1)", strokeWidth: 2},
     ),
     Plot.ruleY([0]),
   ],
@@ -3371,7 +3377,7 @@ export const summarize = checks =>
                   Error rate
                   <span class="release-check-result" data-status="pass">Pass</span>
                 </th>
-                <td><code>0.11%</code> / below <code>0.50%</code></td>
+                <td><code>0.08%</code> / below <code>0.50%</code></td>
               </tr>
               <tr id="lp-check-latency">
                 <th scope="row">
@@ -3399,7 +3405,7 @@ export const summarize = checks =>
                   Rollback target
                   <span class="release-check-result" data-status="pass">Pass</span>
                 </th>
-                <td>3 batches / zero delta</td>
+                <td>3 batches / final delta 0</td>
               </tr>
             </tbody>
           </table>
@@ -4011,14 +4017,13 @@ export const summarize = checks =>
           <a href="https://github.com/max-sixty/worktrunk/pull/3865"
             >Worktrunk PR #3865</a
           >
-          adds a unified-diff preview for the switch picker. The captured revision is
-          awaiting a merge decision. Its complete 46-file patch appears below for
-          review.
+          added a unified-diff preview for the switch picker. Review this merged change
+          as if the decision were still open, using its exact 46-file patch and the
+          evidence below.
         </p>
         <p id="pr-tags">
           <span class="tag ok">Safe to approve</span>
           <span class="tag warn">2 follow-ups</span>
-          <span class="tag ok">5 checks passed</span>
           <span class="tag">46 files · +1,567 −701</span>
         </p>
       </header>
@@ -4253,6 +4258,7 @@ flowchart TB
           <lf-diff id="pr-key-hunk" data-height="521">
             <pre>
 diff --git a/src/summary.rs b/src/summary.rs
+index b856171b57..cfa4f0448e 100644
 --- a/src/summary.rs
 +++ b/src/summary.rs
 @@ -258,16 +256,14 @@ pub(crate) fn compute_combined_diff(
@@ -4283,25 +4289,108 @@ diff --git a/src/summary.rs b/src/summary.rs
         <section class="panel" id="pr-invariants">
           <h2>Review invariants</h2>
           <p id="pr-invariant-intro">
-            The implementation is expected to preserve these three properties.
+            Exact excerpts from revision <code>9ca8f78b</code> show the byte-equality
+            and scheduling tests, followed by the temporary-index implementation.
           </p>
-          <lf-code id="pr-review-invariants" language="rust" hi="1-3">
+          <h3>Real index byte equality</h3>
+          <p id="pr-review-invariants-source">
+            <code>src/commands/picker/items.rs</code> ·
+            <code
+              >unified_diff_is_net_change_and_subsidiary_diffs_include_untracked</code
+            >
+          </p>
+          <lf-code
+            id="pr-review-invariants"
+            language="rust"
+            lines="3018-3023,3041-3044"
+            hi="3041-3044"
+          >
             <pre>
-assert_eq!(repo.read_index_bytes(&amp;worktree)?, index_before_preview, "preview preparation rewrote {worktree:?}");
-assert!(temp_index.is_operation_scoped());
-assert!(offscreen_worktree_preview.is_demand_loaded());
+        let real_index = repo.current_worktree().git_dir().unwrap().join("index");
+        let index_before = std::fs::read(&amp;real_index).unwrap();
+        let unified = PickerRow::compute_unified_diff_preview(&amp;repo, &amp;item, 80);
+        let working = PickerRow::compute_working_tree_preview(&amp;repo, &amp;item, 80);
+        let committed = PickerRow::compute_branch_diff_preview(&amp;repo, &amp;item, 80);
+        let index_after = std::fs::read(&amp;real_index).unwrap();
+        assert_eq!(
+            index_after, index_before,
+            "preview computation must leave the real index byte-identical"
+        );
 </pre>
-            <lf-note id="pr-note-real-index" at="1"
-              >A clean status is insufficient: preview preparation must preserve the
-              real index byte for byte.</lf-note
+            <lf-note id="pr-note-real-index" at="3044"
+              >The test reads the real index around all three preview computations and
+              requires its bytes to match exactly.</lf-note
             >
-            <lf-note id="pr-note-temp-index" at="2"
-              >Random, exclusive temporary files prevent concurrent previews from
-              sharing or replacing one another’s index.</lf-note
+          </lf-code>
+          <h3>Off-screen worktree scheduling</h3>
+          <p id="pr-demand-evidence-source">
+            <code>src/commands/picker/preview_orchestrator.rs</code> ·
+            <code>initial_precompute_skips_offscreen_worktrees_but_warms_branches</code>
+          </p>
+          <lf-code
+            id="pr-demand-evidence"
+            language="rust"
+            lines="1230-1248"
+            hi="1238-1248"
+          >
+            <pre>
+        orch.spawn_initial_precompute(
+            &amp;orch.generation(),
+            &amp;[first, Arc::clone(&amp;offscreen), Arc::clone(&amp;branch)],
+            (80, 24),
+            None,
+        );
+        orch.wait_for_idle();
+
+        assert!(
+            !orch
+                .cache
+                .contains_key(&amp;("offscreen".to_string(), PreviewMode::UnifiedDiff)),
+            "off-screen worktree should wait for selected-row demand"
+        );
+        assert!(
+            orch.cache
+                .contains_key(&amp;("branch-only".to_string(), PreviewMode::UnifiedDiff)),
+            "branch-only default should be prewarmed from the committed diff"
+        );
+</pre>
+            <lf-note id="pr-note-demand-load" at="1248"
+              >After prewarm finishes, the off-screen worktree has no cached unified
+              diff and the branch-only row does. This checks scheduling; selected-row
+              latency remains unmeasured.</lf-note
             >
-            <lf-note id="pr-note-demand-load" at="3"
-              >Moving off-screen worktrees out of prewarm protects startup, but leaves
-              selected-row latency as a separate measurement question.</lf-note
+          </lf-code>
+          <h3>Temporary-index implementation evidence</h3>
+          <p id="pr-temp-index-evidence-source">
+            <code>src/git/repository/working_tree.rs</code> ·
+            <code>WorkingTree::temp_index</code>
+          </p>
+          <lf-code
+            id="pr-temp-index-evidence"
+            language="rust"
+            lines="843-856"
+            hi="843-846,852-856"
+          >
+            <pre>
+        let mut temp_file = tempfile::Builder::new()
+            .prefix(TEMP_INDEX_PREFIX)
+            .tempfile()
+            .context("Failed to create temporary index")?;
+        let mut real_index_file = match std::fs::File::open(&amp;real_index) {
+            Ok(file) =&gt; Some(file),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound =&gt; None,
+            Err(error) =&gt; return Err(error).context("Failed to open index file"),
+        };
+        if let Some(real_index_file) = &amp;mut real_index_file {
+            std::io::copy(real_index_file, temp_file.as_file_mut())
+                .context("Failed to copy index file")?;
+        }
+        let temp = temp_file.into_temp_path();
+</pre>
+            <lf-note id="pr-note-temp-index" at="856"
+              >Each call creates a temporary file, copies the real index through its
+              open handle when present, and transfers ownership to a
+              <code>TempPath</code>.</lf-note
             >
           </lf-code>
         </section>
@@ -5572,10 +5661,11 @@ stateDiagram-v2
             </tbody>
           </table>
           <p id="security-not-proven">
-            The adapter probe and hosted integration tests subsequently exercised
-            current Claude, Codex, and SRT behavior on GitHub-hosted Ubuntu 24.04,
-            including the nested UID, TLS-intercepting proxy, headless command lines,
-            Unix-socket denial, runner-checkout isolation, and complete teardown.
+            The Ubuntu 24.04 <code>test-sandbox</code> job exercised SRT and Tend’s
+            Claude and Codex adapters with stub harness executables. It checked
+            Unix-socket denial, runner-checkout isolation, broker routing, sandbox-local
+            loopback, reap, and bounded export. The separate
+            <code>test-codex-surface</code> job checked the pinned Codex CLI interface.
           </p>
         </section>
 
@@ -6914,6 +7004,66 @@ observe --cohort staff</code></pre>
       <p id="tail">The rollout can proceed once the changed line is reviewed.</p>
 </lf-tab>
 
+<lf-tab id="corpus-file-editor" label="File editor package">
+<header id="file-editing">
+        <h1>Edit the file</h1>
+        <p>
+          Changes save automatically. The editor follows changes made elsewhere and asks
+          which version to keep when edits overlap.
+        </p>
+      </header>
+      <lf-file id="research-file" binding="research-notes" data-height="480"></lf-file>
+      <details id="file-editing-setup">
+        <summary>Connect a local file</summary>
+        <p>
+          This example needs a file on the machine serving the page. Bind it explicitly
+          before opening the editor:
+        </p>
+        <pre><code>leaf file bind "$PAGE" research-notes /absolute/path/research-notes.md</code></pre>
+        <p>
+          On a live page, edit a line and inspect the file on disk. A normal save leaves
+          the header still. Hold a write request open to inspect delayed saving
+          feedback; change the file externally during an unsaved edit to inspect
+          conflict recovery. Without a binding, the editor explains what is missing.
+        </p>
+      </details>
+</lf-tab>
+
+<lf-tab id="corpus-diff-thread-gallery" label="Diff conversations">
+<h1 id="dfg-title">Review app.py</h1>
+      <p id="dfg-guide">
+        Two fictional conversations sit below the same file. Reply to one while keeping
+        the other separate. Resolve a conversation with its check, then open its
+        resolved summary to reopen it. Comment on app.py starts another conversation
+        without opening the patch.
+      </p>
+      <script id="dfg-history" type="application/json">
+        [
+          {
+            "kind": "comment",
+            "author": "user",
+            "text": "This change looks good.",
+            "anchor": { "section": "dfg-patch", "datum": "[\"app.py\",\"file\"]" },
+            "id": "file-comment-1"
+          },
+          {
+            "kind": "comment",
+            "author": "user",
+            "text": "This is a quick test comment, ignore please.",
+            "anchor": { "section": "dfg-patch", "datum": "[\"app.py\",\"file\"]" },
+            "id": "file-comment-2"
+          }
+        ]
+      </script>
+      <lf-sample id="dfg-sample" label="file conversations">
+        <template id="dfg-page" data-sample data-sample-events="dfg-history">
+          <lf-diff id="dfg-patch" source="dfg-patch-source" collapsed>
+            <pre></pre>
+          </lf-diff>
+        </template>
+      </lf-sample>
+</lf-tab>
+
 <lf-tab id="corpus-feature-gallery" label="Core features">
 <hgroup id="bg-title">
         <p class="eyebrow">Leaf core product</p>
@@ -7798,6 +7948,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 automatically when their final answer arrives, without adding a digest.
                 Choose “Progress messages” in the practice page, then use “Show 2
                 progress messages” beside the answer’s timestamp with a press or Enter.
+                Expanded progress runs have an inset border and ordinary message headers
+                on the page’s normal background. User replies separate the groups.
               </p>
               <p id="bg-thread-unread">
                 <strong>Unread replies.</strong> The seeded agent replies start unread.
@@ -8587,6 +8739,53 @@ gallery/
                 <lf-tab id="bg-tab-context" label="Context">
                   <p id="bg-tab-context-text">
                     The earlier route crossed the courtyard.
+                  </p>
+                </lf-tab>
+              </lf-tabs>
+              <h4 id="bg-overflow-tabs-heading">A rollout review in a narrow column</h4>
+              <p id="bg-overflow-tabs-guide">
+                This review keeps six sections in one compact row. The native scrollbar
+                is hidden; use the edge arrows to reveal more names, or swipe the row on
+                a touch screen. Focus a tab and use Left or Right to switch sections, or
+                Home and End to reach the first and last. Narrow the window: the
+                selected name stays visible and its section stays open. The arrows
+                disappear at an edge with no more names.
+              </p>
+              <lf-tabs id="bg-rollout-tabs">
+                <lf-tab id="bg-rollout-summary" label="Summary">
+                  <p id="bg-rollout-summary-text">
+                    Ship the revised search index to the internal team first, then
+                    expand after one healthy working day.
+                  </p>
+                </lf-tab>
+                <lf-tab id="bg-rollout-scope" label="Release scope">
+                  <p id="bg-rollout-scope-text">
+                    This release changes ranking and query suggestions. Saved searches
+                    keep their current filters.
+                  </p>
+                </lf-tab>
+                <lf-tab id="bg-rollout-stages" label="Rollout stages">
+                  <p id="bg-rollout-stages-text">
+                    Begin with the search team, continue with a small customer cohort,
+                    then open access to everyone.
+                  </p>
+                </lf-tab>
+                <lf-tab id="bg-rollout-health" label="Health checks">
+                  <p id="bg-rollout-health-text">
+                    Compare query latency, empty results, and user reports with the
+                    previous index before expanding access.
+                  </p>
+                </lf-tab>
+                <lf-tab id="bg-rollout-recovery" label="Recovery plan">
+                  <p id="bg-rollout-recovery-text">
+                    Return traffic to the previous index if searches become slow or
+                    relevant results disappear.
+                  </p>
+                </lf-tab>
+                <lf-tab id="bg-rollout-handoff" label="Owner handoff">
+                  <p id="bg-rollout-handoff-text">
+                    The search team owns the rollout. Support collects reports and the
+                    on-call engineer can restore the previous index.
                   </p>
                 </lf-tab>
               </lf-tabs>

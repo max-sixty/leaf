@@ -2510,7 +2510,7 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
             '<dl id="lp-k-traffic" class="panel"><dt>target traffic</dt><dd><strong>100%</strong></dd></dl>',
         ),
         (
-            '<dl id="lp-k-checks" class="panel"><dt>checks passing</dt><dd><strong>4 of 5</strong> <small>change: -1</small></dd></dl>',
+            '<dl id="lp-k-checks" class="panel"><dt>checks passing</dt><dd><strong>4 of 5</strong></dd></dl>',
             '<dl id="lp-k-checks" class="panel"><dt>checks passing</dt><dd><strong>5 of 5</strong></dd></dl>',
         ),
         (
@@ -5821,10 +5821,10 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
         "contributor bad-date must be JSON-safe",
         "playground already has an instruction provider",
     ]
-    expect(page.locator(".query-result-count")).to_have_text("2 matching releases")
+    expect(page.locator(".query-result-count")).to_have_text("2 releases shown")
 
     rows.nth(1).get_by_label("Value").fill("80")
-    expect(page.locator(".query-result-count")).to_have_text("1 matching release")
+    expect(page.locator(".query-result-count")).to_have_text("1 release shown")
     rows.nth(1).get_by_role("button", name="Move filter 2 up").click()
     assert playground.evaluate("root => root.values.filters.order") == [
         "filter-2",
@@ -5834,20 +5834,20 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
     expect(rows).to_have_count(3)
     expect(rows.nth(2).get_by_label("Value")).to_be_focused()
     rows.nth(2).get_by_label("Value").fill("risk")
-    expect(page.locator(".query-result-count")).to_have_text("1 matching release")
+    expect(page.locator(".query-result-count")).to_have_text("1 release shown")
     rows.nth(2).get_by_role("button", name="Remove filter 3").click()
     expect(rows).to_have_count(2)
 
-    playground.get_by_role("button", name="Broad query").click()
+    playground.get_by_role("button", name="Up to 6 results").click()
     expect(
         playground.locator('lf-playground-control[name="limit"]').get_by_role("slider")
     ).to_have_value("6")
-    playground.get_by_role("button", name="Focused query").click()
+    playground.get_by_role("button", name="Up to 4 results").click()
     expect(
         playground.locator('lf-playground-control[name="limit"]').get_by_role("slider")
     ).to_have_value("4")
     instruction = page.locator("#release-query-instruction")
-    expect(instruction).to_contain_text("risk above 80, then region is europe")
+    expect(instruction).to_contain_text("risk above 80 and region is europe")
     playground.get_by_role("button", name="Copy instruction").click()
     copied = page.evaluate("navigator.clipboard.readText()")
     assert copied == instruction.inner_text()
@@ -5859,25 +5859,25 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
         "filter-2",
         "filter-1",
     ]
-    expect(instruction).to_contain_text("risk above 80, then region is europe")
+    expect(instruction).to_contain_text("risk above 80 and region is europe")
     playground.get_by_role("button", name="Reset").click()
     assert playground.evaluate("root => root.values.filters.order") == [
         "filter-1",
         "filter-2",
     ]
-    expect(instruction).to_contain_text("region is europe, then risk above 40")
+    expect(instruction).to_contain_text("region is europe and risk above 40")
     rows.nth(1).get_by_role("button", name="Remove filter 2").click()
     rows.first.get_by_role("button", name="Remove filter 1").click()
     expect(rows).to_have_count(0)
     expect(instruction).to_contain_text("Apply no filters")
-    expect(page.locator(".query-result-count")).to_have_text("4 matching releases")
-    playground.get_by_role("button", name="Broad query").click()
-    expect(page.locator(".query-result-count")).to_have_text("6 matching releases")
-    playground.get_by_role("button", name="Focused query").click()
-    expect(page.locator(".query-result-count")).to_have_text("4 matching releases")
+    expect(page.locator(".query-result-count")).to_have_text("4 releases shown")
+    playground.get_by_role("button", name="Up to 6 results").click()
+    expect(page.locator(".query-result-count")).to_have_text("6 releases shown")
+    playground.get_by_role("button", name="Up to 4 results").click()
+    expect(page.locator(".query-result-count")).to_have_text("4 releases shown")
     playground.get_by_role("button", name="Reset").click()
     rows.first.get_by_label("Value").fill("asia")
-    expect(instruction).to_contain_text("region is asia, then risk above 40")
+    expect(instruction).to_contain_text("region is asia and risk above 40")
 
     with sending(page, "the release query"):
         playground.get_by_role("button", name="Build query").click()
@@ -5893,10 +5893,10 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
     page.reload()
     wait_until_ready(page)
     expect(rows.first.get_by_label("Value")).to_have_value("asia")
-    expect(instruction).to_contain_text("region is asia, then risk above 40")
+    expect(instruction).to_contain_text("region is asia and risk above 40")
     undo(page)
     expect(rows.first.get_by_label("Value")).to_have_value("europe")
-    expect(instruction).to_contain_text("region is europe, then risk above 40")
+    expect(instruction).to_contain_text("region is europe and risk above 40")
     resized(page, 480, 760)
     assert page.evaluate("document.documentElement.scrollWidth") == 480
     resized(page, 1100, 320)
@@ -5996,12 +5996,12 @@ def test_built_code_comparison_drives_both_candidates(browser, serve):
         "candidateB": {"density": "compact", "wrap": False},
     }
 
-    playground.get_by_role("button", name="Wrapped reader").click()
+    playground.get_by_role("button", name="B at 320px").click()
     expect(
         playground.locator('lf-playground-control[name="width"]').get_by_role("slider")
     ).to_have_value("320")
     expect(playground.get_by_role("radio", name="B", exact=True)).to_be_checked()
-    playground.get_by_role("button", name="Compact reader").click()
+    playground.get_by_role("button", name="A at 420px").click()
     expect(
         playground.locator('lf-playground-control[name="width"]').get_by_role("slider")
     ).to_have_value("420")
@@ -6068,7 +6068,7 @@ def test_built_code_reader_design_comment_keeps_its_identity_after_revision(
                 expect(spoken).to_have_text(
                     re.compile(r"^Hint .*Press Enter to choose\.$")
                 )
-                if "heading: Built reader treatment" in spoken.text_content():
+                if "heading: Reader sample" in spoken.text_content():
                     break
             else:
                 pytest.fail("The built reader heading was absent from the target walk")
@@ -6092,7 +6092,7 @@ def test_built_code_reader_design_comment_keeps_its_identity_after_revision(
     assert not [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
     ]
-    revised = source.replace("Built reader treatment", "Revised reader treatment")
+    revised = source.replace("Reader sample", "Revised reader treatment")
     stamp = stamp_page(serve.page_dir, revised, "Align the reader treatment")
     wait_for_revision(page, stamp["revision"])
     expect(page.locator("#target-reader-heading")).to_have_text(

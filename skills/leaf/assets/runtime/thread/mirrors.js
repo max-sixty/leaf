@@ -43,9 +43,7 @@ export function registerMirrorConsumer(owner, render, { commands }) {
     outlets = new Set();
   };
   const report = (error) =>
-    reportPageError(
-      `Thread mirrors in ${owner.localName}#${owner.id} failed: ${error?.message ?? error}`,
-    );
+    reportPageError(error, `Thread mirrors in ${owner.localName}#${owner.id} failed`);
 
   async function reconcile() {
     const current = ++generation;

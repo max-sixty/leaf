@@ -3676,7 +3676,7 @@ def test_a_failed_ask_reveal_does_not_register_an_arrival(browser, serve):
         assert position.text_content() == "1 of 4 waiting on you · Question"
         assert position.get_attribute("data-lf-boundary") is None
         expect(page.locator("#live-question-decision")).to_be_focused()
-        assert take_browser_errors(page) == [
+        assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
             "leaf: Presentation failed: ask reveal probe"
         ]
     finally:

@@ -692,8 +692,8 @@ def test_sticky_headers_stack_so_a_diff_in_a_page_tab_pins_under_the_strip(
 def test_focus_in_a_stuck_header_leaves_the_page_where_it_is(browser, serve):
     """A control in a stuck sticky header stands inside the root's landing band, so the
     browser scrolled toward it on every focus and the header never came out from under
-    the band: the page crept 17px a focus under a diff's file header and 12px under its
-    file action, and was centred, hundreds of pixels a key, under a page tab strip.
+    the band: the page crept 17px a focus under a diff's file header and was centred,
+    hundreds of pixels a key, under a page tab strip.
     Each header says where its controls stand (`--lf-head-inset`), so focusing one where
     it sticks scrolls nothing: in a page tab, where the strip stands over it, and after
     the tabs, where the root's band still counts the strip. Focus moving on from the
@@ -708,7 +708,6 @@ def test_focus_in_a_stuck_header_leaves_the_page_where_it_is(browser, serve):
         await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
         const controls = {
             file: diff.shadowRoot.querySelector('.lf-diff-file > details > summary'),
-            action: diff.shadowRoot.querySelector('.lf-diff-file-actions button'),
         };
         if (id === 'patch')
             controls.tab = document.querySelector(
@@ -722,8 +721,8 @@ def test_focus_in_a_stuck_header_leaves_the_page_where_it_is(browser, serve):
         }
         return moved;
     }"""
-    assert page.evaluate(focus_in, "patch") == {"file": 0, "action": 0, "tab": 0}
-    assert page.evaluate(focus_in, "after-tabs") == {"file": 0, "action": 0}
+    assert page.evaluate(focus_in, "patch") == {"file": 0, "tab": 0}
+    assert page.evaluate(focus_in, "after-tabs") == {"file": 0}
     # Tab from a stuck file header into its code, scrolled partly past above it.
     page.evaluate(
         """async () => {

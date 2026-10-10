@@ -1702,12 +1702,14 @@
 /* lf-shot: Web Awesome owns the live draggable divider. The pair's natural-width
  * validation supplies an aspect ratio based on its taller image, so unequal heights
  * still reserve one fixed frame and move nothing below it. The rail's endpoint buttons
- * stay outside the component. Before the upgrade lands, the frames are direct children
+ * and full-size inspection links stay outside the component in one fixed two-row rail.
+ * Before the upgrade lands, the frames are direct children
  * of the host and the transparent native checkbox covers them — one fallback for loading
  * and controls-off alike.
  * Print stacks both frames. */
 :scope:is(lf-shot) { display: block; margin: 16px 0;
-    --lf-shot-rail-size: max(34px, var(--aim-floor)); }
+    --lf-shot-rail-row-size: max(34px, var(--aim-floor));
+    --lf-shot-rail-size: calc(2 * var(--lf-shot-rail-row-size)); }
 :scope:is(lf-shot):has(.lf-shotframe) { display: grid; }
 /* Where the runtime runs, the rail and the frame stand empty from the first paint, the
  * frame in the pair's shape, which delivery reads from the images
@@ -1752,8 +1754,9 @@
 :scope:is(lf-shot) .lf-shotframe { position: relative; overflow: clip; background: var(--card); }
 :scope:is(lf-shot) .lf-shotframe img { display: block; width: 100%; height: auto;
     background: var(--card); }
-:scope:is(lf-shot) .lf-shotrail { display: flex; grid-area: 1 / 1; align-items: center;
-    justify-content: space-between; height: var(--lf-shot-rail-size); padding: 0 11px;
+:scope:is(lf-shot) .lf-shotrail { display: grid; grid-area: 1 / 1; align-items: center;
+    grid-template: repeat(2, var(--lf-shot-rail-row-size)) / auto minmax(0, 1fr) auto;
+    height: var(--lf-shot-rail-size); padding: 0 11px;
     border: 1px solid var(--rule); border-bottom: 0;
     border-radius: var(--r) var(--r) 0 0; color: var(--muted);
     background: var(--card); }
@@ -1774,6 +1777,15 @@
 :scope:is(lf-shot) .lf-shotcap { display: flex; align-items: center; align-self: stretch;
     font-size: var(--t-6); font-weight: 650; text-transform: uppercase;
     letter-spacing: .04em; padding: 0 5px; margin: 0 -5px; color: var(--muted); }
+:scope:is(lf-shot) :is(.lf-shotcap[data-lf-state="before"], .lf-shot-open[data-lf-shot-open="before"]) {
+    grid-column: 1; justify-self: start; }
+:scope:is(lf-shot) :is(.lf-shotcap[data-lf-state="after"], .lf-shot-open[data-lf-shot-open="after"]) {
+    grid-column: 3; justify-self: end; }
+:scope:is(lf-shot) .lf-shotcap { grid-row: 1; }
+:scope:is(lf-shot) .lf-shot-open { grid-row: 2; display: flex; align-items: center;
+    align-self: stretch; font: var(--t-6)/1.4 var(--sans); }
+:scope:is(lf-shot) .lf-shotdelta { grid-area: 1 / 2 / 3 / 3; justify-self: center;
+    padding-inline: 8px; text-align: center; }
 :scope:is(lf-shot) .lf-shotcap[data-lf-state] { outline-offset: -2px; }
 :scope:is(lf-shot) .lf-shotcap[data-lf-state="before"] {
     --lf-shot-side-tint: var(--del-tint); --lf-shot-side-ink: var(--danger-ink); }
@@ -1847,6 +1859,9 @@
   :scope:is(lf-shot) .lf-shotcap[data-lf-state="before"]::after { content: " · top"; }
   :scope:is(lf-shot) .lf-shotcap[data-lf-state="after"]::after { content: " · bottom"; }
   :scope:is(lf-shot) > input.lf-shotflip { display: none; }
+  :scope:is(lf-shot) > .lf-shotrail { height: auto;
+    grid-template-rows: var(--lf-shot-rail-row-size); }
+  :scope:is(lf-shot) .lf-shotdelta { grid-row: 1; }
   :scope:is(lf-shot) > .lf-shotcomparison { display: block; aspect-ratio: auto; border: 0;
     overflow: visible; }
   /* The before frame sits in the component's second part (lf-shot.js), and paper

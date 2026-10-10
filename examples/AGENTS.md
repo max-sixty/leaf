@@ -72,7 +72,7 @@ hand-written `{section, quote, suffix}` detaches silently when its sentence chan
 The suite posts each seeded message fragment through the check `leaf thread reply`
 runs.
 
-A widget with a live half, such as an `lf-agent` row saying how long since its worker
+A widget with a live half, such as an `lf-atlas-worker` row saying how long since its worker
 reported, needs a seed so the corpus sweeps see it, and a fixture that mints its own
 timestamps to pin what it says.
 

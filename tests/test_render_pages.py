@@ -336,8 +336,9 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
     the mapped revision, and it has to name the same passage once the browser has
     built the page; a rewritten sentence leaves the quote resolving to nothing and
     the thread standing there detached, which is a broken demo and no error
-    anywhere. The corpus's own anchor sweep does not cover it, because that sweep
-    writes its own anchors. This is what reads the shipped one.
+    anywhere. A sample can instead explicitly retain a historical quote after a
+    reply detaches it from a section the current page removed. The corpus's own
+    anchor sweep does not cover shipped anchors, because that sweep writes its own.
 
     A log can also carry a widget, and that is the second thing read here. Markup
     in a message renders in the panel and nowhere else, so no authored page can
@@ -393,10 +394,8 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
         assert {event["id"] for event in events} <= previous
         # Read standing roots through the same fold as the page. A resolved root keeps
         # its thread and attachment but owes no paint; a withdrawn reaction owes neither.
-        threads = thread_model.build_threads(
-            logged,
-            enclosing_ids(structure_model.SourceDocument(example.read_text())),
-        )
+        page_ids = enclosing_ids(structure_model.SourceDocument(example.read_text()))
+        threads = thread_model.build_threads(logged, page_ids)
         reacted = [
             thread["root"]
             for thread in threads.values()
@@ -409,6 +408,22 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
             for thread in threads.values()
             if not thread_model.bare_reaction(thread)
         ]
+        sample_threads = set(
+            page.eval_on_selector_all(
+                "template[data-sample-threads]",
+                "els => els.flatMap(el => el.dataset.sampleThreads.split(/\\s+/))",
+            )
+        )
+        # A sample may deliberately demonstrate a quote retained after its original
+        # section was removed. It names that historical thread explicitly; ordinary
+        # shipped anchors must still resolve in the current page.
+        retained = {
+            thread["id"]
+            for thread in listed
+            if thread["id"] in sample_threads
+            and thread["detached_from"]
+            and thread["detached_from"]["section"] not in page_ids
+        }
         anchored = [
             thread["root"]
             for thread in listed
@@ -489,13 +504,16 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                     f"{example.stem}: the reaction's passage is painted nowhere; the "
                     f"wash reads {painted[:120]!r}"
                 )
-        detached = page.eval_on_selector_all(
-            ".lf-thread .lf-quote.detached", "els => els.map(e => e.textContent)"
+        detached = set(
+            page.eval_on_selector_all(
+                ".lf-thread .lf-quote.detached",
+                "els => els.map(el => el.closest('.lf-thread').dataset.id)",
+            )
         )
-        assert detached == [], (
-            f"{example.stem} ships an anchor that resolves to nothing: {detached}. "
-            "The passage it quotes has been rewritten; recapture it with "
-            "`leaf thread open --quote` against the current file."
+        assert detached == retained, (
+            f"{example.stem} has unexpected detached anchors: {detached - retained}. "
+            "Recapture unintended quotes with `leaf thread open --quote` against "
+            f"the current file; missing historical sample quotes: {retained - detached}."
         )
         # Only where the log named a passage. The thread count above already allows a
         # seed of general comments, which a page may hold; waiting unconditionally for

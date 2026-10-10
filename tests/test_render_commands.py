@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -45,6 +46,7 @@ from render_harness import (
     example_media,
     leaf_page,
     open_page,
+    opened_tab,
     page_registry,
     panel_settled,
     primed,
@@ -540,6 +542,128 @@ def test_shot_captions_have_disjoint_targets_inside_their_rail(browser, serve, t
     expect(page.locator("lf-shot wa-comparison")).to_have_attribute("position", "0")
 
 
+@pytest.mark.parametrize("touch", [False, True])
+def test_shot_inspects_either_original_without_flipping_or_moving(
+    browser, serve, touch
+):
+    """Full-page evidence stays inspectable on a phone through the shared viewer.
+
+    Endpoint choice, inspection, and native modified navigation are separate routes;
+    closing the viewer returns to the same route without shifting the comparison.
+    A parent inspector can still withdraw the complete rail with controls off.
+    """
+    shots = {
+        "before": solid_png(1200, 600, (210, 220, 235)),
+        "after": solid_png(1200, 600, (235, 215, 205)),
+    }
+    sources = {
+        state: f"/media/{hashlib.sha256(data).hexdigest()[:16]}.png"
+        for state, data in shots.items()
+    }
+    source = SHOT_PAGE
+    for state in shots:
+        source = source.replace(SHOT_SRC[state], sources[state])
+    context = browser.new_context(
+        viewport={"width": 390 if touch else 1200, "height": 900}, has_touch=touch
+    )
+    page = open_page(
+        browser,
+        serve(source, media={sources[n]: d for n, d in shots.items()}),
+        context=context,
+    )
+    shot = page.locator("lf-shot")
+    shot.scroll_into_view_if_needed()
+    comparison = shot.locator("wa-comparison")
+    expect(comparison).to_have_attribute("position", "50")
+    before = shot.bounding_box()
+    links = shot.get_by_role("link")
+    link_bounds = [link.bounding_box() for link in links.all()]
+    assert len(link_bounds) == 2
+    assert link_bounds[0]["x"] + link_bounds[0]["width"] <= link_bounds[1]["x"]
+    assert not page.evaluate(
+        "performance.getEntriesByType('resource').some(e => e.name.includes('photoswipe'))"
+    )
+    viewer = page.get_by_role("dialog", name="Image preview")
+    for index, state in enumerate(("before", "after")):
+        link = shot.get_by_role(
+            "link", name=f"Open {state} image — the navigation rail"
+        )
+        floor = 44 if touch else 24
+        assert min(link_bounds[index]["width"], link_bounds[index]["height"]) >= floor
+        link.hover()
+        assert link.bounding_box() == link_bounds[index]
+        link.focus()
+        assert link.bounding_box() == link_bounds[index]
+        assert shot.bounding_box() == before
+        if touch:
+            link.tap()
+        else:
+            link.press("Enter")
+        expect(viewer).to_be_visible()
+        expect(viewer.locator(".lf-media-viewer-original")).to_have_attribute(
+            "href",
+            re.compile(re.escape(sources[state]) + "$"),
+        )
+        expect(viewer.locator(".lf-media-viewer-caption")).to_have_text(
+            f"{state}: the navigation rail"
+        )
+        viewer.get_by_role("button", name="Zoom to actual size", exact=True).click()
+        expect(viewer.locator("img.pswp__img")).to_have_css("width", "1200px")
+        page.keyboard.press("Escape")
+        expect(viewer).not_to_be_visible()
+        expect(link).to_be_focused()
+        expect(comparison).to_have_attribute("position", "50")
+        assert shot.bounding_box() == before
+        assert link.bounding_box() == link_bounds[index]
+
+    # A modified link retains its href and ordinary browser destination.
+    after = links.nth(1)
+    original = opened_tab(
+        page,
+        after.evaluate("link => link.href"),
+        lambda: after.click(modifiers=["ControlOrMeta"]),
+    )
+    assert original.url.endswith(sources["after"])
+    original.close()
+    expect(viewer).not_to_be_visible()
+    expect(comparison).to_have_attribute("position", "50")
+
+    shot.locator('.lf-shotcap[data-lf-state="before"]').click()
+    expect(comparison).to_have_attribute("position", "100")
+    comparison.click(position={"x": 20, "y": 40})
+    expect(comparison).to_have_attribute("position", "0")
+    assert shot.bounding_box() == before
+    shot.evaluate("node => node.setAttribute('alt', 'the updated rail')")
+    expect(after).to_have_accessible_name("Open after image — the updated rail")
+    after.click()
+    expect(viewer.locator(".lf-media-viewer-caption")).to_have_text(
+        "after: the updated rail"
+    )
+    page.keyboard.press("Escape")
+
+    # Parent-owned inspectors hide the same complete rail and keep the checkbox.
+    shot.evaluate("""node => {
+      node.dataset.lfShotControls = 'off';
+      node.querySelector('.lf-shotrail').style.display = 'none';
+    }""")
+    expect(comparison).to_have_count(0)
+    expect(links.first).not_to_be_visible()
+    box = shot.locator("input.lf-shotflip")
+    box.focus()
+    box.press("Space")
+    expect(box).not_to_be_checked()
+    assert shown_frames(page) == ["before"]
+    shot.evaluate("""node => {
+      node.removeAttribute('data-lf-shot-controls');
+      node.querySelector('.lf-shotrail').style.removeProperty('display');
+    }""")
+    expect(comparison).to_have_count(1)
+    expect(links.first).to_be_visible()
+    page.emulate_media(media="print")
+    expect(links.first).not_to_be_visible()
+    assert shown_frames(page) == ["before", "after"]
+
+
 def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     """The live pair is continuously comparable, with direct endpoint alternatives.
 
@@ -706,7 +830,9 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     assert after_caption.evaluate("node => getComputedStyle(node).backgroundColor") != (
         before_caption.evaluate("node => getComputedStyle(node).backgroundColor")
     )
-    assert "show after" not in shortcut_bar_text(page)
+    # A selectable caption owns Space even at its current endpoint so it cannot
+    # fall through to browser scrolling (the widget's existing command contract).
+    assert "show after" in shortcut_bar_text(page)
     after_caption.click()
     expect(comparison).to_have_attribute("position", "0")
     before_caption.click()

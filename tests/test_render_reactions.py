@@ -1773,7 +1773,7 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
     folded = PART_DIAGRAM_PAGE.replace(
         '<lf-diagram id="flow"',
         '<details id="folded" open><summary>Flow</summary>'
-        '<div style="height: 500px"></div><lf-diagram id="flow"',
+        '<div style="height: 200vh"></div><lf-diagram id="flow"',
         1,
     ).replace("</lf-diagram>", "</lf-diagram></details>", 1)
     page = open_page(browser, serve(folded))
@@ -1793,14 +1793,16 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
             element: newPart,
             label: 'Start request',
           });
-          document.querySelector('#folded').open = false;
         }"""
     )
+    part = page.locator('#flow g[data-id="S"][data-rebuilt]')
+    expect(part).not_to_be_in_viewport()
+    page.locator("#folded").evaluate("fold => { fold.open = false; }")
 
-    control.focus()
+    control.evaluate("control => control.focus({ preventScroll: true })")
     expect(control).to_be_focused()
     expect(page.locator("#folded")).to_have_attribute("open", "")
-    expect(page.locator('#flow g[data-id="S"][data-rebuilt]')).to_be_in_viewport()
+    expect(part).to_be_in_viewport()
 
 
 def test_a_visual_proxy_keeps_user_standing_across_provider_updates(browser, serve):

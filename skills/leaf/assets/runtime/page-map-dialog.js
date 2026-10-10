@@ -40,7 +40,7 @@ import { iconTemplate } from "./icons.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import { coarsePointer } from "./pointer.js";
 import { rowWalk } from "./walk-position.js";
-import { closeControl, el, offer } from "./widget-elements.js";
+import { closeControl, el, searchField } from "./widget-elements.js";
 import { keepsHidden, keepsText } from "./keeps.js";
 import { placeKeeper } from "./user-place.js";
 import { retainUserIntent } from "./user-intent.js";
@@ -84,12 +84,11 @@ const dialogClose = closeControl({
   title: "Close Page Map (Esc)",
 });
 dialogHead.append(dialogClose);
-const dialogSearch = offer("wa-input", "lf-page-map-search lf-label-hidden");
-dialogSearch.type = "search";
-dialogSearch.name = "page-map-search";
-dialogSearch.placeholder = "Find an action, status, or location";
-dialogSearch.label = "Find an action, status, or location in Page Map";
-dialogSearch.size = "s";
+const dialogSearch = searchField("lf-page-map-search", {
+  name: "page-map-search",
+  label: "Find an action, status, or location in Page Map",
+  placeholder: "Find an action, status, or location",
+});
 const dialogList = el("div", "lf-page-map-list");
 // A state update or a search re-renders the open sheet; the row the user was on holds
 // their place in it (user-place.js), under the map key each row is rendered with.

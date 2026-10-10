@@ -90,6 +90,7 @@ function proseReading(message) {
   return reading;
 }
 
+/** @param {import("../../../../../build/browser/domain.ts").Message | Extract<import("../../../../../build/browser/domain.ts").Command, {kind: "comment" | "reply"}>} message @returns {string} */
 export function messageText(message) {
   if (message.token) {
     const token = tokenEntry(message.token);
@@ -296,7 +297,8 @@ export class MessageView {
                 class="lf-btn lf-page-thread-open lf-ui"
                 data-lf-gen="1"
                 data-lf-offer="button"
-                @click=${() => this.#commands.showThread(this.#model.id)}
+                @click=${() =>
+                  this.#commands.showThread(this.#model.id, { focus: "message" })}
               >
                 Open interactive reply in Threads
               </button>`

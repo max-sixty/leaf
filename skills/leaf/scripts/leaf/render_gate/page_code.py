@@ -19,8 +19,11 @@ channels, so the check and the watcher fail on one set, spelled the same way and
 naming the same source location. The preview server is read-only, so the reports
 are answered here and reach no log.
 
-A pass is narrower than `--render`: nothing here reads layout, color schemes, print,
-or replay, and code that throws only after a gesture or a timer is not reached.
+A failed browser run also reports failed network requests. Those readings explain a
+failure; they do not decide one: optional assets and other requests that fail without a
+page-code failure remain nonfatal. A pass is narrower than `--render`: nothing here
+reads layout, color schemes, print, or replay, and code that throws only after a
+gesture or a timer is not reached.
 """
 
 from leaf.render_checks import (
@@ -64,6 +67,60 @@ def run_page_code(browser, url: str) -> list[str]:
     reports = []
     page = browser.new_page(viewport=RENDER_VIEWPORT, color_scheme="light")
     answer_reports(page, reports.append)
+    cdp = page.context.new_cdp_session(page)
+    cdp.send("Page.enable")
+    cdp.send("Network.enable")
+    pending = {}
+    frame_urls = {}
+    network_errors = []
+
+    def cdp_frame(params):
+        frame = params["frame"]
+        frame_urls[frame["id"]] = frame.get("url", "")
+
+    def cdp_started(params):
+        request = params["request"]
+        request_id = params["requestId"]
+        kind = params.get("type", "Other")
+        frame_id = params.get("frameId", "<no-frame>")
+        pending[request_id] = (kind, frame_id, request["url"])
+
+    def cdp_finished(params):
+        pending.pop(params["requestId"], None)
+
+    def cdp_failed(params):
+        request = pending.pop(params["requestId"], None)
+        failure = params.get("errorText", "request failed")
+        if request and "ERR_ABORTED" not in failure:
+            kind, frame_id, failed_url = request
+            network_errors.append(
+                f"Browser request failed ({kind}, {failure}) in "
+                f"{frame_urls.get(frame_id, frame_id)}: {failed_url}"
+            )
+
+    def cdp_response(params):
+        response = params["response"]
+        if response["status"] >= 400:
+            request = pending.get(params["requestId"])
+            if request:
+                kind, frame_id, failed_url = request
+                frame_url = frame_urls.get(frame_id, frame_id)
+            else:
+                kind, frame_url, failed_url = (
+                    "Other",
+                    "<unknown-frame>",
+                    response["url"],
+                )
+            network_errors.append(
+                f"Browser request returned HTTP {response['status']} ({kind}) in "
+                f"{frame_url}: {failed_url}"
+            )
+
+    cdp.on("Page.frameNavigated", cdp_frame)
+    cdp.on("Network.requestWillBeSent", cdp_started)
+    cdp.on("Network.loadingFinished", cdp_finished)
+    cdp.on("Network.loadingFailed", cdp_failed)
+    cdp.on("Network.responseReceived", cdp_response)
     try:
         page.goto(url)
         wait_until_ready(page, served(page, url, "/api/state").json())
@@ -74,11 +131,13 @@ def run_page_code(browser, url: str) -> list[str]:
         # while this process is waiting on the page.
         wait_for_probe(page, "sendsAcked")
     except PageNotReady as error:
-        return [*reports, str(error)]
+        reports.append(str(error))
     except PlaywrightError as error:
         # A wait that timed out names what never arrived; any other browser error
         # is as much a failed run, and the reports already taken still stand.
-        return [*reports, str(error).strip().splitlines()[0]]
+        reports.append(str(error).strip().splitlines()[0])
     finally:
         page.close()
+    if reports and network_errors:
+        reports.extend(network_errors)
     return reports

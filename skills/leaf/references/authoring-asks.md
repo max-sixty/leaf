@@ -1,7 +1,9 @@
 # Asks and sign-off
 
-Use an Ask for every decision waiting on the user. A recommendation leaves
-that decision open until the user decides.
+Use an Ask for every page decision waiting on the user. A recommendation leaves
+that decision open until the user decides. `conversation-loop.md`, "Questions and
+Tasks", owns the complete queue contract, including conversational questions and
+requests for actions outside the page.
 
 The user answers an Ask from what is on screen when they reach it, and `q`
 brings its start to the top with everything above it out of view. Keep its question,
@@ -44,8 +46,7 @@ that stops mattering before the user answers it, because they answered elsewhere
 the question moved on, is yours to retire in a version: leave it out, or mark it
 `restated` as `authoring-revisions.md` says. Nothing else ends its task, since the
 markup holds it. Something you need from the user that no widget
-answers is a task you put on them rather than an Ask (`conversation-loop.md`, "Tasks
-on the user").
+answers follows the user-task route in `conversation-loop.md`, "Questions and Tasks".
 
 The user can finish each independently answerable proposal as they review it.
 Give each its own `lf-ask` with explicit accept and reject choices. Either choice

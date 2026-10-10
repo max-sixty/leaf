@@ -1,20 +1,16 @@
 # The `leaf-dev` package
 
-`leaf_dev` is Leaf's developer tooling as a package: the mechanisms the suite and
-the eval harnesses share, and the `leaf-dev` commands built on them.
+`leaf_dev` is Leaf's developer tooling: the mechanisms the suite and the eval
+harnesses share, and the `leaf-dev` commands built on them. `uv run leaf-dev --help`
+lists the commands, and each command's `--help` says what it does.
 
-```sh
-uv run leaf-dev --help
-```
-
-It is a uv workspace member that only the root dev group depends on, so the checkout's
+Only the root dev group depends on this uv workspace member, so the checkout's
 environment installs it editable and `bin/leaf`, which runs `--no-dev`, never does.
-Nothing in `skills/` may import it. Its code runs under the same pre-commit hooks as
-the rest of the tree.
+Nothing in `skills/` may import it.
 
-A command's output lands under `.tmp/` unless its reader finds it at a committed
-path, as `examples/corpus.html` and its companions are. Evidence, previews, and probe
-results leave the tracked tree unchanged.
+A command writes under `.tmp/` unless its reader finds the output at a committed
+path, as with `examples/corpus.html` and its companions. Evidence, previews, and
+probe results leave the tracked tree unchanged.
 
 ## Where tooling goes
 
@@ -94,6 +90,8 @@ reaches a module by importing it from this package, never through `sys.path`,
   page, or exports it with `--export`. `/developing-leaf` says when to pass `--user`.
 - `leaf-dev corpus` generates `examples/corpus.html` and its companions.
 - `leaf-dev keydocs` writes the `x-` key index in `docs/registry.html`.
+- `leaf-dev catalog` refreshes `docs/examples.html` descriptions from example metadata;
+  the site build derives them again before publication.
 
 ## Website and demo
 

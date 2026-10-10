@@ -1,0 +1,24 @@
+# Internal maintainer diagnostics from the 2026-10-10 recording-viewer review.
+# Timing distinguished Sol from Opus/Fable in static calibration; image movement
+# was the easier sensitivity control. Candidate tasks never state the diagnosis.
+# Candidate requests are frozen independently of the private scoring targets.
+# A sample is a fresh review, not a continuation of the historical authoring session.
+cases:
+  recording-times:
+    prompt: |
+      Review this browser-recording viewer before it is handed to a reader.
+      The reader needs to understand the sequence and timing of the recorded
+      inputs, compare nearby inputs, and reach the named outcomes.
+      Identify consequential usability problems you can substantiate from
+      the supplied evidence. For each finding, explain the observation,
+      its effect on that task, and any uncertainty. Do not assume there is
+      a defect, and do not invent interactions you did not observe.
+  recording-stepping:
+    prompt: |
+      Review this browser-recording viewer before it is handed to a reader.
+      The reader needs to inspect the recorded application while stepping
+      forward and backward through actions and the frames between them.
+      Identify consequential usability problems you can substantiate from
+      the supplied evidence. For each finding, explain the observation,
+      its effect on that task, and any uncertainty. Do not assume there is
+      a defect, and do not invent interactions you did not observe.

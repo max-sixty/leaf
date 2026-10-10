@@ -4,6 +4,10 @@ Each `evals/<task>/case.yaml` is a Promptfoo test that runs on Claude Code and C
 `leaf-dev eval` builds the Leaf arms, turns the selected cases into a Promptfoo
 config, and runs `promptfoo eval`; Promptfoo does the rest.
 
+Internal viewer-review diagnostics run with `leaf-dev eval-ui-review`.
+Their exception to the usual suite scope, retained cases and grading workflow are
+in [UI review detection](ui-review-detection/README.md).
+
 ```sh
 npm ci --prefix evals
 uv run leaf-dev eval brief-document-needs-no-outline --harness claude-code

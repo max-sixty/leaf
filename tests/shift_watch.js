@@ -26,6 +26,9 @@
 // continuations; an already owned effect retains only its admitted playback.
 // Native effects it began retain only their sampled displacement within their
 // own subtree; their continued lifetime never owns unrelated page movement.
+// Native animation cleanup keeps that effect credit without reopening
+// whole-frame rendering. An announced passive source checkpoint retains its own
+// sampled comparison before a callback can begin another counted rendering.
 // Native scroll effects belong to their retained scroll source, regardless of the
 // gesture that created them. Stable timeline bindings and translation trajectories
 // credit only source-collinear travel bounded by that source's viewport scroll.
@@ -94,6 +97,11 @@
 // announces its change by that write. A change to this gate runs the suite with
 // VERIFY = 1, which checks every frame.
 //
+// Movement findings retain the exact comparison and credits that decided them,
+// alongside the sampled scroll/attachment/animation inputs. Only admitted failures
+// serialize that evidence; healthy frames emit nothing. Passive chains keep their
+// individual comparisons instead of inventing an aggregate credit after the fact.
+//
 // Every finding fails the ordinary browser fixture. It installs this sensor after
 // write_watch.js and binds the canonical control and clipping vocabulary.
 (() => {
@@ -159,7 +167,11 @@
   const beginnings = new WeakMap();
   const startMotion = (animation, source) => {
     flushNews();
-    beginnings.set(animation, { source, owned: !!source && permitted(source) });
+    const owned = !!source && permitted(source);
+    beginnings.set(animation, { source, owned });
+    // Starting a playback can apply its first keyframe immediately. That is new
+    // work by its source; continuing or retiring the same playback is not.
+    if (owned) renderingDirty = true;
   };
   // A direct native anchor inset, not an unused var() fallback or a named
   // different anchor inside the expression. Floating placement writes this form.
@@ -310,9 +322,13 @@
   // task as the change it announces, so it is set before the next frame's reading.
   let unread = true;
   let effectsDirty = true;
-  const announce = () => {
+  // Page mutations need counted rendering; native effect mutations already have
+  // the playback owner and sampled-property proof retained by readMotion.
+  let renderingDirty = true;
+  const announce = (rendering = true) => {
     unread = true;
     effectsDirty = true;
+    if (rendering !== false) renderingDirty = true;
   };
   // Borrowed prototype methods still change their receiver's document. Constructed
   // sheets are confined to their construction document, even though ownerNode is
@@ -337,12 +353,13 @@
       ownerOf(value[HOME])
     );
   };
-  const announceOwner = (value) => ownerOf(value)?.[WATCH]?.announce();
-  const changing = (receiver, work) => {
-    announceOwner(receiver);
+  const announceOwner = (value, rendering = true) =>
+    ownerOf(value)?.[WATCH]?.announce(rendering);
+  const changing = (receiver, work, rendering = true) => {
+    announceOwner(receiver, rendering);
     const result = work();
     // Retargeting an effect changes both the former and the new document.
-    announceOwner(receiver);
+    announceOwner(receiver, rendering);
     return result;
   };
   // Native declarations have exotic own properties or subtype setters; adopted
@@ -468,14 +485,18 @@
   ])
     matchMedia(query).addEventListener("change", announce);
   // Page state that matches selectors or applies style without a DOM write.
-  const announcing = (proto, names) => {
+  const announcing = (proto, names, rendering = true) => {
     Object.defineProperty(proto, HOME, { value: document });
     for (const name of names) {
       const own = Object.getOwnPropertyDescriptor(proto, name);
       const original = own.set ?? own.value;
       const wrapped = function (...args) {
         const receiver = receiverOf(this);
-        return changing(receiver, () => Reflect.apply(original, receiver, args));
+        return changing(
+          receiver,
+          () => Reflect.apply(original, receiver, args),
+          rendering,
+        );
       };
       Object.defineProperty(
         proto,
@@ -556,22 +577,26 @@
     });
     announcing(proto, ["adoptedStyleSheets"]);
   }
-  announcing(Animation.prototype, [
-    "cancel",
-    "finish",
-    "play",
-    "pause",
-    "reverse",
-    "updatePlaybackRate",
-    "persist",
-    "effect",
-    "timeline",
-    "startTime",
-    "currentTime",
-    "playbackRate",
-  ]);
-  announcing(KeyframeEffect.prototype, ["setKeyframes", "target", "composite"]);
-  announcing(AnimationEffect.prototype, ["updateTiming"]);
+  announcing(
+    Animation.prototype,
+    [
+      "cancel",
+      "finish",
+      "play",
+      "pause",
+      "reverse",
+      "updatePlaybackRate",
+      "persist",
+      "effect",
+      "timeline",
+      "startTime",
+      "currentTime",
+      "playbackRate",
+    ],
+    false,
+  );
+  announcing(KeyframeEffect.prototype, ["setKeyframes", "target", "composite"], false);
+  announcing(AnimationEffect.prototype, ["updateTiming"], false);
   announcing(HTMLInputElement.prototype, ["setRangeText", "stepUp", "stepDown"]);
   announcing(HTMLTextAreaElement.prototype, ["setRangeText"]);
   announcing(HTMLOptionElement.prototype, ["selected"]);
@@ -830,7 +855,7 @@
   };
   const animate = Element.prototype.animate;
   Element.prototype.animate = function (...args) {
-    announce();
+    announce(false);
     const values = underlying(this);
     const animation = animate.apply(this, args);
     startMotion(animation, window.lfInputWork.current());
@@ -1506,26 +1531,55 @@
   // Promise checkpoints do not flush the whole composed tree's style.
   const discoverMotion = (source, input = false) => {
     if (writes.takeRecords().length) announce();
-    if (!effectsDirty && !input) return;
+    const changed = renderingDirty;
+    renderingDirty = false;
+    if (!effectsDirty && !input) return changed;
     effectsDirty = false;
     for (const animation of allAnimations()) recordBeginning(animation, source);
+    return changed;
   };
   // Exact callback sources also cross private document ports, where DOM capture
   // cannot hear the parent input. A delayed continuation starts its own counted
   // rendering when it runs; an unrelated passive callback never gains that credit.
   window.lfInputWork.subscribe((source) => {
     flushNews();
-    discoverMotion(source);
-    if (!source || !permitted(source)) return;
+    const changed = discoverMotion(source);
+    // A passive task may move a child before an owned completion callback runs
+    // in the same turn. Keep that source boundary before the callback opens its
+    // counted rendering; its native cleanup cannot adopt the preceding move.
+    const prior = frames.at(-1);
+    if (
+      !source &&
+      unread &&
+      prior &&
+      !inputOwns(nativePerformance.now()) &&
+      !inputOwns(prior.at)
+    ) {
+      // A no-fill effect is absent from getAnimations once it finishes. Its
+      // retained playback still supplies the same endpoint proof as the promise.
+      for (const animation of prior.motion)
+        if (animation.playState === "finished")
+          readMotion(nativePerformance.now(), animation);
+      const at = read(nativePerformance.now(), false);
+      protectedMotion([prior, prior, { at, nodes: held, motion: prior.motion }]);
+    }
+    // Native effects carry only their sampled translation. Cleanup without a
+    // page mutation does not reopen ownership of every landmark in the frame.
+    if (!source || !changed || !permitted(source)) return;
     if (source.event.type === "input" && open?.typing) return;
     if (open?.source?.event === source.event) return;
     begin(nativePerformance.now(), null, source);
   });
   const reported = new Set();
-  const report = (what, detail) => {
+  const report = (what, detail, evidence) => {
     if (reported.has(what)) return;
     reported.add(what);
-    console.error(`${what}${detail}`);
+    console.error(
+      `${what}${detail}` +
+        (evidence
+          ? `\nshift evidence: ${JSON.stringify(evidence, (_, value) => (value instanceof Node ? name(value) : value))}`
+          : ""),
+    );
   };
   const box = ({ left, top, width, height }) =>
     `${Math.round(left)},${Math.round(top)} ${Math.round(width)}x${Math.round(height)}`;
@@ -1817,12 +1871,16 @@
   // Chrome signals a changed painted frame; actual reading/control geometry decides
   // motion. A container can grow at one edge while all protected landmarks stand.
   // Null or decorative pseudo sources do not override those landmark readings.
+  const credit = (motion, branch, owner, axis, amount, inputs) => {
+    motion[axis] += amount;
+    motion.terms.push({ branch, owner, axis, amount, inputs });
+  };
   const nativeScrollMotion = (node, from, to) => {
     const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
     const sticky = ancestryAt(element, to).find(
       (owner) => paintAt(owner, to)?.position === "sticky",
     );
-    const motion = { left: 0, top: 0 };
+    const motion = { left: 0, top: 0, terms: [] };
     if (!sticky) return motion;
     const before = boxAt(sticky, from),
       after = boxAt(sticky, to);
@@ -1837,19 +1895,24 @@
       // A sticky header inside a floating surface is carried by that surface,
       // not by the document scroll outside its fixed containing block.
       const carrying = fixed < 0 ? ancestors : ancestors.slice(0, fixed + 1);
-      const scroll = carrying.reduce((sum, owner) => {
+      const sources = carrying.flatMap((owner) => {
         const prior = scrollAt(owner, from),
           next = scrollAt(owner, to);
-        return (
-          sum +
-          (prior && next
-            ? viewportScroll(owner, to, {
-                left: next.left - prior.left,
-                top: next.top - prior.top,
-              })[axis]
-            : 0)
-        );
-      }, 0);
+        return prior && next
+          ? [
+              {
+                source: owner,
+                before: prior,
+                after: next,
+                viewport: viewportScroll(owner, to, {
+                  left: next.left - prior.left,
+                  top: next.top - prior.top,
+                }),
+              },
+            ]
+          : [];
+      });
+      const scroll = sources.reduce((sum, source) => sum + source.viewport[axis], 0);
       const shifted = after[axis] - before[axis];
       // Scroll carries the sticky owner on that axis, through at most its native
       // scroll delta. Descendants retain their local position relative to it.
@@ -1858,7 +1921,13 @@
         shifted >= Math.min(0, -scroll) - 1 &&
         shifted <= Math.max(0, -scroll) + 1
       )
-        motion[axis] = shifted;
+        credit(motion, "sticky_scroll", sticky, axis, shifted, {
+          before,
+          after,
+          scroll,
+          sources,
+          fixed_boundary: fixed < 0 ? null : ancestors[fixed],
+        });
     }
     return motion;
   };
@@ -1901,6 +1970,7 @@
         )
       ) {
         const reach = { left: [0, 0], top: [0, 0] };
+        const sources = [];
         for (const [i, before] of was.scrollOffsets.entries()) {
           const after = now.scrollOffsets[i];
           if (before.left === after.left && before.top === after.top) continue;
@@ -1908,6 +1978,7 @@
             left: before.left - after.left,
             top: before.top - after.top,
           });
+          sources.push({ source: before.source, before, after, viewport: by });
           for (const axis of ["left", "top"]) {
             reach[axis][0] += Math.min(0, by[axis]);
             reach[axis][1] += Math.max(0, by[axis]);
@@ -1922,7 +1993,15 @@
             placed >= Math.min(0, carried) - 1 &&
             placed <= Math.max(0, carried) + 1
           )
-            motion[axis] += placed;
+            credit(motion, "observed_attachment", owner, axis, placed, {
+              before: was,
+              after: now,
+              crosses_fixed: crossesFixed,
+              reach: reach[axis],
+              carried,
+              placed,
+              sources,
+            });
         }
       }
       if (sameAttachment && was.frame && was.frame === now.frame) {
@@ -1945,7 +2024,17 @@
           const travel = after[axis] - before[axis];
           const placed = writtenPoint(now, axis) - writtenPoint(was, axis) + travel;
           if (placed >= Math.min(0, travel) - 1 && placed <= Math.max(0, travel) + 1) {
-            motion[axis] += placed;
+            credit(motion, "native_camera", owner, axis, placed, {
+              before,
+              after,
+              before_layout: beforeLayout,
+              after_layout: afterLayout,
+              before_selection: was,
+              after_selection: now,
+              crosses_fixed: crossesFixed,
+              travel,
+              placed,
+            });
             anchored[axis] = true;
           }
         }
@@ -1962,6 +2051,8 @@
             source && {
               left: retained?.nativeOrigin?.left ?? source.left,
               top: retained?.nativeOrigin?.top ?? source.top,
+              camera: retained?.nativeOrigin ?? null,
+              frame: source,
             }
           );
         };
@@ -1972,7 +2063,18 @@
             if (anchored[axis]) continue;
             const predicted = (selection, frame) =>
               writtenPoint(selection, axis) + frame[axis];
-            motion[axis] += predicted(now, after) - predicted(was, before);
+            const beforePoint = predicted(was, before),
+              afterPoint = predicted(now, after);
+            credit(motion, "floating_plane", owner, axis, afterPoint - beforePoint, {
+              before: was,
+              after: now,
+              before_origin: before,
+              after_origin: after,
+              crosses_fixed: crossesFixed,
+              same_attachment: sameAttachment,
+              before_point: beforePoint,
+              after_point: afterPoint,
+            });
             anchored[axis] = true;
           }
         }
@@ -1996,10 +2098,24 @@
       ]) {
         if (!prior[held] || !next[held] || anchored[axis]) continue;
         anchored[axis] = true;
-        motion[axis] +=
-          Math.abs(afterLayout[axis] - beforeLayout[axis]) < 1
-            ? after[axis] - before[axis]
-            : carried[axis];
+        const layoutStable = Math.abs(afterLayout[axis] - beforeLayout[axis]) < 1;
+        credit(
+          motion,
+          "native_anchor",
+          owner,
+          axis,
+          layoutStable ? after[axis] - before[axis] : carried[axis],
+          {
+            anchor,
+            pose_at: start,
+            before,
+            after,
+            before_layout: beforeLayout,
+            after_layout: afterLayout,
+            layout_stable: layoutStable,
+            sticky_terms: carried.terms,
+          },
+        );
       }
     }
     return motion;
@@ -2072,12 +2188,21 @@
     const along = (carried.left * source.left + carried.top * source.top) / travel;
     const across = (carried.left * source.top - carried.top * source.left) / travel;
     return Math.abs(across) < 1 && along >= -0.01 && along <= travel + 0.01
-      ? carried
+      ? {
+          motion: carried,
+          rebase,
+          source,
+          travel,
+          along,
+          across,
+          before_scroll: prior,
+          after_scroll: next,
+        }
       : null;
   };
   const animationMotion = (node, from, to, animations) => {
     const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
-    const motion = { left: 0, top: 0 };
+    const motion = { left: 0, top: 0, terms: [] };
     const seen = new Map();
     for (const animation of new Set(animations)) {
       const target = animation.effect.target;
@@ -2094,20 +2219,79 @@
         const prior = animationTranslation(property, before.values[property]);
         const next = animationTranslation(property, after.values[property]);
         if (!prior || !next) continue;
-        let by = viewportTranslation(property, before, after, {
+        const by = viewportTranslation(property, before, after, {
           left: next.left - prior.left,
           top: next.top - prior.top,
         });
         if (!by) continue;
-        if (before.scroll || after.scroll)
-          by = scrollEffectMotion(property, before, after, from, to, by);
-        if (!by) continue;
-        motion.left += by.left;
-        motion.top += by.top;
+        const scroll =
+          before.scroll || after.scroll
+            ? scrollEffectMotion(property, before, after, from, to, by)
+            : null;
+        if ((before.scroll || after.scroll) && !scroll) continue;
+        const amount = scroll?.motion ?? by;
+        // A timeline binding contains platform objects; the signature already
+        // retains its deciding numeric/CSS configuration in serializable form.
+        const sample = (reading) => ({
+          at: reading.at,
+          values: reading.values,
+          axes: reading.axes,
+          keyframes: reading.keyframes,
+          scroll: reading.scroll
+            ? {
+                source: reading.scroll.source,
+                axis: reading.scroll.axis,
+                signature: reading.scroll.signature,
+              }
+            : null,
+        });
+        const inputs = {
+          property,
+          before: sample(before),
+          after: sample(after),
+          viewport: by,
+          scroll,
+        };
+        for (const axis of ["left", "top"])
+          credit(
+            motion,
+            scroll ? "scroll_animation" : "animation",
+            target,
+            axis,
+            amount[axis],
+            inputs,
+          );
       }
       seen.set(target, properties);
     }
     return motion;
+  };
+  // The credit owners retain their accepted terms. A failing comparison keeps
+  // these exact terms until paint admission; reporting never re-runs the solver.
+  const motionComparison = (
+    from,
+    to,
+    before,
+    after,
+    layoutBefore,
+    layoutAfter,
+    scroll,
+    motion,
+  ) => {
+    const observed = { left: after.left - before.left, top: after.top - before.top };
+    return {
+      before: { at: from, rect: before, layout: layoutBefore },
+      after: { at: to, rect: after, layout: layoutAfter },
+      observed,
+      scroll_credit: { left: scroll.left, top: scroll.top },
+      animation_credit: { left: motion.left, top: motion.top },
+      residual: {
+        left: observed.left - scroll.left - motion.left,
+        top: observed.top - scroll.top - motion.top,
+      },
+      scroll_terms: scroll.terms,
+      animation_terms: motion.terms,
+    };
   };
   const pendingMotion = [];
   const protectedMotion = (around) => {
@@ -2179,6 +2363,16 @@
               currentRect,
               before: around[before].at,
               after: around[after].at,
+              evidence: motionComparison(
+                around[before].at,
+                around[after].at,
+                previousRect,
+                currentRect,
+                { left: layoutLeft, top: layoutTop },
+                { left: nextLeft, top: nextTop },
+                scroll,
+                motion,
+              ),
             });
         }
       }
@@ -2254,6 +2448,13 @@
           report(
             `${name(node)} moved without input`,
             by(proof.previousRect, proof.currentRect) + beside(entry.sources, node),
+            {
+              kind: "passive",
+              node: name(node),
+              fragment,
+              paint_at: entry.startTime,
+              comparisons: (stable ? chain : [proof]).map((move) => move.evidence),
+            },
           );
       }
     for (let i = pendingMotion.length - 1; i >= 0; i--)
@@ -2285,6 +2486,24 @@
         by(before, after) +
           `; the key found ${box(before)}, the frame painted ${box(after)}` +
           beside(entry.sources, node),
+        {
+          kind: "typing",
+          node: name(node),
+          field: name(typing.field),
+          paint_at: entry.startTime,
+          comparisons: [
+            motionComparison(
+              typing.at,
+              painted,
+              before,
+              after,
+              from,
+              to,
+              scroll,
+              motion,
+            ),
+          ],
+        },
       );
     }
   };
@@ -2401,8 +2620,8 @@
   };
   // Paint checkpoints keep the ledger bounded by outstanding evidence, even on a
   // page that stays still and therefore sends no layout-shift observer callbacks.
-  // Only tick() samples poses and classifies their input ownership; a task between
-  // frames must not manufacture another frame with a different ownership reading.
+  // tick() owns native frame readings. Callback checkpoints preserve passive
+  // source-boundary comparisons without manufacturing another frame or paint.
   const checkpoint = () => {
     const through = nativePerformance.now();
     nativeFrame(() =>

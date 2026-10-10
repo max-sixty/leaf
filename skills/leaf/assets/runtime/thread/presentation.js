@@ -195,7 +195,7 @@ export function createThreadPresentation({
           // Continuity may reveal a route needing this very presenter. Its work starts
           // after the cohort commits, and never joins the ticket it is completing.
           void continueReplies(restoreReply).catch((error) =>
-            reportPageError(`Reply continuation failed: ${error?.message ?? error}`),
+            reportPageError(error, `Reply continuation failed`),
           );
         });
       };
@@ -272,7 +272,8 @@ export function createThreadPresentation({
           );
         }
         reportPageError(
-          `Thread panel ${threadsBox.closest(".lf-thread-panel")?.id} failed: ${failure?.message ?? failure}`,
+          failure,
+          `Thread panel ${threadsBox.closest(".lf-thread-panel")?.id} failed`,
         );
       }
     };

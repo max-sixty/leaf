@@ -324,15 +324,47 @@ canonical page `route`, site `release`, tab `session`, and ordered interaction
 metadata: event type, time, sequence, pointer coordinates, structural element
 paths and per-tab node ids, command ids and bindings, and event response kinds and status codes. The edge
 removes element ids and names, labels, typed and pasted text, selected text, URL details,
-and arbitrary client fields before logging. Large client entries retain their original
-event type and part numbers, but not the raw JSON pieces. The page's durable `events.jsonl`
-and local interaction trace retain their own raw content. The edge acknowledges the
-batch without starting a container. A batch has at
+and arbitrary client fields before logging. Sample lifecycle records retain their phase,
+host, allocation and document revision, elapsed milliseconds, admission status and Leaf
+document revision, reload flag, retirement reason, release operation, and error
+name/status. Phase, reason, operation and error names are bounded identifiers, so new
+producer vocabulary survives without copying it into the collector. Authored template
+ids, exception messages, stacks, and response bodies are omitted. `sampleReference`
+projects the canonical sample page's 32-hex capability into
+the same 12-digit support handle used for session references; `documentReference`
+projects the private-port document UUID the same way. Neither raw identity is logged.
+
+Opaque child batches first reach their container, which admits the sample capability.
+Only a 204 acknowledgement lets the edge collector validate and log that same batch.
+Refused capabilities never write a cloud record. A batch outside the collector's
+bounds or schema writes no cloud record but retains the container's acknowledgement,
+so diagnostic refusal cannot turn an admitted request into a retry. Child batches use
+`sampleReference`
+in place of the parent's session `reference`, together with the same public `route`,
+release and tab session. A parent's lifecycle entry `sampleReference` joins directly
+to its child's batch `sampleReference` in Workers Observability. This also covers
+nested hosts: their lifecycle entries name the next child's reference. Both paths
+use the same bounds and redaction; neither a session cookie nor agent work is needed
+for a child batch.
+
+The container also retains full child interaction records in the containing authored
+page's directory, where `page` is the complete canonical child path relative to that
+durable root. A nested parent's lifecycle `sample` matches its child's `page`, and
+releasing an ancestor sample leaves these local records intact. The edge projects
+the final capability from that canonical path into a support handle by taking its
+hexadecimal integer modulo 1,000,000,000,000 and padding to 12 digits. The handle is
+diagnostic, and no server door accepts it as a capability.
+
+Large client entries retain their original event type and part numbers, but not the
+raw JSON pieces. The page's durable `events.jsonl` and local interaction trace retain
+their own raw content. The edge acknowledges a parent batch without starting a
+container; a child batch uses its already-selected container for capability admission. A batch has at
 most 100 entries and 128 KiB of JSON, leaving room under Cloudflare's
 [256 KiB log limit](https://developers.cloudflare.com/workers/platform/limits/#log-size)
 for request metadata. To retrieve a session's batches, use the Workers
 Observability REST query above with `lookup_key=reference`, the banner's 12-digit
-reference as `lookup_value`, and `component` set to `leaf-interaction`. Keep the
+reference as `lookup_value`, and `component` set to `leaf-interaction`. Follow an
+entry's child reference with `lookup_key=sampleReference` to read its batches. Keep the
 incident window narrow enough that `result.statistics.abr_level` is `1`.
 Workers Logs retains records for at most seven days, while page-local `events.jsonl`
 lasts with its page directory. TODO(2026-09-25): Export interaction records to durable

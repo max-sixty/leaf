@@ -4574,7 +4574,7 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
     ), "successful retry replaced the retained card"
     expect(page.locator(".lf-thread-view-summary")).to_have_text("0 open threads")
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 0")
-    assert take_browser_errors(page) == [
+    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
         "leaf: Presentation failed: injected thread-card failure"
     ]
     holding(page, held_events, 2, "the gesture and the page's report of its failure")
@@ -4615,7 +4615,7 @@ def test_a_failed_narrowing_restore_has_one_owned_presentation_error(browser, se
             "deliberate narrowing failure; deliberate narrowing failure"
         )
     ]
-    assert take_browser_errors(page) == expected
+    assert [error.splitlines()[0] for error in take_browser_errors(page)] == expected
 
     page.get_by_role("searchbox", name="Find in threads").fill("")
     page.wait_for_function(
@@ -4694,7 +4694,7 @@ def test_a_failed_narrowing_view_restores_its_committed_list_and_keeps_the_input
             before.open === view.querySelector('[data-filter-value="open"]');
         }"""
     )
-    assert take_browser_errors(page) == [
+    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
         (
             "leaf: Presentation failed: Thread list presentation retry failed: "
             "injected narrowing-view failure; injected narrowing-view failure"
@@ -4768,7 +4768,7 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
             "deliberate reveal failure; deliberate retry retention failure"
         )
     ]
-    assert take_browser_errors(page) == expected
+    assert [error.splitlines()[0] for error in take_browser_errors(page)] == expected
 
     routes = {route.request.post_data_json["kind"]: route for route in held}
     held.clear()

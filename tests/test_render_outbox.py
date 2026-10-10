@@ -2965,7 +2965,7 @@ def test_an_optimistic_presentation_fault_does_not_change_delivery_result(
     # promise carries the same rejection for a caller that restores a draft from it, and
     # accounts for it no second time.
     errors = take_browser_errors(page)
-    assert errors == [
+    assert [error.splitlines()[0] for error in errors] == [
         (
             "leaf: Presentation failed: <lf-suggestion> renderState threw: "
             "injected optimistic presentation fault"

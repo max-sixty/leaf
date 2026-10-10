@@ -37,6 +37,7 @@ from urllib.parse import urlencode, urljoin, urlsplit
 
 import click
 import psutil
+from leaf.render_gate.scheme import collect_page_exceptions
 from playwright.sync_api import APIResponse, BrowserContext, Page
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -112,7 +113,7 @@ def observe_startup(page: Page) -> list[str]:
             failures.append(message.text) if message.type == "error" else None
         ),
     )
-    page.on("pageerror", lambda error: failures.append(str(error)))
+    collect_page_exceptions(page, failures)
     return failures
 
 

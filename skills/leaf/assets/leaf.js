@@ -1018,7 +1018,7 @@ async function syncInteractionGallery() {
   } catch (error) {
     failedInteractionGallery = gallery;
     if (!interactionGalleryModule) interactionGalleryLoading = null;
-    reportPageError(`interaction gallery failed to start: ${error?.message ?? error}`);
+    reportPageError(error, `interaction gallery failed to start`);
   }
 }
 if (!offlineInteractive) {
@@ -1146,7 +1146,9 @@ async function startPage() {
 
 startPage().catch((error) => {
   const reason = `page failed to start: ${error?.message ?? error}`;
-  window.dispatchEvent(new CustomEvent("lf-startup-failed", { detail: { reason } }));
-  reportPageError(reason);
+  window.dispatchEvent(
+    new CustomEvent("lf-startup-failed", { detail: { reason, error } }),
+  );
+  reportPageError(error, "page failed to start");
   renderStatus(error);
 });

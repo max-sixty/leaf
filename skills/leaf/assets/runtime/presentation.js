@@ -253,7 +253,7 @@ export async function settlePageInterface() {
   // visible, but must not keep every generated control behind the upgrade boundary.
   for (const result of await Promise.allSettled(pending)) {
     if (result.status === "rejected")
-      reportPageError(`Page interface failed: ${result.reason}`);
+      reportPageError(result.reason, "Page interface failed");
   }
 }
 

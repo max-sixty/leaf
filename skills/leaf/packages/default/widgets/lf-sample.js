@@ -206,7 +206,7 @@ customElements.define(
     }
 
     #failure(error) {
-      if (error.name === "AbortError") return;
+      if (error instanceof DOMException && error.name === "AbortError") return;
       keepsText(this.#status, error.message);
       keeps(this.#reset, "aria-disabled", null);
     }

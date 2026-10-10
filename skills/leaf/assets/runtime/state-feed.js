@@ -170,7 +170,7 @@ export function createStateFeed({
       await tick();
     } catch (error) {
       readAnswered = false;
-      reportPageError(`tick failed: ${error?.message ?? error}`);
+      reportPageError(error, `tick failed`);
     }
   }
 
@@ -198,7 +198,7 @@ export function createStateFeed({
         } catch (error) {
           outcome = "failed";
           readAnswered = false;
-          reportPageError(`read failed: ${error?.message ?? error}`);
+          reportPageError(error, `read failed`);
           renderStatus(error);
         }
       })().finally(() => {
@@ -219,7 +219,7 @@ export function createStateFeed({
         await present();
       } catch (error) {
         readAnswered = false;
-        reportPageError(`read failed: ${error?.message ?? error}`);
+        reportPageError(error, `read failed`);
         renderStatus(error);
       }
     };
@@ -262,7 +262,7 @@ export function createStateFeed({
               },
               async (error) => {
                 readAnswered = false;
-                reportPageError(`read failed: ${error?.message ?? error}`);
+                reportPageError(error, `read failed`);
                 renderStatus(error);
                 await present();
               },
@@ -270,7 +270,7 @@ export function createStateFeed({
             // Presentation's own fault is reported as its own: the read behind it
             // stands, and the tick retries the presentation rather than the read.
             .catch((error) => {
-              reportPageError(`presentation failed: ${error?.message ?? error}`);
+              reportPageError(error, `presentation failed`);
             })
             .finally(() => {
               applyingReads -= 1;
@@ -283,13 +283,13 @@ export function createStateFeed({
             })
             .catch((error) => {
               readAnswered = false;
-              reportPageError(`read failed: ${error?.message ?? error}`);
+              reportPageError(error, `read failed`);
               renderStatus(error);
             });
         }
       } catch (error) {
         readAnswered = false;
-        reportPageError(`read failed: ${error?.message ?? error}`);
+        reportPageError(error, `read failed`);
         renderStatus(error);
       }
     };
@@ -383,9 +383,7 @@ export function createStateFeed({
           if (offlineInteractive || passiveSample || !sessionIsActive())
             completeReadingReturn(returned);
         })
-        .catch((error) =>
-          reportPageError(`return presentation failed: ${error?.message ?? error}`),
-        );
+        .catch((error) => reportPageError(error, `return presentation failed`));
       listen();
     });
     document.addEventListener("lf-session-active", listen);

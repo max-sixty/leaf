@@ -39,7 +39,11 @@ if (child) {
       readings.delete(detail.id);
       if (detail.error)
         reading?.reject(
-          Object.assign(new Error(detail.error.message), { name: detail.error.name }),
+          Object.assign(
+            new Error(detail.error.message),
+            { stack: undefined },
+            detail.error,
+          ),
         );
       else reading?.resolve(detail);
       return;

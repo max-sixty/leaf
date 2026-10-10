@@ -1446,7 +1446,7 @@ def watched(page, *, java_script_enabled=True):
             errors.append(problem)
 
     page.on("console", console_message)
-    page.on("pageerror", lambda e: errors.append(str(e)))
+    render_gate_model.collect_page_exceptions(page, errors)
     if not java_script_enabled:
         return errors
     render_checks_model.install_window_errors(page)
@@ -1529,19 +1529,22 @@ def reported_browser_errors(page, *expected):
     assert expected, "expected browser problems cannot be empty"
     wanted = list(expected)
     deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
-    while page.lf_errors != wanted and time.monotonic() < deadline:
+    while [
+        error.splitlines()[0] for error in page.lf_errors
+    ] != wanted and time.monotonic() < deadline:
         page.wait_for_timeout(25)
     errors = take_browser_errors(page)
-    assert errors == wanted, errors
+    assert [error.splitlines()[0] for error in errors] == wanted, errors
     return errors
 
 
 def consume_browser_errors(page, *expected):
-    """Assert and consume intentional problems, accounting for every entry."""
+    """Assert intentional messages; stack locations cannot authorize a problem."""
     assert expected, "expected browser-error fragments cannot be empty"
     errors = take_browser_errors(page)
     assert errors and all(
-        any(fragment in error for fragment in expected) for error in errors
+        any(fragment in error.splitlines()[0] for fragment in expected)
+        for error in errors
     ), errors
     return errors
 

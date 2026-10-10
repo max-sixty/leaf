@@ -22,6 +22,7 @@
    render gate all report through the same page-level evidence. Do not catch an error merely to stamp readiness
    or continue accounting for pending attempts. */
 
+import { describeFailure } from "../vendor/browser-runtime.js";
 import { countTraffic } from "./traffic.js";
 import { recordInteraction } from "./interaction-log.js";
 import { offlineInteractive, pageUrl, runtime } from "./context.js";
@@ -289,7 +290,8 @@ export const uploadMedia = async (file) => {
 // this path through window.error, and a widget that wants to say so itself has
 // failSoft, which puts the message where the user is looking and reports it here.
 const reportedErrors = new Set();
-export function reportPageError(text) {
+export function reportPageError(reason, context = "") {
+  const text = exceptionText(reason, context);
   console.error(`leaf: ${text}`);
   if (offlineInteractive) return;
   if (reportedErrors.has(text) || reportedErrors.size >= 20) return;
@@ -301,6 +303,26 @@ export function reportPageError(text) {
   }).catch(() => {});
 }
 
+// This is the only exception formatter. Callers pass the original exception (or
+// its name/message/stack record across a realm boundary) and the operation's context.
+// A diagnostic with no exception remains a string; no synthetic Error invents a site.
+export function exceptionText(reason, context = "") {
+  const message = reason?.message;
+  const text =
+    message === undefined ? String(reason) : `${reason.name || "Error"}: ${message}`;
+  // Chrome includes the message in a stack; Firefox can supply frames alone.
+  const stack = reason?.stack;
+  let evidence = !stack ? text : stack.includes(text) ? stack : `${text}\n${stack}`;
+  if (reason instanceof AggregateError)
+    evidence += reason.errors.map((error) => `\n${exceptionText(error)}`).join("");
+  if (reason?.cause !== undefined)
+    evidence += `\nCaused by: ${exceptionText(reason.cause)}`;
+  if (!context) return evidence;
+  const summary =
+    reason instanceof Error ? describeFailure(reason) : (message ?? String(reason));
+  return `${context}: ${summary}${message === undefined ? "" : `\n${evidence}`}`;
+}
+
 window.addEventListener("error", (e) => {
   // Chrome also puts ResizeObserver loop notices on window.error without an
   // exception. This one live page cannot tell an occasional scheduling notice
@@ -308,14 +330,10 @@ window.addEventListener("error", (e) => {
   // render gate and test navigation take one complete confirming reading and
   // report a notice that recurs there.
   if (e.message?.startsWith("ResizeObserver loop")) return;
-  reportPageError(`${e.message} (${e.filename}:${e.lineno})`);
+  reportPageError(
+    e.error?.stack ? e.error : `${e.message} (${e.filename}:${e.lineno})`,
+  );
 });
 window.addEventListener("unhandledrejection", (e) => {
-  // Chrome's stack embeds "Error: message"; Firefox's carries frames only, so a
-  // stack alone can post an error event that never says what failed.
-  const reason = String(e.reason);
-  const stack = e.reason?.stack;
-  reportPageError(
-    !stack ? reason : stack.includes(reason) ? stack : `${reason}\n${stack}`,
-  );
+  reportPageError(e.reason);
 });

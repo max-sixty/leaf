@@ -1856,7 +1856,9 @@ def test_sent_drawing_keeps_its_reference_outside_the_retained_text_viewport(
     )
     # The sent card may wrap fewer lines than the draft. Native scrolling clamps a
     # retained offset to the new scroll range rather than leaving empty space.
-    assert after["scroll"] == pytest.approx(min(before["scroll"], after["limit"]), abs=1)
+    assert after["scroll"] == pytest.approx(
+        min(before["scroll"], after["limit"]), abs=1
+    )
     if long:
         resized(page, 390 if touch else 1280, 600)
         rendered(page)

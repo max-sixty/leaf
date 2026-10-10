@@ -51,6 +51,7 @@ import {
   widgetController,
   watchData,
   watchOwner,
+  scrollIntoView,
 } from "/runtime/widget-api.js";
 import {
   diffDatumKey,
@@ -819,7 +820,10 @@ customElements.define(
               description: "Filter the files in this diff",
               run: () => {
                 const search = this.diffTools?.search;
-                if (search) focusDestination(search, "move", { scroll: true });
+                if (search) {
+                  focusDestination(search, "move");
+                  scrollIntoView(search, { block: "nearest" });
+                }
               },
             },
             // The filter is a layer of this widget, so its way out is read off the

@@ -107,7 +107,7 @@ import {
 } from "/runtime/reading-regions.js";
 import { pointBand } from "/runtime/pointed-place.js";
 import { marginSpot } from "./margin-layout.js";
-import { floatingGeometry } from "./floating.js";
+import { floatingGeometry, positioningScale } from "./floating.js";
 
 // One fresh mechanical reading for the editor and the card it becomes. Resolving the
 // durable subject or passage remains with the caller; both surfaces read its boxes here.
@@ -524,10 +524,9 @@ export function commentPlacement() {
       // last line the surface may still stand level with.
       const scaled = {
         name: "scaled",
-        async fn({ rects, elements, platform }) {
-          const scale = await platform.getScale(
-            await platform.getOffsetParent(elements.floating),
-          );
+        async fn(state) {
+          const { rects } = state;
+          const scale = await positioningScale(state);
           return {
             data: {
               scale,

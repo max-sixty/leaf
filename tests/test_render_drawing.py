@@ -1889,7 +1889,7 @@ def test_a_sent_drawing_keeps_its_pasted_photo_outside_the_text_viewport(
     rendered(page)
     text = card.locator(".lf-msg-text").first
     assert text.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
-    photo = card.get_by_role("button", name="View Pasted image", exact=True)
+    photo = card.get_by_role("button", name="View Attached image", exact=True)
     wait_for(
         lambda: photo.evaluate("""node => {
           const box = node.getBoundingClientRect();

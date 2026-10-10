@@ -2,9 +2,9 @@
 
 import re
 
-from leaf.asks import asking, local_ask_entry, quoted_in
 from leaf.passages import COLLAPSE_CHARS
 from leaf.projection import enclosing_widgets
+from leaf.questions import asking
 from leaf.registry.contract import (
     is_element_name,
     registry_path,
@@ -153,31 +153,18 @@ def visual_part_errors(lf_elements: list, registry: dict) -> list:
     return errors
 
 
-def ask_surface_errors(lf_elements: list, registry: dict) -> list:
-    """An x-ask-surface region frames exactly one nested local Ask source.
+def question_context_errors(lf_elements: list, registry: dict) -> list:
+    """A context supplies a leading title and arrival region for nested Questions.
 
-    One leading direct heading is the question's visible title and the region owns its
-    reading and arrival, while the x-awaits widget owns the answer. Requiring
-    both a title and one structural source makes that split unambiguous for the browser
-    walk and for `page state`.
-    Liveness still comes from the source's canonical Ask projection.
+    Context never owns Question identity or registration. Any number of sources
+    can select it, and each source retains its independent answer and lifecycle.
     """
 
     regions = [
-        rec for rec in lf_elements if registry.get(rec["tag"], {}).get("x-ask-surface")
+        rec
+        for rec in lf_elements
+        if registry.get(rec["tag"], {}).get("x-question-context")
     ]
-    sources = {id(region): [] for region in regions}
-    for rec in lf_elements:
-        entry = registry.get(rec["tag"], {})
-        declared = local_ask_entry(entry)
-        if not declared or quoted_in(rec, registry):
-            continue
-        holder = rec.get("holder")
-        while holder and not registry.get(holder["tag"], {}).get("x-ask-surface"):
-            holder = holder.get("holder")
-        if holder:
-            sources.setdefault(id(holder), []).append(rec)
-
     errors = []
     for region in regions:
         headings = [
@@ -187,7 +174,7 @@ def ask_surface_errors(lf_elements: list, registry: dict) -> list:
         ]
         if len(headings) != 1:
             errors.append(
-                f"{at(region)}: an Ask must have exactly one direct heading, "
+                f"{at(region)}: a Question context must have exactly one direct heading, "
                 f"found {json_value(headings) if headings else 'none'}"
             )
         elif region["direct"][0] != headings[0]:
@@ -195,17 +182,8 @@ def ask_surface_errors(lf_elements: list, registry: dict) -> list:
                 "text" if region["direct"][0] == "#text" else f"<{region['direct'][0]}>"
             )
             errors.append(
-                f"{at(region)}: an Ask's direct heading must be its first content, "
+                f"{at(region)}: a Question context's direct heading must be its first content, "
                 f"found {first} first"
-            )
-        nested = sources[id(region)]
-        if len(nested) != 1:
-            found = [
-                f"<{rec['tag']}#{rec['attrs'].get('id') or '?'}>" for rec in nested
-            ]
-            errors.append(
-                f"{at(region)}: an Ask must frame exactly one declared Ask source, "
-                f"found {json_value(found) if found else 'none'}"
             )
     return errors
 
@@ -319,7 +297,7 @@ def reference_errors(lf_elements: list, registry: dict, ids: set, by_id: dict) -
 
 
 def addressable_instance_errors(lf_elements: list, registry: dict) -> list:
-    """Conditional Asks and thread seats need an id when they are live.
+    """Conditional Questions and thread seats need an id when they are live.
 
     Requiring every instance globally would outlaw inert option groups; checking the
     declared predicate here gives the runtime exactly the addressability it consumes.
@@ -527,7 +505,7 @@ def fragment_errors(parser: SourceDocument, registry: dict) -> list:
         + layout_errors(parser.lf_elements, registry)
         + visual_part_errors(parser.lf_elements, registry)
         + addressable_instance_errors(parser.lf_elements, registry)
-        + ask_surface_errors(parser.lf_elements, registry)
+        + question_context_errors(parser.lf_elements, registry)
         + declared_word_errors(parser.lf_elements, registry)
         + line_ref_errors(parser.lf_elements, registry)
     )

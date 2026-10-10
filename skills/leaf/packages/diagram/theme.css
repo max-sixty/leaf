@@ -1,23 +1,15 @@
 /* The diagram package's presentation. Everything here was in the default package's
  * theme until the diagram renderer left every page carrying a large bundle most never
  * draw with. The shared declaration-driven allocation stays in core; this package owns
- * the diagram's source presentation, natural-size alignment, and scrolling. */
+ * the diagram's natural-size alignment and scrolling. */
 
-/* Pre-upgrade presentation, so a page degrades readably: the same shape the default
- * package states for its own upgraded widgets, restated here for this tag. The
- * integrated theme's code tokens set the density, and the authored body inside the
- * widget is a <pre> that gives up the document's dressing and inherits from here, so
- * this is the size such a page is set in until the module runs. */
 /* The renderer's own custom properties are named --bg, --accent, and so on. Passing
  * `var(--accent)` into its inline `--accent` declaration would be a self-reference and
  * invalidate the value, so these inherited aliases carry Leaf's live palette across
  * that namespace boundary. */
 :scope:is(lf-diagram) { --lf-diagram-paper: var(--paper); --lf-diagram-ink: var(--ink);
              --lf-diagram-muted: var(--muted); --lf-diagram-accent: var(--accent);
-             display: block; margin: 14px 0;
-             font-family: var(--mono); font-size: var(--code-size);
-             line-height: var(--code-line); font-variant-ligatures: none;
-             color: var(--code-muted); overflow-x: auto; }
+             }
 /* Without the runtime, or once it could not start (runtime/prepaint.js), nothing will
  * draw, and the box holds authored source for good. That source reads from the
  * column's left edge instead of taking the available allocation. Where the runtime
@@ -36,7 +28,7 @@
  * Where nothing allocated room — a thread's message — they are empty and the drawing
  * centres. This arrangement belongs to the diagram, independently of the `available`
  * capacity it requests from core. */
-:scope:is(lf-diagram).lf-rendered { font: inherit; color: inherit; display: flex;
+:scope:is(lf-diagram).lf-rendered { display: flex;
                          justify-content: safe center; overflow-x: auto; }
 :scope:is(lf-diagram).lf-rendered::before,
 :scope:is(lf-diagram).lf-rendered::after { content: ""; flex: 0 1 auto; width: 0; }
@@ -57,15 +49,7 @@
  * cut. A grey shadow over the edge said the same and read as a stray shadow instead.
  * The drawing itself is never scaled or re-laid out. */
 :scope:is(lf-diagram).lf-rendered { --lf-more-fade: 32px; --lf-more-fade-to: rgb(0 0 0 / .3); }
-/* The authored body, before the module replaces it. Nothing here says white-space: the
-   body is a <pre>, which is the whole reason it is one. Everything here undoes the rule
-   that dresses a <pre> as evidence the page is showing — a box, a rule, a mono face, an
-   inset. This <pre> is not that: it is the widget's own content, about to be rendered,
-   inside an element that has already said how it looks and how far it stands off. The
-   rendered SVG a module builds is evidence again, and keeps the dressing. */
-:scope:is(lf-diagram):not(.lf-rendered) > pre {
-             background: none; border: 0; border-radius: 0; padding: 0; margin: 0;
-             font: inherit; line-height: inherit; overflow: visible; }
+
 /* A rendered diagram keeps its natural size rather than scaling a wide flowchart's
  * labels below legibility, so a wide one
  * scrolls in its own box, the same answer a wide table gets, instead of painting over

@@ -24,7 +24,7 @@ import {
 import { reportPageError } from "../layer-client.js";
 import { isReaction, moved } from "./model.js";
 import { tokenEntry } from "../registry.js";
-import { readPastedMedia, writePastedMedia } from "../media.js";
+import { readAttachedMedia, writeAttachedMedia } from "../media.js";
 import {
   rememberAuthoredParents,
   stageAuthoredStates,
@@ -49,7 +49,7 @@ import {
 import { rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";
 import { keeps } from "../keeps.js";
-import { motion } from "../motion.js";
+import { flashDuration, motion } from "../motion.js";
 
 export const loadMessageMarkdown = () =>
   loadMarkdown((error) =>
@@ -73,9 +73,9 @@ function proseReading(message) {
     reading.text !== text ||
     reading.markdown !== markdown
   ) {
-    const pasted = readPastedMedia(text);
+    const pasted = readAttachedMedia(text);
     const html = renderMarkdown(pasted.text);
-    const mediaHtml = renderMarkdown(writePastedMedia("", pasted.paths));
+    const mediaHtml = renderMarkdown(writeAttachedMedia("", pasted.paths));
     reading = Object.freeze({
       id: message.id,
       edited,
@@ -297,10 +297,9 @@ export class MessageView {
                 class="lf-btn lf-page-thread-open lf-ui"
                 data-lf-gen="1"
                 data-lf-offer="button"
-                @click=${() =>
-                  this.#commands.showThread(this.#model.id, { focus: "message" })}
+                @click=${() => this.#commands.openThread(this.#model.id, { part: "message" })}
               >
-                Open interactive reply in Threads
+                Open interactive reply
               </button>`
             : nothing
         }
@@ -329,7 +328,7 @@ export class MessageView {
       this.#arrivalMotion = motion(
         this.node,
         [{ "--lf-msg-arrival": 1, offset: 0 }],
-        1200,
+        flashDuration(),
       );
     }
     return this.node;

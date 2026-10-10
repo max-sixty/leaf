@@ -114,7 +114,7 @@ conversation follows `page-checkpoints.md`, "Sign-off and ending".
 
 ## Resuming a standing or foreign page
 
-Resume a page from one session only. A named `leaf wait <page>` moves the claim to
+Resume a page from one session only. `leaf page claim <page>` moves the claim to
 whichever session runs it, and a watcher another session still runs stops watching
 that page. First read the page:
 
@@ -123,10 +123,10 @@ leaf page state <page>
 ```
 
 Read the active revision's HTML (`active.file`) and the standing `state` over it,
-then open Asks, current thread state, and `measurement_lag` for figures whose sources
+then open Questions, current thread state, and `measurement_lag` for figures whose sources
 have run again. Before editing, follow `authoring-revisions.md`'s "Read
-before editing" section. Then run `leaf wait <page>` to claim it, or, where your
-harness contract says its own hook watches between turns, `leaf page claim <page>`. Starting a server
+before editing" section. Then run `leaf page claim <page>` and follow your harness
+contract for watching it. Starting a server
 when the standing one is already live prints its URL without changing its lifetime.
 
 ## Inspecting interactions

@@ -32,14 +32,6 @@
   max-inline-size: 100%;
 }
 .lf-trace-sources::part(form-control-input) { flex-wrap: wrap; gap: var(--sp-2); }
-.lf-trace-sources::part(form-control-label) {
-  position: absolute;
-  inline-size: 1px;
-  block-size: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
 .lf-trace-source {
   margin: 0;
   border-radius: var(--r);

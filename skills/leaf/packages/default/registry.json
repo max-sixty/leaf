@@ -16,9 +16,9 @@
     }
   },
   "lf-ask": {
-    "description": "A complete question for the user, with its context and one answer widget.",
+    "description": "Prompt context and an arrival region shared by the independent Questions nested within.",
     "x-space": "column",
-    "x-instructions": "Begin with a direct heading that states the question without relying on surrounding prose. Include the evidence needed to answer and exactly one non-quoted widget declaring a local Ask through x-awaits. Keep an ordinary semantic section around the Ask when the document needs a section landmark.",
+    "x-instructions": "Begin with a direct heading that names the shared question or context without relying on surrounding prose. Include the evidence needed to answer. Each nested widget declaring x-awaits registers its own Question and keeps its source identity and answer. Keep an ordinary semantic section around the context when the document needs a section landmark.",
     "type": "object",
     "properties": {
       "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }
@@ -26,7 +26,7 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "markup",
-    "x-ask-surface": true,
+    "x-question-context": true,
     "x-upgrade": false,
     "x-example": "<section id=\"storage-section\">\n  <lf-ask id=\"storage-decision\">\n    <h2>What should a full store do?</h2>\n    <p>The beta never reached the cap. This decides what the first workspace at it sees.</p>\n    <lf-options id=\"full-store\" choose>\n      <lf-option id=\"store-evict\"><small class=\"tag\">editing: continues</small><small class=\"tag ok\">recommended</small><strong>Drop the oldest documents</strong> Editing continues. <em>My take: this keeps work moving without losing server data.</em></lf-option>\n      <lf-option id=\"store-stop\"><small class=\"tag\">editing: paused</small><strong>Pause offline editing</strong> Nothing leaves.</lf-option>\n    </lf-options>\n  </lf-ask>\n</section>"
   },
@@ -134,7 +134,7 @@
     "x-example": "<lf-text-document id=\"leaf-skill\" source=\"leaf-skill\" language=\"markdown\"></lf-text-document>"
   },
   "lf-annotation-rail": {
-    "description": "An authored-flow rail for Threads, Asks, action and status contributions, updates, and the active comment editor.",
+    "description": "An authored-flow rail for Threads, Questions, action and status contributions, updates, and the active comment editor.",
     "x-instructions": "Select data-annotations=page on body. When the task needs conversations and actions in an independent reading region, place one empty rail with a stable id; page-authoring.md, Bounds and widths, guides that choice. Allocate its width and height in page CSS; it scrolls within that box. Omit it to use the core Threads panel. Native disclosures retain their open state and the shared Thread renderer owns conversations and replies.",
     "type": "object",
     "properties": {
@@ -188,7 +188,7 @@
   "lf-options": {
     "description": "Alternatives the user can choose individually or as a set to answer a question.",
     "x-space": "column",
-    "x-instructions": "Keep shared premises and evidence with the group; lf-ask can frame its question and context. Keep each alternative's case and decision-relevant evidence inside its lf-option. Use multiple for one answer containing a set of selections; leave it off for mutually exclusive alternatives. Read references/authoring-asks.md to separate independently answerable proposals. The built-in Another option field accepts unlisted answers, so author the alternatives you mean without a catch-all option. Use for only to select sections or work items that exist independently of the decision; do not create sections solely to hold alternatives. To incorporate a user-added option into a revision, keep its id and words as an ordinary lf-option. A multiple-choice Ask still needs the user's Done even when chosen is authored. Use settled to collapse a retired decision while preserving its options and anchors.",
+    "x-instructions": "Keep shared premises and evidence with the group; lf-ask can frame its question and context. Keep each alternative's case and decision-relevant evidence inside its lf-option. Use multiple for one answer containing a set of selections; leave it off for mutually exclusive alternatives. Read references/authoring-questions.md to separate independently answerable proposals. The built-in Another option field accepts unlisted answers, so author the alternatives you mean without a catch-all option. Use for only to select sections or work items that exist independently of the decision; do not create sections solely to hold alternatives. To incorporate a user-added option into a revision, keep its id and words as an ordinary lf-option. A multiple-choice Question still needs the user's Done even when chosen is authored. Use settled to collapse a retired decision while preserving its options and anchors.",
     "type": "object",
     "properties": {
       "id": {
@@ -217,7 +217,7 @@
     "x-content": "members",
     "x-word": "module",
     "x-upgrade": true,
-    "x-awaits": {
+    "x-awaits": {"value": "choose",
       "when": {
         "choose": [true],
         "settled": [false]
@@ -277,7 +277,7 @@
   },
   "lf-option": {
     "description": "One alternative in a decision, shown as a compact label or a card with supporting evidence.",
-    "x-instructions": "Lead a card with matching small.tag comparison labels naming the facts that distinguish the alternatives, then a `<strong>` title and a sentence naming its consequence. Mark the option you recommend with `<small class=\"tag ok\">recommended</small>` after its comparison labels, and give the reason in prose. chosen records the user's pick. Where alternatives differ in arrangement, structure, or mechanism, draw each with an svg.drawing thumbnail in the same frame, alike except where they differ. Add paragraphs or a fact rail when the face alone cannot support the choice. A bare label suits an alternative needing no further case. Direct text uses inline Markdown; use HTML children for block content. A for target must remain useful independently of the decision and does not supply the option's words. Rewriting a picked option needs restated; read $restated for when to rewrite instead of correcting beside the Ask.",
+    "x-instructions": "Lead a card with matching small.tag comparison labels naming the facts that distinguish the alternatives, then a `<strong>` title and a sentence naming its consequence. Mark the option you recommend with `<small class=\"tag ok\">recommended</small>` after its comparison labels, and give the reason in prose. chosen records the user's pick. Where alternatives differ in arrangement, structure, or mechanism, draw each with an svg.drawing thumbnail in the same frame, alike except where they differ. Add paragraphs or a fact rail when the face alone cannot support the choice. A bare label suits an alternative needing no further case. Direct text uses inline Markdown; use HTML children for block content. A for target must remain useful independently of the decision and does not supply the option's words. Rewriting a picked option needs restated; read $restated for when to rewrite instead of correcting beside the Question.",
     "type": "object",
     "properties": {
       "id": {
@@ -375,7 +375,7 @@
     "x-example": "<lf-chart id=\"review-latency\"><pre>\n{\n  ariaLabel: \"Hours to first review by week: backend fell from 31 to 12, frontend from 18 to 11\",\n  x: {type: \"utc\", ticks: \"monday\", label: null},\n  y: {grid: true, label: \"hours to first review\"},\n  color: {legend: true, range: [\"var(--series-1)\", \"var(--series-2)\"]},\n  marks: [\n    Plot.lineY(\n      [\n        {week: \"2026-05-04\", team: \"backend\", hours: 31},\n        {week: \"2026-05-11\", team: \"backend\", hours: 26},\n        {week: \"2026-05-18\", team: \"backend\", hours: 12},\n        {week: \"2026-05-04\", team: \"frontend\", hours: 18},\n        {week: \"2026-05-11\", team: \"frontend\", hours: 21},\n        {week: \"2026-05-18\", team: \"frontend\", hours: 11},\n      ],\n      {x: \"week\", y: \"hours\", stroke: \"team\", marker: true},\n    ),\n  ],\n}\n</pre></lf-chart>"
   },
   "lf-shot": {
-    "description": "A before-and-after screenshot comparison with an operable divider and optional change outlines.",
+    "description": "A before-and-after screenshot pair with an operable divider, optional change outlines, and component-owned comparison, overlay, scaling and focus-crop presentation.",
     "x-instructions": "Use served image paths printed by leaf page media for before and after, and describe the pair in alt. Read authoring-evidence.md, Source files and media, for captures and when to use outlines. Write explanations in surrounding prose rather than element content. When a decision turns on the change, put the pair inside the proposing option.",
     "type": "object",
     "properties": {
@@ -481,7 +481,7 @@
   },
   "lf-tabs": {
     "description": "Several views of one artifact, as page navigation, a local tabbed section, or a side-list queue.",
-    "x-instructions": "Place the first set directly in main for page navigation; other placements make a framed local tabbed section. Put the shared title and lede before page tabs and the primary current view first. Each lf-tab is a self-contained view, while history, Threads, Asks, versions, and sign-off belong to the whole page. Retire obsolete views once current work no longer depends on them, preserving needed context and passages anchoring open threads or standing decisions in details within the relevant tab. Use list=\"side\" for a queue beside its selected item; it remains framed and its list does not stick.",
+    "x-instructions": "Place the first set directly in main for page navigation; other placements make a framed local tabbed section. Put the shared title and lede before page tabs and the primary current view first. Each lf-tab is a self-contained view, while history, Threads, Questions, versions, and sign-off belong to the whole page. Retire obsolete views once current work no longer depends on them, preserving needed context and passages anchoring open threads or standing decisions in details within the relevant tab. Use list=\"side\" for a queue beside its selected item; it remains framed and its list does not stick.",
     "type": "object",
     "properties": {
       "id": {
@@ -548,7 +548,7 @@
     "additionalProperties": false,
     "x-content": "data",
     "x-word": "module",
-    "x-awaits": {
+    "x-awaits": {"value": "edit",
       "when": {
         "needed": [true]
       },

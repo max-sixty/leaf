@@ -26,11 +26,13 @@
  *   would print in full, goes into the session the same way, and the turn goes
  *   on with one line in its place.
  *
- * Once it can start the watch, each Stop payload it passes on carries `leaf_watch:
+ * Once it has Claude Code's parent process, each Stop payload carries `leaf_watch:
  * "module"`, which stands the background registration beneath it down
  * (`hooks/scripts/loop-guard.py`). A Claude Code that does not load the module, or
- * a module that cannot start the watch, passes the payload unmarked, so that
- * registration goes on watching. The prompt, Stop, SessionStart and
+ * a module without that parent process, passes the payload unmarked, so that
+ * registration goes on watching. A native spawn handle does not prove startup:
+ * a watch that fails later reports its error and releases the owner's slot.
+ * The prompt, Stop, SessionStart and
  * SessionEnd registrations do the same work under either watch and stay in
  * `hooks.json`.
  *
@@ -41,9 +43,9 @@
  * A module's processes inherit Claude Code's own environment, which names no
  * session of its own, so every call states the session and Claude Code's process
  * as a hook's environment does. That process is the parent of every process the
- * module starts (measured at Claude Code 2.1.291). Failures are silent, as
- * `hooks.json` makes them, but for a wake Claude Code refuses, which goes to its
- * debug log.
+ * module starts (measured at Claude Code 2.1.291). Failed hooks and watches report
+ * their diagnostics through Claude Code's UI log. Replacing or closing a watch
+ * cancels it quietly, after waiting for its process to exit.
  */
 
 import type { EngineInterface, Register } from 'claude-code'
@@ -83,9 +85,14 @@ async function hook($: EngineInterface, payload: Payload): Promise<string | unde
       stdin: JSON.stringify(payload),
       timeoutMs: HOOK_TIMEOUT_MS,
     })
-    if (ran.exitCode !== 0 || !ran.stdout.trim()) return undefined
+    if (ran.exitCode !== 0) {
+      $.ui.log(`Leaf: ${payload.hook_event_name} hook exited with code ${ran.exitCode}${ran.stderr.trim() ? `: ${ran.stderr.trim()}` : ''}`)
+      return undefined
+    }
+    if (!ran.stdout.trim()) return undefined
     return JSON.parse(ran.stdout).hookSpecificOutput?.additionalContext || undefined
-  } catch {
+  } catch (error) {
+    $.ui.log(`Leaf: ${payload.hook_event_name} hook failed: ${error}`)
     return undefined
   }
 }
@@ -107,21 +114,43 @@ async function ensureWatch($: EngineInterface, session: string, interrupted: boo
       env: environment(session),
       input: JSON.stringify(payload),
     })
+    let cancelled = false
     const done = (async () => {
       let out = ''
+      let stderr = ''
+      let readError: unknown
       try {
-        for await (const chunk of stream) if (chunk.stream === 'stdout') out += chunk.text
-      } catch {
+        for await (const chunk of stream) {
+          if (chunk.stream === 'stdout') out += chunk.text
+          else if (chunk.stream === 'stderr') stderr += chunk.text
+        }
+      } catch (error) {
         // Cancellation can abort output before the process releases its lease.
+        readError = error
       }
       try {
-        return (await stream.result).code === 0 ? out.trim() : ''
-      } catch {
+        const result = await stream.result
+        if (cancelled) return ''
+        if (result.code !== 0 || readError) {
+          $.ui.log(`Leaf: watch failed (${readError ?? `exit code ${result.code}`})${stderr.trim() ? `: ${stderr.trim()}` : ''}`)
+          return ''
+        }
+        return out.trim()
+      } catch (error) {
+        if (!cancelled) $.ui.log(`Leaf: watch failed: ${error}${stderr.trim() ? `: ${stderr.trim()}` : ''}`)
         return ''
       }
     })()
-    return { stop: () => stream.return(undefined as never), done }
-  }, (output, live) => wake($, session, owner, output, live))
+    return {
+      stop: () => {
+        cancelled = true
+        return stream.return(undefined as never)
+      },
+      done,
+    }
+  }, (output, live) => wake($, session, owner, output, live)).catch(error => {
+    $.ui.log(`Leaf: watch could not start: ${error}`)
+  })
 }
 
 /** Whether the turn goes on, once any Stop hooks now running have returned. They

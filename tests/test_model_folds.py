@@ -359,7 +359,7 @@ def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it
     threads = model.threads(state)
     assert threads["e1"]["attention"] == {
         "kind": "needs_user",
-        "reason": "ask",
+        "reason": "question",
         "workflow": None,
     }
     assert threads["e4"]["attention"] == {
@@ -428,31 +428,46 @@ def test_question_lifecycle_selects_current_prompt_and_preserves_first_settlemen
         "message": "second",
         "version": "second",
     }
-    assert [task["id"] for task in state["tasks"]] == ["second"]
+    assert state["tasks"] == []
+    assert [question["id"] for question in state["thread"]["questions"]["all"]] == [
+        "reply:first",
+        "reply:second",
+    ]
+    assert [question["id"] for question in state["thread"]["questions"]["user"]] == [
+        "reply:second"
+    ]
     state = add("reply", "reaction", "user", parent="second", token="keep")
     assert model.threads(state)["first"]["user_prompt"] == {
         "message": "first",
         "version": "first",
     }
-    assert [task["id"] for task in state["tasks"]] == ["first"]
-    assert [(task["id"], task["outcome"]["id"]) for task in state["ended_tasks"]] == [
-        ("second", "reaction")
+    assert [question["id"] for question in state["thread"]["questions"]["user"]] == [
+        "reply:first"
     ]
+    assert state["thread"]["questions"]["all"][1]["answer"]["event"]["id"] == "reaction"
     state = add(
-        "task_end", "end", task="first", outcome="dropped", detail="Asked elsewhere"
+        "task_end",
+        "end",
+        task="reply:first",
+        outcome="dropped",
+        detail="Asked elsewhere",
     )
     assert model.threads(state)["first"]["user_prompt"] is None
     state = add("reply", "answer", "user", parent="first", text="Route A")
-    assert [
-        (task["id"], task["state"], task["outcome"]["id"])
-        for task in state["ended_tasks"]
-    ] == [("first", "dropped", "end"), ("second", "done", "reaction")]
+    first, second = state["thread"]["questions"]["all"]
+    assert (first["status"], first["answer"]) == ("withdrawn", None)
+    assert (second["status"], second["answer"]["event"]["id"]) == (
+        "answered",
+        "reaction",
+    )
     state = add("reply", "third", parent="first", text="Which size?", awaits=True)
     state = add("resolve", "close", "user", parent="first")
     assert state["tasks"] == []
     assert model.threads(state)["first"]["user_prompt"] is None
     state = add("unresolve", "reopen", "user", parent="first")
-    assert [task["id"] for task in state["tasks"]] == ["third"]
+    assert [question["id"] for question in state["thread"]["questions"]["user"]] == [
+        "reply:third"
+    ]
     assert model.threads(state)["first"]["user_prompt"] == {
         "message": "third",
         "version": "third",
@@ -477,13 +492,13 @@ def test_frozen_ask_attention_comes_from_its_widget_without_a_prose_task():
     assert thread["user_prompt"] is None
     assert thread["attention"] == {
         "kind": "needs_user",
-        "reason": "ask",
+        "reason": "question",
         "workflow": None,
     }
-    [task] = state["tasks"]
-    assert task["id"] == "routes"
-    assert task["ends"] == "widget"
-    assert task["ask"]["held_by_seat"] is False
+    assert state["tasks"] == []
+    [question] = state["thread"]["questions"]["all"]
+    assert question["id"] == "widget:routes"
+    assert question["next_actor"] == "user"
     events.append(
         {
             "kind": "action",
@@ -495,9 +510,12 @@ def test_frozen_ask_attention_comes_from_its_widget_without_a_prose_task():
     state = model.reading(HUB, events)
     assert model.threads(state)["e1"]["user_prompt"] is None
     assert state["tasks"] == []
-    assert [(task["id"], task["ends"]) for task in state["ended_tasks"]] == [
-        ("routes", "widget")
-    ]
+    assert state["ended_tasks"] == []
+    [question] = state["thread"]["questions"]["all"]
+    assert (question["status"], question["answer"]["value"]) == (
+        "answered",
+        ["route-a"],
+    )
 
 
 def test_summary_protects_the_unanswered_question_after_later_agent_updates():

@@ -750,3 +750,18 @@ def test_markdown_prepaint_has_task_checkboxes_bare_links_and_literal_html():
     assert body.select_one("a").attrs["href"] == "https://example.com"
     assert body.select_one("strong").text == "bold"
     assert not body.find_all("div")
+
+
+def test_source_fallback_marks_derive_from_open_registry_content_declarations():
+    """A new data widget gets the same pre-upgrade reading primitive without a tag list."""
+    source = '<lf-new-source id="source"><pre>raw source</pre></lf-new-source><lf-literal id="literal">literal source</lf-literal>'
+    registry = {
+        "lf-new-source": {"x-content": "data"},
+        "lf-literal": {"x-content": "data", "x-verbatim": True},
+    }
+    delivered = mark_declared(source, registry, {})
+    soup = SourceDocument(delivered).tree
+    assert soup.find(id="source").attrs["data-lf-content"] == "data"
+    assert not "data-lf-verbatim" in soup.find(id="source").attrs
+    assert soup.find(id="literal").attrs["data-lf-content"] == "data"
+    assert "data-lf-verbatim" in soup.find(id="literal").attrs

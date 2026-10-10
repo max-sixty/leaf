@@ -3,17 +3,17 @@
 ## Handle the input
 
 Process every event in every batch. Read a delivery pointer with
-`leaf delivery read <id>` before working, so the complete envelope is in context.
-Follow its `acknowledge` instruction, then read each event's named `handling`
-clauses from the batch's `handling` object, in their listed order. These clauses
+`leaf delivery read <id>` before working. Follow any `next` commands to read all
+parts, then follow the displayed `acknowledge` instruction. Read each event's
+named `handling` clauses from the batch's `handling` object, in their listed order. These clauses
 name the response the event needs; an event without an `answer` owes none of its own.
 
 Before work, follow [conversation handoff, "When to write"](conversation-loop.md#when-to-write).
 Read [threads](threads.md) for messages and replies, or
 [authoring revisions](authoring-revisions.md) for an answer recorded in markup.
-Re-read current page state before answering, since later input may already have
-settled the obligation. Treat a page-and-sequence pair already handled in this
-task as a retry. The selected harness contract owns waiting and receipt.
+Reread current state when later input could change the work. Treat already handled
+input as a retry: do not repeat repository edits or external actions. The selected
+harness contract owns waiting and receipt.
 
 ## One envelope on every transport
 
@@ -42,13 +42,13 @@ The id is eight lowercase hexadecimal characters and addresses this envelope in 
 machine's immutable delivery store.
 
 Some harnesses deliver it inline; others deliver a pointer that `leaf delivery read <id>`
-resolves to the same object. Your harness contract names which. The envelope states
-once how to confirm receipt and how to answer:
+resolves. Large CLI readings expose numbered parts: their `text` values together
+contain the complete envelope, and `next` names the next read. Your harness contract
+names the transport. The envelope states how to confirm receipt and how to answer:
 
 - `acknowledge` says how to confirm receipt after the complete envelope is in
   context. Follow that instruction. When it is `null`, your harness confirms
-  receipt; run no separate acknowledgement command. Your harness contract explains
-  its mechanism.
+  receipt. Pointer readings display their own confirmation instruction.
 - Each `answer` has a complete immutable `ref`. For `kind: "reply"`,
   `leaf response reply <answer.ref>` authors it. Its `writer` records custody at
   capture, with the `agent` command or provider `turn`; the selected harness
@@ -78,14 +78,13 @@ retry key `attempt`, then adds these delivery readings:
   event's `handling` clauses say how to write it. Until the answer is written,
   `leaf status idle` refuses, and the Stop hook holds the turn open unless that turn
   started the move (`references/conversation-loop.md`, "Long-running work").
-  Re-read current state before writing because later evidence may already have
-  settled the requirement. A `reply` carries `to`, the captured thread address,
+  The writer checks whether the response is still current. A `reply` carries `to`, the captured thread address,
   and `for`, the exact input; its `writer` records custody at capture.
   [Threads](threads.md) owns rich authoring on the reference, including preparation
   for a provider's final. A `markup` answer names the page revision operation its
   `handling` requires; a conversation reply cannot replace that operation.
   An event without an answer owes nothing of its own:
-  a page action that answers no Ask, a pick before the Done its Ask waits for, or a
+  a page action that answers no Question, a pick before the Done its Question waits for, or a
   message a newer one in its thread answers through.
 - `handling`, when present, lists clause ids in the batch's `handling` object,
   in the order to read them. That object gives each distinct instruction's text
@@ -110,62 +109,19 @@ resolve the thread.
 
 ## Delivery and acknowledgement
 
-Printing is not receipt. Once every batch of a printed delivery is in context,
-follow the envelope's `acknowledge` instruction, which names the harness's next
-wait:
+Confirm a printed delivery only after every part is in context, following its
+`acknowledge` instruction. Inline hook input and App Server turns establish their
+own receipt. A pointer reading requires explicit confirmation; rereading never
+acknowledges it. Commands state the next step and any recovery needed.
 
-```bash
-leaf wait --ack <delivery-id>
-```
+Receipt records **Picked up** in the current turn; it does not answer the move.
+A progress update in its thread or `leaf task start <page> <event-id>` records
+**Working** while it remains outstanding ([conversation handoff](conversation-loop.md#when-to-write)).
 
-This acknowledges every batch in that delivery and waits for the next envelope.
-Process the received events while it waits. If output is truncated or lost,
-acknowledge nothing and rerun with enough output capacity for the whole envelope;
-a scalar cursor cannot represent a missing event in the middle. Acknowledgement
-is monotonic and idempotent; an event posted after capture has a higher sequence
-and stays pending. Until a delivery is confirmed, a wait that prints it repeats
-the events. `leaf page events` reads the
-full log without acking it.
-
-Receipt and work have separate evidence. Confirming a direct delivery records its
-moves as **Picked up** in the current turn. **Picked up** means the delivery is in
-your context, whether or not you have read it yet. Other harnesses record that
-opening when the delivery enters the turn's context: as a hook hands it over, as the agent
-reads a pointer with `leaf delivery read`, or as a turn Leaf started begins. Leaf
-derives overall page activity from that evidence. Taking the move in hand, with a
-progress update in its thread or `leaf task start <page> <event-id>`
-([conversation handoff](conversation-loop.md#when-to-write)), strengthens its
-receipt to **Working** while it remains outstanding. That neither acknowledges the
-delivery nor answers the move.
-
-Whatever the harness, treat a page-and-sequence pair already handled in this task as a
-retry, even if a later delivery also includes newer events; your harness contract owns
-how you wait and acknowledge.
-
-`leaf wait` ends one of two ways: exit 0 with the next input, or exit 2 with the
-ending named on stderr. The input is one JSON envelope, or, where the harness's hook
-carries input, one line naming the page with new input. Exit 1 from `leaf wait
---ack` means the acknowledgement was refused. A wait that restarted a dead server
-says so on stderr. The exit 2 endings:
-
-- `the leaf ended` or `the leaves ended`: every page left in the watch is idle.
-  `nothing to watch`: the session holds none. End the loop.
-- `server is not running`: the page was never served, or its server died and
-  the wait's one restart did not bring it back. The line gives the recovery
-  command. After recovery, resume with an unnamed `leaf wait`, which cannot
-  reclaim a page transferred meanwhile. A server stopped with `leaf server stop`,
-  or held down while `leaf page init` re-vendors the page, is not this ending: the
-  wait goes on watching it.
-- `this session no longer owns`: a successor has the page. Do not name or reclaim
-  it. A rearm keeps watching any other live page, and exits with this line once the
-  transfers empty that set.
-- another `leaf wait` is already active: that process holds the session's lease.
-  Leave it running rather than starting another.
-
-Empty stdout alone is not evidence that the harness stopped the process, and no reason
-to run a named wait again. Resume with an unnamed wait only when the harness itself
-reports that it canceled or killed the command, or on a signal your harness contract
-names.
+`leaf wait` observes ownership already held. Use `leaf page claim <page>` for an
+intentional handoff, then wait according to the selected harness contract. A wait
+returns input with exit 0, or ends with exit 2 and a diagnostic; follow that
+diagnostic. Receipt commands refuse input that no longer belongs to their receiver.
 
 ## After the batch
 

@@ -5,19 +5,19 @@
 Repeating a test serially reruns it on the machine that already passes it; a browser
 test that passed 20 serial runs failed twice in 18 concurrent ones. So this runs the
 selection (`leaf_dev.suite`) as `COPIES` copies, `WORKERS` at a time, from the working
-tree as it stands, uncommitted edits included. Don't edit the tree during a run:
-browser tests then fail as navigation timeouts that read like load.
-
-Each copy is one process (`-n0`: the copies are the concurrency) with a cache
-directory of its own. The copies share every other fixed path a test writes in the
-checkout, such as an export under `.tmp/`, so a failure naming one is the copies
-racing there.
+tree as it stands, uncommitted edits included, captured once before collection.
+Each copy runs in a private checkout of that snapshot, so fixed output paths and
+later edits to the source checkout cannot change another copy's result. Installed
+Node dependencies are shared as inputs; generated test output belongs to its copy.
+Each copy is one process (`-n0`: the copies are the concurrency).
 
 Prints each test's count per outcome, then every failure's message, grouped where
 copies agree. Each copy's output stays under `.tmp/flake/`. Exits 0 only when every
 copy of every test passed; a skip is not a pass.
 """
 
+import shutil
+import subprocess
 import tempfile
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -27,6 +27,7 @@ from pathlib import Path
 import click
 
 from leaf_dev import ROOT
+from leaf_dev.arms import copy_working
 from leaf_dev.suite import collect, run
 
 COPIES = 18
@@ -50,18 +51,81 @@ def flake(selection: tuple[str, ...]) -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S-")
     out = Path(tempfile.mkdtemp(prefix=stamp, dir=OUT))
-    items = collect(ROOT, selection, out / "collect.log")
+    with tempfile.TemporaryDirectory(prefix="leaf-flake-") as directory:
+        scratch = Path(directory)
+        snapshot = scratch / "snapshot"
+        subprocess.run(
+            ["git", "clone", "-q", "--no-checkout", ROOT, snapshot], check=True
+        )
+        copy_working((".",), snapshot)
+        subprocess.run(["git", "-C", snapshot, "add", "--all"], check=True)
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                snapshot,
+                "-c",
+                "core.hooksPath=/dev/null",
+                "-c",
+                "commit.gpgsign=false",
+                "-c",
+                "user.name=Leaf flake",
+                "-c",
+                "user.email=flake@localhost",
+                "commit",
+                "-q",
+                "--allow-empty",
+                "-m",
+                "Candidate snapshot",
+            ],
+            check=True,
+        )
+        ignored = subprocess.check_output(
+            [
+                "git",
+                "-C",
+                ROOT,
+                "ls-files",
+                "-z",
+                "--others",
+                "--ignored",
+                "--directory",
+                "--exclude-standard",
+            ],
+            text=True,
+        ).split("\0")
+        dependencies = [
+            Path(p.rstrip("/"))
+            for p in ignored
+            if Path(p.rstrip("/")).name == "node_modules"
+        ]
 
-    def copy(n: int):
-        cache = f"cache_dir={out / 'cache' / str(n)}"
-        return run(ROOT, selection, items, out / f"copy-{n:02}", "-n0", "-o", cache)
+        def checkout(target: Path):
+            subprocess.run(["git", "clone", "-q", snapshot, target], check=True)
+            for dependency in dependencies:
+                (target / dependency).symlink_to(
+                    ROOT / dependency, target_is_directory=True
+                )
 
-    pool = ThreadPoolExecutor(WORKERS)
-    try:
-        copies = list(pool.map(copy, range(1, COPIES + 1)))
-    finally:
-        # On Ctrl-C, start no more copies; the running ones stop with it.
-        pool.shutdown(cancel_futures=True)
+        collection = scratch / "collection"
+        checkout(collection)
+        items = collect(collection, selection, out / "collect.log")
+        shutil.rmtree(collection)
+
+        def copy(n: int):
+            target = scratch / f"copy-{n:02}"
+            checkout(target)
+            try:
+                return run(target, selection, items, out / target.name, "-n0")
+            finally:
+                shutil.rmtree(target)
+
+        pool = ThreadPoolExecutor(WORKERS)
+        try:
+            copies = list(pool.map(copy, range(1, COPIES + 1)))
+        finally:
+            # On Ctrl-C, start no more copies; the running ones stop with it.
+            pool.shutdown(cancel_futures=True)
 
     click.echo(f"| test | {' | '.join(RESULTS)} |\n|---|{'---|' * len(RESULTS)}")
     for item in items:

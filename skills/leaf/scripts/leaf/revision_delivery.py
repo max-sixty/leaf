@@ -218,6 +218,18 @@ def rebase_document(
                 start, end = span(location.start_tag)
                 edits.append((start, end, f"<style{kept}>{css}</style>"))
                 continue
+            # An opaque sample shares this native delivery. CORS keeps its local
+            # sheets readable by the CSSOM owners; a no-CORS link would paint but
+            # deny Leaf's selector narrowing and layout readings. Same-origin pages
+            # retain their ordinary credentials, and external authored links stand.
+            if (
+                stylesheet
+                and "crossorigin" not in attrs
+                and page_path(attrs.get("href", ""), "/index.html") is not None
+            ):
+                _, end = span(location.start_tag)
+                at = end - (2 if source[end - 2 : end] == "/>" else 1)
+                edits.append((at, at, ' crossorigin="anonymous"'))
             for name, value in attrs.items():
                 if name == "style":
                     delivered = rebase_css(
@@ -756,7 +768,7 @@ def compose_document(
     theme = (
         f"<style data-lf-runtime>{_inline_css(delivery.inline_stylesheet('/theme.css'))}</style>"
         if delivery.inline_stylesheet is not None
-        else f'<link rel="stylesheet" href="{html.escape(delivery.address("/theme.css"), quote=True)}" data-lf-runtime>'
+        else f'<link rel="stylesheet" href="{html.escape(delivery.address("/theme.css"), quote=True)}" crossorigin="anonymous" data-lf-runtime>'
     )
     # Physical page-side placement keeps the theme's lf-base contract, below package
     # and authored overrides. An adopted sheet would rank after those same defaults.

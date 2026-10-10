@@ -287,11 +287,50 @@ const railBeside = (scroller) => {
   const block = boundedBlockOf(scroller);
   return Boolean(block) && scrollerFor(upFrom(block)) === pageScroller;
 };
-// The width of a rail row at rest: one margin entry, a pin's being smaller.
-const restingEntry = () =>
-  layer?.root.parentElement.querySelector(
-    '.lf-margin-cluster:not([data-lf-place="pin"]) .lf-margin-entry:not([hidden])',
-  )?.offsetWidth || 32;
+// Prospective placement measures the same primitive a first contribution will draw.
+// The native cascade resolves the entry's aim floor and the row's focus clearance,
+// including package or author overrides. No existing entry, cached size, or parsed
+// token expression can supply that allocation on a page's first comment.
+const railMeasureRow = document.createElement("div");
+railMeasureRow.className = "lf-margin-cluster";
+railMeasureRow.dataset.lfPlace = "rail";
+railMeasureRow.inert = true;
+railMeasureRow.setAttribute("aria-hidden", "true");
+railMeasureRow.style.visibility = "hidden";
+const railMeasureEntry = document.createElement("button");
+railMeasureEntry.className = "lf-margin-entry";
+railMeasureEntry.type = "button";
+railMeasureEntry.dataset.lfBehavior = "disclosure";
+railMeasureRow.append(railMeasureEntry);
+function restingRail() {
+  // A live single-entry row is already the native primitive we need. Multi-entry
+  // clusters allocate a different width, so they cannot stand in for a new row.
+  for (const row of layer.root.parentElement.querySelectorAll(
+    '.lf-margin-cluster[data-lf-place="rail"]',
+  )) {
+    if (!row.checkVisibility()) continue;
+    const children = [...row.children].filter((child) => child.checkVisibility());
+    if (children.length === 1 && children[0].matches(".lf-margin-entry"))
+      return { entry: children[0].offsetWidth, row: row.getBoundingClientRect().width };
+  }
+  // Append and remove within this synchronous read, so the measuring primitive
+  // never paints or enters the keyboard route. Chrome mutations do not invalidate
+  // the page targets observed below.
+  // With no contributions the real projection is hidden. Its shallow clone keeps
+  // the same styling ancestry while measuring outside that hidden subtree.
+  const projection = layer.root.parentElement.cloneNode(false);
+  projection.hidden = false;
+  projection.inert = true;
+  projection.setAttribute("aria-hidden", "true");
+  const lane = layer.root.cloneNode(false);
+  lane.append(railMeasureRow);
+  projection.append(lane);
+  layer.root.parentElement.after(projection);
+  const entry = railMeasureEntry.offsetWidth;
+  const row = railMeasureRow.getBoundingClientRect().width;
+  projection.remove();
+  return { entry, row };
+}
 
 // Where across the page the margin row for a comment on `target` stands, at `point`
 // inside it if a pointing gesture named one (pointed-place.js): the row standing there
@@ -310,13 +349,13 @@ export function marginSpot(target, point = null) {
       return { left, right };
     }
   const main = marginColumn();
-  if (!railStands(main) || !railBeside(scrollerFor(target))) return null;
+  if (!layer || !railStands(main) || !railBeside(scrollerFor(target))) return null;
   const hang =
     parseFloat(
       getComputedStyle(document.documentElement).getPropertyValue("--rail-hang"),
     ) || 0;
   const left = main.getBoundingClientRect().right + hang;
-  return { left, right: left + restingEntry() };
+  return { left, right: left + restingRail().row };
 }
 
 // Said on the chrome root where the margin's standing is decided: where the markers are
@@ -1036,7 +1075,10 @@ export function layoutMarginRows({ retainSeats = false } = {}) {
   const pinInset = parseFloat(rootStyle.getPropertyValue("--pin-inset")) || 0;
   const railInner = columnRect.right + hang;
   // The half that decides rail or pin is a rail marker's: a pin's entries are smaller.
-  const size = restingEntry();
+  const entry = layer.root.parentElement.querySelector(
+    '.lf-margin-cluster:not([data-lf-place="pin"]) .lf-margin-entry:not([hidden])',
+  );
+  const size = entry?.offsetWidth || restingRail().entry;
   // The notes hanging in the margin the rail stands in (theme.css, aside.sidenote): a
   // marker level with one would be drawn over it.
   const notes = [...main.querySelectorAll("aside.sidenote")]

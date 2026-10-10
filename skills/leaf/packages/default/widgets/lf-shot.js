@@ -27,9 +27,20 @@
  * One two-ended rail sticks above the visible frames while CSS moves its active rule. Its
  * labels are generated page words, available to selection, and become the order key
  * above the two stacked frames on paper.
- * A parent that reuses the aligned frames under another inspector sets
- * `data-lf-shot-controls="off"`; lf-shot then withdraws its commands and margin action
- * and leaves the native checkbox as the flip.
+ * A containing inspector calls `inspect({mode, layout, scale, pixelRatio, focus,
+ * crop, opacity, labels, captureWidth})`. Mode is compare, overlay or flip; layout is
+ * side or stack; scale is the image's CSS-pixel scale; pixelRatio maps the captured
+ * CSS pixels to bitmap pixels. Focus is a rectangle in captured CSS pixels, and
+ * crop chooses that rectangle instead of marking it on the complete image. Labels
+ * name the before and after frames. Optional captureWidth reserves their
+ * CSS-pixel width until decode when delivery has supplied no media dimensions.
+ * lf-shot owns the frames, labels, crop, outlines, opacity, controls and print view.
+ * The containing inspector owns its available box and chooses the scale/layout.
+ * `captureGeometry` returns the decoded image dimensions, completion flags and
+ * resolved frame border, comparison gap, label and rail heights. `captureload`
+ * announces a completed decode; consumers never inspect or restyle frame nodes.
+ * `supportsCrop` states whether this browser can crop without distortion.
+ * These are local inspection choices, never authored application state.
  * Accessible descriptions update in place when alt changes, retaining the current
  * comparison choice and its focused control. A different image pair is a new shot.
  * Commentary about the change belongs in authored prose around the widget. */
@@ -45,6 +56,7 @@ import {
   failSoft,
   nextFrame,
   isCanonicalMediaUrl,
+  layoutChanged,
   commands,
   keeps,
   contributionEntry,
@@ -80,6 +92,8 @@ customElements.define(
     #chromeState;
     #chose = false;
     #frames = [];
+    #inspection;
+    #frameLabels = new Map();
     #captions = new Map();
     #openers = new Map();
     #settleDifference;
@@ -87,7 +101,165 @@ customElements.define(
       this.#settleDifference = resolve;
     });
 
-    static observedAttributes = ["alt", "data-lf-shot-controls"];
+    static observedAttributes = ["alt"];
+
+    get #controlsEnabled() {
+      return !this.#inspection || this.#inspection.mode === "flip";
+    }
+
+    get supportsCrop() {
+      return globalThis.CSS?.supports?.("object-view-box", "inset(0px)") === true;
+    }
+
+    get captureGeometry() {
+      const style = getComputedStyle(this);
+      const length = (name) => parseFloat(style.getPropertyValue(name));
+      const rail = this.querySelector(".lf-shotrail");
+      const railStyle = rail && getComputedStyle(rail);
+      const railHeight = railStyle
+        ? parseFloat(railStyle.height) +
+          (railStyle.boxSizing === "border-box"
+            ? 0
+            : parseFloat(railStyle.paddingTop) +
+              parseFloat(railStyle.paddingBottom) +
+              parseFloat(railStyle.borderTopWidth) +
+              parseFloat(railStyle.borderBottomWidth))
+        : 0;
+      return {
+        images: this.#frames.map((frame) => {
+          const image = frame.querySelector("img");
+          return {
+            width: image.naturalWidth,
+            height: image.naturalHeight,
+            complete: image.complete,
+          };
+        }),
+        frameBorder: length("--lf-shot-frame-border"),
+        labelHeight: length("--lf-shot-label-height"),
+        gap: length("--lf-shot-gap"),
+        railHeight,
+      };
+    }
+
+    inspect(configuration) {
+      const next = { ...this.#inspection, ...configuration };
+      const controlsChanged = this.#controlsEnabled !== (next.mode === "flip");
+      this.#inspection = next;
+      keeps(this, "data-lf-shot-controls", next.mode === "flip" ? null : "off");
+      if (this.#box && controlsChanged) {
+        this.#syncComparison();
+        this.#requestComparison();
+        this.#offer();
+        paintKeys();
+      }
+      this.#paintInspection();
+    }
+
+    #paintInspection() {
+      if (!this.#inspection || !this.#frames.length) return;
+      const {
+        mode,
+        layout = "side",
+        scale = 1,
+        pixelRatio = 1,
+        focus = null,
+        crop = false,
+        opacity = 0.5,
+        labels = { before: "Before", after: "After" },
+        captureWidth,
+      } = this.#inspection;
+      const images = this.captureGeometry.images;
+      const decoded = images.every((image) => image.width && image.height);
+      let error;
+      if (focus && !decoded && images.every((image) => image.complete))
+        error = "focus needs two decoded images";
+      else if (
+        focus &&
+        decoded &&
+        images.some(
+          (image) =>
+            focus.x + focus.width > image.width / pixelRatio ||
+            focus.y + focus.height > image.height / pixelRatio,
+        )
+      )
+        error = `focus ${focus.x},${focus.y} ${focus.width}×${focus.height} CSS px falls outside its captured images`;
+      if (error) {
+        this.#frames = [];
+        this.#margin?.unregister();
+        this.#margin = null;
+        failSoft(this, new Error(error));
+        return;
+      }
+      const activeFocus = focus && crop && this.supportsCrop;
+      const previous = [
+        "data-lf-shot-mode",
+        "data-lf-shot-layout",
+        "data-lf-shot-crop",
+      ].map((name) => this.getAttribute(name));
+      let changed = false;
+      keeps(this, "data-lf-shot-mode", mode);
+      keeps(this, "data-lf-shot-layout", layout);
+      keeps(this, "data-lf-shot-focus", Boolean(focus));
+      keeps(this, "data-lf-shot-crop", Boolean(activeFocus));
+      const set = (name, value) => {
+        if (this.style.getPropertyValue(name) !== value) {
+          this.style.setProperty(name, value);
+          changed = true;
+        }
+      };
+      const sourceWidth =
+        this.#frames[0].querySelector("img").naturalWidth / pixelRatio ||
+        Number(this.dataset.lfMediaWidth) / pixelRatio ||
+        captureWidth;
+      const width = activeFocus ? focus.width : sourceWidth;
+      if (width) set("--lf-shot-frame-width", `${Math.max(1, width * scale)}px`);
+      set("--lf-shot-opacity", String(opacity));
+      for (const frame of this.#frames) {
+        const state = frame.dataset.lfState;
+        let label = this.#frameLabels.get(state);
+        if (mode === "compare") {
+          if (!label) {
+            label = document.createElement("span");
+            label.className = "lf-shot-frame-label lf-ui";
+            label.dataset.lfGen = "1";
+            label.ariaHidden = "true";
+            this.#frameLabels.set(state, label);
+          }
+          keeps(
+            label,
+            "data-label",
+            state === "before" && layout === "stack"
+              ? `${labels.before} · ${labels.after} below`
+              : labels[state],
+          );
+          if (label.parentNode !== frame) frame.prepend(label);
+        } else label?.remove();
+        if (focus) {
+          const image = frame.querySelector("img");
+          const width = image.naturalWidth;
+          const height = image.naturalHeight;
+          const view =
+            `inset(${focus.y * pixelRatio}px ${width - (focus.x + focus.width) * pixelRatio}px ` +
+            `${height - (focus.y + focus.height) * pixelRatio}px ${focus.x * pixelRatio}px)`;
+          if (frame.style.getPropertyValue("--lf-shot-focus-view") !== view)
+            frame.style.setProperty("--lf-shot-focus-view", view);
+        }
+      }
+      if (focus) {
+        for (const key of ["x", "y", "width", "height"])
+          set(`--lf-shot-focus-${key}`, `${focus[key] * scale}px`);
+      }
+      const decodedWidth =
+        this.#frames[0].querySelector("img").naturalWidth / pixelRatio;
+      if (decodedWidth) set("--lf-shot-capture-width", `${decodedWidth}px`);
+      const current = [
+        "data-lf-shot-mode",
+        "data-lf-shot-layout",
+        "data-lf-shot-crop",
+      ].map((name) => this.getAttribute(name));
+      if (changed || previous.some((value, index) => value !== current[index]))
+        layoutChanged(this);
+    }
 
     connectedCallback() {
       if (!once(this)) {
@@ -143,7 +315,7 @@ customElements.define(
 
             // Selectable captions own activation even at the selected endpoint:
             // Space must not fall through to the browser's page scrolling.
-            when: () => this.dataset.lfShotControls !== "off",
+            when: () => this.#controlsEnabled,
             run: () => caption.click(),
           },
         ]);
@@ -162,13 +334,14 @@ customElements.define(
           id: "screenshot.toggle",
           keys: [" "],
           title: () => `show ${this.#nextState()}`,
-          when: () => this.dataset.lfShotControls !== "off",
+          when: () => this.#controlsEnabled,
           run: () => this.#show(this.#nextState()),
         },
       ]);
       commands(box, this.#flip);
       this.append(box);
       this.#paintAlt();
+      this.#paintInspection();
       this.#offer();
       // A visual-review run creates shots after authored descriptor capture. Its
       // authored controller explicitly owns that generated child's preparation;
@@ -204,6 +377,7 @@ customElements.define(
         frame.querySelector("img").alt = alt;
         const open = this.#openers.get(state);
         open.dataset.lfMediaAlt = alt;
+        open.dataset.lfMediaCaption = alt;
         keeps(open, "aria-label", `Open ${state} image — ${this.#alt}`);
       }
       keeps(this.#box, "aria-label", `Compare before and after — ${this.#alt}`);
@@ -213,19 +387,12 @@ customElements.define(
 
     attributeChangedCallback(name) {
       if (!this.isConnected || !this.#box) return;
-      if (name === "alt") {
-        this.#paintAlt();
-        return;
-      }
-      this.#syncComparison();
-      this.#requestComparison();
-      this.#offer();
-      paintKeys();
+      if (name === "alt") this.#paintAlt();
     }
 
     #syncComparison() {
       const enabled =
-        this.dataset.lfShotControls !== "off" &&
+        this.#controlsEnabled &&
         this.#box.parentNode === this &&
         customElements.get("wa-comparison");
       if (enabled && !this.#comparison) {
@@ -301,18 +468,14 @@ customElements.define(
     }
 
     async #upgradeComparison() {
-      if (
-        !this.isConnected ||
-        this.#box.parentNode !== this ||
-        this.dataset.lfShotControls === "off"
-      )
+      if (!this.isConnected || this.#box.parentNode !== this || !this.#controlsEnabled)
         return;
       await loadComparison();
       if (this.isConnected) this.#syncComparison();
     }
 
     #requestComparison() {
-      if (this.dataset.lfShotControls === "off") return;
+      if (!this.#controlsEnabled) return;
       void afterPresentation(() => this.#upgradeComparison()).catch((reason) =>
         failSoft(this, reason),
       );
@@ -407,7 +570,7 @@ customElements.define(
     }
 
     #offer() {
-      if (this.dataset.lfShotControls === "off") {
+      if (!this.#controlsEnabled) {
         this.#margin?.unregister();
         this.#margin = null;
         return;
@@ -452,6 +615,9 @@ customElements.define(
     // pixel for pixel means anything.
     async register(shots) {
       await Promise.all(shots.map((img) => img.decode().catch(() => {})));
+      this.#paintInspection();
+      this.dispatchEvent(new Event("captureload"));
+      if (!this.#frames.length) return false;
       const [before, after] = shots.map((img) => img.naturalWidth);
       if (before && after && before !== after) {
         failSoft(

@@ -49,6 +49,7 @@ import {
   focusDestination,
   nextRender,
   retainUserIntent,
+  scrollIntoView,
 } from "/runtime/widget-api.js";
 
 // The store key for a draft's unsent edit. The page's port is its own origin, so
@@ -72,9 +73,9 @@ function caretAt(body, x, y) {
 customElements.define(
   "lf-draft",
   class extends HTMLElement {
-    // What the Ask was answered with: the standing words.
-    static answerWords(state) {
-      return markdownWords(state.edit.value).trim() || "Empty";
+    // What the Question was answered with: the standing words.
+    static answerWords(value) {
+      return markdownWords(value).trim() || "Empty";
     }
 
     #controller = widgetController(this);
@@ -510,7 +511,10 @@ customElements.define(
       // in the body's text, so it names a word only in a box holding that text — a
       // resumed edit opens with different words at those offsets.
       if (at && editor.value === effective) editor.setSelectionRange(at[0], at[1]);
-      if (arrive) focusDestination(editor, "move", { scroll: at === undefined });
+      if (arrive) {
+        focusDestination(editor, "move");
+        if (at === undefined) scrollIntoView(editor, { block: "nearest" });
+      }
     }
 
     #close(discard) {

@@ -20,6 +20,7 @@ import subprocess
 import sys
 import time
 from datetime import datetime, timedelta
+from functools import partial
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -29,6 +30,7 @@ from conftest import LEAF_COMMAND
 from interact_support import (
     ROOT,
     STATED_TIMEOUT,
+    consume_pending_input,
     declare_idle,
     fetch,
     record_claim,
@@ -1229,9 +1231,10 @@ def test_serving_preserves_a_direct_codex_wait(
 import json, subprocess, sys, time
 from pathlib import Path
 from leaf.leases import wait_is_live, adapter_is_live
-from leaf.service import PageTransaction
+from leaf.service import PageTransaction, claim_page
 from leaf.session import cmd_waiting
 page = Path(sys.argv[1])
+claim_page(page)
 cmd_waiting(page, "Review this page")
 watch = subprocess.Popen([sys.executable, "-m", "leaf", "wait", str(page)],
                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -1271,6 +1274,267 @@ finally:
     )
     output, errors = task.communicate(timeout=STATED_TIMEOUT)
     assert task.returncode == 0, f"{output}{errors}"
+
+
+def test_user_preview_restart_keeps_feedback_and_authored_progress(
+    tmp_path, spawn, monkeypatch
+):
+    """A user slot resumes its durable page rather than replaying its fixture."""
+    from leaf.data import read_data
+    from leaf.event_log import read_events
+    from leaf.files import latest_revision, revision_path
+    from leaf.harness import session_harness
+    from leaf.registry.storage import load_registry
+
+    source = tmp_path / "reading.html"
+    source.write_text(
+        "<!doctype html><html><head><title>Reading</title></head><body><main>"
+        '<h1>Initial reading</h1><lf-text-document id="receipt" source="receipt"></lf-text-document>'
+        '<lf-options id="route" choose><lf-option id="first">First</lf-option>'
+        '<lf-option id="second">Second</lf-option></lf-options></main></body></html>'
+    )
+    source.with_suffix(".data.json").write_text('{"receipt":"Original value"}')
+    package = tmp_path / "package"
+    package.mkdir()
+    (package / "registry.json").write_text("{}")
+    theme = package / "theme.css"
+    theme.write_text(":root { --proof: 1; }")
+    (tmp_path / "layer.json").write_text(
+        json.dumps(["default", "./" + os.path.relpath(package, ROOT)])
+    )
+    monkeypatch.setenv("LEAF_PREVIEWS_ROOT", str(tmp_path / "previews"))
+    page = tmp_path / "previews" / "reading-user"
+    valid_initial = source.read_text()
+    source.write_text(
+        valid_initial.replace("</main>", "<lf-undefined></lf-undefined></main>")
+    )
+    refused = subprocess.run(
+        ["uv", "run", "leaf-dev", "preview", "--user", "--source", str(source)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert refused.returncode != 0 and "unknown widget" in refused.stderr
+    assert not page.exists()
+    source.write_text(valid_initial)
+
+    def start(number):
+        log = tmp_path / f"preview-{number}.log"
+        with log.open("w") as stream:
+            task = spawn(
+                ["uv", "run", "leaf-dev", "preview", "--user", "--source", str(source)],
+                stdout=stream,
+                stderr=subprocess.STDOUT,
+            )
+
+        def announced():
+            assert task.poll() is None, log.read_text()
+            return next(
+                (
+                    line
+                    for line in log.read_text().splitlines()
+                    if line.startswith("http://")
+                ),
+                None,
+            )
+
+        url = wait_for(announced, bool, failure=log.read_text)
+        status, body = fetch(url, token=None)
+        assert status == 200, body
+        return task, url, log
+
+    def stop(task):
+        task.terminate()
+        task.wait(timeout=STATED_TIMEOUT)
+
+    task, url, _ = start(1)
+    endpoint = urlsplit(url)._replace(path="/api/event").geturl()
+    for entry in (
+        {
+            "kind": "comment",
+            "revision": 1,
+            "text": "Keep this feedback",
+            "attempt": "restart-comment-0001",
+        },
+        {
+            "kind": "action",
+            "revision": 1,
+            "widget": "route",
+            "action": "choose",
+            "detail": {"value": ["second"]},
+            "attempt": "restart-choice-0001",
+        },
+    ):
+        status, body = fetch(endpoint, token=None, data=json.dumps(entry).encode())
+        assert status == 200, body
+    payload = consume_pending_input(session_harness().session)
+    comment = next(
+        event for event in payload["batches"][0]["events"] if event["kind"] == "comment"
+    )
+    reply = CliRunner().invoke(
+        cli_model.cli,
+        ["response", "reply", comment["answer"]["ref"], "--text", "Preserved reply"],
+    )
+    assert reply.exit_code == 0, reply.output
+    status, body = fetch(
+        endpoint,
+        token=None,
+        data=json.dumps(
+            {
+                "kind": "comment",
+                "revision": 1,
+                "text": "Still pending across restart",
+                "attempt": "restart-pending-0001",
+            }
+        ).encode(),
+    )
+    assert status == 200, body
+    pending = read_events(page)[-1]["id"]
+    before = (page / "events.jsonl").read_bytes()
+    cursor = (page / "cursor.json").read_bytes()
+    data = read_data(page, load_registry(page))
+    first = latest_revision(page)
+    layer = load_registry(page)["$layer"]["generation"]
+    media = page / "media" / "retained.svg"
+    media.write_text('<svg xmlns="http://www.w3.org/2000/svg"></svg>')
+    media_bytes = media.read_bytes()
+    stop(task)
+    task, resumed, _ = start(2)
+    assert resumed == url
+    assert (page / "events.jsonl").read_bytes().startswith(before)
+    assert (page / "cursor.json").read_bytes() == cursor
+    assert read_data(page, load_registry(page)) == data
+    assert latest_revision(page) == first
+    assert any(event.get("text") == "Preserved reply" for event in read_events(page))
+    delivered = consume_pending_input(session_harness().session)
+    assert any(
+        event["id"] == pending
+        for batch in delivered["batches"]
+        for event in batch["events"]
+    )
+    before = (page / "events.jsonl").read_bytes()
+    cursor = (page / "cursor.json").read_bytes()
+    stop(task)
+
+    # A restart updates authored and runtime inputs, but never replays new seeds
+    # over the existing log or changes data the page already holds.
+    fictional = next(event for event in read_events(page) if event["kind"] == "comment")
+    fictional |= {"id": "fictional", "text": "A different fictional seed"}
+    source.with_suffix(".jsonl").write_text(json.dumps(fictional) + "\n")
+    source.with_suffix(".data.json").write_text('{"receipt":"Replacement seed"}')
+    source.write_text(source.read_text().replace("Initial reading", "Revised reading"))
+    theme.write_text(":root { --proof: 2; }")
+    task, resumed, _ = start(3)
+    assert resumed == url
+    assert (page / "events.jsonl").read_bytes().startswith(before)
+    assert all(event["id"] != "fictional" for event in read_events(page))
+    assert (page / "cursor.json").read_bytes() == cursor
+    assert read_data(page, load_registry(page)) == data
+    assert latest_revision(page) > first
+    assert revision_path(page, first).is_file()
+    assert load_registry(page)["$layer"]["generation"] != layer
+    assert media.read_bytes() == media_bytes
+    assert "Revised reading" in fetch(resumed, token=None)[1].decode()
+    stop(task)
+
+    # A rejected authored update leaves the old publication and its feedback live.
+    valid_source = source.read_text()
+    source.write_text(
+        valid_source.replace("</main>", "<lf-undefined></lf-undefined></main>")
+    )
+    task, resumed, log = start(4)
+    assert "Preview update refused" in log.read_text()
+    assert "lf-undefined" not in (page / "index.html").read_text()
+    assert (page / "events.jsonl").read_bytes().startswith(before)
+    stop(task)
+    source.write_text(valid_source)
+
+    # Fixture progress is not the page's authority: the agent's own revision
+    # survives an unchanged fixture and a runtime update while the watcher is away.
+    agent_source = (
+        (page / "index.html").read_text().replace("Revised reading", "Agent revision")
+    )
+    (page / "index.html").write_text(agent_source)
+    stamped = CliRunner().invoke(
+        cli_model.cli, ["page", "stamp", str(page), "--text", "Agent revision"]
+    )
+    assert stamped.exit_code == 0, stamped.output
+    agent_revision = latest_revision(page)
+    theme.write_text(":root { --proof: 3; }")
+    task, resumed, _ = start(5)
+    assert (page / "index.html").read_text() == agent_source
+    assert revision_path(page, agent_revision).is_file()
+    agent_revision = latest_revision(page)
+    stop(task)
+
+    # When both authors changed their inputs, restarting refuses the fixture's
+    # overwrite and continues serving the agent's committed revision.
+    source.write_text(valid_source.replace("Revised reading", "Competing fixture"))
+    task, resumed, log = start(6)
+    assert "reconcile" in log.read_text()
+    assert (page / "index.html").read_text() == agent_source
+    assert latest_revision(page) == agent_revision
+    assert "Agent revision" in fetch(resumed, token=None)[1].decode()
+    stop(task)
+
+    # Reconciliation to the already-published page consumes the fixture update
+    # without trying to stamp the same immutable revision again.
+    source.write_text(agent_source)
+    task, _, log = start(7)
+    assert "Preview update refused" not in log.read_text()
+    assert latest_revision(page) == agent_revision
+    assert (page / "events.jsonl").read_bytes().startswith(before)
+    stop(task)
+
+
+@pytest.mark.parametrize("failure", ["prepare", "publish"])
+@pytest.mark.parametrize("claimed", [False, True])
+def test_fresh_preview_preparation_cannot_remove_a_successor(
+    tmp_path, monkeypatch, failure, claimed
+):
+    """A complete private fixture can fail or lose its slot without owning it."""
+    from leaf.harness import IDENTITY_VARIABLES
+
+    source = tmp_path / "reading.html"
+    source.write_text(
+        "<!doctype html><html><head><title>Reading</title></head>"
+        "<body><main><h1>Reading</h1></main></body></html>"
+    )
+    (tmp_path / "layer.json").write_text("[]")
+    page = tmp_path / "preview"
+    successor = preview.PreviewService(page, user=True)
+    prepare = preview.prepare_page
+    held = {}
+
+    def prepare_before_successor(*args, **kwargs):
+        result = prepare(*args, **kwargs)
+        with monkeypatch.context() as context:
+            if not claimed:
+                for name in IDENTITY_VARIABLES:
+                    context.delenv(name, raising=False)
+            prepare(
+                page,
+                read_fixture(source),
+                partial(preview.leaf, ROOT / "bin/leaf", ROOT),
+            )
+            with successor.starting() as url:
+                held["url"] = url
+            held["claim"] = service.page_claim(page)
+            held["log"] = (page / "events.jsonl").read_bytes()
+        if failure == "prepare":
+            raise ValueError("fixture preparation refused")
+        return result
+
+    monkeypatch.setattr(preview, "prepare_page", prepare_before_successor)
+    try:
+        with pytest.raises(ValueError if failure == "prepare" else OSError):
+            preview.run_preview(source, page, ROOT / "bin/leaf", ROOT, True)
+        assert service.page_claim(page) == held["claim"]
+        assert (page / "events.jsonl").read_bytes() == held["log"]
+        assert server.running_server(page)["url"] == held["url"]
+        assert fetch(held["url"], token=None)[0] == 200
+    finally:
+        successor.stop()
 
 
 def test_an_abandoned_handoff_does_not_disable_the_server_it_reuses(

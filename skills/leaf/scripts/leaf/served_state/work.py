@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from ..activity import canonical_activity, canonical_stream_reply
-from ..files import active_descriptor
+from ..files import active_descriptor, list_revisions
 from ..presence import presence_with_activity
 from ..projection import FrozenThreadReading, page_reading
 from ..revision_artifact import read_revision
@@ -96,11 +96,28 @@ def served_workflows(
     return sorted(workflows, key=_strength, reverse=True)
 
 
-def work_state(events, source, revision, present, now, live_stream=None) -> WorkState:
+def work_state(
+    events,
+    source,
+    revision,
+    present,
+    now,
+    live_stream=None,
+    *,
+    revisions=(),
+    revision_reader=None,
+) -> WorkState:
     """Fold exact admitted inputs, then enrich once with claim and stream evidence."""
     log = TaskReading(events)
     page = (
-        page_reading(source, events, revision, withdrawn=log.withdrawn)
+        page_reading(
+            source,
+            events,
+            revision,
+            withdrawn=log.withdrawn,
+            revisions=revisions,
+            revision_reader=revision_reader,
+        )
         if source
         else None
     )
@@ -136,4 +153,6 @@ def live_work(page_dir: Path, events: list, *, now: str | None = None) -> WorkSt
         present,
         now or now_iso(),
         stream,
+        revisions=list_revisions(page_dir),
+        revision_reader=lambda previous: read_revision(page_dir, previous),
     )

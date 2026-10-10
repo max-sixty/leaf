@@ -86,7 +86,7 @@ _RECORD_VALUE = {
 }
 
 # A `when` predicate selects instances by attribute values (or by a flag's being
-# present or absent). One condition shape serves Asks and threads because they
+# present or absent). One condition shape serves Questions and threads because they
 # ask the same question of the same authored attributes.
 AWAITING_CONDITION = {
     "type": "object",
@@ -99,7 +99,7 @@ AWAITING_CONDITION = {
     },
 }
 
-# When a local Ask is answered: a map from each answering x-state verb to the
+# When a local Question is answered: a map from each answering x-state verb to the
 # condition its standing state meets. An empty condition means the verb's state stands
 # (a non-empty attribute or value record, otherwise a standing action). `when` narrows
 # the verb to instances whose attributes match; `empty` holds when the one member
@@ -224,9 +224,11 @@ AWAITS_SCHEMA = {
     "type": "object",
     "properties": {
         "when": AWAITING_CONDITION,
+        "value": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "answered": ANSWERED_SCHEMA,
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     },
+    "required": ["value", "answered"],
     "additionalProperties": False,
 }
 # Package and data-contract instructions address their declared audiences. Widget
@@ -274,7 +276,7 @@ _ATTRIBUTE_NAME = {"type": "string", "pattern": f"^{HTML_NAME}$"}
 EXTENSION_SCHEMA = {
     "type": "object",
     "properties": {
-        "x-ask-surface": {"const": True},
+        "x-question-context": {"const": True},
         "x-awaits": AWAITS_SCHEMA,
         "x-thread-seat": {
             "type": "object",
@@ -450,7 +452,7 @@ ATTRIBUTE_KEYS = (
 # `idiom` says a selector entry may declare the mark for the elements its selector
 # matches, as `.callout` declares the room: the mark's every reader reads its paint and
 # nothing paints it in a message, so delivery's paint is the whole of it. The others
-# are also read by tag (the asks fold, the render checks, the runtime's descriptors).
+# are also read by tag (the Questions fold, the render checks, the runtime's descriptors).
 #
 # Delivery paints a page's document from this (`revision_delivery.mark_declared`).
 # Composition stamps it into the vocabulary as `$marks` (`registry.layer.
@@ -458,6 +460,8 @@ ATTRIBUTE_KEYS = (
 # paint from the author's attributes (`isPagePaint`). The paint names are also the
 # theme's contract: the stylesheets that read them spell them out.
 DECLARED_MARKS = {
+    "x-content": {"paint": "data-lf-content", "message": True},
+    "x-verbatim": {"paint": "data-lf-verbatim", "message": True},
     "x-space": {
         "paint": "data-lf-space",
         "authored": "data-width",

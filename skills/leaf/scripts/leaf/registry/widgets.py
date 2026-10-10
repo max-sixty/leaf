@@ -295,17 +295,14 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
     # attribute's own schema — a flag is there or it isn't, an enum admits what it
     # lists — and a subschema that states neither contradicts nothing.
     awaits = entry.get("x-awaits", {})
-    if entry.get("x-ask-surface"):
+    if entry.get("x-question-context"):
         if "id" not in entry.get("required", []):
-            raise RegistryError(f"{path}: <{tag}> x-ask-surface does not require an id")
+            raise RegistryError(
+                f"{path}: <{tag}> x-question-context does not require an id"
+            )
         if entry.get("x-content") != "markup":
             raise RegistryError(
-                f"{path}: <{tag}> x-ask-surface must admit prose around the Ask it frames"
-            )
-        if awaits:
-            raise RegistryError(
-                f"{path}: <{tag}> declares both x-ask-surface and x-awaits — the broader "
-                "Ask frames one nested source; the nested widget owns its state"
+                f"{path}: <{tag}> x-question-context must admit prose around the Question it frames"
             )
     conditions = [
         ("x-awaits", awaits.get("when", {})),
@@ -402,23 +399,27 @@ def _validate_widget_interactions(
     answered = awaits.get("answered", {})
     if entry.get("x-awaits") is not None and not answered:
         raise RegistryError(
-            f"{path}: <{tag}> x-awaits local Ask declares no `answered` condition"
+            f"{path}: <{tag}> x-awaits local Question declares no `answered` condition"
         )
-    # The user answers their own Ask, so only a verb the user writes can answer it.
+    # The user answers their own Question, so only a verb the user writes can answer it.
     user_verbs = {verb for verb, _spec in state_specs(entry, writer="user")}
     if unknown := sorted(set(answered) - user_verbs):
         raise RegistryError(
             f"{path}: <{tag}> x-awaits answers with verbs {json_value(unknown)}, which are not "
             "x-state verbs the user writes"
         )
-    # A blanket answer is one decision per Ask, taken through the widget's deciding
-    # verb, so it names an outcome that verb declares and the verb answers the Ask.
+    if awaits and awaits["value"] not in user_verbs:
+        raise RegistryError(
+            f"{path}: <{tag}> x-awaits value must name a user-written x-state verb"
+        )
+    # A blanket answer is one decision per Question, taken through the widget's deciding
+    # verb, so it names an outcome that verb declares and the verb answers the Question.
     if (blanket := awaits.get("all")) and (
         deciding_verb(entry) not in answered or blanket not in deciding_outcomes(entry)
     ):
         raise RegistryError(
             f"{path}: <{tag}> x-awaits blanket answer `{blanket}` is not an outcome "
-            "of a deciding verb that answers its Ask"
+            "of a deciding verb that answers its Question"
         )
     needs_upgrade = [
         key

@@ -373,7 +373,7 @@ def isolated_session(tmp_path_factory, monkeypatch):
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", f"pytest-{os.getpid()}")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     # A Claude Code session whose harness runs Leaf's hooks, as the plugin installs
-    # them, so its `leaf wait` only wakes it (`Harness.hooks_carry`).
+    # them, supplying capability evidence to hook transport and turn activity.
     for session in HOOKED_SESSIONS:
         leases_model.mark_hooks(session)
     return machine_model.state_home()

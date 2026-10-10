@@ -661,7 +661,7 @@ ASK_IN_A_CARD_PAGE = leaf_page(
 # hangs it on the boxes its contents make — so what says the walk is in one place is
 # the outermost page element wearing it, never the count of elements that do. Scoped to
 # main because the Questions panel's row mirrors the same fact in the chrome.
-STANDING_ASK = "main [data-lf-ask]:not([data-lf-ask] [data-lf-ask])"
+STANDING_ASK = "main [data-lf-question]:not([data-lf-question] [data-lf-question])"
 # The shipped board measures its grip from a live box. Author it into the page and
 # send it in a reply with the same words, so the two readings can be compared.
 ROOM_WIDGETS = """<lf-board id="{id}-b">
@@ -1140,7 +1140,6 @@ STANDING_ACTIONS = [
     ("ab-sug-logs", "decide", {"outcome": "reject"}),
     ("ab-triage", "choose", {"value": ["ab-capacity"]}),
     ("ab-triage", "answer", {}),
-    ("ab-patch", "review", {"file": "ab/bracket.py", "reviewed": True}),
     (
         "ab-visual",
         "review",
@@ -1378,7 +1377,11 @@ SEATED_ASK_ENTRY = {
             "unit": "widget",
         }
     },
-    "x-awaits": {"when": {"asks": [True]}, "answered": {"settle": {}}},
+    "x-awaits": {
+        "value": "settle",
+        "when": {"asks": [True]},
+        "answered": {"settle": {}},
+    },
     "x-thread-seat": {"when": {"asks": [True]}},
     "x-example": '<lf-verdict id="verdict-example" asks>Ship it?</lf-verdict>',
 }

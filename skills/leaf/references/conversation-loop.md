@@ -16,7 +16,7 @@ The user follows your work on the page:
 | Page | the revised content in place, and a stamp's changelog | saving `index.html`, `leaf page stamp` |
 
 Leaf itself marks each user move **Sent**, **Queued**, and **Picked up**, including
-a move that owes you nothing, such as a moved card. A pick before the Done its Ask
+a move that owes you nothing, such as a moved card. A pick before the Done its Question
 waits for is marked with that Done. Your harness
 contract may add its own current step to the banner.
 
@@ -148,7 +148,7 @@ you until you end it.
 
 What ends a start depends on its item. Your reply answering a move ends that
 move's start, and so does a stamped version whose markup records a press on an
-answered Ask. A task's start ends with the task: `leaf task end`, or a stamped
+answered Question. A task's start ends with the task: `leaf task end`, or a stamped
 version that completes its widget, once per completed widget:
 
 ```bash
@@ -223,14 +223,18 @@ user to send again. Done holds ended items.
 
 | Request | Register it | What answers it |
 | --- | --- | --- |
-| A decision or input recorded by a widget | Author an Ask (`authoring-asks.md`); `lf-ask` frames its question and evidence around one answering widget | The widget's declared answer; a multiple-choice Ask also needs the user's Done |
+| A decision or input recorded by a widget | Author a decision widget (`authoring-questions.md`); optional `lf-ask` frames its question and evidence | The widget's declared answer; a multiple-choice Question also needs the user's Done |
 | A conversational answer | Open an agent thread with the question, or add `--awaits` to a reply (`threads.md`) | The user's next reply there or a settling reaction |
-| An action neither route records, such as trying a build, reviewing a version, or connecting a browser | `leaf task open <page> <id> "<direct question naming the action>" --on user`, on its widget, section, or `page` | The user's Done; end it yourself when their action is established or no longer needed |
+| Required version sign-off | Declare sign-off and stamp the version (`authoring-questions.md`, "Questions and sign-off") | That version's banner approval |
+| An action neither route records, such as trying a build or connecting a browser | `leaf task open <page> <id> "<direct question naming the action>" --on user`, on its widget, section, or `page` | The user's Done; end it yourself when their action is established or no longer needed |
 
-The Ask's id, the question message's id, or the id printed by `task open` identifies
-the request. A thread takes no explicit user task; ask there with `--awaits`.
-Keep independently answerable decisions in separate Asks or threads: a thread has
-one current prose question, and its next user reply settles that question. Publish
+A widget Question has id `widget:<widget-id>`, a prose Question has
+`reply:<message-id>`, and a stamped version's sign-off has `approval:v<version>`.
+Explicit user work keeps the id printed by `task open`. A thread takes no explicit
+user task; ask there with `--awaits`.
+Keep independently answerable decisions in separate widgets or threads. A thread
+can retain several prose Questions; its latest unanswered one is the current request,
+and the next user reply settles preceding unanswered prose Questions there. Publish
 a dependent question once its prerequisite is answered. A user task's Done reports
 completion; it supplies no permission or choice that its question did not state.
 
@@ -238,15 +242,17 @@ Read the lists before a handoff, before waiting for the user, and after taking i
 an answer:
 
 ```bash
-leaf page state <page> | jq '{source, questions: .queues.on_you, tasks: .queues.on_agent}'
+leaf page state <page> | jq '{source, questions, tasks, queues}'
 ```
 
-The lists are already canonical in page state: `queues.on_you` is Questions and
-`queues.on_agent` is Tasks. `jq` only selects those fields; do not reconstruct
-queue membership from events or widget state. Each item names its `id`, `kind`,
-`subject`, and `thread`; task items also say how they end (`ends`). Read a thread with
-`leaf page state <page> <message-id>` for its messages. For a page Ask, read
-`leaf page state <page>`'s `active.file` and the identified Ask in that HTML;
+Page state contains separate canonical `questions` and explicit `tasks`; its
+`queues.on_you` and `queues.on_agent` select those records with response obligations
+and delivery retries for the panel. `jq` only selects these fields; do not reconstruct
+membership from events or widget state. Each queue item names its `id`, `kind`,
+`subject`, and `thread`; work items also say how they end (`ends`). A Question contains
+its prompt, typed answer and lifecycle; widget state owns its answer. Read a thread
+with `leaf page state <page> <message-id>` for its messages. For a page widget, read
+`leaf page state <page>`'s `active.file` and the identified widget in that HTML;
 the widget-specific state command reports its state and metadata. The reading
 covers the active document and admitted log, not unsent browser drafts or a tab
 pinned to an older version. Check `source` for an invalid or missing draft before
@@ -262,8 +268,10 @@ that unblocks it. Work owned by another session stays there; ask here only for t
 decision this page needs.
 
 An answer in chat or another surface still settles the real question. Incorporate
-it and retire its page Ask in a revision (`authoring-revisions.md`), or end its
-thread question or user task with `leaf task end`. Keep standing answers and
-finished decisions out of Questions. A page declaring required banner sign-off
-adds a Question for its stamped version automatically; its approval answers that
+it and retire its page Question in a revision (`authoring-revisions.md`), or end
+explicit user work with `leaf task end`. Withdraw a prose Question that no longer
+applies with `leaf task end <page> reply:<message-id> dropped "<why>"`; this records
+withdrawal, not a user answer. Keep finished requests out of the user's queue;
+answered and withdrawn Question records remain available in the complete reading.
+A page declaring required banner sign-off adds a Question for its stamped version automatically; its approval answers that
 Question, and undo reopens it. Stamp a draft before requesting its sign-off.

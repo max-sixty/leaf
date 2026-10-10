@@ -442,7 +442,7 @@ OVER_ITS_CONTAINER = LONG_PAGE.replace(
     "</main>",
     "<div id='clipping' style='width: 300px; overflow: hidden'>"
     "<div id='eaten' style='width: 420px'>Nobody sees the end of this.</div></div>"
-    "<div id='scrolling' style='width: 300px; overflow-x: auto'>"
+    "<div id='scrolling' style='width: 300px; overflow-x: auto; padding-bottom: 15px'>"
     "<div id='reachable' style='width: 420px'>This one scrolls into view.</div></div>"
     "<div id='holding' style='width: 300px; height: 40px; overflow: hidden'>"
     "<div id='hung' style='position: absolute; width: 420px'>Placed, so this one "
@@ -562,7 +562,7 @@ HIDDEN_SCROLLERS = {
 }
 SCROLLED_CONTAINER = LONG_PAGE.replace(
     "</main>",
-    "<div id='rolled' style='width: 300px; overflow-x: auto'>"
+    "<div id='rolled' style='width: 300px; overflow-x: auto; padding-bottom: 15px'>"
     "<div id='riding' style='width: 900px'>Where the content of a scrolled box "
     "starts.</div></div>\n</main>",
 )

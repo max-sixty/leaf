@@ -377,7 +377,7 @@ def instructions(
 )
 def state(dir: str, target: str | None, after: int | None, limit: int | None) -> None:
     """Fold the log onto the active revision and print the result as one JSON
-    object: the active revision's file, standing state, reports, open Asks,
+    object: the active revision's file, standing state, reports, open Questions,
     thread summaries, versions, presence, and bound data. Read the active
     revision's HTML beside it for the document.
 
@@ -385,7 +385,7 @@ def state(dir: str, target: str | None, after: int | None, limit: int | None) ->
     one, names its thread: the reading is that thread with a page of its messages,
     their frozen markup, and the state on its widgets, paged by --after and
     --limit. A widget on the page names itself: its element, the actions and reports
-    standing on it, its Asks, and its workflows."""
+    standing on it, its Questions, and its workflows."""
     from leaf.agent_state import cmd_page_state
 
     if target is None and (after is not None or limit is not None):
@@ -615,15 +615,34 @@ def delivery() -> None:
     """Handle transport-independent Leaf deliveries."""
 
 
-@delivery.command("read", short_help="Read one immutable delivery envelope.")
+@delivery.command("read", short_help="Read bounded immutable delivery input.")
 @click.argument("delivery_id", metavar="DELIVERY_ID")
-def delivery_read(delivery_id: str) -> None:
-    """Print DELIVERY_ID with its complete batches and response requirements. Where
-    a harness's hook offered it to this session as a pointer, reading it confirms
-    it, so the user's updates read Picked up."""
+@click.option(
+    "--part",
+    type=click.IntRange(min=1),
+    default=1,
+    help="Read this numbered part of a large delivery.",
+)
+def delivery_read(delivery_id: str, part: int) -> None:
+    """Read input without confirming it. Follow its next and acknowledgement instructions."""
     from leaf.delivery import cmd_delivery_read
 
-    cmd_delivery_read(delivery_id)
+    try:
+        cmd_delivery_read(delivery_id, part=part)
+    except ValueError as error:
+        raise click.ClickException(str(error)) from error
+
+
+@delivery.command("ack", short_help="Confirm complete delivery input reached context.")
+@click.argument("delivery_id", metavar="DELIVERY_ID")
+def delivery_ack(delivery_id: str) -> None:
+    """Attest complete receipt after reading every part of DELIVERY_ID."""
+    from leaf.delivery import cmd_delivery_ack
+
+    try:
+        cmd_delivery_ack(delivery_id)
+    except (OSError, RuntimeError) as error:
+        raise click.ClickException(str(error)) from error
 
 
 @cli.group(short_help="Open, answer, edit, summarize, or resolve a thread.")
@@ -902,8 +921,9 @@ def status(dir: str, state: str, detail: str) -> None:
 @cli.command(
     short_help="Confirm a delivery, if given, then wait for the next batch.",
     help=(
-        "Watch every page this session holds — plus PAGE, claimed first, when "
-        "given.\n\n" + WAIT_BATCH_OUTPUT_INSTRUCTION
+        "Watch every page this session holds, or observe PAGE without taking "
+        "ownership. Claim a foreign page explicitly with `leaf page claim`.\n\n"
+        + WAIT_BATCH_OUTPUT_INSTRUCTION
     ),
 )
 @click.argument("dir", metavar="PAGE", required=False)
@@ -1166,10 +1186,10 @@ def task_start(dir: str, item: str, text: str) -> None:
 @click.argument("detail", metavar="[DETAIL]", required=False)
 def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> None:
     """End TASK with OUTCOME. DETAIL says where the result is, such as the
-    version or reply holding it, or why there is none. TASK may be one on the user:
-    one you opened `--on user`, or a question you left in a thread, by the id of the
-    reply that asks it. An Ask's task ends only when its widget answers it; retire an
-    Ask in a version."""
+    version or reply holding it, or why there is none. TASK may be an explicit task
+    on either side. A prose Question id (`reply:<message-id>`)
+    withdraws that request without creating a user answer. Widget Questions end
+    through their declared state or an authored withdrawal."""
     from leaf.tasks import cmd_end
 
     _print_records(cmd_end(resolve_dir(dir), task_id, outcome, detail))

@@ -113,6 +113,21 @@ def rendering_job_binding_source():
     });"""
 
 
+def document_port_binding_source():
+    """Enroll only endpoints their owner declares as private document channels."""
+    return """(() => {
+      const ports = new WeakMap();
+      Object.defineProperty(HTMLScriptElement.prototype, 'lfDocumentPort', {
+        configurable: true,
+        get() { return ports.get(this); },
+        set(port) {
+          ports.set(this, port);
+          lfInputWork.observeDocumentPort(port);
+        },
+      });
+    })();"""
+
+
 @cache
 def shift_watch_source():
     """Bind the sensor to the runtime's control, clipping, and scroll-space readings."""
@@ -1394,6 +1409,8 @@ def watched(page, *, java_script_enabled=True):
         )
         + "\n"
         + rendering_job_binding_source()
+        + "\n"
+        + document_port_binding_source()
     )
     if _TEST is None or watches_shifts(_TEST):
         page.add_init_script(script=shift_watch_source())
@@ -1656,7 +1673,9 @@ _ASKS_ANSWERED = """async () => {
   window.__lfAsksAnswered = () => {
     const application = readApplication();
     if (application.phase !== 'ready') return null;
-    const { all, unanswered } = application.effective.asks;
+    const questions = application.effective.questions;
+    const all = questions.all.filter(question => question.source.kind === "widget");
+    const unanswered = questions.unanswered.filter(question => question.source.kind === "widget");
     return `${all.length - unanswered.length}/${all.length}`;
   };
 }"""
@@ -2116,7 +2135,8 @@ def panel_settled(page, open=True):
 
     The panel stands over the page, so opening or closing it moves nothing else; its own
     slide is the one motion, finished rather than waited out for `edge_settled`'s reason.
-    Closed means the retained panel is no longer visible."""
+    Closed means the retained panel is no longer visible. An occluded child gets no
+    animation frames, so a native timer polls the same actual motion reading there."""
     page.wait_for_function(
         """(open) => {
           const panel = document.querySelector('.lf-thread-panel');
@@ -2125,6 +2145,7 @@ def panel_settled(page, open=True):
             && panel.getAnimations().length === 0;
         }""",
         arg=open,
+        polling=render_checks_model.PROBE_POLL_MS,
     )
 
 

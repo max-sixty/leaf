@@ -20,6 +20,11 @@
 // Each trusted gesture owns its counted rendering until declared completion.
 // Native effects it began retain only their sampled displacement within their
 // own subtree; their continued lifetime never owns unrelated page movement.
+// Native scroll effects belong to their retained scroll source, regardless of the
+// gesture that created them. Stable timeline bindings and translation trajectories
+// credit only source-collinear travel bounded by that source's viewport scroll.
+// A uniform keyframe origin rebase is removed from the sampled translation, so a
+// compensated placement cannot erase its scroll cause or adopt unrelated motion.
 // News starts passive rendering except the first frame shared with the gesture.
 // A typing field is observed at its native edit start, independently of Chrome's
 // clipped or shadowed source rectangles. Its subject, protected reading/control and
@@ -34,6 +39,8 @@
 // no inferred translation credit. A floating owner's last-written held-edge point
 // declares page/window plane changes under the same subject, anchor and tenure;
 // its solver dimensions, not the holder's rendered displacement, supply that credit.
+// Native anchored surfaces read their compositor source pose from an independent,
+// unpainted native anchor; their own displacement never selects that camera.
 // Observed page attachments in the window plane retain their carrying source offsets,
 // physical attachment point and written solver point. Source travel bounds physical
 // following, which bounds the solver's constrained movement. Only that written
@@ -77,6 +84,7 @@
 // Every finding fails the ordinary browser fixture. It installs this sensor after
 // write_watch.js and binds the canonical control and clipping vocabulary.
 (() => {
+  const { listen } = window.lfWatchPlatform;
   // A native paint/task checkpoint retires only evidence it has judged. Execution
   // time says nothing about whether Chrome has delivered an earlier painted shift.
   let retainedFrom = -Infinity;
@@ -167,6 +175,12 @@
   const INSETS = ["top", "right", "bottom", "left"];
   const insetRules = new WeakMap();
   const rulesStatingInsets = (sheet) => {
+    if (
+      sheet.href &&
+      new URL(sheet.href).origin !== window.origin &&
+      !sheet.ownerNode?.hasAttribute("crossorigin")
+    )
+      return [];
     const length = sheet.cssRules.length;
     const known = insetRules.get(sheet);
     if (known?.length === length) return known.rules;
@@ -332,11 +346,11 @@
       characterData: true,
     });
     for (const type of EVENTS)
-      tree.addEventListener(type, announce, { capture: true, passive: true });
+      listen(tree, type, announce, { capture: true, passive: true });
   };
   watchTree(document);
   for (const type of ["resize", "hashchange", "pageshow", "focus", "blur"])
-    window.addEventListener(type, announce, { capture: true, passive: true });
+    listen(window, type, announce, { capture: true, passive: true });
   for (const type of ["resize", "scroll"])
     window.visualViewport?.addEventListener(type, announce);
   document.fonts?.addEventListener("loadingdone", announce);
@@ -429,6 +443,46 @@
     announce();
     return root;
   };
+  // A zero-sized native anchor independently exposes the compositor source pose
+  // consumed by an anchored floating surface. Its own point stays at the source's
+  // origin, so displacement of the measured holder cannot pick another camera.
+  // Fixed, empty and hidden, it cannot reflow content, paint or receive focus.
+  const cameras = new Map();
+  const cameraNodes = new Set();
+  const readCameras = (selections) => {
+    for (const [owner, camera] of cameras)
+      if (!selections.has(owner) || !owner.isConnected) {
+        camera.remove();
+        cameras.delete(owner);
+        cameraNodes.delete(camera);
+      }
+    const readings = new Map();
+    for (const [owner, selection] of selections) {
+      if (!(selection.frame instanceof Element)) continue;
+      const style = getComputedStyle(owner);
+      if (
+        !["fixed", "absolute"].includes(style.position) ||
+        !getComputedStyle(selection.frame)
+          .anchorName.split(",")
+          .map((name) => name.trim())
+          .includes(style.positionAnchor)
+      )
+        continue;
+      let camera = cameras.get(owner);
+      if (!camera) {
+        camera = document.createElement("lf-shift-camera");
+        camera.style.cssText =
+          "all:initial;position:fixed;left:anchor(left);top:anchor(top);width:0;height:0;margin:0;padding:0;border:0;visibility:hidden;pointer-events:none";
+        cameras.set(owner, camera);
+        cameraNodes.add(camera);
+      }
+      if (camera.style.positionAnchor !== style.positionAnchor)
+        camera.style.positionAnchor = style.positionAnchor;
+      if (camera.parentElement !== owner.parentElement) owner.before(camera);
+      readings.set(owner, camera.getBoundingClientRect());
+    }
+    return readings;
+  };
   const everything = () => {
     const nodes = [...document.querySelectorAll("*")];
     for (const root of roots)
@@ -441,7 +495,7 @@
           !node.matches("script, style"),
       ),
     );
-    return [...nodes, ...words];
+    return [...nodes.filter((node) => !cameraNodes.has(node)), ...words];
   };
   // Each frame keeps its node population; geometry and paint evidence keep changes
   // only. Later hiding, clipping, reparenting or removal cannot erase a sampled box.
@@ -478,6 +532,74 @@
         top: property.endsWith("Top") || property === "top" ? parseFloat(value) : 0,
       };
     return null;
+  };
+  const translationAxes = (target) => {
+    const parent = elementAxes(up(target));
+    const zoom = Number(getComputedStyle(target).zoom);
+    return {
+      transform: elementAxes(target),
+      layout: {
+        x: { x: parent.x.x * zoom, y: parent.x.y * zoom },
+        y: { x: parent.y.x * zoom, y: parent.y.y * zoom },
+      },
+    };
+  };
+  const scrollBinding = (animation) => {
+    const timeline = animation.timeline;
+    if (
+      typeof window.ScrollTimeline !== "function" ||
+      !(timeline instanceof ScrollTimeline) ||
+      !(timeline.source instanceof Element)
+    )
+      return null;
+    const source = timeline.source;
+    const style = getComputedStyle(source);
+    const vertical = !style.writingMode.startsWith("horizontal");
+    const axis =
+      timeline.axis === "block"
+        ? vertical
+          ? "x"
+          : "y"
+        : timeline.axis === "inline"
+          ? vertical
+            ? "y"
+            : "x"
+          : timeline.axis;
+    // Typed CSS values have no enumerable value in JSON. Retain their unit and
+    // value, including percent animation ranges and pixel view-timeline insets.
+    const signature = JSON.stringify(
+      {
+        axis,
+        writingMode: style.writingMode,
+        direction: style.direction,
+        axes: scrollAxes(source),
+        width: source.clientWidth,
+        height: source.clientHeight,
+        scrollWidth: source.scrollWidth,
+        scrollHeight: source.scrollHeight,
+        start: timeline.startOffset,
+        end: timeline.endOffset,
+        inset: timeline.inset,
+        timing: animation.effect.getTiming(),
+        rangeStart: animation.rangeStart,
+        rangeEnd: animation.rangeEnd,
+        playbackRate: animation.playbackRate,
+        startTime: animation.startTime,
+      },
+      (_, value) =>
+        value instanceof CSSUnitValue
+          ? { value: value.value, unit: value.unit }
+          : value,
+    );
+    return {
+      timeline,
+      effect: animation.effect,
+      target: animation.effect.target,
+      source,
+      subject: timeline.subject,
+      axis,
+      signature,
+    };
   };
   // A finishing owner may retire its held native effect before the next frame.
   // Read its actual final properties in the finished-promise checkpoint, while
@@ -607,7 +729,13 @@
           .map((property) => [property, style[property]]),
       );
       const readings = animated.get(animation) ?? [];
-      readings.push({ at, values });
+      readings.push({
+        at,
+        values,
+        axes: translationAxes(effect.target),
+        scroll: scrollBinding(animation),
+        keyframes: effect.getKeyframes(),
+      });
       pruneSamples(readings);
       animated.set(animation, readings);
     }
@@ -658,6 +786,7 @@
       floating.set(owner, readings);
     }
     floatingOwners = new Set(selections.keys());
+    const nativeCameras = readCameras(selections);
     readMotion(at);
     // A running animation changes poses on every frame, and the frame after it stops
     // or leaves the set settles the last of them.
@@ -729,7 +858,17 @@
       }
       return !modal;
     };
-    const entry = frame ? { at, start: time, nodes, motion: [], complete: true } : null;
+    const entry = frame
+      ? {
+          at,
+          start: time,
+          nodes,
+          motion: animations.filter(
+            (animation) => animated.get(animation)?.at(-1)?.scroll,
+          ),
+          complete: true,
+        }
+      : null;
     if (entry) frames.push(entry);
     for (const node of nodes) {
       const scrolls = scrolled.get(node) ?? [];
@@ -784,6 +923,11 @@
         appendChildren.every((child, i) => child === last.paint.appendChildren[i])
       )
         appendChildren = last.paint.appendChildren;
+      const selection = selections.get(node);
+      const nativeOrigin =
+        selection?.frame && anchorOf(node, style, anchors) === selection.frame
+          ? (nativeCameras.get(node) ?? {})
+          : {};
       const paint = {
         parent: up(node),
         anchor: range ? null : anchorOf(node, style, anchors),
@@ -795,6 +939,8 @@
           !range &&
           ["fixed", "absolute"].includes(position) &&
           ["top", "bottom"].some((side) => anchoredInset(node, style, side, "top")),
+        nativeLeft: nativeOrigin.left,
+        nativeTop: nativeOrigin.top,
         insetX: range ? null : `${node.style.left}|${node.style.right}`,
         insetY: range ? null : `${node.style.top}|${node.style.bottom}`,
         position,
@@ -888,6 +1034,7 @@
       seen.push({
         at,
         poseAt: sameBox && sameCoordinates ? last.poseAt : at,
+        nativeOrigin,
         rect,
         fragments,
         paint,
@@ -1084,7 +1231,7 @@
     if (open?.typing?.until === Infinity) open.typing.until = before;
     begin(nativePerformance.now());
   };
-  window.addEventListener("resize", resized);
+  listen(window, "resize", resized);
   // When the page adopted each server reading.
   new MutationObserver(() => {
     unwatch();
@@ -1118,12 +1265,8 @@
       "click",
       "wheel",
     ])
-      held.addEventListener(type, heard, true);
-    held.addEventListener(
-      "pointercancel",
-      (event) => presses.delete(event.pointerId),
-      true,
-    );
+      listen(held, type, heard, true);
+    listen(held, "pointercancel", (event) => presses.delete(event.pointerId), true);
     if (view === view.parent) break;
   }
   const reported = new Set();
@@ -1162,7 +1305,7 @@
   // answer arrives later. Consume the runtime's boundary, never a timed grace.
   const returns = [];
   let continuityTurn = 0;
-  document.addEventListener("lf-reading-continuity", ({ detail }) => {
+  listen(document, "lf-reading-continuity", ({ detail }) => {
     const turn = ++continuityTurn;
     const current = returns.at(-1);
     if (!detail.continuous) {
@@ -1433,7 +1576,16 @@
       after = boxAt(sticky, to);
     if (!before || !after) return motion;
     for (const axis of ["left", "top"]) {
-      const scroll = ancestryAt(sticky, to).reduce((sum, owner) => {
+      const ancestors = ancestryAt(sticky, to);
+      const fixed = ancestors.findIndex(
+        (owner) =>
+          paintAt(owner, from)?.position === "fixed" ||
+          paintAt(owner, to)?.position === "fixed",
+      );
+      // A sticky header inside a floating surface is carried by that surface,
+      // not by the document scroll outside its fixed containing block.
+      const carrying = fixed < 0 ? ancestors : ancestors.slice(0, fixed + 1);
+      const scroll = carrying.reduce((sum, owner) => {
         const prior = scrollAt(owner, from),
           next = scrollAt(owner, to);
         return (
@@ -1521,13 +1673,47 @@
             motion[axis] += placed;
         }
       }
+      if (sameAttachment && was.frame && was.frame === now.frame) {
+        const before = readingAt(owner, from)?.nativeOrigin;
+        const after = readingAt(owner, to)?.nativeOrigin;
+        const beforeLayout = layoutAt(was.frame, from);
+        const afterLayout = layoutAt(now.frame, to);
+        for (const axis of ["left", "top"]) {
+          if (
+            !Number.isFinite(before?.[axis]) ||
+            !Number.isFinite(after?.[axis]) ||
+            !beforeLayout ||
+            !afterLayout ||
+            Math.abs(beforeLayout[axis] - afterLayout[axis]) >= 1
+          )
+            continue;
+          // An attachment limiter can release or constrain the same page-plane
+          // surface as its target enters the viewport. Its declared world point
+          // must still follow within the exact native source travel it consumed.
+          const travel = after[axis] - before[axis];
+          const placed = writtenPoint(now, axis) - writtenPoint(was, axis) + travel;
+          if (placed >= Math.min(0, travel) - 1 && placed <= Math.max(0, travel) + 1) {
+            motion[axis] += placed;
+            anchored[axis] = true;
+          }
+        }
+      }
       if (sameAttachment && was.plane !== now.plane) {
         // A selection's point is measured from its frame's box: the subject anchor's
         // in the page's plane, the holding region's in a region's, the window's in
         // the window's.
-        const origin = (selection, time) =>
-          selection.frame ? boxAt(selection.frame, time) : { left: 0, top: 0 };
-        const before = origin(was, poseAt(owner, from)),
+        const origin = (selection, time) => {
+          if (!selection.frame) return { left: 0, top: 0 };
+          const source = boxAt(selection.frame, time);
+          const retained = readingAt(owner, time);
+          return (
+            source && {
+              left: retained?.nativeOrigin?.left ?? source.left,
+              top: retained?.nativeOrigin?.top ?? source.top,
+            }
+          );
+        };
+        const before = origin(was, from),
           after = origin(now, to);
         if (before && after) {
           for (const axis of ["left", "top"]) {
@@ -1566,6 +1752,77 @@
     }
     return motion;
   };
+  // Only an unchanged trajectory can explain native source travel. Replacing all
+  // translation keyframes by the same offset changes its placement origin, not
+  // that trajectory; every other keyframe field must retain its meaning.
+  const translationRebase = (property, before, after) => {
+    if (before.length !== after.length || !before.length) return null;
+    let delta = null;
+    for (const [i, prior] of before.entries()) {
+      const next = after[i];
+      const metadata = (frame) =>
+        JSON.stringify(
+          Object.fromEntries(Object.entries(frame).filter(([key]) => key !== property)),
+        );
+      if (metadata(prior) !== metadata(next)) return null;
+      if (!(property in prior) || !(property in next)) return null;
+      const was = animationTranslation(property, prior[property]);
+      const now = animationTranslation(property, next[property]);
+      if (!was || !now) return null;
+      const by = { left: now.left - was.left, top: now.top - was.top };
+      if (
+        delta &&
+        (Math.abs(delta.left - by.left) > 0.01 || Math.abs(delta.top - by.top) > 0.01)
+      )
+        return null;
+      delta = by;
+    }
+    return delta;
+  };
+  const viewportTranslation = (property, before, after, by) => {
+    // Animated transforms translate in their target's local basis; physical
+    // insets and margins translate layout in its parent's basis with their own
+    // CSS zoom. Every effect uses this same viewport conversion, and a changed
+    // basis cannot explain translation with the earlier coordinate system.
+    const key = property === "transform" ? "transform" : "layout";
+    const axes = before.axes[key];
+    if (JSON.stringify(axes) !== JSON.stringify(after.axes[key])) return null;
+    return {
+      left: by.left * axes.x.x + by.top * axes.y.x,
+      top: by.left * axes.x.y + by.top * axes.y.y,
+    };
+  };
+  const scrollEffectMotion = (property, before, after, from, to, by) => {
+    const was = before.scroll,
+      now = after.scroll;
+    if (
+      !was ||
+      !now ||
+      ["timeline", "effect", "target", "source", "subject", "axis", "signature"].some(
+        (key) => was[key] !== now[key],
+      )
+    )
+      return null;
+    const localRebase = translationRebase(property, before.keyframes, after.keyframes);
+    if (!localRebase) return null;
+    const rebase = viewportTranslation(property, before, after, localRebase);
+    if (!rebase) return null;
+    const prior = scrollAt(was.source, from),
+      next = scrollAt(was.source, to);
+    if (!prior || !next) return null;
+    const source = viewportScroll(was.source, from, {
+      left: was.axis === "x" ? prior.left - next.left : 0,
+      top: was.axis === "y" ? prior.top - next.top : 0,
+    });
+    const carried = { left: by.left - rebase.left, top: by.top - rebase.top };
+    const travel = Math.hypot(source.left, source.top);
+    if (!travel) return null;
+    const along = (carried.left * source.left + carried.top * source.top) / travel;
+    const across = (carried.left * source.top - carried.top * source.left) / travel;
+    return Math.abs(across) < 1 && along >= -0.01 && along <= travel + 0.01
+      ? carried
+      : null;
+  };
   const animationMotion = (node, from, to, animations) => {
     const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
     const motion = { left: 0, top: 0 };
@@ -1585,8 +1842,16 @@
         const prior = animationTranslation(property, before.values[property]);
         const next = animationTranslation(property, after.values[property]);
         if (!prior || !next) continue;
-        motion.left += next.left - prior.left;
-        motion.top += next.top - prior.top;
+        let by = viewportTranslation(property, before, after, {
+          left: next.left - prior.left,
+          top: next.top - prior.top,
+        });
+        if (!by) continue;
+        if (before.scroll || after.scroll)
+          by = scrollEffectMotion(property, before, after, from, to, by);
+        if (!by) continue;
+        motion.left += by.left;
+        motion.top += by.top;
       }
       seen.set(target, properties);
     }
@@ -1899,11 +2164,10 @@
   checkpoint();
   const drawing = () => {
     if (document.hidden) return false;
-    // The driver sees owners across origins; an opaque child cannot. Read it
-    // again while draining because an ancestor can hide after judgement starts.
+    // Frame-owner visibility belongs to the driver, which can read across
+    // origins and refreshes this fact while draining. A document's ancestor
+    // window walk can lose access when a same-origin blank frame is sandboxed.
     if (window.lfWatchJudgement?.ancestorsDrawn === false) return false;
-    for (let view = window; view.frameElement; view = view.parent)
-      if (!view.frameElement.checkVisibility()) return false;
     return true;
   };
   // The fixture awaits actual paint and observer drainage. An outer hang watchdog

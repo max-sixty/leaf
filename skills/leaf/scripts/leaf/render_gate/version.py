@@ -74,7 +74,7 @@ def _render_version_attempt(
     an upgrade module that never defines its declared element, an x-thread-seat whose module
     placed no matching page host, a widget upgraded into a box of no usable size,
     an element showing words with no box for a mark to hang on, so a comment anchored
-    there would outline nothing and the Ask walk would travel to the top of the page,
+    there would outline nothing and the Question walk would travel to the top of the page,
     the page scrolling sideways, content set past the column and out into the margin,
     a table that scrolls sideways with a cell in it wrapped,
     words the user can read and can't select, words drawn on top of other words, code

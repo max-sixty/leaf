@@ -368,19 +368,23 @@ const reachSizes = sizeObserver(() => paintReach());
 // is a promise of more with nothing behind it. scrollLeft follows the inline direction:
 // it starts at zero and becomes negative in a right-to-left scroller.
 function paintSidewaysReach(el) {
-  if (!sideways.has(el) || unpainted(el)) return;
-  const style = getComputedStyle(el);
-  const scrolling =
-    SCROLLS.test(style.overflowX) && el.scrollWidth > el.clientWidth + 1;
-  const maximum = Math.max(0, el.scrollWidth - el.clientWidth);
-  const raw = Math.abs(el.scrollLeft);
-  const position = Math.min(maximum, Math.max(0, raw));
-  keeps(el, PAGE_PAINT_ATTRIBUTE.scrollDirection, scrolling ? style.direction : null);
-  el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.moreBefore, scrolling && position > 1);
-  el.toggleAttribute(
-    PAGE_PAINT_ATTRIBUTE.moreAfter,
-    scrolling && position < maximum - 1,
-  );
+  // An allocating owner can resize a pane before its image or table owner fits the
+  // contents. Like vertical reading cues, read the completed layout for this script.
+  afterScript(() => {
+    if (!sideways.has(el) || unpainted(el)) return;
+    const style = getComputedStyle(el);
+    const scrolling =
+      SCROLLS.test(style.overflowX) && el.scrollWidth > el.clientWidth + 1;
+    const maximum = Math.max(0, el.scrollWidth - el.clientWidth);
+    const raw = Math.abs(el.scrollLeft);
+    const position = Math.min(maximum, Math.max(0, raw));
+    keeps(el, PAGE_PAINT_ATTRIBUTE.scrollDirection, scrolling ? style.direction : null);
+    el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.moreBefore, scrolling && position > 1);
+    el.toggleAttribute(
+      PAGE_PAINT_ATTRIBUTE.moreAfter,
+      scrolling && position < maximum - 1,
+    );
+  });
 }
 function gone(el) {
   if (el.isConnected) return false;
@@ -443,7 +447,7 @@ function paintReach() {
 // due once it has held still for `STILL_MS`, which a timer waits for. Its watch is
 // uncounted (`queries`, below) for the same reason. A transition, a drag or any motion
 // that ends within `PLAYING_MS` stays counted, so the page settles after its sweep; one
-// that runs longer settles up to `STILL_MS` before it. Asks from the window or a module
+// that runs longer settles up to `STILL_MS` before it. Questions from the window or a module
 // stay apart from a container's own, so announcing a playing container still settles.
 const STILL_MS = 100;
 const PLAYING_MS = 1000;

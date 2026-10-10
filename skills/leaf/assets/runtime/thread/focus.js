@@ -19,8 +19,8 @@ import { replyAvailable, replyControlDestination } from "./replies.js";
 // so their established root remains the destination.
 export const threadFocusStop = (thread) =>
   thread.querySelector(":scope > summary:not([hidden])") ?? thread;
-export function focusThread(thread, cause, options) {
-  focusDestination(threadFocusStop(thread), cause, options);
+export function focusThread(thread, cause) {
+  focusDestination(threadFocusStop(thread), cause);
 }
 // The Threads list handing the focus it is gaining on to the open thread's title.
 export function forwardToThread(thread) {
@@ -34,10 +34,10 @@ export const threadReplyInput = (thread) => {
 
 // A closed native disclosure is its own first stop. An explicit reply can name a
 // compact editor before it has height: the editor's reveal owns opening it on focus.
-export function threadFocusDestination(thread, { focus = "reply" } = {}) {
+export function threadFocusDestination(thread, { part = "reply" } = {}) {
   const summary = thread?.querySelector(":scope > summary");
   return (
-    (focus === "thread" ? threadFocusStop(thread) : null) ??
+    (part === "thread" ? threadFocusStop(thread) : null) ??
     (summary && !thread.hasAttribute("open") ? summary : null) ??
     threadReplyInput(thread) ??
     threadFocusStop(thread)
@@ -127,7 +127,7 @@ export async function replyDestination(
     return Boolean(standing && replyAvailable(standing));
   });
   if (!mayReply()) return null;
-  const shown = await open(id, { focus: "reply", intent: mayReply });
+  const shown = await open(id, { part: "reply", intent: mayReply });
   const thread = shown instanceof Element ? closestAcross(shown, THREAD) : null;
   const control = thread && destination(thread);
   if (!control || focused() !== shown || !mayReply()) return null;

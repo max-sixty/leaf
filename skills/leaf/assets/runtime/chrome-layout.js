@@ -43,19 +43,9 @@ import { rightCover } from "./geometry.js";
 import { scheduleResidency } from "./content-layout.js";
 import { syncLayoutRegion } from "./reading-regions.js";
 
-// The width the panel stands at for a user who has not moved its edge. 420 since
-// threads carry questions — option rows are the one thread content that can't scroll or
-// scale its width away, and 360 crowded them. A default rather than the width, because
-// what a thread needs is a fact about the thread: a thread quoting a table
-// wants room the same thread quoting a sentence does not, and only the user looking at
-// it knows which this is. So the edge is a thing they take hold of (`drawnEdge`), and
-// this is where it stands until they do. theme.css spells the same default for the
-// first paint of a reloaded page, before this module has written a width.
-//
-// Opening or closing an auxiliary surface calls its state setter and schedules the shared layout
-// and key paint. User gestures remember their intent; an ephemeral developer replay
-// uses the same transition without replacing it.
-const THREAD_PANEL_W = 420;
+// The stylesheet owns the panel's initial width, including first paint. The edge
+// separately owns the user's chosen width and publishes its current allocation.
+// Opening or closing an auxiliary surface calls its state setter and schedules layout.
 // How narrow they may draw it in. 320 is the narrowest window the panel is held to
 // standing up in (test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_quote),
 // so it is the narrowest width anything has laid a thread's reply box and its two
@@ -85,6 +75,7 @@ export function createChromeLayout({
   // Every writer here is a writer of the chrome, so nothing this function does resizes the
   // box it reads.
   function syncLayout() {
+    commentsEdge.state();
     syncLayoutRegion();
     scheduleResidency();
     scheduleThreadPreviewPosition?.();
@@ -226,7 +217,12 @@ export function createChromeLayout({
   const commentsEdge = drawnEdge({
     side: "right",
     noun: "side panel",
-    wide: THREAD_PANEL_W,
+    defaultWidth: () =>
+      parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue(
+          "--lf-thread-panel-default-width",
+        ),
+      ),
     min: THREAD_PANEL_MIN,
     prop: THREAD_PANEL_PROP,
     key: "lf-thread-panel-width",

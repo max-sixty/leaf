@@ -15,9 +15,9 @@ import {
 } from "./semantic-state.js";
 import { announce, notice } from "./notifications.js";
 import {
-  approvalBlockingAsks as readApprovalBlockingAsks,
-  readAsks,
-} from "./asks/model.js";
+  approvalBlockingQuestions as readApprovalBlockingQuestions,
+  readQuestions,
+} from "./questions/model.js";
 import { paintKeys } from "./keyboard/scopes.js";
 import { pendingTraffic } from "./traffic.js";
 import { createCommandDispatch } from "./pending/dispatch.js";
@@ -42,6 +42,7 @@ import { createQueueActions } from "./queue-api.js";
 import { registerMirrorConsumer, createPrimaryReader } from "./thread/mirrors.js";
 import { createReadTracking } from "./thread/read.js";
 import { renderMarginThread } from "./thread/inline.js";
+import { showHeld } from "./thread/held-news.js";
 import { threadBox as buildThreadBox } from "./thread/box.js";
 import {
   placeThreads as registerConsumer,
@@ -76,9 +77,7 @@ export function mountApplication(dependencies) {
   const stateApplying = () => stateApplication?.isApplying() ?? false;
 
   const currentReceipts = () => readApplication().authoritative?.browser.receipts ?? [];
-  const pendingApprovals = () => readApplication().effective.pendingApprovals;
-  const acceptedApprovals = () => readApplication().effective.acceptedApprovals;
-  const approvalBlockingAsks = readApprovalBlockingAsks;
+  const approvalBlockingQuestions = readApprovalBlockingQuestions;
 
   // Retire the entries the ledger's lifecycle says wait only for release, once every
   // region that draws them has committed the reading that no longer does.
@@ -97,7 +96,7 @@ export function mountApplication(dependencies) {
         ),
       ]),
       whenApplicationRegionsPresented(
-        ["projection:chrome", "thread", "asks", "queue"],
+        ["projection:chrome", "thread", "questions", "queue"],
         stillCurrent,
       ),
     ]);
@@ -106,7 +105,7 @@ export function mountApplication(dependencies) {
     const released = ledger
       .releasable()
       .filter((entry) => attempts.has(entry.event.attempt));
-    // Widget updates and the thread, projection, and Ask owners have now committed
+    // Widget updates and the thread, projection, and Question owners have now committed
     // this surviving semantic reading. Paint its command surface while the same pending
     // records still stand; removing an accounted record is then a semantic no-op.
     if (!released.length) return false;
@@ -222,7 +221,7 @@ export function mountApplication(dependencies) {
   };
   const read = createReadTracking({
     markRead,
-    showThread: (...args) => threadDestinations.openPageThread(...args),
+    openThread: (...args) => threadDestinations.openPageThread(...args),
     firstUnreadBtn: dependencies.firstUnreadBtn,
   });
 
@@ -257,7 +256,7 @@ export function mountApplication(dependencies) {
     settlement: settlementView,
     reaction: reactionView,
     read,
-    showThread: (...args) => threadDestinations.openPageThread(...args),
+    openThread: (...args) => threadDestinations.openPageThread(...args),
     landInThread: dependencies.landInThread,
   };
   const cardView = {
@@ -265,6 +264,7 @@ export function mountApplication(dependencies) {
     settlement: settlementView,
     reaction: reactionView,
     read,
+    openThread: inlineView.openThread,
     anchors: {
       placedAt: dependencies.anchorPlacement.placedAt,
     },
@@ -278,14 +278,14 @@ export function mountApplication(dependencies) {
   };
 
   const annotations = createAnnotationInventory({
-    readAsks,
+    readQuestions,
     comparisonBase: dependencies.annotationCommands.comparisonBase,
     comparisonChanges: dependencies.annotationCommands.comparisonChanges,
     inlineComparison: dependencies.annotationCommands.inlineComparison,
     toggleInlineComparison: dependencies.annotationCommands.toggleInlineComparison,
     placedAt: dependencies.anchorPlacement.placedAt,
-    showThread: (...args) => threadDestinations.openPageThread(...args),
-    goToAsk: dependencies.annotationCommands.goToAsk,
+    openThread: (...args) => threadDestinations.openPageThread(...args),
+    goToQuestion: dependencies.annotationCommands.goToQuestion,
     scrollToElement: dependencies.anchorTravel.scrollToElement,
   });
   const inlineContributions = createInlineContributions(annotations);
@@ -343,6 +343,8 @@ export function mountApplication(dependencies) {
     panelIsOpen: dependencies.panelIsOpen,
     showThread: dependencies.showThread,
     scrollToThread: dependencies.anchorTravel.scrollToThread,
+    arrive: dependencies.anchorTravel.arrive,
+    prepareTrip: dependencies.anchorTravel.prepareTrip,
     preview: overlay?.threadPreview,
   });
 
@@ -366,6 +368,7 @@ export function mountApplication(dependencies) {
     // A native Tab visit outside a displaced row retains editing without taking focus.
     continueThread: (id, intent) =>
       threadDestinations.openPageThread(id, {
+        part: "reply",
         focus: false,
         travel: false,
         flash: false,
@@ -385,7 +388,6 @@ export function mountApplication(dependencies) {
           ...cardView,
           nativeAuthored: (message) =>
             required && !threadPresenter.primaryOwnsMessage(message),
-          showThread: view.travel.showThread,
           travel: { ...cardView.travel, ...view.travel },
         },
         placedAt: dependencies.anchorPlacement.placedAt,
@@ -541,7 +543,7 @@ export function mountApplication(dependencies) {
     ...projectionCommands,
     watchUpdates: observeUpdates,
     ...engagement,
-    approvalBlockingAsks,
+    approvalBlockingQuestions,
     beginRead: beginStateRead,
     threadBox,
     dispatchWidget,
@@ -559,8 +561,6 @@ export function mountApplication(dependencies) {
     mountRead: read.mount,
     registerThreadPresentation,
     navigateToDatum: dependencies.anchorTravel.navigateToDatum,
-    pendingApprovals,
-    acceptedApprovals,
     post,
     projectData: dataProjection.projectData,
     readAndApply: feed.readAndApply,
@@ -575,6 +575,22 @@ export function mountApplication(dependencies) {
     retireProjectionCoverage: projection.retireProjectionCoverage,
     threadActions,
     queueActions,
+    openQuestion(id) {
+      const question = readQuestions().all.find((item) => item.id === id);
+      if (!question) return Promise.resolve(false);
+      if (question.source.kind === "approval")
+        return queueActions.open(JSON.stringify(["question", question.id]));
+      if (question.source.kind === "reply") {
+        showHeld(question.thread);
+        return threadDestinations.openPageThread(question.message, {
+          part: "message",
+        });
+      }
+      return dependencies.annotationCommands.goToQuestion(
+        question,
+        readQuestions().all,
+      );
+    },
     shallowSigs: projectionShallowSigs,
     startFeed: feed.startFeed,
     wireInput: dependencies.wireInput,
@@ -582,7 +598,8 @@ export function mountApplication(dependencies) {
   return application;
 }
 
-export const approvalBlockingAsks = (...args) => app().approvalBlockingAsks(...args);
+export const approvalBlockingQuestions = (...args) =>
+  app().approvalBlockingQuestions(...args);
 export const beginRead = (...args) => app().beginRead(...args);
 export const threadBox = (...args) => app().threadBox(...args);
 export const dispatchWidget = commandDispatch.dispatchWidget;
@@ -594,8 +611,6 @@ export const navigateToDatum = (...args) => app().navigateToDatum(...args);
 // The one route to a thread by its root id: the thread's inline destination while
 // it has one, Threads otherwise, the same choice a mark and t/T make.
 export const openThread = (...args) => app().threadDestinations.openPageThread(...args);
-export const pendingApprovals = (...args) => app().pendingApprovals(...args);
-export const acceptedApprovals = (...args) => app().acceptedApprovals(...args);
 export const post = commandDispatch.post;
 export const projectData = (...args) => app().projectData(...args);
 export const readAndApply = (...args) => app().readAndApply(...args);
@@ -615,6 +630,9 @@ export const threadActions = Object.freeze({
   resolve: (...args) => app().threadActions.resolve(...args),
   reopen: (...args) => app().threadActions.reopen(...args),
   setReaction: (...args) => app().threadActions.setReaction(...args),
+});
+export const questionActions = Object.freeze({
+  open: (...args) => app().openQuestion(...args),
 });
 export const queueActions = Object.freeze({
   open: (...args) => app().queueActions.open(...args),

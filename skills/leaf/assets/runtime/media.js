@@ -8,7 +8,8 @@
    Draft, sent-message, and authored links to their own image open one native modal
    viewer. PhotoSwipe supplies image zoom, pan, and touch gestures on demand; native
    modality, retained controls, and focus return remain Leaf's. An authored figure
-   caption stays outside the image in a readable footer; alt text stays with the image.
+   caption or an inspection link's explicit caption stays outside the image in a readable
+   footer; alt text stays with the image.
    Links to other destinations and modified link presses keep their authored meaning. The document
    declares its public page root because a website module may live under an immutable
    release URL shared with a sample. All three resolve
@@ -28,19 +29,23 @@ import {
 } from "./focus.js";
 import { closeControl, offered } from "./widget-elements.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
-import { nativeLayers } from "./keyboard/layer-stack.js";
+import {
+  nativeLayers,
+  showNativeLayer,
+  closeNativeLayer,
+} from "./keyboard/layer-stack.js";
 import { keeps, keepsHidden, keepsText } from "./keeps.js";
-import { reducedMotion, FOLD_MS } from "./motion.js";
+import { reducedMotion, foldDuration } from "./motion.js";
 
 // Page media is whatever a reference names under this directory. The name a file there
 // takes is the server's (Python's `schema.MEDIA_DIGEST`), which answers no other, so the
 // browser reads a reference by its directory, as Python's own readings do, and leaves the
 // name to the server.
 const CANONICAL_MEDIA_ROOT = "/media/";
-const PASTED_IMAGE = String.raw`!\[Pasted image\]\((${CANONICAL_MEDIA_ROOT}[^\s)]+)\)`;
-const PASTED_MEDIA = new RegExp(PASTED_IMAGE, "g");
+const ATTACHED_IMAGE = String.raw`!\[Attached image\]\((${CANONICAL_MEDIA_ROOT}[^\s)]+)\)`;
+const ATTACHED_MEDIA = new RegExp(ATTACHED_IMAGE, "g");
 const MEDIA_SUFFIX = new RegExp(
-  `(?:^|\\n\\n)${PASTED_IMAGE}(?:\\n\\n${PASTED_IMAGE})*(?![\\s\\S])`,
+  `(?:^|\\n\\n)${ATTACHED_IMAGE}(?:\\n\\n${ATTACHED_IMAGE})*(?![\\s\\S])`,
 );
 
 export const isCanonicalMediaUrl = (href) => href.startsWith(CANONICAL_MEDIA_ROOT);
@@ -48,18 +53,18 @@ export const isCanonicalMediaUrl = (href) => href.startsWith(CANONICAL_MEDIA_ROO
 export const scopedMediaUrl = (href) =>
   offlineInteractive ? runtimeResource(href) : new URL(pageUrl(href.slice(1))).pathname;
 
-export function readPastedMedia(value) {
+export function readAttachedMedia(value) {
   const suffix = MEDIA_SUFFIX.exec(value);
   if (!suffix) return { text: value, paths: [] };
   return {
     text: value.slice(0, suffix.index),
-    paths: Array.from(suffix[0].matchAll(PASTED_MEDIA), (image) => image[1]),
+    paths: Array.from(suffix[0].matchAll(ATTACHED_MEDIA), (image) => image[1]),
   };
 }
 
-export function writePastedMedia(text, paths) {
+export function writeAttachedMedia(text, paths) {
   if (!paths.length) return text;
-  const images = paths.map((path) => `![Pasted image](${path})`).join("\n\n");
+  const images = paths.map((path) => `![Attached image](${path})`).join("\n\n");
   if (!text) return images;
   return text + "\n\n" + images;
 }
@@ -104,7 +109,17 @@ function presentViewer(model) {
       <div class="lf-media-viewer-head">
         <strong id="lf-media-viewer-title">Image preview</strong>
         <div class="lf-media-viewer-actions">
-          ${model ? html`<a ${offered("lf-media-viewer-original", true)} href=${model.url} target="_blank" rel="noopener">Original</a>` : null}
+          ${
+            model
+              ? html`<a
+                  ${offered("lf-media-viewer-original", true)}
+                  href=${model.url}
+                  target="_blank"
+                  rel="noopener"
+                  >Original</a
+                >`
+              : null
+          }
           ${viewerZoom}${viewerClose}
         </div>
       </div>
@@ -132,7 +147,7 @@ keys(
       title: "close image",
       description: "Close image preview",
       control: viewerClose,
-      run: () => mediaViewer.close(),
+      run: () => closeLayer(() => closeNativeLayer(mediaViewer)),
     },
     {
       id: "image.zoom",
@@ -173,11 +188,13 @@ const open = (url, alt, from) => {
   presentViewer({ url, alt });
   render(html`<img src=${url} alt=${alt} />`, stage);
   const description =
-    from.closest("figure")?.querySelector("figcaption")?.textContent.trim() || "";
+    from.dataset.lfMediaCaption ||
+    from.closest("figure")?.querySelector("figcaption")?.textContent.trim() ||
+    "";
   keepsText(caption, description);
   keepsHidden(caption, !description);
   keepsText(viewerZoom, "100%");
-  if (!mediaViewer.open) mediaViewer.showModal();
+  if (!mediaViewer.open) showNativeLayer(mediaViewer);
   focusDestination(viewerClose, "move");
   const image = stage.querySelector("img");
   Promise.all([imageTools(), image.decode()]).then(
@@ -207,7 +224,7 @@ const open = (url, alt, from) => {
         escKey: false,
         // The native dialog owns its opening and closing. Zoom alone animates.
         showHideAnimationType: "none",
-        zoomAnimationDuration: reducedMotion() ? 0 : FOLD_MS,
+        zoomAnimationDuration: reducedMotion() ? 0 : foldDuration(),
         clickToCloseNonZoomable: false,
         bgClickAction: "close",
         tapAction: "zoom",
@@ -227,7 +244,7 @@ const open = (url, alt, from) => {
           event.preventDefault();
       });
       current.on("close", () => {
-        if (mediaViewer.open) mediaViewer.close();
+        if (mediaViewer.open) closeLayer(() => closeNativeLayer(mediaViewer));
       });
       current.on("zoomPanUpdate", () => {
         const slide = current.currSlide;

@@ -27,7 +27,6 @@
 import {
   clippedContents,
   landingBand,
-  seenRect,
   shownBox,
   shownWindow,
   skipped,
@@ -293,19 +292,6 @@ export function capturePlace(region = null, blocks = textBlocks()) {
     }
   }
   return view;
-}
-
-// The page's place for a reflow the browser's scroll anchoring already keeps its words
-// across, as a window changing width does (version.js): only a focused control the user
-// sees whole, which anchoring does not keep in view. A box holding what the user reads,
-// as a tab's panel takes focus from a click on its words, is no place the box itself can
-// keep, and reading the words instead would scan every block above the window.
-export function captureFocusedControl() {
-  const { y, scroller, ...view } = capturePlace(null, []);
-  const node = view[FOCUSED_PLACE]?.node;
-  const seen = node && seenRect(node, new Map());
-  const box = node && shownBox(node);
-  return seen && seen.top <= box.top + 1 && seen.bottom >= box.bottom - 1 ? view : null;
 }
 
 // A restore jumps rather than glides: a page is free to set scroll-behavior: smooth, and

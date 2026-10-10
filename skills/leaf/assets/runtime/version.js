@@ -163,7 +163,6 @@ import { keepPageRulesOffLayer } from "./page-sheets.js";
 import { replaceEntry } from "./history.js";
 import {
   blocksOnScreen,
-  captureFocusedControl,
   capturePlace,
   hasLandmark,
   rawOffsetFits,
@@ -1720,22 +1719,16 @@ export function createVersionController({
   // left to keep: its reading goes when the next reading is taken, so a page whose
   // blocks come and go carries only the regions it has.
   const regionViews = new Map();
-  // The page's own record holds only a focused control (`captureFocusedControl`): no
-  // words, which the browser's scroll anchoring already keeps where they stood, and no
-  // offset, which would undo that anchoring.
-  let pageView = null;
   const dropGoneRegions = () => {
     const standing = new Set(readingRegions().map(({ id }) => id));
     for (const id of regionViews.keys()) if (!standing.has(id)) regionViews.delete(id);
   };
 
   // Only the page's own regions, only those a scroll moved, and only their own words: a
-  // scroll is frequent, and a page with no regions (most documents) records only where
-  // focus stands and reads no text at all. `moved` names the scrollers that moved; none
-  // names every one.
+  // scroll is frequent, and a page with no regions (most documents) records nothing and
+  // reads no text at all. `moved` names the scrollers that moved; none names every one.
   function recordRegions(moved = null) {
     dropGoneRegions();
-    if (!moved || moved.has(pageScroller)) pageView = captureFocusedControl();
     const main = document.querySelector("body > main");
     const shown = readingRegions().filter(
       (region) =>
@@ -1812,7 +1805,6 @@ export function createVersionController({
       restorePlace(reading, region, currentIntent);
       restored.add(box);
     }
-    return restored;
   }
 
   // A region handed to another scroller keeps the reading recorded before the handover.
@@ -1826,7 +1818,7 @@ export function createVersionController({
   // the banner takes another row: the line the user was reading went under it. So the
   // page moves with its band first, and a region the page carries lands against the new
   // band from its own record.
-  function restoreShifted(shifted, currentIntent, views, pageReading) {
+  function restoreShifted(shifted, currentIntent, views) {
     if (compositionChanges.size) return;
     if (!currentIntent()) return;
     const page = shifted.find(({ region }) => !region);
@@ -1834,9 +1826,7 @@ export function createVersionController({
     const candidates = shifted
       .map(({ region }) => region)
       .filter((region) => region && shownRegionBounds(region));
-    const restored = restoreRegions(candidates, currentIntent, null, views);
-    if (page && hasLandmark(pageReading) && !restored.has(pageScroller))
-      restorePlace(pageReading, null, currentIntent);
+    restoreRegions(candidates, currentIntent, null, views);
     recordRegions();
   }
 
@@ -1855,8 +1845,7 @@ export function createVersionController({
       // A resize can cause a scroll event before this frame. Keep the pre-shift
       // reading now, so that event cannot replace it with the moved geometry.
       const views = new Map(regionViews);
-      const pageReading = pageView;
-      nextRender(() => restoreShifted(shifted, currentIntent, views, pageReading));
+      nextRender(() => restoreShifted(shifted, currentIntent, views));
       return;
     }
     // A composition change captures the intact view before hiding any region, and its

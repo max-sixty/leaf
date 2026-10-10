@@ -242,8 +242,9 @@ def test_a_page_keeps_its_place_below_the_banner_as_the_window_changes_width(
     rendered(page)
     assert page.evaluate(reading, "line-30") == pytest.approx(landed, abs=2)
 
-    page.evaluate("document.scrollingElement.scrollTop = 0")
+    page = open_page(browser, serve(source))
     resized(page, 1280, 1100)
+    rendered(page)
     page.locator("#way-one").evaluate(
         """option => [option, ...option.shadowRoot?.querySelectorAll('*') ?? [],
                      ...option.querySelectorAll('*')].find(node => node.tabIndex >= 0).focus()"""

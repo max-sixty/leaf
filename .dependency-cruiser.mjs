@@ -67,6 +67,7 @@ const exactClosures = {
     "pointer.js",
     "user-intent.js",
     "registry.js",
+    "registry-contract.js",
     "rendering.js",
     "sample-visibility.js",
     "repaint.js",

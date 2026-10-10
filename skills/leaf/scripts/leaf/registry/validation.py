@@ -3,6 +3,7 @@
 import hashlib
 import json
 
+from .contract import element_declarations
 from .layer import (
     required_layer_declarations,
     validate_event_contracts,
@@ -11,7 +12,6 @@ from .layer import (
 )
 from .state import validate_answered_conditions
 from .widgets import (
-    element_declarations,
     validate_widget_relations,
     validate_widget_schemas,
 )
@@ -48,7 +48,7 @@ def _validate(registry: dict, source) -> None:
     validate_event_contracts(registry["$events"], path)
     validate_event_handling(registry["$events"], kinds, path)
     validate_layer_declarations(registry, path, names, paths, tones, data, tokens)
-    declarations = element_declarations(registry, path)
+    declarations = element_declarations(registry)
     validate_widget_schemas(declarations, data, path)
     validate_widget_relations(registry, declarations, data, path)
     validate_answered_conditions(declarations, path)

@@ -26,6 +26,7 @@ from leaf import leases as leases_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import service as service_model
+from leaf.registry.contract import is_element_name
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import scheme as render_gate_scheme
@@ -3960,7 +3961,9 @@ def test_every_idiom_in_the_catalog_stands_in_a_corpus_source(browser):
             COMMAND_HUB_PACKAGE,
         ]
     )
-    idioms = [key for key in registry["$idioms"] if key != "description"]
+    idioms = [
+        key for key in registry if not key.startswith("$") and not is_element_name(key)
+    ]
     assert idioms, "no idioms read — an empty catalog demonstrates itself"
     page = browser.new_page()
     held, invalid = set(), set()

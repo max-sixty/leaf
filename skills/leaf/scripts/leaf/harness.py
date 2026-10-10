@@ -93,7 +93,7 @@ class Harness:
 
     name: ClassVar[str]
     # Whether the harness's hooks can carry input into the turn: they freeze and
-    # hand over the whole delivery, and `leaf wait` only wakes the session.
+    # hand over the whole delivery. Explicit waits carry their own envelope.
     # `hooks_carry` says whether they do for this session.
     hook_delivers: ClassVar[bool] = False
 
@@ -144,10 +144,11 @@ class Harness:
         yield
 
     def hooks_carry(self) -> bool:
-        """Whether this session's hooks carry its input: its harness runs hooks that
-        can, and one has run for this session. Until one has, `leaf wait` prints
-        the delivery for its reader to confirm, so a session whose hooks never run
-        still reads its input rather than being woken to an empty turn."""
+        """Whether the harness supports hook delivery and a hook has run here.
+
+        This is capability evidence for hook transport and turn activity, not
+        proof that a future hook will succeed. Explicit waits deliver directly.
+        """
         return self.hook_delivers and hooks_ran(self.session)
 
     def turn_takes_input(self) -> bool:

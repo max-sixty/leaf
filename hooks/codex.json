@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$PLUGIN_ROOT/bin/leaf\" hook --harness codex 2>/dev/null || true",
+            "command": "\"$PLUGIN_ROOT/bin/leaf\" hook --harness codex || exit 1",
             "timeout": 20
           }
         ]
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$PLUGIN_ROOT/bin/leaf\" hook --harness codex 2>/dev/null || true",
+            "command": "\"$PLUGIN_ROOT/bin/leaf\" hook --harness codex || exit 1",
             "timeout": 20
           }
         ]
@@ -28,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$PLUGIN_ROOT/bin/leaf\" hook --harness codex 2>/dev/null || true",
+            "command": "\"$PLUGIN_ROOT/bin/leaf\" hook --harness codex || exit 1",
             "timeout": 3
           }
         ]
@@ -39,7 +39,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$PLUGIN_ROOT/bin/leaf\" hook --harness codex 2>/dev/null || true",
+            "command": "\"$PLUGIN_ROOT/bin/leaf\" hook --harness codex || exit 1",
             "timeout": 20
           }
         ]
@@ -50,7 +50,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$PLUGIN_ROOT/bin/leaf\" hook --harness codex 2>/dev/null || true",
+            "command": "\"$PLUGIN_ROOT/bin/leaf\" hook --harness codex || exit 1",
             "timeout": 20
           }
         ]
@@ -61,7 +61,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$PLUGIN_ROOT/bin/leaf\" session-end 2>/dev/null || true",
+            "command": "\"$PLUGIN_ROOT/bin/leaf\" session-end || exit 1",
             "timeout": 3
           }
         ]

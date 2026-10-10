@@ -575,12 +575,13 @@ def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
         return 2
 
     def print_delivery(reading: PageTick) -> None:
-        """Print immutable input; only the consumer can confirm receipt. Where the
-        harness's hook carries input into the turn, the wait only wakes it."""
-        if harness and harness.hooks_carry():
-            print(new_input_line(reading.page_dir), flush=True)
-        else:
-            print(delivery_json(reading, harness), flush=True)
+        """Print immutable input; only the consumer can confirm receipt.
+
+        An explicit wait is a complete delivery route. Earlier successful hooks
+        cannot prove that a later one will run, so it never delegates its input
+        to the next hook. The native between-turn watch owns hook wakes.
+        """
+        print(delivery_json(reading, harness), flush=True)
 
     try:
         while True:

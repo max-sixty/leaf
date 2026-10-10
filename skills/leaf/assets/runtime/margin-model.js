@@ -149,7 +149,7 @@ export const optionsOffered = (entry, primary) =>
   secondaryCount(entry, primary) > RESTING_MARGIN_ENTRY_BUDGET - 1;
 
 // The words a reading's control shows: its kind's word, plural for several items, or
-// the one item's own label where it has one (an Ask's question). Accessible names keep
+// the one item's own label where it has one (a Question's question). Accessible names keep
 // the kind's word and say the subject beside it.
 export function readingLabel(choice) {
   const face = readingFace(choice);
@@ -195,14 +195,14 @@ export function readingState(choice) {
 export const readingBehavior = (face) => (face.indication ? "status" : "disclosure");
 
 // Each member already carries canonical Thread attention. An aggregate keeps a concrete
-// Ask ahead of another user recovery; it never re-derives attention from turns or
+// Question ahead of another user recovery; it never re-derives attention from turns or
 // workflow stages.
 const userAttention = (items) => {
   let first = null;
   for (const item of items) {
     const attention = item.userAttention;
     if (!attention) continue;
-    if (attention.reason === "ask") return attention;
+    if (attention.reason === "question") return attention;
     first ??= attention;
   }
   return first;

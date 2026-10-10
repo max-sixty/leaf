@@ -323,7 +323,7 @@ export function createAuxiliarySurfaces({
   // Travel that promises to show a destination clears the selected surface hiding it:
   // one covering the page, for anything outside it, or one standing over most of the
   // destination where it lands (geometry.js, `hides`). A destination inside the surface
-  // is the surface's own to show. The one owner of this, so a trip to a thread, an Ask
+  // is the surface's own to show. The one owner of this, so a trip to a thread, a Question
   // or a datum each clears whatever surface happens to stand.
   function clearFor(where) {
     const selected = controllers.get(selectedKey);

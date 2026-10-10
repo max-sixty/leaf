@@ -36,7 +36,6 @@ from interact_support import (
     TOKEN,
     append_carried_log_record,
     append_command,
-    asks_on_you,
     check,
     declare_data_input,
     declare_work,
@@ -47,6 +46,7 @@ from interact_support import (
     page_packages,
     page_state,
     publish,
+    questions_on_you,
     read_page_data,
     record_claim,
     release_codex_command,
@@ -1976,7 +1976,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     )
     assert status == 400
     assert json.loads(body)["error"] == (
-        "v2 still has unanswered Asks: plan-choice-decision"
+        "v2 still has unanswered widget Questions: widget:choice"
     )
 
     status, body = fetch(
@@ -2027,7 +2027,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     )
     assert status == 400
     assert json.loads(body)["error"] == (
-        "v2 still has unanswered Asks: thread-approval-decision"
+        "v2 still has unanswered widget Questions: widget:thread-approval"
     )
 
     status, body = fetch(
@@ -5878,10 +5878,10 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     open_state = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
     assert open_state.exit_code == 0, open_state.output
     open_reading = json.loads(open_state.output)
-    assert asks_on_you(open_reading) == [
+    assert questions_on_you(open_reading) == [
         {
-            "id": "orphan-decision",
-            "tag": "lf-ask",
+            "id": "widget:orphan-choice",
+            "tag": "lf-options",
             "widget": "orphan-choice",
             "widget_tag": "lf-options",
             "thread": "c-lost",
@@ -5921,7 +5921,7 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
         "unread": [],
         "attention": None,
     }
-    assert asks_on_you(closed_reading) == []
+    assert questions_on_you(closed_reading) == []
     assert [
         element["id"]
         for element in closed_reading["elements"]

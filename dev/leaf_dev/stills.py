@@ -628,6 +628,31 @@ def more_menu(page: Page) -> None:
     page.locator(".lf-banner-menu").wait_for()
 
 
+def capture_area(page: Page) -> None:
+    """Select a page area, with its confirmation and cancellation controls visible."""
+    page.locator("#plan-context").scroll_into_view_if_needed()
+    more_menu(page)
+    page.get_by_role("button", name="Capture area", exact=True).click()
+    page.locator(".lf-region-selection").wait_for(state="visible")
+    page.mouse.move(100, 200)
+    page.mouse.down()
+    page.mouse.move(360, 350, steps=4)
+    page.mouse.up()
+
+
+def capture_small_drag(page: Page) -> None:
+    """Hold a small selection over words, which must remain visible during the drag."""
+    page.locator("#plan-current").scroll_into_view_if_needed()
+    more_menu(page)
+    page.get_by_role("button", name="Capture area", exact=True).click()
+    page.locator(".lf-region-selection").wait_for(state="visible")
+    target = page.locator("#plan-current").bounding_box()
+    left, top = round(target["x"]) + 45, round(target["y"]) + 8
+    page.mouse.move(left, top)
+    page.mouse.down()
+    page.mouse.move(left + 88, top + 44, steps=8)
+
+
 def versions_menu(page: Page) -> None:
     """The Versions menu, opened from More: a row for each version, with its note."""
     page.locator(".lf-banner-more").click()
@@ -1073,6 +1098,19 @@ STATES = (
     State("plan-go-to", "review-a-plan", go_to, viewport=(1024, 768)),
     State("plan-narrow", "review-a-plan", at_rest, viewport=(360, 740)),
     State("plan-touch", "review-a-plan", at_rest, viewport=(390, 844), touch=True),
+    State("plan-more", "review-a-plan", more_menu),
+    State("plan-capture", "review-a-plan", capture_area),
+    State(
+        "plan-capture-drag", "review-a-plan", capture_small_drag, viewport=(390, 740)
+    ),
+    State("plan-capture-dark", "review-a-plan", capture_area, scheme="dark"),
+    State(
+        "plan-capture-touch",
+        "review-a-plan",
+        capture_area,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State(
         "plan-more-touch", "review-a-plan", more_menu, viewport=(390, 844), touch=True
     ),

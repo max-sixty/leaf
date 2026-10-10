@@ -84,7 +84,7 @@ retry key `attempt`, then adds these delivery readings:
   for a provider's final. A `markup` answer names the page revision operation its
   `handling` requires; a conversation reply cannot replace that operation.
   An event without an answer owes nothing of its own:
-  a page action that answers no Ask, a pick before the Done its Ask waits for, or a
+  a page action that answers no Question, a pick before the Done its Question waits for, or a
   message a newer one in its thread answers through.
 - `handling`, when present, lists clause ids in the batch's `handling` object,
   in the order to read them. That object gives each distinct instruction's text

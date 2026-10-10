@@ -3827,7 +3827,11 @@ def test_a_projected_attribute_opens_an_ask_captured_from_authored_markup(
                 "unit": "widget",
             },
         },
-        "x-awaits": {"when": {"phase": ["open"]}, "answered": {"answer": {}}},
+        "x-awaits": {
+            "when": {"phase": ["open"]},
+            "value": "answer",
+            "answered": {"answer": {}},
+        },
         "x-example": '<lf-conditional id="example" phase="closed">Choose.</lf-conditional>',
     }
     module = """\
@@ -3869,8 +3873,17 @@ customElements.define("lf-conditional", class extends HTMLElement {
         if count:
             expect_asks_answered(page, "0/1")
             banner_control(page, ".lf-queue").click()
-        # The phase move is the agent's to answer, so only the Ask's row is counted.
-        expect(page.locator(".lf-queue-row[data-lf-kind='ask']")).to_have_count(count)
+        # The phase move is the agent's to answer. The Question leaves the user's
+        # queue when its condition closes, retaining its withdrawn inventory row.
+        expect(
+            page.locator("[data-lf-queue='you'] .lf-queue-row[data-lf-kind='question']")
+        ).to_have_count(count)
+        withdrawn = page.locator(
+            "[data-lf-queue='done'] .lf-queue-row[data-lf-kind='question']"
+        )
+        expect(withdrawn).to_have_count(1 - count)
+        if not count:
+            expect(withdrawn).to_contain_text("Withdrawn")
 
 
 def test_a_live_revision_reapplies_the_authored_thread_seat_predicate(browser, serve):
@@ -3912,8 +3925,8 @@ def test_a_live_revision_reapplies_the_authored_thread_seat_predicate(browser, s
         told(page)
         return page.evaluate(
             """async () => {
-              const {readAsks} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-              return readAsks().user.map(ask => ask.sourceId);
+              const {readQuestions} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+              return readQuestions().user.filter(q => q.source.kind === "widget").map(q => q.source.id);
             }"""
         )
 
@@ -4280,7 +4293,7 @@ def test_revision_reveals_an_active_region_without_any_reading_landmark(browser,
 
 
 def test_ask_repaints_keep_the_queues_reading_until_an_explicit_arrival(browser, serve):
-    """The Questions row's standing mark may repaint without returning to its focused Ask."""
+    """Question repaint keeps the list's reading; explicit arrival reveals its row."""
     questions = "".join(
         f'<lf-ask id="ask-{index}"><h2>Question {index} about this project</h2>'
         f'<lf-options id="options-{index}" choose>'
@@ -4289,11 +4302,13 @@ def test_ask_repaints_keep_the_queues_reading_until_an_explicit_arrival(browser,
         "</lf-options></lf-ask>"
         for index in range(30)
     )
-    page = open_page(browser, serve(leaf_page("Reading the Ask inventory", questions)))
+    page = open_page(
+        browser, serve(leaf_page("Reading the Question inventory", questions))
+    )
     resized(page, 1200, 900)
     page.keyboard.press("g")
     page.keyboard.press("Shift+q")
-    page.locator('.lf-queue-row[data-lf-at="ask-0"]').click()
+    page.locator('.lf-queue-row[data-lf-at="widget:options-0"]').click()
     expect(page.locator("#ask-0")).to_be_focused()
     list_selector = ".lf-queue-panel .lf-drawer-list"
     drawer = page.locator(list_selector)
@@ -4319,11 +4334,11 @@ def test_ask_repaints_keep_the_queues_reading_until_an_explicit_arrival(browser,
     expect(page.locator("#ask-1")).to_be_focused()
     scroll_settled(page, list_selector)
     assert drawer.evaluate("list => list.scrollTop") < reading
-    row = page.locator('.lf-queue-row[data-lf-at="ask-1"]')
+    row = page.locator('.lf-queue-row[data-lf-at="widget:options-1"]')
     assert row.locator(".lf-queue-title").evaluate(
         "words => words.getBoundingClientRect().top >= "
         "words.closest('.lf-drawer-list').getBoundingClientRect().top"
-    ), "explicit Ask navigation still reveals its matching Questions row"
+    ), "explicit Question navigation still reveals its matching row"
 
 
 @pytest.mark.parametrize("newer_reading", [False, True])
@@ -4368,7 +4383,7 @@ def test_a_panes_posture_change_keeps_the_reading_after_scrolling_past_focus(
             if (phase !== 'shift' || !shifted.some(({region}) => region.id === 'reading'))
               return;
             stop();
-            dispatchEvent(new WheelEvent('wheel', {deltaY: 500}));
+            document.body.dispatchEvent(new WheelEvent('wheel', {deltaY: 500, bubbles: true}));
             scrollTo({top: 1900, behavior: 'instant'});
             window.laterReading = scrollY;
           });
@@ -5433,7 +5448,7 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
 
     for ask in ASKS_IN_ORDER[:3]:
         page.keyboard.press("q")
-        expect(page.locator(f"#{ask}")).to_have_attribute("data-lf-ask", "1")
+        expect(page.locator(f"#{ask}")).to_have_attribute("data-lf-question", "1")
     scroll_settled(page)
 
     # Ask travel now starts at the Ask's opening, which normally makes the coarse
@@ -5448,8 +5463,10 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     stamp_page(d, ASKS_PAGE, "two")
     wait_for_revision(page, 2)
 
-    expect(page.locator("#t-baffles-decision")).to_have_attribute("data-lf-ask", "1")
-    expect(page.locator("[data-lf-ask]")).to_have_count(1)
+    expect(page.locator("#t-baffles-decision")).to_have_attribute(
+        "data-lf-question", "1"
+    )
+    expect(page.locator("[data-lf-question]")).to_have_count(1)
     # The condition the restore is for, stated rather than assumed: an earlier Ask's own
     # prose is on screen above the one the user was standing on, so a walk reading the
     # page alone starts behind them and steps forward onto the Ask they just left.
@@ -5461,7 +5478,7 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     }""")
     assert 42 < position["earlierBottom"] <= position["decisionTop"], position
     page.keyboard.press("q")
-    expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-question", "1")
 
 
 def test_the_reading_position_restores_onto_a_section_that_draws_no_box(browser, serve):
@@ -5535,7 +5552,7 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
     page = open_page(browser, serve(ASKS_PAGE))
     question = page.locator("#live-question-decision")
     page.keyboard.press("q")
-    expect(question).to_have_attribute("data-lf-ask", "1")
+    expect(question).to_have_attribute("data-lf-question", "1")
     arrival_ring = question.evaluate(RING)
     assert arrival_ring == [
         "solid",
@@ -5567,7 +5584,7 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
     # control focused from script wears no ring for any reading to compare.
     page.keyboard.press("q")
     suggestion = page.locator("#sug-refill")
-    expect(suggestion).to_have_attribute("data-lf-ask", "1")
+    expect(suggestion).to_have_attribute("data-lf-question", "1")
     accept = suggestion_control(page, "sug-refill", "accept")
     accept.focus()
     # Tab inside the margin reaches the same suggestion's ✗ Reject, rendered from the
@@ -5607,18 +5624,18 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
 
     # Standing somewhere that asks nothing takes it off, rather than leaving it behind.
     page.locator("#h").click()
-    expect(page.locator("[data-lf-ask]")).to_have_count(0)
+    expect(page.locator("[data-lf-question]")).to_have_count(0)
 
     # A pointer landing inside an open decision is standing in it, though no walk brought
     # them there: the ring renders the focus rather than remembering a press.
     page.locator("#live-question .lf-another leaf-text").click()
-    expect(question).to_have_attribute("data-lf-ask", "1")
+    expect(question).to_have_attribute("data-lf-question", "1")
 
     # Answering takes it off with the focus still inside: the ring is for the question
     # the user is working, and an answered one is no longer a question.
     page.locator("#lq-token .lf-pick").click()
     expect_asks_answered(page, "2/5")
-    expect(page.locator("[data-lf-ask]")).to_have_count(0)
+    expect(page.locator("[data-lf-question]")).to_have_count(0)
     expect(page.locator("#lq-token .lf-pick")).to_be_focused()
 
     # The chrome's own control, which the user reaches by Tab or by the banner's own
@@ -5658,7 +5675,7 @@ def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
     )
     page = open_page(browser, url)
     page.keyboard.press("q")
-    expect(page.locator("#live-question-decision[data-lf-ask]")).to_have_count(1)
+    expect(page.locator("#live-question-decision[data-lf-question]")).to_have_count(1)
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("let go")
     # And the reference says the same press in its own words. It said "Back out one
     # layer" for every rung, which was true while every rung took a layer of chrome off
@@ -5671,11 +5688,11 @@ def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
     )
     page.keyboard.press("Escape")  # the reference's own rung, which hands focus back
     expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
-    expect(page.locator("#live-question-decision[data-lf-ask]")).to_have_count(1)
+    expect(page.locator("#live-question-decision[data-lf-question]")).to_have_count(1)
 
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
-    expect(page.locator("[data-lf-ask]")).to_have_count(0)
+    expect(page.locator("[data-lf-question]")).to_have_count(0)
     assert page.evaluate("() => document.activeElement === document.body")
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("let go")
 
@@ -5684,7 +5701,7 @@ def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
     page.keyboard.press("q")
     expect(page.locator("#live-question-decision")).to_be_focused()
     page.keyboard.press("q")
-    expect(page.locator("#sug-refill[data-lf-ask]")).to_have_count(1)
+    expect(page.locator("#sug-refill[data-lf-question]")).to_have_count(1)
     walked_item = page.locator('[data-lf-margin-for="sug-refill"]')
     expect(walked_item.locator(":scope > .lf-margin-more")).to_be_visible()
     expect(walked_item.locator(":scope > .lf-margin-options")).to_be_hidden()
@@ -5695,7 +5712,7 @@ def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
     walked_item.locator(":scope > .lf-margin-more").click()
     expect(walked_item.locator(":scope > .lf-margin-options")).to_be_visible()
     page.keyboard.press("q")
-    expect(page.locator("#t-baffles-decision[data-lf-ask]")).to_have_count(1)
+    expect(page.locator("#t-baffles-decision[data-lf-question]")).to_have_count(1)
     expect(walked_item.locator(":scope > .lf-margin-more")).to_be_visible()
     expect(walked_item.locator(":scope > .lf-margin-options")).to_be_hidden()
 
@@ -5815,7 +5832,7 @@ def test_the_ask_walk_follows_registry_declarations(browser, serve):
         "t-bath-decision",
     ]:
         page.keyboard.press("q")
-        expect(page.locator(f"#{expected}")).to_have_attribute("data-lf-ask", "1")
+        expect(page.locator(f"#{expected}")).to_have_attribute("data-lf-question", "1")
 
 
 def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
@@ -9231,7 +9248,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     )
     stamp_page(d, honoring, "input absorbed")
     wait_for_revision(page, 2)
-    # The saved answer remains in the reviewable Ask inventory after the source
+    # The saved answer remains in the reviewable Question inventory after the source
     # drops `needed`; it is completed, not newly owed to the user.
     expect_asks_answered(page, "1/5")
     expect(page.locator(".lf-queue")).not_to_have_text("Questions: 0")

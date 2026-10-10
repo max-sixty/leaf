@@ -20,6 +20,11 @@
 // Each trusted gesture owns its counted rendering until declared completion.
 // Native effects it began retain only their sampled displacement within their
 // own subtree; their continued lifetime never owns unrelated page movement.
+// Native scroll effects belong to their retained scroll source, regardless of the
+// gesture that created them. Stable timeline bindings and translation trajectories
+// credit only source-collinear travel bounded by that source's viewport scroll.
+// A uniform keyframe origin rebase is removed from the sampled translation, so a
+// compensated placement cannot erase its scroll cause or adopt unrelated motion.
 // News starts passive rendering except the first frame shared with the gesture.
 // A typing field is observed at its native edit start, independently of Chrome's
 // clipped or shadowed source rectangles. Its subject, protected reading/control and
@@ -479,6 +484,74 @@
       };
     return null;
   };
+  const translationAxes = (target) => {
+    const parent = elementAxes(up(target));
+    const zoom = Number(getComputedStyle(target).zoom);
+    return {
+      transform: elementAxes(target),
+      layout: {
+        x: { x: parent.x.x * zoom, y: parent.x.y * zoom },
+        y: { x: parent.y.x * zoom, y: parent.y.y * zoom },
+      },
+    };
+  };
+  const scrollBinding = (animation) => {
+    const timeline = animation.timeline;
+    if (
+      typeof window.ScrollTimeline !== "function" ||
+      !(timeline instanceof ScrollTimeline) ||
+      !(timeline.source instanceof Element)
+    )
+      return null;
+    const source = timeline.source;
+    const style = getComputedStyle(source);
+    const vertical = !style.writingMode.startsWith("horizontal");
+    const axis =
+      timeline.axis === "block"
+        ? vertical
+          ? "x"
+          : "y"
+        : timeline.axis === "inline"
+          ? vertical
+            ? "y"
+            : "x"
+          : timeline.axis;
+    // Typed CSS values have no enumerable value in JSON. Retain their unit and
+    // value, including percent animation ranges and pixel view-timeline insets.
+    const signature = JSON.stringify(
+      {
+        axis,
+        writingMode: style.writingMode,
+        direction: style.direction,
+        axes: scrollAxes(source),
+        width: source.clientWidth,
+        height: source.clientHeight,
+        scrollWidth: source.scrollWidth,
+        scrollHeight: source.scrollHeight,
+        start: timeline.startOffset,
+        end: timeline.endOffset,
+        inset: timeline.inset,
+        timing: animation.effect.getTiming(),
+        rangeStart: animation.rangeStart,
+        rangeEnd: animation.rangeEnd,
+        playbackRate: animation.playbackRate,
+        startTime: animation.startTime,
+      },
+      (_, value) =>
+        value instanceof CSSUnitValue
+          ? { value: value.value, unit: value.unit }
+          : value,
+    );
+    return {
+      timeline,
+      effect: animation.effect,
+      target: animation.effect.target,
+      source,
+      subject: timeline.subject,
+      axis,
+      signature,
+    };
+  };
   // A finishing owner may retire its held native effect before the next frame.
   // Read its actual final properties in the finished-promise checkpoint, while
   // that effect still applies, using the same eligibility proof as frame samples.
@@ -607,7 +680,13 @@
           .map((property) => [property, style[property]]),
       );
       const readings = animated.get(animation) ?? [];
-      readings.push({ at, values });
+      readings.push({
+        at,
+        values,
+        axes: translationAxes(effect.target),
+        scroll: scrollBinding(animation),
+        keyframes: effect.getKeyframes(),
+      });
       pruneSamples(readings);
       animated.set(animation, readings);
     }
@@ -729,7 +808,17 @@
       }
       return !modal;
     };
-    const entry = frame ? { at, start: time, nodes, motion: [], complete: true } : null;
+    const entry = frame
+      ? {
+          at,
+          start: time,
+          nodes,
+          motion: animations.filter(
+            (animation) => animated.get(animation)?.at(-1)?.scroll,
+          ),
+          complete: true,
+        }
+      : null;
     if (entry) frames.push(entry);
     for (const node of nodes) {
       const scrolls = scrolled.get(node) ?? [];
@@ -1566,6 +1655,77 @@
     }
     return motion;
   };
+  // Only an unchanged trajectory can explain native source travel. Replacing all
+  // translation keyframes by the same offset changes its placement origin, not
+  // that trajectory; every other keyframe field must retain its meaning.
+  const translationRebase = (property, before, after) => {
+    if (before.length !== after.length || !before.length) return null;
+    let delta = null;
+    for (const [i, prior] of before.entries()) {
+      const next = after[i];
+      const metadata = (frame) =>
+        JSON.stringify(
+          Object.fromEntries(Object.entries(frame).filter(([key]) => key !== property)),
+        );
+      if (metadata(prior) !== metadata(next)) return null;
+      if (!(property in prior) || !(property in next)) return null;
+      const was = animationTranslation(property, prior[property]);
+      const now = animationTranslation(property, next[property]);
+      if (!was || !now) return null;
+      const by = { left: now.left - was.left, top: now.top - was.top };
+      if (
+        delta &&
+        (Math.abs(delta.left - by.left) > 0.01 || Math.abs(delta.top - by.top) > 0.01)
+      )
+        return null;
+      delta = by;
+    }
+    return delta;
+  };
+  const viewportTranslation = (property, before, after, by) => {
+    // Animated transforms translate in their target's local basis; physical
+    // insets and margins translate layout in its parent's basis with their own
+    // CSS zoom. Every effect uses this same viewport conversion, and a changed
+    // basis cannot explain translation with the earlier coordinate system.
+    const key = property === "transform" ? "transform" : "layout";
+    const axes = before.axes[key];
+    if (JSON.stringify(axes) !== JSON.stringify(after.axes[key])) return null;
+    return {
+      left: by.left * axes.x.x + by.top * axes.y.x,
+      top: by.left * axes.x.y + by.top * axes.y.y,
+    };
+  };
+  const scrollEffectMotion = (property, before, after, from, to, by) => {
+    const was = before.scroll,
+      now = after.scroll;
+    if (
+      !was ||
+      !now ||
+      ["timeline", "effect", "target", "source", "subject", "axis", "signature"].some(
+        (key) => was[key] !== now[key],
+      )
+    )
+      return null;
+    const localRebase = translationRebase(property, before.keyframes, after.keyframes);
+    if (!localRebase) return null;
+    const rebase = viewportTranslation(property, before, after, localRebase);
+    if (!rebase) return null;
+    const prior = scrollAt(was.source, from),
+      next = scrollAt(was.source, to);
+    if (!prior || !next) return null;
+    const source = viewportScroll(was.source, from, {
+      left: was.axis === "x" ? prior.left - next.left : 0,
+      top: was.axis === "y" ? prior.top - next.top : 0,
+    });
+    const carried = { left: by.left - rebase.left, top: by.top - rebase.top };
+    const travel = Math.hypot(source.left, source.top);
+    if (!travel) return null;
+    const along = (carried.left * source.left + carried.top * source.top) / travel;
+    const across = (carried.left * source.top - carried.top * source.left) / travel;
+    return Math.abs(across) < 1 && along >= -0.01 && along <= travel + 0.01
+      ? carried
+      : null;
+  };
   const animationMotion = (node, from, to, animations) => {
     const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
     const motion = { left: 0, top: 0 };
@@ -1585,8 +1745,16 @@
         const prior = animationTranslation(property, before.values[property]);
         const next = animationTranslation(property, after.values[property]);
         if (!prior || !next) continue;
-        motion.left += next.left - prior.left;
-        motion.top += next.top - prior.top;
+        let by = viewportTranslation(property, before, after, {
+          left: next.left - prior.left,
+          top: next.top - prior.top,
+        });
+        if (!by) continue;
+        if (before.scroll || after.scroll)
+          by = scrollEffectMotion(property, before, after, from, to, by);
+        if (!by) continue;
+        motion.left += by.left;
+        motion.top += by.top;
       }
       seen.set(target, properties);
     }

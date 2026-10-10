@@ -219,7 +219,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     leave its closure standing. A later resolution closes it again.
 
     Each thread is keyed by, and carries as ``id``, the id of the message that
-    opened it: the name every Ask, workflow, summary, and title uses for it.
+    opened it: the name every Question, workflow, summary, and title uses for it.
     ``root`` is the first message the log still holds. The two differ only where
     a torn line lost the opening message, and then ``root`` is the surviving
     reply that opens the thread now, under its own id, so a reply or resolve
@@ -534,9 +534,9 @@ def awaits_agent(thread: dict) -> bool:
 
     This reading says nothing about whether the user owes a word: an ordinary agent
     reply may leave the open thread awaiting nobody, while an agent comment, an
-    explicit prose question, or a structured widget Ask awaits the user. The browser
+    explicit prose question, or a structured widget Question awaits the user. The browser
     does not receive it: each browser Thread's `attention` aggregates this turn with
-    the workflows and Asks standing on the thread, so the panel, its filters and the
+    the workflows and Questions standing on the thread, so the panel, its filters and the
     margin read one answer to whose turn it is."""
     return bool(not thread["resolved"] and unanswered_turns(thread))
 
@@ -562,11 +562,11 @@ def seat_root(thread: dict) -> str | None:
 def seats_with_agent(threads: dict) -> set[str]:
     """Widget ids whose own seat holds a thread now waiting on the agent.
 
-    An Ask whose own thread is with the agent is not one the user has to
-    deal with, so an Ask projection reading their list subtracts these. It is not an
+    An Question whose own thread is with the agent is not one the user has to
+    deal with, so a Question projection reading their list subtracts these. It is not an
     answer — the widget's state is untouched — which is why the reading that asks
-    whether an Ask is answered passes an empty set instead. The browser receives
-    the Asks this subtraction leaves rather than subtracting again, so the banner's
+    whether a Question is answered passes an empty set instead. The browser receives
+    the Questions this subtraction leaves rather than subtracting again, so the banner's
     count and `page state` cannot disagree about whose turn it is.
 
     Whose thread it is does not enter into it: the agent may open one in the seat too,

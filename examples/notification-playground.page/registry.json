@@ -13,7 +13,7 @@
     "x-content": "members",
     "x-instructions": "All notification controls, including event pressure, belong to one exact page-owned value schema and one Playground submission.",
     "x-upgrade": true,
-    "x-awaits": {"answered": {"choose": {}}},
+    "x-awaits": {"value": "choose", "answered": {"choose": {}}},
     "x-state": {
       "choose": {
         "detail": {

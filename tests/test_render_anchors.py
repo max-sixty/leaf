@@ -25,6 +25,7 @@ from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
+    PANEL_PAGE,
     SUGGESTION_PAGE,
     THREAD_ASKS,
     live_url,
@@ -906,6 +907,32 @@ def test_every_suggestion_activation_dismisses_a_standing_selection(
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
     expect(page.locator(".lf-composer")).to_be_hidden()
     assert page.evaluate("getSelection().isCollapsed")
+
+
+def test_focusing_a_selected_comment_field_keeps_its_captured_passage(browser, serve):
+    """The field survives the native selection collapse caused by entering it."""
+    page = open_page(browser, serve(SUGGESTION_PAGE))
+    box = page.locator("#replace").bounding_box()
+    select(
+        page,
+        (box["x"] + 4, box["y"] + 6),
+        (box["x"] + box["width"] - 8, box["y"] + box["height"] - 6),
+        steps=16,
+    )
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_visible()
+    field.focus()
+    expect(field).to_be_focused()
+    assert page.evaluate("getSelection().isCollapsed")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    write(page.locator(".lf-composer leaf-text"), "Keep this note")
+    page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").focus()
+    page.locator("#replace").select_text()
+    page.evaluate("getSelection().removeAllRanges()")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(page.locator(".lf-composer leaf-text")).to_have_js_property(
+        "value", "Keep this note"
+    )
 
 
 def test_the_floating_response_bar_has_one_compact_face(browser, serve):
@@ -6774,6 +6801,29 @@ def test_passage_range_spanning_shadow_root_children_reads_the_stage(browser, se
     )
     assert result["section"] == "patch"
     assert result["quote"] == "first last"
+
+
+def test_passage_at_either_shadow_host_edge_excludes_its_words(browser, serve):
+    page = open_page(browser, serve(PANEL_PAGE))
+    quotes = page.evaluate(
+        """async () => {
+          const {anchorForRange} = await window.__lfRuntimeImport('/runtime/anchor-resolution.js');
+          const paragraph = document.querySelector('#how-cap').firstChild;
+          const diff = document.querySelector('#how-patch');
+          const range = document.createRange();
+          range.setStart(paragraph, 0);
+          range.setEnd(diff, 0);
+          const before = anchorForRange(range).quote;
+          const afterParagraph = document.querySelector('#merge-both').firstChild;
+          range.setStart(diff, diff.childNodes.length);
+          range.setEnd(afterParagraph, afterParagraph.length);
+          return [before, anchorForRange(range).quote];
+        }"""
+    )
+    assert quotes == [
+        "The store is capped at forty megabytes a workspace.",
+        "The merge rule Two people editing one document offline is the case to answer.",
+    ]
 
 
 def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):

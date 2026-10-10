@@ -1,11 +1,68 @@
 """Asset publication keeps authored consumers on the selected immutable bytes."""
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from leaf.files import list_revisions, revision_path
 from leaf.media import media_name
 from leaf_dev import example_data, leaf_assets, site
+
+
+def test_fetches_the_pin_over_git_and_publishes_a_complete_cache(tmp_path, monkeypatch):
+    """Concurrent cold readers get the pin's bytes even when the remote head moved."""
+    remote = tmp_path / "remote"
+    remote.mkdir()
+    leaf_assets.run("git", "init", "--initial-branch=main", cwd=remote)
+    publisher(remote)
+    image = remote / "example.png"
+    image.write_bytes(b"pinned image\x00\xff")
+    (remote / ".gitattributes").write_text("*.png filter=unavailable\n")
+    (remote / "caption.json").write_bytes(b'{"caption":"pinned"}\n')
+    leaf_assets.run("git", "add", "-A", cwd=remote)
+    leaf_assets.run("git", "commit", "-m", "Pinned image", cwd=remote)
+    pin = leaf_assets.run("git", "rev-parse", "HEAD", cwd=remote)
+    image.write_bytes(b"later image")
+    leaf_assets.run("git", "commit", "-am", "Move the head", cwd=remote)
+
+    source = tmp_path / "source"
+    source.mkdir()
+    lock = source / "leaf-assets.json"
+    lock.write_text(json.dumps({"repository": "fixture/assets", "revision": pin}))
+    cache = tmp_path / "cache"
+    monkeypatch.setattr(leaf_assets, "CACHE", cache)
+    attributes = tmp_path / "global-attributes"
+    attributes.write_text("*.png filter=unavailable\n")
+    settings = {
+        f"url.{remote.as_uri()}.insteadOf": "https://github.com/fixture/assets.git",
+        "core.attributesFile": str(attributes),
+        "core.autocrlf": "true",
+        "filter.unavailable.required": "true",
+        "filter.unavailable.smudge": "missing-asset-filter",
+    }
+    monkeypatch.setenv("GIT_CONFIG_COUNT", str(len(settings)))
+    for index, (key, value) in enumerate(settings.items()):
+        monkeypatch.setenv(f"GIT_CONFIG_KEY_{index}", key)
+        monkeypatch.setenv(f"GIT_CONFIG_VALUE_{index}", value)
+
+    with ThreadPoolExecutor(max_workers=2) as readers:
+        paths = list(readers.map(leaf_assets.pinned_assets, [source, source]))
+    assert paths == [cache / pin, cache / pin]
+    assert (paths[0] / "example.png").read_bytes() == b"pinned image\x00\xff"
+    assert (paths[0] / "caption.json").read_bytes() == b'{"caption":"pinned"}\n'
+    assert sorted(path.name for path in paths[0].iterdir()) == [
+        ".complete",
+        ".gitattributes",
+        "caption.json",
+        "example.png",
+    ]
+    assert (paths[0] / ".complete").read_text() == pin
+
+    missing = "0" * 40
+    lock.write_text(json.dumps({"repository": "fixture/assets", "revision": missing}))
+    with pytest.raises(RuntimeError, match=f"could not fetch .* at {missing}"):
+        leaf_assets.pinned_assets(source)
+    assert not (cache / missing).exists()
 
 
 @pytest.mark.parametrize("failure", ["validation", "push"])

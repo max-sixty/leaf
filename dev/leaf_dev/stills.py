@@ -305,6 +305,22 @@ def composer_sent(page: Page) -> None:
     page.mouse.move(0, 0)
 
 
+def composer_sent_zoomed(page: Page) -> None:
+    """A short sent comment at fractional zoom must keep its one-line viewport."""
+    page.evaluate("document.documentElement.style.zoom = '1.1'")
+    page.locator("#plan-lede").click(click_count=3)
+    page.locator(".lf-fab-input").click()
+    page.keyboard.insert_text(
+        "better; is there a way of shortening? or maybe we just remove it??"
+    )
+    page.keyboard.press("Enter")
+    page.locator(".lf-margin-preview[data-lf-comment-frame]").wait_for()
+    page.wait_for_function(
+        "() => !document.querySelector('.lf-margin-preview [aria-busy=\"true\"]')"
+    )
+    page.mouse.move(0, 0)
+
+
 def card_reply_long(page: Page) -> None:
     """The first margin card with a reply of two wrapped paragraphs being typed."""
     card_by_keyboard(page)
@@ -481,6 +497,19 @@ def diff_path_by_keyboard(page: Page) -> None:
     head.focus()
 
 
+def diff_file_reply(page: Page) -> None:
+    """A reply to the first of two conversations under a collapsed diff file."""
+    threads = page.frame_locator("#dfg-sample iframe").locator(
+        "#dfg-patch .lf-page-thread"
+    )
+    expect(threads).to_have_count(2)
+    field = threads.first.get_by_role("textbox", name="Reply", exact=True)
+    field.click()
+    page.keyboard.insert_text(
+        "Keep the file conversations clear while this reply is drafted."
+    )
+
+
 def diff_line_composer(page: Page) -> None:
     """A line's thread control, number and shared composer in one reading."""
     diff = page.locator("#pr-exact-patch")
@@ -605,6 +634,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         composer,
         composer_long,
         composer_sent,
+        composer_sent_zoomed,
         card_reply_long,
         panel_reply_long,
         page_comment_long,
@@ -622,6 +652,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         code_copy_by_pointer,
         code_copy_by_keyboard,
         diff_path_by_keyboard,
+        diff_file_reply,
         code_source_by_touch,
         pane_focused,
         aim_cut_by_pane,
@@ -750,6 +781,16 @@ STATES = (
         touch=True,
     ),
     State("visual-review-menu", "developer/visual-review-gallery", visual_review_menu),
+    State("diff-file-threads", "developer/diff-thread-gallery", at_rest),
+    State("diff-file-reply", "developer/diff-thread-gallery", diff_file_reply),
+    State(
+        "diff-file-reply-dark-touch",
+        "developer/diff-thread-gallery",
+        diff_file_reply,
+        viewport=(390, 844),
+        scheme="dark",
+        touch=True,
+    ),
     State("code-reader-feedback", "code-comparison", code_reader_feedback),
     State(
         "visual-review-menu-dark",
@@ -933,6 +974,12 @@ STATES = (
         touch=True,
     ),
     State("triage-composer-sent", "triage-board", composer_sent),
+    State(
+        "plan-composer-sent-zoomed",
+        "review-a-plan",
+        composer_sent_zoomed,
+        viewport=(1200, 900),
+    ),
     State("triage-composer-sent-dark", "triage-board", composer_sent, scheme="dark"),
     State(
         "triage-composer-sent-beside", "triage-board", composer_sent, viewport=BESIDE

@@ -55,6 +55,7 @@ PUBLIC_TABS = [
 # underlying widget and thread states already stand in the feature gallery.
 DEVELOPER_TABS = [
     (EXAMPLES_DIR / "developer" / "file-editor.html", "File editor package"),
+    (EXAMPLES_DIR / "developer" / "diff-thread-gallery.html", "Diff conversations"),
     (EXAMPLES_DIR / "developer" / "feature-gallery.html", "Core features"),
     (
         EXAMPLES_DIR / "developer" / "visual-review-gallery.html",

@@ -183,9 +183,7 @@ def _instance_errors(
     errors.extend(suggestion_errors(parser.lf_elements, registry, thread_ids))
     taken = sorted(parser.ids & thread_structure(events).ids)
     if taken:
-        errors.append(
-            f"ids already taken by widget markup in a reply: {json_value(taken)}"
-        )
+        errors.append(f"ids already taken by message markup: {json_value(taken)}")
     return errors
 
 

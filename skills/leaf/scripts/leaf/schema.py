@@ -9,10 +9,6 @@ from .state import EVENTS_FILE
 # claim the page before it closes. The external claim record is the ownership
 # source; a standing lifetime ignores it and remains enabled until `server stop`.
 ORPHAN_GRACE_SECS = 1
-# Activity-backed claims must survive time in a background tab, which stops
-# renewing viewed.json. Four hours permits those gaps while retiring abandoned
-# session pages. Claim renewal and service lifetime: session-lifetime.md.
-ACTIVITY_GRACE_SECS = 4 * 60 * 60
 # The harness-neutral name of an agent nothing names: a page's when no claimant
 # supplies one, and an agent-authored event's that carries no `agent` (`agent_name`).
 UNNAMED_AGENT = "Agent"

@@ -7012,7 +7012,11 @@ observe --cohort staff</code></pre>
           which version to keep when edits overlap.
         </p>
       </header>
-      <lf-file id="research-file" binding="research-notes" data-height="480"></lf-file>
+      <lf-file-editor
+        id="research-file"
+        binding="research-notes"
+        data-height="480"
+      ></lf-file-editor>
       <details id="file-editing-setup">
         <summary>Connect a local file</summary>
         <p>
@@ -8922,8 +8926,9 @@ gallery/
                 <p id="bg-live-sample-guide">
                   Enter the practice page, accept its suggestion, and add a comment. Its
                   decisions and Threads belong to that page alone. Close any open
-                  controls and press <kbd>Escape</kbd> to return here; “Reset” clears
-                  the practice page.
+                  controls and press <kbd>Escape</kbd> to return here. Try “Full view”
+                  to use the whole window, then “Return to page”; your choices and
+                  drafts stay. “Reset” clears the practice page.
                 </p>
                 <lf-sample id="bg-live-sample" label="practice release note">
                   <template id="bg-live-sample-page" data-sample>

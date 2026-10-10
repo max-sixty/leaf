@@ -203,6 +203,14 @@ export function mountSample(
   const host = {
     ready: null,
     reset,
+    // Full view changes the window allocation without replacing the child page.
+    setWindow(value) {
+      asWindow = value;
+      frame.contentDocument?.documentElement.toggleAttribute(
+        "data-lf-sample-block",
+        !(passive || asWindow),
+      );
+    },
     showThread: (id, options) => frame.lfShowThread(id, options),
     destroy() {
       if (closing) return closing;

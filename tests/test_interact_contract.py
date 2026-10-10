@@ -3814,8 +3814,9 @@ How this text reaches the agent, by example
    The batch's `handling` maps clause ids to their text, each distinct text
    appearing once. The event's `handling` names its applicable clauses in order.
    The envelope's `acknowledge` tells the agent to confirm receipt before work;
-   printing alone does not mark the comment Picked up. The whole delivery,
-   indented here (the wait writes it on one line):
+   printing alone does not mark the comment Picked up. Large readings expose
+   numbered parts and a `next` command; read all parts before acknowledging.
+   This comment fits in one reading, shown here as the wait prints it:
 
 @DELIVERY@
 
@@ -4012,6 +4013,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     # wait's complete delivery, acknowledged by its reader.
     (page_dir / "index.html").write_text(WALKTHROUGH_PAGE)
     publish(page_dir)
+    service_model.claim_page(page_dir)
     session_model.cmd_waiting(page_dir, "")
     posted = {
         "kind": "comment",
@@ -4146,9 +4148,9 @@ A route is how new user input reaches the agent's task:
   Codex queue        Leaf's adapter freezes the delivery and runs `codex queue`
                      with a pointer to it as the task's next user message. The
                      agent reads the delivery with `leaf delivery read <id>`,
-                     which prints it as indented JSON, and answers with
-                     `leaf response reply <answer.ref>`. The adapter acknowledges it once
-                     Codex's queue accepts it.
+                     follows every `next` command, and confirms complete receipt
+                     with `leaf delivery ack <id>` before answering with
+                     `leaf response reply <answer.ref>`.
   Codex App Server   Leaf starts a turn with `turn/start`, carrying the
                      delivery as a `leaf_delivery` tool output, and binds the
                      turn's opening and final messages as the reply. Leaf
@@ -4156,10 +4158,15 @@ A route is how new user input reaches the agent's task:
                      leaf.page's hosted agent and a `leaf codex launch`
                      terminal use this route.
 
+CLI readings print bounded, indented JSON. Large deliveries expose numbered
+parts and a `next` command; read all parts before acknowledging. A CLI reading
+requires explicit receipt even when the original envelope's transport could
+confirm it. This comment fits in one reading on every route.
+
 Each route freezes a delivery of its own. The envelope's shape is the same on
 all four. Two things differ, each stated once: `acknowledge` says how the agent
 confirms the delivery, or is null where the route confirmed it; and the
-comment's `answer` is a `reply`, for `leaf thread reply`, except on App Server,
+comment's `answer` is a `reply`, for `leaf response reply`, except on App Server,
 where it is a `turn` the turn's own messages write. The `handling` follows from
 the answer, so each agent is told only its own route.
 The agent's standing instructions (its harness contract, and on leaf.page the
@@ -4244,9 +4251,10 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
     )
     started = codex_model.app_server_turn_start_params(thread, prepared.payload)
     delivery_model.cmd_delivery_read(prepared.payload["id"])
-    assert json.loads(started["toolOutput"]["output"]) == json.loads(
-        capsys.readouterr().out
-    )
+    reader = json.loads(capsys.readouterr().out)
+    assert json.loads(started["toolOutput"]["output"]) == prepared.payload
+    assert reader["batches"] == prepared.payload["batches"]
+    assert f"leaf delivery ack {prepared.payload['id']}" in reader["acknowledge"]
 
     # Claude Code: the native watcher wakes the session after its turn closes,
     # and the next prompt hook hands the delivery over.

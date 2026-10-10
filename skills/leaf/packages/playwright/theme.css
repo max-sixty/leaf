@@ -139,7 +139,6 @@
 .lf-trace-transport, .lf-trace-zoom-controls:not([hidden]) { display: flex; align-items: center; gap: var(--sp-1); }
 .lf-trace-zoom-controls { margin-inline-start: auto; }
 .lf-trace-transport-button { display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2); flex: 0 0 auto; min-inline-size: var(--lf-trace-control-size); block-size: var(--lf-trace-control-size); padding: 0 var(--sp-2); border: 0; border-radius: var(--r); background: none; color: var(--ink); font: 500 var(--t-6)/1 var(--sans); cursor: pointer; }
-.lf-trace-transport-button svg { inline-size: 16px; block-size: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .lf-trace-transport-button:hover { background: var(--paper-2); }
 .lf-trace-transport-button:focus-visible { --lf-focus-ring: trace-transport-button; outline: var(--focus-ring); outline-offset: calc(-1 * var(--focus-ring-w)); }
 .lf-trace-transport-button:disabled { color: var(--muted); cursor: default; }

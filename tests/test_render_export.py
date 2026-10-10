@@ -1117,7 +1117,9 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
         },
     )
     assert waiter.wait(timeout=STATED_TIMEOUT) == 0, waited.read_text()
-    payload = json.loads(waited.read_text().rstrip().splitlines()[-1])
+    lines = waited.read_text().splitlines()
+    start = next(i for i, line in enumerate(lines) if line.startswith("{"))
+    payload = json.loads("\n".join(lines[start:]))
     assert f"leaf wait --ack {payload['id']}" in payload["acknowledge"]
     delivery_model.receive(payload, session)
     [batch] = payload["batches"]

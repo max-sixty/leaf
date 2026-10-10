@@ -71,7 +71,7 @@ The optional bundled packages are:
 | `code-review` | Review-authoring instructions; select alongside the evidence packages the page needs. |
 | `diagram` | `lf-diagram` and its Agentic Mermaid renderer. |
 | `diff` | `lf-diff`, its `unified-diff` data contract and Pierre renderer, and `lf-call-diff` with links to exact patch evidence. |
-| `file-editor` | `lf-file`, a CodeMirror editor for an explicitly bound local text file, with quiet automatic saving and inline conflict recovery. |
+| `file-editor` | `lf-file-editor`, a CodeMirror editor for an explicitly bound local text file, with quiet automatic saving and inline conflict recovery. |
 | `playground` | Controls and structured state with shared reset, restore, preview, output, and typed configuration submission. |
 | `monitoring` | Release-workspace instructions for current state, checks, a run log, and a rollback Ask. |
 | `visual-review` | Ordered website cases with aligned before-and-after evidence, automatic comparison orientation, authored focus and full-frame context, flip and overlay, fit and captured-size inspection, exact preview links, and dispositions. |

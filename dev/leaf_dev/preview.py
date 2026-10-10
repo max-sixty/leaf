@@ -9,7 +9,8 @@ opens offline.
 A plain preview takes no claim: its comments settle in the page's log and nowhere
 else, so a session can drive it. `--user` claims the page for this session, so presses
 arrive through the harness's feedback path, and serves it from the page's durable
-service, which the preview stops on the way out. In Codex it also starts or joins
+service. Ending the preview stops its service and withdraws its acquisition.
+In Codex it also starts or joins
 the task's delivery adapter, so comments can start a new turn after this one ends.
 
 A desktop Codex user preview detaches its watcher: the chat's idle instance can
@@ -254,10 +255,6 @@ def refused(reason) -> bool:
     return False
 
 
-class PreviewAbandoned(Exception):
-    """The launching caller left before accepting the prepared preview."""
-
-
 class PreviewService:
     """The preview's server: a process-owned one on a retained address, or for
     `--user` the page's claimed durable service, which `page init` restarts itself
@@ -280,17 +277,11 @@ class PreviewService:
         from leaf.hosting import claim_and_start
 
         if not self.user:
-            yield self._serve_temporary()[0]
+            yield self._serve_temporary()
             return
         with claim_and_start(self.page, prepared_claim=self.prepared_claim) as started:
             self.claim = started.claim
             yield started.url
-
-    def start(self) -> tuple[str, str]:
-        """Put the server up for the first time and report its URL and lifetime."""
-        with self.starting() as url:
-            pass
-        return url, self.note
 
     @property
     def note(self) -> str:
@@ -345,7 +336,7 @@ class PreviewService:
             raise
         self._serve_temporary()
 
-    def _serve_temporary(self) -> tuple[str, str]:
+    def _serve_temporary(self) -> str:
         from leaf.hosting import TemporaryPageServer
 
         self.temporary = TemporaryPageServer(self.page, **self.address).start()
@@ -353,7 +344,7 @@ class PreviewService:
             "token": self.temporary.token,
             "port": self.temporary.port,
         }
-        return self.temporary.url, WATCHER_NOTE
+        return self.temporary.url
 
     def _close_temporary(self) -> None:
         if self.temporary is not None:
@@ -361,11 +352,15 @@ class PreviewService:
             self.temporary = None
 
     def stop(self) -> None:
-        """Take the server down for good, as the preview ends."""
+        """Stop serving and withdraw this preview's acquisition, keeping successors."""
         from leaf.hosting import cmd_stop
+        from leaf.service import PageTransaction
 
         if self.user:
-            cmd_stop(self.page, owner=self.claim)
+            if self.claim is not None:
+                cmd_stop(self.page, owner=self.claim)
+                with PageTransaction(self.page) as page:
+                    page.restore_claim(self.claim, None)
         else:
             self._close_temporary()
 
@@ -702,23 +697,14 @@ def serve_preview(
             partial(leaf, launcher, runtime),
         )
         mark_preview(source, page, runtime, user)
-        try:
-            with contextlib.ExitStack() as startup:
-                url = startup.enter_context(service.starting())
-                roots = layer_inputs(
-                    tuple(read_json(page / "registry.json")["$layer"]["packages"])
-                )
-                watched = watch_paths(source, runtime, roots, state["seed"])
-                changes = watch_changes(watched)
-                if handshake is not None:
-
-                    def commit():
-                        startup.close()
-                        return {"url": url}
-
-                    if not handshake.announce({"url": url}, commit=commit):
-                        raise PreviewAbandoned
-        except PreviewAbandoned:
+        with service.starting() as url:
+            pass
+        roots = layer_inputs(
+            tuple(read_json(page / "registry.json")["$layer"]["packages"])
+        )
+        watched = watch_paths(source, runtime, roots, state["seed"])
+        changes = watch_changes(watched)
+        if handshake is not None and not handshake.announce({"url": url}):
             return
         print(
             preparation_note(

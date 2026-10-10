@@ -22,7 +22,9 @@
    through those scrolls too (`carrierFor`); native motion layers carry inner scrolling
    only where no anchor reaches, as inside a shadow tree. A lane's clip follows its
    region's outer scrollers.
-   Coordinates and scroll origins are one measurement, replaced together before paint.
+   Rows and clips use coordinates at their native sources' zero scroll offsets.
+   Remeasuring after a scroll therefore preserves placement while native effects
+   continue carrying it, without rebasing layout against an opposite translation.
    Layout owners announce same-size view rearrangements with `lf-layout`; resize
    observation covers the target's layout siblings and ancestors, including a bounded
    region whose outer height stayed fixed. Without a native linear scroll trajectory,
@@ -79,6 +81,7 @@ import {
   followScroll,
   scrollFollows,
   scrollMotions,
+  scrolledBy,
   scrollsContent,
 } from "/runtime/scroll-motion.js";
 import { residencyStarted } from "/runtime/content-layout.js";
@@ -207,7 +210,7 @@ function carryScroll(node, motions) {
       );
     })
   )
-    return;
+    return scrolledBy(motions);
   const sameGraph =
     before.length === motions.length &&
     before.every(
@@ -250,15 +253,11 @@ function carryScroll(node, motions) {
       layers,
       motions,
       effects: motions.map((motion, i) =>
-        followScroll(
-          layers[i],
-          motion,
-          motion.scroll,
-          sameGraph ? record?.effects[i] : null,
-        ),
+        followScroll(layers[i], motion, 0, sameGraph ? record?.effects[i] : null),
       ),
     });
   else translations.delete(node);
+  return scrolledBy(motions);
 }
 
 // Every actual scrollport, including an inner table and a shadow root's scroller.
@@ -1302,6 +1301,8 @@ export function layoutMarginRows({ retainSeats = false } = {}) {
   const packed = packRows(standing, GAP);
   // A push says where a standing row stands, so a row that no longer stands has none.
   for (const row of pushes.keys()) if (!packed.has(row)) pushes.delete(row);
+  for (const [scroller, lane] of layer.lanes)
+    carryScroll(lane, laneMotions.get(scroller) ?? []);
   for (const { key: row, rect, read, visualLeft } of standing) {
     const push = packed.get(row) ?? 0;
     pushes.set(row, push);
@@ -1348,8 +1349,6 @@ export function layoutMarginRows({ retainSeats = false } = {}) {
       carryScroll(row, []);
       continue;
     }
-    setStyle(row, "--lf-margin-x", layoutPx(left + scrollX));
-    setStyle(row, "--lf-margin-y", layoutPx(top + scrollY));
     const carried = laneMotions.get(read.scroller) ?? [];
     // The rail's horizontal coordinate belongs to the column. Nested scrollports
     // move its target's vertical coordinate alone; compensate the lane's horizontal
@@ -1368,7 +1367,10 @@ export function layoutMarginRows({ retainSeats = false } = {}) {
         };
       })
       .filter((motion) => motion.vector.x || motion.vector.y);
-    carryScroll(row, own);
+    const byRow = carryScroll(row, own);
+    const byLane = scrolledBy(translations.get(read.lane)?.motions ?? []);
+    setStyle(row, "--lf-margin-x", layoutPx(left + scrollX - byRow.x - byLane.x));
+    setStyle(row, "--lf-margin-y", layoutPx(top + scrollY - byRow.y - byLane.y));
   }
 
   // Each lane shows its region's rows only inside what that region shows, with room for a
@@ -1376,13 +1378,11 @@ export function layoutMarginRows({ retainSeats = false } = {}) {
   // is in the lane's own coordinates, so it is taken again whenever the pass runs, which
   // a resize of the region's box also brings.
   for (const [scroller, lane] of layer.lanes) {
-    carryScroll(lane, laneMotions.get(scroller) ?? []);
     const region = regions.get(scroller);
-    // Every native motion is rebased to the scroll offset measured by this pass.
-    // Its painted displacement is zero. A newly created effect may still be
-    // pending while script runs; reading its underlying transform here would
-    // mistake that transient value for the lane's document origin.
-    const at = { left: -scrollX, top: -scrollY };
+    // The retained motion reading gives the lane's origin even while a new native
+    // effect awaits its first sample; its underlying transform is not that reading.
+    const byLane = scrolledBy(translations.get(lane)?.motions ?? []);
+    const at = { left: byLane.x - scrollX, top: byLane.y - scrollY };
     const ring = 6;
     const right = (stands && railBeside(scroller) ? shell : region?.right) + ring;
     const clip = region

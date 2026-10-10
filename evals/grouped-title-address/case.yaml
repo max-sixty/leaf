@@ -20,4 +20,28 @@ vars:
 assert:
   - type: regex
     metric: grouped-title
-    value: '<hgroup\b[^>]*\bid="[^"]+"[^>]*>[\s\S]*?<p\b[^>]*>[\s\S]*?Eval consolidation[\s\S]*?</p>[\s\S]*?<h1\b[^>]*>One catalog, with short cases and complete workflows</h1>[\s\S]*?</hgroup>'
+    value: '<hgroup\b[^>]*\bid="[^"]+"[^>]*>[\s\S]*?<p\b[^>]*>[\s\S]*?Eval consolidation[\s\S]*?</p>[\s\S]*?<h1\b[^>]*>(?:\s|<[^>]+>)*One catalog, with short cases and complete workflows(?:\s|<[^>]+>)*</h1>[\s\S]*?</hgroup>'
+
+variants:
+  # A handover used a plain paragraph for its status above the title. With the
+  # default theme supplied, the discovery repair distinguished baseline and fix.
+  status-label:
+    description: grouped-title-address/status-label
+    metadata:
+      purpose: A status and date above a new title uses the shared label idiom without an
+        explicit class request.
+    vars:
+      prompt: >-
+        Write a short Leaf handover for the Questions contract change. Use the title
+        "Questions lists every move the agent needs from you". Put "Implemented locally
+        · October 9, 2026" directly above the title. Explain that Questions contains
+        every current request for the user, zero Questions means nothing is needed from
+        them, and Tasks can still contain the agent's work. Include a short verification
+        paragraph: focused Python and browser checks passed. There is no decision to collect
+        here. The page has already been initialized with the default Leaf layer; delivery
+        supplies its theme and runtime. The page directory is outside this read-only environment.
+        Reply with the complete authored index.html.
+    assert:
+      - type: regex
+        metric: shared-label
+        value: '<p\b[^>]*class="[^"]*\beyebrow\b[^"]*"[^>]*>Implemented locally · October 9, 2026</p>'

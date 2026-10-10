@@ -172,7 +172,8 @@ def test_interaction_trace_is_writable_from_a_read_only_page_preview(page_dir):
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
         artifact_model.read_revision(page_dir, active["revision"]).document,
-        active,
+        active["revision"],
+        url=active["url"],
     )
     before = event_model.read_events(page_dir)
     with hosting_model.TemporaryPageServer(
@@ -269,6 +270,7 @@ def test_samples_use_captured_resources_and_independent_event_logs(server, page_
     status, document = fetch(child + "/")
     assert status == 200, document
     assert b"Child text." in document
+    assert b"data-lf-share-url" not in document
     root = "/revisions/" + files_model.revision_path(page_dir, 1).stem
     assert f'data-lf-entry="{root}/leaf.js"'.encode() in document
     assert f'data-lf-page-root="{child.removeprefix(server)}"'.encode() in document
@@ -512,9 +514,7 @@ def test_frozen_preview_samples_use_snapshot_inputs_without_parent_writes(
         PAGE.replace("</main>", template + "</main>")
     )
     # The checked candidate is r2, absent from the mutable page's revision files.
-    snapshot = page_snapshot_model.capture_page_snapshot(
-        page_dir, document, {"revision": 2, "version": None, "url": "/"}
-    )
+    snapshot = page_snapshot_model.capture_page_snapshot(page_dir, document, 2, url="/")
     append_carried_log_record(
         page_dir,
         {
@@ -4076,7 +4076,8 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
         artifact_model.read_revision(page_dir, active["revision"]).document,
-        active,
+        active["revision"],
+        url=active["url"],
     )
     preview = hosting_model.LeafHTTPServer(
         ("127.0.0.1", 0),
@@ -4303,7 +4304,8 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
         artifact_model.read_revision(page_dir, active["revision"]).document,
-        active,
+        active["revision"],
+        url=active["url"],
     )
     projection = served_service.PageStateService(
         page_dir, page_snapshot=snapshot
@@ -4389,7 +4391,8 @@ def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
         artifact_model.read_revision(page_dir, active["revision"]).document,
-        active,
+        active["revision"],
+        url=active["url"],
     )
     service = served_service.PageStateService(page_dir, page_snapshot=snapshot)
     before = service.page_state()
@@ -4410,6 +4413,8 @@ def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
     then = snapshot.through(picked["seq"]).context
     assert then.events[-1]["id"] == picked["id"]
     assert [version["version"] for version in then.versions] == [1]
+    assert then.active["version"] is None
+    assert then.active["label"] == "Draft after v1"
 
 
 def test_comparison_revision_reads_stay_inside_the_page_transaction(
@@ -4539,7 +4544,8 @@ def test_a_snapshot_holds_declared_data_media_with_the_current_value(
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
         artifact_model.read_revision(page_dir, active["revision"]).document,
-        active,
+        active["revision"],
+        url=active["url"],
     )
     assert set(snapshot.data_resources) == {urls[1]}
     assert snapshot.data_resources[urls[1]].data == second.read_bytes()
@@ -4576,7 +4582,8 @@ def test_a_snapshot_holds_declared_data_media_with_the_current_value(
     current = page_snapshot_model.capture_page_snapshot(
         page_dir,
         artifact_model.read_revision(page_dir, changed.revision).document,
-        {"revision": changed.revision, "version": None, "url": "/"},
+        changed.revision,
+        url="/",
     )
     assert current.data_resources == {}
     assert snapshot.data_resources[urls[1]].data == second.read_bytes()
@@ -4584,7 +4591,8 @@ def test_a_snapshot_holds_declared_data_media_with_the_current_value(
     revised = page_snapshot_model.capture_page_snapshot(
         page_dir,
         artifact_model.read_revision(page_dir, changed.revision).document,
-        {"revision": changed.revision, "version": None, "url": "/"},
+        changed.revision,
+        url="/",
     )
     assert set(revised.data_resources) == {urls[0]}
     assert revised.data_resources[urls[0]].data == first.read_bytes()
@@ -4606,7 +4614,8 @@ def test_a_preview_uses_the_validated_module_graph_after_a_later_edit(page_dir):
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
         checked.document,
-        {"revision": revision, "version": None, "url": "/"},
+        revision,
+        url="/",
         artifact=checked.artifact,
     )
     with hosting_model.TemporaryPageServer(
@@ -5364,8 +5373,7 @@ def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
     the sweep exactly like a page a test forgot: a held lease under an enabled
     service. The sweep once took its root from the environment before
     `isolated_session` had moved it, and stopped every such server on the
-    machine after every test (tests/AGENTS.md, "A process the suite starts ends
-    with the run").
+    machine after every test (tests/AGENTS.md, "Processes and servers").
 
     So a run is made against a home planted the way the developer's is, of the
     one test that leaves a page for the sweep. The planted page must come out as

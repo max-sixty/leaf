@@ -455,12 +455,16 @@ remains at its permanent path for a turn whose acceptance may have raced the fai
 response.
 
 Each delivery has one globally addressed immutable envelope and one mutable delivery
-record. The record carries collecting, offering, accepted, or abandoned state;
-after the freeze it retains only the event identities needed for page receipts.
-Once a cursor advances, the
-delivery record keeps that receipt so
-reinitializing the same page path cannot revive old transport work; a
-reinitialized page whose events no longer match retires its old batch. The
+record. Its variants describe capture (`collecting`), a frozen pointer (`offering`),
+an offer reserved to a turn (`hook`), an uncertain provider start (`starting`),
+durable queue acceptance (`queued`), proven context entry (`opened`), or abandonment
+(`abandoned`). After freezing, it retains only the event identities needed for
+page receipts. Only an accepted or abandoned outcome has pending receipts.
+Recovery repeats the outcome's idempotent page effects before removing each pending
+receipt; the cursor alone cannot prove that exact pickup evidence was written.
+An outcome with no pending receipts moves to history, including when a crash left
+it in the live directory. Reinitializing a page path cannot revive a completed
+receipt; a page whose events no longer match retires its old batch. The
 adapter has a second lease because a generic wait lease cannot prove its output can
 enter a later Codex turn. Leaf's unobserved queue command never calls `turn/start`.
 With an App Server the adapter's `TaskConnection` owns one subscribed connection.

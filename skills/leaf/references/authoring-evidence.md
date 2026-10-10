@@ -104,9 +104,10 @@ HTML frame contents are inspected inside their own document, so comment on the
 source or the surrounding widget. `language` optionally overrides source syntax
 coloring. Other previews, such as a diagram, image, or live sample, can share an ordinary `lf-tabs` set
 with the source widget. Switching views is local reading state; it records no
-decision. Use a unified-patch capture with
-`lf-diff`; the diff keeps its per-file view
-and gives each source line a stable comment coordinate. `lf-diff` and the
+decision. When the user reviews an edit to source text, including prose or
+configuration, show its exact patch in `lf-diff` and explain the effect beside it.
+The per-file view makes insertions and deletions visible and gives each source
+line a stable comment coordinate. `lf-diff` and the
 `unified-diff` contract travel in the `diff` package: initialize such a page with
 `leaf page init --package diff <page>`. First add a data binding so Leaf can give the
 source its current contract:
@@ -138,18 +139,18 @@ commit in `pr-patch-8f61c2a`, which nothing captures into again; evidence that s
 follow later captures or `data set` calls shares one id. `lf-text-document` shows
 `label` above the text, or the source id without one. Wrap `lf-text-document` in
 ordinary `<details>` or place it in an `lf-tabs` panel when the evidence should start
-collapsed or share a compact frame with alternatives. A bound `lf-diff` keeps one empty
-`<pre></pre>` because that is the shared data-body shape; the captured patch, not that
-element, supplies its text. Add `collapsed` to a large diff so each file starts closed;
-a comment or navigation target still opens the file that owns its line.
+collapsed or share a compact frame with alternatives. Add `collapsed` to a large
+diff so each file starts closed; a comment or navigation target still opens the
+file that owns its line.
 
 Run `leaf page media <page> <file>…` and use each printed `/media/…` `path` for
 images, video, and audio. Never inline media bytes. Offer image inspection by
 linking the image to its own media URL: `<a href="/media/…"><img
 src="/media/…" alt="…"></a>`. A click or Enter opens Image preview, where the reader
 can zoom to actual size, pan, and return to the page. A figure's caption stays visible
-there; Original opens the file separately. Links to another destination retain that
-destination.
+in a footer outside the image; images without an authored caption have no footer.
+Alt text remains the image's accessible description. Original opens the file separately.
+Links to another destination retain that destination.
 
 Use a recording for a fixed
 demo or screen capture; keep a live widget where the user should manipulate the
@@ -174,6 +175,8 @@ links.
 For a page-scale visual change, use `lf-shot` with before and after captures from
 the same viewport, of the versions the page compares. For a small change, crop
 both frames to the changed area or show the element itself at real size.
+Its Open before and Open after links inspect each capture at full size; clicking
+the comparison itself still flips between its endpoints.
 Before writing the prose and `alt` around a pair, open both images and compare
 them where the change should be.
 Add `outlines`, and each frame outlines what changed and, dashed, what only moved,

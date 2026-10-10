@@ -54,6 +54,7 @@ import { taskNoun } from "./queues.js";
 import { watchSemantic } from "./semantic-state.js";
 import { retainUserIntent } from "./user-intent.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
+import { approvalTarget } from "./banner.js";
 
 const QUALIFIER = "waiting on you";
 const NOUNS = Object.freeze({
@@ -61,6 +62,7 @@ const NOUNS = Object.freeze({
   thread: "Thread",
   widget: "Move",
   page: "To do",
+  approval: "Approval",
 });
 // What a stop is called: by where it is arrived at, but a task on an element is a To do
 // rather than the Move a widget's stop otherwise is.
@@ -71,14 +73,14 @@ const nounOf = (item, stop) =>
 // the Ask's own id, anything else by the thread it stands in, a task on the page as a
 // whole at the page's head, or else the element it stands on, as a move is arrived at
 // on the widget it was made on.
-const stopOf = (item) =>
-  item.ends === "widget"
-    ? { kind: "ask", id: item.id, thread: item.thread }
-    : item.thread !== null
-      ? { kind: "thread", id: item.thread, thread: item.thread }
-      : item.subject.kind === "page"
-        ? { kind: "page", id: "page", thread: null }
-        : { kind: "widget", id: item.subject.id, thread: null };
+function stopOf(item) {
+  if (item.ends === "approval") return { kind: "approval", id: item.id, thread: null };
+  if (item.ends === "widget") return { kind: "ask", id: item.id, thread: item.thread };
+  if (item.thread !== null)
+    return { kind: "thread", id: item.thread, thread: item.thread };
+  if (item.subject.kind === "page") return { kind: "page", id: "page", thread: null };
+  return { kind: "widget", id: item.subject.id, thread: null };
+}
 const sameStop = (a, b) => a.kind === b.kind && a.id === b.id;
 
 // The page's head, where a task on the page as a whole is arrived at: its first
@@ -100,12 +102,12 @@ export function createQueueWalk({
   actions,
 }) {
   // The element a stop stands at on the page, if it has one.
-  const stopElement = (stop) =>
-    stop.kind === "page"
-      ? pageHead()
-      : stop.thread !== null
-        ? threadTarget(stop.thread)
-        : elementById(stop.id);
+  function stopElement(stop) {
+    if (stop.kind === "approval") return approvalTarget();
+    if (stop.kind === "page") return pageHead();
+    if (stop.thread !== null) return threadTarget(stop.thread);
+    return elementById(stop.id);
+  }
 
   function stops() {
     const placed = [];
@@ -143,6 +145,8 @@ export function createQueueWalk({
   // a thread that holds an open Ask is not standing on that Ask, as it never was for
   // the Ask walk this replaces.
   function standingStop(list) {
+    if (documentFocused() === approvalTarget())
+      return list.find((stop) => stop.kind === "approval") ?? null;
     const held = threadHere();
     const thread = held?.dataset.id ?? held?.dataset.thread;
     if (thread) {

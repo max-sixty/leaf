@@ -1198,7 +1198,7 @@
 :scope:is(lf-tabs).lf-rendered > lf-tab { margin-top: 14px; }
 /* Laid out by the live-page block below; hidden until then, because a row of
  * buttons is worth showing only where something will answer one. */
-.lf-tabstrip { display: none; gap: 2px;
+.lf-tabstrip { display: none; gap: 2px; --lf-tab-focus-gap: 2px;
                border-bottom: 1px solid var(--border-2); }
 /* The aim floor is the padding, which a side list's column cannot squeeze out from under
  * a row's summary as it could a min-height. Of what stands between the floor and the
@@ -1211,20 +1211,41 @@
                min-width: var(--aim-floor); flex: none;
                display: inline-flex; align-items: center; justify-content: center;
                color: var(--muted); cursor: pointer; }
-.lf-tabstrip .lf-tab-btn:hover { color: var(--ink-2); }
-/* A tab is a span the module gives a role and a tab stop to, so the only mark it wore
- * for the keyboard was the platform's own — beside a strip whose every other control
- * wears the layer's band, which reads as the walk leaving the page. Inset, because the
- * button's foot is on the strip's rule and an outset band would be drawn over it. */
+.lf-tabstrip .lf-tab-btn:hover { color: var(--ink-2); box-shadow: none; }
+.lf-tabstrip .lf-tab-btn:not([aria-selected="true"]):hover > .lf-tab-name {
+               box-shadow: var(--offer-hover-shadow); }
+/* Focus follows the name, as in the ARIA tabs example: selection and keyboard focus
+ * remain separate marks on one compact face. The containing tab keeps its larger aim
+ * floor; neither mark changes layout. The gap fits inside that target's padding. */
 .lf-tabstrip .lf-tab-btn:is(:focus-visible, .lf-focus-visible) {
+               outline: none; }
+.lf-tabstrip .lf-tab-btn:is(:focus-visible, .lf-focus-visible) > .lf-tab-name {
                outline: var(--focus-ring); --lf-focus-ring: tab-btn;
-               outline-offset: calc(-1 * var(--focus-ring-w)); }
+               outline-offset: var(--lf-tab-focus-gap); }
 /* Every name reserves the same square face; selection paints it without changing any
  * control's measure. */
 .lf-tabstrip .lf-tab-btn > .lf-tab-name {
                display: inline-block; padding: 2px 5px; }
 .lf-tabstrip .lf-tab-btn[aria-selected="true"] > .lf-tab-name {
                background: var(--card); color: var(--ink); }
+/* System colors can remove the selected fill. Keep selection visible independently
+ * of the focus outline, including when focus has moved into the panel. */
+@media (forced-colors: active) {
+  .lf-tabstrip .lf-tab-btn[aria-selected="true"] > .lf-tab-name {
+    text-decoration: underline; text-decoration-thickness: 2px;
+    text-underline-offset: 2px;
+  }
+  /* Forced colors makes transparent borders visible. Page tabs already reserve a
+   * selection rule, so hide the inactive rule with the system background instead. */
+  :scope:is(lf-tabs)[data-lf-tabs-flow="page"] > .lf-tabstrip
+    .lf-tab-btn:not([aria-selected="true"]) > .lf-tab-name {
+    border-bottom-color: Canvas;
+  }
+  :scope:is(lf-tabs)[data-lf-tabs-flow="page"] > .lf-tabstrip
+    .lf-tab-btn[aria-selected="true"] > .lf-tab-name {
+    text-decoration: none;
+  }
+}
 /* A tab counts the passages the version diff marks. An empty count takes no room. */
 .lf-tabdiff { font-size: var(--t-6); margin-left: 6px;
               padding: var(--chip-pad); line-height: var(--chip-lh);
@@ -1313,10 +1334,12 @@
     border-radius: calc(var(--r) - 1px) 0 0 calc(var(--r) - 1px);
     align-self: stretch;
   }
-    /* A row is its name, then its diff count, with the summary on a line under them. */
+    /* A row is its name, then its diff count, with the summary on a line under them.
+     * Adjacent columns leave the name's focus ring clear of the answer and count. */
   :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-btn {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: calc(var(--focus-ring-w) + var(--lf-tab-focus-gap));
     align-items: baseline;
     justify-items: start;
     text-align: start;
@@ -1489,26 +1512,27 @@
     background: transparent;
     --lf-block-frame: 0;
   }
-    /* The strip is a sticky header over the page, so it is one row of a stated height
-     * (`--lf-tabstrip-h`), and what it stands over stacks below it through
-     * `--lf-top` (kernel theme.css): a diff's file header in a page tab pins under the
-     * strip rather than over it. The height is the kernel theme's token, since the
-     * root's `scroll-padding` adds it too (lf-tabs.js), and a package's rules reach
-     * only its widgets. */
-  :scope:is(lf-tabs)[data-lf-tabs-flow="page"] { --lf-top-outer: var(--lf-top); }
-  :scope:is(lf-tabs)[data-lf-tabs-flow="page"] > lf-tab {
+  /* Horizontal indexes stay with the panel they identify. Each set owns its
+   * stacking context so a nested strip releases beneath its enclosing strip,
+   * and passes its stated row height to the headers inside its panel. */
+  :scope:is(lf-tabs):not([list="side"]) {
+    isolation: isolate;
+    --lf-top-outer: var(--lf-top);
+  }
+  :scope:is(lf-tabs):not([list="side"]) > lf-tab {
     --lf-top: calc(var(--lf-top-outer) + var(--lf-tabstrip-h));
+  }
+  :scope:is(lf-tabs):not([list="side"]) > .lf-tabstrip {
+    position: sticky;
+    top: var(--lf-top);
+    --lf-head-inset: 8px;
+    z-index: 2;
+    block-size: var(--lf-tabstrip-h);
+  }
+  :scope:is(lf-tabs)[data-lf-tabs-flow="page"] > lf-tab {
     --lf-landing-room: var(--lf-landing-gap);
   }
   :scope:is(lf-tabs)[data-lf-tabs-flow="page"] > .lf-tabstrip {
-    position: sticky;
-    top: var(--lf-top);
-    /* Its names stand 8px below where it sticks (`--lf-head-inset`, kernel
-       shadow.css), and the root's landing room counts the strip itself. */
-    --lf-head-inset: 8px;
-    z-index: 2;
-    box-sizing: border-box;
-    block-size: var(--lf-tabstrip-h);
     border-radius: 0;
     --lf-tabstrip-pad: 0px;
     --lf-tabstrip-bg: var(--paper);
@@ -1678,12 +1702,14 @@
 /* lf-shot: Web Awesome owns the live draggable divider. The pair's natural-width
  * validation supplies an aspect ratio based on its taller image, so unequal heights
  * still reserve one fixed frame and move nothing below it. The rail's endpoint buttons
- * stay outside the component. Before the upgrade lands, the frames are direct children
+ * and full-size inspection links stay outside the component in one fixed two-row rail.
+ * Before the upgrade lands, the frames are direct children
  * of the host and the transparent native checkbox covers them — one fallback for loading
  * and controls-off alike.
  * Print stacks both frames. */
 :scope:is(lf-shot) { display: block; margin: 16px 0;
-    --lf-shot-rail-size: max(34px, var(--aim-floor)); }
+    --lf-shot-rail-row-size: max(34px, var(--aim-floor));
+    --lf-shot-rail-size: calc(2 * var(--lf-shot-rail-row-size)); }
 :scope:is(lf-shot):has(.lf-shotframe) { display: grid; }
 /* Where the runtime runs, the rail and the frame stand empty from the first paint, the
  * frame in the pair's shape, which delivery reads from the images
@@ -1725,17 +1751,41 @@
     opacity: 1; scale: 1; }
 :scope:is(lf-shot) .lf-shotcomparison:is([position="0"], [position="100"]):not(:hover, :focus-within)::part(handle) {
     opacity: .18; scale: .68; }
-:scope:is(lf-shot) .lf-shotframe { position: relative; overflow: hidden; background: var(--card); }
+:scope:is(lf-shot) .lf-shotframe { position: relative; overflow: clip; background: var(--card); }
 :scope:is(lf-shot) .lf-shotframe img { display: block; width: 100%; height: auto;
     background: var(--card); }
-:scope:is(lf-shot) .lf-shotrail { display: flex; grid-area: 1 / 1; align-items: center;
-    justify-content: space-between; height: var(--lf-shot-rail-size); padding: 0 11px;
+:scope:is(lf-shot) .lf-shotrail { display: grid; grid-area: 1 / 1; align-items: center;
+    grid-template: repeat(2, var(--lf-shot-rail-row-size)) / auto minmax(0, 1fr) auto;
+    height: var(--lf-shot-rail-size); padding: 0 11px;
     border: 1px solid var(--rule); border-bottom: 0;
     border-radius: var(--r) var(--r) 0 0; color: var(--muted);
     background: var(--card); }
+/* Keep the comparison's identity and endpoint controls over a tall pair. The rail
+ * stops at the shot's foot and stacks below any enclosing sticky header. Frames
+ * declare the covered band to the shared visibility reading; the extra pixel is
+ * the rail's top border, outside its stated content height. */
+@media screen {
+  :scope:is(lf-shot) { --lf-top-outer: var(--lf-top); }
+  :scope:is(lf-shot) > .lf-shotrail {
+    position: sticky; top: var(--lf-top); z-index: 1; --lf-head-inset: 1px;
+  }
+  :scope:is(lf-shot):not([data-lf-shot-controls="off"]):has(> .lf-shotrail)
+    > :is(.lf-shotcomparison, .lf-shotframe) {
+    --lf-top: calc(var(--lf-top-outer) + var(--lf-shot-rail-size) + 1px);
+  }
+}
 :scope:is(lf-shot) .lf-shotcap { display: flex; align-items: center; align-self: stretch;
     font-size: var(--t-6); font-weight: 650; text-transform: uppercase;
     letter-spacing: .04em; padding: 0 5px; margin: 0 -5px; color: var(--muted); }
+:scope:is(lf-shot) :is(.lf-shotcap[data-lf-state="before"], .lf-shot-open[data-lf-shot-open="before"]) {
+    grid-column: 1; justify-self: start; }
+:scope:is(lf-shot) :is(.lf-shotcap[data-lf-state="after"], .lf-shot-open[data-lf-shot-open="after"]) {
+    grid-column: 3; justify-self: end; }
+:scope:is(lf-shot) .lf-shotcap { grid-row: 1; }
+:scope:is(lf-shot) .lf-shot-open { grid-row: 2; display: flex; align-items: center;
+    align-self: stretch; font: var(--t-6)/1.4 var(--sans); }
+:scope:is(lf-shot) .lf-shotdelta { grid-area: 1 / 2 / 3 / 3; justify-self: center;
+    padding-inline: 8px; text-align: center; }
 :scope:is(lf-shot) .lf-shotcap[data-lf-state] { outline-offset: -2px; }
 :scope:is(lf-shot) .lf-shotcap[data-lf-state="before"] {
     --lf-shot-side-tint: var(--del-tint); --lf-shot-side-ink: var(--danger-ink); }
@@ -1809,6 +1859,9 @@
   :scope:is(lf-shot) .lf-shotcap[data-lf-state="before"]::after { content: " · top"; }
   :scope:is(lf-shot) .lf-shotcap[data-lf-state="after"]::after { content: " · bottom"; }
   :scope:is(lf-shot) > input.lf-shotflip { display: none; }
+  :scope:is(lf-shot) > .lf-shotrail { height: auto;
+    grid-template-rows: var(--lf-shot-rail-row-size); }
+  :scope:is(lf-shot) .lf-shotdelta { grid-row: 1; }
   :scope:is(lf-shot) > .lf-shotcomparison { display: block; aspect-ratio: auto; border: 0;
     overflow: visible; }
   /* The before frame sits in the component's second part (lf-shot.js), and paper

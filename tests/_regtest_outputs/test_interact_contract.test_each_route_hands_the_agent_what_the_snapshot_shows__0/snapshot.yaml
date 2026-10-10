@@ -15,20 +15,20 @@
 #                      output to the agent as the command's result, which wakes
 #                      it. The agent acknowledges the delivery itself, with
 #                      `leaf wait --ack <delivery-id>`, and answers with
-#                      `leaf thread reply`. A Codex task running without Leaf's
+#                      `leaf response reply <answer.ref>`. A Codex task without Leaf's
 #                      adapter uses this route, and so does a bare shell.
-#   Claude Code hook   The agent keeps `leaf wait` running in the background, and
-#                      under Claude Code it prints one line naming the page and
-#                      exits, which opens a turn. Leaf's prompt hook runs as that
+#   Claude Code hook   Leaf's native hook watcher runs between turns. When input
+#                      arrives it wakes the session with one line naming the page,
+#                      which opens a turn. Leaf's prompt hook runs as that
 #                      turn begins, and its Stop hook as a turn ends; either
 #                      freezes the delivery, acknowledges it, and adds it to the
 #                      turn's context after one line saying so. The agent answers
-#                      with `leaf thread reply`.
+#                      with `leaf response reply <answer.ref>`.
 #   Codex queue        Leaf's adapter freezes the delivery and runs `codex queue`
 #                      with a pointer to it as the task's next user message. The
 #                      agent reads the delivery with `leaf delivery read <id>`,
 #                      which prints it as indented JSON, and answers with
-#                      `leaf thread reply`. The adapter acknowledges the delivery once
+#                      `leaf response reply <answer.ref>`. The adapter acknowledges it once
 #                      Codex's queue accepts it.
 #   Codex App Server   Leaf starts a turn with `turn/start`, carrying the
 #                      delivery as a `leaf_delivery` tool output, and binds the
@@ -53,7 +53,7 @@
 # One top-level key per route, holding exactly what reaches the agent's task:
 #
 #   leaf wait:         its output, from a bare shell.
-#   Claude Code hook:  the line the wait prints, and the prompt hook's
+#   Claude Code hook:  the native watch's notification, and the prompt hook's
 #                      `additionalContext`, split into its instruction line, the
 #                      delivery on the next line, and what Leaf asks of the turn
 #                      after it.
@@ -152,8 +152,8 @@ leaf wait:
               writer: agent
 
 Claude Code hook:
-  leaf wait output: /path/to/page has new input; Leaf's prompt hook puts it in your
-    context with this notification
+  watch notification: /path/to/page has new input; Leaf's prompt hook puts it in
+    your context with this notification
   UserPromptSubmit additionalContext:
     instruction: >-
       Leaf has new input for your turn. Read this complete delivery before answering.

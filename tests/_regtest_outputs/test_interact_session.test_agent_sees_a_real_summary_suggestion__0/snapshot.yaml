@@ -1,10 +1,16 @@
-# The summary hint from real thread events and the delivery a hook hands the turn.
+# The summary hint from real thread events and the delivery an explicit wait prints.
 
 delivery:
   format: leaf-delivery-v5
   id: <delivery>
   created_at: <time>
-  acknowledge: null
+  acknowledge: >-
+    Whoever ran the `leaf wait` that printed this delivery acknowledges it; until
+    then the user's moves read Sent rather than Picked up. If the output was cut
+    off, acknowledge nothing and rerun the wait with room for the whole envelope.
+    If you handle it, acknowledge before any other work; if you forward it, acknowledge
+    once it durably arrives there. To acknowledge, start `leaf wait --ack <delivery>`
+    as the next background task: it confirms this delivery and waits for the next.
   batches:
     - page: <page>
       claim: <claim-session>

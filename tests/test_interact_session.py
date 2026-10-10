@@ -137,8 +137,9 @@ def woken(output: str, session: str | None = None) -> tuple[dict, dict, list[dic
     Explicit waits confirm their own captured input; a native watch hands its
     pending input through the hook transport.
     """
-    if output.lstrip().startswith("{"):
-        payload = json.loads(output)
+    last_line = output.rstrip().splitlines()[-1]
+    if last_line.startswith("{"):
+        payload = json.loads(last_line)
         assert payload["acknowledge"] is not None
         delivery_model.receive(
             payload, session or session_model.session_harness().session
@@ -6086,10 +6087,9 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
         if c.get("when") == {"required": ["drawing"]}
     ]
     replying = [c["text"] for c in declared["answering"]["reply"] if "when" not in c]
-    # How receipt is confirmed is the envelope's to say once, and a hook confirms
-    # it itself, so no event tells the agent to acknowledge anything. A message is
-    # told its own clauses, then how to write the reply it owes.
-    assert envelope["acknowledge"] is None
+    # The envelope says once how this explicit wait is acknowledged; individual
+    # events carry only their own handling and reply clauses.
+    assert f"leaf wait --ack {envelope['id']}" in envelope["acknowledge"]
     assert not any("--ack" in text for text in handling.values())
     assert plain[-len(replying) :] == replying
     # A drawn comment is told everything a plain one is, and how to read its drawing.
@@ -15988,12 +15988,11 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     assert "Leaf's hook puts them in your context" in refused.output
     assert service_model.read_status(claimed)["state"] != "idle"
 
-    # `leaf wait` wakes the session at once, and the prompt hook hands the input
-    # to the turn and confirms it. Reading it is not answering it, though: the
-    # same user is still waiting, and now nothing will raise the comment again,
-    # so idle holds until the thread has something under it.
-    assert CliRunner().invoke(cli_model.cli, ["wait", str(claimed)]).exit_code == 0
-    assert consume_pending_input("s1")
+    # An explicit wait hands the input to its reader, which confirms it. Reading
+    # it is not answering it: idle holds until the thread has something under it.
+    waited = CliRunner().invoke(cli_model.cli, ["wait", str(claimed)])
+    assert waited.exit_code == 0, waited.output
+    woken(waited.output, "s1")
     refused = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
     assert refused.exit_code == 1
     assert "1 acknowledged user update with no answer" in refused.output
@@ -17556,7 +17555,7 @@ def test_agent_sees_a_real_summary_suggestion(page_dir, capsys, snapshot):
     assert any("summary_hint" in batch["handling"][h] for h in event["handling"])
     snapshot.check(
         yaml_document(
-            "The summary hint from real thread events and the delivery a hook hands the turn.",
+            "The summary hint from real thread events and the delivery an explicit wait prints.",
             _interaction_prompt_evidence(page_dir, {"delivery": envelope}),
         )
     )

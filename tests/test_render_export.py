@@ -22,12 +22,12 @@ from interact_support import (
     COMPOSITE_TIMEOUT,
     STATED_TIMEOUT,
     append_carried_log_record,
-    consume_pending_input,
     install_payload,
     wait_for,
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
+from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import files as files_model
@@ -1117,8 +1117,10 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
         },
     )
     assert waiter.wait(timeout=STATED_TIMEOUT) == 0, waited.read_text()
-    assert "has new input" in waited.read_text()
-    [batch] = consume_pending_input(session)["batches"]
+    payload = json.loads(waited.read_text().rstrip().splitlines()[-1])
+    assert f"leaf wait --ack {payload['id']}" in payload["acknowledge"]
+    delivery_model.receive(payload, session)
+    [batch] = payload["batches"]
     assert [event["text"] for event in batch["events"]] == ["still there?"]
 
 

@@ -29,7 +29,6 @@ from interact_support import (
     append_carried_log_record,
     case_alias,
     check,
-    consume_pending_input,
     element_declaration,
     fetch,
     install_payload,
@@ -42,6 +41,7 @@ from interact_support import (
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
+from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as interact_files
 from leaf import hooks as hooks_model
@@ -201,8 +201,10 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
         ids.append(events_model.read_events(page)[-1]["id"])
     woke = runner.invoke(cli_model.cli, ["wait", str(page)])
     assert woke.exit_code == 0, woke.output
-    assert "has new input" in woke.output
-    [batch] = consume_pending_input("s1")["batches"]
+    envelope = json.loads(woke.output)
+    assert f"leaf wait --ack {envelope['id']}" in envelope["acknowledge"]
+    delivery_model.receive(envelope, "s1")
+    [batch] = envelope["batches"]
     assert len(batch["events"]) == 2
     record(["thread", "reply", str(page), "--text", "Answer"], 2)
     record(["thread", "reply", str(page), ids[0], "--text", "Answer"], 1)

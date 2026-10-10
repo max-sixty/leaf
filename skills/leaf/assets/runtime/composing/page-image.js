@@ -9,8 +9,11 @@
  * same way. A frame SnapDOM leaves out, or the part of a child outside the crop, is
  * never asked to draw. Other cross-origin frames keep SnapDOM's placeholder.
  *
- * Known missing images refuse capture instead of returning a placeholder, and a sample
- * the crop reaches that cannot draw itself refuses it too.
+ * A part that could not be drawn does not refuse the capture, since SnapDOM reads
+ * resources a margin beyond the crop and cannot say whether a missing image fell
+ * inside it. The image comes back with a warning for each such part instead: an image
+ * SnapDOM could not load, or a sample that could not draw itself, whose frame keeps
+ * its box and stays empty. A child's warnings join its parent's.
  */
 import { isSampleFrame, sampleFrameImage } from "../sample.js";
 
@@ -24,7 +27,7 @@ const asDataUrl = (blob) =>
 
 export async function pageImage(clip, { exclude = [] } = {}) {
   const { snapdom } = await import("../../vendor/snapdom.esm.js");
-  const failures = [];
+  const warnings = new Set();
   // The crop meets the frame's content box in this viewport's coordinates; the
   // child and the substitute's own box read it in the frame's, unscaled.
   async function sampleContent(frame) {
@@ -52,7 +55,9 @@ export async function pageImage(clip, { exclude = [] } = {}) {
     crop.height = (bottom - top) / scaleY - crop.y;
     if (crop.width <= 0 || crop.height <= 0) return box;
     try {
-      const blob = await sampleFrameImage(frame, crop);
+      const child = await sampleFrameImage(frame, crop);
+      for (const warning of child.warnings) warnings.add(warning);
+      const blob = child.blob;
       // The decoding attribute reaches the reconstruction's markup: without it WebKit
       // can rasterize that markup before decoding the image, and draws it blank.
       const img = document.createElement("img");
@@ -61,7 +66,7 @@ export async function pageImage(clip, { exclude = [] } = {}) {
       img.style.cssText = `display:block;position:relative;left:${crop.x}px;top:${crop.y}px;width:${crop.width}px;height:${crop.height}px`;
       box.append(img);
     } catch (error) {
-      failures.push(error);
+      warnings.add(`A live sample in this area could not be drawn: ${error.message}`);
     }
     return box;
   }
@@ -79,14 +84,8 @@ export async function pageImage(clip, { exclude = [] } = {}) {
       },
     ],
   });
-  if (failures.length)
-    throw new Error(
-      `A live sample in this area could not be captured: ${failures[0].message}`,
-    );
   const blob = await image.toBlob({ format: "png" });
   if (image.warnings.some(({ code }) => code === "image-fallback"))
-    throw new Error(
-      "An image in this area could not be captured. Try another area or paste a screenshot.",
-    );
-  return blob;
+    warnings.add("An image near this area could not be drawn and may be missing.");
+  return { blob, warnings: [...warnings] };
 }

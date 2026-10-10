@@ -12,8 +12,10 @@
  *
  * The closest containing semantic target at the rectangle's center anchors its comment.
  * A canceled or superseded capture cannot create an attachment. Failed rasterization
- * leaves the rectangle available to retry. Image upload and draft ownership remain the
- * composition input's, including its protection against a draft changing mid-upload.
+ * leaves the rectangle available to retry; a part that could not be drawn attaches the
+ * image anyway, with a notice naming what may be missing. Image upload and draft
+ * ownership remain the composition input's, including its protection against a draft
+ * changing mid-upload.
  */
 import { el } from "../widget-elements.js";
 import { paintKeys } from "../keyboard/scopes.js";
@@ -143,7 +145,7 @@ export function createRegionSelector({
     keepsText(status, "Capturing…");
     paintKeys();
     try {
-      const blob = await pageImage(clip, {
+      const { blob, warnings } = await pageImage(clip, {
         exclude: [".lf-region-capture", ".lf-shortcut-bar", ".lf-banner"],
       });
       if (ended || ticket !== attempt) return;
@@ -154,6 +156,8 @@ export function createRegionSelector({
         adding = openComposerWithMedia(anchor, [blob]);
       });
       await adding;
+      // The attachment stands; the notice says what it may be missing.
+      if (warnings.length) notice(`Captured — ${warnings.join(" ")}`);
     } catch (error) {
       if (ended || ticket !== attempt) return;
       busy = false;

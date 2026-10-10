@@ -244,8 +244,10 @@ application. Recheck the affected Leaf journey when resolving this entry.
 
 - **Disposition: DOM reconstruction with accepted visual differences.** Capture
   area uses SnapDOM 3.3.0 to render the current DOM into an image. Text and native
-  form controls can differ slightly from the screen. Leaf rejects the library's
-  reported missing-image fallback; it cannot detect every omitted resource.
+  form controls can differ slightly from the screen. Leaf attaches a capture with
+  the library's reported missing-image fallback and a notice that an image near the
+  area may be missing, since SnapDOM reads resources a margin beyond the crop and does
+  not say where the image was; it cannot detect every omitted resource.
 - **Owner:** [`region-selector.js`](../skills/leaf/assets/runtime/composing/region-selector.js)
   selects and anchors the crop; [`page-image.js`](../skills/leaf/assets/runtime/composing/page-image.js)
   draws it, and the vendored SnapDOM module owns rendering.
@@ -269,7 +271,7 @@ application. Recheck the affected Leaf journey when resolving this entry.
   journey below checks this boundary and immediate first-tap confirmation.
 - **Observed resource gap:** an image loaded from another HTTP origin without
   CORS permission remained visible on the page but produced `image-fallback`
-  during capture. Leaf refuses that result. A CSS background from the same
+  during capture. Leaf attaches it with a notice. A CSS background from the same
   external origin was omitted without a capture warning.
 - **Live samples, 2026-10-10:** SnapDOM cannot read a sample's opaque-origin frame
   and drew each one as a placeholder box. Each sample SnapDOM reaches now draws the

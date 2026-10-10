@@ -4293,7 +4293,7 @@ def test_revision_reveals_an_active_region_without_any_reading_landmark(browser,
 
 
 def test_ask_repaints_keep_the_queues_reading_until_an_explicit_arrival(browser, serve):
-    """The Questions row's standing mark may repaint without returning to its focused Ask."""
+    """Question repaint keeps the list's reading; explicit arrival reveals its row."""
     questions = "".join(
         f'<lf-ask id="ask-{index}"><h2>Question {index} about this project</h2>'
         f'<lf-options id="options-{index}" choose>'
@@ -4308,7 +4308,7 @@ def test_ask_repaints_keep_the_queues_reading_until_an_explicit_arrival(browser,
     resized(page, 1200, 900)
     page.keyboard.press("g")
     page.keyboard.press("Shift+q")
-    page.locator('.lf-queue-row[data-lf-at="ask-0"]').click()
+    page.locator('.lf-queue-row[data-lf-at="widget:options-0"]').click()
     expect(page.locator("#ask-0")).to_be_focused()
     list_selector = ".lf-queue-panel .lf-drawer-list"
     drawer = page.locator(list_selector)
@@ -4334,11 +4334,11 @@ def test_ask_repaints_keep_the_queues_reading_until_an_explicit_arrival(browser,
     expect(page.locator("#ask-1")).to_be_focused()
     scroll_settled(page, list_selector)
     assert drawer.evaluate("list => list.scrollTop") < reading
-    row = page.locator('.lf-queue-row[data-lf-at="ask-1"]')
+    row = page.locator('.lf-queue-row[data-lf-at="widget:options-1"]')
     assert row.locator(".lf-queue-title").evaluate(
         "words => words.getBoundingClientRect().top >= "
         "words.closest('.lf-drawer-list').getBoundingClientRect().top"
-    ), "explicit Ask navigation still reveals its matching Questions row"
+    ), "explicit Question navigation still reveals its matching row"
 
 
 @pytest.mark.parametrize("newer_reading", [False, True])

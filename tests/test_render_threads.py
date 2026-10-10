@@ -8942,16 +8942,11 @@ def test_the_line_offers_the_thread_g_t_lands_on_its_own_keys(browser, serve):
 def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
     browser, serve
 ):
-    """The Ask reading and the Questions panel read the log; the panel's narrowing is a view.
+    """Thread narrowing changes presentation, not the admitted Question inventory.
 
-    A question an agent asks in a reply is a widget instantiated once, in the panel's
-    card, and every other reading of it finds that widget by id in the document. So
-    when "Waiting on you" took the answered thread's card out of the list, it took the
-    question out of the page: Asks 2/2 became 1/1, the Asks list held one, and a
-    minute later — the narrowing let go — both came back, with nothing in the log
-    having moved. A blind drive spent a locator timeout on the flip.
-
-    The card the narrowing hides is hidden, not gone, so the count and the Questions panel hold."""
+    After both Questions are answered, hiding a thread with the On you filter keeps
+    both canonical records in Done and preserves the page-wide completion count.
+    """
     page = open_page(
         browser, serve(next(p for p in EXAMPLES if p.stem == "ship-review"))
     )
@@ -8975,7 +8970,13 @@ def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
     ).to_have_count(1)
     expect_asks_answered(page, "2/2")
     banner_control(page, ".lf-queue").click()
-    expect(page.locator(".lf-queue-row[data-lf-kind='ask']")).to_have_count(2)
+    page.locator(".lf-queue-done > summary").click()
+    done = page.locator(".lf-queue-done .lf-queue-row[data-lf-kind='question']")
+    expect(done).to_have_count(2)
+    assert set(done.evaluate_all("rows => rows.map(row => row.dataset.lfAt)")) == {
+        "widget:off-workaround-review",
+        "widget:off-slip",
+    }
 
 
 def test_a_narrowing_that_hides_the_card_the_user_stands_in_lands_them_on_the_list(

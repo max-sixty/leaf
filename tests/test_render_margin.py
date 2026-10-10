@@ -8405,7 +8405,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     page.emulate_media(reduced_motion="reduce")
     resized_shell(page, 1920, 900)
     marker = page.get_by_role(
-        "group", name=re.compile(r"Page actions for task · iOS reconnect stall")
+        "group", name=re.compile(r"Page actions for section · iOS reconnect stall")
     ).locator(":scope > .lf-margin-marker")
     expect(marker).to_have_count(1)
     marker.evaluate(
@@ -8467,9 +8467,14 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(send).to_be_focused()
 
     resized_shell(page, 1920, 480)
-    page.evaluate(
-        "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
-    )
+    # The card follows its quoted passage off screen. Keep that attachment visible
+    # while checking how the smaller window bounds the transcript and reply.
+    window_middle = page.viewport_size["height"] / 2
+    page.mouse.move(20, window_middle)
+    page.mouse.wheel(0, marker.bounding_box()["y"] - window_middle)
+    scroll_settled(page)
+    expect(marker).to_be_in_viewport()
+    expect(send).to_be_focused()
     expect(preview).to_be_visible()
     capped = preview.evaluate(
         """card => {

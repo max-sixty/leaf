@@ -12,7 +12,12 @@ from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
 from leaf import http as http_model
 from leaf import thread as thread_model
-from leaf.render_checks import PROBE_POLL_MS, SERVED_TIMEOUT_MS, rendered
+from leaf.render_checks import (
+    PROBE_POLL_MS,
+    SERVED_TIMEOUT_MS,
+    rendered,
+    wait_until_ready,
+)
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_cases_navigation import source_revision
@@ -80,6 +85,49 @@ def _agent_update_reply(page_dir, root, number, for_event=None):
         for_event=for_event,
         when_settled="post",
     )["id"]
+
+
+def test_main_reply_replaces_unread_progress_before_the_thread_is_opened(
+    browser, serve
+):
+    """Reading a main reply clears unread without unfolding its completed progress."""
+    url = serve(PANEL_PAGE)
+    panel_comment(serve.page_dir, "An earlier conversation.")
+    root = panel_comment(serve.page_dir, "Check the schedule.")
+    progress = thread_model.post_reply(
+        serve.page_dir, root, "Checking mounts.", None, for_event=root, ephemeral=True
+    )["id"]
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    expect(card).not_to_have_attribute("open", "")
+    expect(card.locator(".lf-thread-unread")).to_have_text("1 unread")
+
+    answer = thread_model.post_reply(
+        serve.page_dir, root, "Both mounts fit.", None, for_event=root
+    )["id"]
+    told(page)
+    expect(card.locator(".lf-thread-unread")).to_have_text("1 unread")
+    # A fresh transcript starts with completed progress folded, as on a later visit.
+    page.reload()
+    wait_until_ready(page)
+    card.locator(":scope > .lf-thread-summary").click()
+    expect(card.locator(f'.lf-msg[data-mid="{answer}"]')).to_be_visible()
+    expect(card.locator(f'.lf-msg[data-mid="{progress}"]')).to_be_hidden()
+    expect(page.locator(".lf-first-unread")).to_be_hidden()
+    round_trip(page)
+    assert _read_events(serve.page_dir)[-1]["messages"] == [
+        {"message": answer, "version": answer}
+    ]
+
+    expand = card.get_by_role("button", name="Show 1 progress message", exact=True)
+    expand.press("Enter")
+    expect(card.get_by_text("Checking mounts.", exact=True)).to_be_visible()
+    expect(page.locator(".lf-first-unread")).to_be_hidden()
+    page.reload()
+    wait_until_ready(page)
+    expect(page.locator(".lf-first-unread")).to_be_hidden()
 
 
 def test_unread_summary_keeps_hidden_original_unread(browser, serve):

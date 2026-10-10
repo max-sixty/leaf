@@ -6,6 +6,7 @@ from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
 from leaf.files import version_num
+from leaf.registry.contract import element_declarations
 from leaf.render_checks import (
     HANDOVER_DEADLINE_MS,
     SERVED_TIMEOUT_MS,
@@ -98,6 +99,24 @@ def console_problem(message) -> str | None:
     if message.type == "warning":
         return f"warning: {message.text}"
     return None
+
+
+def _exception_text(error) -> str:
+    """Retain the browser's throw site as well as the exception's message.
+
+    Native page errors cover every document in a tab. Their stacks identify the
+    failing call even when separate frames throw the same message; engines that
+    supply frames alone still need the message beside them.
+    """
+    message, stack = str(error), error.stack
+    if not stack:
+        return message
+    return stack if message in stack else f"{message}\n{stack}"
+
+
+def collect_page_exceptions(page, errors: list[str]) -> None:
+    """Collect native exceptions from every document without discarding stacks."""
+    page.on("pageerror", lambda error: errors.append(_exception_text(error)))
 
 
 INTERCEPTION_ARM = "**/__leaf_arms_interception__"
@@ -245,18 +264,13 @@ def _render_scheme(
     def probe_failure(error):
         page.close()
         return (
-            [
-                (
-                    f"[{scheme}] the browser probe module failed: "
-                    f"{str(error).strip().splitlines()[0]}"
-                )
-            ],
+            [f"[{scheme}] the browser probe module failed: {str(error).strip()}"],
             [],
             False,
         )
 
     page.on("console", console_message)
-    page.on("pageerror", lambda e: errors.append(str(e)))
+    collect_page_exceptions(page, errors)
     # The runtime writes each report to the console too, which is where this reading
     # takes it.
     answer_reports(page, lambda text: None)
@@ -273,7 +287,7 @@ def _render_scheme(
         return (
             [
                 f"[{scheme}] the runtime never injected its banner — "
-                + ("; ".join(explanations) or "and no console message explains why")
+                + ("\n".join(explanations) or "and no console message explains why")
             ],
             [],
             False,
@@ -289,7 +303,7 @@ def _render_scheme(
         return (
             [
                 f"[{scheme}] pre-upgrade proof failed: {error}"
-                + (" — " + "; ".join(explanations) if explanations else "")
+                + (" — " + "\n".join(explanations) if explanations else "")
             ],
             [],
             False,
@@ -313,7 +327,7 @@ def _render_scheme(
         return (
             [
                 f"[{scheme}] the widget layer never finished upgrading — "
-                + ("; ".join(explanations) or "and no console message explains why")
+                + ("\n".join(explanations) or "and no console message explains why")
             ],
             [],
             False,
@@ -332,7 +346,7 @@ def _render_scheme(
         # only those:
         # $keys spells its members in the x- keys' own names, and a sweep over
         # every declaration took it for a widget called $keys.
-        declarations = {tag: e for tag, e in registry.items() if tag.startswith("lf-")}
+        declarations = element_declarations(registry)
         visual_provider_problems = evaluate_probe(
             page, "invalidVisualProviders", declarations
         )

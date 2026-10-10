@@ -110,6 +110,15 @@ export function threadNames(threads) {
   return byName;
 }
 
+// A message whose words the user may rewrite: one of their own that the log holds, with
+// words to revise. A reaction or a bare drawing has none (`event_contracts._edit_error`).
+/** @param {Message} message */
+export const editable = (message) =>
+  message.author === "user" &&
+  !message.pending &&
+  !message.token &&
+  Boolean(message.text);
+
 /** @param {Pick<Thread, "bare_reaction">} thread */
 export const bareReaction = (thread) => thread.bare_reaction;
 /** @param {Pick<Thread, "bare_reaction">} thread */
@@ -124,35 +133,39 @@ const pendingSeat = (message) =>
     ? null
     : (message.anchor.section ?? null);
 
-// The user's own pending gestures, folded into the server's threads. A reply joins the
-// thread it answers; a comment opens one where it was written; settlement changes its
-// state; taking back a reaction, the one message the user can withdraw, drops it from
-// its thread, and a thread it opened goes with it, as the log's reading will. They leave
-// again when the server accepts or refuses them, so this is a reading of the same
-// outbox and log the server projects rather than a second store beside it.
+// The user's own pending gestures, folded into the server's threads in the order this
+// tab made them, as `events.build_threads` folds the log. A comment opens a thread where
+// it was written; a reply joins the thread it answers; a rewrite shows as its message's
+// new words; settlement changes the thread's state; taking back a reaction, the one
+// message the user can withdraw, drops it from its thread, and a thread it opened goes
+// with it. They leave again when the server accepts or refuses them, so this is a
+// reading of the same outbox and log the server projects rather than a second store
+// beside it.
 //
 // The derived facts a pending thread carries are the ones the user just made true: a
 // thread the user opened with words is a thread rather than a mark, and its attention
-// waits on the newest send, whose local workflow shares the pending message's id, so
-// the agent owes the next word and the user none. Every other thread keeps the
-// attention the server derived.
-/** @param {Message} message @returns {import("../../../../../build/browser/domain.ts").Attention} */
-const sending = (message) => ({
+// waits on the newest turn sent, words or a rewrite of them, whose local workflow
+// shares its pending id, so the agent owes the next word and the user none. Every other
+// thread keeps the attention the server derived.
+/** @param {{id: string}} turn @returns {import("../../../../../build/browser/domain.ts").Attention} */
+const sending = (turn) => ({
   kind: "waiting",
   reason: "workflow",
-  workflow: message.id,
+  workflow: turn.id,
 });
 
+// `gestures` are the ledger's thread gestures, oldest first: each comment, reply or
+// rewrite as the thread draws it, each settlement with the `localParent` its pending
+// parent went by, and each undo.
 /** @param {Thread[]} threads
- * @param {Message[]} messages
- * @param {Message[]} reactions
- * @param {Settlement[]} settlements
- * @param {Set<string>} withdrawn
+ * @param {readonly import("../../../../../build/browser/domain.ts").ThreadGesture[]} gestures
  * @returns {Thread[]}
  */
-export function foldThreads(threads, messages, reactions, settlements, withdrawn) {
-  if (!messages.length && !reactions.length && !settlements.length && !withdrawn.size)
-    return threads;
+export function foldThreads(threads, gestures) {
+  if (!gestures.length) return threads;
+  const withdrawn = new Set(
+    gestures.flatMap((gesture) => (gesture.kind === "undo" ? [gesture.undoes] : [])),
+  );
   // A thread the user opened answers to two names for as long as this tab holds a
   // reply written against the first: the one this page gave it, and the one the log
   // gave back. Both reach the one thread, so a reply written into the card a
@@ -166,66 +179,79 @@ export function foldThreads(threads, messages, reactions, settlements, withdrawn
   const byName = threadNames(copies);
   /** @type {Thread[]} */
   const opened = [];
-  // Open both kinds before attaching either kind of reply. The delivery queue lets a
-  // user answer a locally named root before the server has named it; that root may be
-  // words or a reaction, independently of whether the answer itself carries a token.
-  for (const root of [...messages, ...reactions]) {
-    if (root.kind === "reply") continue;
-    const reaction = isReaction(root);
-    /** @type {Thread} */
-    const thread = {
-      id: root.id,
-      root,
-      title: null,
-      anchor: root.anchor ?? null,
-      detached_from: null,
-      rewritten_from: null,
-      msgs: [root],
-      resolved: null,
-      user_prompt: null,
-      bare_reaction: reaction,
-      seat: pendingSeat(root),
-      summaries: [],
-      unread: [],
-      attention: null,
-    };
-    opened.push(thread);
-    byName.set(root.id, thread);
-  }
-  for (const reply of [...messages, ...reactions]) {
-    if (reply.kind !== "reply") continue;
-    const thread = byName.get(reply.parent);
-    if (!thread) continue;
-    // A reply still streaming stands last, where the log will take its answer, so the
-    // user's message joins the thread above it and its acceptance moves nothing.
-    const streaming = thread.msgs.at(-1)?.provisional ? 1 : 0;
-    thread.msgs.splice(thread.msgs.length - streaming, 0, reply);
-    if (!isReaction(reply)) {
+  for (const gesture of gestures) {
+    if (gesture.kind === "comment") {
+      const reaction = isReaction(gesture);
+      /** @type {Thread} */
+      const thread = {
+        id: gesture.id,
+        root: gesture,
+        title: null,
+        anchor: gesture.anchor ?? null,
+        detached_from: null,
+        rewritten_from: null,
+        msgs: [gesture],
+        revisions: [],
+        resolved: null,
+        user_prompt: null,
+        bare_reaction: reaction,
+        seat: pendingSeat(gesture),
+        summaries: [],
+        unread: [],
+        attention: reaction ? null : sending(gesture),
+      };
+      opened.push(thread);
+      byName.set(gesture.id, thread);
+    } else if (gesture.kind === "reply") {
+      const thread = byName.get(gesture.parent);
+      if (!thread) continue;
+      // A reply still streaming stands last, where the log will take its answer, so the
+      // user's message joins the thread above it and its acceptance moves nothing.
+      const streaming = thread.msgs.at(-1)?.provisional ? 1 : 0;
+      thread.msgs.splice(thread.msgs.length - streaming, 0, gesture);
+      if (isReaction(gesture)) continue;
       thread.resolved = null;
-      thread.attention = sending(reply);
+      thread.attention = sending(gesture);
+    } else if (gesture.kind === "edit") {
+      // An edit shows as its message's new words, and hands the thread to the agent as
+      // a reply would, under the edit's own pending id (`events.exchange`).
+      const thread = byName.get(gesture.message);
+      const at = thread?.msgs.findIndex(({ id }) => id === gesture.message) ?? -1;
+      const message = thread?.msgs[at];
+      if (!thread || !message) continue;
+      thread.msgs = thread.msgs.with(at, {
+        ...message,
+        text: gesture.text,
+        edited: {
+          id: gesture.id,
+          ts: gesture.ts,
+          was: message.text ?? "",
+          pending: true,
+        },
+      });
+      if (thread.root.id === gesture.message) thread.root = thread.msgs[at] ?? message;
+      thread.resolved = null;
+      // A question asked since still waits on the user: new words for an older message
+      // answer none (`events.exchange`), so the user stays first, as the log will say.
+      if (thread.attention?.reason !== "question") thread.attention = sending(gesture);
+    } else if (gesture.kind === "resolve" || gesture.kind === "unresolve") {
+      const thread =
+        byName.get(gesture.parent) ??
+        (gesture.localParent ? byName.get(gesture.localParent) : undefined);
+      if (!thread) continue;
+      thread.resolved =
+        gesture.kind === "resolve" ? { author: "user", pending: true } : null;
+      // Which way the thread is being settled, as well as where it lands. `resolved`
+      // alone cannot say: a reopen leaves it null, exactly as an open thread the user
+      // has not touched does. Views read this to draw the gesture as unfinished, so it
+      // has to be a fact of the published fold — the ledger empties after the answer
+      // lands without changing anything else, and a view reading the ledger would keep
+      // the state it drew before that.
+      thread.settling = gesture.kind;
     }
   }
-  for (const thread of opened) {
-    const said = spoken(thread);
-    thread.bare_reaction = isReaction(thread.root) && !said.length;
-    const latest = said.at(-1);
-    thread.attention = latest ? sending(latest) : null;
-  }
-  for (const settlement of settlements) {
-    const thread =
-      byName.get(settlement.parent) ??
-      (settlement.localParent ? byName.get(settlement.localParent) : undefined);
-    if (!thread) continue;
-    thread.resolved =
-      settlement.kind === "resolve" ? { author: "user", pending: true } : null;
-    // Which way the thread is being settled, as well as where it lands. `resolved` alone
-    // cannot say: a reopen leaves it null, exactly as an open thread the user has not
-    // touched does. Views read this to draw the gesture as unfinished, so it has to be a
-    // fact of the published fold — the ledger empties after the answer lands without
-    // changing anything else, and a view reading the ledger would keep the state it drew
-    // before that.
-    thread.settling = settlement.kind;
-  }
+  for (const thread of opened)
+    thread.bare_reaction = isReaction(thread.root) && !spoken(thread).length;
   return [...copies, ...opened];
 }
 
@@ -254,14 +280,14 @@ export const seatRoot = (thread) => thread.seat;
 // asks what is newest in a thread — Recent, the first unread, news — reads this,
 // so an agent message edited today is today's in all of them. A message still being
 // sent carries the clock the user's gesture gave it and no log position yet.
-/** @param {{edited?: {seq: number, ts: string}, seq?: number, ts?: string}} message */
+/** @param {{edited?: {seq?: number, ts: string}, seq?: number, ts?: string}} message */
 export const moved = (message) => ({
   seq: message.edited?.seq ?? message.seq ?? null,
   ts: message.edited?.ts ?? message.ts ?? null,
 });
 
 // When a thread last moved: the latest move of any of its turns.
-/** @param {{msgs: {id: string, token?: string, edited?: {seq: number, ts: string}, seq?: number, ts?: string}[], root: {id: string}}} thread */
+/** @param {{msgs: {id: string, token?: string, edited?: {seq?: number, ts: string}, seq?: number, ts?: string}[], root: {id: string}}} thread */
 function lastMovedAt(thread) {
   let latest = null;
   for (const message of turns(thread)) {
@@ -352,11 +378,12 @@ export function readThreadRecords(
         unread: unreadMessages.has(message.id),
         key: messageKey(message),
         body,
-        // The message's own input and the moves on widgets frozen into it, in the
-        // published order `strongestWorkflow` reads.
+        // The message's own inputs, its first words and each rewrite of them, and the
+        // moves on widgets frozen into it, in the published order `strongestWorkflow`
+        // reads.
         workflows: workflows.filter(
           (workflow) =>
-            workflow.input === message.id ||
+            workflow.message === message.id ||
             (workflow.subject.kind === "widget" && unitIds.has(workflow.subject.id)),
         ),
       };

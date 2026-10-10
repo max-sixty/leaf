@@ -34,6 +34,7 @@ import { scrollerFor, scrollersOf } from "../reading-regions.js";
 import { renderedParent, under } from "../shadow.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { retainUserIntent } from "../user-intent.js";
+import { focusedInView } from "../user-place.js";
 import { scrollIntoReadingBand, scrollIntoView } from "../landing-scroll.js";
 import { atScrollEnd, moveScrollerBy, scrollToEnd } from "../scrolling.js";
 import { SAYS_IN, SAY_ROW } from "./selectors.js";
@@ -210,10 +211,31 @@ const revealWritingArea = (held, input, reply) => {
   const target = reply && shownBox(reply).height <= landingRoom(held) ? reply : input;
   scrollIntoReadingBand(target, target, "nearest", "instant");
 };
+// A rewrite opening in its message shows the message whole, its head with Cancel and
+// Save above the words, where the band holds it, and otherwise the line its caret stands
+// on, where the next key types. A reply row pinned at the scroller's foot covers what
+// stands behind it, so the box's foot clears it too.
+export function revealEditor(message, caretLine) {
+  const held = message.closest(SAYS_IN);
+  if (!held) return;
+  bringBackSurfaceOf(held, "instant");
+  const target = shownBox(message).height <= landingRoom(held) ? message : caretLine;
+  scrollIntoReadingBand(target, target, "nearest", "instant");
+  const reply = replyRowOf(held, held);
+  if (!replyPinned(reply)) return;
+  const margin = parseFloat(getComputedStyle(message).scrollMarginBlockEnd) || 0;
+  const over =
+    target.getBoundingClientRect().bottom + margin - reply.getBoundingClientRect().top;
+  if (over > 0) moveScrollerBy(scrollerFor(reply), over);
+}
 export function followBoxGrowth(input) {
   const held = input.closest(SAYS_IN);
   if (!held) return;
   const reply = replyRowOf(held, input);
+  // A box standing in the transcript rather than its reply row, as a rewrite stands in
+  // its message, keeps its caret in view itself: aimed at the whole box, a landing here
+  // pulled a long one's top into view on every key.
+  if (!reply) return;
   // A separate transcript gives up height rather than being covered by the editor.
   // A reader at its tail keeps the turn beside the growing box; someone reading back
   // keeps their own offset. The editor's before-edit reading precedes its layout.
@@ -244,9 +266,11 @@ export function followBoxGrowth(input) {
 export function readBoxPlace(input) {
   const held = input.closest(SAYS_IN);
   const reply = held && replyRowOf(held, input);
+  // A box in the transcript has no row to hold nor a tail to keep beside it.
+  if (!reply) return;
   // The edit may be the one that takes a natural row to its sticky floor.
-  if (reply) rowHeights.set(input, reply.getBoundingClientRect().height);
-  const transcript = held && separateTranscript(held);
+  rowHeights.set(input, reply.getBoundingClientRect().height);
+  const transcript = separateTranscript(held);
   if (transcript)
     transcriptPlaces.set(input, {
       transcript,
@@ -259,15 +283,13 @@ export function readBoxPlace(input) {
 // turn above the box they are writing in, moves it by what it inserted; an agent's turn
 // arriving there waits behind its thread's notice instead (held-news.js). `holdBox`
 // reads where the focused control stands and returns the step that puts it back, so
-// news moves no control under the user's hands. Only one on screen is under their hands: a user who
-// has scrolled away from it is reading something else, which the news must not move. A
-// pinned row stands still by itself, and a control the render replaced has nothing to
-// hold. The box scrolling the control takes the move first and the boxes around it
-// whatever it cannot: a bounded block not yet full grows in the page instead.
+// news moves no control under the user's hands. Only one in view is under their hands
+// (user-place.js, `focusedInView`). A control the render replaced has nothing to hold. The box scrolling the control takes the move
+// first and the boxes around it whatever it cannot: a bounded block not yet full grows
+// in the page instead.
 export function holdBox(control) {
   const held = control?.closest?.(SAYS_IN);
-  if (!held || replyPinned(replyRowOf(held, control)) || !onScreen(control))
-    return () => {};
+  if (!held || control !== focusedInView()) return () => {};
   const top = control.getBoundingClientRect().top;
   return () => {
     if (focused() !== control || !control.isConnected) return;

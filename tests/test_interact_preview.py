@@ -356,7 +356,7 @@ def test_product_previews_prepare_the_authored_layer_and_media(
         for reference in SourceDocument(source.read_text()).media_refs
     )
     registry = json.loads((page / "registry.json").read_text())
-    assert "nav.sitenav" in registry["$idioms"]
+    assert "nav.sitenav" in registry
     assert (ROOT / "docs" / "package" / "theme.css").read_text().rstrip() in (
         page / "theme.css"
     ).read_text()
@@ -1338,7 +1338,12 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
                 None,
             )
 
-        url = wait_for(announced, bool, failure=log.read_text)
+        url = wait_for(
+            announced,
+            bool,
+            failure=log.read_text,
+            timeout=hosting.PORT_WAIT_SECONDS + STATED_TIMEOUT,
+        )
         status, body = fetch(url, token=None)
         assert status == 200, body
         return task, url, log

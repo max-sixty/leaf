@@ -586,7 +586,14 @@ def test_the_answer_that_settles_a_thread_acknowledges_what_it_said():
     without being made in it shows the user nothing there: neither the undo that
     takes the answer back nor a later decision that supersedes it reads the
     agent's words, so what those words say stays unread."""
-    reply = {"kind": "reply", "author": "agent", "parent": "e1", "text": "Try sug-a."}
+    reply = {
+        "kind": "reply",
+        "author": "agent",
+        "agent": "Agent",
+        "session": "session-1",
+        "parent": "e1",
+        "text": "Try sug-a.",
+    }
     edit = {
         "kind": "edit",
         "author": "agent",
@@ -2785,15 +2792,14 @@ def test_an_agent_verb_declaration_is_checked_whole(page_dir, mutate, message):
 
 
 @pytest.mark.parametrize("tag", ["lf-options[", "LF-options", "lf_options"])
-def test_check_refuses_a_widget_name_that_cannot_form_a_selector(page_dir, tag):
+def test_check_refuses_element_schemas_under_selector_names(page_dir, tag):
     registry = json.loads((page_dir / "registry.json").read_text())
     registry[tag] = registry.pop("lf-options")
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
     assert result.exit_code != 0
-    assert f'invalid element declaration names ["{tag}"]' in result.output
-    assert "an element name is `lf-` followed by" in result.output
+    assert f"idiom {tag!r}" in result.output
 
 
 def test_check_refuses_an_invalid_action_detail_schema(page_dir):
@@ -3954,6 +3960,13 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
             **owes("reply"),
         },
         "reaction on a message": {"kind": "reply", "token": "+1"},
+        "rewritten message": {"kind": "edit", **titled, **owes("reply")},
+        "rewritten suggestion": {
+            "kind": "edit",
+            "suggestion": True,
+            **titled,
+            **owes("reply"),
+        },
         "pick on the page": {"kind": "action", "meaning": on_page, **owes("markup")},
         "option the user added": {
             "kind": "action",

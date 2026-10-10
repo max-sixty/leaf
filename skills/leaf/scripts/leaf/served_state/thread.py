@@ -5,6 +5,7 @@ from ..events import (
     awaits_agent,
     bare_reaction,
     seat_root,
+    turn_message,
     unanswered_agent_turn,
 )
 from ..projection import FrozenThreadReading
@@ -81,7 +82,7 @@ def browser_thread(
         questions = work.thread_questions[thread_id]
         protected = set()
         if awaits_agent(thread):
-            protected.add(unanswered_agent_turn(thread)["id"])
+            protected.add(turn_message(unanswered_agent_turn(thread)))
         if questions.prompt is not None:
             protected.add(questions.prompt["message"])
         question_sources = {

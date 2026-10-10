@@ -107,44 +107,19 @@ import { keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { focusThread, threadFocusStop } from "./focus.js";
 import { isReaction, messageKey, threadKey, threadNames } from "./model.js";
-import { allThreads } from "./state.js";
+import { allThreads, threadState } from "./state.js";
 import { THREAD } from "./selectors.js";
 import { closestAcross } from "../passages.js";
 import { readApplication } from "../semantic-state.js";
 import { onStanding, focused, standingNodes } from "../focus.js";
 import { readingIsContinuous } from "../reading-continuity.js";
 
-// Whether this page's ledger holds a gesture of the user's on `thread`: one of its
-// messages, a reply or a settlement naming one, a move on a widget one of them holds, an
-// undo of any of those, which stands where the gesture it takes back stood, or the
-// refusal that takes one back, which stays in the ledger until the reading it restores
-// is drawn. Their words from another tab, or a turn a seat first draws after the log
-// answered it, as a package mirror whose render waited on work of its own does, arrive
-// like the agent's.
-export function gesturedOn(thread) {
-  const { unresolved, document, authoritative } = readApplication();
-  const messages = new Set(thread.msgs.map(({ id }) => id));
-  const attempts = new Set(thread.msgs.map(({ attempt }) => attempt).filter(Boolean));
-  const undone = (id) =>
-    unresolved.find(({ localId }) => localId === id)?.event ??
-    authoritative?.events.find((event) => event.id === id);
-  const standsIn = (event) => {
-    if (event.kind === "undo") {
-      const target = undone(event.undoes);
-      return Boolean(target) && standsIn(target);
-    }
-    return (
-      attempts.has(event.attempt) ||
-      messages.has(event.id) ||
-      messages.has(event.parent) ||
-      Boolean(
-        event.widget &&
-        messages.has(document.descriptors.get(event.widget)?.document.message),
-      )
-    );
-  };
-  return unresolved.some(({ event }) => standsIn(event));
-}
+// Whether this page's ledger holds a gesture of the user's on `thread`, of any kind, the
+// refusal that takes one back included until the reading it restores is drawn: the
+// application publisher says which thread each stands in (`thread.gestured`). Their
+// words from another tab, or a turn a seat first draws after the log answered it, as a
+// package mirror whose render waited on work of its own does, arrive like the agent's.
+export const gesturedOn = (thread) => threadState().gestured.includes(thread.id);
 
 // Whether the user acts in the thread a seat draws under `key` (`gesturedOn`).
 const gestured = (key) => {
@@ -170,6 +145,9 @@ const fold = (summary, drawn) =>
     Boolean(summary.protected?.length),
   ]);
 
+// The edit a message's words were last rewritten by, or null for words as first said.
+const rewritten = (message) => (message.base === message.id ? null : message.base);
+
 // What of `now` the seat would draw differently from `was`, the thread as it drew it:
 // each message that joins it, each one whose words changed, each reaction put on a reply
 // or taken off it, each summary that comes or goes, and the thread's settlement. A turn
@@ -179,7 +157,8 @@ const fold = (summary, drawn) =>
 // words joining it grow the thread at its end as an appended turn does, and its answer
 // completing it is that reply's arrival even where the words stay as they were, which
 // counts it only when it folds earlier progress, since the words already stood drawn.
-// Words changing in any other message are an edit.
+// Words a new revision of any other message changed are an edit; words that
+// changed under the same revision are still that message arriving.
 // `changed` the keys of the messages the news changes in place, every one where the
 // settlement changes, which moves the thread's controls into or out of its head row and
 // draws or folds its reaction strips; `folds` the keys of the messages a summary that
@@ -222,7 +201,8 @@ function difference(was, now) {
       news.appended = true;
       arrived.add(message.id);
     } else if (reworded) {
-      news.edits += 1;
+      if (rewritten(prior) === rewritten(message)) news.replies += 1;
+      else news.edits += 1;
       changed.add(message.key);
     } else if (settled) changed.add(message.key);
     else if (message.reactions && prior.reactions) {

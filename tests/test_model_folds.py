@@ -32,13 +32,13 @@ HELD_REQUEST = (
 
 
 def test_summaries_replace_overlaps_and_edits_do_not_resurrect_them():
+    identity = {"author": "agent", "agent": "Agent", "session": "session-1"}
     messages = (
         {"kind": "comment", "text": "one"},
         {"kind": "reply", "parent": "e1", "text": "two"},
-        {"kind": "reply", "parent": "e2", "text": "three"},
+        {"kind": "reply", **identity, "parent": "e2", "text": "three"},
         {"kind": "reply", "parent": "e3", "text": "four"},
     )
-    identity = {"author": "agent", "agent": "Agent", "session": "session-1"}
     state = model.reading(
         HUB,
         (
@@ -109,9 +109,9 @@ def test_folds_without_summary_prose_keep_corrected_originals():
         HUB,
         (
             {"kind": "comment", "text": "one"},
-            {"kind": "reply", "parent": "e1", "text": "two"},
+            {"kind": "reply", **identity, "parent": "e1", "text": "two"},
             {"kind": "reply", "parent": "e1", "text": "three"},
-            {"kind": "reply", "parent": "e1", "text": "four"},
+            {"kind": "reply", **identity, "parent": "e1", "text": "four"},
             {
                 "kind": "summary",
                 **identity,
@@ -172,6 +172,7 @@ def test_ephemeral_updates_wait_for_an_answer_and_preserve_user_interjections():
     )
     pending = model.threads(model.reading(HUB, messages))["e1"]
     assert pending["summaries"] == []
+    assert pending["unread"] == [{"message": "e4", "version": "e4"}]
 
     answer = {"kind": "reply", **identity, "parent": "e1", "text": "Both fit."}
     later_progress = {
@@ -198,6 +199,10 @@ def test_ephemeral_updates_wait_for_an_answer_and_preserve_user_interjections():
         "Checking the camera.",
         "Both fit.",
         "Checking the next week.",
+    ]
+    assert completed["unread"] == [
+        {"message": "e5", "version": "e5"},
+        {"message": "e6", "version": "e6"},
     ]
 
 
@@ -237,6 +242,7 @@ def test_explicit_summaries_own_progress_overlap_and_progress_edits_keep_the_fol
     )["e1"]
     assert [fold["covers"] for fold in corrected["summaries"]] == [["e2", "e3"]]
     assert corrected["msgs"][1]["text"] == "Mounts checked."
+    assert corrected["unread"] == [{"message": "e4", "version": "e4"}]
 
     explicit = model.threads(
         model.reading(
@@ -257,6 +263,53 @@ def test_explicit_summaries_own_progress_overlap_and_progress_edits_keep_the_fol
     assert [(fold["covers"], fold["text"]) for fold in explicit["summaries"]] == [
         (["e1", "e2"], "The mounts were checked."),
         (["e3"], ""),
+    ]
+    assert explicit["unread"] == [{"message": "e4", "version": "e4"}]
+
+
+def test_only_a_main_reply_in_the_same_thread_supersedes_progress():
+    agent = {"author": "agent", "agent": "Codex", "session": "session-1"}
+    reply = {"kind": "reply", **agent, "parent": "e1"}
+    messages = (
+        {"kind": "comment", "text": "Check the schedule."},
+        {**reply, "text": "Checking mounts.", "ephemeral": True},
+        {**reply, "token": "keep"},
+        {
+            **reply,
+            "text": "Connection failed.",
+            "failure": "unavailable",
+            "responds": "e1",
+        },
+        {**reply, "text": "Retrying.", "ephemeral": True},
+        {"kind": "comment", "text": "A separate question."},
+        {**reply, "parent": "e6", "text": "A separate answer."},
+    )
+    pending = model.threads(model.reading(HUB, messages))["e1"]
+    assert pending["summaries"] == []
+    assert pending["unread"] == [
+        {"message": identity, "version": identity} for identity in ("e2", "e4", "e5")
+    ]
+
+    completed = (*messages, {**reply, "text": "Both mounts fit."})
+    thread = model.threads(model.reading(HUB, completed))["e1"]
+    assert thread["unread"] == [
+        {"message": identity, "version": identity} for identity in ("e4", "e8")
+    ]
+    assert [fold["trigger"] for fold in thread["summaries"]] == ["e8", "e8"]
+
+    revised = model.threads(
+        model.reading(
+            HUB,
+            (
+                *completed,
+                {"kind": "read", "messages": [{"message": "e8", "version": "e8"}]},
+                {"kind": "edit", **agent, "message": "e8", "text": "Only one fits."},
+            ),
+        )
+    )["e1"]
+    assert revised["unread"] == [
+        {"message": "e4", "version": "e4"},
+        {"message": "e8", "version": "e10"},
     ]
 
 

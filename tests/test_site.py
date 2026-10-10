@@ -1095,7 +1095,7 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
 
 
 def test_the_product_diagram_fits_without_its_own_scroll(hosted, browser):
-    """The architecture is one sequence, so the diagram must fit its content box."""
+    """The architecture diagram fits its content box without scrolling sideways."""
     page = browser.new_page()
     page.set_viewport_size({"width": 1200, "height": 900})
     page.goto(product_url(hosted, "how-it-works.html"), wait_until="load")

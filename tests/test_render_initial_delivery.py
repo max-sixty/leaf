@@ -5,6 +5,7 @@ from pathlib import Path
 from threading import Event
 
 from interact_support import running_http_server
+from leaf.render_gate.scheme import collect_page_exceptions
 from leaf.revision_artifact import Resource
 from leaf.revision_delivery import Delivery, compose_document
 
@@ -129,7 +130,7 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(browser):
         )
         page = context.new_page()
         errors = []
-        page.on("pageerror", lambda error: errors.append(str(error)))
+        collect_page_exceptions(page, errors)
         try:
             page.goto(f"http://127.0.0.1:{server.server_port}/", wait_until="commit")
             page.wait_for_function(

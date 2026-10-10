@@ -74,8 +74,7 @@ export async function tickClock(reportError) {
     }),
   );
   for (const result of settled)
-    if (result.status === "rejected")
-      reportError(`clock paint failed: ${result.reason?.message ?? result.reason}`);
+    if (result.status === "rejected") reportError(result.reason, "clock paint failed");
 }
 
 export const observeServerNow = (now) => {

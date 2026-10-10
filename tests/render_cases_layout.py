@@ -19,6 +19,7 @@ from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf import render_checks as render_checks_model
 from leaf.registry import storage as registry_storage
+from leaf.registry.contract import element_declarations
 from leaf.render_checks import rendered
 from leaf.render_gate import scheme as render_gate_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -143,7 +144,7 @@ def arrival_findings(browser, url):
         target.append(message.text)
 
     page.on("console", console_message)
-    page.on("pageerror", lambda e: errors.append(str(e)))
+    render_gate_model.collect_page_exceptions(page, errors)
     page.on(
         "response",
         lambda r: errors.append(f"{r.status} {r.url}") if r.status >= 400 else None,
@@ -943,9 +944,7 @@ def aim_targets(page_dir):
     clicking its prose. The vocabulary is read from the page's own registry rather than
     listed, so the twelfth widget is swept by existing. Prose has no handler at all, so
     one press into it proves what fifty would."""
-    tags = ", ".join(
-        t for t in registry_storage.load_registry(page_dir) if not t.startswith("$")
-    )
+    tags = ", ".join(element_declarations(registry_storage.load_registry(page_dir)))
     return f":is({PRESS}, {tags}):not(.lf-chrome *)"
 
 

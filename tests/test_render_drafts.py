@@ -1003,7 +1003,7 @@ def test_a_draft_uses_shared_editing_and_saves_exact_markdown_source(
     expect(draft.locator(".lf-draft-body strong")).to_have_text("this")
     expect(draft.locator(".lf-draft-body code")).to_have_text("that")
     expect(draft.locator(".lf-draft-body")).to_have_text(
-        "Keep this and that exactly. A second line."
+        "Keep this and that exactly. A second line.", use_inner_text=True
     )
     edits = [
         event
@@ -5227,7 +5227,7 @@ def test_the_draft_box_is_its_own_door(browser, serve):
     page = open_page(browser, serve(JOURNEY_V1))
     draft = page.locator("#draft-ops")
     body = draft.locator(".lf-draft-body")
-    expect(body).to_have_text(DRAFT_TEXT)
+    expect(body).to_have_text(DRAFT_TEXT, use_inner_text=True)
 
     # A drag across the words takes the words. Read as the selection the user is left
     # holding, which is the thing the door would have destroyed.

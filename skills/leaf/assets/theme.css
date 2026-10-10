@@ -616,6 +616,16 @@ html:not([data-lf-live]) {
   inherits: false;
   initial-value: 0;
 }
+/* A box that holds its own height and scrolls inside it says so, as a bounded block
+ * below does: a widget in ordinary flow grows with its content, so a scroller nobody
+ * declared is the defect the widget quality check `grows-with-content` names
+ * (assets/AGENTS.md, "Space and scrolling"). It does not inherit, so a box inside a
+ * declared one answers for its own scroll. */
+@property --lf-holds-height {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 0;
+}
 @container style(--lf-block-frame: 1) or style(--lf-block-frame: trim) {
   * { --lf-block-frame: 0; }
 }
@@ -942,6 +952,7 @@ main {
     max-block-size: var(--lf-bound, 28rem);
     overflow: auto;
     --lf-top: 0px;
+    --lf-holds-height: 1;
   }
 }
 /* A phone's vertical rhythm is a fact about the device, so this asks the window. */

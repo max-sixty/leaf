@@ -7,6 +7,7 @@ import {
   upFrom,
 } from "/runtime/widget-api.js";
 import { unrevealedVisualParts, visualPartProblems } from "/runtime/check-api.js";
+import { at as locate } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
 const PAINT_PROBE = "--_leaf-render-paint-value";
@@ -376,4 +377,71 @@ export function changedBoxes() {
     first: { width: first.width, height: first.height },
     now,
   }));
+}
+
+// How tall a block `heldScrollers` adds to a box: taller than any widget's own bound,
+// so a box that grew by less kept a height its content did not decide.
+const ADDED_BLOCK = 4000;
+
+// Whether `box` scrolls vertically because its CSS asks it to. Beside an `auto` inline
+// axis CSS computes a `visible` block axis to `auto`, so a box that scrolls only
+// sideways reads as a vertical scroller too; with its inline axis set back to `visible`
+// for one read, only an asked-for vertical scroll remains.
+const scrollsVertically = (box) => {
+  const style = box.getAttribute("style");
+  box.style.setProperty("overflow-x", "visible", "important");
+  const asked = /auto|scroll/.test(getComputedStyle(box).overflowY);
+  if (style === null) box.removeAttribute("style");
+  else box.setAttribute("style", style);
+  return asked;
+};
+
+// Each box in one of `tags`' widgets that holds its own height and scrolls inside it
+// without saying so. A widget in ordinary flow grows with its content, and a box that
+// needs a scroll of its own declares `--lf-holds-height: 1`, as a bounded block does
+// (assets/AGENTS.md, "Space and scrolling"). Whether a box holds its height is asked of
+// the box rather than of the rule that sized it: a tall block is added at its end and
+// taken away in the same task, so a theme's height, a grid track and a percentage of a
+// held parent all answer alike, and an empty widget whose rows the log has not supplied
+// yet answers as a full one would. A box is its nearest widget's, across shadow roots.
+// Form controls draw their own content and are left out. This writes the page, so only
+// a page nothing reads again, such as the report's page of worked examples, is read
+// this way.
+export function heldScrollers(tags) {
+  const main = document.querySelector("main");
+  if (!main) return [];
+  const own = new Set(tags);
+  const found = [];
+  for (const tree of openRoots(main))
+    for (const box of tree.querySelectorAll("*")) {
+      if (!(box instanceof HTMLElement) || box.matches("input, select, textarea"))
+        continue;
+      const style = getComputedStyle(box);
+      if (
+        !/auto|scroll/.test(style.overflowY) ||
+        /^(inline|contents|none)$/.test(style.display) ||
+        style.getPropertyValue("--lf-holds-height").trim() === "1" ||
+        !shown(box)
+      )
+        continue;
+      let owner = box;
+      while (owner && !owner.localName.includes("-")) owner = upFrom(owner);
+      if (!owner || !own.has(owner.localName) || !scrollsVertically(box)) continue;
+      const before = box.clientHeight;
+      const block = document.createElement("div");
+      block.style.cssText =
+        `display: block; flex: none; block-size: ${ADDED_BLOCK}px; ` +
+        "inline-size: 0; margin: 0; padding: 0; border: 0";
+      (box.shadowRoot ?? box).append(block);
+      const grown = box.clientHeight - before;
+      block.remove();
+      if (grown < ADDED_BLOCK - ROUNDING)
+        found.push({
+          tag: owner.localName,
+          id: owner.id,
+          at: locate(box),
+          height: Math.round(before),
+        });
+    }
+  return found;
 }

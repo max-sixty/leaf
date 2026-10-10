@@ -387,9 +387,10 @@ replaces the document through the ordinary revision lifetime.
 
 When the task needs conversations and actions kept in an independent region
 ("Bounds and widths"), place one empty
-`<lf-annotation-rail id="annotations"></lf-annotation-rail>` there. Allocate its
-width and height in the page's CSS; it scrolls inside that box. At narrow widths,
-give it a place the user can reach by touch and keyboard. Leaf supplies native disclosures,
+`<lf-annotation-rail id="annotations"></lf-annotation-rail>` there. It grows with
+its rows; where the page's CSS bounds its height, as a workspace region does, it
+scrolls inside that box. At narrow widths, give it a place the user can reach by
+touch and keyboard. Leaf supplies native disclosures,
 reply editors, action controls and retained reading; the page supplies their layout.
 Widget-local conversations keep their exact seats before the page rail takes
 remaining targets. The Threads panel remains the complete conversation index.

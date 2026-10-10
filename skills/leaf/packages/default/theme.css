@@ -1876,9 +1876,11 @@
     border: 1px solid var(--rule); border-radius: var(--r); }
 }
 
-/* lf-annotation-rail: an author-allocated inspection box, independent of overlay geometry. */
+/* lf-annotation-rail: page annotations in authored flow, independent of overlay geometry.
+ * It grows with its rows in the page's scroll; where the page bounds its height, as a
+ * workspace region does, it scrolls inside that box. */
 :scope:is(lf-annotation-rail) { display: block; box-sizing: border-box; min-inline-size: 0;
-  block-size: min(70vh, 40rem); overflow: auto;
+  overflow: auto;
   border: 1px solid var(--border-2); border-radius: var(--sp-2); }
 :scope:is(lf-annotation-rail) .lf-ar-region { padding: var(--sp-3); }
 :scope:is(lf-annotation-rail) .lf-ar-heading { margin: 0 0 var(--sp-3);
@@ -2584,7 +2586,7 @@
   :scope:is(lf-text-document)[data-lf-bound] { max-block-size: none; overflow: visible;
     --lf-top: inherit; }
   :scope:is(lf-text-document):not([preview])[data-lf-bound] pre { max-block-size: var(--lf-bound, 28rem);
-    overflow: auto; --lf-bound-box: 1; --lf-top: 0px; }
+    overflow: auto; --lf-bound-box: 1; --lf-holds-height: 1; --lf-top: 0px; }
 }
 /* A long capture becomes a keyboard-reachable scroller inside the evidence frame.
    Keep its generic focus ring inside that frame: the figure clips at its rounded

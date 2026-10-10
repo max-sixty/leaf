@@ -251,6 +251,7 @@ let pageComment;
 let selectionComposer;
 let responseSurface;
 let drawing;
+let regionCapture;
 // A draft's drawing put in place, null taking it off, and the page's ink repainted.
 const replaceDrawing = (anchor, drawn) => {
   selectionComposer.setDraftDrawing(anchor, drawn);
@@ -477,7 +478,8 @@ app = mountApplication({
   createMarginProjection: annotationRenderer?.createMarginProjection,
   annotationCommands: {
     designModeActive: designMode.active,
-    pointerModeActive: () => designMode.active() || drawing.drawModeActive(),
+    pointerModeActive: () =>
+      designMode.active() || drawing.drawModeActive() || regionCapture.active(),
     comparisonBase: version.comparisonBase,
     comparisonChanges: version.comparisonChanges,
     inlineComparison: version.inlineComparison,
@@ -716,7 +718,8 @@ targets = createTargetPicker({
   commentOnTarget: responseSurface.commentOnTarget,
   updateFab: responseSurface.updateFab,
   fabAnchorAt: responseSurface.fabAnchorAt,
-  pointerModeActive: () => designMode.active() || drawing.drawModeActive(),
+  pointerModeActive: () =>
+    designMode.active() || drawing.drawModeActive() || regionCapture.active(),
   armChanged: () => aim.armChanged(),
 });
 drawing = createDrawingController({
@@ -740,7 +743,9 @@ drawing = createDrawingController({
   shiftDrawingPaint: drawingPaint.shifted,
   repaint,
 });
-createRegionCapture({
+regionCapture = createRegionCapture({
+  closeTargetPicker: targets.closeTargetPicker,
+  closeReactionMode: () => reactions.setReact(false),
   parent: chromeForeground,
   visibleTargets: targets.visibleTargets,
   openComposerWithMedia: selectionComposer.openComposerWithMedia,

@@ -179,8 +179,12 @@ body:is(.lf-aiming, [data-lf-design-mode]) { cursor: default; }
 body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item { cursor: pointer; }
 /* Page words accept drawing presses; runtime surfaces and widget offers keep their
    controls usable. An aim box adds semantic context where one is available. */
+html[data-lf-region-capture],
+html[data-lf-region-capture] body,
 html[data-lf-draw-mode],
 html[data-lf-draw-mode] body { cursor: crosshair; touch-action: none; }
+html[data-lf-region-capture] main,
+html[data-lf-region-capture] main *,
 html[data-lf-draw-mode] main,
 html[data-lf-draw-mode] main * { cursor: crosshair !important; }
 html[data-lf-draw-mode] main [data-lf-runtime],
@@ -273,27 +277,16 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
    marked itself lf-live — this block's name for the visually-hidden live region —
    and every tabbed page clipped to a pixel.) */
 @scope (.lf-chrome) {
-  /* A native modal isolates the selection gesture; its chrome is omitted from the crop. */
-  .lf-region-capture { position: fixed; inset: 0; box-sizing: border-box;
-    width: 100%; height: 100%; max-width: none; max-height: none; margin: 0;
-    padding: 0; border: 0; background: transparent; color: var(--ink);
-    overflow: hidden; overscroll-behavior: contain; cursor: crosshair;
-    touch-action: none; user-select: none; }
-  .lf-region-capture::backdrop { background: transparent; }
+  /* Capture paint leaves page hit tests intact; the controller owns its input. */
+  .lf-region-capture { position: fixed; inset: 0; z-index: var(--lf-z-page-hints);
+    pointer-events: none; overflow: hidden; color: var(--ink); }
   .lf-region-selection { position: absolute; box-sizing: border-box;
     border: 2px solid var(--accent); outline: 1px solid var(--paper);
-    box-shadow: 0 0 0 100vmax rgb(0 0 0 / 40%); pointer-events: none; }
-  .lf-region-toolbar { position: absolute; inset-inline: 12px;
-    bottom: max(12px, env(safe-area-inset-bottom)); width: fit-content;
-    max-width: calc(100% - 24px); margin-inline: auto; box-sizing: border-box;
-    padding: 12px 16px; border: 1px solid var(--border-2); border-radius: var(--r);
-    background: var(--card); box-shadow: var(--shadow); cursor: default;
-    text-align: center; }
-  .lf-region-toolbar p { margin: 0 0 8px; font: 13px/1.4 var(--sans);
-    text-wrap: pretty; }
-  .lf-region-status { color: var(--muted); font-variant-numeric: tabular-nums; }
-  .lf-region-actions { display: flex; gap: 8px; justify-content: center; }
-  .lf-region-actions .lf-btn { min-height: 44px; }
+    box-shadow: 0 0 0 100vmax rgb(0 0 0 / 40%); }
+  .lf-region-guide { position: absolute; top: 4px; left: 4px; max-width: calc(100vw - 16px);
+    margin: 0; padding: 4px 8px; border-radius: var(--r-sm);
+    background: var(--card); color: var(--ink); font: 12px/1.4 var(--sans);
+    font-variant-numeric: tabular-nums; }
 
   /* The layer is the runtime's, not the document's, so it never prints — one rule
      for all of it, rather than each piece remembering. :scope is the container

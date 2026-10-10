@@ -55,6 +55,7 @@ const STACK = [
   "page search",
   "target picker",
   ELEMENTS,
+  "region capture",
   // Among inner scopes the order is moot, since the modes and the Page Map stand it down
   // themselves.
   "standing",

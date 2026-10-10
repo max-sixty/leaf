@@ -11416,9 +11416,9 @@ def open_capture_area(page, *, touch=False):
     else:
         more.click()
         capture.click()
-    dialog = page.get_by_role("dialog", name="Capture area", exact=True)
-    expect(dialog).to_be_visible()
-    return dialog
+    surface = page.get_by_role("region", name="Capture area", exact=True)
+    expect(surface).to_be_visible()
+    return surface
 
 
 def test_a_region_capture_keeps_scrolled_shadow_pixels_and_its_comment_anchor(
@@ -11427,12 +11427,12 @@ def test_a_region_capture_keeps_scrolled_shadow_pixels_and_its_comment_anchor(
     page = capture_page(browser, serve)
     target = page.locator("#capture-target").bounding_box()
     left, top = int(target["x"]) + 10, int(target["y"]) + 10
-    dialog = open_capture_area(page)
+    surface = open_capture_area(page)
     page.mouse.move(left, top)
     page.mouse.down()
     page.mouse.move(left + 360, top + 170, steps=5)
     page.mouse.up()
-    selection = dialog.locator(".lf-region-selection")
+    selection = surface.locator(".lf-region-selection")
     expect(selection).to_be_visible()
     page.keyboard.press("ArrowRight")
     page.keyboard.press("Shift+ArrowDown")
@@ -11444,7 +11444,7 @@ def test_a_region_capture_keeps_scrolled_shadow_pixels_and_its_comment_anchor(
 
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
         page.keyboard.press("Enter")
-    expect(dialog).to_be_hidden()
+    expect(surface).to_be_hidden()
     attachment = page.locator(".lf-composer-media-item img")
     expect(attachment).to_be_visible()
     media_url = attachment.get_attribute("src")
@@ -11477,17 +11477,21 @@ def test_touch_capture_can_cancel_and_reopen_before_attaching(browser, serve):
     page = capture_page(browser, serve, touch=True)
     before = events_model.read_events(serve.page_dir)
     before_media = sorted((serve.page_dir / "media").iterdir())
-    dialog = open_capture_area(page, touch=True)
-    dialog.get_by_role("button", name="Cancel", exact=True).tap()
-    expect(dialog).to_be_hidden()
+    surface = open_capture_area(page, touch=True)
+    page.get_by_role("button", name="Cancel capture", exact=True).tap()
+    expect(surface).to_be_hidden()
     expect(page.locator(".lf-composer-media-item")).to_have_count(0)
     assert events_model.read_events(serve.page_dir) == before
     assert sorted((serve.page_dir / "media").iterdir()) == before_media
-    dialog = open_capture_area(page, touch=True)
-    page.keyboard.press("Escape")
-    expect(dialog).to_be_hidden()
+    surface = open_capture_area(page, touch=True)
+    page.get_by_role("button", name="Cancel capture", exact=True).press("Enter")
+    expect(surface).to_be_hidden()
     expect(page.locator(".lf-composer-media-item")).to_have_count(0)
-    dialog = open_capture_area(page, touch=True)
+    surface = open_capture_area(page, touch=True)
+    page.keyboard.press("Escape")
+    expect(surface).to_be_hidden()
+    expect(page.locator(".lf-composer-media-item")).to_have_count(0)
+    surface = open_capture_area(page, touch=True)
     target = page.locator("#capture-target").bounding_box()
     left, top = int(target["x"]) + 10, int(target["y"]) + 20
     touch = page.context.new_cdp_session(page)
@@ -11502,10 +11506,10 @@ def test_touch_capture_can_cancel_and_reopen_before_attaching(browser, serve):
             )
     finally:
         touch.detach()
-    expect(dialog.locator(".lf-region-selection")).to_be_visible()
+    expect(surface.locator(".lf-region-selection")).to_be_visible()
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
-        dialog.get_by_role("button", name="Attach capture", exact=True).tap()
-    expect(dialog).to_be_hidden()
+        page.get_by_role("button", name="Attach capture", exact=True).tap()
+    expect(surface).to_be_hidden()
     attachment = page.locator(".lf-composer-media-item img")
     expect(attachment).to_be_visible()
     image = Image.open(serve.page_dir / attachment.get_attribute("src").lstrip("/"))
@@ -11513,11 +11517,107 @@ def test_touch_capture_can_cancel_and_reopen_before_attaching(browser, serve):
     assert events_model.read_events(serve.page_dir) == before
 
 
+def test_capture_temporarily_owns_page_input_without_leaving_draw_mode(browser, serve):
+    source = leaf_page(
+        "Capture while drawing",
+        """<h1>Capture while drawing</h1>
+<section id="capture-zone" style="margin-top:160px;height:300px;background:#eaf1ef">
+  <label><input type="checkbox" aria-label="Enable annotation"> Enable annotation</label>
+  <p>The capture gesture must not activate the checkbox or draw on this passage.</p>
+</section>""",
+    )
+    page = open_page(browser, serve(source))
+    control = page.get_by_role("checkbox", name="Enable annotation")
+    # Establish that this real page control responds normally before Capture owns it.
+    control.check()
+    expect(control).to_be_checked()
+    control.uncheck()
+    page.keyboard.press("w")
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
+    before = events_model.read_events(serve.page_dir)
+
+    for attach in (False, True):
+        surface = open_capture_area(page)
+        box = control.bounding_box()
+        left, top = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+        page.mouse.move(left, top)
+        page.mouse.down()
+        page.mouse.move(left + 180, top + 100, steps=5)
+        page.mouse.up()
+        selected = surface.locator(".lf-region-selection").bounding_box()
+        assert selected["width"] == pytest.approx(180)
+        assert selected["height"] == pytest.approx(100)
+        rendered(page)
+        expect(control).not_to_be_checked()
+        expect(page.locator(".lf-drawing-mark")).to_have_count(0)
+        expect(page.locator(".lf-fab-input")).to_be_hidden()
+        if attach:
+            with page.expect_response(
+                lambda response: response.url.endswith("/api/media")
+            ):
+                page.get_by_role("button", name="Attach capture", exact=True).click()
+            expect(page.locator(".lf-composer-media-item img")).to_be_visible()
+        else:
+            page.keyboard.press("Escape")
+        expect(surface).to_be_hidden()
+        expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
+        expect(page.locator(".lf-drawing-mark")).to_have_count(0)
+        expect(control).not_to_be_checked()
+        assert events_model.read_events(serve.page_dir) == before
+
+
+def test_capture_adjustment_leaves_the_preexisting_editor_and_draft_intact(
+    browser, serve
+):
+    page = capture_page(browser, serve)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    field = page.locator(".lf-general leaf-text")
+    write(field, "Keep these draft words.")
+    field.press("Home")
+    caret = field.evaluate("box => box.selectionStart")
+    surface = open_capture_area(page)
+    selected = surface.locator(".lf-region-selection")
+    before = selected.bounding_box()
+    page.keyboard.press("ArrowRight")
+    assert selected.bounding_box()["x"] == pytest.approx(before["x"] + 10)
+    expect(field).to_have_js_property("value", "Keep these draft words.")
+    assert field.evaluate("box => box.selectionStart") == caret
+
+    # Returning to an existing editor ends selection before its keys edit the draft.
+    field.click()
+    expect(surface).to_be_hidden()
+    expect(field).to_be_focused()
+    field.press("End")
+    field.press("ArrowLeft")
+    assert (
+        field.evaluate("box => box.selectionStart")
+        == len("Keep these draft words.") - 1
+    )
+    field.press("ArrowRight")
+    with sending(page, "the existing draft after leaving capture"):
+        field.press("Enter")
+    sent = events_model.read_events(serve.page_dir)[-1]
+    assert sent["kind"] == "comment"
+    assert sent["text"] == "Keep these draft words."
+    expect(field).to_have_js_property("value", "")
+    draft = "Still drafting."
+    write(field, draft)
+    expect(field).to_have_js_property("value", draft)
+
+    surface = open_capture_area(page)
+    with page.expect_response(lambda response: response.url.endswith("/api/media")):
+        page.get_by_role("button", name="Attach capture", exact=True).click()
+    expect(surface).to_be_hidden()
+    expect(page.locator(".lf-composer-media-item img")).to_be_visible()
+    expect(field).to_have_js_property("value", draft)
+
+
 @pytest.mark.parametrize("change", ["resize", "revision"])
 def test_a_region_capture_anchors_the_page_as_it_stands_at_confirmation(
     browser, serve, change
 ):
-    """The selector's own modal must not freeze the target inventory or geometry."""
+    """An open selector must keep following the current target inventory and geometry."""
     source = leaf_page(
         "Capture after the page changes",
         "<h1>Capture current content</h1>"
@@ -11536,7 +11636,7 @@ def test_a_region_capture_anchors_the_page_as_it_stands_at_confirmation(
     )
     context = browser.new_context(viewport={"width": 1200, "height": 900})
     page = open_page(browser, live_url(serve(source)), context=context)
-    dialog = open_capture_area(page)
+    surface = open_capture_area(page)
     if change == "resize":
         resized(page, 900, 900)
         expected = "capture-second"
@@ -11548,7 +11648,7 @@ def test_a_region_capture_anchors_the_page_as_it_stands_at_confirmation(
         )
         told(page)
         expected = "capture-revised"
-    expect(dialog).to_be_visible()
+    expect(surface).to_be_visible()
     target = page.locator(f"#{expected}").bounding_box()
     page.mouse.move(target["x"] + 20, target["y"] + 20)
     page.mouse.down()
@@ -11556,7 +11656,7 @@ def test_a_region_capture_anchors_the_page_as_it_stands_at_confirmation(
     page.mouse.up()
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
         page.keyboard.press("Enter")
-    expect(dialog).to_be_hidden()
+    expect(surface).to_be_hidden()
     expect(page.locator(".lf-composer-media-item img")).to_be_visible()
     field = page.locator(".lf-fab-bar leaf-text")
     expect(field).to_be_focused()

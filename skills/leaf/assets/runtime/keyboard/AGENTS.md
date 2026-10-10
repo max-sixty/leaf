@@ -103,7 +103,7 @@ aliases in the same attachment, and every context alias follows native editing.
 ## Touch routes
 
 A finger has no keys, so every page capability that a key reaches and no direct gesture
-does has a banner control under a coarse pointer. A row declares `touch`, the control's
+does has a banner control. The same controls serve a mouse. A row declares `touch`, the control's
 words, or a routed row declares it on each route whose result needs its own control;
 `touch-controls.js` derives the control from that declaration, so its words, enabled
 state, and press come from the one row the key uses.

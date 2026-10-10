@@ -6,7 +6,6 @@ import threading
 from copy import deepcopy
 from datetime import datetime, timedelta
 from itertools import pairwise
-from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
@@ -213,12 +212,7 @@ def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, 
     )
     url = serve(
         authored,
-        packages=(
-            "~/"
-            + (ROOT / "examples/pr-walkthrough.page")
-            .relative_to(Path.home())
-            .as_posix(),
-        ),
+        packages=(ROOT / "examples/pr-walkthrough.page",),
         page_files={
             "theme.css": (ROOT / "examples/pr-walkthrough.page/theme.css").read_text()
         },
@@ -369,12 +363,7 @@ def test_pr_review_observed_age_refreshes_without_a_data_change(browser, serve):
     )
     url = serve(
         authored,
-        packages=(
-            "~/"
-            + (ROOT / "examples/pr-walkthrough.page")
-            .relative_to(Path.home())
-            .as_posix(),
-        ),
+        packages=(ROOT / "examples/pr-walkthrough.page",),
     )
     data_model.cmd_data_set(
         serve.page_dir,
@@ -420,12 +409,7 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve, recon
     )
     url = serve(
         authored,
-        packages=(
-            "~/"
-            + (ROOT / "examples/pr-walkthrough.page")
-            .relative_to(Path.home())
-            .as_posix(),
-        ),
+        packages=(ROOT / "examples/pr-walkthrough.page",),
     )
     data_model.cmd_data_set(
         serve.page_dir,

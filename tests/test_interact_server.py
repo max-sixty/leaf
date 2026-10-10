@@ -32,7 +32,6 @@ from conftest import LEAF_COMMAND
 from interact_support import (
     COMPOSITE_TIMEOUT,
     PAGE,
-    PAGE_PACKAGES,
     STATED_TIMEOUT,
     TOKEN,
     append_carried_log_record,
@@ -45,6 +44,7 @@ from interact_support import (
     fetch,
     live_versions,
     neighbour_page,
+    page_packages,
     page_state,
     publish,
     read_page_data,
@@ -3102,7 +3102,7 @@ def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring
             [
                 "page",
                 "init",
-                *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+                *package_selection_args((*page_packages(), "./.leaf")),
                 str(page_dir),
             ],
         )
@@ -3140,7 +3140,7 @@ def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring
             [
                 "page",
                 "init",
-                *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+                *package_selection_args((*page_packages(), "./.leaf")),
                 str(page_dir),
             ],
         )
@@ -5205,18 +5205,26 @@ def test_server_bind_failure_preserves_the_real_socket_error(page_dir):
 
 
 def test_the_stated_host_wildcard_accepts_an_ipv4_user(page_dir):
-    """A stated host binds the wildcard of both families, so a v4 user reaches it.
+    """A stated host reaches IPv4 users, and IPv6 users where the kernel supports it.
 
     IPV6_V6ONLY is cleared before the bind; with it set, the address a `--host`
     serve records answers only the users who arrive over IPv6.
     """
+    ipv6 = socket.has_dualstack_ipv6()
     httpd = hosting_model.LeafHTTPServer(
         ("::", 0), http_model.page_endpoint(page_dir, TOKEN)
     )
-    assert httpd.socket.family == socket.AF_INET6
     with running_http_server(httpd):
+        assert httpd.socket.family == (socket.AF_INET6 if ipv6 else socket.AF_INET)
         port = httpd.server_address[1]
         assert fetch(f"http://127.0.0.1:{port}/api/state")[0] == 200
+        if ipv6:
+            client = http.client.HTTPConnection("::1", port, timeout=STATED_TIMEOUT)
+            try:
+                client.request("GET", f"/api/state?t={TOKEN}")
+                assert client.getresponse().status == 200
+            finally:
+                client.close()
 
 
 def test_the_stated_host_wildcard_binds_what_a_kernel_without_ipv6_has(
@@ -5245,11 +5253,11 @@ def test_the_stated_host_wildcard_binds_what_a_kernel_without_ipv6_has(
     httpd = hosting_model.LeafHTTPServer(
         ("::", 0), http_model.page_endpoint(page_dir, TOKEN)
     )
-    try:
+    with running_http_server(httpd):
         assert httpd.socket.family == socket.AF_INET
         assert httpd.server_address[0] == "0.0.0.0"
-    finally:
-        httpd.server_close()
+        port = httpd.server_address[1]
+        assert fetch(f"http://127.0.0.1:{port}/api/state")[0] == 200
 
 
 def test_the_address_and_key_outlive_the_session_that_first_served(

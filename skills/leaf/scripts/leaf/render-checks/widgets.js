@@ -3,6 +3,7 @@ import {
   inChrome,
   matchesWhen,
   quoted,
+  TEXT_BOX,
   textNodesUnder,
   upFrom,
 } from "/runtime/widget-api.js";
@@ -382,6 +383,7 @@ export function changedBoxes() {
 // How tall a block `heldScrollers` adds to a box: taller than any widget's own bound,
 // so a box that grew by less kept a height its content did not decide.
 const ADDED_BLOCK = 4000;
+const WRITTEN_IN = `input, select, ${TEXT_BOX}`;
 
 // Whether `box` scrolls vertically because its CSS asks it to. Beside an `auto` inline
 // axis CSS computes a `visible` block axis to `auto`, so a box that scrolls only
@@ -403,8 +405,10 @@ const scrollsVertically = (box) => {
 // the box rather than of the rule that sized it: a tall block is added at its end and
 // taken away in the same task, so a theme's height, a grid track and a percentage of a
 // held parent all answer alike, and an empty widget whose rows the log has not supplied
-// yet answers as a full one would. A box is its nearest widget's, across shadow roots.
-// Form controls draw their own content and are left out. This writes the page, so only
+// yet answers as a full one would. A box is its nearest Leaf widget's, across shadow
+// roots, so a vendored component's scroller answers to the widget that placed it.
+// A field the user writes in keeps its own box as they type, so form controls, text
+// fields and editable regions are left out. This writes the page, so only
 // a page nothing reads again, such as the report's page of worked examples, is read
 // this way.
 export function heldScrollers(tags) {
@@ -414,7 +418,11 @@ export function heldScrollers(tags) {
   const found = [];
   for (const tree of openRoots(main))
     for (const box of tree.querySelectorAll("*")) {
-      if (!(box instanceof HTMLElement) || box.matches("input, select, textarea"))
+      if (
+        !(box instanceof HTMLElement) ||
+        box.matches(WRITTEN_IN) ||
+        box.isContentEditable
+      )
         continue;
       const style = getComputedStyle(box);
       if (
@@ -425,7 +433,7 @@ export function heldScrollers(tags) {
       )
         continue;
       let owner = box;
-      while (owner && !owner.localName.includes("-")) owner = upFrom(owner);
+      while (owner && !owner.localName.startsWith("lf-")) owner = upFrom(owner);
       if (!owner || !own.has(owner.localName) || !scrollsVertically(box)) continue;
       const before = box.clientHeight;
       const block = document.createElement("div");

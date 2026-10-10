@@ -2,24 +2,49 @@
 
 ## Delivery and container lifetime
 
-Cloudflare serves each product and example page's live shell and initial canonical
-projection from `.tmp/site-assets`, so every ordinary
-document navigation paints without waiting for a container. The HTML response issues a
-secure, HTTP-only identity cookie. A page-specific active cookie says only that the
-page's private API state lives in a container; changing one page does not activate
-another. When `AGENT_PREWARM` is `true`, a browser document navigation also starts that
-identity's container through `waitUntil`. Asset fetches, API clients, and release probes
-do not prewarm. Setting the variable to `false` keeps read-only visits at the edge. The
-first request that needs private, mutable state reaches the canonical Python Leaf
-server. Containers are keyed by both user identity and site release, so a deployment
-may discard ephemeral demo state instead of routing the new site through an older
-container. Cloudflare activates the Worker and its assets before the container image has
+Cloudflare serves untouched product and example pages from `.tmp/site-assets`.
+The HTML response issues a secure, HTTP-only browser identity cookie. A page-specific
+active cookie names the current release and selects that page's private record;
+changing one page does not activate another, and a deployment returns to edge delivery.
+The existing session Durable Object stores the page's canonical files and
+Python-produced delivery publication. When its container is stopped, saved comments,
+choices, the private document and its resources are served from that publication.
+Reading a page, polling for changes and reporting optional browser geometry do not
+start a container. The next mutation starts Python, which restores the canonical
+record before accepting requests. Python remains the only event admission and
+projection implementation; stored responses never become fold inputs.
+Operations that need Python still start the container: version comparison projects
+a revision at an exact observed event boundary, live samples allocate disposable
+child pages, and bound-file reads access the live filesystem.
+
+`leaf_website.storage` publishes at successful `PageTransaction` completion under its
+append lease, including transactions in agent CLI subprocesses. The record and its
+matching dormant responses commit atomically before acknowledgement. The canonical
+page layout defines the record, including the event log and its acknowledgement
+cursor, the installed browser layer, package instructions and authored inputs.
+Process leases, status and browser diagnostics are disposable. Dormant responses
+retain the exact private document and resource bytes as content-addressed chunks;
+public assets are separately bundled and cannot substitute for those resources.
+The canonical record reuses unchanged files from this release's image. Each changed
+publication negotiates missing digests with the Durable Object, uploads only those
+bounded chunks, then publishes the manifest. The Durable Object owns the blob
+inventory across container and CLI process replacements and streams stored bodies
+without buffering the page's complete media history. Unchanged transactions make no
+storage request.
+A failed publication fails the request; an idempotent browser retry
+can finish it. Dormant activity is computed in Python without process evidence, and
+immutable publications schedule no activity transitions. Delivery dates `now` and
+`taken` together so browser clocks and response ordering reflect the fresh read;
+Python's event timestamps and folded activity remain captured.
+
+Sessions remain keyed by browser identity and site release. Container replacement
+preserves saved content; a new deployment deliberately selects a new record instead
+of interpreting an older release's state. Cloudflare activates the Worker and its assets before the container image has
 finished rolling out, so a session opened in that window still starts on the previous
 release. The Worker answers for the edge instead of passing that container's reply on:
 the user is unseated, `GET api/state` returns the published projection, and every other
-request waits behind a 503 until the rollout lands. The copied page directories and
-append-only logs remain private to that user and disappear when Cloudflare replaces the
-container; no website-only projection or thread store exists.
+request waits behind a 503 until the rollout lands. All page records remain private
+to the browser identity that owns the Durable Object.
 
 Live samples use opaque iframe origins, so their native requests carry no browser
 session cookie. The Worker adds the allocating container's Durable Object ID to the
@@ -41,16 +66,16 @@ The build-generated manifest is the routing authority shared by the Worker and t
 Python adapter, and carries each page's title, description, and card image, which both
 halves compose into the head a crawler and a link preview read. Published media,
 revisions, and version documents stay on the edge; when one of those paths is absent
-from the release, the Worker asks the user's container only when that page is active.
+from the release, the Worker asks the user's Durable Object only when that page is active.
 A private revision with changed executable code needs a fresh browser document because
 the current document cannot redefine custom elements or re-evaluate its module graph.
 The runtime marks that one reload with `_leaf-revision`; the Worker serves it from the
-current release's container, and the arriving runtime immediately removes the marker.
+private record, and the arriving runtime immediately removes the marker.
 Startup recovery marks the one replacement document it asks for with `_leaf-recovered`,
 which the runtime removes the same way. That mark asks nothing of the Worker: routing
-reads the path, so the edge answers a marked document as it answers any other, and what
+reads the active cookie, so it answers a marked document as it answers any other, and what
 bounds recovery to one replacement is the runtime reading its own mark.
-Every ordinary visit and reload continues to use the edge document. The container
+Ordinary visits to an active page load its private document directly. The container
 composes the private document against `/<page>/revisions/rN-<hash>/`, which is
 content-addressed over the document and its resources.
 
@@ -59,14 +84,12 @@ pages with (`.tmp/site-install`), the tree consumer installs follow. A revision 
 hosted session writes therefore captures the compiled kernel the published revisions
 were built from, rather than the checkout's source modules.
 
-The deployment admits up to 5,990 concurrent `basic` containers. A prewarmed container
-with no interaction sleeps after ten idle minutes. After any page in a session is
+The deployment admits up to 5,990 concurrent `basic` containers. A container
+sleeps after ten idle minutes. After any page in a session is
 active, a visible active page holds its container through Leaf's finite freshness requests; a passive
 page makes none. Hidden tabs stop these requests, so the idle timer can begin after
-the browser session has no visible active Leaf page. This is resource lifetime, not a
-persistence guarantee: Cloudflare can replace an active instance, and each site release
-deliberately gets a fresh one. Durable website sessions will require a durable
-page-directory store.
+the browser session has no visible active Leaf page. Saved page records survive this
+compute lifetime; each site release deliberately selects fresh demo records.
 
 ## Product events
 
@@ -383,9 +406,9 @@ move back to the user until they answer again. The deployment verifier retries
 `startup_failed` once and
 fails immediately on `rate_limited`; it reads the code and never the words, and
 ordinary agent answers omit `failure` entirely.
-The accepted event and active turn are not yet mirrored into Durable Object storage,
-and no alarm
-recovers work that exceeds the Worker's 30-second `waitUntil` window.
+Accepted events are durable before acknowledgement. Active Codex turn identity remains
+process-local, and no alarm recovers work that exceeds the Worker's 30-second
+`waitUntil` window.
 Container startup warms App Server and the Leaf CLI entrypoint concurrently, reducing
 cold runtime-filesystem work before a model command. Each App Server turn is bound to
 one immutable delivery id carried by the direct request as `clientUserMessageId`, so
@@ -461,14 +484,6 @@ credential proxy, and agent journey at
 environment with its own Worker, container application, Durable Objects, and Analytics
 Engine dataset. The shared rate-limit namespace is the only bound resource it reuses
 from production.
-
-`AGENT_PREWARM` is repeated in the production and dev Wrangler environments because
-named environments do not inherit variables. Change it to `false` to compare cold
-startup without changing the request path. Prewarm uses a separate per-source key on
-the task-start rate limiter, which caps document-shaped requests from one source at
-twenty per minute in each Cloudflare location. A single global warm container cannot be
-reassigned to these per-session Durable Object identities. A reusable warm pool would
-need leases, state cleanup, and recovery, so Leaf does not maintain one.
 
 Wrangler secrets do not carry across named environments. The first deployment reads
 both credentials from the process and creates the dev Worker with its OpenAI secret:

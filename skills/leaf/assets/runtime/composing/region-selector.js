@@ -9,6 +9,9 @@
  * in viewport coordinates until confirmation, when SnapDOM takes a document-coordinate
  * crop of the live DOM, excluding the selector and shortcut bar. SnapDOM owns cloning,
  * shadow trees, styles, fonts, SVG and rasterization; Leaf owns no renderer.
+ * SnapDOM normalizes that crop into its capture root's layout pixels; explicit export
+ * dimensions keep the image in the selected viewport pixels under CSS zoom. Paint
+ * crosses into the overlay's layout coordinates through its native element frame.
  * The crop is approximate browser rendering, not privileged access to screen pixels.
  * Known missing images refuse capture instead of attaching a placeholder.
  *
@@ -23,6 +26,7 @@ import { focusDestination, focused, handBack, closeLayer } from "../focus.js";
 import { keeps, keepsText } from "../keeps.js";
 import { runtime } from "../context.js";
 import { nextRender } from "../rendering.js";
+import { elementBorderFrame } from "../geometry.js";
 import { clamp } from "../rect.js";
 import { notice } from "../notifications.js";
 
@@ -60,10 +64,16 @@ export function createRegionSelector({
   let ended = false;
 
   function paint() {
-    selection.style.left = `${box.x}px`;
-    selection.style.top = `${box.y}px`;
-    selection.style.width = `${box.width}px`;
-    selection.style.height = `${box.height}px`;
+    const inverse = elementBorderFrame(overlay).matrix.inverse();
+    const start = inverse.transformPoint({ x: box.x, y: box.y });
+    const end = inverse.transformPoint({
+      x: box.x + box.width,
+      y: box.y + box.height,
+    });
+    selection.style.left = `${start.x}px`;
+    selection.style.top = `${start.y}px`;
+    selection.style.width = `${end.x - start.x}px`;
+    selection.style.height = `${end.y - start.y}px`;
     keepsText(status, `${box.width} × ${box.height} pixels`);
     paintKeys();
   }
@@ -148,6 +158,8 @@ export function createRegionSelector({
       if (ended || ticket !== attempt) return;
       const image = await snapdom(document.body, {
         clip,
+        width: clip.width,
+        height: clip.height,
         dpr: window.devicePixelRatio,
         exclude: ".lf-region-capture, .lf-shortcut-bar, .lf-banner",
         excludeMode: "remove",

@@ -14,7 +14,8 @@
    fits, otherwise across that cluster or above/below the target. A detached thread
    stands by its cluster. Floating UI follows that attachment within the reading region
    or viewport, under the chrome; regions clip it at their edges. A scroll never closes
-   the card: it leaves with its target and comes back with it.
+   the card: it leaves with its target and comes back with it. A target hidden by the
+   document withholds the card's native draft and focus until it is drawn again.
 
    A selection holds its placement side and one edge. Reading and draft growth hold
    the top; a turn joining while drafting/sending holds the reply's foot, as does a
@@ -255,6 +256,7 @@ export function createThreadPreview({
     cancelRender(session.positionFrame);
     placementDriver.supersede();
     session.stopRegion?.();
+    preview.style.removeProperty("visibility");
     previewSession = null;
   }
   // A card's focus waits for its placement; a newer input the user gave meanwhile, or
@@ -378,15 +380,26 @@ export function createThreadPreview({
     const place = threadCardPlace(session);
     // Floating UI follows what moves what the card stands by, so a card with no room yet
     // is placed once something gives it some.
+    const element = place?.element ?? targetFor(session.entry);
     const watch = (ui) =>
       placementDriver.watch(
-        place.element,
+        element,
         {
-          contextElement: place.element,
-          getBoundingClientRect: () => threadCardPlace(session).clear,
+          contextElement: element,
+          getBoundingClientRect: () =>
+            threadCardPlace(session)?.clear ?? element.getBoundingClientRect(),
         },
         ui.autoUpdate,
       );
+    if (!place) {
+      if (preview.style.visibility !== "hidden") {
+        session.withheldFocus = holdFocus(preview);
+        preview.style.visibility = "hidden";
+      }
+      session.away = true;
+      void floatingUi().then((ui) => stillCurrent() && watch(ui));
+      return false;
+    }
     const thread = threadCardThread(session);
     const latest = thread && turns(thread).at(-1);
     const replyEditor = previewList.querySelector(REPLY_BOX);
@@ -504,6 +517,9 @@ export function createThreadPreview({
         const { scale } = session.side.landed(position);
         // An unchanged declaration is the browser's own no-op, and `keeps` is the rest's.
         placementDriver.stand(position);
+        preview.style.removeProperty("visibility");
+        session.withheldFocus?.();
+        session.withheldFocus = null;
         const card = placementDriver.clientBox(position);
         session.away = card.bottom <= boundary.top || card.top >= boundary.bottom;
         // Leaving with what it is about, the card passes under the chrome, which stacks
@@ -578,6 +594,7 @@ export function createThreadPreview({
       positionFrame: 0,
       positionResult: null,
       focusPending: null,
+      withheldFocus: null,
       transition: null,
       messageViewport: null,
       transcript: null,

@@ -238,7 +238,9 @@ def test_interaction_trace_does_not_change_page_or_presence_readings(page_dir):
     assert presence_model._page_stamp(page_dir) != presence_stamp
 
 
-@pytest.mark.parametrize("name", schema_model.SESSION_FILES)
+@pytest.mark.parametrize(
+    "name", (*schema_model.SESSION_FILES, *schema_model.LOG_STATE_FILES)
+)
 def test_a_session_write_does_not_revalidate_the_source(page_dir, monkeypatch, name):
     """Declaring status, acknowledging a delivery, or taking a wait writes a session
     file, and the next state read holds the activation it had rather than validating

@@ -1034,7 +1034,7 @@ test("refusal takes the gestures that depend on the refused one with it", () => 
 });
 
 test("thread acceptance is semantic before presentation can retire its local handle", () => {
-  const app = setup();
+  const app = capture();
   const comment = {
     kind: "comment",
     attempt: "comment",
@@ -1042,7 +1042,10 @@ test("thread acceptance is semantic before presentation can retire its local han
     revision: 1,
   };
   app.enqueue(comment, "now");
+  assert.equal(app.read().phase, "waiting");
   assert.equal(app.read().effective.thread.all[0].root.text, "Keep this");
+  assert.equal(app.read().effective.thread.collection.phase, "waiting");
+  assert.equal(app.read().effective.thread.collection.threads.length, 1);
   const accepted = { ...comment, id: "e1", author: "user", ts: "now" };
   const read = state(2);
   read.browser.receipts = [accepted];
@@ -1054,6 +1057,18 @@ test("thread acceptance is semantic before presentation can retire its local han
   app.present([accepted]);
   assert.equal(app.read().unresolved.length, 0);
   assert.equal(app.read().effective.thread.all[0].root.id, "e1");
+});
+
+test("refusal removes a local thread without requiring a saved reading", () => {
+  const app = capture();
+  app.enqueue(
+    { kind: "comment", attempt: "early", text: "Keep my words", revision: 1 },
+    "now",
+  );
+  assert.equal(app.read().effective.thread.collection.threads.length, 1);
+  app.refuse("early");
+  assert.equal(app.read().phase, "waiting");
+  assert.deepEqual(app.read().effective.thread.collection.threads, []);
 });
 
 test("widget selections publish the canonical held thread", () => {

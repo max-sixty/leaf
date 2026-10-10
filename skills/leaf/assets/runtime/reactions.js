@@ -54,7 +54,8 @@ import {
   visualPartLabel,
 } from "./anchor-resolution.js";
 import { announce, notice } from "./notifications.js";
-import { claimsEsc, saying } from "./keyboard/scopes.js";
+import { pagePresented } from "./presentation.js";
+import { claimsEsc, keys, saying } from "./keyboard/scopes.js";
 import {
   handBack,
   focusDestination,
@@ -102,7 +103,16 @@ function reactionChip(name, entry, pressed) {
   chip.title = meaning;
   chip.setAttribute("aria-label", meaning);
   responseAction(chip, { glyph: entry.glyph, label: name, collapse: true });
-  chip.onclick = () => pressed(name, chip);
+  keys(chip, "On a reaction", [
+    {
+      id: `reaction.${name}`,
+      keys: [],
+      control: chip,
+      ready: pagePresented,
+      title: meaning,
+      run: () => pressed(name, chip),
+    },
+  ]);
   return chip;
 }
 
@@ -495,6 +505,7 @@ export function createReactionController({
     rows: [
       {
         id: "reaction.choose",
+        ready: pagePresented,
         runFromCommandReference: false,
         keys: () =>
           reactionTokens()
@@ -584,6 +595,7 @@ export function createReactionController({
   // accepted for now (composing/selection.js, TODO.md).
   pageCommand({
     id: "reaction.open",
+    ready: pagePresented,
     touch: false,
     keys: ["e"],
     description: () =>

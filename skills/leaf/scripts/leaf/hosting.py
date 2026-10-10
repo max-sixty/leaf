@@ -90,10 +90,10 @@ class LeafHTTPServer:
     releases the socket cannot pull it out from under a loop still winding down.
 
     `server_id` names the serving process on every answer. Startup recovery uses it
-    to detect a replacement after failure. An ordinary page's durable record survives
-    that replacement; only an active private website session loses its record and
-    needs an already-presented document to reload. Uvicorn owns signal handling and
-    the order of a stop; every page response completes, so no held-open response
+    to detect a replacement after failure. Page records survive process replacement,
+    including website records restored from the Durable Object; an already-presented
+    document keeps its state and drafts across that replacement. Uvicorn owns signal
+    handling and the order of a stop; every page response completes, so no held-open response
     needs a second stop flag or an application signal wrapper. The stop's timing is
     this server's own (`_page_uvicorn`).
     """

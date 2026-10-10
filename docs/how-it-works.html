@@ -4,7 +4,7 @@
     <title>How leaf works</title>
     <meta
       name="description"
-      content="The mechanism behind leaf, one part per tab: feedback, pages, layout, navigation, revisions, data, and serving."
+      content="The mechanism behind leaf, one part per tab: feedback, pages, layout, navigation, revisions, data, loading, and serving."
     />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <style>
@@ -3779,6 +3779,96 @@ flowchart TD
               controls are shared across pages in that browser. Submitted comments and
               actions enter the page's event log, where all tabs and the agent can read
               them.
+            </p>
+          </section>
+        </lf-tab>
+
+        <lf-tab id="loading" label="Loading">
+          <section id="loading-stages">
+            <h2>Page loading</h2>
+            <p id="loading-lede">
+              The document, browser interface, saved state, and agent become available
+              separately. The browser loads the JavaScript and requests saved state in
+              parallel. Reading and new comments can begin before that state arrives.
+            </p>
+            <table id="loading-stage-table">
+              <thead>
+                <tr>
+                  <th>Stage</th>
+                  <th>Available on the page</th>
+                  <th>Banner</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr id="loading-document">
+                  <td>HTML and styles arrive</td>
+                  <td>Text, links, and scrolling.</td>
+                  <td>The banner appears when the JavaScript starts.</td>
+                </tr>
+                <tr id="loading-javascript">
+                  <td>JavaScript initializes the interface</td>
+                  <td>Leaf components and comment controls are being prepared.</td>
+                  <td>Loading…</td>
+                </tr>
+                <tr id="loading-comments">
+                  <td>Comment controls are ready; saved state is still loading</td>
+                  <td>
+                    New comments and drawings appear immediately. They remain Sending
+                    until the server accepts them. Choices that change saved state wait
+                    for the server's current reading.
+                  </td>
+                  <td>Loading saved state…</td>
+                </tr>
+                <tr id="loading-state">
+                  <td>Saved state arrives</td>
+                  <td>
+                    Saved threads and choices join the page, preserving new comments and
+                    comment drafts. Saved choices become available for changes.
+                  </td>
+                  <td>
+                    <a href="#loading-agent-status">Website banner text</a>; each
+                    comment shows its delivery status.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p id="loading-order">
+              If saved state arrives first, the banner can skip “Loading saved state…”.
+              The browser requests the page's saved state. The interface and saved state
+              can be ready before the agent starts; commenting remains available during
+              that wait.
+            </p>
+          </section>
+          <section id="loading-website">
+            <h2>Loading on leaf.page</h2>
+            <p id="loading-edge">
+              Published files and initial state come from Cloudflare's edge servers.
+              Saved private comments, choices, and page revisions come from durable
+              storage without starting a container. A container runs the Python Leaf
+              server that accepts changes and Codex for agent replies. It starts when a
+              change needs it, restoring the saved page before accepting that change.
+              Operations that need Python, such as comparing versions or creating live
+              samples, can also start the container.
+            </p>
+            <p id="loading-container">
+              The server accepts and saves comments before Codex is ready. A comment
+              remains Sending until the server accepts it, then waits for pickup while
+              Codex starts or resumes. Picked up means the comment has reached an agent
+              turn; the reply follows when that turn answers. A startup failure produces
+              a failure message in the thread.
+            </p>
+            <p id="loading-agent-status">
+              On example pages, the banner reads “This is an example on the Leaf
+              website. The agent replies and revises this private copy.” On other
+              website pages, the first sentence is “This website is a Leaf page.” These
+              words appear after saved state loads and stay the same while Codex starts.
+              The banner has no separate “Starting agent…” label and does not indicate
+              whether the agent is online.
+            </p>
+            <p id="loading-demo-lifetime">
+              Saved content survives container replacement. Website demos remain scoped
+              to one browser session and site release; a new deployment starts a fresh
+              copy.
             </p>
           </section>
         </lf-tab>

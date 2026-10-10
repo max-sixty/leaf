@@ -22,6 +22,7 @@ import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
 import { upgradeWidgets } from "./runtime/widget-loader.js";
 import {
   markPagePresented,
+  markPageUpgraded,
   whenArrived,
   pageReadiness,
   settlePageInterface,
@@ -234,7 +235,6 @@ const narrowing = createThreadNarrowing({
   view: narrowingView,
   listRoot: threadsBox,
   readThreads: threadList,
-  ready: () => runtime.statePhase === "ready",
   repaint: () => app.presentThread(),
 });
 const paintVersionApproval = () => paintApproval(app.approvalBlockingQuestions());
@@ -1051,28 +1051,14 @@ const { landArrival, savedView } = offlineInteractive
 const savedComposer = offlineInteractive ? null : selectionComposer.pendingComposer();
 
 async function presentPage() {
+  // A malformed first answer leaves the reading unresolved. The feed retries this
+  // owner on its clock, but only a complete reading or deliberate offline answer
+  // can open state-dependent interaction.
+  if (applicationState.read().phase === "waiting") return;
   if (document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)) return;
   await whenApplicationPresented();
+  if (applicationState.read().phase === "waiting") return;
   if (document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)) return;
-  setAnchoringReady(true);
-  try {
-    const draftOpened =
-      !offlineInteractive &&
-      recoverComposer() &&
-      selectionComposer.openDraft(savedComposer);
-    await app.presentThread();
-    // Anchoring changes where thread chrome is painted. That final paint is part
-    // of initial presentation too: opening interaction before it commits can expose a
-    // malformed page that the unanchored provisional pass could not yet inspect.
-    await whenApplicationPresented();
-    if (draftOpened) {
-      await responseSurface.fabPositioned();
-      paintKeys();
-    }
-  } catch (error) {
-    setAnchoringReady(false);
-    throw error;
-  }
   markPagePresented();
   // Optional author context begins after the presented frame. It neither imports
   // checks nor takes geometry on the path that gives the reader the page.
@@ -1085,7 +1071,6 @@ async function presentPage() {
       }, 0),
     );
   void whenArrived().then(landFragment);
-  anchorControls.publishVisualActions();
   if (offlineInteractive) {
     landFragment();
     document.dispatchEvent(new Event(PRESENTATION));
@@ -1136,7 +1121,26 @@ async function startPage() {
   }
   await settlePageInterface();
   landFragment();
-  document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.upgraded, "1");
+  // Comments name the shown document, not the private history still loading. Its
+  // widgets and words are now settled; prepare the anchor-dependent chrome before
+  // opening keyboard capture, so malformed coordinates never become controls.
+  setAnchoringReady(true);
+  try {
+    const draftOpened =
+      !offlineInteractive &&
+      recoverComposer() &&
+      selectionComposer.openDraft(savedComposer);
+    await app.presentThread();
+    await whenApplicationPresented();
+    if (draftOpened) await responseSurface.fabPositioned();
+  } catch (error) {
+    setAnchoringReady(false);
+    throw error;
+  }
+  markPageUpgraded();
+  anchorControls.publishVisualActions();
+  responseSurface.updateFab();
+  paintKeys();
   app.startFeed(presentPage, initialStateRead);
 }
 

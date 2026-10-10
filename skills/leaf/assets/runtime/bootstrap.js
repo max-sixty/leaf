@@ -139,16 +139,15 @@
   let recordStartupFault = () => {};
   let stopHoldingKeys = () => {};
 
-  // A page key pressed before the page presents would otherwise reach a runtime that has
-  // not loaded, or one that has not yet read the log: `t` walks the threads the first
-  // state answer brings, so until then it walks nothing. The keys wait here instead, in
-  // the order pressed, until the presented page takes them. What is held is a run of
-  // printed keys: one pressed on the page starts it, and every printed key after it
+  // A page key pressed before upgrade would reach a runtime that has not loaded.
+  // Upgrade hands the queue to the dispatcher, whose command readiness may retain
+  // keys that need private history. What is held is a run of printed keys: one
+  // pressed on the page starts it, and every printed key after it
   // joins. Any other key ends the run, and so does a pointer press, which puts the user
   // somewhere the keys were not aimed at: what was held is dropped and the new press
   // keeps its own meaning. A chord never starts a run, and a modifier alone is half a
-  // press, which neither starts nor ends one. After a beat the held keys are shown, so a press visibly landed; a page that
-  // presents within the beat shows nothing.
+  // press, which neither starts nor ends one. After a beat the held keys are shown, so a press visibly landed; a runtime that takes the run
+  // within the beat shows nothing.
   const HALF_PRESSES = new Set([
     "Shift",
     "Control",
@@ -160,6 +159,8 @@
   function holdEarlyKeys() {
     const held = [];
     let taken = false;
+    let ready = null;
+    let keep = null;
     let beat = 0;
     const echo = document.createElement("p");
     echo.className = "lf-held-keys";
@@ -220,24 +221,41 @@
           (origin.isContentEditable ||
             origin.matches("input, textarea, leaf-text, select"));
         if (typing || !printed || event.key === " ") return;
+        // Once the document upgrades, the dispatcher supplies readiness from
+        // command declarations. Useful page keys pass immediately; only a key
+        // whose input is still loading starts another ordered run.
+        if (ready?.(event)) return;
         queue(event);
       }
       event.preventDefault();
       event.stopImmediatePropagation();
     };
     const pointed = () => letGo();
-    // The page is ready, so the notice comes down, but the hold stands until the keyboard
+    // The controller takes a run, so the notice comes down, but the hold stands until its
     // owner has pressed the last key in it: a printed key pressed meanwhile joins the
     // same run rather than running ahead of the keys pressed before it.
     const take = (event) => {
-      taken = true;
+      ready = event.detail.ready;
+      keep = event.detail.keep;
       clearTimeout(limit);
+      if (!held.length) {
+        if (!keep?.()) stopHoldingKeys();
+        return;
+      }
+      taken = true;
       clearTimeout(beat);
       echo.remove();
       event.detail.keys = held;
-      event.detail.release = () => stopHoldingKeys();
+      event.detail.pause = () => {
+        taken = false;
+        if (held.length) show();
+      };
+      event.detail.release = () => {
+        taken = false;
+        if (!keep?.()) stopHoldingKeys();
+      };
     };
-    // A page that has not presented by now is not loading but faulted, and a key held
+    // A page that has not upgraded by now is not loading but faulted, and a key held
     // this long is one the user has given up on: the hold ends, what it held is
     // dropped, and keys reach the runtime as they come.
     const limit = setTimeout(() => stopHoldingKeys(), 10_000);
@@ -250,7 +268,7 @@
     };
     window.addEventListener("keydown", hold, true);
     window.addEventListener("pointerdown", pointed, true);
-    // The keyboard owner takes the held keys once the page presents and runs them through
+    // The keyboard owner takes the held keys as the document upgrades and runs them through
     // its own handler (runtime/keyboard/controller.js).
     document.addEventListener("lf-held-keys", take);
   }

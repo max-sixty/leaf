@@ -711,26 +711,25 @@ export function createSemanticApplication({
       ...admitted,
       pendingEntries: localProjections,
     });
-    // Threads and Questions both wait for an admitted reading. Authored markup names every
-    // Question the page could hold, but only the log says which of them it still holds and
-    // whether they are answered, so before that reading there is no inventory to publish.
+    // A local comment belongs to the shown document even before saved history arrives.
+    // Fold it through the same ledger and receipt path in every phase; collection.phase
+    // still says whether this is a complete reading. Questions need the log to say which
+    // authored questions the page still holds, so their inventory waits for that reading.
     const ready = phase === "ready";
     const messages = local.filter((entry) => entry.message);
-    const folded = ready
-      ? foldThreads(
-          state?.browser.thread.threads ?? [],
-          messages.flatMap((entry) => (entry.message ? [entry.message] : [])),
-          local.flatMap((entry) => (entry.thread?.token ? [entry.thread] : [])),
-          local.flatMap(({ event, namedParent }) =>
-            event.kind === "resolve" || event.kind === "unresolve"
-              ? [{ ...event, ...(namedParent ? { localParent: namedParent } : {}) }]
-              : [],
-          ),
-          new Set(
-            local.flatMap(({ event }) => (event.kind === "undo" ? [event.undoes] : [])),
-          ),
-        )
-      : [];
+    const folded = foldThreads(
+      state?.browser.thread.threads ?? [],
+      messages.flatMap((entry) => (entry.message ? [entry.message] : [])),
+      local.flatMap((entry) => (entry.thread?.token ? [entry.thread] : [])),
+      local.flatMap(({ event, namedParent }) =>
+        event.kind === "resolve" || event.kind === "unresolve"
+          ? [{ ...event, ...(namedParent ? { localParent: namedParent } : {}) }]
+          : [],
+      ),
+      new Set(
+        local.flatMap(({ event }) => (event.kind === "undo" ? [event.undoes] : [])),
+      ),
+    );
     const widgets = foldWidgetStates(document.authored, projection);
     const admittedQuestions = ready
       ? normalizedQuestions(view, state?.browser.thread, widgets, document, projection, local)

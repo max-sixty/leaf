@@ -50,12 +50,7 @@ import { seenRect, shownRect } from "../geometry.js";
 import { ago, shortAgo } from "../presence.js";
 import { retainUserIntent } from "../user-intent.js";
 import { scrollThreadIntoView, replyPinned } from "./reply-landing.js";
-import {
-  HeldNews,
-  newsNotice,
-  growthAfterIsSeen,
-  growthInsideIsSeen,
-} from "./held-news.js";
+import { newsNotice, growthAfterIsSeen, growthInsideIsSeen } from "./held-news.js";
 import { ReplyContinuity } from "./reply-continuity.js";
 
 function quoteReading(thread, anchors) {
@@ -324,7 +319,6 @@ export class ThreadView {
   #titleControl = null;
   #lastMessage = null;
   #continuity = null;
-  #heldNews = null;
   #replyReservation = null;
   #received = null;
   #headerSlot = null;
@@ -348,20 +342,6 @@ export class ThreadView {
       surface === "outlet" || surface === "panel" ? "details" : "div",
     );
     this.#continuity = new ReplyContinuity(this.node);
-    // A card draws what its hold releases at once, so an arrival lands on the thread
-    // as it now stands (held-news.js).
-    if (surface === "panel")
-      this.#heldNews = new HeldNews(
-        this.node,
-        () => this,
-        () => {
-          // Disclosure changes this card's mechanical reading of the complete received
-          // descriptor. Draw it in that operation; later geometry or server readings
-          // may supersede a global paint while its widget proof waits.
-          this.repaint();
-          commands.repaintThread();
-        },
-      );
     // A panel card's disclosure is the thread list's to write, from its one choice.
     if (surface !== "panel") {
       this.node.tabIndex = -1;
@@ -396,6 +376,9 @@ export class ThreadView {
         if (event.target.closest(".lf-thread-summary")?.parentElement !== this.node)
           return;
         event.preventDefault();
+        // Choosing the title asks for the whole conversation, even when focus was
+        // already in its editor and the list keeps the same disclosure open.
+        this.#showNews();
         this.#commands.choose();
       });
     }
@@ -407,11 +390,6 @@ export class ThreadView {
 
   get model() {
     return this.#model;
-  }
-
-  // The next reading draws the thread as it stands, whatever it holds (held-news.js).
-  releaseNews() {
-    this.#heldNews?.release();
   }
 
   // Local disclosure and draft changes repaint the complete received descriptor,
@@ -567,10 +545,6 @@ export class ThreadView {
           focusDestination(this.#commands.listRoot, "return");
       }
     }
-    if (this.#heldNews)
-      model = Object.freeze(
-        this.#heldNews.hold({ threads: [model] }, { row: false }).threads[0],
-      );
     // Capture the standing words only when news starts waiting, before its update
     // removes a receipt. This allocation lives with the held view, not its reading.
     if (model.news && !prior?.news) this.#retainHeaderSlot({ observe: false });
@@ -1357,7 +1331,6 @@ export class ThreadView {
     this.#quoteNode = null;
     this.#releaseHeaderSlot();
     if (this.#marginControlsRow) marginControlsSizes.unobserve(this.#marginControlsRow);
-    this.#heldNews?.dispose();
     this.#continuity?.release();
     this.retire();
     this.#reply?.dispose();

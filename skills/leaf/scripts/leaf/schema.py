@@ -540,7 +540,6 @@ WAITER_LOCK = "waiter.lock"
 SESSION_FILES = (
     STATUS_FILE,
     WAITER_LOCK,
-    CURSOR_FILE,
     VIEWED_FILE,
     USER_VIEWS_FILE,
     USER_VIEWS_LOCK,
@@ -548,10 +547,15 @@ SESSION_FILES = (
     SERVER_LOCK,
     PREVIEW_FILE,
 )
+# Acknowledgement belongs to the log, and survives replacement of its reader.
+LOG_STATE_FILES = (CURSOR_FILE,)
+# Process declarations, leases, browser observations and diagnostics are disposable.
+PAGE_PROCESS_FILES = (*SESSION_FILES, INTERACTIONS_FILE)
 # The files Leaf writes in a page directory as it runs. With the author's index.html,
 # the vendored files, and PAGE_OWNED_DIRS, the whole of page-storage.md's "Files".
 PAGE_STATE_FILES = (
     EVENTS_FILE,
+    *LOG_STATE_FILES,
     INTERACTIONS_FILE,
     DATA_FILE,
     FILE_BINDINGS_FILE,

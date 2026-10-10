@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import time
+from contextlib import nullcontext
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -50,6 +51,7 @@ class PageSnapshot:
     revision_names: dict[int, str]
     others: tuple[dict, ...]
     reading: str
+    source_error: str | None = None
 
     def through(self, sequence: int) -> PageSnapshot:
         """This snapshot served as the page stood once event `sequence` was appended
@@ -64,11 +66,20 @@ def capture_page_snapshot(
     *,
     url: str,
     artifact: RevisionArtifact | None = None,
+    transaction: PageTransaction | None = None,
 ) -> PageSnapshot:
-    """Freeze a candidate and every page authority it is projected against."""
+    """Freeze a candidate and every page authority it is projected against.
+
+    A host publishing from an existing transition lends its held transaction;
+    other callers take the page's append lease for the complete capture.
+    """
     if artifact is not None and artifact.html != document.data:
         raise ValueError("preview artifact does not contain the checked document")
-    with PageTransaction(page_dir) as page:
+    with (
+        nullcontext(transaction)
+        if transaction is not None
+        else PageTransaction(page_dir) as page
+    ):
         events = tuple(copy.deepcopy(page.events))
         revisions = list_revisions(page_dir)
         versions = tuple(copy.deepcopy(version_descriptors(list(events), revisions)))

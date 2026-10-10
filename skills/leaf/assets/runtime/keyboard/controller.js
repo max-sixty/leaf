@@ -1,14 +1,14 @@
 /* Browser input lifecycle. The dispatcher resolves declarations; this owner applies
-   page policy around a real input (transient modes and the expanded shortcut bar), and presses the keys
-   the prepaint bootstrap held before presentation once the page presents. */
-import { dispatchKey } from "./dispatch.js";
+   page policy around a real input (transient modes and the expanded shortcut bar), and
+   releases bootstrap's ordered keys as their declared input becomes available. */
+import { dispatchKey, keyReady } from "./dispatch.js";
 import { MODIFIER_KEYS } from "../control-selectors.js";
 import { quickShortcuts } from "./bindings.js";
 import { beforeShortcutCommand } from "./shortcut-bar.js";
-import { claimsEsc, paintKeys } from "./scopes.js";
+import { claimsEsc, paintKeys, watchCommandAvailability } from "./scopes.js";
 import { onStanding, takesLetters, typesText, focused } from "../focus.js";
 import { nextFrame } from "../rendering.js";
-import { PRESENTATION } from "../presentation.js";
+import { pagePresented, pageUpgraded, UPGRADE, PRESENTATION } from "../presentation.js";
 export function mountKeyboard({
   goToSequenceActive,
   setGoToSequence,
@@ -39,37 +39,48 @@ export function mountKeyboard({
     setGoToSequence(false);
     setReact(false);
   });
-  // Keys pressed before the page presented were held by the prepaint bootstrap
-  // (runtime/bootstrap.js), since the commands they name read state the page did not
-  // have yet. The presented page takes them and presses them in order, a frame apart as
-  // a hand would, so each lands on the page the one before it left. The hold keeps
-  // queueing behind them until the queue is empty, and only then lets keys through.
-  document.addEventListener(
-    PRESENTATION,
-    () => {
-      const taking = new CustomEvent("lf-held-keys", { detail: {} });
-      document.dispatchEvent(taking);
-      const { keys, release } = taking.detail;
-      // A hold that ended unpresented has nothing to hand over.
-      if (!keys) return;
-      const next = () => {
-        if (!quickShortcuts()) keys.length = 0;
-        if (!keys.length) {
-          release();
-          return;
-        }
-        const key = keys.shift();
-        // The hold prevented each key's own insertion, so one whose turn comes in a box
-        // an earlier key opened is typed into it here, as the browser would have.
-        if (key.key.length === 1 && typesText(focused()))
-          document.execCommand("insertText", false, key.key);
-        else press(key);
-        nextFrame(next);
-      };
+  let pressingHeld = false;
+  // Upgrade opens commands about the shown document. A command needing private
+  // history keeps its key and every printed key behind it in the same queue until
+  // presentation. New ready keys otherwise pass straight through bootstrap.
+  const takeHeldKeys = () => {
+    if (!pageUpgraded() || pressingHeld) return;
+    const taking = new CustomEvent("lf-held-keys", {
+      detail: { ready: keyReady, keep: () => !pagePresented() },
+    });
+    document.dispatchEvent(taking);
+    const { keys, pause, release } = taking.detail;
+    // An empty or ended hold has nothing to hand over.
+    if (!keys) return;
+    pressingHeld = true;
+    const next = () => {
+      if (!quickShortcuts()) keys.length = 0;
+      if (!keys.length) {
+        release();
+        pressingHeld = false;
+        return;
+      }
+      const key = keys[0];
+      if (!typesText(focused()) && !keyReady(key)) {
+        pause();
+        pressingHeld = false;
+        return;
+      }
+      keys.shift();
+      // The hold prevented each key's own insertion, so one whose turn comes in a box
+      // an earlier key opened is typed into it here, as the browser would have.
+      if (key.key.length === 1 && typesText(focused()))
+        document.execCommand("insertText", false, key.key);
+      else press(key);
       nextFrame(next);
-    },
-    { once: true },
-  );
+    };
+    nextFrame(next);
+  };
+  document.addEventListener(UPGRADE, takeHeldKeys, { once: true });
+  document.addEventListener(PRESENTATION, takeHeldKeys, { once: true });
+  // A declared initial input may arrive after presentation. Its owner already
+  // repaints availability through paintKeys; that same reading releases held keys.
+  watchCommandAvailability(takeHeldKeys);
   // Focus entering a box, or a control that claims Escape, disarms the sequence — a
   // digit typed in a box is text, and a chip left blooming would promise a cancel the
   // control would consume. The paint that answers the move is repaint.js's. A chrome

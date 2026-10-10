@@ -53,10 +53,11 @@
 
    - pressing its notice, or its margin marker where a widget holds it out of the flow;
    - opening the thread: a folded outlet, or a panel card the list opens;
+   - choosing a panel card by pressing its title (thread-card.js), which shows the whole
+     thread even when it already stood open or its title already held focus;
    - arriving at it: coming to stand in it from outside it, by a move of theirs, a t/T
-     walk, a Question, a link, Tab, whatever route took them (focus.js, `onStanding`), or by
-     a press on its title, which stands for the whole thread, whether or not it already
-     stood open. Coming back to the thread they stood in is a stay, whatever puts them
+     walk, a Question, a link, Tab, whatever route took them (focus.js, `onStanding`).
+     Coming back to the thread they stood in is a stay, whatever puts them
      there, as when the runtime puts back a reply box a surface stopped drawing, and so
      is a move within it, such as Escape out of its reply box onto its title or going to
      a Question it already shows;
@@ -94,7 +95,7 @@ import { offer } from "../widget-elements.js";
 import { keeps, keepsText, layoutPx } from "../keeps.js";
 import { keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
-import { focusThread, threadFocusStop } from "./focus.js";
+import { focusThread } from "./focus.js";
 import { isReaction, threadKey, threadNames } from "./model.js";
 import { allThreads } from "./state.js";
 import { THREAD } from "./selectors.js";
@@ -379,13 +380,8 @@ onStanding((node, cause) => {
   if (cause === "drop") return;
   const thread = node && closestAcross(node, THREAD);
   const id = thread ? (thread.dataset.id ?? thread.dataset.thread) : null;
-  const title = thread && threadFocusStop(thread);
   const arrived =
-    id !== null &&
-    id !== standing &&
-    (cause === "move" ||
-      cause === "step" ||
-      (cause === "press" && title !== thread && node === title));
+    id !== null && id !== standing && (cause === "move" || cause === "step");
   standing = id;
   if (arrived) showHeld(id);
 });
@@ -415,11 +411,10 @@ export class HeldNews {
     holders.add(this);
   }
 
-  // The reading to draw from `reading`, the seat's whole reading of its threads. The first
-  // reading drawn from the read log is what the seat shows on arrival, so none of it is
-  // news; one drawn before the log is read, or while the server is away, is no baseline
-  // either. `row` says whether the seat draws a first-message row the user is not in, in
-  // whose place a new thread's notice can stand.
+  // The reading to draw from `reading`, the seat's whole reading of its threads. Empty
+  // startup preparation is no baseline, but known local threads already drawn while
+  // history loads are real reading to protect. `row` says whether the seat draws a
+  // first-message row the user is not in, in whose place a notice can stand.
   hold(reading, { row }) {
     const candidate = this.prepare(reading, { row });
     candidate.commit();
@@ -429,7 +424,7 @@ export class HeldNews {
   // Required presenters prepare before yielding to package layout. Only the
   // candidate actually painted becomes the baseline for the next comparison.
   prepare(reading, { row }) {
-    const read = readApplication().phase === "ready";
+    const read = readApplication().phase === "ready" || reading.threads.length > 0;
     if (!read || !readingIsContinuous()) this.#forget();
     const prior = read ? this.#shown : null;
     const keys = new Set(reading.threads.map(({ key }) => key));
@@ -461,10 +456,17 @@ export class HeldNews {
     // A thread the user starts is their gesture, and the threads before it show with it.
     if (arrived.some(({ key }) => gestured(key))) this.#threads.clear();
     else if (arrived.length) {
-      const last = prior.threads.at(-1)?.key;
-      const seen = growthAfterIsSeen(last ? this.#view(last)?.node : this.#seat);
-      if (seen && (last || row)) for (const { key } of arrived) this.#threads.add(key);
-      else this.#threads.clear();
+      const drawn = ({ key }) =>
+        this.#known.has(key) && this.#view(key)?.node.checkVisibility();
+      for (const thread of arrived) {
+        const index = reading.threads.indexOf(thread);
+        const next = reading.threads.slice(index + 1).find(drawn);
+        const previous = reading.threads.slice(0, index).findLast(drawn);
+        const seen = next
+          ? growthInsideIsSeen([this.#view(next.key)?.node].filter(Boolean))
+          : growthAfterIsSeen(previous ? this.#view(previous.key)?.node : this.#seat);
+        if (seen && (next || previous || row)) this.#threads.add(thread.key);
+      }
     }
   }
 
@@ -497,7 +499,17 @@ export class HeldNews {
         };
       });
     const waiting = this.#threads.size;
-    const host = threads.at(-1);
+    const host =
+      waiting &&
+      (threads.find(
+        (thread) =>
+          this.#view(thread.key)?.node.open &&
+          growthInsideIsSeen([this.#view(thread.key).node]),
+      ) ??
+        threads.findLast((thread) =>
+          growthInsideIsSeen([this.#view(thread.key)?.node].filter(Boolean)),
+        ) ??
+        threads.at(-1));
     if (waiting && host) host.news = { ...host.news, threads: waiting };
     for (const thread of threads) {
       if (thread.news)
@@ -621,10 +633,13 @@ export class HeldReading {
   }
 
   hold(reading) {
-    // Preparation can draw partial authored contributions before the complete log
-    // arrives. That is no baseline for news: the first ready reading stands whole.
-    if (readApplication().phase !== "ready") {
-      this.#shown = null;
+    // Empty preparation is no baseline for first history. A release by the user's
+    // gesture can already establish a real local reading before history arrives.
+    if (
+      readApplication().phase !== "ready" &&
+      !this.#released &&
+      this.#shown === null
+    ) {
       this.#stop();
       return reading;
     }

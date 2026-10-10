@@ -188,17 +188,19 @@ export function sessionFromCookie(
   return null;
 }
 
+/** Activation selects a private record in one release, like its Durable Object key. */
 export function activeFromCookie(
   cookie: string | null,
   secure: boolean,
   pageRoot: string,
+  release: string,
 ): boolean {
   if (cookie === null) return false;
   const prefix = secure ? ACTIVE_COOKIE_PREFIX : HTTP_ACTIVE_COOKIE_PREFIX;
   const expected = pageCookieName(prefix, pageRoot);
   return cookie
     .split(";")
-    .some((item) => item.trim() === `${expected}=1`);
+    .some((item) => item.trim() === `${expected}=${release}`);
 }
 
 function pageCookieName(prefix: string, pageRoot: string): string {
@@ -231,13 +233,13 @@ function pageActiveCookie(secure: boolean, pageRoot: string, value: string): str
   return `${name}=${value}; Path=/${security}; HttpOnly; SameSite=Lax`;
 }
 
-export function activeCookie(secure: boolean, pageRoot: string): string {
-  return pageActiveCookie(secure, pageRoot, "1");
+export function activeCookie(secure: boolean, pageRoot: string, release: string): string {
+  return pageActiveCookie(secure, pageRoot, release);
 }
 
-// The marker says the page's private state lives in a container, so it has to go when
+// The marker selects the page's private record, so it has to go when
 // the user is put back on the published projection; leaving it and ignoring it would
-// send the next read to the container again.
+// send the next read to that private record again.
 export function clearActiveCookie(secure: boolean, pageRoot: string): string {
   return `${pageActiveCookie(secure, pageRoot, "")}; Max-Age=0`;
 }

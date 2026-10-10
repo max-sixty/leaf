@@ -30,12 +30,14 @@ export const isReaction = (message) => Boolean(message.token);
 /** @param {Pick<Message, "addressable">} message */
 export const isAddressable = (message) => message.addressable !== false;
 
-/** @param {Thread} thread @param {boolean} ready */
-const threadOffers = (thread, ready) => ({
-  open: ready,
-  reply: ready && !thread.settling,
-  resolve: ready && !thread.resolved && !thread.settling,
-  reopen: ready && Boolean(thread.resolved) && !thread.settling,
+// A known thread can be opened and answered before the saved inventory arrives.
+// Its own settlement, rather than the collection's completeness, owns these offers.
+/** @param {Thread} thread */
+const threadOffers = (thread) => ({
+  open: true,
+  reply: !thread.settling,
+  resolve: !thread.resolved && !thread.settling,
+  reopen: Boolean(thread.resolved) && !thread.settling,
 });
 
 // The publisher supplies the vocabulary; controls and commands read these same
@@ -383,7 +385,7 @@ export function readThreadRecords(
       bare_reaction: thread.bare_reaction,
       seat: thread.seat,
       summaries: thread.summaries,
-      offers: threadOffers(thread, ready),
+      offers: threadOffers(thread),
     };
   });
 }

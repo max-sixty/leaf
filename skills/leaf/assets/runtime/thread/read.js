@@ -21,6 +21,7 @@ import { nextRender, sizeObserver } from "../rendering.js";
 import { seenRect, shownBand } from "../geometry.js";
 import { SLIDE_END } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
+import { pagePresented } from "../presentation.js";
 import { moved } from "./model.js";
 import { readThreads } from "./state.js";
 import { excludedByInert, renderedParent } from "../shadow.js";
@@ -178,6 +179,7 @@ export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
 
   const firstUnreadCommand = {
     id: "thread.unread.first",
+    ready: pagePresented,
     keys: ["u"],
     description: "Go to the first unread message",
     title: "first unread",

@@ -178,10 +178,11 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     if (by > 0) threadsBox.scrollBy({ top: by, behavior: "instant" });
   }
 
-  const rowModel = (all, commands) => {
+  const rowModel = (collection, commands) => {
     // The threads. A bare reaction is paint on the page and a chip on the page
     // row, and counts for nothing here: no card, no destination, no place in the walk.
-    const threads = all.filter(discussed);
+    const threads = collection.threads.filter(discussed);
+    const ready = collection.phase === "ready";
     const open = threads.filter((t) => !t.resolved);
     // The page's outline, read once for the whole reconcile: every thread asks it which
     // part of the page it stands in, which the narrowing's search and Placement read.
@@ -203,7 +204,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     // and go on saying what the log says. What the panel shows is the panel's business,
     // and so is the order it shows it in. The page's order is kept either way for the
     // walk with the panel shut.
-    const narrowing = commands.narrowing.model(threads, places);
+    const narrowing = commands.narrowing.model(threads, places, ready);
     const kept = new Map(
       threads
         .filter((thread) => !narrowing.shown.includes(thread))
@@ -217,9 +218,9 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     const recent = narrowing.intent.order === "recent";
     const ordered = recent ? inRecentOrder(threads) : inPage;
     const rows = [];
-    if (!threads.length)
+    if (ready && !threads.length)
       rows.push(Object.freeze({ kind: "empty", key: "empty", text: emptyText }));
-    else if (!shown.length)
+    else if (threads.length && !shown.length)
       rows.push(
         Object.freeze({ kind: "empty", key: "no-match", text: narrowing.emptyText }),
       );
@@ -260,11 +261,25 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
         }),
       );
     }
+    // A local send is a real row while history loads, but it says nothing about the
+    // saved inventory. Keep that uncertainty after the known cards, so its removal
+    // cannot carry them up when the list has no scroll room to absorb the change.
+    if (!ready)
+      rows.push(
+        Object.freeze({
+          kind: "empty",
+          key: "history",
+          text:
+            collection.phase === "offline"
+              ? "Current threads are unavailable while the server is offline."
+              : "Loading current threads…",
+        }),
+      );
     return Object.freeze({
       rows: Object.freeze(rows),
       intent: narrowing.intent,
-      count: open.length,
-      unread: threads.filter((t) => t.unread.length).length,
+      count: ready ? open.length : null,
+      unread: ready ? threads.filter((t) => t.unread.length).length : null,
       narrowing: narrowing.presentation,
       pageSeats: new Map(inPage.map((t, i) => [t.id, i])),
     });
@@ -357,10 +372,9 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
   // one proof for the existing thread presentation ticket. Only the newest call can
   // run post-paint work, capture authored values, or commit a fallback.
   async function renderThreads(collection, commands) {
-    const all = collection.threads;
     const generation = ++renderGeneration;
     const current = () => generation === renderGeneration;
-    let reading = rowModel(all, commands);
+    let reading = rowModel(collection, commands);
     configureList(commands);
     const hold = takeScrollHold(commands.panelIsOpen);
     const incoming = incomingAtLatest(reading, commands.panelIsOpen, hold?.named);
@@ -372,7 +386,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
       recovered = candidate.recovered;
       // Newly connected frozen markup can supply the words a different thread's
       // quote names. Re-derive that batch reading through the same descriptor owner.
-      const connected = rowModel(all, commands);
+      const connected = rowModel(collection, commands);
       const changedQuotes = connected.rows.some((row, index) => {
         if (row.kind !== "thread") return false;
         const prior = reading.rows[index];
@@ -413,31 +427,6 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     };
   }
 
-  async function renderThreadListUnavailable(text, commands) {
-    const generation = ++renderGeneration;
-    const current = () => generation === renderGeneration;
-    configureList(commands);
-    const model = Object.freeze({
-      rows: Object.freeze([Object.freeze({ kind: "empty", key: "unavailable", text })]),
-      count: null,
-      narrowing: commands.narrowing.model([], new Map()).presentation,
-      pageSeats: new Map(),
-    });
-    const hold = takeScrollHold(commands.panelIsOpen);
-    let recovered = null;
-    try {
-      const candidate = await presentList(model, current);
-      if (!candidate) return;
-      recovered = candidate.recovered;
-    } catch (error) {
-      await retainCommitted(current, model, error);
-      throw error;
-    } finally {
-      finishScrollHold(hold, commands.panelIsOpen);
-    }
-    return { recovered, proof: threadsBox, commit: () => threadsBox.commit(model) };
-  }
-
   const cancel = () => {
     ++renderGeneration;
   };
@@ -450,7 +439,6 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
   return {
     openThreads,
     renderThreads,
-    renderThreadListUnavailable,
     restoreThreadList,
     cancel,
   };

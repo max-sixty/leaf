@@ -4,7 +4,9 @@
    moves focus into the field. Automatic passage selection leaves the native
    selection in place. Its `.lf-composer` wrapper contributes state and draft machinery
    through `display: contents`; only `.lf-fab-input` draws. `showComposer` states the
-   whole visible outcome from `composerOpen`, `pendingAnchor`, and `fabAnchor`;
+   whole visible outcome from `composerOpen`, `pendingAnchor`, and `fabAnchor`.
+   Reopening the same passage resumes its words, seed, and modes; omitted modes
+   initialize only a new passage, while explicit options restore a stored record.
    `openComposer`'s `focus` option decides focus independently. Outside clicks and
    Escape hide without discarding words. A successful send settles only the submitted draft generation.
 
@@ -56,6 +58,7 @@ import { sentDrawing, validDrawing } from "./drawing-record.js";
 import { commitPoint } from "../pointed-place.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
 import { textField } from "./text-field.js";
+import { pagePresented } from "../presentation.js";
 
 // The floating field immediately accepts a comment on the target the user named.
 // Tab from the field, or `e` while it stands unfocused, unfolds every other response
@@ -436,16 +439,16 @@ export function createSelectionComposer({
   // machine seed from user text: the seed belongs to its old anchor and is dropped;
   // user text stays with its passage unless an explicit Comment gesture carries it.
   let seededQuote = "";
-  // `about` defaults to the mode standing at the open — a composer opened in design mode
-  // is about design — and a restored draft passes the word it was saved with. A pointing
+  // A new passage defaults to the mode standing at the open — a composer opened in
+  // design mode is about design — and a restored draft passes its saved modes. A pointing
   // gesture passes the row inside the target it landed on (`point`, pointed-place.js),
   // or null; a route that names no point leaves the bar where it stands on this anchor.
   function openComposer(
     anchor,
     text,
     {
-      suggest = false,
-      about = designModeActive() ? "design" : null,
+      suggest = undefined,
+      about = undefined,
       drawing = undefined,
       carry = false,
       focus = true,
@@ -453,17 +456,18 @@ export function createSelectionComposer({
     } = {},
   ) {
     closeReactions();
-    // A box holding nothing but the machine's seed is a box holding nothing. Asked of the
-    // seed rather than of the box, because an empty seed matches an empty field, and a
-    // draft that is one attached image and no words has exactly that field.
-    if (seededQuote && composerInput.value === seededQuote) syncComposer.load("");
-    seededQuote = "";
     const ctx = composerCtx(anchor || null);
     const previousCtx = composerCtx(pendingAnchor);
     const drawingSupplied = drawing !== undefined;
     let carriedDraft = false;
     let standing = null;
     if (previousCtx !== ctx) {
+      suggest = suggest === undefined ? false : suggest;
+      about = about === undefined ? (designModeActive() ? "design" : null) : about;
+      // The machine's untouched seed belongs to its passage. Resuming that passage
+      // retains it; moving to another neither carries it nor mistakes it for user words.
+      if (seededQuote && composerInput.value === seededQuote) syncComposer.load("");
+      seededQuote = "";
       composerEpoch += 1;
       const previousText = syncComposer.value();
       const previousDrawing = pendingDrawing;
@@ -489,7 +493,7 @@ export function createSelectionComposer({
       }
     }
     pendingAnchor = anchor || null;
-    pendingAbout = about;
+    if (about !== undefined) pendingAbout = about;
     if (previousCtx !== ctx) pendingDrawing = validDrawing(standing) ? standing : null;
     const target = pendingAnchor?.section ? elementById(pendingAnchor.section) : null;
     keeps(
@@ -502,7 +506,7 @@ export function createSelectionComposer({
     // drawing the gesture brings is a change to that draft, which the history holds.
     if (previousCtx !== ctx) syncComposer.arrive();
     if (drawingSupplied) pendingDrawing = validDrawing(drawing) ? drawing : null;
-    suggestCheck.checked = Boolean(suggest);
+    if (suggest !== undefined) suggestCheck.checked = Boolean(suggest);
     // Chromium may collapse the native page Selection before dispatching the field's
     // focus event. Mark the handoff before showing the surface so that an intermediate
     // selectionchange cannot dismiss the durable passage this composer is opening on.
@@ -777,6 +781,7 @@ export function createSelectionComposer({
   const RESPONSE_OPTIONS_TITLE = "With other responses open";
   const RESPONSE_REACTION = {
     id: "response.reaction.choose",
+    ready: pagePresented,
     keys: () =>
       reactionTokens()
         .slice(0, 9)

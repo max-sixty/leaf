@@ -70,10 +70,12 @@ tabular numerals and a slot wide enough for its largest value.
 ## Startup and presentation
 
 `body[data-lf-presented]` means the initial authoritative projection, or the deliberate
-offline fallback, is safe for recorded interaction. Authored content is already visible:
+offline fallback, is ready for durable widget actions. Authored content is already visible:
 Leaf disables its arrival transitions and durable widget actions before that stamp.
-Printed keys pressed earlier are held and reach the page's key handlers only after the
-stamp lands, in order, so a package's keys need no arrival guard either.
+`body[data-lf-upgraded]` opens new comments and drawing against the shown document;
+private history may still be loading. Printed keys pressed before upgrade are held
+and replayed in order as their command's input becomes ready. State-changing widget
+commands consume the controller's availability rather than adding an arrival guard.
 Package styles need no arrival guard. A package opens a dialog or popover only after that
 stamp or in response to a user gesture; Leaf does not defer top-layer UI during startup.
 A widget that keeps part of its own upgrade off the presentation path — a heavy renderer
@@ -654,6 +656,17 @@ run-less declarations retain their native and ARIA constraints. Replacing or rem
 the source attachment withdraws its old routes. A nearer widget owns its declared keys;
 an unavailable implemented binding reserves its key against a different outer meaning.
 
+Decision commands wait for the first saved-state reading. A row may declare `ready()`
+when its input has a different startup boundary: return whether that input is known,
+and keep ordinary action availability in `when`. Leaf holds early printed keys until
+their command is ready, preserving their order; an unavailable action is then refused
+normally. Call `paintKeys()` when that initial input arrives; it also retries a held
+key whose input remained unknown through presentation. Once startup releases its queue,
+new keys are handled immediately. Forwarded context aliases retain the original row's
+readiness. Navigation can instead declare readiness for its currently known
+destinations: thread walking works on local sends while saved threads are still loading.
+It walks that visible inventory and does not promise that the inventory is complete.
+
 Declare `bindingBadge` on a row or route to request an inline shortcut hint, whether or
 not the command is a Decision. An element names an empty face the widget positions
 outside every rendered native button; descendants through shadow roots or assigned
@@ -866,14 +879,21 @@ it never builds, moves or removes nodes. A node retained as ordinary furniture b
 omitted from the next datum list loses its former projection labels and provenance.
 
 ```js
-setChildren(this, rows.map(row => row.node));
-projectData(this, rows.map(row => ({
-  node: row.node,
-  key: row.key,
-  label: row.label,
-  identity: row.id,
-  origin: {...snapshot.origin, path: ["rows", row.index]},
-})), {snapshot});
+setChildren(
+  this,
+  rows.map((row) => row.node),
+);
+projectData(
+  this,
+  rows.map((row) => ({
+    node: row.node,
+    key: row.key,
+    label: row.label,
+    identity: row.id,
+    origin: { ...snapshot.origin, path: ["rows", row.index] },
+  })),
+  { snapshot },
+);
 ```
 
 `key` is a non-empty string unique in the projection and opaque to the runtime.

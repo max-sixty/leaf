@@ -43,6 +43,7 @@
    expected to change a lot (notes/what-needs-you/). Change them freely.
 */
 import { pageCommand, pageScope } from "./keyboard/register.js";
+import { pagePresented } from "./presentation.js";
 import { documentFocused, paintKeys } from "./keyboard/scopes.js";
 import { coarsePointer } from "./pointer.js";
 import { questionHolding, placeOf, walkOrigin } from "./standing-target.js";
@@ -333,6 +334,7 @@ export function createQueueWalk({
 
   pageCommand({
     id: "queue.walk",
+    ready: pagePresented,
     touch: false,
     keys: ["q", "Shift+q"],
     routes: [

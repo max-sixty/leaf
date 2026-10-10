@@ -57,8 +57,9 @@ import { PRESSABLE } from "./widget-elements.js";
 import { PRESSES, WORKS } from "./control-selectors.js";
 import { excerptWords } from "./contribution-model.js";
 
-// Anchors are durable coordinates, so every route that can mint one begins only after
-// replay has reconciled the authored document. The presentation root owns the writer.
+// Every route that mints an anchor starts after the shown document's widgets and
+// selectable words have settled. Private history can still be loading: the gesture
+// names the revision and coordinate the user actually saw. The entry owns the writer.
 let anchoringReady = false;
 export const anchoringIsReady = () => anchoringReady;
 export function setAnchoringReady(ready) {

@@ -192,11 +192,14 @@
       activationCount = 0;
       document.addEventListener("lf-session-active", () => activationCount++);
     },
-    async activateSession() {
+    async activateSession(activation) {
       const client = await runtimeModule("layer-client");
-      client.admitResponse(
-        new Response(null, { headers: { "Leaf-Session": "active" } }),
-      );
+      const response = await fetch(activation, { headers: client.layerHeaders() });
+      if (!response.ok || response.headers.get("Leaf-Session") !== "active")
+        throw new Error(`Session activation returned HTTP ${response.status}`);
+      if (!client.admitResponse(response))
+        throw new Error("Session activation belongs to another delivery");
+      return response.json();
     },
     crossTabActivated() {
       return activationCount === 1;

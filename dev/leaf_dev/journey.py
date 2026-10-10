@@ -1325,7 +1325,10 @@ def target_session(
             user.release_alone,
         )
         return
-    with serving as (origin, built):
+    with serving as hosted:
+        origin, built = (
+            (hosted.origin, hosted.release) if target == "website-worker" else hosted
+        )
         session, version = website_session(
             browser,
             built if target == "website-adapter" else release or built,

@@ -31,6 +31,10 @@ package authors continue to use native JavaScript without a build.
   `webawesome/` hold the inputs their builders use.
   `floating-ui-zoom.patch` backports upstream #3492 to the locked 1.8.0 ESM;
   its builder records the upstream commit and applies it to private package copies.
+  `snapdom-zoom.patch` corrects clipped-placeholder margin units in locked 3.3.0;
+  its builder formats a private ESM copy with the locked esbuild before applying it.
+  Remove it once the locked release normalizes clipped sibling gaps to layout
+  units itself and the zoomed capture regression passes without the patch.
 
 After `npm ci`, both builds reproduce the tracked bytes, so a diff after a rebuild
 means the lock, a build script, or the registry input a bundle reads changed.

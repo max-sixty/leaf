@@ -39,7 +39,11 @@ class PageStateService:
     @contextmanager
     def _read(self, *, with_token: bool = False):
         if self.page_snapshot is not None:
-            yield self.page_snapshot.context, self.page_snapshot.reading, None
+            yield (
+                self.page_snapshot.context,
+                self.page_snapshot.reading,
+                self.page_snapshot.source_error,
+            )
         else:
             with PageTransaction(self.page_dir) as page:
                 activation = activate_source(self.page_dir, transaction=page)
@@ -77,6 +81,10 @@ class PageStateService:
                 reading, presence_model.presence_fingerprint(state, state["others"])
             )
         )
+        if self.page_snapshot is not None:
+            # A frozen reading cannot advance on its clock. Refresh is driven by
+            # a successor publication, never a deadline within this same input.
+            state["activity"]["next_transition_at"] = None
         return state
 
     def activity_row(self) -> tuple[dict, str, dict]:

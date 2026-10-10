@@ -5,7 +5,9 @@
    through every ancestor scroll; generic repaint and scroll publications do not solve
    another position. Target or field resize, viewport resize, horizontal target motion,
    and declared layout changes invalidate the attachment. Replacing its target or native seat retires it. The compact response strip retains ordinary
-   collision placement and scroll observation.
+   collision placement and scroll observation. A seated editor carries its frame
+   through attachment changes under the shared rule in comment-placement.js;
+   its durable anchor and native editor stay intact.
 
    A detached draft uses the shared unanchored window posture, preserving its original
    anchor and native editor. Resume writing can recover it even after that passage is gone.
@@ -14,7 +16,6 @@
    side panel withholds the page's response bar and takes its focus until the page is
    available again. */
 import { cancelRender, nextRender } from "/runtime/rendering.js";
-import { resolveAnchor } from "/runtime/anchor-resolution.js";
 import { sameAnchor } from "/runtime/anchor-coordinate.js";
 import { declareOffFlowSurface } from "/runtime/off-flow.js";
 import { rightCover, shownBox } from "/runtime/geometry.js";
@@ -25,15 +26,9 @@ import {
   targetParts,
   targetRange,
 } from "/runtime/resolved-target.js";
-import {
-  blockAt,
-  pageRange,
-  pageText,
-  quoteFrom,
-  segmentsIn,
-} from "/runtime/passages.js";
+import { blockAt, pageRange, quoteFrom, segmentsIn } from "/runtime/passages.js";
 import { pageSelection, selectionAnchor } from "/runtime/composing/capture.js";
-import { closeLayer, holdFocus, focusDestination } from "/runtime/focus.js";
+import { closeLayer, drawn, holdFocus, focusDestination } from "/runtime/focus.js";
 import { coarsePointer } from "/runtime/pointer.js";
 import { LAYOUT } from "/runtime/widget-elements.js";
 import { under } from "/runtime/shadow.js";
@@ -56,7 +51,6 @@ export function createFloatingResponsePlacement({
   threadsBox,
   positioned,
   dismiss,
-  standsIn,
   scrollToElement,
   scrollToRange,
 }) {
@@ -75,6 +69,9 @@ export function createFloatingResponsePlacement({
     update: () => scheduleFabPosition(),
   });
   let nativeAttachment = false;
+  // The attachment the seated editor last landed on, separate from whichever
+  // geometry a later read resolves. Only a completed placement advances this tenure.
+  let editingAttachment = null;
   // The browser's selected Range is a mechanical place even when its durable quote
   // is ambiguous. Keep it for this response transaction, only while its original
   // endpoints survive. A revision replacing them retires it; semantic resolution
@@ -142,6 +139,7 @@ export function createFloatingResponsePlacement({
     cancelRender(fabPositionFrame);
     fabPositionFrame = 0;
     if (!reset) return;
+    editingAttachment = null;
     fabPlacement.forget();
     fabBar.removeAttribute("data-lf-placement");
     for (const property of ["--lf-float-w", "--lf-float-h"])
@@ -267,8 +265,8 @@ export function createFloatingResponsePlacement({
       const retained = selectedRange(anchor);
       if (retained) return rangeGeometry(retained);
     }
-    const found = anchor ? resolveAnchor(anchor, pageText()) : null;
-    if (!anchor || !standsIn(anchor, found)) return null;
+    const found = response.resolved;
+    if (!anchor || !found) return null;
     const words = anchor.quote ? passageGeometry(found) : null;
     if (words) return words;
     // The full authored box supplies the attachment even when an ancestor clips it.
@@ -302,7 +300,6 @@ export function createFloatingResponsePlacement({
       return false;
     }
     const geometry = anchorGeometry(response.anchor);
-    if (response.open && nativeAttachment && geometry) return true;
     if (!geometry && !response.open) return false;
     // Placement needs the actual block holding the native selection, independently
     // of whether those words can be uniquely named by a durable anchor.
@@ -319,6 +316,26 @@ export function createFloatingResponsePlacement({
       passage: geometry,
       boundary: windowBoundary,
     });
+    if (!place) {
+      withholdFab();
+      return false;
+    }
+    const attachment = { owner, passage: Boolean(geometry?.attachment) };
+    const changedAttachment =
+      editingAttachment &&
+      (editingAttachment.owner !== attachment.owner ||
+        editingAttachment.passage !== attachment.passage);
+    if (response.open && changedAttachment && drawn(fabInput)) {
+      // Resolution may move from quoted words to their subject after saved state
+      // arrives, including for a resumed draft with no retained native Range. Carry
+      // the seated editor's frame through that handoff, before choosing its new seat.
+      const frame = fabFrameAt();
+      if (frame) {
+        fabPlacement.adopt(frame);
+        nativeAttachment = false;
+      }
+    }
+    if (response.open && nativeAttachment && geometry) return true;
     const boundary = place.region ? floatBoundary(place.region) : windowBoundary;
     if (boundary.width <= 0 || boundary.height <= 0) return false;
     // Width before coordinates: the side is chosen from the card's minimum, then the size
@@ -346,8 +363,9 @@ export function createFloatingResponsePlacement({
         layoutPx(Math.max(0, boundary.height / scale)),
       );
     };
-    fabPlacement.choose({
+    const { hold } = fabPlacement.choose({
       clear: place.clear,
+      row: place.row,
       column: place.column,
       extent: place.extent,
       boundary,
@@ -373,6 +391,7 @@ export function createFloatingResponsePlacement({
           column: place.column,
           margin: place.margin,
           boundary,
+          hold: hold ? () => hold : null,
           fit({ width, scale }) {
             if (!stillCurrent()) return;
             setWidth(width, scale.x);
@@ -397,6 +416,7 @@ export function createFloatingResponsePlacement({
       .then((position) => {
         if (!position || !stillCurrent()) return;
         fabPlacement.landed(position);
+        editingAttachment = response.open ? attachment : null;
         keeps(fabBar, "data-lf-placement", position.placement);
         // An auto-height absolute box borrows its inset-modified available height.
         // Intrinsic sizing keeps moving that inset from masquerading as content resize.
@@ -461,7 +481,7 @@ export function createFloatingResponsePlacement({
       floats: () => Boolean(response.anchor && response.floating),
       away: () => fabWithheld,
       bringBack: (behavior) => {
-        const found = resolveAnchor(response.anchor, pageText());
+        const found = response.resolved;
         const range =
           response.anchor.quote &&
           (targetRange(found) ?? selectedRange(response.anchor));
@@ -483,6 +503,7 @@ export function createFloatingResponsePlacement({
     stoodAgain,
     withheld: () => fabWithheld,
     release: () => {
+      editingAttachment = null;
       selectedPassage = null;
       fabWithheld = false;
       fabWithheldFocus = null;

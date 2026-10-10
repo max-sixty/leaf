@@ -41,12 +41,9 @@ export function createThreadActions({
     });
     return delivery ? Object.freeze({ key: attempt, delivery }) : null;
   };
-  const find = (key) => {
-    const collection = readThreads();
-    return collection.phase === "ready"
-      ? collection.threads.find((thread) => thread.key === key)
-      : null;
-  };
+  // A visible local thread is a current root while saved history is loading too.
+  // Its replies and settlement use the same ledger dependency on that opening send.
+  const find = (key) => readThreads().threads.find((thread) => thread.key === key);
 
   const reply = (key, text, { attempt } = {}) => {
     if (typeof text !== "string") throw new TypeError("A Thread reply needs text");

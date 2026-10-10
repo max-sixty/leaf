@@ -16,8 +16,8 @@ the task's delivery adapter, so comments can start a new turn after this one end
 A desktop Codex user preview detaches its watcher: the chat's idle instance can
 unload without losing the page, feedback, or source updates. Other previews run
 in the foreground; SIGTERM takes the same cleanup path as Ctrl-C.
-Each start discards what an earlier one left in its slot, claim
-included, and builds the page fresh from the fixture; a start into a slot another
+User previews resume the page in their slot, preserving its feedback and authored
+revisions. Plain previews build fresh from the fixture. A start into a slot another
 preview is serving is refused. The slot is a page directory under
 `LEAF_PREVIEWS_ROOT` (default `.tmp/previews/`), marked by its `preview.json`, with
 its lease at `<slot>.lock` beside it.
@@ -28,7 +28,8 @@ actually changed; identical saves leave the browser and server alone. A source o
 (a vendored file, the runtime's Python, its lock)
 re-vendors through `page init`, which mints a new layer generation the browser follows
 into a fresh document. A refused update is printed and retried after the next edit.
-Seeded history is installed once, so a change to it is refused until a restart.
+User previews install fixture history and data only when their slot is created;
+choose another slot to try a different fictional seed.
 
     uv run leaf-dev preview [EXAMPLE] [--source FILE] [--runtime CHECKOUT]
         [--slot NAME] [--user] [--export]
@@ -76,7 +77,7 @@ from leaf_dev.page_fixtures import (
 )
 
 TMP = ROOT / ".tmp"
-# A slot is a directory the start discards, so its name must stay inside the root.
+# A slot names a page directory, so its name must stay inside the root.
 SLOT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 # The idle wake-up at which a preview checks its server and owning session.
 WATCH_INTERVAL_MS = 250
@@ -151,11 +152,21 @@ def preparation_note(source: Path, data_sources: int, versions: int) -> str:
     return f"prepared {source.stem} ({', '.join(details)})"
 
 
-def mark_preview(source: Path, page: Path, runtime: Path, user: bool) -> None:
+def fixture_identity(source: Path) -> str:
+    """Name an authored source without exposing its absolute path to the browser."""
+    return hashlib.sha256(str(source).encode()).hexdigest()
+
+
+def mark_preview(
+    source: Path, page: Path, runtime: Path, user: bool, authored: str
+) -> None:
     """Record the preview the browser chrome labels, and mark the page as one.
 
     Every field written here reaches the browser: the server hands the file to
     the page whole. It serves neither the file itself nor an absolute checkout path.
+    `input` records the fixture publication this watcher last applied, so a later
+    watcher can distinguish source edits from competing page edits. The page's own
+    authored files and event log remain authoritative.
     """
     from leaf.state import write_json
 
@@ -169,6 +180,7 @@ def mark_preview(source: Path, page: Path, runtime: Path, user: bool) -> None:
             "checkout": runtime.name,
             "interaction": "user" if user else "author",
             "started": datetime.now(UTC).isoformat(),
+            "input": {"source": fixture_identity(source), "authored": authored},
             **{
                 key: producer[key]
                 for key in ("commit", "dirty", "committed", "installed")
@@ -357,8 +369,8 @@ class PreviewService:
         from leaf.service import PageTransaction
 
         if self.user:
+            cmd_stop(self.page, owner=self.claim)
             if self.claim is not None:
-                cmd_stop(self.page, owner=self.claim)
                 with PageTransaction(self.page) as page:
                     page.restore_claim(self.claim, None)
         else:
@@ -415,16 +427,20 @@ def refresh_preview(
     source edit over competing authored inputs is refused rather than replacing
     them. A refused stamp restores the previous mutable inputs as well.
     """
-    if fixture_seed(source) != state["seed"]:
+    if not service.user and fixture_seed(source) != state["seed"]:
         return refused(
-            "seeded history changed; restart the preview to rebuild the page "
-            "from it, which discards this page's feedback"
+            "seeded history changed; restart this claimless preview to rebuild its fixture"
         )
     try:
         incoming = authored_files(source, source.with_suffix(".page"))
-        source_changed = incoming != state["authored"]
+        incoming_digest = authored_digest(incoming)
+        source_changed = incoming_digest != state["authored"]
         previous = authored_files(page / "index.html", page / "page")
-        if source_changed and previous not in (state["authored"], incoming):
+        previous_digest = authored_digest(previous)
+        if source_changed and previous_digest not in (
+            state["authored"],
+            incoming_digest,
+        ):
             return refused(
                 "both the fixture and the preview's authored files changed; "
                 "reconcile them before retrying"
@@ -447,7 +463,7 @@ def refresh_preview(
         if planned["changed"]:
             with service.replacing():
                 leaf(launcher, runtime, "page", "init", *selection_args, str(page))
-        if source_changed:
+        if source_changed and previous_digest != incoming_digest:
             # Resolve the complete candidate before touching served authored files.
             # The selected payload's stamp owner installs and publishes it under
             # one transaction, including a final check against competing edits.
@@ -479,10 +495,10 @@ def refresh_preview(
                     "--if-source",
                     authored_digest(previous),
                 )
-            state["authored"] = incoming
         else:
             refresh_media(source, page, partial(leaf, launcher, runtime))
-        mark_preview(source, page, runtime, service.user)
+        state["authored"] = incoming_digest
+        mark_preview(source, page, runtime, service.user, state["authored"])
     except (LeafFailed, ValueError, OSError) as error:
         return refused(error)
     return True
@@ -644,7 +660,7 @@ def run_preview(
     prepared_claim: dict | None = None,
     handshake=None,
 ) -> None:
-    """Take the slot, build it fresh, and serve it until this process ends."""
+    """Take the slot, resume a user's page or build a plain preview, then serve."""
     from leaf.leases import release_lease, take_lease
 
     lease = take_lease(preview_lease(page))
@@ -654,7 +670,8 @@ def run_preview(
             "another --slot"
         )
     try:
-        discard_preview(page)
+        if not user:
+            discard_preview(page)
         serve_preview(
             source,
             page,
@@ -682,21 +699,52 @@ def serve_preview(
     from leaf.files import read_json
     from leaf.layer import layer_inputs
 
-    # The seeded history the page was built with, which later edits may not change,
-    # and the complete authored inputs last stamped into it.
+    # Fixture progress is distinct from the page's own authored inputs: an agent
+    # may have revised those while this watcher was absent.
     state = {
         "seed": fixture_seed(source),
-        "authored": authored_files(source, source.with_suffix(".page")),
+        "authored": authored_digest(
+            authored_files(source, source.with_suffix(".page"))
+        ),
     }
-    service = PreviewService(page, user, prepared_claim)
+    resumed = user and page.exists()
+    if resumed:
+        record = read_json(page / "preview.json")
+        inputs = record.get("input") if isinstance(record, dict) else None
+        if (
+            not isinstance(inputs, dict)
+            or inputs.get("source") != fixture_identity(source)
+            or not isinstance(inputs.get("authored"), str)
+            or record.get("interaction") != "user"
+        ):
+            raise ValueError(
+                f"{page} belongs to another preview; choose another --slot"
+            )
+        state["authored"] = inputs["authored"]
+    service = None
     changes = None
     try:
-        prepared_page = prepare_page(
-            page,
-            read_fixture(source),
-            partial(leaf, launcher, runtime),
-        )
-        mark_preview(source, page, runtime, user)
+        prepared_page = None
+        if resumed:
+            service = PreviewService(page, user, prepared_claim)
+            refresh_preview(source, page, launcher, runtime, state, service)
+        else:
+            # The fixture owner builds all versions, seed history, data and media
+            # privately. Only a complete page directory acquires the public slot;
+            # a refused build cannot expose partial state or clean up a successor.
+            page.parent.mkdir(parents=True, exist_ok=True)
+            with tempfile.TemporaryDirectory(
+                prefix=".leaf-preview-", dir=page.parent
+            ) as raw:
+                staged = Path(raw) / "page"
+                prepared_page = prepare_page(
+                    staged,
+                    read_fixture(source),
+                    partial(leaf, launcher, runtime),
+                )
+                mark_preview(source, staged, runtime, user, state["authored"])
+                staged.rename(page)
+            service = PreviewService(page, user, prepared_claim)
         with service.starting() as url:
             pass
         roots = layer_inputs(
@@ -707,9 +755,9 @@ def serve_preview(
         if handshake is not None and not handshake.announce({"url": url}):
             return
         print(
-            preparation_note(
-                source, prepared_page.data_sources, prepared_page.versions
-            ),
+            preparation_note(source, prepared_page.data_sources, prepared_page.versions)
+            if prepared_page is not None
+            else f"resumed {source.stem}",
             end="\n\n",
             flush=True,
         )
@@ -766,7 +814,8 @@ def serve_preview(
     finally:
         if changes is not None:
             changes.close()
-        service.stop()
+        if service is not None:
+            service.stop()
 
 
 def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) -> None:

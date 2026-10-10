@@ -32,7 +32,6 @@ from conftest import LEAF_COMMAND
 from interact_support import (
     COMPOSITE_TIMEOUT,
     PAGE,
-    PAGE_PACKAGES,
     STATED_TIMEOUT,
     TOKEN,
     append_carried_log_record,
@@ -45,6 +44,7 @@ from interact_support import (
     fetch,
     live_versions,
     neighbour_page,
+    page_packages,
     page_state,
     publish,
     read_page_data,
@@ -87,7 +87,6 @@ from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import server_rows as server_rows_model
 from leaf import service as service_model
-from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
@@ -121,6 +120,18 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
         fetch(f"{server}/api/interaction", data=b'{"session":"tab-1","entries":[]}')[0]
         == 400
     )
+    for entry in (
+        {"type": "interaction_part", "sequence": 1},
+        {"type": "keydown", "ts": 42},
+        {"type": "focusin", "target": [{}]},
+    ):
+        assert (
+            fetch(
+                f"{server}/api/interaction",
+                data=json.dumps({"session": "malformed", "entries": [entry]}).encode(),
+            )[0]
+            == 400
+        )
     assert (
         fetch(
             f"{server}/api/interaction", data=json.dumps(payload).encode(), token=None
@@ -242,21 +253,6 @@ def test_a_staged_write_moves_neither_the_page_nor_its_presence_reading(page_dir
 
     assert served_reading.page_reading(page_dir) == reading
     assert presence_model._page_stamp(page_dir) == presence_stamp
-
-
-def test_interaction_trace_does_not_keep_an_unattended_page_active(page_dir):
-    session_model.cmd_waiting(page_dir, "")
-    old = time.time() - schema_model.ACTIVITY_GRACE_SECS - 60
-    for entry in page_dir.iterdir():
-        os.utime(entry, (old, old))
-    claimed_at = datetime.fromtimestamp(old).astimezone().isoformat()
-    assert not service_model._touched_recently(page_dir, claimed_at)
-
-    interaction_model.append_interactions(page_dir, [{"source": "server"}])
-    assert not service_model._touched_recently(page_dir, claimed_at)
-
-    os.utime(page_dir / "status.json", None)
-    assert service_model._touched_recently(page_dir, claimed_at)
 
 
 def test_samples_use_captured_resources_and_independent_event_logs(server, page_dir):
@@ -3102,7 +3098,7 @@ def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring
             [
                 "page",
                 "init",
-                *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+                *package_selection_args((*page_packages(), "./.leaf")),
                 str(page_dir),
             ],
         )
@@ -3140,7 +3136,7 @@ def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring
             [
                 "page",
                 "init",
-                *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+                *package_selection_args((*page_packages(), "./.leaf")),
                 str(page_dir),
             ],
         )
@@ -5205,18 +5201,26 @@ def test_server_bind_failure_preserves_the_real_socket_error(page_dir):
 
 
 def test_the_stated_host_wildcard_accepts_an_ipv4_user(page_dir):
-    """A stated host binds the wildcard of both families, so a v4 user reaches it.
+    """A stated host reaches IPv4 users, and IPv6 users where the kernel supports it.
 
     IPV6_V6ONLY is cleared before the bind; with it set, the address a `--host`
     serve records answers only the users who arrive over IPv6.
     """
+    ipv6 = socket.has_dualstack_ipv6()
     httpd = hosting_model.LeafHTTPServer(
         ("::", 0), http_model.page_endpoint(page_dir, TOKEN)
     )
-    assert httpd.socket.family == socket.AF_INET6
     with running_http_server(httpd):
+        assert httpd.socket.family == (socket.AF_INET6 if ipv6 else socket.AF_INET)
         port = httpd.server_address[1]
         assert fetch(f"http://127.0.0.1:{port}/api/state")[0] == 200
+        if ipv6:
+            client = http.client.HTTPConnection("::1", port, timeout=STATED_TIMEOUT)
+            try:
+                client.request("GET", f"/api/state?t={TOKEN}")
+                assert client.getresponse().status == 200
+            finally:
+                client.close()
 
 
 def test_the_stated_host_wildcard_binds_what_a_kernel_without_ipv6_has(
@@ -5245,11 +5249,11 @@ def test_the_stated_host_wildcard_binds_what_a_kernel_without_ipv6_has(
     httpd = hosting_model.LeafHTTPServer(
         ("::", 0), http_model.page_endpoint(page_dir, TOKEN)
     )
-    try:
+    with running_http_server(httpd):
         assert httpd.socket.family == socket.AF_INET
         assert httpd.server_address[0] == "0.0.0.0"
-    finally:
-        httpd.server_close()
+        port = httpd.server_address[1]
+        assert fetch(f"http://127.0.0.1:{port}/api/state")[0] == 200
 
 
 def test_the_address_and_key_outlive_the_session_that_first_served(

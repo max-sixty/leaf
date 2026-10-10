@@ -33,7 +33,6 @@ from interact_support import (
     COMPOSITE_TIMEOUT,
     HELD_LEASES,
     PAGE,
-    PAGE_PACKAGES,
     PLUGIN_ROOT,
     STATED_TIMEOUT,
     Prose,
@@ -54,6 +53,7 @@ from interact_support import (
     install_payload,
     let_a_pick_settle_a_thread,
     owed,
+    page_packages,
     page_state,
     publish,
     queue_board_registry,
@@ -5886,7 +5886,7 @@ def test_revendoring_can_change_x_work_while_the_target_holds_a_task(page_dir):
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -12215,6 +12215,8 @@ def test_a_later_codex_start_names_the_running_transport(
     # All three tool calls belong to one standing harness process. Three separate
     # under_codex calls would introduce three genuine task lifetimes, rather than
     # asking whether another command in this task joins its existing adapter.
+    # This transport test uses CLI lifetime; desktop persisted-chat ownership is
+    # exercised independently by the detached preview journey.
     command = [
         *LEAF_COMMAND,
         "codex",
@@ -12231,7 +12233,7 @@ def test_a_later_codex_start_names_the_running_transport(
         started = under_codex(
             shlex.join([sys.executable, str(runner), json.dumps(calls), str(results)]),
             environment,
-            app_server=True,
+            app_server=False,
             finished=finished,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -15149,7 +15151,7 @@ def test_a_claim_an_older_leaf_wrote_is_dropped_rather_than_read_or_raised_on(
 
 
 def test_the_app_s_shared_codex_is_not_taken_for_one_session_s_lifetime(
-    tmp_path, under_codex, codex_env, codex_queue
+    tmp_path, under_codex, codex_env, codex_queue, native_codex_chat
 ):
     """The one word that separates the two Codex shapes, and the claim each writes.
 
@@ -15168,6 +15170,8 @@ def test_the_app_s_shared_codex_is_not_taken_for_one_session_s_lifetime(
     """
 
     def claimed(name, *, app_server):
+        if app_server:
+            native_codex_chat(name)
         page = tmp_path / name
         subprocess.run([*LEAF_COMMAND, "page", "init", page], env=codex_env, check=True)
         started = under_codex(
@@ -15188,15 +15192,15 @@ def test_the_app_s_shared_codex_is_not_taken_for_one_session_s_lifetime(
 
     session = claimed("cli-thread", app_server=False)
     assert session["pid"] > 0
-    assert "activity" not in session
+    assert "chat" not in session
 
     app = claimed("app-thread", app_server=True)
     assert "pid" not in app
-    assert app["activity"] == "multiplexed"
+    assert app["chat"] is True
 
 
 def test_a_claim_is_active_while_the_lifetime_it_names_holds(
-    tmp_path, monkeypatch, dead_pid
+    tmp_path, monkeypatch, dead_pid, native_codex_chat
 ):
     """One reading of what makes a claim active, and every hook comes through it.
 
@@ -15234,40 +15238,19 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
     (job / "state.json").unlink()
     assert not service_model.claim_is_active(service_model.page_claim(page))
 
-    # A harness that multiplexes every session into one process states no process at
-    # all, so the claim stands on when the page was last touched. Both halves of
-    # that reading: the claim's own stamp carries a page nothing has written to,
-    # and a file under it carries one the session or a user has since moved.
-    activity = tmp_path / "activity"
-    activity.mkdir()
-    record_claim(
-        activity,
-        id="multiplexed",
-        harness="codex",
-        activity="multiplexed",
-        ts=cleanup_model.now_iso(),
-    )
-    claim = service_model.page_claim(activity)
+    # Desktop ownership follows the persisted native chat, independently of page
+    # freshness. Missing or archived/deleted native sources own no page.
+    chat = tmp_path / "chat"
+    chat.mkdir()
+    source = native_codex_chat("multiplexed")
+    record_claim(chat, id="multiplexed", harness="codex", chat=True)
+    claim = service_model.page_claim(chat)
     assert "pid" not in claim
     assert service_model.claim_is_active(claim)
-
-    stale = (
-        datetime.now().astimezone()
-        - timedelta(seconds=schema_model.ACTIVITY_GRACE_SECS + 60)
-    ).isoformat(timespec="seconds")
-    record_claim(
-        activity,
-        id="multiplexed",
-        harness="codex",
-        activity="multiplexed",
-        ts=stale,
-    )
-    assert not service_model.claim_is_active(service_model.page_claim(activity))
-
-    # A touch inside the grace revives the same claim, which is what keeps a page
-    # the session is still writing to — or a user still commenting on — served.
-    (activity / "events.jsonl").write_bytes(b"")
-    assert service_model.claim_is_active(service_model.page_claim(activity))
+    source.rename(source.with_suffix(".archived"))
+    assert not service_model.claim_is_active(service_model.page_claim(chat))
+    (chat / "events.jsonl").write_bytes(b"")
+    assert not service_model.claim_is_active(service_model.page_claim(chat))
 
     # A dead claim answers for its own page and no more: the session's other
     # records are still walked, and the live one is still the session's page.
@@ -16061,10 +16044,11 @@ def test_session_end_releases_the_page_and_its_session_server_retires(claimed):
     assert service_model.owned_pages("s1") == []
 
 
-def test_desktop_codex_unloading_keeps_the_chat_page_owned(page_dir):
+def test_desktop_codex_unloading_keeps_the_chat_page_owned(page_dir, native_codex_chat):
     """Desktop unloads idle running instances without ending the user's chat."""
+    native_codex_chat("s1")
     claim = record_claim(
-        page_dir, harness="codex", activity="multiplexed", ts=cleanup_model.now_iso()
+        page_dir, harness="codex", chat=True, ts=cleanup_model.now_iso()
     )
     before = cleanup_model.session_record("s1")
     hooks_model.cmd_hook("codex", {"hook_event_name": "SessionEnd", "session_id": "s1"})
@@ -16739,7 +16723,7 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )

@@ -3,7 +3,6 @@
 import json
 import re
 from datetime import datetime, timedelta
-from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
@@ -246,7 +245,7 @@ def test_work_status_is_a_generated_browser_passage(browser, serve, owner):
     if owner == "atlas":
         plan, task = "lf-atlas-plan", "lf-atlas-task"
         package = COMMAND_HUB_EXAMPLE.parent / "command-hub.page"
-        packages = ("~/" + package.relative_to(Path.home()).as_posix(), "diff")
+        packages = (package, "diff")
     else:
         plan, task, packages = "lf-test-plan", "lf-test-task", None
     source = leaf_page(

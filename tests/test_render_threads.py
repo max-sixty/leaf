@@ -4084,7 +4084,7 @@ def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination
     if destination == "message":
         page.evaluate(
             """async id => {
-              const {openThread} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+              const {openThread} = await window.__lfRuntimeImport('/runtime/application.js');
               await openThread(id, {focus: 'message'});
             }""",
             reply["id"],
@@ -9139,28 +9139,41 @@ def test_a_bounded_log_in_an_agent_reply_follows_its_end_as_a_reading_region(
     scrolling its lines until some later revision swept the page."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "What did the deploy do?")
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "agent": "Codex",
-            "parent": root,
-            "revision": 1,
-            "text": "Here is its log.",
-            "markup": '<div data-bound="end">'
-            + "".join(
-                f"<p>Line {n}: the deploy copied shard {n} to the new key format.</p>"
-                for n in range(60)
-            )
-            + "</div>",
-        },
+    markup = (
+        "<table><caption>Deploy checks</caption><tr><th>Check</th><th>Result</th></tr>"
+        "<tr><td>Smoke test</td><td>Passed</td></tr></table>"
+        '<details><summary>Deploy log</summary><div data-bound="end">'
+        + "".join(
+            f"<p>Line {n}: the deploy copied shard {n} to the new key format.</p>"
+            for n in range(60)
+        )
+        + "</div></details>"
     )
+    reply = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "response",
+            "reply",
+            response_reference(serve.page_dir, root),
+            "--text",
+            "Here is its log.",
+            "--markup",
+            markup,
+        ],
+    )
+    assert reply.exit_code == 0, reply.output
     page = open_page(browser, url)
     open_threads_list(page, 1400, 900)
     card = page.locator(f'.lf-thread[data-id="{root}"]')
     if card.get_attribute("open") is None:
         card.locator(":scope > .lf-thread-summary").click()
+    expect(card.get_by_role("cell", name="Passed", exact=True)).to_be_visible()
+    disclosure = card.locator(".lf-msg-body summary").filter(has_text="Deploy log")
+    disclosure.click()
+    expect(card.locator(".lf-msg-body details")).to_have_attribute("open", "")
+    disclosure.press("Space")
+    expect(card.locator(".lf-msg-body details")).not_to_have_attribute("open", "")
+    disclosure.press("Enter")
     log = card.locator(".lf-msg-body [data-lf-bound]")
     expect(log).to_be_visible()
     rendered(page)

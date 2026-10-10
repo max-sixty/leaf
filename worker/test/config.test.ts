@@ -50,7 +50,7 @@ const workerSource = readFileSync(
   "utf8",
 );
 const packageManifest = JSON.parse(
-  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+  readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
 ) as { dependencies: Record<string, string> };
 
 describe("deployment configuration", () => {

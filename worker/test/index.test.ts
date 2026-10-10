@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import { sqliteStorage } from "./sqlite";
+
+const forwardedContainerFetch = vi.hoisted(() => vi.fn(async () => new Response("container")));
 
 const containerHandlers = vi.hoisted(
   () => new Map<string, Record<string, (...args: never[]) => Promise<Response>>>(),
@@ -6,6 +9,11 @@ const containerHandlers = vi.hoisted(
 
 vi.mock("@cloudflare/containers", () => ({
   Container: class {
+    constructor(public ctx: unknown, public env: unknown) {}
+
+    fetch(request: Request) {
+      return forwardedContainerFetch(request);
+    }
     static get outboundByHost() {
       return containerHandlers.get(this.name);
     }
@@ -163,7 +171,6 @@ function environment(overrides: Partial<Env> = {}): Env {
   return {
     ASSETS: { fetch } as unknown as Fetcher,
     PAGES: {} as DurableObjectNamespace<LeafWebsiteSession>,
-    AGENT_PREWARM: "false",
     WEBSITE_EVENTS: { writeDataPoint: vi.fn() },
     SOURCE_AGENT_RATE_LIMITER: allow,
     OPENAI_API_KEY: "test-key",
@@ -726,50 +733,22 @@ describe("product-site delivery", () => {
     expect(getContainer).not.toHaveBeenCalled();
   });
 
-  it("prewarms a fresh user's container while returning the edge document", async () => {
-    const started = Promise.resolve();
-    const start = vi.fn(() => started);
-    vi.mocked(getContainer).mockReturnValue({ start } as never);
+  it("serves a browser navigation without starting a container", async () => {
     const waitUntil = vi.fn();
-    const env = environment({
-      AGENT_PREWARM: "true",
-      ASSETS: {
-        fetch: async () =>
-          new Response("<!doctype html><title>Leaf</title>", {
-            headers: { "Content-Type": "text/html; charset=utf-8" },
-          }),
-      } as unknown as Fetcher,
-    });
-
     const response = await worker.fetch(
       new Request("https://leaf.page/examples/triage-board/", {
-        headers: {
-          "CF-Connecting-IP": "203.0.113.8",
-          "Sec-Fetch-Dest": "document",
-        },
-      }),
-      env,
-      { waitUntil } as unknown as ExecutionContext,
+        headers: { "Sec-Fetch-Dest": "document" },
+      }), environment({ ASSETS: { fetch: async () => new Response("<title>Leaf</title>", {
+        headers: { "Content-Type": "text/html" },
+      }) } as unknown as Fetcher }), { waitUntil } as unknown as ExecutionContext,
     );
-
-    expect(await response.text()).toContain("<title>Leaf</title>");
-    const sessionId = response.headers
-      .get("Set-Cookie")
-      ?.match(/^__Host-leaf-page=([0-9a-f]{32});/)?.[1];
-    expect(sessionId).toBeDefined();
-    expect(waitUntil).toHaveBeenCalledOnce();
-    await waitUntil.mock.calls[0][0];
-
-    expect(env.SOURCE_AGENT_RATE_LIMITER.limit).toHaveBeenCalledWith({
-      key: "prewarm:203.0.113.8",
-    });
-    expect(getContainer).toHaveBeenCalledWith(env.PAGES, containerId(sessionId!));
-    expect(start).toHaveBeenCalledOnce();
+    expect(response.headers.get("Set-Cookie")).toContain("__Host-leaf-page=");
+    expect(getContainer).not.toHaveBeenCalled();
+    expect(waitUntil).not.toHaveBeenCalled();
   });
 
   it("does not prewarm an HTML probe that is not a browser navigation", async () => {
     const env = environment({
-      AGENT_PREWARM: "true",
       ASSETS: {
         fetch: async () =>
           new Response("<!doctype html><title>Leaf</title>", {
@@ -788,37 +767,6 @@ describe("product-site delivery", () => {
     expect(response.status).toBe(200);
     expect(getContainer).not.toHaveBeenCalled();
     expect(waitUntil).not.toHaveBeenCalled();
-  });
-
-  it("does not allocate a container when a source exhausts its prewarm limit", async () => {
-    const deny = vi.fn(async () => ({ success: false }));
-    const env = environment({
-      AGENT_PREWARM: "true",
-      ASSETS: {
-        fetch: async () =>
-          new Response("<!doctype html><title>Leaf</title>", {
-            headers: { "Content-Type": "text/html; charset=utf-8" },
-          }),
-      } as unknown as Fetcher,
-      SOURCE_AGENT_RATE_LIMITER: { limit: deny } as RateLimit,
-    });
-    const waitUntil = vi.fn();
-
-    const response = await worker.fetch(
-      new Request("https://leaf.page/", {
-        headers: {
-          "CF-Connecting-IP": "203.0.113.9",
-          "Sec-Fetch-Dest": "document",
-        },
-      }),
-      env,
-      { waitUntil } as unknown as ExecutionContext,
-    );
-    await waitUntil.mock.calls[0][0];
-
-    expect(response.status).toBe(200);
-    expect(deny).toHaveBeenCalledWith({ key: "prewarm:203.0.113.9" });
-    expect(getContainer).not.toHaveBeenCalled();
   });
 
   it.each(["/media/upload.png", "/examples/triage-board/media/upload.png"])(
@@ -908,7 +856,7 @@ describe("product-site delivery", () => {
     expect(response.headers.get("Leaf-Session")).toBe("active");
   });
 
-  it("keeps documents at the edge except for one marked private-revision reload", async () => {
+  it("loads an active page's private document on every navigation", async () => {
     const sessionId = "19".repeat(16);
     const assetFetch = vi.fn(
       async () =>
@@ -944,9 +892,7 @@ describe("product-site delivery", () => {
       }),
       env,
     );
-    // Startup recovery marks the one document it asks for so it can tell a replacement
-    // from the copy it already has. That mark asks nothing of the Worker, so the edge
-    // answers it as it answers any other document.
+    // Runtime reload markers do not change which private record owns the document.
     const recovered = await worker.fetch(
       new Request("https://leaf.page/examples/triage-board/?_leaf-recovered=", {
         headers,
@@ -954,14 +900,14 @@ describe("product-site delivery", () => {
       env,
     );
 
-    expect(await ordinary.text()).toContain("Built");
+    expect(await ordinary.text()).toContain("Published revision");
     expect(await neighbor.text()).toContain("Built");
     expect(await marked.text()).toContain("Published revision");
-    expect(await recovered.text()).toContain("Built");
-    expect(assetFetch).toHaveBeenCalledTimes(3);
-    expect(getContainer).toHaveBeenCalledOnce();
+    expect(await recovered.text()).toContain("Published revision");
+    expect(assetFetch).toHaveBeenCalledOnce();
+    expect(getContainer).toHaveBeenCalledTimes(3);
     expect(getContainer).toHaveBeenCalledWith(env.PAGES, containerId(sessionId));
-    expect(containerFetch).toHaveBeenCalledOnce();
+    expect(containerFetch).toHaveBeenCalledTimes(3);
     expect(marked.headers.get("Leaf-Session")).toBe("active");
   });
 
@@ -1219,13 +1165,83 @@ describe("website event analytics", () => {
 });
 
 describe("website page agent", () => {
+  it("recalls saved content and private resources without starting the container", async () => {
+    const { storage, close } = sqliteStorage();
+    try {
+      const ctx = { storage, container: { running: false } };
+      const session = new LeafWebsiteSession(ctx as never, environment());
+      const responses: Record<string, { status: number; headers: Record<string, string>; chunks: string[] }> = {};
+      for (const [path, body] of [
+        ["api/state?revision=2", JSON.stringify({ saved: "comment and choice", taken: 1 })],
+        ["api/news", "saved-reading"],
+        ["api/deferred?source=table&source_revision=one&key=row", "saved-detail"],
+        ["revisions/r3-private.html", "<p>Private revision</p>"],
+      ]) {
+        const bytes = new TextEncoder().encode(body);
+        const digest = Buffer.from(await crypto.subtle.digest("SHA-256", bytes)).toString("hex");
+        await session.saveBlob(digest, bytes.buffer);
+        responses[path] = { status: 200, headers: {}, chunks: [digest] };
+      }
+      await session.savePublication({
+        root: "/examples/triage-board", release: RELEASE, record: { chunks: [] }, responses,
+      });
+      forwardedContainerFetch.mockClear();
+      const state = await session.fetch(new Request("https://leaf.page/examples/triage-board/api/state", {
+        headers: { "Leaf-View-Revision": "2" },
+      }));
+      expect(state.headers.get("Leaf-State-Source")).toBe("durable");
+      expect(await state.json()).toMatchObject({ saved: "comment and choice" });
+      expect(await (await session.fetch(new Request("https://leaf.page/examples/triage-board/api/news"))).text()).toBe("saved-reading");
+      expect(await (await session.fetch(new Request("https://leaf.page/examples/triage-board/api/deferred?key=row&source=table&source_revision=one"))).text()).toBe("saved-detail");
+      expect(await (await session.fetch(new Request("https://leaf.page/examples/triage-board/revisions/r3-private.html"))).text()).toContain("Private revision");
+      expect((await session.fetch(new Request("https://leaf.page/examples/triage-board/api/user-view", { method: "POST", body: "{}" }))).status).toBe(204);
+      expect(forwardedContainerFetch).not.toHaveBeenCalled();
+      ctx.container.running = true;
+      expect(await (await session.fetch(new Request("https://leaf.page/examples/triage-board/api/news"))).text()).toBe("container");
+      expect(forwardedContainerFetch).toHaveBeenCalledOnce();
+    } finally {
+      close();
+    }
+  });
+
+  it("stores bounded binary chunks in the outbound proxy's owning session", async () => {
+    const { storage, close } = sqliteStorage();
+    try {
+      const env = environment();
+      const session = new LeafWebsiteSession({ storage } as never, env);
+      const get = vi.fn(() => session);
+      const idFromString = vi.fn((id: string) => id);
+      env.PAGES = { get, idFromString } as never;
+      const handler = containerHandlers.get("LeafWebsiteSession")!["leaf-state.internal"];
+      const bytes = new TextEncoder().encode("private saved bytes");
+      const digest = Buffer.from(await crypto.subtle.digest("SHA-256", bytes)).toString("hex");
+      const context = { containerId: "trusted-owner", className: "LeafWebsiteSession" };
+      const put = await handler(new Request(`https://leaf-state.internal/blobs/${digest}`, {
+        method: "PUT", body: bytes, headers: { Cookie: "__Host-leaf-page=another-user" },
+      }) as never, env as never, context as never);
+      expect(put.status).toBe(204);
+      const answer = await handler(new Request(`https://leaf-state.internal/blobs/${digest}`) as never,
+        env as never, context as never);
+      expect(await answer.text()).toBe("private saved bytes");
+      expect(idFromString.mock.calls.every(([id]) => id === "trusted-owner")).toBe(true);
+      await expect(handler(new Request(`https://leaf-state.internal/blobs/${digest}`, {
+        method: "PUT", body: new Uint8Array(1024 * 1024 + 1),
+      }) as never, env as never, context as never)).rejects.toThrow("exceeds 1 MiB");
+      expect(Buffer.from(session.savedBlob(digest)!)).toEqual(Buffer.from(bytes));
+    } finally {
+      close();
+    }
+  });
+
   it("keeps the OpenAI secret in the trusted outbound handler", async () => {
     const env = environment();
-    const session = new LeafWebsiteSession({} as never, env);
+    const { storage, close } = sqliteStorage();
+    const session = new LeafWebsiteSession({ storage } as never, env);
+    close();
 
     expect(session.enableInternet).toBe(false);
     expect(session.interceptHttps).toBe(true);
-    expect(session.allowedHosts).toEqual(["api.openai.com"]);
+    expect(session.allowedHosts).toEqual(["api.openai.com", "leaf-state.internal"]);
     expect(session.envVars).toMatchObject({
       LEAF_AGENT: "The agent",
       OPENAI_API_KEY: "leaf-outbound-proxy",

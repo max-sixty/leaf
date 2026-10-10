@@ -3,12 +3,15 @@
 The transaction holds the page's append lease; what may be appended under it is
 `event_contracts`' to say. Cold harness hooks read claims, and Codex's tool hook
 opens a transaction after every tool call, so process inspection and page-event
-semantics are imported only by their callers. A transaction imports the page model
-only to finish an interrupted publication."""
+semantics are imported only by their callers. A transaction finishes interrupted
+publications before admitting a reader. Hosts may declare LEAF_PAGE_COMMIT as a
+module:function provider; successful completion calls it under the same append
+lease, and provider failure prevents the caller from acknowledging success."""
 
 from __future__ import annotations
 
 import hashlib
+import importlib
 import os
 import secrets
 import sys
@@ -286,7 +289,12 @@ class PageTransaction:
         return self
 
     def __exit__(self, exc_type, exc, traceback):
-        return self._lock.__exit__(exc_type, exc, traceback)
+        try:
+            if exc_type is None and (provider := os.environ.get("LEAF_PAGE_COMMIT")):
+                module, name = provider.split(":", 1)
+                getattr(importlib.import_module(module), name)(self)
+        finally:
+            self._lock.__exit__(exc_type, exc, traceback)
 
     @property
     def claim(self) -> dict | None:

@@ -701,38 +701,6 @@ def test_published_visual_evidence_loads_from_its_page(served_example, browser):
             assert image.evaluate("image => image.naturalWidth") > 0
 
 
-def test_a_replaced_ephemeral_server_reloads_the_active_tab(served_example, browser):
-    """Private record loss must reload even when the finite freshness token repeats."""
-    _, url = served_example("triage-board")
-    page = open_page(browser, url)
-    page.evaluate("window.__originalDocument = true")
-    reading = page.locator("body").get_attribute("data-lf-reading")
-    replaced = []
-
-    def replacement(route):
-        answer = route.fetch()
-        if replaced:
-            route.fulfill(response=answer)
-            return
-        replaced.append(answer.text())
-        route.fulfill(
-            response=answer,
-            headers={
-                **answer.headers,
-                "leaf-session": "active",
-                "leaf-server": "replacement-private-server",
-            },
-        )
-
-    page.route("**/api/news", replacement)
-    with page.expect_navigation(wait_until="load", timeout=HANDOVER_DEADLINE_MS):
-        pass
-    page.unroute("**/api/news", replacement)
-    assert replaced == [reading]
-    wait_until_ready(page)
-    assert page.evaluate("window.__originalDocument === true") is False
-
-
 def test_a_layer_mismatch_signals_startup_failure_on_window(served_example, browser):
     """The gallery and bootstrap listeners hear a runtime-generation mismatch."""
     _, url = served_example("triage-board")
@@ -954,7 +922,7 @@ def test_session_activation_reaches_other_tabs(served_example, browser):
 def test_freshness_checks_share_session_identity_without_rebroadcasting(
     served_example, browser
 ):
-    """Learning a private identity wakes peers once; healthy looks stay quiet."""
+    """Session activation wakes peers once; subsequent server changes stay quiet."""
     _, url = served_example("triage-board")
     page = browser.new_page()
     page.add_init_script(
@@ -993,7 +961,8 @@ def test_freshness_checks_share_session_identity_without_rebroadcasting(
     page.goto(url, wait_until="load")
     wait_until_ready(page)
     # An active error envelope still establishes the session and its public reference.
-    # A later successful freshness response first learns the private incarnation.
+    # Later freshness responses may come from another serving process, while the
+    # same durable record and browser session continue.
     page.evaluate(
         """async()=>{
           const client=await window.__lfRuntimeImport('/runtime/layer-client.js');
@@ -1004,16 +973,13 @@ def test_freshness_checks_share_session_identity_without_rebroadcasting(
           }}));
         }"""
     )
-    page.wait_for_function("window.__sessionBroadcasts.length===2")
+    page.wait_for_function("window.__sessionBroadcasts.length===1")
     for _ in range(4):
         with page.expect_response("**/api/news"):
             pass
     assert len(looks) >= 4
     assert page.evaluate("window.__activations") == 1
-    assert page.evaluate("window.__sessionBroadcasts") == [
-        {"active": True, "server": None},
-        {"active": True, "server": "private-server"},
-    ]
+    assert page.evaluate("window.__sessionBroadcasts") == [{"active": True}]
     assert (
         page.evaluate(
             "async()=> (await window.__lfRuntimeImport('/runtime/context.js')).runtime.sessionReference"

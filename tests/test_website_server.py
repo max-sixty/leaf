@@ -1,5 +1,7 @@
 """The website route adapter preserves Leaf's canonical served-page contract."""
 
+import base64
+import hashlib
 import itertools
 import json
 import os
@@ -50,7 +52,7 @@ from leaf.render_checks import rendered
 from leaf.revision_artifact import capture_artifact
 from leaf.revision_delivery import compose_document
 from leaf.served_state import page as served_page
-from leaf.service import delivery_reply_attempt
+from leaf.service import PageTransaction, delivery_reply_attempt
 from leaf.state import flocked, open_session_turn, session_record, start_session_turn
 from leaf.structure import SourceDocument
 from leaf.thread import cmd_resolve, post_reply
@@ -145,6 +147,226 @@ def write_manifest(site: Path, pages: dict[str, tuple[str, str]]) -> None:
     target = site / website_server.SITE_MANIFEST
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(manifest), encoding="utf-8")
+
+
+@contextmanager
+def durable_page_store():
+    """A real HTTP store boundary; Leaf still performs every admission and fold."""
+    stored = {
+        "publications": [],
+        "records": {},
+        "blobs": {},
+        "uploads": 0,
+        "fail": False,
+    }
+
+    class Store(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.end_headers()
+            if self.path.startswith("/blobs/"):
+                self.wfile.write(stored["blobs"][self.path.removeprefix("/blobs/")])
+            else:
+                assert self.path == "/records"
+                self.wfile.write(json.dumps(stored["records"]).encode())
+
+        def do_PUT(self):
+            body = self.rfile.read(int(self.headers["Content-Length"]))
+            if self.path.startswith("/blobs/"):
+                assert len(body) <= 1024 * 1024
+                digest = self.path.removeprefix("/blobs/")
+                assert hashlib.sha256(body).hexdigest() == digest
+                stored["blobs"][digest] = body
+                stored["uploads"] += 1
+            else:
+                assert self.path == "/publication"
+                publication = json.loads(body)
+                if stored["fail"]:
+                    self.send_response(503)
+                    self.end_headers()
+                    return
+                stored["publications"].append(publication)
+                stored["records"][publication["root"]] = publication["record"]
+            self.send_response(204)
+            self.end_headers()
+
+        def log_message(self, *_args):
+            pass
+
+    with running_http_server(ThreadingHTTPServer(("127.0.0.1", 0), Store)) as server:
+        yield f"http://127.0.0.1:{server.server_address[1]}", stored
+
+
+def test_saved_website_record_restores_comments_choices_and_private_revision(
+    page_dir, tmp_path, monkeypatch
+):
+    """A container's replacement recovers the record, not a second state model."""
+    from leaf_website.storage import restore
+
+    (page_dir / "page").mkdir(exist_ok=True)
+    (page_dir / "page" / "obsolete.txt").write_text("Remove this input")
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    )
+    publish(page_dir)
+    site = tmp_path / "site"
+    private = site / "page"
+    shutil.copytree(page_dir, private)
+    write_manifest(site, {"/example": ("page", "example")})
+    manifest_path = site / website_server.SITE_MANIFEST
+    manifest = json.loads(manifest_path.read_text())
+    manifest["pages"]["/example"]["states"] = {"1": "unused"}
+    manifest_path.write_text(json.dumps(manifest))
+    monkeypatch.setenv("LEAF_SITE_ROOT", str(site))
+    with durable_page_store() as (store_url, stored):
+        monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
+        monkeypatch.delenv("LEAF_PAGE_COMMIT", raising=False)
+        # Restore installs the inherited transaction provider before serving.
+        restore(site)
+        (private / "page" / "obsolete.txt").unlink()
+        chosen = append_command(
+            private,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "choice",
+                "action": "choose",
+                "detail": {"value": ["backfill-first"]},
+            },
+        )
+        comment = append_command(
+            private,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": "Retain this comment",
+                "attempt": "saved-comment-0001",
+            },
+        )
+        reply = append_command(
+            private,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "revision": 1,
+                "parent": comment["id"],
+                "responds": comment["id"],
+                "text": "Retain this reply",
+            },
+        )
+        (private / "index.html").write_text(
+            (private / "index.html")
+            .read_text()
+            .replace("<h2>Plan</h2>", "<h2>Revised plan</h2>")
+        )
+        with PageTransaction(private):
+            pass
+        httpd = LeafHTTPServer(
+            ("127.0.0.1", 0), website_server.site_endpoint(site, FakeCodexHarness())
+        )
+        with running_http_server(httpd):
+            media = base64.b64decode(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII="
+            )
+            request = urllib.request.Request(
+                f"http://127.0.0.1:{httpd.server_address[1]}/example/api/media",
+                data=media,
+                headers={
+                    "Content-Type": "image/png",
+                    "Leaf-Layer": website_server.page_binding(private)[0]["generation"],
+                },
+            )
+            with urllib.request.urlopen(request) as response:
+                media_answer = json.load(response)
+                assert "path" in media_answer, media_answer
+                media_path = media_answer["path"]
+        # A fresh agent CLI process reuses acknowledged immutable chunks rather
+        # than retransmitting the page's growing media history on every write.
+        uploads = stored["uploads"]
+        subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "from pathlib import Path; import sys; from leaf_website.storage import _chunks; _chunks(Path(sys.argv[1]).read_bytes())",
+                str(private / media_path.lstrip("/")),
+            ],
+            check=True,
+        )
+        assert stored["uploads"] == uploads
+        publication = stored["publications"][-1]
+
+        def body(path):
+            return b"".join(
+                stored["blobs"][digest]
+                for digest in publication["responses"][path]["chunks"]
+            )
+
+        state = json.loads(body("api/state"))
+        assert {chosen["id"], comment["id"], reply["id"]} <= {
+            event["id"] for event in state["events"]
+        }
+        assert state["active"]["revision"] == 2
+        assert state["session_alive"] is None and state["listening"] is False
+        assert state["activity"].get("next_transition_at") is None
+        assert body("api/news").decode() == state["reading"]
+        assert b"Revised plan" in body("")
+        assert any(
+            key.startswith("revisions/r2-") and key.endswith("/leaf.js")
+            for key in publication["responses"]
+        )
+        # Start a fresh filesystem from the same release image.
+        replacement = tmp_path / "replacement"
+        shutil.copytree(site, replacement, ignore=shutil.ignore_patterns("page"))
+        shutil.copytree(page_dir, replacement / "page")
+        restore(replacement)
+        recovered = replacement / "page"
+        assert read_events(recovered) == read_events(private)
+        assert (recovered / "index.html").read_bytes() == (
+            private / "index.html"
+        ).read_bytes()
+        assert revision_path(recovered, 2).is_file()
+        assert (recovered / media_path.lstrip("/")).read_bytes() == media
+        assert not (recovered / "page" / "obsolete.txt").exists()
+        recovered_state = website_server.initial_state(
+            recovered, "/example", "example", manifest["release"]
+        )
+        assert {
+            key: view["document"]
+            for key, view in recovered_state["browser"]["views"].items()
+        } == {key: view["document"] for key, view in state["browser"]["views"].items()}
+        # Reads do not republish an unchanged canonical record.
+        count = len(stored["publications"])
+        with PageTransaction(private):
+            pass
+        assert len(stored["publications"]) == count
+        # Storage failure prevents success; retries can commit the local log.
+        stored["fail"] = True
+        with pytest.raises(urllib.error.HTTPError):
+            append_command(
+                private,
+                {
+                    "kind": "comment",
+                    "author": "user",
+                    "revision": 2,
+                    "text": "Retry this commit",
+                    "attempt": "saved-comment-0002",
+                },
+            )
+        stored["fail"] = False
+        with PageTransaction(private):
+            pass
+        assert len(stored["publications"]) == count + 1
+        (private / "index.html").write_text(
+            "<html><body>No valid document</body></html>"
+        )
+        with PageTransaction(private):
+            pass
+        publication = stored["publications"][-1]
+        invalid_state = json.loads(body("api/state"))
+        assert invalid_state["source_error"]
+        assert invalid_state["active"]["revision"] == 2
 
 
 def hosted_follower(
@@ -1209,7 +1431,9 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
     @contextmanager
     def worker():
         lifecycle.append("worker")
-        yield "http://127.0.0.1:8787", "b" * 40
+        yield verify_site.LocalWorker(
+            "http://127.0.0.1:8787", "b" * 40, "test-worker", ROOT / ".tmp"
+        )
 
     @contextmanager
     def browser():
@@ -4108,6 +4332,58 @@ def test_a_product_route_uses_the_same_real_page_server(
         assert agent_harness.attached == [published]
 
 
+def test_website_drafts_survive_stored_reads_and_container_replacement(
+    page_dir, tmp_path, browser
+):
+    """Process replacement keeps the same record and must not reload an open draft."""
+    site = tmp_path / "site"
+    private = site / "page"
+    shutil.copytree(page_dir, private)
+    write_manifest(site, {"/example": ("page", "example")})
+    httpd = LeafHTTPServer(
+        ("127.0.0.1", 0), website_server.site_endpoint(site, FakeCodexHarness())
+    )
+    with running_http_server(httpd):
+        page = open_page(
+            browser, f"http://127.0.0.1:{httpd.server_address[1]}/example/"
+        )
+        try:
+            documents = []
+            page.on(
+                "request",
+                lambda request: (
+                    documents.append(request.url)
+                    if request.resource_type == "document"
+                    else None
+                ),
+            )
+            box = page_comment(page)
+            write(box, "Keep this unfinished comment through the next wake")
+            for server in (
+                httpd.server_id,
+                f"website-{'0' * 64}",
+                "replacement-container-server",
+            ):
+                admitted = page.evaluate(
+                    """async server => {
+                  const client = await window.__lfRuntimeImport('/runtime/layer-client.js');
+                  return client.admitResponse(new Response('', {headers: {
+                    'Leaf-Session': 'active', 'Leaf-Server': server,
+                    'Leaf-Release': '0'.repeat(64)
+                  }}));
+                }""",
+                    server,
+                )
+                assert admitted
+                expect(box).to_be_focused()
+                expect(box).to_have_js_property(
+                    "value", "Keep this unfinished comment through the next wake"
+                )
+            assert documents == []
+        finally:
+            page.close()
+
+
 def test_a_retried_agent_start_returns_the_accepted_task(page_dir, tmp_path):
     site = tmp_path / "site"
     published = site / "examples" / "decision"
@@ -4263,11 +4539,14 @@ def test_a_failed_verifier_page_reports_its_browser_errors(browser):
 def test_local_verification_settles_host_network(monkeypatch):
     @contextmanager
     def worker():
-        yield "http://127.0.0.1:8787", "release"
+        yield verify_site.LocalWorker(
+            "http://127.0.0.1:8787", "release", "test-worker", ROOT / ".tmp"
+        )
 
     attempts = []
 
-    def verify(origin, release, *, settle_after_activation=None):
+    def verify(origin, release, *, settle_after_activation=None, worker=None):
+        assert worker.origin == origin
         attempts.append(settle_after_activation)
         raise RuntimeError("page did not present: net::ERR_NETWORK_CHANGED")
 

@@ -8,9 +8,9 @@
    including a freshness token whose body has not changed. A foreign answer is always refused;
    whether the page also reloads is the document source's to answer, through the same
    probe startup recovery uses, because only a source that has moved on has a different
-   document to give and a page that reloads without one never stops. Active responses
-   also establish the private server incarnation, so an ephemeral replacement reloads
-   before its new event sequence meets the old DOM. Do not let one delivery interpret
+   document to give and a page that reloads without one never stops. A page's record
+   survives replacement of its serving process, including a website container, so
+   process identity cannot invalidate the document. Do not let one delivery interpret
    another's state. A refused key is read here too, for every response: it is the page
    cut off from its log rather than an answer about any request, so the event door
    throws it as it throws a lost connection and the banner names the link that ends it.
@@ -77,8 +77,6 @@ async function sourceMovedOn() {
 }
 
 let layerReloading = false;
-// A replaced private incarnation is not a question about generations: its record
-// is gone, so the old DOM has to go whatever the document source says.
 function reloadNow(message) {
   if (layerReloading) return;
   layerReloading = true;
@@ -156,38 +154,27 @@ export function admitResponse(response) {
 }
 
 let sessionMode = release ? "unknown" : "active";
-// Only an active private-session response establishes an ephemeral incarnation.
-// An ordinary server can restart while its durable page and log remain current.
-let sessionServer = null;
 const sessionChannel =
   release && typeof window.BroadcastChannel !== "undefined"
     ? new window.BroadcastChannel("leaf-session")
     : null;
 
-function activateSession(broadcast, server = null) {
-  if (server && sessionServer && server !== sessionServer) {
-    reloadNow("This Leaf session restarted — reloading the page.");
-    return;
-  }
-  const learnedServer = server && !sessionServer;
-  if (server) sessionServer = server;
+function activateSession(broadcast) {
   const activated = sessionMode !== "active";
   sessionMode = "active";
   if (activated) document.dispatchEvent(new Event("lf-session-active"));
-  if (broadcast && (activated || learnedServer))
-    sessionChannel?.postMessage({ active: true, server });
+  if (broadcast && activated) sessionChannel?.postMessage({ active: true });
 }
 
 sessionChannel?.addEventListener("message", (event) => {
-  if (event.data?.active === true) activateSession(false, event.data.server);
+  if (event.data?.active === true) activateSession(false);
 });
 
 function observeSession(response) {
   const reference = response.headers.get("Leaf-Session-Reference");
   if (/^\d{12}$/.test(reference)) runtime.sessionReference = reference;
   const mode = response.headers.get("Leaf-Session");
-  const server = response.headers.get("Leaf-Server");
-  if (mode === "active") activateSession(true, server);
+  if (mode === "active") activateSession(true);
   else if (mode === "passive" && sessionMode !== "active") sessionMode = "passive";
 }
 

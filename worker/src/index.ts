@@ -1,19 +1,14 @@
 /**
  * Public Leaf site with edge reads and isolated canonical mutation sessions.
  *
- * Cloudflare serves the immutable live shell, initial state, and published data of each
- * product and example page at the edge. A request needing mutation starts the Python
- * Leaf server in a container selected by an opaque browser cookie. The container starts
- * with the same complete page directories and writes only to its own ephemeral
- * filesystem, so one user can exercise the real event log without changing another
- * user's page.
- * Containers are scoped to the deployed release, so a rollout may reset this explicitly
- * ephemeral state but never sends a new document through an older user session. The
- * container image itself rolls out after the Worker is already live, so a fresh session
- * can still start on the previous release; the edge serves the published projection in
- * place of that container's answer rather than handing the browser a release no reload
- * can reach. A private revision that changes executable code marks its one required
- * container reload in the URL; every ordinary document navigation stays at the edge.
+ * Cloudflare serves untouched pages at the edge. A browser cookie selects a private,
+ * release-scoped Durable Object holding canonical page records and Python-produced
+ * dormant responses. Saved content loads without starting Linux. Mutations wake the
+ * Python Leaf server, which restores the record before admission and publishes the
+ * record and matching delivery atomically before acknowledgement. Python owns all
+ * event and activity rules; this Worker stores and routes their output.
+ * New releases select new demo records. A previous container image during rollout is
+ * refused rather than letting it interpret the new release's document.
  * Accepted browser events start their agent task in the already-selected user
  * container without holding the browser acknowledgement open. Analytics Engine records
  * accepted product events; Workers Observability records the content-free execution path.
@@ -27,6 +22,7 @@ import {
 export { ContainerProxy } from "@cloudflare/containers";
 import { type DurableObject } from "cloudflare:workers";
 import * as z from "zod/mini";
+import { CHUNK_BYTES, PageStore, readPublication, type PagePublication } from "./storage";
 
 import {
   activeCookie,
@@ -50,7 +46,6 @@ import {
 export interface Env {
   ASSETS: Fetcher;
   PAGES: DurableObjectNamespace<LeafWebsiteSession>;
-  AGENT_PREWARM: "true" | "false";
   WEBSITE_EVENTS: AnalyticsEngineDataset;
   SOURCE_AGENT_RATE_LIMITER: RateLimit;
   OPENAI_API_KEY: string;
@@ -272,15 +267,80 @@ export class LeafWebsiteSession extends Container<Env> {
   sleepAfter = "10m";
   enableInternet = false;
   interceptHttps = true;
-  allowedHosts = ["api.openai.com"];
+  allowedHosts = ["api.openai.com", "leaf-state.internal"];
+  private pages: PageStore;
 
   constructor(ctx: DurableObject["ctx"], env: Env) {
     super(ctx, env);
+    this.pages = new PageStore(ctx.storage, env.ASSETS);
     this.envVars = {
       LEAF_AGENT: "The agent",
       OPENAI_API_KEY: CODEX_PROXY_CREDENTIAL,
       CODEX_CA_CERTIFICATE: CLOUDFLARE_CONTAINER_CA,
+      LEAF_PAGE_STORE_URL: "https://leaf-state.internal",
     };
+  }
+
+  savedRecords(): Record<string, PagePublication["record"]> {
+    return this.pages.records();
+  }
+
+  async saveBlob(digest: string, bytes: ArrayBuffer): Promise<void> {
+    await this.pages.saveBlob(digest, bytes);
+  }
+
+  savedBlob(digest: string): ArrayBuffer | null {
+    return this.pages.blob(digest);
+  }
+
+  async savePublication(value: unknown): Promise<void> {
+    const publication = readPublication(value);
+    const manifest = await siteManifest(new Request("https://leaf.page/"), this.env);
+    if (!(publication.root in manifest.pages) || publication.release !== manifest.release) {
+      throw new Error("publication does not name a page in this website release");
+    }
+    for (const response of Object.values(publication.responses)) {
+      if ("asset" in response) {
+        const asset = pageRoute(response.asset, manifest);
+        if (asset?.root !== publication.root || !asset.inside.startsWith("revisions/")) {
+          throw new Error("publication asset does not belong to this website page");
+        }
+      }
+    }
+    this.pages.publish(publication);
+  }
+
+  override async fetch(request: Request): Promise<Response> {
+    if (!this.ctx.container?.running) {
+      const url = new URL(request.url);
+      const manifest = await siteManifest(request, this.env);
+      const route = pageRoute(url.pathname, manifest);
+      if (route !== null) {
+        // Optional viewport observations are useful only to a running agent.
+        // Like captured previews, a dormant page acknowledges them without work.
+        if (request.method === "POST" && route.inside === "api/user-view") {
+          return new Response(null, { status: 204 });
+        }
+        if (request.method !== "GET" && request.method !== "HEAD") {
+          return super.fetch(request);
+        }
+        let path = route.inside;
+        if (path === "api/state") {
+          const revision = url.searchParams.get("revision") ||
+            request.headers.get("Leaf-View-Revision");
+          if (revision) path += `?revision=${revision}`;
+        } else if (path === "api/deferred") {
+          path += `?${new URLSearchParams({
+            source: url.searchParams.get("source") ?? "",
+            source_revision: url.searchParams.get("source_revision") ?? "",
+            key: url.searchParams.get("key") ?? "",
+          })}`;
+        }
+        const response = await this.pages.response(route.root, path, request.method === "HEAD");
+        if (response !== null) return response;
+      }
+    }
+    return super.fetch(request);
   }
 }
 
@@ -425,6 +485,41 @@ function observeModelBody(
 // Assignment invokes Container's inherited setter, which registers the handler for
 // ContainerProxy. A static class field would shadow that setter.
 LeafWebsiteSession.outboundByHost = {
+  "leaf-state.internal": async (request: Request, env: Env, ctx: OutboundHandlerContext) => {
+    // The proxy supplies the owning DO identity. The container cannot select a
+    // different user's session by changing a URL, cookie, or request header.
+    const session = env.PAGES.get(env.PAGES.idFromString(ctx.containerId));
+    const path = new URL(request.url).pathname;
+    if (request.method === "GET" && path === "/records") {
+      return Response.json(await session.savedRecords());
+    }
+    const blob = /^\/blobs\/([0-9a-f]{64})$/.exec(path);
+    if (blob !== null && request.method === "PUT") {
+      // Bound the body before it crosses the RPC boundary or enters SQLite.
+      let length = 0;
+      const body = request.body?.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
+        transform(chunk, controller) {
+          length += chunk.byteLength;
+          if (length > CHUNK_BYTES) throw new Error("page storage chunk exceeds 1 MiB");
+          controller.enqueue(chunk);
+        },
+      }));
+      await session.saveBlob(blob[1], await new Response(body).arrayBuffer());
+      return new Response(null, { status: 204 });
+    }
+    if (blob !== null && request.method === "GET") {
+      const bytes = await session.savedBlob(blob[1]);
+      return new Response(bytes, {
+        status: bytes === null ? 404 : 200,
+        headers: { "Content-Type": "application/octet-stream" },
+      });
+    }
+    if (request.method === "PUT" && path === "/publication") {
+      await session.savePublication(await request.json());
+      return new Response(null, { status: 204 });
+    }
+    return new Response("unknown page storage operation", { status: 404 });
+  },
   "api.openai.com": async (request: Request, env: Env, ctx: OutboundHandlerContext) => {
     const url = new URL(request.url);
     if (
@@ -506,9 +601,8 @@ function sessionReference(sessionId: string): string {
   return (BigInt(`0x${sessionId}`) % 1_000_000_000_000n).toString().padStart(12, "0");
 }
 
-// Website sessions are explicitly ephemeral. A deployment starts a fresh container
-// rather than routing a new static document through an older release to preserve demo
-// state that the website does not promise to persist.
+// A release selects its own durable record and container; new code never interprets
+// a different release’s demo state. Container replacement keeps the same record.
 function containerId(sessionId: string, release: string): string {
   return `${release}:${sessionId}`;
 }
@@ -524,21 +618,6 @@ function agentLog(
     reference: params.reference,
     route: params.route,
     eventId: params.eventId,
-    ...fields,
-  });
-}
-
-function prewarmLog(
-  event: string,
-  reference: string,
-  route: string,
-  fields: Record<string, unknown> = {},
-): void {
-  console.log({
-    component: "leaf-agent",
-    event,
-    reference,
-    route,
     ...fields,
   });
 }
@@ -788,37 +867,6 @@ async function dispatchAgentTask(
   }
 }
 
-async function prewarmContainer(
-  env: Env,
-  id: string,
-  reference: string,
-  route: string,
-  sourceId: string,
-): Promise<void> {
-  const started = Date.now();
-  prewarmLog("container_prewarm_started", reference, route);
-  try {
-    const allowed = await env.SOURCE_AGENT_RATE_LIMITER.limit({
-      key: `prewarm:${sourceId}`,
-    });
-    if (!allowed.success) {
-      prewarmLog("container_prewarm_denied", reference, route, {
-        durationMs: Date.now() - started,
-      });
-      return;
-    }
-    await getContainer(env.PAGES, id).start();
-    prewarmLog("container_prewarm_completed", reference, route, {
-      durationMs: Date.now() - started,
-    });
-  } catch (error) {
-    prewarmLog("container_prewarm_failed", reference, route, {
-      durationMs: Date.now() - started,
-      error: error instanceof Error ? error.name : "unknown",
-    });
-  }
-}
-
 async function acceptedEvent(
   postedRequest: Request,
   response: Response,
@@ -1041,20 +1089,13 @@ export default {
     ) {
       return staticState(request, env, manifest, route, reference);
     }
-    // Documents always come from the edge. The only exception is the one reload the
-    // runtime marks after learning that a private revision changed executable code; its
-    // current container owns that document. The runtime removes the marker on arrival,
-    // so ordinary reloads and later visits return to the static shell.
-    const privateRevision = url.searchParams.get("_leaf-revision");
-    const privateDocumentReload =
-      existing !== null &&
-      active &&
-      isLivePageDocumentRequest(route) &&
-      /^[1-9][0-9]*$/.test(privateRevision ?? "");
+    // An active page's current document belongs to its private record, including
+    // on ordinary reload. Its DO can serve that document while the container sleeps.
+    const privateDocument = active && isLivePageDocumentRequest(route);
     if (
       (request.method === "GET" || request.method === "HEAD") &&
       !isPageApiRequest(route) &&
-      !privateDocumentReload
+      !privateDocument
     ) {
       const response = stampedStaticResponse(
         await env.ASSETS.fetch(request),
@@ -1075,22 +1116,6 @@ export default {
         headers.set("Server-Timing", `leaf;dur=${Date.now() - requestStarted}`);
         if (existing === null) {
           headers.append("Set-Cookie", sessionCookie(sessionId, secure));
-        }
-        if (
-          env.AGENT_PREWARM === "true" &&
-          request.method === "GET" &&
-          request.headers.get("Sec-Fetch-Dest") === "document"
-        ) {
-          const sourceId = request.headers.get("CF-Connecting-IP") ?? "unknown";
-          ctx.waitUntil(
-            prewarmContainer(
-              env,
-              privateContainer,
-              reference,
-              route.root,
-              sourceId,
-            ),
-          );
         }
         return new Response(response.body, {
           status: response.status,
@@ -1127,8 +1152,8 @@ export default {
         agentLog("event_accepted", params, {
           durationMs: Date.now() - requestStarted,
         });
-        // TODO(2026-09-10): Persist the accepted event and active Codex turn identity
-        // in this container's Durable Object before returning the acknowledgement.
+        // Accepted page events are already durable; active Codex turn identity
+        // belongs to the running process.
         // TODO(2026-09-10): Add an alarm/status hook that recovers a dispatch when
         // its container disappears or it exceeds the Worker's waitUntil window.
         ctx.waitUntil(dispatchAgentTask(env, params));

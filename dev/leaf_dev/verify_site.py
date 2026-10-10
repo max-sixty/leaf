@@ -5,8 +5,11 @@
 The release pass loads three pages, holds each to the release `leaf-dev site` built
 (or `--release`), and prints their startup profile. `website-worker` runs it against
 the built site through the local Worker and its page container, printing the Worker's
-log beside a failure; `.github/workflows/publish-site.yaml` runs it there before deploying
-and again against the deployed release.
+log beside a failure. That local pass also restores a private document, comment and
+choice while its page container is stopped, then wakes the container for a mechanical
+write after removing its mutable source and log to prove external-record recovery.
+`.github/workflows/publish-site.yaml` runs the local pass before deploying and the
+release pass again against the deployed release.
 
 This module also owns reaching the website for `leaf-dev journey`: a user session
 whose private container serves the release (`agent_session`), the website's adapter
@@ -15,6 +18,7 @@ on this machine (`local_adapter`), and the local Worker (`local_worker`).
 
 from __future__ import annotations
 
+import base64
 import json
 import shutil
 import subprocess
@@ -26,6 +30,7 @@ import urllib.error
 import urllib.request
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import IO, NamedTuple
 from urllib.parse import urlencode, urljoin, urlsplit
@@ -559,20 +564,43 @@ def serving(
     **popen,
 ) -> Iterator[str]:
     """Run a local server and yield the origin its readiness probe confirms."""
-    with subprocess.Popen(
-        command, stdout=output, stderr=subprocess.STDOUT, **popen
-    ) as server:
+    server = subprocess.Popen(command, stdout=output, stderr=subprocess.STDOUT, **popen)
+    try:
+        deadline = time.monotonic() + patience
+        while (origin := ready()) is None:
+            check(server.poll() is None, f"{command[0]} exited before serving")
+            check(time.monotonic() < deadline, f"{command[0]} did not serve")
+            time.sleep(0.1)
+        yield origin
+    finally:
+        failure = sys.exception()
         try:
-            deadline = time.monotonic() + patience
-            while (origin := ready()) is None:
-                check(server.poll() is None, f"{command[0]} exited before serving")
-                check(time.monotonic() < deadline, f"{command[0]} did not serve")
-                time.sleep(0.1)
-            yield origin
-        finally:
             if server.poll() is None:
                 server.terminate()
-            server.wait()
+            try:
+                server.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                # Wrangler can be waiting on a stalled Docker probe. End only
+                # this server's descendants, allowing each its SIGTERM cleanup.
+                try:
+                    children = psutil.Process(server.pid).children(recursive=True)
+                except psutil.NoSuchProcess:
+                    children = []
+                for child in children:
+                    try:
+                        child.terminate()
+                    except psutil.NoSuchProcess:
+                        pass
+                server.wait(timeout=10)
+        except subprocess.TimeoutExpired as error:
+            if failure is None:
+                raise RuntimeError(
+                    f"{command[0]} did not stop after SIGTERM"
+                ) from error
+            print(
+                f"Verifier teardown: {command[0]} did not stop after SIGTERM",
+                file=sys.stderr,
+            )
 
 
 def ready_origin(log: Path, event: str, path: str) -> str | None:
@@ -620,8 +648,265 @@ def local_adapter() -> Iterator[tuple[str, str]]:
             yield origin, release
 
 
+def verify_saved_state(browser, worker: LocalWorker) -> dict[str, dict]:
+    """A cold browser restores a private page while its page container is stopped.
+
+    Fixture writes use Python's canonical transaction inside this run's container;
+    they need no model turn. The browser then gets a revised document, its captured
+    stylesheet, a saved comment and choice from durable delivery. A mechanical media
+    write wakes the container and proves the canonical record is restored for writes.
+    Elapsed time is a profile, while an unchanged running-container set is the gate.
+    """
+    url = f"{worker.origin}/examples/heat-loss/"
+    state_url = urljoin(url, "api/state")
+    before = worker.containers()
+    session = user_session(browser, url, state_url, worker.release)
+    check(
+        isinstance(session, AgentSession),
+        f"saved-state fixture could not activate: {session}",
+    )
+    cookies = session.context.cookies()
+    session.context.close()
+    wait_for_host_network()
+    allocated = worker.containers() - before
+    check(len(allocated) == 1, f"fixture allocated {len(allocated)} page containers")
+    container = allocated.pop()
+    seeded = worker.python(container, SAVED_STATE_FIXTURE)
+    # Read through the real HTTP owner too; it must agree with the fixture's commits.
+    context = browser.new_context()
+    context.add_cookies(cookies)
+    current = answered(context.request.get(state_url), state_url).json()
+    check(
+        current["active"]["revision"] == seeded["revision"],
+        "private revision was not activated",
+    )
+    warm_page = context.new_page()
+    warm_failures = observe_startup(warm_page)
+    warm_response = warm_page.goto(url, wait_until="load", timeout=120_000)
+    check(
+        warm_response is not None and warm_response.ok,
+        "warm private document did not load",
+    )
+    await_presentation(warm_page, url, warm_failures)
+    check(not warm_failures, f"warm saved-state browser errors: {warm_failures}")
+    warm_profile = startup_reading(warm_page)
+    context.close()
+    # Docker may retain a stopped container's writable layer. Remove the fixture's
+    # mutable source and log so the next write must restore the external record,
+    # just as a replacement container must. Published baseline assets stay intact.
+    worker.python(
+        container,
+        SAVED_STATE_PAGE
+        + "\n(page / 'index.html').unlink()\n(page / 'events.jsonl').unlink()\nprint('{}')\n",
+    )
+    worker.stop(container)
+    asleep = worker.containers()
+    context = browser.new_context()
+    context.add_cookies(cookies)
+    page = context.new_page()
+    failures = observe_startup(page)
+    response = page.goto(url, wait_until="load", timeout=120_000)
+    check(response is not None and response.ok, "saved private document did not load")
+    check(
+        response.headers.get("leaf-state-source") == "durable",
+        "private document woke its container",
+    )
+    await_presentation(page, url, failures)
+    page.locator("#saved-state-recall").wait_for(state="visible")
+    page.locator("#heat-opt-window[chosen]").wait_for(state="visible")
+    page.locator(".lf-threads-toggle").click()
+    thread = page.locator(f'.lf-threads > .lf-thread[data-id="{seeded["comment"]}"]')
+    thread.wait_for(state="visible")
+    if thread.get_attribute("open") is None:
+        thread.locator(".lf-thread-summary").click()
+    thread.get_by_text("Saved before the container stopped.", exact=True).wait_for(
+        state="visible"
+    )
+    state_response = answered(context.request.get(state_url), state_url)
+    check(
+        state_response.headers.get("leaf-state-source") == "durable",
+        "saved state woke its container",
+    )
+    state = state_response.json()
+    check(
+        {seeded["comment"], seeded["choice"]}
+        <= {event["id"] for event in state["events"]},
+        "saved events were not restored",
+    )
+    resource_url = page.locator('link[href*="saved-state-recall.css"]').get_attribute(
+        "href"
+    )
+    check(
+        resource_url is not None and "/revisions/" in resource_url,
+        "private stylesheet was not revision scoped",
+    )
+    resource = answered(context.request.get(urljoin(url, resource_url)), resource_url)
+    check(
+        resource.headers.get("leaf-state-source") == "durable",
+        "private revision resource woke its container",
+    )
+    check(
+        resource.text() == seeded["stylesheet"], "private revision stylesheet changed"
+    )
+    revision_url = urljoin(url, f"revisions/{seeded['revision_name']}")
+    revision = answered(context.request.get(revision_url), revision_url)
+    check(
+        revision.headers.get("leaf-state-source") == "durable",
+        "private revision document woke its container",
+    )
+    check(
+        "Saved private document" in revision.text(),
+        "private revision document was lost",
+    )
+    check(
+        worker.containers() == asleep, "reading saved content started a page container"
+    )
+    check(not failures, f"saved-state browser errors: {failures}")
+    profile = startup_reading(page)
+    # Media ingestion uses the same canonical write transaction but dispatches no
+    # agent. It proves that reads did not replace the record the next writer uses.
+    uploaded = answered(
+        context.request.post(
+            urljoin(url, "api/media"),
+            data=base64.b64decode(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jGbcAAAAASUVORK5CYII="
+            ),
+            headers={
+                "Content-Type": "image/png",
+                "Leaf-Layer": state["layer"]["generation"],
+                "Leaf-Release": worker.release,
+            },
+            timeout=120_000,
+        ),
+        urljoin(url, "api/media"),
+    )
+    check(uploaded.json().get("path"), "the next write did not upload media")
+    wait_for_host_network()
+    resumed = answered(context.request.get(state_url), state_url).json()
+    check(
+        {seeded["comment"], seeded["choice"]}
+        <= {event["id"] for event in resumed["events"]},
+        "the next write lost saved events",
+    )
+    check(
+        resumed["active"]["revision"] == seeded["revision"],
+        "the next write lost the private document",
+    )
+    check(worker.containers() != asleep, "the mutation did not wake the container")
+    context.close()
+    return {"running": warm_profile, "stopped": profile}
+
+
+# Runs only in a verifier-owned container. Admission and publication are the same
+# Python owners used by HTTP and the hosted agent; no fake state or model is involved.
+SAVED_STATE_PAGE = """
+import json, os
+from pathlib import Path
+root = Path(os.environ["LEAF_SITE_ROOT"])
+manifest = json.loads((root / "_leaf/site.json").read_text())
+page = root / manifest["pages"]["/examples/heat-loss"]["directory"]
+"""
+SAVED_STATE_FIXTURE = (
+    SAVED_STATE_PAGE
+    + r"""
+from leaf.event_contracts import append_admitted
+from leaf.files import latest_revision, revision_path
+from leaf.revisioning import activate_source
+from leaf.service import PageTransaction
+stylesheet = "#saved-state-recall { font-weight: 600; }\n"
+(page / "page").mkdir(exist_ok=True)
+(page / "page/saved-state-recall.css").write_text(stylesheet)
+source = (page / "index.html").read_text()
+source = source.replace("</head>", '<link rel="stylesheet" href="/page/saved-state-recall.css"></head>')
+source = source.replace("</main>", '<p id="saved-state-recall">Saved private document</p></main>')
+(page / "index.html").write_text(source)
+activation = activate_source(page)
+if activation.error:
+    raise RuntimeError(activation.error)
+revision = latest_revision(page)
+with PageTransaction(page) as transaction:
+    choice = append_admitted(transaction, {"kind": "action", "author": "user", "revision": revision, "widget": "heat-first", "action": "choose", "detail": {"value": ["heat-opt-window"]}})
+    comment = append_admitted(transaction, {"kind": "comment", "author": "user", "revision": revision, "text": "Saved before the container stopped."})
+print(json.dumps({"revision": revision, "revision_name": revision_path(page, revision).name, "comment": comment["id"], "choice": choice["id"], "stylesheet": stylesheet}))
+"""
+)
+
+
+def docker_command(*arguments: str, input: str | None = None, timeout: int = 30) -> str:
+    """Run one verifier-owned Docker operation, surfacing daemon stalls and output."""
+    command = ["docker", *arguments]
+    try:
+        result = subprocess.run(
+            command,
+            input=input,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as error:
+        detail = error.stderr or error.stdout or "no output"
+        raise RuntimeError(
+            f"{' '.join(command)} timed out after {timeout}s: {detail}"
+        ) from error
+    check(
+        result.returncode == 0,
+        f"{' '.join(command)} failed:\n{result.stdout}{result.stderr}",
+    )
+    return result.stdout
+
+
+@dataclass(frozen=True)
+class LocalWorker:
+    """One local Worker and only the Docker containers its private name owns."""
+
+    origin: str
+    release: str
+    name: str
+    evidence: Path
+
+    def containers(self) -> set[str]:
+        listed = docker_command(
+            "ps", "--filter", f"name=^workerd-{self.name}-", "--format", "{{json .}}"
+        )
+        # Miniflare's egress proxy survives independently of the page process. It
+        # must remain available while a stopped page is read from its Durable Object.
+        return {
+            record["ID"]
+            for line in listed.splitlines()
+            if "cloudflare/proxy-everything"
+            not in (record := json.loads(line))["Image"]
+        }
+
+    def python(self, container: str, source: str) -> dict:
+        check(
+            container in self.containers(),
+            "the page container is not owned by this verifier",
+        )
+        result = docker_command(
+            "exec",
+            "--interactive",
+            "--env",
+            "LEAF_PAGE_COMMIT=leaf_website.storage:publish",
+            container,
+            "/app/.venv/bin/python",
+            "-",
+            input=source,
+            timeout=120,
+        )
+        return json.loads(result.splitlines()[-1])
+
+    def stop(self, container: str) -> None:
+        check(
+            container in self.containers(), "refusing to stop another run's container"
+        )
+        docker_command("stop", "--time", "1", container)
+        check(container not in self.containers(), "the page container did not stop")
+        wait_for_host_network()
+
+
 @contextmanager
-def local_worker() -> Iterator[tuple[str, str]]:
+def local_worker() -> Iterator[LocalWorker]:
     """Serve the built site through `wrangler dev`: the Worker and its page container.
 
     The patience covers building the container image. Wrangler leaves each container's
@@ -668,7 +953,6 @@ def local_worker() -> Iterator[tuple[str, str]]:
             config["name"] = name
             config["main"] = str(ROOT / "worker" / "src" / "index.ts")
             config["assets"]["directory"] = str(root / "assets")
-            config["vars"]["AGENT_PREWARM"] = "false"
             for container in config["containers"]:
                 container["image"] = str(context / "Dockerfile.website")
                 container["image_build_context"] = str(context)
@@ -687,20 +971,19 @@ def local_worker() -> Iterator[tuple[str, str]]:
                 180,
                 cwd=ROOT / "worker",
             ) as origin:
-                yield origin, release
+                yield LocalWorker(origin, release, name, out)
     finally:
-        listed = subprocess.run(
-            ["docker", "ps", "--quiet", "--filter", f"name=^workerd-{name}-"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        if started := listed.stdout.split():
-            subprocess.run(
-                ["docker", "rm", "--force", *started],
-                stdout=subprocess.DEVNULL,
-                check=True,
+        failure = sys.exception()
+        try:
+            listed = docker_command(
+                "ps", "--all", "--quiet", "--filter", f"name=^workerd-{name}-"
             )
+            if started := listed.split():
+                docker_command("rm", "--force", *started)
+        except RuntimeError as error:
+            if failure is None:
+                raise
+            print(f"Verifier Docker cleanup: {error}", file=sys.stderr)
 
 
 def built_release() -> str:
@@ -718,11 +1001,12 @@ def verify_site(target: str, release: str | None) -> None:
     """Verify a release at TARGET: an origin, or `website-worker` for the built site
     through the local Worker. `leaf-dev journey` runs the agent at either."""
     if target == "website-worker":
-        with local_worker() as (origin, built):
+        with local_worker() as worker:
             run_verification(
-                origin,
-                release or built,
+                worker.origin,
+                release or worker.release,
                 settle_after_activation=wait_for_host_network,
+                worker=worker,
             )
         return
     run_verification(target.rstrip("/"), release or built_release())
@@ -733,8 +1017,10 @@ def run_verification(
     release: str,
     *,
     settle_after_activation: Callable[[], None] | None = None,
+    worker: LocalWorker | None = None,
 ) -> None:
-    """Run the release pass against `origin`."""
+    """Run the release pass against `origin`, including stopped-container reads locally."""
+    profiles = {}
     with chrome() as browser:
         print("Leaf startup profile (observed, not a pass/fail budget):", flush=True)
         for path, kind, activate in PAGES:
@@ -747,6 +1033,20 @@ def run_verification(
                 origin=origin,
                 settle_after_activation=settle_after_activation,
             )
+            profiles[path] = startup_profile(profile)
             print(startup_line(path, profile), flush=True)
         verify_cross_tab_activation(browser, origin=origin)
+        if worker is not None:
+            recalled = verify_saved_state(browser, worker)
+            for phase, profile in recalled.items():
+                profiles[f"saved-state-{phase}"] = startup_profile(profile)
+                print(
+                    startup_line(f"saved state, container {phase}", profile), flush=True
+                )
+    if worker is not None:
+        output = worker.evidence / "startup.json"
+        output.write_text(
+            json.dumps({"release": release, "profiles": profiles}, indent=2) + "\n"
+        )
+        print(f"Startup evidence: {output}", flush=True)
     print(f"✓ {origin} serves release {release}")

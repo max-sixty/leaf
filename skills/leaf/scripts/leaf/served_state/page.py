@@ -86,9 +86,10 @@ def read_served_page(
         # sockets, one held by a proxy or a test while a later one lands, a POST's
         # answer beside a read — and the log's sequence orders everything in a state
         # but the reading and its data, which are hashes with no order of their own.
-        # Stamped inside the page transaction every served answer is built under,
-        # so the order of these is the order the answers were taken in, whichever
-        # order they land. The wall clock rather than a counter: a counter starts over
+        # Live answers are stamped inside their page transaction; a durable host
+        # dates a fresh read of its atomic stored publication at delivery. This
+        # orders the readings whichever order they land. The wall clock rather
+        # than a counter: a counter starts over
         # with the server, and a tab open across that restart would refuse every
         # answer until the count caught up.
         "taken": context.taken,

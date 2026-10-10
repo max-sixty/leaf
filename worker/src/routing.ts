@@ -235,9 +235,9 @@ export function activeCookie(secure: boolean, pageRoot: string): string {
   return pageActiveCookie(secure, pageRoot, "1");
 }
 
-// The marker says the page's private state lives in a container, so it has to go when
+// The marker selects the page's private record, so it has to go when
 // the user is put back on the published projection; leaving it and ignoring it would
-// send the next read to the container again.
+// send the next read to that private record again.
 export function clearActiveCookie(secure: boolean, pageRoot: string): string {
   return `${pageActiveCookie(secure, pageRoot, "")}; Max-Age=0`;
 }

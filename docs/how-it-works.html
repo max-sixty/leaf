@@ -3829,20 +3829,19 @@ flowchart TD
             </table>
             <p id="loading-order">
               If saved state arrives first, the banner can skip “Loading saved state…”.
-              The browser connects to Leaf's server. The interface and saved state can
-              be ready before the agent starts; commenting remains available during that
-              wait.
+              The browser requests the page's saved state. The interface and saved state
+              can be ready before the agent starts; commenting remains available during
+              that wait.
             </p>
           </section>
           <section id="loading-website">
             <h2>Loading on leaf.page</h2>
             <p id="loading-edge">
-              Published files and initial state come from Cloudflare's edge servers. A
-              private session runs in a container: an isolated environment holding its
-              page files and event log, the Python Leaf server that reads and saves
-              comments, and Codex for agent replies. Restoring private comments needs
-              that server to start, so a cold container can delay saved state while the
-              browser interface is already usable.
+              Published files and initial state come from Cloudflare's edge servers.
+              Saved private comments, choices, and page revisions come from durable
+              storage without starting a container. A container runs the Python Leaf
+              server that accepts changes and Codex for agent replies. It starts when a
+              change needs it, restoring the saved page before accepting that change.
             </p>
             <p id="loading-container">
               The server accepts and saves comments before Codex is ready. A comment
@@ -3860,8 +3859,9 @@ flowchart TD
               whether the agent is online.
             </p>
             <p id="loading-demo-lifetime">
-              Website demo logs are temporary and can disappear when the container is
-              replaced or the site is deployed.
+              Saved content survives container replacement. Website demos remain scoped
+              to one browser session and site release; a new deployment starts a fresh
+              copy.
             </p>
           </section>
         </lf-tab>

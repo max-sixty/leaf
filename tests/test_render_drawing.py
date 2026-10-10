@@ -1851,9 +1851,12 @@ def test_sent_drawing_keeps_its_reference_outside_the_retained_text_viewport(
     if not long:
         assert text.bounding_box()["y"] == pytest.approx(before["top"], abs=1)
     assert text.evaluate("node => node.scrollHeight > node.clientHeight + 1") == long
-    assert text.evaluate("node => node.scrollTop") == pytest.approx(
-        before["scroll"], abs=1
+    after = text.evaluate(
+        "node => ({scroll:node.scrollTop, limit:node.scrollHeight - node.clientHeight})"
     )
+    # The sent card may wrap fewer lines than the draft. Native scrolling clamps a
+    # retained offset to the new scroll range rather than leaving empty space.
+    assert after["scroll"] == pytest.approx(min(before["scroll"], after["limit"]), abs=1)
     if long:
         resized(page, 390 if touch else 1280, 600)
         rendered(page)

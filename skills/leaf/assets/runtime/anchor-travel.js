@@ -44,7 +44,6 @@ import {
   clippedContents,
   clipsPast,
   landingBand,
-  localScrollBy,
   placeHolder,
   shownBox,
   shownRect,
@@ -53,9 +52,7 @@ import { scrollBehavior } from "./motion.js";
 import { onReadingInput, scrollersOf } from "./reading-regions.js";
 import { prepareEntry } from "./history.js";
 import { pageScroller } from "./scrolling.js";
-import { nearestScrollBy } from "./rect.js";
-import { scrollIntoReadingBand } from "./landing-scroll.js";
-import { renderedParent } from "./shadow.js";
+import { scrollIntoView } from "./landing-scroll.js";
 import { PRESSABLE, reveal } from "./widget-elements.js";
 import { threadNames } from "./thread/model.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
@@ -68,51 +65,13 @@ import { openingPassage, passageBlock } from "./reading-place.js";
 
 const scrollingBoxFor = (element) => scrollersOf(element).next().value ?? null;
 
-// Prepare only scrollports inside the owning reading region. Snapping the owning
-// region (or the document) into view first consumes the distance the glide should
-// travel, so a far destination appears to teleport before a tiny alignment move.
-// Elements and passages share this placement, including horizontal inspection.
-// Nearest landings use those same scrollers: a card fixed over the document cannot
-// reveal itself by scrolling the document that its anchor positioning reads.
-function scrollRevealedPlace(where, alignment, behavior, block) {
-  const holder = placeHolder(alignment);
-  if (!holder) return;
-  const targetScroller = scrollingBoxFor(holder);
-  if (!targetScroller) return;
-  // Horizontal inspection can belong to any ancestor, the owning region included.
-  // Only inner scrollports prepare Y; the region and its outers glide below.
-  let inside = true;
-  for (
-    let box = placeHolder(where);
-    box instanceof Element;
-    box = renderedParent(box)
-  ) {
-    if (box === targetScroller) inside = false;
-    const band = landingBand(box);
-    if (!band) continue;
-    const { left, right, top, bottom } = band;
-    const destination = where.getBoundingClientRect();
-    const byX = nearestScrollBy(destination.left, destination.right, left, right);
-    const byY = inside
-      ? nearestScrollBy(destination.top, destination.bottom, top, bottom)
-      : 0;
-    if (byX || byY)
-      box.scrollBy({
-        ...localScrollBy(box, { x: byX, y: byY }),
-        behavior: "instant",
-      });
-    if (box === pageScroller || getComputedStyle(box).position === "fixed") break;
-  }
-  scrollIntoReadingBand(alignment, holder, block, behavior);
-}
-
 // The browser's rule for landing the element a fragment names: its start at its
 // scroller's landing edge, which a sticky header's stated height keeps clear. Travel
 // applies it where the browser's own landing does not reach the element: at an arrival
 // the page reshapes after the browser landed it (version.js, `aimArrival`), and at a
 // traversal, where the browser restores an offset instead (`returnToFragment`).
 export function scrollToFragment(element) {
-  scrollRevealedPlace(element, element, "auto", "start");
+  scrollIntoView(element, { behavior: "auto", block: "start" });
 }
 
 export function createAnchorTravel({
@@ -285,7 +244,7 @@ export function createAnchorTravel({
           if (!current) return;
           if (!readableDestination(current.where))
             mayArrive.handoff(() => {
-              scrollRevealedPlace(current.where, current.where, "instant", "center");
+              scrollIntoView(current.where, { behavior: "instant", block: "center" });
             });
           if (current.open)
             mayArrive.handoff(() => {
@@ -459,7 +418,12 @@ export function createAnchorTravel({
   ) {
     if (when && !when()) return;
     if (block === "fragment") scrollToFragment(at);
-    else scrollRevealedPlace(at, align, replacedView ? "instant" : behavior, block);
+    else
+      scrollIntoView(at, {
+        alignment: align,
+        behavior: replacedView ? "instant" : behavior,
+        block,
+      });
   }
 
   // Synchronous: the move is the caller's gesture, so its intent is the one standing now.

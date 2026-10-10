@@ -131,16 +131,22 @@ when the standing one is already live prints its URL without changing its lifeti
 
 ## Inspecting interactions
 
-For a served page, read the private diagnostic stream while reproducing a user or
-test-agent path:
+For a served page, read the private diagnostic stream to reconstruct a user or
+test-agent path. Select a browser tab and a time window using ISO times with
+explicit timezone offsets:
 
 ```bash
-tail -F <page>/interactions.jsonl
+leaf page interactions <page> --session TAB \
+  --since 2026-10-08T23:08:42-07:00 --until 2026-10-08T23:08:54-07:00 \
+  --type keydown --type command --type focusin
 ```
 
-It combines browser gestures and server request outcomes in delivery order. Browser
-rows carry a tab session, event time, and sequence; large values appear as ordered
-`interaction_part` rows whose `json` fields concatenate to the original row.
+Omit the session filter to include server requests, which have no browser session
+association. Use `--json` for complete structured values, or `tail -F
+<page>/interactions.jsonl` to follow raw delivery order while reproducing. The
+reader orders observations by their recorded time, deduplicates retries,
+reconstructs split values, and retains visible gap diagnostics under type filters.
+Browser and server clocks can differ; recorded order alone does not prove causation.
 The semantic decisions remain in `leaf page events <page>`. See [page-storage.md](../scripts/leaf/page-storage.md)
 for the file contract. The public site stores its browser batches in Workers
 Observability; `worker/README.md` describes lookup by session reference.

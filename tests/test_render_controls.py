@@ -1850,6 +1850,194 @@ def test_sample_fixture_history_presents_before_ready_and_returns_on_reset(
     assert events_model.read_events(serve.page_dir) == parent_before
 
 
+def _sample_containment_page():
+    """A host can change a distant child's view; its passage needs two scrollports."""
+    return leaf_page(
+        "Contained practice",
+        """
+<h1>Contained practice</h1>
+<div id="host-controls">
+  <button id="show-page" type="button">Show page conversation</button>
+  <button id="show-panel" type="button">Show panel conversation</button>
+  <button id="reset-child" type="button">Restart conversation</button>
+  <output id="completed">0</output>
+</div>
+<div style="height: 1400px"></div>
+<lf-sample id="practice" label="Contained conversation" window>
+  <template id="practice-source" data-sample data-sample-events="history">
+    <h1>Child conversation</h1>
+    <div style="height: 900px"></div>
+    <div id="nested-reading" style="height: 240px; overflow: auto">
+      <div style="height: 900px"></div>
+      <p id="destination">Nested landing target.</p>
+      <div style="height: 300px"></div>
+    </div>
+    <div style="height: 800px"></div>
+  </template>
+</lf-sample>
+<div style="height: 1400px"></div>
+""",
+        head="""
+<style>#host-controls { position: fixed; top: 90px; left: 20px; z-index: 2;
+  background: white; padding: 8px; }</style>
+<script id="history" type="application/json">
+  [{"id":"question","kind":"comment","anchor":{"section":"destination"},
+    "text":"Can you check the destination?"},
+   {"kind":"reply","author":"agent","parent":"question","ephemeral":true,
+    "text":"Checking the nested reading region."},
+   {"kind":"reply","author":"agent","parent":"question",
+    "text":"The destination is inside the nested reading region."}]
+</script>
+<script type="module">
+  const sample = document.querySelector('#practice');
+  let surface = 'page';
+  let completed = 0;
+  for (const button of document.querySelectorAll('#host-controls button')) {
+    button.addEventListener('click', async () => {
+      if (button.id === 'reset-child') await sample.reset();
+      else surface = button.id === 'show-page' ? 'page' : 'panel';
+      const shown = await sample.showThread('question', {surface});
+      document.querySelector('#completed').textContent =
+        shown ? String(++completed) : 'cancelled';
+    });
+  }
+</script>
+""".replace(
+            "Checking the nested reading region.",
+            "Checking the nested reading region and its surrounding reading context. "
+            * 50,
+        ),
+    )
+
+
+def test_sample_host_view_changes_leave_its_scroll_and_keyboard_position(
+    browser, serve
+):
+    """Page, panel and Reset arrive inside a child without moving its host reader."""
+    page = open_page(browser, serve(_sample_containment_page()))
+    resized(page, 1000, 720)
+    sample = page.locator("#practice")
+    sample.evaluate("async sample => { await sample.ready; }")
+    frame = sample.locator("iframe")
+    completed = 0
+    for position in ("offscreen", "partial"):
+        page.evaluate(
+            """position => {
+              const frame = document.querySelector('#practice iframe');
+              scrollTo({top: position === 'offscreen' ? 0
+                : scrollY + frame.getBoundingClientRect().top - 350,
+                behavior: 'instant'});
+            }""",
+            position,
+        )
+        box = frame.bounding_box()
+        if position == "offscreen":
+            assert box["y"] > 720
+        else:
+            assert 0 < box["y"] < 720 < box["y"] + box["height"]
+        for button_id, panel_open in (
+            ("show-page", False),
+            ("show-panel", True),
+            ("reset-child", True),
+        ):
+            button = page.locator(f"#{button_id}")
+            button.scroll_into_view_if_needed()
+            before = page.evaluate("scrollY")
+            button.click()
+            completed += 1
+            expect(page.locator("#completed")).to_have_text(str(completed))
+            child = frame.element_handle().content_frame()
+            rendered(child)
+            expect(button).to_be_focused()
+            assert page.evaluate("scrollY") == before
+            panel = child.locator(".lf-thread-panel")
+            if panel_open:
+                expect(panel).to_be_visible()
+                expect(
+                    child.locator('.lf-thread[data-id="question"]')
+                ).to_have_attribute("open", "")
+            else:
+                expect(panel).to_be_hidden()
+                expect(
+                    child.locator(".lf-margin-preview, .lf-page-thread").get_by_text(
+                        "Can you check the destination?", exact=True
+                    )
+                ).to_be_visible()
+
+
+def test_sample_child_passage_and_reply_gestures_scroll_only_the_child(browser, serve):
+    """Child navigation reveals nested reading regions; disclosure and typing stay local."""
+    page = open_page(browser, serve(_sample_containment_page()))
+    resized(page, 1000, 720)
+    sample = page.locator("#practice")
+    sample.evaluate("async sample => { await sample.ready; }")
+    page.locator("#show-panel").click()
+    expect(page.locator("#completed")).to_have_text("1")
+    frame = sample.locator("iframe")
+    page.evaluate(
+        """() => scrollTo({top: scrollY +
+          document.querySelector('#practice iframe').getBoundingClientRect().top - 150,
+          behavior: 'instant'})"""
+    )
+    child = frame.element_handle().content_frame()
+    quote = child.locator(".lf-quote", has_text="Nested landing target.")
+    quote.scroll_into_view_if_needed()
+    before = page.evaluate("scrollY")
+    root_before = child.evaluate("scrollY")
+    quote.click()
+    panel_settled(child, open=False)
+    scroll_settled(child)
+    landing = child.evaluate(
+        """() => {
+          const target = document.querySelector('#destination').getBoundingClientRect();
+          const pane = document.querySelector('#nested-reading').getBoundingClientRect();
+          return {target:target.toJSON(), pane:pane.toJSON(), height:innerHeight,
+            nested:document.querySelector('#nested-reading').scrollTop, root:scrollY};
+        }"""
+    )
+    assert landing["target"]["top"] >= max(0, landing["pane"]["top"]) - 1, landing
+    assert (
+        landing["target"]["bottom"]
+        <= min(landing["height"], landing["pane"]["bottom"]) + 1
+    ), landing
+    assert child.evaluate("scrollY") > root_before
+    assert child.locator("#nested-reading").evaluate("box => box.scrollTop") > 0
+    assert page.evaluate("scrollY") == before
+
+    # A real child disclosure keeps its focused toggle in its own conversation.
+    page.locator("#show-panel").click()
+    expect(page.locator("#completed")).to_have_text("2")
+    expand = child.get_by_role("button", name="Show 1 progress message", exact=True)
+    expand.scroll_into_view_if_needed()
+    before = page.evaluate("scrollY")
+    thread_scroll_before = child.locator(".lf-threads").evaluate("box => box.scrollTop")
+    expand.focus()
+    expand.press("Enter")
+    collapse = child.get_by_role("button", name="Hide 1 progress message", exact=True)
+    expect(collapse).to_be_focused()
+    expect(collapse).to_be_in_viewport()
+    rendered(child)
+    assert (
+        child.locator(".lf-threads").evaluate("box => box.scrollTop")
+        > thread_scroll_before
+    )
+    assert page.evaluate("scrollY") == before
+
+    editor = child.locator('.lf-thread[data-id="question"] leaf-text')
+    editor.scroll_into_view_if_needed()
+    before = page.evaluate("scrollY")
+    words = "\n".join(f"Line {i} of the reply" for i in range(30))
+    write(editor, words)
+    expect(editor).to_have_js_property("value", words)
+    child.wait_for_function(
+        """() => document.querySelector(
+          '.lf-thread[data-id="question"] leaf-text').scrollTop > 0"""
+    )
+    rendered(child)
+    expect(editor).to_be_focused()
+    assert page.evaluate("scrollY") == before
+
+
 def test_sample_reset_keeps_the_keyboard_position_while_loading(browser, serve):
     """Reset keeps its stop through loading and failure, without reclaiming focus."""
     source = leaf_page(

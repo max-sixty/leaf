@@ -12,9 +12,10 @@ a draft is enough. Exhaustive vocabulary coverage belongs in the feature gallery
 the package pages.
 
 Each page's `<title>` and `<meta name="description">` differ from every other
-page's. The site build uses them for the page's public link card. Catalog titles,
-descriptions, grouping and order are authored in `docs/examples.html`. The build
-refuses a page missing either metadata field.
+page's. The site build uses them for the page's public link card and derives
+its catalog description from the same metadata. Catalog titles, grouping, and
+order are authored in `docs/examples.html`. The build refuses a page missing
+either metadata field.
 
 Each page writes its own sentences around the gestures it shares with other pages
 (`skills/leaf/references/authoring-evidence.md`, "Interactive and visual evidence").

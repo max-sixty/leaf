@@ -3589,6 +3589,70 @@ def test_an_arrival_interrupts_nothing_the_user_holds(browser, serve, contents):
     }"""), "the poll replaced or disturbed the node the user was typing into"
 
 
+def test_a_reply_row_at_its_thread_end_follows_an_arrival_as_a_pinned_one(
+    browser, serve
+):
+    """A long thread scrolled to where its reply row stands on the list's foot line in
+    its own place, the thread's very end, takes an agent's turn as a pinned row does.
+
+    The turn grows the transcript above the row, which then sticks where it stood, so
+    the list follows the turn: its words show above the editor at once, and the
+    editor and the user's draft stay where they were. Read as unpinned, the turn would
+    wait behind a notice or end under the row."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Keep the discussion here.")
+    append_agent_reply(
+        serve.page_dir, root, "\n\n".join(["Keep the conversation visible."] * 30)
+    )
+    panel_comment(serve.page_dir, "A later conversation.")
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
+    focus_panel_thread(thread)
+    field = thread.locator("leaf-text")
+    write(field, "half a thought")
+    rendered(page)
+    # How far the row stands above its own place in the card (0 where it is there), and
+    # how far its own place is past the list's foot line.
+    place = """card => {
+      const row = card.querySelector(':scope > .lf-thread-reply');
+      const list = card.closest('.lf-threads');
+      const edges = getComputedStyle(card);
+      const own = card.getBoundingClientRect().bottom
+        - parseFloat(edges.borderBottomWidth) - parseFloat(edges.paddingBottom);
+      const foot = list.getBoundingClientRect().bottom
+        - parseFloat(getComputedStyle(list).paddingBottom)
+        - parseFloat(getComputedStyle(row).bottom);
+      return {lifted: own - row.getBoundingClientRect().bottom, past: own - foot};
+    }"""
+    page.locator(".lf-threads").hover()
+    for _ in range(3):
+        past = thread.evaluate(place)["past"]
+        if abs(past) < 0.5:
+            break
+        page.mouse.wheel(0, round(past))
+        rendered(page)
+    standing = thread.evaluate(place)
+    assert abs(standing["lifted"]) < 0.5 and abs(standing["past"]) < 1, standing
+    page.wait_for_function(
+        "at => performance.now() - at > 500", arg=page.evaluate("performance.now()")
+    )
+    before = field.bounding_box()
+    reply = append_agent_reply(serve.page_dir, root, "Landing right above the box.")
+    told(page)
+    arrived = thread.locator(f'.lf-msg[data-mid="{reply["id"]}"]')
+    expect(arrived).to_be_visible()
+    expect(thread.locator(".lf-thread-news")).to_have_count(0)
+    rendered(page)
+    after = field.bounding_box()
+    for edge in before:
+        assert after[edge] == pytest.approx(before[edge], abs=0.5), (before, after)
+    assert arrived.bounding_box()["y"] + arrived.bounding_box()["height"] <= after["y"]
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", "half a thought")
+
+
 @pytest.mark.parametrize(
     ("contents", "finish"),
     [("short", "reveal"), ("long", "reveal"), ("short", "cancel")],

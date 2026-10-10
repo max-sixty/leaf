@@ -26,7 +26,7 @@
    instead (`landing.js`): a visible pinned row or a separate transcript keeps
    the turn the user was reading, even when it is not the latest one. A separate
    transcript opened for reading shows its latest turn (`showLatestTurn`). */
-import { landingBand, seenRect, shownBox } from "../geometry.js";
+import { landingBand, seenRect, shownBox, stuckBox } from "../geometry.js";
 import { focused } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
@@ -48,16 +48,9 @@ const replyRowOf = (held, control) => {
 };
 // A reply row pinned to its scroller's foot (a panel card's) stands in the band
 // while the thread's end lies below it, so aiming a scroll at it moves nothing: its place
-// in the transcript is the thread's end.
-export function replyPinned(reply) {
-  if (!reply || getComputedStyle(reply).position !== "sticky") return false;
-  const scroller = scrollerFor(reply);
-  const floor =
-    scroller.getBoundingClientRect().bottom -
-    parseFloat(getComputedStyle(scroller).paddingBottom) -
-    parseFloat(getComputedStyle(reply).bottom);
-  return Math.abs(reply.getBoundingClientRect().bottom - floor) < 1;
-}
+// in the transcript is the thread's end. Pinned is the row itself stuck, which includes
+// the row standing on its foot line at the thread's very end (geometry.js, `stuckBox`).
+export const replyPinned = (reply) => Boolean(reply) && stuckBox(reply) === reply;
 // The common transcript is a separate reading region only when its container bounds it.
 const separateTranscript = (held) => {
   const transcript = held.querySelector(":scope > .lf-thread-transcript");

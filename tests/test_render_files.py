@@ -1,6 +1,9 @@
 """File editing stays quiet while saves, external changes and conflicts preserve work."""
 
+import io
+
 from leaf.file_bindings import bind_file
+from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
@@ -364,3 +367,75 @@ def test_file_editor_page_navigation_preserves_the_caret_position(
         assert abs(current["offset"] - initial["offset"]) <= 1
         assert current["scroll"] < previous
         previous = current["scroll"]
+
+
+def test_file_editor_uses_package_typography_and_the_inherited_focus_ring(
+    browser, serve, tmp_path
+):
+    """Provider defaults yield to package CSS and root inputs in a real bound editor."""
+    file = tmp_path / "style.md"
+    file.write_text("# A real file\n\nEditable words.\n")
+    url = serve(
+        leaf_page(
+            "Editor theme",
+            '<h1>Editor theme</h1><button id="change-theme">Change theme</button><lf-file-editor id="styled-file" binding="style"></lf-file-editor>',
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "style", file)
+    page = open_page(browser, live_url(url))
+    widget = page.locator("lf-file-editor")
+    editor = widget.get_by_role("textbox", name="File contents", exact=True)
+    expect(editor).to_have_attribute("aria-readonly", "false")
+    size = editor.evaluate("node => getComputedStyle(node).fontSize")
+    root_size = page.locator("html").evaluate(
+        "node => parseFloat(getComputedStyle(node).fontSize)"
+    )
+    assert abs(float(size.removesuffix("px")) - root_size * 0.88) < 0.01
+
+    page.evaluate("""() => document.querySelector('#change-theme').addEventListener('click', () => {
+      const style = document.createElement('style');
+      style.textContent = ':root { --focus-ring: 7px dashed magenta; --focus-ring-w: 7px; } lf-file-editor { --lf-file-editor-size: 30px; }';
+      document.head.append(style);
+    })""")
+    page.get_by_role("button", name="Change theme", exact=True).click()
+    page.keyboard.press("Tab")
+    editor.focus()
+    assert editor.evaluate("node => node.matches(':focus-visible')")
+    assert editor.evaluate("node => getComputedStyle(node).fontSize") == "30px"
+    ring = editor.evaluate("""node => {
+      const style = getComputedStyle(node.closest('.cm-editor'), '::after');
+      const content = getComputedStyle(node);
+      const box = node.getBoundingClientRect();
+      return {width: style.outlineWidth, style: style.outlineStyle,
+        color: style.outlineColor, content: content.outlineStyle,
+        visible: box.width > 0 && box.height > 0};
+    }""")
+    assert ring == {
+        "width": "7px",
+        "style": "dashed",
+        "color": "rgb(255, 0, 255)",
+        "content": "none",
+        "visible": True,
+    }
+    # Computed outlines can be completely clipped by CodeMirror's scrollport.
+    # Count the custom cue's actual painted pixels inside the editor frame.
+    frame = widget.locator(".cm-editor")
+    pixels = Image.open(io.BytesIO(frame.screenshot())).convert("RGB")
+    width, height = pixels.size
+    edges = (
+        (0, 0, 7, height),
+        (width - 7, 0, width, height),
+        (0, 0, width, 7),
+        (0, height - 7, width, height),
+    )
+    for edge in edges:
+        assert (
+            sum(
+                red > 245 and green < 10 and blue > 245
+                for red, green, blue in pixels.crop(edge).get_flattened_data()
+            )
+            > 100
+        )
+    page.keyboard.insert_text("Theme override works. ")
+    expect(editor).to_contain_text("Theme override works.")

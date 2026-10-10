@@ -368,19 +368,23 @@ const reachSizes = sizeObserver(() => paintReach());
 // is a promise of more with nothing behind it. scrollLeft follows the inline direction:
 // it starts at zero and becomes negative in a right-to-left scroller.
 function paintSidewaysReach(el) {
-  if (!sideways.has(el) || unpainted(el)) return;
-  const style = getComputedStyle(el);
-  const scrolling =
-    SCROLLS.test(style.overflowX) && el.scrollWidth > el.clientWidth + 1;
-  const maximum = Math.max(0, el.scrollWidth - el.clientWidth);
-  const raw = Math.abs(el.scrollLeft);
-  const position = Math.min(maximum, Math.max(0, raw));
-  keeps(el, PAGE_PAINT_ATTRIBUTE.scrollDirection, scrolling ? style.direction : null);
-  el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.moreBefore, scrolling && position > 1);
-  el.toggleAttribute(
-    PAGE_PAINT_ATTRIBUTE.moreAfter,
-    scrolling && position < maximum - 1,
-  );
+  // An allocating owner can resize a pane before its image or table owner fits the
+  // contents. Like vertical reading cues, read the completed layout for this script.
+  afterScript(() => {
+    if (!sideways.has(el) || unpainted(el)) return;
+    const style = getComputedStyle(el);
+    const scrolling =
+      SCROLLS.test(style.overflowX) && el.scrollWidth > el.clientWidth + 1;
+    const maximum = Math.max(0, el.scrollWidth - el.clientWidth);
+    const raw = Math.abs(el.scrollLeft);
+    const position = Math.min(maximum, Math.max(0, raw));
+    keeps(el, PAGE_PAINT_ATTRIBUTE.scrollDirection, scrolling ? style.direction : null);
+    el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.moreBefore, scrolling && position > 1);
+    el.toggleAttribute(
+      PAGE_PAINT_ATTRIBUTE.moreAfter,
+      scrolling && position < maximum - 1,
+    );
+  });
 }
 function gone(el) {
   if (el.isConnected) return false;

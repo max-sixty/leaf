@@ -1343,7 +1343,7 @@ def test_layout_style_and_widgets_never_read_each_other():
     A Layout class is one layouts.css styles; a style class is one the kernel theme
     gives its own type or spacing tokens (`--t-*`, `--sp-*`)."""
     layouts = schema_model.ASSETS / "layouts.css"
-    theme = schema_model.ASSETS / "theme.css"
+    theme = schema_model.ASSETS / "styles" / "theme.css"
     owned = {
         layouts: {
             name
@@ -1365,6 +1365,13 @@ def test_layout_style_and_widgets_never_read_each_other():
     readers = []
     for source in sorted(path for root in roots for path in root.rglob("*.[cj]s*")):
         if "vendor" in source.parts:
+            continue
+        # The style build proves ready sheets derive from their authored owners.
+        # Read the owners here rather than treating each compiled delivery as a
+        # second authority for selectors.
+        if source.suffix == ".css" and source.read_text().startswith(
+            "/* Generated from "
+        ):
             continue
         foreign = [names for home, names in owned.items() if home != source]
         named = re.compile(r"\b(" + "|".join(sorted(set().union(*foreign))) + r")\b")
@@ -1604,18 +1611,15 @@ def test_the_injected_control_face_is_a_default_only_the_document_reads():
     assert defaults == [faces[0]], defaults
 
 
-def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
-    """A stylesheet cannot read a runtime constant, so the sheets state the surfaces that
-    may leave the page live, the width properties, the room the runtime reads covering from, and the Question
-    stamp as literals while the runtime lays out and paints by the constants. Held equal
-    here rather than trusted to stay so."""
+def test_layer_style_sources_consume_the_runtime_layout_names():
+    """CSS and runtime agree on shared property and attribute names. Read editable
+    sources; the stylesheet freshness gate holds their generated delivery copies."""
     runtime = schema_model.ASSETS / "runtime"
     layout = (runtime / "chrome-layout.js").read_text()
     drawers = (runtime / "drawers.js").read_text()
     page_paint = (runtime / "page-paint.js").read_text()
-    sheet = (schema_model.ASSETS / "theme.css").read_text() + (
-        runtime / "chrome.css"
-    ).read_text()
+    styles = schema_model.ASSETS / "styles"
+    sheet = (styles / "theme.css").read_text() + (styles / "chrome.css").read_text()
 
     def constant(pattern, source):
         return re.search(pattern, source, re.MULTILINE | re.DOTALL).group(1)
@@ -1637,10 +1641,9 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
 
 
-def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
-    """The classic bootstrap and prepaint cannot import modules, so the layer gate ties
-    the root state they write to the stylesheet that reads it, and the surfaces' default
-    widths to the runtime owners that hold them."""
+def test_prepaint_marks_the_state_the_stylesheet_reads():
+    """Classic startup scripts publish the live and interactive states before modules
+    run; the stylesheet must consume those same markers."""
     assets = schema_model.ASSETS
     bootstrap = (assets / "runtime" / "bootstrap.js").read_text()
     prepaint = (assets / "runtime" / "prepaint.js").read_text()
@@ -1651,23 +1654,6 @@ def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
     assert 'root.toggleAttribute("data-lf-interactive", true)' in prepaint
     assert "html[data-lf-interactive]" in theme
     assert 'script[type="module"][src="/leaf.js"]' not in theme
-
-    def constant(pattern, source):
-        return re.search(pattern, source, re.MULTILINE).group(1)
-
-    # The right edge's width, which Threads and Questions share, is the one a restored
-    # surface beside the page stands at before the runtime runs. The Leaves drawer
-    # covers the page, so no prepaint reads its width.
-    layout = (assets / "runtime" / "chrome-layout.js").read_text()
-    panel_prop = constant(r'^const THREAD_PANEL_PROP = "([^"]+)";', layout)
-    panel_default = constant(r"^const THREAD_PANEL_W = (\d+);", layout)
-    literal = f"var({panel_prop}, {panel_default}px)"
-    assert literal in theme
-    assert (
-        'html[data-lf-live] body:is([data-lf-auxiliary-surface="threads"],\n'
-        '      [data-lf-auxiliary-surface="queue"]) {\n'
-        f"    --lf-auxiliary-width: {literal};"
-    ) in theme
 
 
 def test_identical_init_preserves_the_installed_layer(tmp_path):

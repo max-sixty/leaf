@@ -14,6 +14,7 @@ COMMANDS = {
     "bench-latency": "bench_latency",
     "bugback": "bugback",
     "catalog": "site",
+    "compare": "compare",
     "corpus": "corpus",
     "fetch-assets": "leaf_assets",
     "journey": "journey",

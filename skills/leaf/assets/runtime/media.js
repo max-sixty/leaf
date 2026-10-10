@@ -34,7 +34,7 @@ import {
   closeNativeLayer,
 } from "./keyboard/layer-stack.js";
 import { keeps, keepsHidden, keepsText } from "./keeps.js";
-import { reducedMotion, FOLD_MS } from "./motion.js";
+import { reducedMotion, foldDuration } from "./motion.js";
 
 // Page media is whatever a reference names under this directory. The name a file there
 // takes is the server's (Python's `schema.MEDIA_DIGEST`), which answers no other, so the
@@ -221,7 +221,7 @@ const open = (url, alt, from) => {
         escKey: false,
         // The native dialog owns its opening and closing. Zoom alone animates.
         showHideAnimationType: "none",
-        zoomAnimationDuration: reducedMotion() ? 0 : FOLD_MS,
+        zoomAnimationDuration: reducedMotion() ? 0 : foldDuration(),
         clickToCloseNonZoomable: false,
         bgClickAction: "close",
         tapAction: "zoom",

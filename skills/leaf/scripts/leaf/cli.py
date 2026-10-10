@@ -675,7 +675,7 @@ def file() -> None:
 @click.argument("binding", metavar="ID")
 @click.argument("path", type=click.Path(path_type=Path), metavar="PATH")
 def file_bind(dir: str, binding: str, path: Path) -> None:
-    """Use ID in <lf-file binding=\"ID\"> to edit PATH."""
+    """Use ID in <lf-file-editor binding=\"ID\"> to edit PATH."""
     from leaf.file_bindings import FileBindingError, bind_file
 
     try:

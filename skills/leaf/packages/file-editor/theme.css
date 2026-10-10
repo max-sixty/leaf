@@ -1,23 +1,23 @@
 /* The optional file editor reserves its frame before CodeMirror arrives. Internal
  * presentation belongs to shadow.css, alongside the registered shadow stage.
- * Public host inputs: --lf-file-height chooses the editing region height;
- * --lf-file-size chooses its inherited type size (.88rem, .82rem below 36rem).
- * Set them on lf-file to override the responsive defaults. Colors and focus
+ * Public host inputs: --lf-file-editor-height chooses the editing region height;
+ * --lf-file-editor-size chooses its inherited type size (.88rem, .82rem below 36rem).
+ * Set them on lf-file-editor to override the responsive defaults. Colors and focus
  * consume the shared inherited theme inputs. */
-:scope:is(lf-file) {
+:scope:is(lf-file-editor) {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  block-size: calc(var(--lf-file-height) + 2.5rem);
+  block-size: calc(var(--lf-file-editor-height) + 2.5rem);
   margin-block: 1rem;
   border: 1px solid var(--border-2);
   border-radius: var(--r);
   background: var(--card);
   overflow: clip;
   font-family: var(--sans);
-  --lf-file-height: clamp(24rem, 60vh, 42rem);
-  --lf-file-size: .88rem;
+  --lf-file-editor-height: clamp(24rem, 60vh, 42rem);
+  --lf-file-editor-size: .88rem;
 }
-.lf-file-opening { padding: .75rem 1rem; color: var(--muted); }
+.lf-file-editor-opening { padding: .75rem 1rem; color: var(--muted); }
 @media (max-width: 36rem) {
-  :scope:is(lf-file) { --lf-file-height: max(22rem, 60vh); --lf-file-size: .82rem; }
+  :scope:is(lf-file-editor) { --lf-file-editor-height: max(22rem, 60vh); --lf-file-editor-size: .82rem; }
 }

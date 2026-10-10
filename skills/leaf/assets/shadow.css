@@ -947,6 +947,7 @@ button.lf-thread-notice:is(:focus-visible, .lf-focus-visible) { outline: var(--f
           height: var(--lf-icon-action-hit); min-width: var(--lf-icon-action-hit);
           min-height: var(--lf-icon-action-hit); padding: 0; display: grid;
           place-items: center; border-radius: var(--r); }
+.lf-icon-action[hidden] { display: none; }
 .lf-action-icon { position: relative; z-index: 1; inline-size: 16px; block-size: 16px;
           overflow: visible; pointer-events: none; fill: none; stroke: currentColor; stroke-width: 1.6;
           stroke-linecap: round; stroke-linejoin: round; }
@@ -1055,6 +1056,17 @@ button.lf-media-open { cursor: zoom-in; }
           --lf-focus-ring: inline-response; }
 .lf-fab-bar[data-lf-presentation="inline"] .lf-compose-submit {
           inset-inline-end: 2px; inset-block-end: 2px; }
+.lf-fab-more { position: absolute; border: 0; background: transparent; color: var(--muted);
+          inset-inline-end: calc((var(--lf-response-height, 32px) - var(--lf-icon-action-hit)) / 2);
+          inset-block-end: calc((var(--lf-response-height, 32px) - var(--lf-icon-action-hit)) / 2); }
+.lf-fab-more:hover { color: var(--ink); background: var(--chip); }
+.lf-fab-bar[data-lf-presentation="inline"][data-lf-other-responses] leaf-text.lf-fab-input {
+          --lf-field-end-room: calc(max(40px, calc(var(--aim-floor) + 12px))
+            - var(--lf-compose-pad-inline-start) + var(--lf-icon-action-hit)); }
+.lf-fab-bar[data-lf-presentation="inline"][data-lf-other-responses] .lf-compose-submit {
+          inset-inline-end: calc(2px + var(--lf-icon-action-hit)); }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-fab-more {
+          inset-inline-end: 2px; inset-block-end: 2px; }
 .lf-fab-bar[data-lf-presentation="inline"] .lf-response-action {
           min-width: 30px; padding-inline: 9px; display: inline-flex;
           align-items: center; justify-content: center; gap: 0; white-space: nowrap;
@@ -1069,7 +1081,7 @@ button.lf-media-open { cursor: zoom-in; }
 .lf-fab-bar[data-lf-presentation="inline"].lf-response-open { flex-wrap: wrap; }
 .lf-fab-bar[data-lf-presentation="inline"].lf-response-open
           > .lf-response-options { display: inline-flex; align-items: center;
-          flex-wrap: wrap; gap: 4px; max-width: 100%; }
+          flex-basis: 100%; flex-wrap: wrap; gap: 4px; max-width: 100%; }
 .lf-fab-bar .lf-composer-media {
           flex: none; max-width: 148px; padding: 0; }
 .lf-fab-bar .lf-composer-media:has(> .lf-composer-drawing) {

@@ -69,6 +69,20 @@ def test_fixture_builds_through_current_leaf_admission(tmp_path, case):
     build_fixture(run, CASES[case].fixture, page)
     assert page.is_dir()
     assert (page / "index.html").is_file()
+    if case == "constructs":
+        from leaf.structure import SourceDocument
+
+        measured = next(
+            rec
+            for rec in SourceDocument((page / "index.html").read_text()).lf_elements
+            if rec["tag"] == "lf-num"
+        )
+        captured = measured["attrs"]["run"]
+        assert len(captured) == 32
+        state = json.loads(run.leaf("page", "state", str(page), check=True).stdout)
+        [lag] = state["measurement_lag"]
+        assert lag["run"] == captured
+        assert lag["current_run"] != captured
     if case == "elided":
         assert PREMISE not in str(page_events(page))
         append_elided_history(run, page)

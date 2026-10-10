@@ -781,10 +781,10 @@ if (once(this)) watchData(this, "builds", (snapshot) => render(snapshot));
 ```
 
 The callback receives `null` while the source has no readable value, otherwise a clone
-of `{source, contract, revision, updated, value, origin}`. `revision` identifies the
-value itself, so a renderer can distinguish two writes even when their wall clock
-timestamps coincide. The callback runs immediately and again when the source's
-contract, revision, or validity changes. An incompatible contract or unreadable
+of `{source, contract, revision, run, updated, value, origin}`. `revision` identifies
+the value itself; `run` identifies its publication, including a rerun with the same
+value or wall-clock timestamp. The callback runs immediately and again when the
+source's contract, publication, or validity changes. An incompatible contract or unreadable
 value delivers `null`, clearing the previous rendering. The subscription stays
 active and recovers when a readable value returns. `page state` and `page check`
 report invalid values; an incompatible subscriber reports the contract it requires.

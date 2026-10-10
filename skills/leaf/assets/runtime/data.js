@@ -3,9 +3,9 @@
    The browser orders data readings by when the server took them, independently of
    the log sequence, because overlapping poll and POST responses can order the authorities
    differently. `watchData(widget, input, callback)` delivers a clone of `{source,
-   contract, revision, updated, value, origin}`, or `null` while the bound source has no
+   contract, revision, run, updated, value, origin}`, or `null` while the bound source has no
    readable value. Subscriptions pause while their owner is absent and resume with
-   its newest snapshot. Contract, byte revision, or validity changes redeliver; overlapping
+   its newest snapshot. Contract, publication, or validity changes redeliver; overlapping
    reads await the same in-flight rendering before stamping the version presented. Its
    synchronous time readings refresh independently of data delivery. The returned
    cleanup's `refresh()` repaints the last delivered reading through the same clock
@@ -43,14 +43,15 @@ export function acceptData(candidate, taken) {
 const subscriptions = new Set();
 let subscriptionSequence = 0;
 
-// Equality of the accepted source reading, independent of its modification time.
-// Byte revision remains the coordinate for origins and deferred requests; a changed
+// Equality of the accepted publication, including a same-value rerun. Content
+// revision remains the coordinate for origins and deferred requests; a changed
 // contract or validation result also changes what this subscriber can receive.
 function readingIdentity(reading) {
   return reading
     ? JSON.stringify([
         reading.contract,
         reading.revision ?? null,
+        reading.run ?? null,
         reading.error ?? null,
         Object.hasOwn(reading, "value"),
       ])
@@ -135,7 +136,7 @@ export function watchData(element, input, callback) {
     disconnect();
   }
   // A null delivery stands until the accepted source reading changes, including
-  // recovery from an incompatible contract without a new byte revision.
+  // recovery from an incompatible contract without a new content revision.
   const deliver = (snapshot, identity, mounting = false) => {
     if (!delivered || deliveredIdentity !== identity) {
       if (snapshot)
@@ -170,17 +171,7 @@ export function watchData(element, input, callback) {
     // invalid/missing value clears this seat, keeping its subscription for recovery.
     if (incompatible || !source || !sourceStore || !Object.hasOwn(sourceStore, "value"))
       return deliver(null, identity, mounting);
-    return deliver(
-      {
-        source,
-        contract: sourceStore.contract,
-        revision: sourceStore.revision,
-        updated: sourceStore.updated,
-        value: sourceStore.value,
-      },
-      identity,
-      mounting,
-    );
+    return deliver({ source, ...sourceStore }, identity, mounting);
   };
   const updateSafely = (sourceStore) => {
     try {

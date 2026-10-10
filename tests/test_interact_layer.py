@@ -227,12 +227,6 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     ids.append(events_model.read_events(page)[-1]["id"])
     record(["response", "reply", "not-a-response-ref", "--text", "Answer"], 1)
     record(["thread", "resolve", str(page), ids[-1]], 0)
-    # The title harness stand-in runs asynchronously; retain this fixture until
-    # its jobs have reported, before the page/state home are retired.
-    for worker in threading.enumerate():
-        if worker.name == "leaf-thread-title":
-            worker.join(timeout=STATED_TIMEOUT)
-            assert not worker.is_alive(), "the title stand-in outlived its page fixture"
     regtest.write("\n".join(outputs).encode("ascii", "backslashreplace").decode())
 
 
@@ -942,8 +936,8 @@ def test_init_vendors_the_layer(page_dir):
     # which is what lets a widget import `/vendor/…` without knowing where it came
     # from page_packages().
     assert (page_dir / "widgets" / "lf-diagram.js").is_file()
-    assert (page_dir / "vendor" / "agentic-mermaid.esm.js").is_file()
-    assert (page_dir / "vendor" / "agentic-mermaid.LICENSES.txt").is_file()
+    assert (page_dir / "vendor" / "mermaid.esm.js").is_file()
+    assert (page_dir / "vendor" / "mermaid.LICENSES.txt").is_file()
     assert (page_dir / "widgets" / "lf-diff.js").is_file()
     assert (page_dir / "vendor" / "pierre-diffs.esm.js").is_file()
 

@@ -1,33 +1,33 @@
-"""Page-bound external data: one plain JSON file per source.
+"""Page-bound external data: one durable publication per source.
 
 `data.json` records the contract each source id was last set under;
-`data/<source>.json` holds that source's current value as ordinary JSON.
-`leaf data set` validates before it writes, but any process may replace a value
-file, so every reading validates the value against its
-contract and reports a failing one as that source's `error` rather than its value.
+`data/<source>.json` holds one publication: its opaque `run` receipt, `updated`
+instant, and complete `value`. `leaf data set` validates the value and atomically
+writes all three together. Every reader validates the publication and value, so an
+external corruption reaches users as that source's error rather than as data.
 
-A source's revision is a digest of its file's bytes and `updated` its modification
-time. Nothing retains an earlier value: a reader or anchor naming a revision the
-source no longer holds is reading a replaced value. A document that must keep one
-value binds a source id nothing rewrites.
+A source's revision identifies its encoded value; its run identifies the write,
+including a rerun with the same value. Both survive copying the page directory.
+Nothing retains an earlier value: a reader or anchor naming a revision the source
+no longer holds is reading a replaced value. A document that must keep one value
+binds a source id nothing rewrites.
 """
 
 import hashlib
 import json
-import os
 import re
-from datetime import datetime
 from pathlib import Path
+from uuid import uuid4
 
 import click
 
 from .data_contracts import DataError, payload_error, working_data_bindings
 from .files import replace_files
-from .registry.schema import json_value
+from .registry.schema import aware_instant, json_value
 from .registry.storage import read_page_registry
 from .schema import DATA_CONTRACT_NAME, DATA_DIR, DATA_FILE, DATA_SOURCE_NAME
 from .service import PageTransaction
-from .state import json_bytes
+from .state import json_bytes, now_iso
 
 
 class StaleDataError(DataError):
@@ -93,25 +93,36 @@ def _refuse_constant(name: str):
 
 def read_source(page_dir: Path, source: str, contract: str, registry: dict) -> dict:
     """One source as readers receive it: its contract, and, once a value file
-    exists, that file's revision, `updated` instant, and `value` or `error`."""
+    exists, that file's revision, run receipt, `updated` instant, and `value` or
+    `error`."""
     path = source_file(page_dir, source)
     try:
-        with path.open("rb") as stream:
-            data = stream.read()
-            modified = os.fstat(stream.fileno()).st_mtime
+        data = path.read_bytes()
     except FileNotFoundError:
         return {"contract": contract}
-    reading = {
-        "contract": contract,
-        "revision": hashlib.sha256(data).hexdigest()[:16],
-        "updated": datetime.fromtimestamp(modified)
-        .astimezone()
-        .isoformat(timespec="seconds"),
-    }
+    reading = {"contract": contract}
     try:
-        value = json.loads(data, parse_constant=_refuse_constant)
+        publication = json.loads(data, parse_constant=_refuse_constant)
     except (UnicodeDecodeError, ValueError) as error:
         return {**reading, "error": f"source {source!r} is not JSON: {error}"}
+    if (
+        not isinstance(publication, dict)
+        or set(publication) != {"run", "updated", "value"}
+        or not isinstance(publication["run"], str)
+        or re.fullmatch(r"[0-9a-f]{32}", publication["run"]) is None
+        or not isinstance(publication["updated"], str)
+        or aware_instant(publication["updated"]) is None
+    ):
+        return {
+            **reading,
+            "error": f"source {source!r} must hold a publication with a run receipt, updated instant, and value; write it with leaf data set",
+        }
+    value = publication["value"]
+    reading.update(
+        revision=hashlib.sha256(json_bytes(value)).hexdigest()[:16],
+        run=publication["run"],
+        updated=publication["updated"],
+    )
     if error := _value_error(source, contract, value, reading["revision"], registry):
         return {**reading, "error": error}
     return {**reading, "value": value}
@@ -120,9 +131,9 @@ def read_source(page_dir: Path, source: str, contract: str, registry: dict) -> d
 def read_data(page_dir: Path, registry: dict | None) -> dict:
     """Every recorded source, read and judged against `registry`.
 
-    `version` digests each source's contract, byte revision and validity, so a
+    `version` digests each source's contract, publication and validity, so a
     changed binding or validation result is news even when the file bytes match.
-    Modification time alone does not change a delivery. A page whose layer cannot be
+    A rerun is news even when it writes the same value. A page whose layer cannot be
     read has no contracts to judge its values by, and reads as holding none."""
     sources = (
         {
@@ -137,6 +148,7 @@ def read_data(page_dir: Path, registry: dict | None) -> dict:
             source: [
                 reading["contract"],
                 reading.get("revision"),
+                reading.get("run"),
                 reading.get("error"),
                 "value" in reading,
             ]
@@ -284,7 +296,8 @@ def _write_source(page_dir: Path, source: str, value) -> dict:
         recorded = contracts.get(source)
         if error := payload_error(source, contract, value, registry):
             raise DataError(error)
-        writes = [(source_file(page_dir, source), json_bytes(value), False)]
+        publication = {"run": uuid4().hex, "updated": now_iso(), "value": value}
+        writes = [(source_file(page_dir, source), json_bytes(publication), False)]
         if recorded != contract:
             contracts[source] = contract
             index = {

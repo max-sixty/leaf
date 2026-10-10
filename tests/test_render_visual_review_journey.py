@@ -1,6 +1,5 @@
 """Authenticated website-journey proof for the visual-review package."""
 
-import hashlib
 import json
 import re
 import shutil
@@ -17,6 +16,7 @@ from render_cases_layout import (
     ring_faults,
     standing_ring,
 )
+from render_cases_navigation import source_revision
 from render_harness import (
     CORPUS_SOURCES,
     consume_browser_errors,
@@ -415,9 +415,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     }
     data_model.cmd_data_set(review_dir, "journey-run", record)
     # The draft begun on this value keeps its revision across the replacement below.
-    drafted_revision = hashlib.sha256(
-        data_model.source_file(review_dir, "journey-run").read_bytes()
-    ).hexdigest()[:16]
+    drafted_revision = source_revision(review_dir, "journey-run")
 
     user = open_page(browser, review_url)
     resized(user, 1366, 768)
@@ -794,7 +792,7 @@ def test_visual_review_reports_an_image_failure_after_its_peer_has_loaded(
     url = serve(VISUAL_REVIEW_GALLERY)
     run = json.loads(
         data_model.source_file(serve.page_dir, "gallery-visual-run").read_text()
-    )
+    )["value"]
     failed_source = run["cases"][0]["after"]
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True
@@ -853,7 +851,7 @@ def test_visual_review_case_navigation_keeps_equal_stable_step_targets(
     )
     record = json.loads(
         data_model.source_file(serve.page_dir, "gallery-visual-run").read_text()
-    )
+    )["value"]
     for index in range(3):
         next_button.click()
         expect(selected).to_have_js_property(

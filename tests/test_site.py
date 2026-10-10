@@ -568,7 +568,7 @@ def test_every_published_page_keeps_its_canonical_page_record(site):
         assert set(contracts) == {operation["source"] for operation in operations}
         for operation in operations:
             stored = data_model.source_file(page_dir, operation["source"])
-            assert json.loads(stored.read_text()) == operation["value"]
+            assert json.loads(stored.read_text())["value"] == operation["value"]
 
         for name in (
             "events.jsonl",
@@ -2188,7 +2188,8 @@ def test_shipped_data_opens_in_its_package_projection(site, served_example, brow
         site / "examples" / "command-hub", "atlas-worktrees"
     )
     assert (
-        json.loads(stored.read_text())["tree-w-1"]["branch"] == "atlas/xml-declarations"
+        json.loads(stored.read_text())["value"]["tree-w-1"]["branch"]
+        == "atlas/xml-declarations"
     )
 
     _, url = served_example("command-hub")

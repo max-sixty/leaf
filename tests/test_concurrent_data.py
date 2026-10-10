@@ -4,7 +4,6 @@ import json
 import os
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from datetime import datetime
 from pathlib import Path
 from threading import Event
 
@@ -19,24 +18,37 @@ def test_data_delivery_tracks_contract_and_validity_without_revising_the_bytes(
 ):
     source = data_model.source_file(tmp_path, "numbers")
     source.parent.mkdir()
-    source.write_text("1")
+    source.write_text(
+        json.dumps({"run": "1" * 32, "updated": "2026-01-01T00:00:00Z", "value": 1})
+    )
     index = tmp_path / "data.json"
     index.write_text(json.dumps({"sources": {"numbers": {"contract": "integer"}}}))
     original = data_model.read_data(tmp_path, REGISTRY)
     revision = original["sources"]["numbers"]["revision"]
 
-    os.utime(source, (2000, 2000))
-    assert data_model.read_data(tmp_path, REGISTRY)["version"] == original["version"]
+    replacement = source.with_name("replacement.json")
+    replacement.write_text(
+        json.dumps({"run": "2" * 32, "updated": "2026-01-01T00:00:00Z", "value": 1})
+    )
+    os.replace(replacement, source)
+    refreshed = data_model.read_data(tmp_path, REGISTRY)
+    assert refreshed["sources"]["numbers"]["revision"] == revision
+    assert (
+        refreshed["sources"]["numbers"]["updated"]
+        == original["sources"]["numbers"]["updated"]
+    )
+    assert (
+        refreshed["sources"]["numbers"]["run"] != original["sources"]["numbers"]["run"]
+    )
+    assert refreshed["version"] != original["version"]
 
     index.write_text(json.dumps({"sources": {"numbers": {"contract": "count"}}}))
     registry = {"$data": {"contracts": {"count": {"schema": {"type": "integer"}}}}}
     rebound = data_model.read_data(tmp_path, registry)
     assert rebound["sources"]["numbers"] == {
-        **original["sources"]["numbers"],
+        **refreshed["sources"]["numbers"],
         "contract": "count",
-        "updated": datetime.fromtimestamp(2000)
-        .astimezone()
-        .isoformat(timespec="seconds"),
+        "updated": "2026-01-01T00:00:00Z",
     }
     assert rebound["version"] != original["version"]
 
@@ -51,14 +63,16 @@ def test_data_delivery_tracks_contract_and_validity_without_revising_the_bytes(
     assert data_model.read_data(tmp_path, registry) == rebound
 
 
-def test_a_source_read_keeps_the_metadata_of_the_file_it_read(tmp_path, monkeypatch):
+def test_a_source_read_keeps_one_complete_publication(tmp_path, monkeypatch):
     source = data_model.source_file(tmp_path, "numbers")
     source.parent.mkdir()
-    source.write_text("1")
-    os.utime(source, (1000, 1000))
+    source.write_text(
+        json.dumps({"run": "1" * 32, "updated": "2026-01-01T00:00:00Z", "value": 1})
+    )
     replacement = source.with_name("replacement.json")
-    replacement.write_text("2")
-    os.utime(replacement, (2000, 2000))
+    replacement.write_text(
+        json.dumps({"run": "2" * 32, "updated": "2026-01-02T00:00:00Z", "value": 2})
+    )
     open_path = Path.open
 
     class ReplacingReader:
@@ -70,9 +84,6 @@ def test_a_source_read_keeps_the_metadata_of_the_file_it_read(tmp_path, monkeypa
             os.replace(replacement, source)
             return contents
 
-        def fileno(self):
-            return self.stream.fileno()
-
     @contextmanager
     def open_before_replacement(path, *args, **kwargs):
         with open_path(path, *args, **kwargs) as stream:
@@ -82,8 +93,11 @@ def test_a_source_read_keeps_the_metadata_of_the_file_it_read(tmp_path, monkeypa
         ordered.setattr(Path, "open", open_before_replacement)
         reading = data_model.read_source(tmp_path, "numbers", "integer", REGISTRY)
     assert reading["value"] == 1
-    assert reading["updated"] == datetime.fromtimestamp(1000).astimezone().isoformat(
-        timespec="seconds"
+    assert reading["updated"] == "2026-01-01T00:00:00Z"
+    assert reading["run"] == "1" * 32
+    assert (
+        reading["run"]
+        != data_model.read_source(tmp_path, "numbers", "integer", REGISTRY)["run"]
     )
     assert (
         data_model.read_source(tmp_path, "numbers", "integer", REGISTRY)["value"] == 2

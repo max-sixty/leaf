@@ -2,30 +2,19 @@
 
 ## Measured facts
 
-Use `lf-num` for a repeatably measured scalar inside a sentence, with the snapshot
-that established it. A hand-authored headline KPI belongs in ordinary HTML; a number without a
-repeatable measurement feed remains ordinary text. Freeze a measured prose value
-with its provenance:
+Use `lf-num` for a repeatably measured scalar inside a sentence. Write the
+value with its unit, bind its measurement source, and pin the `run` receipt
+returned by `leaf data set`:
 
 ```html
 The import takes <lf-num source="import-latency"
-  at="2026-08-27T09:00:00Z" via="uv run bench-import">184 ms</lf-num> at p95.
+  run="a41f103e236c985ba938c643b78bfc21" via="uv run bench-import">184 ms</lf-num> at p95.
 ```
 
-The number and its `at` are part of the authored version; the source is only the
-freshness channel. To record a measurement:
-
-1. Run the measurement.
-2. Record it with `leaf data set PAGE import-latency`. The command stamps the
-   source's `updated` instant at wall-clock and prints it.
-3. Write that printed `updated` instant into `at`, not the time the measurement
-   itself ran; an earlier instant is already behind the write and reads as stale
-   the moment it is authored.
-
-If the source's `updated` instant later moves past `at`, `page check` advises
-that the pinned number needs another look. This detects a rerun the version
-missed, not a measurement that is merely old. Use one source id for one stable
-measurement definition.
+The authored value stays frozen. A later source write, even with the same value,
+makes `page check` advise that the measurement needs another look. Age alone
+does not. Use one source id per measurement definition; use ordinary HTML for
+numbers without a repeatable feed.
 
 ## Interactive and visual evidence
 
@@ -33,16 +22,13 @@ Introduce each interaction in the page's own language: say that a board takes a
 drag, an options group takes a click, or a review task's nested Question takes a pick.
 Do not copy the connective sentence from another page.
 
-Use `lf-diagram` for flows, state machines, sequences, class relationships, ER
-schemas, and the other Mermaid families its entry lists. It travels in the `diagram`
-package rather than in every page: initialize a page that wants one with
-`leaf page init --package diagram <page>`, then read the entry for styling and where
-its renderer differs from Mermaid. `page check --render` reports a diagram the
-renderer refuses or draws empty, not one it draws only in part, so inspect each
-rendered diagram. Without visual access, check the source's labels and relations
-against the claims it supports, and state those claims in prose or a table beside it
-so the user need not rely on an uninspected picture. Follow `page-authoring.md`,
-"Pre-handover review", for the checks and what remains unverified.
+Use `lf-diagram` for Mermaid diagrams. It travels in the `diagram` package rather
+than in every page: initialize a page that wants one with
+`leaf page init --package diagram <page>`. `page check --render` reports syntax
+refusals and empty drawings. Inspect each rendered diagram for the relationships it
+should communicate. Without visual access, check the source's labels and relations
+against its claims and state those claims in prose or a table beside it. Follow
+`page-authoring.md`, "Pre-handover review", for the checks and what remains unverified.
 
 Draw what Mermaid's automatic layout cannot put where it belongs, such as a page
 layout, geometry, a wireframe, or a thumbnail inside an option, as the `svg.drawing`

@@ -2840,11 +2840,6 @@ PLAYGROUND_PAGE = leaf_page(
     """
 <h1>Card playground</h1>
 <style>
-  #card-playground {
-    --playground-accent: #4f766f;
-    --playground-radius: 12px;
-    --playground-title: "Field note";
-  }
   #playground-card {
     --lf-block-frame: 1;
     border: 2px solid var(--playground-accent);
@@ -5438,6 +5433,30 @@ def test_a_phone_board_gives_its_column_room_and_keeps_the_next_one_discoverable
     with sending(page, "the phone return move"):
         to_lane_0.tap()
     expect(page.locator("#sq-col-0 > #sq-card-0")).to_have_count(1)
+
+
+def test_playground_authored_defaults_draw_before_its_behavior_loads(browser, serve):
+    """The control declaration owns first paint, including text and attribute CSS."""
+    page = browser.new_page(viewport={"width": 1280, "height": 900})
+    held = []
+    page.route("**/widgets/lf-playground.js", lambda route: held.append(route))
+    with page.expect_request("**/widgets/lf-playground.js"):
+        page.goto(serve(PLAYGROUND_PAGE), wait_until="commit")
+    displayed(page)
+    assert held
+    assert page.evaluate("() => !customElements.get('lf-playground')")
+    card = page.locator("#playground-card")
+    expect(card).to_have_css("border-radius", "12px")
+    expect(card).to_have_css("border-top-color", "rgb(79, 118, 111)")
+    expect(page.locator("#card-playground")).to_have_attribute(
+        "data-playground-tone", "quiet"
+    )
+    assert (
+        card.evaluate("e => getComputedStyle(e, '::before').content") == '"Field note"'
+    )
+    held.pop().continue_()
+    wait_until_ready(page)
+    expect(card).to_have_css("border-radius", "12px")
 
 
 @pytest.mark.parametrize("typed_color", ["#8b4a5f", "#8B4A5F"])
@@ -11740,20 +11759,19 @@ def test_an_html_document_previews_its_own_styles_and_refreshes_from_its_source(
         )
         is not None
     )
-    # The file's bytes identify its revision; JSON whitespace changes that identity
-    # without changing the HTML value, so this delivery must join the frame's load.
-    data_file = data_model.source_file(serve.page_dir, "html-text")
-    with data_file.open("a") as value_file:
-        value_file.write("\n")
+    # A rerun publishes a new receipt without changing its value revision, even
+    # while the frame's stylesheet is loading. The reading keeps that load pending.
+    data_model.cmd_data_set(serve.page_dir, "html-text", updated)
     answer = page.request.get(f"{page.evaluate('location.origin')}/api/state")
     assert answer.ok
-    revision = answer.json()["data"]["sources"]["html-text"]["revision"]
+    snapshot = answer.json()["data"]["sources"]["html-text"]
+    revision = snapshot["revision"]
     page.wait_for_function(
-        """async revision => {
+        """async run => {
           const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
-          return runtime.data.sources['html-text'].revision === revision;
+          return runtime.data.sources['html-text'].run === run;
         }""",
-        arg=revision,
+        arg=snapshot["run"],
     )
     assert (
         page.evaluate(

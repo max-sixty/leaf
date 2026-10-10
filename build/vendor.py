@@ -41,7 +41,7 @@ def package_vendor(package: str) -> Path:
     """Where a bundle lands, which is the package whose widget imports it.
 
     A vendored library is payload of the package that draws with it, not of the
-    layer: Agentic Mermaid and Pierre are about 4.6MB between them and reach a
+    layer: Mermaid and Pierre are optional diagram and diff renderers and reach a
     page only when it selects `diagram` or `diff`, so a page that draws neither
     carries neither.
     """
@@ -305,22 +305,16 @@ def build_file_editor(work: Path) -> list[Path]:
     return [out]
 
 
-def build_agentic_mermaid(work: Path) -> list[Path]:
-    """Bundle Agentic Mermaid's SVG renderer and ELK into one browser-native ESM file.
+def build_mermaid(work: Path) -> list[Path]:
+    """Bundle the canonical Mermaid parser and renderers for offline use.
 
-    Upstream's ESM keeps `entities`, `elkjs` and `yaml` as bare imports. Leaf pages have no
-    package resolver and load one self-contained file, so esbuild resolves the locked
-    dependency set and leaves no runtime chunk or package lookup behind. The package
-    entry also exports PNG, CLI and agent tooling; importing only `renderMermaidSVG`
-    keeps the native rasterizer and the code-mode parser out of the bundle.
-
-    The renderer carries Material Design Icons path data for architecture diagrams
-    under Apache-2.0, which its `THIRD_PARTY_NOTICES.md` and `LICENSES/` pass on.
+    Upstream loads its diagram families with dynamic imports. Statically including
+    them keeps the ready bundle self-contained in an export; the widget still
+    imports this optional package only when it draws a diagram.
     """
-    out = package_vendor("diagram") / "agentic-mermaid.esm.js"
+    out = package_vendor("diagram") / "mermaid.esm.js"
     (work / "entry.mjs").write_text(
-        'export { renderMermaidSVG } from "agentic-mermaid";\n',
-        encoding="utf-8",
+        'export { default } from "mermaid";\n', encoding="utf-8"
     )
     esbuild(
         "entry.mjs",
@@ -328,10 +322,11 @@ def build_agentic_mermaid(work: Path) -> list[Path]:
         "--format=esm",
         "--platform=browser",
         "--target=chrome105",
+        "--supported:dynamic-import=false",
         "--minify",
         "--legal-comments=inline",
-        f"--banner:js=/*! agentic-mermaid {version('agentic-mermaid')} — MIT"
-        " — licenses: agentic-mermaid.LICENSES.txt */",
+        f"--banner:js=/*! mermaid {version('mermaid')} — MIT"
+        " — licenses: mermaid.LICENSES.txt */",
         f"--outfile={out}",
         cwd=work,
     )
@@ -603,7 +598,7 @@ BUILDS: dict[str, Callable[[Path], list[Path]]] = {
     "markdown": build_markdown,
     "photoswipe": build_photoswipe,
     "sortable": build_sortable,
-    "agentic-mermaid": build_agentic_mermaid,
+    "mermaid": build_mermaid,
     "codemirror": build_codemirror,
     "file-editor": build_file_editor,
     "floating-ui": build_floating_ui,

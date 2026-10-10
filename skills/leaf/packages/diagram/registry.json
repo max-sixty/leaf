@@ -1,7 +1,7 @@
 {
   "lf-diagram": {
     "description": "A Mermaid diagram with optional comment targets on its named boxes.",
-    "x-instructions": "Write Mermaid source inside the pre, HTML-escaping & before < and >. Give each diagram an accTitle naming its subject and an accDescr explaining its relationships for a reader who cannot see it. Draw a chain of more than three steps top-down (flowchart TD), since a long horizontal chain scrolls past the page edge. Use classic flowchart node shapes. Unstyled nodes already use Leaf's accent surface; apply classDef only where a node needs a distinct tone, with fill, stroke, and color together, for example fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink). Only those properties and stroke-width are honored. Quote labels containing their shape's closing bracket, as in A[\"names: list[str]\"]. Agentic Mermaid ignores click/link targets, frontmatter, and sequence title; omit state-ending semicolons, declare a state's label before a transition names it, use symbolic ER relationships (||--o{), and write literal characters rather than entity codes such as #36;. These differences are not all caught by page check --render. Omit parts for one whole-diagram comment target. Otherwise list every box with a nameable source id as node:SOURCE_ID: flowchart nodes/subgraphs, states/composite states, sequence participants, classes, and ER entities. Edges, sequence messages, and chart marks have no stable source id.",
+    "x-instructions": "Write Mermaid source inside the pre, HTML-escaping & before < and >. Give each diagram an accTitle naming its subject and an accDescr explaining its relationships for a reader who cannot see it. Draw a chain of more than three steps top-down (flowchart TD), since a long horizontal chain scrolls past the page edge. Use Mermaid classes and page CSS with theme tokens where a node needs a distinct tone. Omit parts for one whole-diagram comment target. Set parts=\"all\" to make every named flowchart node/subgraph, state/composite state, sequence participant, class/namespace, and ER entity a comment target. Edges, sequence messages, and chart marks have no stable source id.",
     "type": "object",
     "properties": {
       "id": {
@@ -11,7 +11,7 @@
       "parts": {
         "type": "string",
         "minLength": 1,
-        "pattern": "^node:[A-Za-z_][A-Za-z0-9_-]*(?:\\s+node:[A-Za-z_][A-Za-z0-9_-]*)*$"
+        "pattern": "^(?:all|node:\\S+(?:\\s+node:\\S+)*)$"
       }
     },
     "required": [
@@ -22,10 +22,11 @@
     "x-upgrade": true,
     "x-visual": {
       "parts": "parts",
-      "complete": true
+      "complete": true,
+      "all": "all"
     },
     "x-space": "available",
     "x-height": true,
-    "x-example": "<lf-diagram id=\"checkout-flow\" data-height=\"364\" parts=\"node:Cart node:Pay node:Receipt\"><pre>\nflowchart TD\n  accTitle: Checkout from cart to receipt\n  accDescr: The cart reaches a payment decision; a paid order produces a receipt.\n  Cart([Cart]) --> Pay{Paid?}\n  Pay --> Receipt[(Receipt)]\n  classDef done fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)\n  class Receipt done\n</pre></lf-diagram>"
+    "x-example": "<lf-diagram id=\"checkout-flow\" data-height=\"364\" parts=\"all\"><pre>\nflowchart TD\n  accTitle: Checkout from cart to receipt\n  accDescr: The cart reaches a payment decision; a paid order produces a receipt.\n  Cart([Cart]) --> Pay{Paid?}\n  Pay --> Receipt[(Receipt)]\n</pre></lf-diagram>"
   }
 }

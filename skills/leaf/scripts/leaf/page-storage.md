@@ -47,7 +47,7 @@ other page files and the external state listed below.
 - `widgets/` — one ES module per upgraded widget (lf-tabs.js, lf-board.js)
 
 - `vendor/` — vendored third-party assets (sortable.esm.js, plot.esm.js), and whatever a
-  selected package brings (agentic-mermaid.esm.js)
+  selected package brings (mermaid.esm.js)
 
 - `page/` — mutable page-specific browser-ready modules, styles, assets,
   page/registry.json declarations, and page/widgets/ modules. These are candidate inputs
@@ -122,9 +122,12 @@ other page files and the external state listed below.
   writer which does not use those locks can still race the last comparison and atomic
   replacement; this is not an operating-system compare-and-swap guarantee.
 
-- `data/` — one JSON file per source, `<source>.json`, holding its current value.
-  Any process may rewrite one; readings validate it against the recorded contract.
-  Deferred record fields served by `/api/deferred` come from these same files.
+- `data/` — one JSON publication per source, `<source>.json`, holding `run`,
+  `updated`, and `value` together. `leaf data set` validates and atomically writes
+  it; a new write gets a new opaque run receipt, including an identical value.
+  Copying the page preserves that receipt. Readings validate the publication and
+  its value against the recorded contract. Deferred record fields served by
+  `/api/deferred` come from the value in these same publications.
 
 - `status.json` — the agent's `waiting` or `idle` declaration, observed activity,
   and reply bindings. The work in hand is no status: it is the log's `start` events.
@@ -208,7 +211,7 @@ The page's document is not repeated in the reading: an agent reads the HTML at
 `active.file` beside `state`, which lists each standing user move by widget, unit and
 verb with the detail it carries, so where the two differ the page shows the move.
 `data_bindings` names each bound source and the widgets that read it, and
-`data/<source>.json` holds its value.
+`data/<source>.json` holds its publication.
 
 `leaf page state <page> <id>` narrows the reading to what `<id>` names. A message,
 or a widget frozen into one, names its thread: the reading is that thread's current

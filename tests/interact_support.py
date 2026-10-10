@@ -1375,6 +1375,7 @@ def retire_test_services(tmp_path, isolated_session):
     Detached adapters hold session leases outside any subprocess group. Their
     lifecycle must end while its state directory still exists, so they can
     retire normally rather than retry a deleted startup lock forever.
+    In-process title workers also finish before page loans or state disappear.
     """
     while HELD_LEASES:
         leases_model.release_lease(HELD_LEASES.pop())
@@ -1397,6 +1398,12 @@ def retire_test_services(tmp_path, isolated_session):
         lambda held: not held,
         failure="a detached adapter outlived its test's ended sessions",
     )
+    # Servers have stopped accepting input, so no new title request can start.
+    # The worker reports under the page lock even when its generator fails.
+    for worker in threading.enumerate():
+        if worker.name == "leaf-thread-title":
+            worker.join(timeout=STATED_TIMEOUT)
+            assert not worker.is_alive(), "a title worker outlived its test's page"
 
 
 @contextmanager

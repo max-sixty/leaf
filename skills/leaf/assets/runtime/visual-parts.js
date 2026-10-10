@@ -58,8 +58,8 @@ const hasVisualParts = (source) => registrations.has(source);
  * `declared` is the ids authored in its `parts` attribute, which the registration must
  * be able to show; `prefixes` declares kinds rather than ids, so it names none. `rank(id)`
  * is an id's place in the declaration, which orders the visual's targets: its authored
- * token's index, 0 for any longer id one of the prefixes begins so those keep
- * registration order, and -1 for an id the declaration does not admit. Null for a
+ * token's index, 0 for a prefixed id or an `all` sentinel admitting the complete
+ * inventory so those keep registration order, and -1 for an id it does not admit. Null for a
  * declaration that names no parts (`whole`, or none). Only an admitted id becomes a
  * durable coordinate; the `registered…` readers below report the whole inventory. */
 export function visualPartAdmission(visual, declaration) {
@@ -70,8 +70,10 @@ export function visualPartAdmission(visual, declaration) {
       declared: [],
       rank: (id) => (prefixes.some((p) => id !== p && id.startsWith(p)) ? 0 : -1),
     };
-  const declared =
-    visual.getAttribute(declaration.parts)?.trim().split(/\s+/).filter(Boolean) ?? [];
+  const value = visual.getAttribute(declaration.parts)?.trim();
+  if (declaration.all && value === declaration.all)
+    return { declared: [], rank: (id) => (id && !/\s/.test(id) ? 0 : -1) };
+  const declared = value?.split(/\s+/).filter(Boolean) ?? [];
   return { declared, rank: (id) => declared.indexOf(id) };
 }
 

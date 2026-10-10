@@ -1343,6 +1343,12 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   .lf-fab-bar .lf-compose-submit {
     inset-inline-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2);
     inset-block-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2); }
+  /* The disclosure shares the field's action corner. Its box remains the full
+     comment width; the editor reserves room beside its final words for both actions. */
+  .lf-fab-bar[data-lf-other-responses] .lf-compose-field {
+    --lf-comment-send-room: calc(2 * var(--lf-icon-action-hit)); }
+  .lf-fab-bar[data-lf-other-responses] .lf-compose-submit {
+    inset-inline-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2 + var(--lf-icon-action-hit)); }
   .lf-response-action { min-width: max(30px, var(--aim-floor)); padding-inline: 9px;
     display: inline-flex; align-items: center; justify-content: center; gap: 0;
     white-space: nowrap; cursor: pointer; }

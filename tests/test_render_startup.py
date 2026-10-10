@@ -2583,7 +2583,7 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
         "/widgets/lf-board.js",
     ], modules
     assert not [p for p in asked if "pierre-diffs" in p], asked
-    assert not [p for p in asked if "agentic-mermaid" in p], asked
+    assert not [p for p in asked if "mermaid" in p], asked
     assert asked.count("/theme.css") == 1, [p for p in asked if p == "/theme.css"]
     assert "/shadow.css" not in asked, asked
     assert asked.count("/registry.json") == 1, [
@@ -2600,7 +2600,7 @@ def test_diagrams_load_one_renderer_bundle_when_they_draw(browser, serve):
     page = open_page(browser, serve(TYPED_PARTS_PAGE), context=context)
 
     expect(page.locator("lf-diagram svg")).to_have_count(6)
-    assert [p for p in asked if "mermaid" in p] == ["/vendor/agentic-mermaid.esm.js"]
+    assert [p for p in asked if "mermaid" in p] == ["/vendor/mermaid.esm.js"]
 
 
 def test_floating_ui_loads_after_the_page_presents(browser, serve):
@@ -5128,7 +5128,7 @@ def test_a_captured_source_stays_pointable_and_pinned(browser, serve):
         f"""
 <h1 id="title">Leaf skill</h1>
 <lf-text-document id="skill-source" source="leaf-skill" label="{long_label}" language="markdown"></lf-text-document>
-<p id="latency-line">Import latency: <lf-num source="import-latency" at="2026-08-29T12:00:00Z">10 ms</lf-num>.</p>
+<p id="latency-line">Import latency: <lf-num source="import-latency" run="a41f103e236c985b">10 ms</lf-num>.</p>
 """,
     )
     url = live_url(serve(source_page))
@@ -5450,6 +5450,68 @@ def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
     )
     ticked(page)
     expect(timestamp).to_have_text("1h ago")
+
+
+def test_data_subscribers_receive_each_publication_and_recover(browser, serve):
+    """A same-value rerun reaches a package with its own durable run receipt.
+
+    Repeated reads stay quiet; corruption and clearing remove the reading, and a
+    later valid publication restores the same subscription.
+    """
+    page = open_page(browser, data_projection_page(serve))
+    page.evaluate("""async () => {
+      const {watchData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      window.publications = [];
+      window.stopPublications = watchData(document.querySelector('lf-feed'), 'rows',
+        snapshot => window.publications.push(snapshot));
+    }""")
+    read = """async () => {
+      const {readAndApply} = await window.__lfRuntimeImport('/runtime/application.js');
+      await readAndApply();
+      return window.publications;
+    }"""
+    publication_file = data_model.source_file(serve.page_dir, "deployments")
+    original = json.loads(publication_file.read_text())
+    first = page.evaluate("window.publications")[0]
+
+    data_model.cmd_data_set(serve.page_dir, "deployments", original["value"])
+    deliveries = page.evaluate(read)
+    assert len(deliveries) == 2, deliveries
+    for snapshot, publication in zip(
+        deliveries, [original, json.loads(publication_file.read_text())], strict=True
+    ):
+        assert {
+            key: snapshot[key] for key in ("run", "updated", "value")
+        } == publication
+    second = deliveries[-1]
+    assert second["revision"] == first["revision"]
+    assert second["run"] != first["run"]
+    assert second["origin"] == first["origin"]
+    assert len(page.evaluate(read)) == 2
+
+    publication_file.write_text("{}")
+    deliveries = page.evaluate(read)
+    assert len(deliveries) == 3 and deliveries[-1] is None, deliveries
+    assert len(page.evaluate(read)) == 3
+
+    data_model.cmd_data_set(serve.page_dir, "deployments", original["value"])
+    deliveries = page.evaluate(read)
+    assert len(deliveries) == 4, deliveries
+    recovered = deliveries[-1]
+    assert recovered["revision"] == first["revision"]
+    assert recovered["run"] not in {first["run"], second["run"]}
+
+    data_model.cmd_data_clear(serve.page_dir, "deployments")
+    deliveries = page.evaluate(read)
+    assert len(deliveries) == 5 and deliveries[-1] is None, deliveries
+    assert len(page.evaluate(read)) == 5
+
+    data_model.cmd_data_set(serve.page_dir, "deployments", original["value"])
+    deliveries = page.evaluate(read)
+    assert len(deliveries) == 6, deliveries
+    assert deliveries[-1]["revision"] == first["revision"]
+    assert deliveries[-1]["run"] not in {first["run"], second["run"], recovered["run"]}
+    page.evaluate("window.stopPublications()")
 
 
 def test_an_idle_page_keeps_its_dom_and_data_subscriptions_at_rest(browser, serve):

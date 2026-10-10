@@ -53,6 +53,13 @@
   };
   // Writes that restate a value for a reason of their own, by the report they make.
   const EXPECTED = [
+    // Mermaid's diagram renderers and their shared viewport helper both assign the SVG's
+    // width while measuring the same drawing. Its upstream-owned paint is separate
+    // from Leaf's adapter, which uses keeps when setting the final natural width.
+    /^width on svg#lf-diagram-\d+(?:\.|$)/,
+    // Mermaid's timeline wraps and measures labels by restating tspan text. Its
+    // measurement groups have already detached by the observer's reading.
+    /^children of tspan in text in g(?: in g\.timeline-node\.section--?\d+)?$/,
     // CodeMirror writes every attribute of its content element when it mounts a view,
     // the tab-size style that element already holds among them.
     /^style on div\.cm-content/,

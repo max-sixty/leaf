@@ -963,7 +963,7 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
     left.evaluate("el => el.scrollTop = 300")
     page.locator("#reading-draft").evaluate("el => el.setSelectionRange(4, 4)")
     held = []
-    page.route("**/vendor/agentic-mermaid.esm.js", lambda route: held.append(route))
+    page.route("**/vendor/mermaid.esm.js", lambda route: held.append(route))
     revised = source.replace(
         '<p id="left-start">',
         '<p>Added context.</p><p id="left-start">',
@@ -1018,7 +1018,7 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
     finally:
         for route in held:
             route.continue_()
-        page.unroute("**/vendor/agentic-mermaid.esm.js")
+        page.unroute("**/vendor/mermaid.esm.js")
 
 
 def test_revision_carries_apparatus_when_an_arriving_element_takes_focus(

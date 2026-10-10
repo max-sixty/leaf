@@ -78,3 +78,16 @@ test("a lazy widget answers with its hydration", () => {
   assert.equal(revealAddressed(source, "row-7"), hydrated);
   assert.deepEqual(asked, ["row-7"]);
 });
+
+test("an opted-in complete inventory derives targets while omission keeps the whole visual", () => {
+  document.body.innerHTML = "<main></main>";
+  registry["lf-film"]["x-visual"].all = "all";
+  const source = film();
+  source.setAttribute("parts", "all");
+  document.querySelector("main").append(source);
+  assert.deepEqual(frame(source, "one"), ["one"]);
+  revealAddressed(source, "two");
+  assert.deepEqual(frame(source, "two"), ["two"]);
+  source.removeAttribute("parts");
+  assert.deepEqual(frame(source, "two"), []);
+});

@@ -100,7 +100,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     grid-column: 1; grid-row: 1; align-self: stretch;
     grid-template-rows: minmax(0, 1fr); }
   .lf-fab-bar:not([data-lf-presentation="inline"]) > .lf-response-options {
-    grid-column: 1 / -1; grid-row: 2; }
+    /* Disclosed actions wrap within the editor's track; their intrinsic width
+       must not move the field or its disclosure out from under the pointer. */
+    contain: inline-size; grid-column: 1 / -1; grid-row: 2; }
   .lf-fab-bar:not([data-lf-presentation="inline"]):has(.lf-composer-media:not([hidden])) {
     grid-template-columns: auto minmax(var(--lf-response-min-width), 1fr); }
   .lf-fab-bar:not([data-lf-presentation="inline"]):has(.lf-composer-media:not([hidden]))

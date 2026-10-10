@@ -11311,10 +11311,82 @@ def test_a_short_window_keeps_media_choices_and_send_around_the_scrolling_draft(
     expect(bar.locator(".lf-react:visible")).to_have_count(6)
 
 
+def test_a_zoomed_window_places_floating_surfaces_by_their_held_edges(browser, serve):
+    """Right/bottom insets align with the solver in root and nested CSS zoom."""
+    page = open_page(browser, serve(leaf_page("Placement", "<p>Reference</p>")))
+    resized(page, 605, 898)
+    readings = page.evaluate(
+        """async () => {
+          document.documentElement.style.zoom = '1.25';
+          const {floatingPlacement, floatingUi} = await window.__lfRuntimeImport(
+            '/runtime/annotation-overlay/floating.js');
+          const {computePosition} = await floatingUi();
+          const reference = document.createElement('div');
+          reference.style.cssText = 'position:fixed;left:200px;top:200px;width:20px;height:20px';
+          document.body.append(reference);
+          const readings = [];
+          for (const zoom of [1, 1.2]) {
+            const floating = document.createElement('div');
+            floating.style.cssText = `position:fixed;width:100px;height:50px;zoom:${zoom}`;
+            document.body.append(floating);
+            const driver = floatingPlacement({floating, update() {}});
+            const answer = await driver.position(computePosition, reference,
+              {placement:'top-end', middleware:[]}, () => 'window', reference);
+            driver.stand(answer);
+            await new Promise(requestAnimationFrame);
+            const target = reference.getBoundingClientRect();
+            const actual = floating.getBoundingClientRect();
+            readings.push({zoom, right:actual.right, bottom:actual.bottom,
+              targetRight:target.right, targetTop:target.top});
+            driver.stop();
+            floating.remove();
+          }
+          reference.remove();
+          return readings;
+        }"""
+    )
+    for reading in readings:
+        assert reading["right"] == pytest.approx(reading["targetRight"], abs=0.5), (
+            reading
+        )
+        assert reading["bottom"] == pytest.approx(reading["targetTop"], abs=0.5), (
+            reading
+        )
+
+
+def test_a_zoomed_floating_draft_and_sent_comment_fit_a_narrow_window(browser, serve):
+    """A usable narrow window keeps the zoomed draft visible through typing and send."""
+    page = open_page(browser, serve(LONG_PAGE))
+    resized(page, 605, 898)
+    page.evaluate("document.documentElement.style.zoom = '1.25'")
+    one_frame(page)
+    page.locator("#p1").click(click_count=3)
+    page.keyboard.press("c")
+    bar = page.locator(".lf-fab-bar")
+    field = bar.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    content = "better; is there a way of shortening? or maybe we just remove it??"
+    page.keyboard.insert_text(content)
+    rendered(page)
+    expect(field).to_be_visible()
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", content)
+    bounds = bar.bounding_box()
+    assert 0 <= bounds["x"] and bounds["x"] + bounds["width"] <= 605.1, bounds
+    with sending(page, "the zoomed narrow-window comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    round_trip(page)
+    card = page.locator(".lf-margin-preview[data-lf-comment-frame]")
+    expect(card).to_be_visible()
+    expect(card.locator(".lf-msg-text").first).to_contain_text(content)
+    bounds = card.bounding_box()
+    assert 0 <= bounds["x"] and bounds["x"] + bounds["width"] <= 605.1, bounds
+
+
 def test_a_scaled_floating_draft_keeps_its_room_when_its_passage_scrolls_away(
     browser, serve
 ):
-    """The transformed holder's native scale sizes a draft even without an anchor box."""
+    """A scaled draft keeps its allocation and native editor until Resume reveals it."""
     page = open_page(browser, serve(LONG_PAGE))
     page.locator(".lf-fab-bar").evaluate(
         """bar => {
@@ -11336,6 +11408,7 @@ def test_a_scaled_floating_draft_keeps_its_room_when_its_passage_scrolls_away(
     )
     write(field, content)
     rendered(page)
+    native_field = field.element_handle()
     before = bar.bounding_box()
     scale = bar.evaluate(
         "el => el.getBoundingClientRect().width / parseFloat(getComputedStyle(el).width)"
@@ -11353,13 +11426,27 @@ def test_a_scaled_floating_draft_keeps_its_room_when_its_passage_scrolls_away(
     expect(field).to_be_focused()
     expect(field).to_have_js_property("value", content)
     after = bar.bounding_box()
+    assert field.evaluate("(node, original) => node === original", native_field)
+    assert after["y"] + after["height"] < 0, after
+    assert after["height"] <= before["height"] + 0.1, (before, after)
+    assert 8 <= after["x"] and after["x"] + after["width"] <= 382.1, (before, after)
+    assert after["width"] <= before["width"] + 0.1, (before, after)
+
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(field).to_be_focused()
+    scroll_settled(page)
+    rendered(page)
+    expect(field).to_have_js_property("value", content)
+    assert field.evaluate("(node, original) => node === original", native_field)
+    resumed = bar.bounding_box()
     banner_bottom = page.locator(".lf-banner").evaluate(
         "el => el.getBoundingClientRect().bottom"
     )
-    assert 8 <= after["x"] and after["x"] + after["width"] <= 382.1, (before, after)
-    assert banner_bottom + 6 <= after["y"] + 0.1, (before, after)
-    assert after["y"] + after["height"] <= 592.1, (before, after)
-    assert after["width"] <= before["width"] + 0.1, (before, after)
+    assert 8 <= resumed["x"] and resumed["x"] + resumed["width"] <= 382.1, resumed
+    assert banner_bottom + 6 <= resumed["y"] + 0.1, resumed
+    assert resumed["y"] + resumed["height"] <= 592.1, resumed
 
 
 @pytest.mark.parametrize("surface", ["composer", "composer-widget", "composer-panel"])

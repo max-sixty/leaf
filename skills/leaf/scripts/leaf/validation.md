@@ -1,11 +1,16 @@
 # Validation contract
 
-## Event admission
+Each input is validated once, where it enters, and code past that point reads it
+directly:
 
-Every writer uses the shared append transaction described in
-[events.md, "Admission"](events.md#admission). `page init` also checks the
-standing log against the replacement layer's stored-record contracts before
-re-vendoring.
+- an event, whether a browser posted it or a command wrote it, at the append door
+  ([events.md, "Admission"](events.md#admission));
+- a page's authored source at `check_source` (`validation/source.py`), which `page
+  check`, activation, `page stamp`, and `page init` all run ("Static validation");
+- message markup an agent hands in at `admission.check_markup`, which applies the same
+  structure and vocabulary checks to an HTML fragment, with or without widgets;
+- a layer `page init` would vendor at `compatibility.incoming_registry`;
+- what only a browser can see at `page check --render` ("Browser validation").
 
 ## Static validation
 
@@ -108,12 +113,13 @@ is a console error, since the page reports it);
 every widget upgraded, painted with values that resolve, and given real space;
 words a user can mark, reach, and select, with the registry's verbatim and shadow
 declarations honored; no sideways scroll, clipped control, squeezed table, or
-misplaced box; and standing state that replays without conflict and idempotently.
+misplaced box; space below words and controls for a horizontal overlay scrollbar;
+and standing state that replays without conflict and idempotently.
 `render_gate/readings.py` is the list. Those readings run
 at a desktop and a phone viewport; once they are done, the loaded desktop page is
-resized through the widths from 360px to 1920px and the two sideways readings are taken
-again at each: a version holds at every width from the narrowest phone to a wide
-desktop, not only at the two the gate renders, and each fault the sweep alone finds is
+resized through the widths from 360px to 1920px and sideways overflow, misplaced boxes,
+and scrollbar clearance are read again at each: a version holds at every width from
+the narrowest phone to a wide desktop, not only at the two the gate renders, and each fault the sweep alone finds is
 reported with the widths it spans. The sweep also finds each width where the page's own
 margin residents change (`data-lf-margin` on `main`, less the rail), and the readings
 run again there in the light scheme, where each resident has the least room it will

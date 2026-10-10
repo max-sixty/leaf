@@ -19,6 +19,15 @@ opening comment's `id`, in the record `leaf thread open` prints. `leaf page stat
 <page> <id>`, `leaf thread reply`, `edit` and `resolve`, and `leaf task open` all
 take the id of any message in the thread.
 
+A browser selection can identify actual words mechanically without distinguishing
+which repeated passage they came from. Such a comment retains its quote and carries
+`anchor.detached: true`: the selected occurrence was not identified at capture, so
+later uniqueness cannot establish that it survived. Its transcript says **passage
+not identified**, and the panel's **Not located** filter includes it. The user can
+still write, recover, and send that comment. This capture fact differs from a thread
+explicitly detached by a revision, which has a null current anchor and records its
+prior coordinate in `detached_from`.
+
 Title a thread with `--title` on the command that first handles it: the `open` that
 starts it, or, for an untitled thread the user opened, the reply that answers it,
 which a delivered message in it asks for. Choose a few words that identify its
@@ -36,9 +45,17 @@ text, at most 80 characters. Keep the title stable; when it no longer describes 
 discussion, rename it with `leaf thread edit <page> <message-id> --title "<a few
 words>"`, which changes no message and adds no turn.
 
-Use `--markup` for a small question: an `lf-ask` containing one heading and its
-`lf-options` group; it follows the reply's text, and its ids must not appear in any
-version or earlier message. Thread markup is frozen in the log and has no revision
+Use `--markup` for an HTML fragment after the message's text: a native table, a
+bounded log, or a small question using `lf-ask` and `lf-options`. Native HTML needs
+no widget wrapper. Its ids must not appear in any version or earlier message.
+Markup passes the shared structure, vocabulary, media, and id checks; it cannot
+declare document settings or add a stylesheet for the whole page.
+
+```bash
+leaf response reply <answer.ref> --text "The deploy passed." --markup '<details><summary>Deploy log</summary><pre>Ready&#10;Done</pre></details>'
+```
+
+Thread markup is frozen in the log and has no revision
 boundary: every immutable historical document shows the same markup. It must therefore
 validate against every pinned revision's captured registry, not only the active
 registry. Use only widget vocabulary shared by those registries. If no shared widget
@@ -142,7 +159,7 @@ leaf response reply <answer.ref> --detach --text "Removed this; the thread no lo
 The reply records the active revision and its anchor transition atomically. The opening
 comment keeps its original anchor in the event log. The panel keeps a
 detached thread open, its passage link marked as gone from this version, and the
-**No longer here** filter lists it. `page state` reports its
+**Not located** filter lists it. `page state` reports its
 null current anchor and the prior anchor as `detached_from`. A later reply may move it
 to a genuine replacement. Open a new thread for a different subject.
 
@@ -188,7 +205,7 @@ to expand and edit.
 Intervening user messages remain visible; separate runs of updates fold separately.
 One update can fold on its own. An explicit summary can cover those updates instead.
 
-An ephemeral update is progress text, so it cannot carry `--awaits`, widget markup,
+An ephemeral update is progress text, so it cannot carry `--awaits`, markup,
 failure or an anchor move. Put questions and results in ordinary replies. The shared
 disclosure appears in the panel and contextual thread surfaces. A completing reply
 held behind a new-reply notice keeps its progress visible until the reply is shown;
@@ -205,7 +222,7 @@ leaf thread edit <page> <comment-or-reply-id> --text "Corrected wording."
 ```
 
 The page labels the message `edited`. Leaf keeps the original and every revision
-in the append-only event log. Only text is revised; any widget markup stays frozen.
+in the append-only event log. Only text is revised; any HTML markup stays frozen.
 A committed reply or `leaf thread` write prints the records it appended, one JSON
 line each, as `leaf page events` prints them. A first `--title` travels in the same
 message record; an explicit `leaf thread edit <page> <thread-id> --title` is a separate naming gesture.

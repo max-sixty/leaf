@@ -8,6 +8,26 @@
     />
     <meta name="lf-review" content="sign-off" />
     <style>
+      #bg-metrics > dl {
+        margin: 0;
+        padding: var(--sp-3);
+        border: 1px solid var(--rule);
+        border-radius: var(--r);
+        background: var(--card);
+      }
+      #bg-metrics dt {
+        color: var(--muted);
+        font: 600 var(--t-6)/1.3 var(--sans);
+      }
+      #bg-metrics dd {
+        margin: var(--sp-1) 0 0;
+        font: 600 var(--t-2)/1.2 var(--sans);
+        overflow-wrap: anywhere;
+      }
+      #bg-metrics dd small {
+        font: 500 var(--t-6)/1.3 var(--sans);
+      }
+
       .bg-feature-detail {
         color: var(--ink-2);
         font-weight: 400;
@@ -154,6 +174,10 @@
         margin-top: 14px;
         margin-bottom: 0;
         box-shadow: 0 18px 46px color-mix(in srgb, var(--ink) 11%, transparent);
+      }
+
+      #bg-rollout-tabs {
+        max-inline-size: 26rem;
       }
 
       .interaction-gallery .lf-interaction-controls {
@@ -498,16 +522,18 @@
               agent's Tasks count follows its status. Press either, or press
               <kbd>g</kbd> then <kbd>Shift+Q</kbd>, to see both lists in the panel
               Threads also opens in, with answered Asks and finished tasks folded under
-              Done; Enter on a row goes where <kbd>q</kbd> would. The Questions panel is
-              experimental. Within a view, <kbd>q</kbd> scrolls to the question. When it
-              opens another view, the question appears immediately and its tab name
-              briefly highlights. <kbd>Shift+Q</kbd> walks back. Reduced motion removes
-              the glide and highlight. When <kbd>q</kbd> reaches a commented Ask, its
-              discussion stays closed while you read and choose, including when Tab
-              enters its controls. Press <kbd>c</kbd> to reply in that existing
-              discussion, <kbd>t</kbd> to read it, or its Thread marker to open it under
-              a finger. Returning to an Ask you have answered also keeps its controls
-              clear.
+              Done; Enter on a row goes where <kbd>q</kbd> would. A stamped page asking
+              for sign-off also lists its version approval as a Question. That row
+              reaches the banner's Approve control; approving ends it, and Undo brings
+              it back. The Questions panel is experimental. Within a view,
+              <kbd>q</kbd> scrolls to the question. When it opens another view, the
+              question appears immediately and its tab name briefly highlights.
+              <kbd>Shift+Q</kbd> walks back. Reduced motion removes the glide and
+              highlight. When <kbd>q</kbd> reaches a commented Ask, its discussion stays
+              closed while you read and choose, including when Tab enters its controls.
+              Press <kbd>c</kbd> to reply in that existing discussion, <kbd>t</kbd> to
+              read it, or its Thread marker to open it under a finger. Returning to an
+              Ask you have answered also keeps its controls clear.
             </p>
             <lf-ask id="bg-choice-ask">
               <h3>Which map should the sample team carry?</h3>
@@ -564,6 +590,13 @@
               quiet status line at the bottom right reports the current keyboard walk or
               a useful command result. It moves above the bottom-left shortcuts when
               room is tight.
+            </p>
+            <p id="bg-share-guide">
+              On a local server, open <strong>More → Share</strong> and copy the link,
+              then open it in a fresh browser profile. The link keeps the current
+              address and passage and includes the access key even after a reload. The
+              Share panel states that the key grants access to every Leaf page served by
+              the same machine. Sample windows and the public website omit Share.
             </p>
             <p id="bg-history-return-guide">
               Follow
@@ -736,13 +769,13 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <p id="bg-page-comment-card-guide">
                 With Threads shut, press the comment symbol beside Threads on the
                 banner, or press <kbd>c</kbd> with nothing selected. A card hangs from
-                the symbol; write a sentence and send it. Focus stays on the open card
-                and Threads flashes yellow, its count one higher, while the panel stays
-                shut; the new thread is in Threads. Press <kbd>c</kbd> to write again.
-                <kbd>Escape</kbd> or a click elsewhere puts the card away, keeping what
-                you wrote for the next time it opens. With Threads open, the same press
-                goes to its own “Comment on the page” box. On a phone, “Comment on the
-                page” is in “More page controls”.
+                the symbol; write a sentence and send it. The card closes and focus
+                returns to the symbol. Threads flashes yellow, its count one higher,
+                while the panel stays shut; the new thread is in Threads. Press
+                <kbd>c</kbd> to write again. <kbd>Escape</kbd> or a click elsewhere puts
+                the card away, keeping what you wrote for the next time it opens. With
+                Threads open, the same press opens the same card over the panel. On a
+                phone, “Comment on the page” is in “More page controls”.
               </p>
             </section>
 
@@ -770,8 +803,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 guide or in the space around it to anchor the comment here: a stroke in
                 empty space belongs to the nearest element on screen. Every further
                 stroke joins the same drawing, wherever it starts. Send the drawing
-                alone or add words first. The comment box shows the drawing beside Undo
-                last stroke and Remove drawing; in the box, <kbd>⌘Z</kbd> and
+                alone or add words first. The comment box pictures the page beneath the
+                drawing beside Undo last stroke and Remove drawing. Resize the window:
+                text reflow keeps the ink’s size, while a diagram carries its drawing in
+                the diagram’s own coordinates. In the box, <kbd>⌘Z</kbd> and
                 <kbd>⌘⇧Z</kbd> undo and redo strokes and words in the order you made
                 them. <kbd>Escape</kbd> puts the box away and leaves the drawing on the
                 page, dashed, and the next stroke brings the box back;
@@ -1016,15 +1051,18 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <p id="bg-threads-guide">
               With Threads closed, a Thread control or marked passage opens the thread
               inline; <kbd>t</kbd> moves to the next inline card and <kbd>T</kbd> to the
-              previous one. Open Threads while one is focused, including with
-              <kbd>g</kbd> then <kbd>T</kbd>, and the same thread stays focused in the
-              panel. Under “View”, filters narrow the list to “Open”, “On you”, “On
-              agent”, or “Resolved”, and combine “Page” or “Anchored” with “Content” or
-              “Layer”. “Order” switches the list from the page's order to “Recent”,
-              which puts the thread spoken in last first under its day. Collapsed titles
-              retain their message count, last message activity, and current status; “On
-              you” also names the action owed. Each thread has a short title chosen by
-              the agent; open one to read the full messages beneath it. Reply follows a
+              previous one. Scroll far from a commented passage, then press
+              <kbd>t</kbd>: the card enters with its passage as the page approaches it.
+              Scroll away and back; it leaves and returns by the same attachment rule.
+              Open Threads while one is focused, including with <kbd>g</kbd> then
+              <kbd>T</kbd>, and the same thread stays focused in the panel. Under
+              “View”, filters narrow the list to “Open”, “On you”, “On agent”, or
+              “Resolved”, and combine “Page” or “Anchored” with “Content” or “Layer”.
+              “Order” switches the list from the page's order to “Recent”, which puts
+              the thread spoken in last first under its day. Collapsed titles retain
+              their message count, last message activity, and current status; “On you”
+              also names the action owed. Each thread has a short title chosen by the
+              agent; open one to read the full messages beneath it. Reply follows a
               short conversation directly; in a long conversation it stays visible while
               you scroll. Send a reply: focus stays on the conversation card or its
               title, including in the floating card. Press <kbd>c</kbd> to write again;
@@ -1040,6 +1078,106 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               the same editor. Leave this page visible beside another window while
               composing and focus that window: new replies still wait behind the notice.
             </p>
+            <section id="bg-thread-api">
+              <p class="eyebrow bg-feature-elements">lf-conversation-workspace</p>
+              <h3>Package conversation readers</h3>
+              <p id="bg-thread-api-guide">
+                Switch between Conversation, Shelf, and Feed. Answer the channel Ask
+                inside its message, write a reply, and change layouts before sending:
+                the same draft follows the conversation. Start a conversation and mark
+                the proofreading task Done. The package's queues and Leaf's Questions
+                panel show the same outcomes. First unread and question navigation
+                arrive in this reader.
+              </p>
+              <script id="bg-thread-api-history" type="application/json">
+                [
+                  {
+                    "id": "api-question",
+                    "kind": "comment",
+                    "author": "agent",
+                    "text": "Which channel should the announcement use?",
+                    "markup": "<lf-ask id=\"channel-ask\"><h3>Announcement channel</h3><lf-options id=\"channel-options\" choose><lf-option id=\"channel-email\">Email</lf-option><lf-option id=\"channel-chat\">Chat</lf-option></lf-options></lf-ask>"
+                  },
+                  {
+                    "id": "api-opening",
+                    "kind": "comment",
+                    "author": "user",
+                    "text": "Keep the announcement concise."
+                  },
+                  {
+                    "id": "api-answer",
+                    "kind": "reply",
+                    "author": "agent",
+                    "parent": "api-opening",
+                    "text": "The draft now has one paragraph."
+                  },
+                  {
+                    "id": "api-proofread",
+                    "kind": "task",
+                    "author": "agent",
+                    "owner": "user",
+                    "subject": { "kind": "page" },
+                    "title": "Proofread the announcement"
+                  }
+                ]
+              </script>
+              <lf-sample
+                id="bg-thread-api-sample"
+                label="package conversation reader"
+                window
+              >
+                <template
+                  id="bg-thread-api-page"
+                  data-sample
+                  data-sample-events="bg-thread-api-history"
+                >
+                  <h1>Announcement review</h1>
+                  <lf-conversation-workspace
+                    id="conversation-workspace"
+                  ></lf-conversation-workspace>
+                </template>
+              </lf-sample>
+            </section>
+            <section id="bg-native-replies">
+              <h3>Native HTML in replies</h3>
+              <p>
+                Open Threads in the sample. Read the checks table, then open Deploy log
+                by click or keyboard. Both are ordinary HTML carried by the reply,
+                without a widget wrapper.
+              </p>
+              <script id="bg-native-reply-history" type="application/json">
+                [
+                  {
+                    "id": "deploy-question",
+                    "kind": "comment",
+                    "author": "user",
+                    "text": "Did the deploy pass?"
+                  },
+                  {
+                    "id": "deploy-answer",
+                    "kind": "reply",
+                    "author": "agent",
+                    "parent": "deploy-question",
+                    "text": "The deploy passed both checks.",
+                    "markup": "<table><caption>Deploy checks</caption><thead><tr><th scope=\"col\">Check</th><th scope=\"col\">Result</th></tr></thead><tbody><tr><td>Build</td><td>Passed</td></tr><tr><td>Smoke test</td><td>Passed</td></tr></tbody></table><details><summary>Deploy log</summary><pre>Build complete&#10;Smoke test passed&#10;Ready</pre></details>"
+                  }
+                ]
+              </script>
+              <lf-sample
+                id="bg-native-reply-sample"
+                label="Native reply evidence"
+                window
+              >
+                <template
+                  id="bg-native-reply-page"
+                  data-sample
+                  data-sample-events="bg-native-reply-history"
+                >
+                  <h1>Deploy review</h1>
+                  <p>The release is ready. Open Threads to read the checks and log.</p>
+                </template>
+              </lf-sample>
+            </section>
             <p id="bg-thread-notices">
               <strong>New information.</strong> Have the agent add a message after the
               page opens: its status-line notice also reaches the live region without
@@ -1073,7 +1211,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <code>Generating title</code> until the agent names it. A send slow enough
               to notice goes quiet until the log takes it. One the server refuses leaves
               the words on this passage, where opening the composer again finds them;
-              the general box in Threads gets them back in place.
+              the card under “Comment on the page” gets them back in place.
             </p>
             <p id="bg-revised-quotes-guide">
               <strong>A revised passage.</strong> Select “first draft” and send a
@@ -1210,6 +1348,31 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 bring its Thread control back to the page.
               </p>
             </section>
+            <section id="bg-retained-quote">
+              <h3>Quotations after a revision</h3>
+              <p id="bg-retained-quote-guide">
+                Open “Old release plan” in Threads. Its quoted passage belonged to a
+                section the current page removed. Full quote expands the retained words
+                here; press it again to return to the compact preview. The control stays
+                above the words while they expand.
+              </p>
+              <lf-sample
+                id="bg-retained-quote-sample"
+                label="Retained quotation"
+                window
+              >
+                <template
+                  id="bg-retained-quote-page"
+                  data-sample
+                  data-sample-threads="bg-retained-quote-thread"
+                >
+                  <h1>Current release plan</h1>
+                  <p id="bg-current-release-plan">
+                    The release now uses automatic review.
+                  </p>
+                </template>
+              </lf-sample>
+            </section>
             <section id="bg-thread-state-summary">
               <h3>Summarized and unread</h3>
               <p id="bg-thread-checkpoint">
@@ -1224,6 +1387,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 automatically when their final answer arrives, without adding a digest.
                 Choose “Progress messages” in the practice page, then use “Show 2
                 progress messages” beside the answer’s timestamp with a press or Enter.
+                Expanded progress runs have an inset border and ordinary message headers
+                on the page’s normal background. User replies separate the groups.
               </p>
               <p id="bg-thread-unread">
                 <strong>Unread replies.</strong> The seeded agent replies start unread.
@@ -1639,12 +1804,12 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               ><span class="bg-feature-detail">: charts and structured views</span>
             </h2>
             <p id="bg-default-guide">
-              These shipped widgets use synthetic data so each feature has a focused
-              example.
+              These widgets and page-owned HTML compositions use synthetic data so each
+              has a focused example.
             </p>
 
             <section id="bg-metrics-and-chart">
-              <p class="eyebrow bg-feature-elements">lf-metric · lf-chart</p>
+              <p class="eyebrow bg-feature-elements">dl · lf-chart</p>
               <h3>
                 <strong>Metrics</strong> and <strong>Chart</strong
                 ><span class="bg-feature-detail">: values and trends</span>
@@ -1660,19 +1825,18 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </p>
               <div id="bg-metrics-room">
                 <div id="bg-metrics" class="layout-tiles">
-                  <lf-metric
-                    id="bg-metric-complete"
-                    value="12"
-                    delta="+3"
-                    direction="up-good"
-                    >checks complete</lf-metric
-                  >
-                  <lf-metric id="bg-metric-open" value="2" delta="-1" direction="up-bad"
-                    >open failures</lf-metric
-                  >
-                  <lf-metric id="bg-metric-neutral" value="4 min"
-                    >sample duration</lf-metric
-                  >
+                  <dl id="bg-metric-complete" class="panel">
+                    <dt>checks complete</dt>
+                    <dd><strong>12</strong> <small>change: +3</small></dd>
+                  </dl>
+                  <dl id="bg-metric-open" class="panel">
+                    <dt>open failures</dt>
+                    <dd><strong>2</strong> <small>change: -1</small></dd>
+                  </dl>
+                  <dl id="bg-metric-neutral" class="panel">
+                    <dt>sample duration</dt>
+                    <dd><strong>4 min</strong></dd>
+                  </dl>
                 </div>
               </div>
               <div id="bg-charts" data-width="wide">
@@ -1681,7 +1845,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
 {
   ariaLabel: "Checks complete by run: baseline 4, 7, 9; candidate 5, 9, 12",
   marginBottom: 40,
-  x: {label: "run", ticks: 3},
+  x: {label: "run", ticks: [1, 2, 3], tickFormat: "d"},
   y: {grid: true, label: "checks complete"},
   color: {legend: true, range: ["var(--series-1)", "var(--series-2)"]},
   marks: [
@@ -1794,7 +1958,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
 
             <section id="bg-code-and-tree">
               <p class="eyebrow bg-feature-elements">
-                lf-code · lf-gloss · lf-note · lf-tree
+                lf-code · lf-gloss · lf-note · pre
               </p>
               <h3>
                 <strong>Code</strong>, <strong>Gloss</strong>, <strong>Note</strong>,
@@ -1810,11 +1974,11 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 >. Hover the term, then move into its explanation; the card stays open
                 while you read it. Code adds line numbers and Notes, and quotes an
                 excerpt under its file's own numbers with an elided row where it skips;
-                Tree shows file structure. Use “Copy code” on the right of either block
-                below, or <kbd>Tab</kbd> to it and press <kbd>Enter</kbd>. The clipboard
-                keeps the code's whitespace and leaves out line numbers and Notes. Bash
-                separates commands, arguments, and flags with the same syntax colors as
-                a diff.
+                A native preformatted block shows file structure. Use “Copy code” on the
+                right of either code block below, or <kbd>Tab</kbd> to it and press
+                <kbd>Enter</kbd>. The clipboard keeps the code's whitespace and leaves
+                out line numbers and Notes. Bash separates commands, arguments, and
+                flags with the same syntax colors as a diff.
               </p>
               <pre
                 id="bg-plain-code"
@@ -1836,8 +2000,8 @@ def seat(guest):
                   >The seating chart, loaded once.</lf-note
                 >
               </lf-code>
-              <lf-tree id="bg-tree">
-                <pre>
+
+              <pre id="bg-tree">
 gallery/
   index.html  +20 -1
   data.json  +2
@@ -1847,41 +2011,40 @@ gallery/
     evidence/
       rendered_first_paint_checkpoints_with_readable_path_names.json  +245 -93
 </pre>
-              </lf-tree>
+
               <p id="bg-tree-after">
-                At a narrow width, the nested filename and its change badges wrap. This
-                paragraph stays in place when the tree upgrades.
+                The native preformatted block preserves the hierarchy and change counts;
+                scroll horizontally to read long paths.
               </p>
             </section>
 
             <section id="bg-neutral-comparison">
-              <p class="eyebrow bg-feature-elements">
-                lf-compare · lf-variant · lf-chip
-              </p>
+              <p class="eyebrow bg-feature-elements">section · small</p>
               <h3>
                 <strong>Compare</strong>, <strong>Variants</strong>, and
                 <strong>Chips</strong
                 ><span class="bg-feature-detail">: parallel alternatives</span>
               </h3>
               <aside class="sidenote" id="bg-compare-note">
-                Short variants share a row. Paragraphs make the alternatives stack.
+                The page puts short alternatives in a row and longer explanations below.
                 Narrow the window to see this note return to the text flow.
               </aside>
               <p id="bg-compare-guide">
-                Compare gives each Variant the same frame. Chips label short attributes.
+                Ordinary sections compare alternatives. Small labels carry their
+                attributes.
               </p>
-              <lf-compare id="bg-compare">
-                <lf-variant id="bg-variant-paper">
-                  <lf-chip id="bg-chip-power">power: none</lf-chip
-                  ><lf-chip tone="ok">weight: low</lf-chip>
+              <div id="bg-compare" class="layout-tiles">
+                <section id="bg-variant-paper" class="panel">
+                  <small id="bg-chip-power" class="tag">power: none</small
+                  ><small class="tag ok">weight: low</small>
                   <strong>Paper map</strong> Easy to annotate and fold.
-                </lf-variant>
-                <lf-variant id="bg-variant-screen">
-                  <lf-chip>power: daily</lf-chip
-                  ><lf-chip tone="warn">weight: medium</lf-chip>
+                </section>
+                <section id="bg-variant-screen" class="panel">
+                  <small class="tag">power: daily</small
+                  ><small class="tag warn">weight: medium</small>
                   <strong>Tablet map</strong> Searchable and backlit.
-                </lf-variant>
-              </lf-compare>
+                </section>
+              </div>
               <table id="bg-route-distances">
                 <caption>
                   Route distances — numeric columns align on the right
@@ -1903,78 +2066,68 @@ gallery/
                   </tr>
                 </tbody>
               </table>
-              <lf-compare id="bg-compare-prose">
-                <lf-variant id="bg-variant-paper-detail">
+              <div id="bg-compare-prose">
+                <section id="bg-variant-paper-detail" class="panel">
                   <strong>Paper on the trail</strong>
                   <p>
                     Mark the route before leaving. The map stays readable when the
                     battery runs out.
                   </p>
-                </lf-variant>
-                <lf-variant id="bg-variant-screen-detail">
+                </section>
+                <section id="bg-variant-screen-detail" class="panel">
                   <strong>Screen at a junction</strong>
                   <p>
                     Search the nearest stop and update the route. Carry enough power for
                     the return journey.
                   </p>
-                </lf-variant>
-              </lf-compare>
+                </section>
+              </div>
             </section>
 
             <section id="bg-plans-and-history">
-              <p class="eyebrow bg-feature-elements">
-                lf-milestones · lf-milestone · lf-chronology · lf-chronology-entry
-              </p>
+              <p class="eyebrow bg-feature-elements">ol · small · time</p>
               <h3>
                 <strong>Milestones</strong> and <strong>Chronology</strong
                 ><span class="bg-feature-detail">: state and history</span>
               </h3>
               <p id="bg-plans-guide">
-                Milestones show planned, active, and completed work. A Chronology orders
-                entries by time.
+                A list shows planned, active, and completed work. Another orders entries
+                by time.
               </p>
-              <lf-milestones id="bg-milestones">
-                <lf-milestone id="bg-milestone-survey" status="done" when="morning">
+              <h4 id="bg-work-plan">Planned work</h4>
+              <ol id="bg-milestones">
+                <li id="bg-milestone-survey">
+                  <small class="tag ok">done · morning</small>
                   <strong>Survey the route</strong> Marked the crossings.
-                </lf-milestone>
-                <lf-milestone
-                  id="bg-milestone-walk"
-                  status="active"
-                  when="afternoon"
-                  tags="sample,route"
-                >
+                </li>
+                <li id="bg-milestone-walk">
+                  <small class="tag warn">active · afternoon · sample · route</small>
                   <strong>Walk the route</strong> Checking the covered section.
-                </lf-milestone>
-                <lf-milestone id="bg-milestone-report" status="planned" when="next">
+                </li>
+                <li id="bg-milestone-report">
+                  <small class="tag">planned · next</small>
                   <strong>Write the note</strong>
-                </lf-milestone>
-              </lf-milestones>
-              <lf-chronology id="bg-chronology">
-                <lf-chronology-entry id="bg-chronology-alert" at="09:14" kind="warning">
+                </li>
+              </ol>
+              <h4 id="bg-event-history">Observed events</h4>
+              <ol id="bg-chronology">
+                <li id="bg-chronology-alert">
+                  <time>09:14</time> <small class="tag warn">warning</small>
                   <strong>Rain started</strong> The open path became slippery.
-                </lf-chronology-entry>
-                <lf-chronology-entry
-                  id="bg-chronology-closed"
-                  at="09:18"
-                  kind="failure"
-                >
+                </li>
+                <li id="bg-chronology-closed">
+                  <time>09:18</time> <small class="tag danger">failure</small>
                   <strong>Path closed</strong> Standing water blocked the crossing.
-                </lf-chronology-entry>
-                <lf-chronology-entry
-                  id="bg-chronology-switch"
-                  at="09:20"
-                  kind="intervention"
-                >
+                </li>
+                <li id="bg-chronology-switch">
+                  <time>09:20</time> <small class="tag">intervention</small>
                   <strong>Route changed</strong> The sample moved under cover.
-                </lf-chronology-entry>
-                <lf-chronology-entry
-                  id="bg-chronology-clear"
-                  at="09:42"
-                  kind="observation"
-                >
+                </li>
+                <li id="bg-chronology-clear">
+                  <time>09:42</time> <small class="tag">observation</small>
                   <strong>Walk resumed</strong>
-                </lf-chronology-entry>
-              </lf-chronology>
+                </li>
+              </ol>
             </section>
 
             <section id="bg-activity-feed">
@@ -1986,10 +2139,12 @@ gallery/
                 >
               </h3>
               <p id="bg-activity-guide">
-                The feed reads this page's own log: the seeded threads, reactions, user
-                actions, and published versions. The board move near the end was taken
-                back, so its row stays struck through and marked “undone”. Press a
-                thread row to open its thread, or a widget row to travel to the widget.
+                Press Show activity to read this page's own log: the seeded threads,
+                reactions, user actions, and published versions. The board move near the
+                end was taken back, so its row stays struck through and marked “undone”.
+                Press a thread row to open its thread, or a widget row to travel to the
+                widget. New updates wait behind the fixed control while you read; press
+                it to reveal them.
               </p>
               <lf-activity id="bg-activity"></lf-activity>
             </section>
@@ -2004,13 +2159,15 @@ gallery/
                 This embedded sample is a framed tabbed section. The browser test also
                 presents this same tab set at the root of a page, where it becomes
                 borderless top navigation for page-scale views. Both forms remember the
-                selected panel after reload. At page level, scroll a view and switch
-                away and back: an unread view opens below the tab strip, and a view you
-                already read returns to its place. The strip stays put even when the
-                next view is shorter than the window. Browser Back and Forward return to
-                the corresponding views. Narrow the window until the gallery’s own tab
-                names overflow, then page them with the edge arrows. Reduced motion
-                makes that move immediate.
+                selected panel after reload. Horizontal tab strips stay at the top of
+                the view while their panel is being read, below any enclosing tabs.
+                Switching a pinned embedded strip opens its new panel at the start. At
+                page level, scroll a view and switch away and back: an unread view opens
+                below the tab strip, and a view you already read returns to its place.
+                The strip stays put even when the next view is shorter than the window.
+                Browser Back and Forward return to the corresponding views. Narrow the
+                window until the gallery’s own tab names overflow, then page them with
+                the edge arrows. Reduced motion makes that move immediate.
               </p>
               <lf-tabs id="bg-tabs">
                 <lf-tab id="bg-tab-current" label="Current">
@@ -2021,6 +2178,53 @@ gallery/
                 <lf-tab id="bg-tab-context" label="Context">
                   <p id="bg-tab-context-text">
                     The earlier route crossed the courtyard.
+                  </p>
+                </lf-tab>
+              </lf-tabs>
+              <h4 id="bg-overflow-tabs-heading">A rollout review in a narrow column</h4>
+              <p id="bg-overflow-tabs-guide">
+                This review keeps six sections in one compact row. The native scrollbar
+                is hidden; use the edge arrows to reveal more names, or swipe the row on
+                a touch screen. Focus a tab and use Left or Right to switch sections, or
+                Home and End to reach the first and last. Narrow the window: the
+                selected name stays visible and its section stays open. The arrows
+                disappear at an edge with no more names.
+              </p>
+              <lf-tabs id="bg-rollout-tabs">
+                <lf-tab id="bg-rollout-summary" label="Summary">
+                  <p id="bg-rollout-summary-text">
+                    Ship the revised search index to the internal team first, then
+                    expand after one healthy working day.
+                  </p>
+                </lf-tab>
+                <lf-tab id="bg-rollout-scope" label="Release scope">
+                  <p id="bg-rollout-scope-text">
+                    This release changes ranking and query suggestions. Saved searches
+                    keep their current filters.
+                  </p>
+                </lf-tab>
+                <lf-tab id="bg-rollout-stages" label="Rollout stages">
+                  <p id="bg-rollout-stages-text">
+                    Begin with the search team, continue with a small customer cohort,
+                    then open access to everyone.
+                  </p>
+                </lf-tab>
+                <lf-tab id="bg-rollout-health" label="Health checks">
+                  <p id="bg-rollout-health-text">
+                    Compare query latency, empty results, and user reports with the
+                    previous index before expanding access.
+                  </p>
+                </lf-tab>
+                <lf-tab id="bg-rollout-recovery" label="Recovery plan">
+                  <p id="bg-rollout-recovery-text">
+                    Return traffic to the previous index if searches become slow or
+                    relevant results disappear.
+                  </p>
+                </lf-tab>
+                <lf-tab id="bg-rollout-handoff" label="Owner handoff">
+                  <p id="bg-rollout-handoff-text">
+                    The search team owns the rollout. Support collects reports and the
+                    on-call engineer can restore the previous index.
                   </p>
                 </lf-tab>
               </lf-tabs>
@@ -2270,7 +2474,9 @@ gallery/
                 Sample labels invented content. Choose “Before” or “After” above the
                 image, or press the Shot control or image to flip. The selected label is
                 red for Before and green for After; a split colors both labels without
-                selecting either. This pair carries
+                selecting either. Scroll through a tall pair: the Before/After rail
+                stays at the top of the view until the pair ends, below any page tabs.
+                This pair carries
                 <code>outlines</code>, so outlines mark each region where the two images
                 differ, on both sides of the divider, and the rail counts them.
               </p>

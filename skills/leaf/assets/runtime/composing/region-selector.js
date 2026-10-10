@@ -2,7 +2,7 @@
  *
  * The page command owner supplies input and registers this controller's rows with the
  * shared keyboard and banner controls. The overlay only paints: it never intercepts
- * hit testing or introduces a modal. Its border leaves the selected content clear;
+ * hit testing or introduces a modal. Its outline leaves the selected content clear;
  * instructions and errors belong to the shared controls and notice line. Pointer
  * drags set a rectangle; arrows move it and
  * Shift+arrows resize it, so capturing never requires a drag. The selected pixels stay
@@ -115,22 +115,22 @@ export function createRegionSelector({
     // including revisions, widget updates and reflow made while the user selected.
     const x = box.x + box.width / 2;
     const y = box.y + box.height / 2;
-    return (
-      visibleTargets()
-        .filter(({ rect }) => rect && rect.width && rect.height)
-        .map((target) => ({
-          ...target,
-          distance: Math.hypot(
-            Math.max(target.rect.left - x, 0, x - target.rect.right),
-            Math.max(target.rect.top - y, 0, y - target.rect.bottom),
-          ),
-        }))
-        .sort(
-          (a, b) =>
-            a.distance - b.distance ||
-            a.rect.width * a.rect.height - b.rect.width * b.rect.height,
-        )[0]?.anchor ?? null
-    );
+    const winner = visibleTargets()
+      .filter(({ rect }) => rect && rect.width && rect.height)
+      .map((target) => ({
+        ...target,
+        distance: Math.hypot(
+          Math.max(target.rect.left - x, 0, x - target.rect.right),
+          Math.max(target.rect.top - y, 0, y - target.rect.bottom),
+        ),
+      }))
+      .sort(
+        (a, b) =>
+          a.distance - b.distance ||
+          a.rect.width * a.rect.height - b.rect.width * b.rect.height,
+      )[0];
+    const target = winner?.capture ? winner.capture() : winner;
+    return target?.anchor ?? null;
   }
 
   async function capture() {

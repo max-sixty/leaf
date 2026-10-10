@@ -97,27 +97,6 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
                 )
             if rec["text"]:
                 errors.append(f"{where}: loose text between its members isn't allowed")
-        for member_tag, constraint in entry.get("x-required-members", {}).items():
-            attribute = constraint["one-each"]
-            values = registry[member_tag]["properties"][attribute]["enum"]
-            direct = [
-                member
-                for member in lf_elements
-                if member["holder"] is rec
-                and member["parent"] == tag
-                and member["tag"] == member_tag
-            ]
-            counts = {
-                value: sum(member["attrs"].get(attribute) == value for member in direct)
-                for value in values
-            }
-            missing = [value for value, count in counts.items() if count == 0]
-            repeated = [value for value, count in counts.items() if count > 1]
-            if missing or repeated:
-                errors.append(
-                    f"{where}: must contain exactly one direct <{member_tag}> for "
-                    f"each `{attribute}` value; missing {json_value(missing)}, repeated {json_value(repeated)}"
-                )
     return errors
 
 
@@ -531,8 +510,8 @@ def suggestion_errors(lf_elements: list, registry: dict, thread_ids: set) -> lis
 
 
 def fragment_errors(parser: SourceDocument, registry: dict) -> list:
-    """Structural + registry validation of a markup fragment (an agent reply
-    carrying widgets): the discussion-side analog of `page check`. The declared-word
+    """Structural + registry validation of an HTML fragment:
+    the discussion-side analog of `page check`. The declared-word
     checks come along because the schema stopped carrying the lists: a reply's
     <lf-code language=…> is colored by the same tokenizer a version's is, and its chips
     are tinted by the same theme, and nothing else would now refuse either a word its

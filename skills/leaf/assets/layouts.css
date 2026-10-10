@@ -128,6 +128,7 @@
     main.layout-column[data-lf-margin~="sidebar"] > aside.sidebar:nth-child(1 of aside.sidebar) {
       float: left; clear: left; position: sticky;
       top: calc(var(--lf-top-outer) + var(--sp-4)); --lf-top: 0px;
+      --lf-landing-room: 0px;
       width: calc(var(--sidebar) - var(--sp-4));
       max-height: calc(var(--lf-view-height) - 2 * var(--sp-4));
       overflow-y: auto;
@@ -327,7 +328,7 @@
      * drawing's: one drawn at the stated height keeps it, and one whose content has a
      * height of its own takes that. A failure is shown whole, since the user has to read
      * it. */
-    html[data-lf-interactive] [data-lf-height]:not(.lf-rendered, :has(> .lf-error)) {
+    html[data-lf-interactive] [data-lf-height]:not([data-lf-height=""], .lf-rendered, :has(> .lf-error)) {
       box-sizing: border-box;
       block-size: attr(data-lf-height px);
       overflow: clip;

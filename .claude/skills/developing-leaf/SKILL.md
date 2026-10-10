@@ -5,25 +5,21 @@ description: Develops Leaf itself from the current checkout, including its runti
 
 # Develop Leaf from this checkout
 
-Resolve the repository root three directories above this `SKILL.md`, then resolve
-`<root>/bin/leaf` to an absolute path. Run that launcher with `--root` and
-continue only when it prints the same repository root. Use the absolute launcher
-throughout; a bare `leaf` may resolve to the installed plugin instead.
+Resolve the repository root three directories above this `SKILL.md`, check that
+`<root>/bin/leaf --root` prints that root, and run every `leaf` command through that
+absolute launcher; a bare `leaf` may run the installed plugin instead.
 
-Read `references/glossary.md` before naming or revising user-facing elements,
-interaction contexts, navigation, chrome, view state, or an identifier governed by
-those concepts. It is Leaf's canonical implementation vocabulary.
+Read `references/glossary.md` before naming or revising a user-facing element,
+interaction, navigation, chrome, view state, or an identifier for one of them. It is
+Leaf's canonical implementation vocabulary.
 
 ## Read the owning contract
 
-For a contract shared across modules or runtimes, read the sidecar beside the
-Python code that owns the boundary;
-`<root>/skills/leaf/scripts/AGENTS.md` lists them under "Protocol references".
-
-To check what the code does, call it: the checkout's environment installs `leaf`
-and `leaf_dev` editable, so `uv run python -c 'from leaf... import ...'` imports
-either without a `sys.path` edit. A tag's schema is in the registry of the package
-that ships it:
+A contract shared across modules or runtimes lives in the sidecar beside the Python
+code that owns the boundary; `<root>/skills/leaf/scripts/AGENTS.md` lists them under
+"Protocol references". To check what the code does, call it: `leaf` and `leaf_dev` are
+installed editable, so `uv run python -c 'from leaf... import ...'` needs no
+`sys.path` edit. A tag's schema is in the registry of the package that ships it:
 
 ```bash
 jq 'select(has("lf-shot"))."lf-shot"' \
@@ -57,19 +53,11 @@ installation instructions and complete references.
 
 Code enforces only what Leaf needs to work: a contract between modules, or a guarantee
 the user relies on, such as a gesture being recorded or nothing moving under the
-pointer. Taste, formatting and aesthetics go in the shipped instructions, as a goal and
-its reason, so the authoring agent weighs them against the page in front of it. How
-many tiles share a row, where a heading breaks, which column is wider: a rule in CSS,
-a validator or a Layout that fixes one of these for every page overrides the agent
-where its page needs something else, and breaks on the next case it wasn't written
-for. A check may report what it sees, as the render check names where a tile row
-wraps, and leave the call to the agent.
-
-## Leave old state out of the handoff
-
-Leaf owes nothing to state an earlier version wrote (`AGENTS.md`, "Stage"). A
-handoff doesn't say that an existing page, log, or claim predates the change or
-needs re-vendoring, and doesn't list reviving it as follow-up work.
+pointer. Taste goes in the shipped instructions as a goal and its reason, so the authoring
+agent weighs it against its own page. A CSS rule, validator, or Layout that fixes how
+many tiles share a row overrides every page that needs another number. A check may
+report what it sees, as the render check names where a tile row wraps, and leave the
+call to the agent.
 
 ## Explore an open design
 
@@ -211,7 +199,9 @@ caret, so omit it when ordinary motion and caret behavior are the evidence.
 
 `uv run leaf-dev stills` compares HEAD with the merge base with `main` and crops
 each changed catalogue state into a before/after pair. Commit first, since it
-compares commits. Include pages at rest and states reached by interaction,
+compares commits. For changes to the examples themselves, add `--authored` so
+each arm reads its own committed markup and companions; the default shares the
+current source to isolate runtime changes. Include pages at rest and states reached by interaction,
 including focus states where layout can cover a focus ring. Add missing states
 to `STATES` rather than driving them by hand.
 
@@ -268,63 +258,65 @@ idle a preview to quiet the loop; `idle` closes the page in the browser.
 
 ## Run the agent journey
 
-`uv run --project <root> leaf-dev journey TARGET` runs one user's journey in
-Chrome: on the triage board, it tells the agent through Threads that a release
-passed its checks and asks it to record that, leaving how to the agent, then checks
-a reply shows and a reload presents a revision naming the release. It prints how long each step took, the agent's steps on the page
-server's clock, so the same journey benchmarks every harness. TARGET is `claude-code`
-or `codex` for an isolated session of that harness running this working tree's
-plugin, `local` for the website's adapter against the host's Codex login (no
-Worker, container limits, credential proxy or Docker), `wrangler` for the built
-site through the local Worker, or a website origin. A run on this machine spends
-the harness's login.
+`uv run --project <root> leaf-dev journey TARGET` runs one user's journey against a
+real agent: on the triage board, it tells the agent that a release passed its checks
+and asks it to record that, leaving how to the agent, then checks a reply and a
+revision naming the release. It prints how long each step took, the agent's steps on
+the page server's clock, so the same journey benchmarks every target. A run spends
+the target's login.
 
-`tests/AGENTS.md`, "Run what the change needs", owns the CI delivery checks and
-when to reproduce a Worker/container failure locally. `worker/README.md`, "Local
-development", owns that reproduction setup. The `publish-site` workflow verifies
-the complete boundary before deployment; its journey against the deployed release
-is the only production reading.
+Where the user is applies to every step. On a harness the default is over HTTP:
+no browser starts, and each comment is posted as the page's tab posts one. Use it
+for harness behaviour and agent timing, which the page's log carries whole.
+`--browser` runs the whole user journey in Chrome instead: each comment typed in
+Threads, each reply's showing timed by the page, and the release ask's reload
+checked. Use it when what the page shows is part of the change. A website target
+is always in Chrome, since delivery through the page is its subject.
 
-## Test a terminal Codex task
+On a harness the journey runs a session of it with this working tree as its plugin,
+under a throwaway home holding the host's login, and goes on as the user at its
+terminal: it types turns, presses Escape, kills the adapter, and sends each step's
+comment, timing it from the page's log. Between
+steps it checks every comment so far is answered once and entered the session's
+context, and the page's claim names the session with its turn closed. The
+suite stands in for each harness, and only this run shows what the harness itself
+does. Run it on the harness a change touches; each target also checks what its
+harness promises:
 
-`uv run --project <root> leaf-dev verify-codex-task` runs real Codex tasks, with
-this working tree installed as their plugin, through both transports of automatic
-server handoff. It checks each comment is answered once, a comment during queue-backed
-work is picked up and answered in that same turn, and each turn is closed under
-App Server's id. Run it after a change to `codex.py`,
-`codex_adapter.py`, `hooks.py`, `hook_transport.py`, or the claim's turn in
-`service.py`; the suite scripts App Server, and only this run shows what Codex
-itself sends. It spends a few turns on the host's Codex login, and CI has none.
+- `claude-code`, an interactive session in a tmux pane: a comment sent during a turn
+  is picked up in it, the Stop hook keeps a turn going for a comment pending as it
+  ends, comments after an Escape are answered, and quitting ends the session's claim
+  and its watch. Run it, with and without `--hooks-module`, after a change to
+  `hooks/hooks.json`, `hooks/claude-code.ts`, `ClaudeCodeHarness`, `hooks.py`,
+  `loop-guard.py`, or the watch between turns in `session.py`; with the flag it also
+  checks that Escape closes the turn and leaves a watch running.
+- `codex-app-server` and `codex-queue`, a Codex task through each transport of
+  automatic server handoff, the queue being the desktop app's: the page server
+  titles each thread, the claim names the user's turn while it runs and the task's
+  last turn by App Server's id after, and rich requests get clickable choices and a
+  question awaiting the user. On `codex-queue` a comment sent during the user's turn
+  must also enter that turn and be answered before its final response, and one sent
+  while an interrupted turn resumes with empty input must enter the resumed turn.
+  Run both
+  after a change to `codex.py`, `codex_adapter.py`, `hooks.py`, `hook_transport.py`,
+  or the claim's turn in `service.py`. For a change to preview startup or lifetime,
+  add `--preview`: setup starts the canonical user preview, every step checks the
+  keyed URL, and a last step interrupts the isolated server to prove the preview
+  restores both the address and working feedback without a source edit.
+- `pi`, the version `dev/pi/` pins, on a copy of the host's Codex login: a comment
+  sent during a run is delivered into it with no run after, Escape closes the turn
+  without waking Pi again, a comment held at Escape enters a fresh run, and quitting
+  ends the session's claim and its watch. Run it after a change to `hooks/pi.ts`,
+  `PiHarness`, `hooks.py`, or the watch between turns in `session.py`.
 
-For a change to preview startup or lifetime, add `--preview`. It starts the
-canonical user preview in each task, checks the keyed URL across those turns,
-and interrupts its isolated server between turns to prove that the preview
-restores both the address and working feedback without a source edit.
-
-## Test a Claude Code session
-
-`uv run --project <root> leaf-dev verify-claude-code-task` runs a real interactive
-Claude Code session in a tmux pane, with this working tree as its plugin and the
-host's login.
-It checks each comment is answered once, a comment during a turn is picked up in
-that turn, comments after an Escape are answered, and quitting ends the session's
-claim; `--hooks-module` runs the same journey with the plugin's hooks module on,
-and also checks that Escape closes the turn and leaves a watch running. Run it,
-with and without the flag, after a change to `hooks/hooks.json`,
-`hooks/claude-code.ts`, `ClaudeCodeHarness`, `hooks.py`, `loop-guard.py`, or the
-watch between turns in `session.py`; the suite stands in for Claude Code, and only
-this run shows what Claude Code itself does.
-
-## Test a Pi session
-
-`uv run --project <root> leaf-dev verify-pi-task` runs a real Pi session, the
-version `dev/pi/` pins, with this working tree installed as its Pi package and the
-host's Codex login as its only login. It checks each comment is answered once, a
-comment during a run is answered in that run, Escape closes the turn without waking
-Pi again, and quitting ends the session's claim. Run it after a change to
-`hooks/pi.ts`, `PiHarness`, `hooks.py`, or the watch between turns in `session.py`;
-the suite drives the extension with a stand-in for Pi, and only this run shows what
-Pi itself does.
+For the website, TARGET is `website-adapter` for its adapter against the host's
+Codex login (no Worker, container limits, credential proxy or Docker),
+`website-worker` for the built site through the local Worker, or a website origin;
+there the journey is the release ask alone. `tests/AGENTS.md`, "Run what the change
+needs", owns the CI delivery checks and when to reproduce a Worker/container failure
+locally. `worker/README.md`, "Local development", owns that reproduction setup. The
+`publish-site` workflow verifies the complete boundary before deployment; its
+journey against the deployed release is the only production reading.
 
 ## Compare checkout versions
 
@@ -377,8 +369,11 @@ Score an instruction change when an agent could read it more than one way, so wh
 it will do under the new text is uncertain: a new or reworded rule, a goal that
 competes with another, a cut that may have carried a behavior. A change whose reading
 is plain needs no score, such as deleting the description of an input that can no
-longer arrive or correcting a fact. Run the cases that bear on it on both the merge
-base and the working tree:
+longer arrive or correcting a fact. Prefer personal-skill evals for general agent
+behavior (`/improving-instructions`, "Validate with evals") and the standard Leaf
+evals for consuming its shipped workflows. An internal maintainer case is justified
+only for a Leaf-specific development contract that neither can exercise. For cases
+in Leaf's suite, run both the merge base and the working tree:
 
 ```bash
 npm ci --prefix evals
@@ -398,8 +393,7 @@ the behavior. What the suite holds then scores later edits, whether fixes or cut
 against the behaviors earlier edits had to produce. Keep a case small: one prompt
 carrying only the context the behavior needs, and a few assertions. Explore whatever
 scenarios the change needs, then retain only cases that cover distinct failures or
-necessary controls. Internal maintainer evals stay small and
-sparse; exploratory variants and their evidence stay in the run directory. Remove
+necessary controls. Exploratory variants and their evidence stay in the run directory. Remove
 contexts another retained case already covers. The leading comment records the
 case's origin and whether it distinguished the instructions.
 

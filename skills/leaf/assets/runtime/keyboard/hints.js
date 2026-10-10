@@ -98,7 +98,8 @@ function nearestOpenTop(box, preferred, barriers, top, bottom, gap) {
 // chip in its seat first and provide the visible rectangle each chip names and the
 // place `at` its seat is drawn from; each face is read there, and the answer is where
 // each seat stands (chip-seats.js), its `box` a barrier for a following pass.
-// `belowTarget` makes that edge the preferred seat and the target an obstacle.
+// `placement` chooses the corner, below, before, or above the target;
+// outside seats keep the target clear.
 function spreadHints(
   seats,
   hints,
@@ -115,10 +116,10 @@ function spreadHints(
     parseFloat(
       getComputedStyle(document.documentElement).getPropertyValue("--focus-ring-w"),
     ) || 0;
-  const faces = hints.map(({ seat, at, target, belowTarget = false }) => ({
+  const faces = hints.map(({ seat, at, target, placement = "corner" }) => ({
     start: seats.boxAt(seat, at),
     target,
-    belowTarget,
+    placement,
   }));
   const placed = seatHints(faces, {
     barriers,
@@ -143,7 +144,7 @@ function spreadHints(
 }
 
 // Where each face stands, folded from rectangles `spreadHints` has already read. Each
-// face is `{ start, target, belowTarget }`, `start` the box it was drawn at; the answer
+// face is `{ start, target, placement }`, `start` the box it was drawn at; the answer
 // is one box per face, in order, each clear of the barriers, the key line and every face
 // seated before it. A box is `held` where what decided its seat stands still as the page
 // scrolls, the window's edge, the key line or a fixed barrier, rather than its target or
@@ -173,11 +174,21 @@ export function seatHints(
   const edgeTop = viewport.top + band;
   const edgeRight = viewport.right - band;
   const edgeBottom = viewport.bottom - band;
-  const measured = faces.map(({ start, target, belowTarget }) => {
-    const preferredLeft = belowTarget
-      ? target.left + (target.width - start.width) / 2
-      : start.left;
-    const preferredTop = belowTarget ? target.bottom + clear : start.top;
+  const measured = faces.map(({ start, target, placement = "corner" }) => {
+    const preferredLeft =
+      placement === "below"
+        ? target.left + (target.width - start.width) / 2
+        : placement === "before"
+          ? target.left - start.width - clear
+          : placement === "above"
+            ? target.left
+            : start.left;
+    const preferredTop =
+      placement === "below"
+        ? target.bottom + clear
+        : placement === "above"
+          ? target.top - start.height - clear
+          : start.top;
     const first = movedTo(
       start,
       clamp(preferredLeft, edgeLeft, Math.max(edgeLeft, edgeRight - start.width)),
@@ -189,7 +200,7 @@ export function seatHints(
     const held = beside || first.left !== preferredLeft || first.top !== preferredTop;
     return [
       movedTo(first, beside ? rightSeat : first.left, first.top),
-      belowTarget ? target : null,
+      placement !== "corner" ? target : null,
       held,
     ];
   });
@@ -315,8 +326,9 @@ export function createHintSession({
 
   function take(candidate) {
     const current = read();
-    if (candidate && current.some((one) => identity(one) === identity(candidate)))
-      return takeCandidate(candidate);
+    const found =
+      candidate && current.find((one) => identity(one) === identity(candidate));
+    if (found) return takeCandidate(found);
     hold(current);
     announce("That target is no longer visible. The hints are reset.");
     repaint();
@@ -374,7 +386,7 @@ export function createHintSession({
         element: plan.candidate ? identity(plan.candidate) : null,
         at: { left: plan.left, top: plan.top },
         target: plan.target,
-        belowTarget: plan.belowTarget,
+        placement: plan.placement,
       };
     });
     // Fixed chips stay where the caller put them and reserve their own pixels; the

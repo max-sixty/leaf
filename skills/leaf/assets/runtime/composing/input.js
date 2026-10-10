@@ -4,8 +4,8 @@ import { keeps, keepsHidden, keepsText } from "../keeps.js";
 import { advertisesKeys, submitBindings, submitLabel } from "../keyboard/bindings.js";
 import { readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "../media.js";
 import { announce, notice } from "../notifications.js";
-import { iconElement } from "../icons.js";
-import { drawingThumbnail } from "./drawing-ink.js";
+import { iconElement, iconTemplate } from "../icons.js";
+import { drawingThumbnail } from "./drawing-context.js";
 import { LitElement, html } from "../../vendor/browser-runtime.js";
 import "./text-field.js";
 import { followBoxGrowth, readBoxPlace } from "../thread/reply-landing.js";
@@ -70,7 +70,7 @@ class AttachedMediaShelf extends LitElement {
 
   picture(drawing) {
     if (drawing !== this.pictured.drawing)
-      this.pictured = { drawing, node: drawingThumbnail(drawing) };
+      this.pictured = { drawing, node: drawingThumbnail(drawing, this.model.target) };
     return this.pictured.node;
   }
 
@@ -139,7 +139,7 @@ class AttachedMediaShelf extends LitElement {
               aria-label=${`Remove attached image ${index + 1}`}
               @click=${() => this.actions.removeMedia(index)}
             >
-              ×
+              ${iconTemplate("cross", "lf-action-icon")}
             </button>
           </span>
         `,
@@ -294,6 +294,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       mediaShelf.present(
         Object.freeze({
           drawing: drawn,
+          target: drawn ? drawing.target() : null,
           media: attachedMedia.map((path, index) =>
             Object.freeze({ index, url: scopedMediaUrl(path) }),
           ),

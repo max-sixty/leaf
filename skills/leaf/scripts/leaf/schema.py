@@ -9,10 +9,6 @@ from .state import EVENTS_FILE
 # claim the page before it closes. The external claim record is the ownership
 # source; a standing lifetime ignores it and remains enabled until `server stop`.
 ORPHAN_GRACE_SECS = 1
-# Activity-backed claims must survive time in a background tab, which stops
-# renewing viewed.json. Four hours permits those gaps while retiring abandoned
-# session pages. Claim renewal and service lifetime: session-lifetime.md.
-ACTIVITY_GRACE_SECS = 4 * 60 * 60
 # The harness-neutral name of an agent nothing names: a page's when no claimant
 # supplies one, and an agent-authored event's that carries no `agent` (`agent_name`).
 UNNAMED_AGENT = "Agent"
@@ -275,17 +271,6 @@ _ATTRIBUTE_LIST = {
     "minItems": 1,
 }
 _ATTRIBUTE_NAME = {"type": "string", "pattern": f"^{HTML_NAME}$"}
-CHILDREN_SCHEMA = {
-    "type": "object",
-    "minProperties": 1,
-    "propertyNames": {"pattern": f"^{WIDGET_NAME}$"},
-    "additionalProperties": {
-        "type": "object",
-        "properties": {"one-each": {"type": "string", "pattern": f"^{HTML_NAME}$"}},
-        "required": ["one-each"],
-        "additionalProperties": False,
-    },
-}
 EXTENSION_SCHEMA = {
     "type": "object",
     "properties": {
@@ -300,7 +285,6 @@ EXTENSION_SCHEMA = {
             "required": ["when"],
             "additionalProperties": False,
         },
-        "x-required-members": CHILDREN_SCHEMA,
         "x-content": {"enum": ["markup", "members", "data", "empty"]},
         "x-text-format": {"enum": ["inline-markdown", "markdown"]},
         "x-data": DATA_INPUTS_SCHEMA,
@@ -528,6 +512,7 @@ MEDIA_TYPES = {
 MEDIA_DIGEST = 16
 NO_KEY = "open the link leaf printed; it carries the key"
 DATA_FILE = "data.json"
+FILE_BINDINGS_FILE = "files.json"
 DATA_DIR = "data"
 # The diagnostic request and interaction trace (`interaction_log.py`).
 INTERACTIONS_FILE = "interactions.jsonl"
@@ -561,7 +546,13 @@ SESSION_FILES = (
 )
 # The files Leaf writes in a page directory as it runs. With the author's index.html,
 # the vendored files, and PAGE_OWNED_DIRS, the whole of page-storage.md's "Files".
-PAGE_STATE_FILES = (EVENTS_FILE, INTERACTIONS_FILE, DATA_FILE, *SESSION_FILES)
+PAGE_STATE_FILES = (
+    EVENTS_FILE,
+    INTERACTIONS_FILE,
+    DATA_FILE,
+    FILE_BINDINGS_FILE,
+    *SESSION_FILES,
+)
 PAGE_OWNED_FILES = ("index.html", *VENDORED_FILES, *PAGE_STATE_FILES)
 PAGE_OWNED_DIRS = ("revisions", *PACKAGE_DIRS, MEDIA_DIR, DATA_DIR, "page")
 # A revision's and a version's file name, without `.html`.

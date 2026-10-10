@@ -32,7 +32,8 @@ import {
   registerWritingDestination,
 } from "../drafts.js";
 
-import { pageSelection, rangeAnchor } from "./capture.js";
+import { pageSelection } from "./capture.js";
+import { anchorForRange } from "../anchor-resolution.js";
 import { THREAD } from "../thread/selectors.js";
 import { keys, paintKeys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
@@ -96,7 +97,7 @@ const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
 fabOptions.append(fabSuggest);
 fabBar.append(fab, fabOptions);
 
-export const composer = el("div", "lf-ui lf-composer");
+const composer = el("div", "lf-ui lf-composer");
 composer.id = "lf-composer";
 // Only ever shown detached — anchor paint, its one writer, keeps it out of sight while
 // the page is marking the passage. lf-ui on the element itself, not just on the composer
@@ -133,7 +134,7 @@ export let pendingDrawing = null;
 function wordsOf(element) {
   const range = document.createRange();
   range.selectNodeContents(element);
-  const words = rangeAnchor(range);
+  const words = anchorForRange(range);
   return words.quote?.trim() ? words : null;
 }
 export let composerOpen = false;
@@ -145,7 +146,6 @@ export function createSelectionComposer({
   designModeActive,
   openPageThread,
   threadTransitionOrigin,
-  anchorStands,
   anchorTravelAt,
   bringForward,
   fabAnchorAt,
@@ -254,29 +254,21 @@ export function createSelectionComposer({
   }
   // News of any passage's draft, whose ink the page shows whether or not its box is up.
   const watchHeldDrawings = (callback) => watchDrafts(COMPOSER_KEY, callback);
-  // An open box the user emptied keeps its record, which is what tells another tab's
-  // composer on that passage that this one is merely empty rather than settled — and leaves
-  // nothing to reopen on. So the draft to come back to is the most recently touched one
-  // that still holds words — and, for a caller that has to land on it rather than merely
-  // reopen what it can, the most recently touched one this document can still stand a box
-  // against.
-  function pendingComposer(accepts = () => true) {
+  // An empty open box is not settled, but holds nothing to reopen. The newest draft
+  // with words or ink stays recoverable even when its original passage is detached.
+  function pendingComposer() {
     let best = null;
     for (const ctx of draftContexts()) {
       if (!ctx.startsWith(COMPOSER_KEY)) continue;
       const record = composerRecord(ctx);
       if (
         (record?.text || validDrawing(record?.drawing)) &&
-        (!best || record.touched > best.touched) &&
-        accepts(record)
+        (!best || record.touched > best.touched)
       )
         best = record;
     }
     return best;
   }
-  // The kept draft an address can offer: startup reopens the latest draft where its
-  // passage stands, while a press promising a destination has to know there is one.
-  const keptDraft = () => pendingComposer((record) => anchorStands(record.anchor));
   let composerEpoch = 0;
   // What the box holds that a user would miss, asked once. The complete draft, because a
   // attached image is in it and not in the field, plus a drawing, which stands beside the
@@ -427,11 +419,7 @@ export function createSelectionComposer({
     // so those stay silent. The sentence names the address that brings the draft back,
     // which is the whole of what the user needs from this moment.
     if (composerOpen && !open && composerHolds())
-      notice(
-        anchorStands(pendingAnchor)
-          ? `Draft kept — g i resumes writing`
-          : "Draft kept — it returns when its passage does",
-      );
+      notice("Draft kept — g i resumes writing");
     composerOpen = open;
     // The wrapper contributes no card or box. Its field is the extended Comment
     // control inside the response bar; the other composer controls stay hidden there.
@@ -651,11 +639,10 @@ export function createSelectionComposer({
   // The one place a stored composer record becomes an open box. Startup reopens the most
   // recently touched draft through it, and the address below returns to that same record
   // mid-session; two hand-written copies of "what a record means" would be free to drift
-  // about the mode a draft was written in. A record whose passage does not stand opens
-  // nothing: the box would go straight back down, saying its words were kept, and they
-  // return when the passage does.
+  // about the mode a draft was written in. A detached record retains its native editor
+  // in the shared unanchored window posture; losing the passage never loses its words.
   function openDraft(record = pendingComposer(), { focus = true } = {}) {
-    if (!record || !anchorStands(record.anchor)) return false;
+    if (!record) return false;
     openComposer(record.anchor, record.text, {
       suggest: Boolean(record.suggest),
       about: record.about ?? null,
@@ -667,9 +654,11 @@ export function createSelectionComposer({
 
   registerWritingDestination(COMPOSER_KEY, (ctx) => {
     const record = composerRecord(ctx);
-    if (!record || !anchorStands(record.anchor)) return null;
+    if (!record) return null;
     return {
-      where: anchorTravelAt(record.anchor),
+      // A detached draft's destination is its native editor, not a guessed passage.
+      // Arrival clears covering surfaces before this same field is materialized.
+      where: anchorTravelAt(record.anchor) ?? composerInput,
       input: () =>
         composerOpen && composerCtx(pendingAnchor) === ctx ? composerInput : null,
       open: () => {
@@ -700,6 +689,7 @@ export function createSelectionComposer({
       save: saveComposerDraft,
       drawing: {
         read: () => pendingDrawing,
+        target: () => drawingEdits.target(pendingAnchor),
         replace: (drawn) => drawingEdits.replace(pendingAnchor, drawn),
         undoStroke: () => drawingEdits.undoStroke(pendingAnchor),
         remove: () => drawingEdits.remove(pendingAnchor),
@@ -865,7 +855,6 @@ export function createSelectionComposer({
 
   return {
     pendingComposer,
-    keptDraft,
     draftDrawing,
     heldDrawings,
     watchHeldDrawings,

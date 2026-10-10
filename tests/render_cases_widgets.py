@@ -77,10 +77,9 @@ PICTURE_PAGE = leaf_page(
 graph LR
   A --> B
 </pre></lf-diagram>
-<lf-tree id="tree"><pre>
-feeders/
+<lf-code id="tree"><pre><code>feeders/
   mount.py  +2 -2
-</pre></lf-tree>
+</code></pre></lf-code>
 """,
 )
 PART_DIAGRAM_PAGE = leaf_page(
@@ -696,7 +695,7 @@ LONG_LINE_DIFF_PAGE = leaf_page(
     "patch",
     "<h1 id='t'>Review</h1>"
     + _filler("lead", 30)
-    + '<lf-diff id="patch" source="review-patch" review><pre></pre></lf-diff>'
+    + '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>'
     + _filler("tail", 30),
 )
 
@@ -706,7 +705,7 @@ PANE_DIFF_PAGE = leaf_page(
     "pane patch",
     "<header><h1 id='t'>Review</h1></header>"
     '<lf-pane id="patch-pane" label="Patch"><header><h2>Patch</h2></header>'
-    '<lf-diff id="patch" source="review-patch" review><pre></pre></lf-diff></lf-pane>',
+    '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff></lf-pane>',
     layout="workspace",
 )
 
@@ -781,10 +780,7 @@ DIFF_ROW_FILL = """() => {
     return out;
 }"""
 
-# Where each file's row starts against its own wrapper. The review press stands ahead of
-# the row and the row is pulled back up over it, so the row starts where it would with no
-# press at all — zero — on screen, and on paper, where an unreviewed press is not drawn
-# and there is nothing for the pull to take back.
+# Each file header begins at its wrapper in screen and print media.
 DIFF_ROW_PLACEMENT = """() => {
     const root = document.querySelector('lf-diff').shadowRoot;
     const files = [...root.querySelectorAll('.lf-diff-file')];
@@ -800,19 +796,19 @@ DIFF_ROW_PLACEMENT = """() => {
 # where the keyboard just landed. One pass, because every number here means something only
 # against the others. With nothing focused it answers for the first file, so the same
 # reading covers a page nobody has pressed a key on yet.
-# The first file's review press against its own header, and what a pointer at the
+# The first file's comment press against its own header, and what a pointer at the
 # press's centre would reach. Read through the shadow root, which is the tree the press
 # is in.
 DIFF_PRESS = """() => {
     const root = document.querySelector('lf-diff').shadowRoot;
     const file = root.querySelector('.lf-diff-file');
-    const box = file.querySelector('.lf-diff-review').getBoundingClientRect();
+    const box = file.querySelector('.lf-diff-file-comment').getBoundingClientRect();
     const head = file.querySelector('summary').getBoundingClientRect();
     const hit = root.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
     return { top: Math.round(box.top), bottom: Math.round(box.bottom),
              headTop: Math.round(head.top),
              fileBottom: Math.round(file.getBoundingClientRect().bottom),
-             hit: hit && hit.classList.contains('lf-diff-review') ? 'review'
+             hit: hit && hit.closest('.lf-diff-file-comment') ? 'comment'
                 : hit && (hit.localName + '.' + hit.className) };
 }"""
 
@@ -865,7 +861,7 @@ ROOM_GEOMETRY = (
 }"""
 )
 # A wide widget inside each of the two kinds of holder: a box that paints (the quoted
-# frame, the option's card, the metric, the nested task's rail, the note a code block
+# frame, the option's card, the metric, a native nested section's rail, the note a code block
 # builds, the page's own div) and a wrapper that doesn't (a plain section). The div is
 # the case the theme cannot name: it draws its box in the page's own style and declares
 # the frame there, which is the whole of what a project writes to hold an exhibit inside
@@ -923,25 +919,26 @@ graph LR
   <lf-column id="e2" label="Done"></lf-column>
 </lf-board>
 <div class="layout-tiles" id="nums">
-  <lf-metric id="me1" value="410ms">p95, with the path it measures
+  <section id="me1" class="panel">
+    <dl><dt>p95, with the path it measures</dt><dd><strong>410ms</strong></dd></dl>
     <lf-diagram id="in-metric"><pre>
 graph LR
   A[request] --> B[queue]
   B --> C[worker]
 </pre></lf-diagram>
-  </lf-metric>
+  </section>
 </div>
-<lf-tasks id="plan">
-  <lf-task id="t-outer" status="active"><strong>Rebuild the feeders</strong>
-    <lf-task id="t-inner" status="review"><strong>Fit the baffles</strong>
+<section id="plan">
+  <section id="t-outer" class="nested-frame"><strong>Rebuild the feeders</strong>
+    <section id="t-inner" class="nested-frame"><strong>Fit the baffles</strong>
       <lf-diagram id="in-task"><pre>
 graph LR
   A[request] --> B[queue]
   B --> C[worker]
 </pre></lf-diagram>
-    </lf-task>
-  </lf-task>
-</lf-tasks>
+    </section>
+  </section>
+</section>
 <lf-code id="walk" language="python" hi="2"><pre>
 def bracket(temp):
     if temp &lt; 0:
@@ -964,6 +961,11 @@ graph LR
 </pre></lf-diagram>
 </div>
 """,
+).replace(
+    "</head>",
+    "<style>.nested-frame > .nested-frame { --lf-block-frame: 1; "
+    "border-inline-start: 1px solid var(--rule); padding-inline-start: 1rem; }"
+    "</style></head>",
 )
 
 # A box of the page's own that both draws and scrolls, holding a wide widget. The theme
@@ -1192,19 +1194,6 @@ OWN_MARGIN_FURNITURE = WIDE_AND_NARROW_PAGE.replace(
     '<main class="layout-column">',
     "<main class=\"layout-column\">\n<div id='own-rail' style='position: absolute; left: 100%;"
     " margin-left: 22px; top: 0; width: 160px; height: 600px'>Mine.</div>",
-)
-# One reply holding both answers to the question the block-content lists ask: chips are
-# set among the words, a paragraph is not. The pair is the point — the stacking rule
-# reaching neither group would read as a pass on the first half alone.
-INLINE_REPLY_MARKUP = (
-    '<lf-compare id="rp-terse">'
-    '<lf-variant id="rp-redis"><lf-chip>a service</lf-chip>Redis</lf-variant>'
-    '<lf-variant id="rp-cookie"><lf-chip>no service</lf-chip>Signed cookie</lf-variant>'
-    "</lf-compare>"
-    '<lf-compare id="rp-argued">'
-    '<lf-variant id="rp-keep"><p>Keep the store, and the operator that comes with it.</p></lf-variant>'
-    '<lf-variant id="rp-drop"><p>Drop it, and read sessions off the cookie alone.</p></lf-variant>'
-    "</lf-compare>"
 )
 # The two things on this page that want a margin, on one page and level with each other.
 # The note is written immediately before the board so they share a band of the page rather

@@ -1,0 +1,51 @@
+# The diff-widget simplification exposed optional toolbars and custom controls
+# competing with the evidence. This case probes the same choice on configuration
+# changes, including a colleague's competing interface proposal.
+# One Codex trial per arm (20261009-121127-7n2nug94) kept the toolbar out on both;
+# only the candidate reused the shared comment icon. This is narrow icon-reuse
+# evidence, not evidence that the new guidance improves interface simplicity.
+description: widget-interface-serves-the-task
+metadata:
+  purpose: A widget keeps its first interface focused and reuses Leaf's shared presentation.
+  tags:
+  - packages
+  - widgets
+vars:
+  prompt: |
+    I'm writing a Leaf package widget, lf-config-changes, for a release report.
+    It shows six changed configuration keys, their old and new values, and lets
+    the reader leave an anchored discussion on a change. Values are usually one
+    line but occasionally a long URL. The report must work on a phone too.
+
+    A colleague sketched a toolbar with Wrap, Density, Theme and Mark reviewed,
+    plus a floating + on each row that opens a custom comment popup. They also
+    supplied CSS giving the widget its own type scale, colors and button styles.
+    The release author has asked us to implement the comparison and discussion.
+
+    Read the package and module references. Propose the first version's default
+    interface and show short CSS and JavaScript excerpts for its presentation and
+    discussion controls. You can assume the value rendering and anchor creation
+    already exist; no running renderer is available.
+assert:
+- type: llm-rubric
+  metric: task-focused-interface
+  value: |
+    Pass only if the default interface prioritizes the changed keys and old/new
+    values with a reachable discussion action, and omits the proposed Wrap,
+    Density, Theme and Mark reviewed toolbar controls until an author needs them.
+    It may provide automatic reflow or scrolling for long values. A future
+    author-configurable option is fine; shipping all controls in a collapsed
+    menu still fails because the caller has requested none of them.
+- type: llm-rubric
+  metric: shared-presentation
+  value: |
+    Pass only if the answer uses inherited Leaf typography, semantic color and
+    spacing tokens or shared control styles instead of the proposed independent
+    visual system, and reuses Leaf's discussion presentation: its comment/thread
+    icon rather than a literal +, a canonical composer rather than a custom
+    popup editor, and shared keyboard-hint rendering if hints are shown.
+    Small widget-specific layout CSS is fine. A named shared icon helper is
+    sufficient; do not require an API that only one instruction arm exposes.
+    The discussion action must remain reachable by keyboard and touch without
+    covering the key or value. This is a source/design probe; no rendered proof
+    or complete widget implementation is required.

@@ -1234,6 +1234,11 @@ export default [
       ],
       "no-restricted-properties": [
         "error",
+        {
+          property: "scrollIntoView",
+          message:
+            "Use scrollIntoView(node, options) from landing-scroll.js or widget-api.js; native scrolling crosses the document boundary into containing samples.",
+        },
         ...["window", "globalThis"].flatMap((object) =>
           ["requestAnimationFrame", "cancelAnimationFrame", "ResizeObserver"].map(
             (property) => ({ object, property, message: RENDERING_MESSAGE }),

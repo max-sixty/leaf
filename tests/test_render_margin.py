@@ -6661,7 +6661,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(marker).to_be_focused()
     page.keyboard.press("Enter")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("back to page")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("back to element")
     expect(preview.locator(".lf-page-thread")).to_be_focused()
     expect(preview.locator("leaf-text")).to_be_visible()
     expect(preview.locator("leaf-text")).to_have_js_property(

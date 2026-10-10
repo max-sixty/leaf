@@ -357,7 +357,7 @@ summary { align-content: center; }
 /* Every conversation shares its reading edge, including a floating draft. The
    field subtracts its border; messages and metadata take the full inset. */
 :root, .lf-page-thread, .lf-thread { --lf-thread-text-inset: 13px;
-          --lf-thread-resolve-width: max(calc(7 * var(--t-6)), var(--aim-floor)); }
+          --lf-thread-resolve-width: max(calc(5 * var(--t-6)), var(--aim-floor)); }
 .lf-thread-transcript { min-width: 0; padding-inline: var(--lf-thread-text-inset) 0; }
 /* Conversation flow is separate from the outer flex body that retains reply room. */
 .lf-thread-content { display: flow-root; min-width: 0;
@@ -941,8 +941,8 @@ button.lf-thread-notice:is(:focus-visible, .lf-focus-visible) { outline: var(--f
 .lf-close-action { border: 0; background: transparent;
           color: var(--muted); }
 .lf-close-action:hover { background: var(--chip); color: var(--ink); }
-/* Send paints its readiness inside a constant hit box. Resolve names its durable
-   action beside the check, distinct from the message's delivery receipt. Its width
+/* Send stays a small arrow inside a constant hit box. Resolve names its durable
+   action in quiet text, distinct from the message's delivery receipt. Its width
    is the same allocation the first header reserves, including while settling. */
 .lf-compose-submit, .lf-resolve.lf-icon-action { border: 0; background: transparent;
           box-shadow: none; }
@@ -953,23 +953,19 @@ button.lf-thread-notice:is(:focus-visible, .lf-focus-visible) { outline: var(--f
           box-shadow: none; }
 .lf-compose-submit { position: absolute; z-index: 1; inset-inline-end: 6px;
           inset-block-end: 6px; color: var(--accent); }
-.lf-compose-submit:not(:disabled, [aria-disabled="true"]) { color: var(--paper); }
-.lf-compose-submit:not(:disabled, [aria-disabled="true"])::before {
-          background: var(--accent); border-radius: 50%; }
 .lf-compose-submit:not(:disabled, [aria-disabled="true"]):hover::before {
-          background: color-mix(in srgb, var(--accent) 85%, var(--ink)); }
+          background: var(--accent-tint); }
 .lf-compose-submit:is(:disabled, [aria-disabled="true"]) { opacity: 1; color: var(--muted); }
 .lf-resolve.lf-icon-action, .lf-reopen.lf-icon-action {
           position: relative; flex: none; margin-inline-start: auto;
           inline-size: var(--lf-thread-resolve-width); min-inline-size: var(--lf-thread-resolve-width);
-          display: inline-flex; justify-content: center; gap: 4px;
+          display: inline-flex; justify-content: center;
           font: var(--t-6)/var(--lf-ui-lh) var(--sans); color: var(--muted); }
 .lf-resolve.lf-icon-action::before { inset: 0; inline-size: auto; block-size: auto; }
 .lf-resolve.lf-icon-action > span { position: relative; z-index: 1; }
 .lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover { color: var(--ok-ink); }
 .lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover::before {
           background: var(--ok-tint); }
-.lf-resolve.lf-icon-action .lf-action-icon { inline-size: 15px; block-size: 15px; }
 /* Every composition input renders the same attachment shelf, including inputs seated
    in widget shadow trees. Surfaces set its allocation and thumbnail size; the shelf
    owns its controls, image inspection face, and drawing paint here. */

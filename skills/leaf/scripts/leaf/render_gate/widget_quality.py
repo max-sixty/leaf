@@ -49,7 +49,11 @@ from leaf.structure import SourceDocument
 from leaf.vendoring import start_throwaway_page
 
 from .preview import preview_server
-from .scheme import arm_interception, served, start_with_pre_upgrade_proof
+from .scheme import (
+    arm_interception,
+    served,
+    start_with_pre_upgrade_proof,
+)
 
 CHECKS = ("example", "keeps-first-box")
 
@@ -150,7 +154,7 @@ def _changed_boxes(browser, url: str) -> list[dict]:
         wait_for_probe(page, "pageSettled")
         return evaluate_probe(page, "changedBoxes")
     except (PlaywrightError, RuntimeError, TimeoutError) as error:
-        raise UnreadablePage(str(error).strip().splitlines()[0]) from error
+        raise UnreadablePage(str(error).strip()) from error
     finally:
         page.close()
 

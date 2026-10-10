@@ -343,19 +343,21 @@ def test_select_element_obeys_covering_surfaces_and_pointer_modes(browser, serve
     expect(select).to_be_disabled()
 
 
-def test_selection_banner_controls_follow_the_primary_pointer(browser, serve):
-    """Touch selection controls retire when a fine pointer takes over; keyboard aim stays."""
+def test_selection_banner_controls_stay_available_across_pointer_changes(
+    browser, serve
+):
+    """Selection controls remain usable as the primary pointer changes."""
     page = open_page(browser, serve(TARGETS_PAGE))
     select = page.get_by_role("button", name="Select element", exact=True)
     cancel = page.get_by_role("button", name="Cancel selection", exact=True)
     page.get_by_role("button", name="More page controls", exact=True).click()
     expect(page.locator(".lf-banner-menu")).to_be_visible()
-    expect(select).to_be_hidden()
+    expect(select).to_be_visible()
     page.keyboard.press("Escape")
     page.keyboard.press("s")
     expect(page.locator(".lf-target-picker-hint")).to_have_count(3)
     page.get_by_role("button", name="More page controls", exact=True).click()
-    expect(cancel).to_have_count(0)
+    expect(cancel).to_be_visible()
 
     cdp = page.context.new_cdp_session(page)
     cdp.send("Emulation.setTouchEmulationEnabled", {"enabled": True})
@@ -368,8 +370,8 @@ def test_selection_banner_controls_follow_the_primary_pointer(browser, serve):
     expect(cancel).to_be_visible()
     cdp.send("Emulation.setTouchEmulationEnabled", {"enabled": False})
     expect(page.locator(".lf-banner-menu")).to_be_visible()
-    expect(cancel).to_have_count(0)
-    expect(select).to_be_hidden()
+    expect(cancel).to_be_visible()
+    expect(select).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-target-picker-hint")).to_have_count(0)
 

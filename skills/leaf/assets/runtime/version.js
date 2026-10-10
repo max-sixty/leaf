@@ -1338,7 +1338,7 @@ export function createVersionController({
     try {
       await land();
     } catch (error) {
-      reportPageError(`Revision continuity failed: ${error?.message ?? error}`);
+      reportPageError(error, `Revision continuity failed`);
     }
   }
 
@@ -1590,9 +1590,7 @@ export function createVersionController({
       // revision introduces would otherwise reject every later state read for good.
       await preloadWidgets(doc.querySelector("body > main"));
     } catch (error) {
-      reportPageError(
-        `revision ${target.revision} failed to load: ${error?.message ?? error}`,
-      );
+      reportPageError(error, `revision ${target.revision} failed to load`);
       return null;
     }
     return {

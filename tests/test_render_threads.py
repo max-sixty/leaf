@@ -11824,7 +11824,6 @@ def test_a_region_capture_draws_live_samples_and_survives_removed_links(browser,
         });
     })""")
     assert errors == []
-    context.close()
 
 
 def test_touch_capture_can_cancel_and_reopen_before_attaching(browser, serve):

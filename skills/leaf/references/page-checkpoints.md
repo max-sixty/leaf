@@ -30,7 +30,7 @@ leaf status <page> idle
 ```
 
 `idle` is the explicit end of the agent side and refuses pending events or an
-acknowledged move still owed its answer. It removes the page from the watch;
-the last idle page ends the waiter. It is not a server stop: `references/serving-pages.md`,
-"Page lifetime", says which servers end with the session, and a standing page is
-not idled because one session's work on it is over.
+acknowledged move still owed its answer. It removes the page from the watch, and
+idling the last watched page ends the watcher. It is not a server stop:
+`references/serving-pages.md`, "Page lifetime", says which servers end with the
+session, and a standing page is not idled because one session's work on it is over.

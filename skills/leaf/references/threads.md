@@ -197,7 +197,7 @@ leaf response reply <answer.ref> --ephemeral --text "Checking the keyboard route
 This posts progress without answering the input. Progress on a move you owe also
 takes that move in hand, as `leaf task start` does, with the update as its
 **Working** line beside the thread and in the banner, so it is one line.
-[Conversation handoff](conversation-loop.md#when-to-write), "When to write", makes
+[Conversation loop](conversation-loop.md#when-to-write), "When to write", makes
 the first one your first command after a delivery. A proactive progress update
 names a thread with no response due. The updates stay visible until the
 next non-ephemeral agent reply in that thread, then fold behind “Show N progress

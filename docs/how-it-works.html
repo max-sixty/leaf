@@ -656,9 +656,10 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
             <section id="communication-commands">
               <h3>Agent command inventory</h3>
               <p id="command-syntax">
-                The table lists every public command family, with arguments omitted.
-                Each command accepts <code>--help</code> for its syntax. The examples
-                above show commands for publishing a page and answering feedback.
+                The table groups Leaf's commands by what the agent uses them for, with
+                arguments omitted. Running <code>leaf</code> alone lists them all, and
+                each command's <code>--help</code> gives its syntax. The examples above
+                show commands for publishing a page and answering feedback.
               </p>
               <table id="command-inventory">
                 <thead>
@@ -751,6 +752,13 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
                     <td>
                       <code>leaf data set</code><br /><code>leaf data clear</code>
                     </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <strong>Edit a local file</strong><br />Let the page read and
+                      write one chosen text file on the machine serving it.
+                    </td>
+                    <td><code>leaf file bind</code></td>
                   </tr>
                   <tr>
                     <td>
@@ -930,7 +938,7 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
                 reference owns the envelope and handling lookup.
                 <a
                   href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/conversation-loop.md"
-                  >Conversation handoff</a
+                  >Conversation loop</a
                 >
                 owns tasks, starts, statuses, and the response loop.
               </p>

@@ -29,8 +29,9 @@ going.
 
 The extension confirms an envelope it puts in your context, so the user's moves
 read **Picked up** and its `acknowledge` is null: run no acknowledgement command.
-Large input arrives as a `leaf delivery read <id>` pointer instead; run it before
-working or replying, since follow its confirmation instruction after the complete reading.
+Large input arrives instead as a pointer, `leaf delivery read <id>`. Run it before
+working or replying, and once you have read every part, follow its confirmation
+instruction.
 
 To pick up a page this session did not serve, run `leaf page claim <page>`; the
 extension watches it from the end of the run.

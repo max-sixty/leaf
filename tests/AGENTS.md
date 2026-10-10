@@ -45,7 +45,8 @@ races are arrangements, not probabilities**), and fix that cause.
 
 ## Run what the change needs
 
-The host supplies `wt`, `uv`, `jq` 1.6 or newer, and Node 22 or newer.
+The host supplies `wt`, `uv`, `jq` 1.6 or newer, and Node 22.18 or newer
+(`package.json`, `engines`).
 `wt setup` installs Playwright's Chromium headless
 shell, WebKit, Firefox, and Chrome, their Linux system dependencies, the example assets,
 and the npm trees; `uv run` syncs Python. Worktrunk starts this setup in the background
@@ -118,7 +119,7 @@ A fold whose result rests on a platform primitive that differs between Node and
 Chrome, such as `Intl.Segmenter`, is a browser fact: its test stays in the browser
 suite however little DOM it touches. Ask both engines rather than reading the module.
 
-A property caused by a particular page belongs in `render_version`, because `version
+A property caused by a particular page belongs in `render_version`, because `leaf page
 check --render` must report it to that page's author. A property identical for every
 valid page, such as how the layer restores browser state (`arrival_findings`), belongs
 in the suite. The render gate never opens the thread panel, so the suite opens it and

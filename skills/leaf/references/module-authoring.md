@@ -107,8 +107,7 @@ A behavior module follows these rules:
   observation, so checks and tests wait for that work too. `nextRender` runs in
   the current rendering callback's frame, or in the next frame when called
   elsewhere. Use `nextFrame` for a step that must run in a later frame, such as
-  an animation tick. A playback loop keeps `requestAnimationFrame`, so playing
-  does not prevent the page from settling.
+  an animation tick.
 - Use `afterScript(callback)` to coalesce a stable callback at the current
   script's microtask checkpoint when synchronous updates yield one final
   mechanical reading.
@@ -425,9 +424,8 @@ state. `reducedMotion()`, `scrollBehavior()`, and `onMotionPreferenceChange()` a
 same preference where a module has to branch on it. `foldDuration()` reads how long a
 unit takes to leave from the document-root `--lf-motion-fold` stylesheet input; a widget
 retiring one calls that reader rather than choosing a number or caching a value.
-`flashDuration()` and `agentArrivalDuration()` read the corresponding shared cues.
-These typed time inputs accept CSS calculations and are set on the document root,
-including when the animated element lives in a shadow tree. Spend
+The `--lf-motion-*` time inputs accept CSS calculations and are set on the document
+root, including when the animated element lives in a shadow tree. Spend
 a duration only on letting the eye follow a box from where it was to where it is. A result
 the module can already draw is drawn in the gesture rather than after a wait.
 

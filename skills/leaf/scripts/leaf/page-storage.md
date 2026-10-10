@@ -104,7 +104,8 @@ other page files and the external state listed below.
 - `user-views.json` — replaceable per-document browser
   observations (`user_views.py`). These are author
   context, not event history or source inputs. They are excluded from page freshness
-  and activation. `conversation-loop.md`, "The user's view", defines the agent reading.
+  and activation. `../../references/conversation-loop.md`, "The user's view", defines
+  the agent reading.
 
 - `user-views.lock` — the independent lock serializing observation writes;
   excluded from page freshness and activation.
@@ -236,9 +237,9 @@ the vocabulary.
 
 Immutable deliveries live outside page directories at
 `<state-home>/deliveries/<id>.json`, because one envelope can contain complete
-batches from several pages and must resolve identically in every harness. The file's
-`leaf-delivery-v3` format, id, capture time, acknowledgement, and
-batches never change. Delivery
+batches from several pages and must resolve identically in every harness. Once
+written, the file's `format` (`delivery.DELIVERY_FORMAT`), id, capture time,
+acknowledgement and batches never change. Delivery
 records are separate mutable transport state; acknowledgement can archive
 those records without moving or rewriting the delivery addressed by `leaf
 delivery read <id>`.

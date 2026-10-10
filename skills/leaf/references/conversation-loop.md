@@ -1,4 +1,4 @@
-# Conversation handoff
+# Conversation loop
 
 Keep the user informed on the page, and answer delivered updates there using
 each event's `handling` instructions. A chat response alone does not revise the

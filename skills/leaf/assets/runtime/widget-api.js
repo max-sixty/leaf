@@ -192,7 +192,7 @@ export {
   matchesWhen,
 } from "./registry.js";
 export {
-  FOLD_MS,
+  foldDuration,
   backgroundFlash,
   motion,
   onMotionPreferenceChange,

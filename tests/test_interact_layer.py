@@ -1340,7 +1340,7 @@ def test_layout_style_and_widgets_never_read_each_other():
     A Layout class is one layouts.css styles; a style class is one the kernel theme
     gives its own type or spacing tokens (`--t-*`, `--sp-*`)."""
     layouts = schema_model.ASSETS / "layouts.css"
-    theme = schema_model.ASSETS / "theme.css"
+    theme = schema_model.ASSETS / "styles" / "theme.css"
     owned = {
         layouts: {
             name
@@ -1362,6 +1362,13 @@ def test_layout_style_and_widgets_never_read_each_other():
     readers = []
     for source in sorted(path for root in roots for path in root.rglob("*.[cj]s*")):
         if "vendor" in source.parts:
+            continue
+        # The style build proves ready sheets derive from their authored owners.
+        # Read the owners here rather than treating each compiled delivery as a
+        # second authority for selectors.
+        if source.suffix == ".css" and source.read_text().startswith(
+            "/* Generated from "
+        ):
             continue
         foreign = [names for home, names in owned.items() if home != source]
         named = re.compile(r"\b(" + "|".join(sorted(set().union(*foreign))) + r")\b")

@@ -37,9 +37,9 @@ let activeResize = null;
  * handle outside them both would not slide in with the panel it belongs to. They are handles onto one fact rather
  * than two facts — `state` is the one writer, and it says the same thing on every one.
  */
-export function drawnEdge({ side, noun, wide, min, prop, key, when, land }) {
+export function drawnEdge({ side, noun, defaultWidth, min, prop, key, when, land }) {
   const handles = new Set();
-  let chosen = wide;
+  let chosen = null;
   // What the window will allow: the window itself. How much of the page a region may take
   // before it covers the page instead is not this bound's to say; the room the region
   // leaves decides that, the same way on either side (auxiliary-surfaces.js,
@@ -52,7 +52,7 @@ export function drawnEdge({ side, noun, wide, min, prop, key, when, land }) {
   // user is dragging to, so the edge never goes anywhere their hand did not, and of the
   // width they chose on some other day, whose window is not this one.
   const held = (want) => Math.min(cap(), Math.max(min, want));
-  const width = () => held(chosen);
+  const width = () => held(chosen ?? defaultWidth());
   // The one writer of the property the cascade reads that width from: the region's own box
   // and the covering rule are both stated against it. Written rather than read back
   // off the region because a closed one measures zero, which is exactly when the page most
@@ -194,7 +194,7 @@ export function drawnEdge({ side, noun, wide, min, prop, key, when, land }) {
   // every other remembered arrangement is restored. Stated whether or not they have chosen
   // one, since a user who has said nothing is a user whose answer is the default.
   function restore() {
-    chosen = parseFloat(userStore.get(key)) || wide;
+    chosen = parseFloat(userStore.get(key)) || null;
     state();
   }
   return { width, state, restore, handle, key };

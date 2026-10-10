@@ -16,6 +16,11 @@ closure, and every build reads the root `node_modules` that `npm ci` installs fr
 it. So a run after `npm ci` reproduces the tracked bytes, and a moved lock is the
 only thing that moves them.
 
+CodeMirror's style-mod provider expands its selectors before this build places
+its resulting rules in `lf-base`. The guarded provider adaptation preserves
+CodeMirror's sheet identity and mounting while letting Leaf and page-authored CSS
+participate in the ordinary cascade. A changed upstream seam fails the build.
+
 With no arguments it rebuilds everything; name bundles to redo only those.
 """
 
@@ -241,6 +246,23 @@ def build_codemirror(work: Path) -> list[Path]:
         raise ValueError(f"CodeMirror wrapping measurement seam changed: {original}")
     source = source.replace(original, replacement)
     source_path.write_text(source, encoding="utf-8")
+    # CodeMirror owns selector expansion and module mounting. Its style provider
+    # has no cascade-layer option; wrap each module after it has generated its
+    # rules, so base themes and syntax highlights share Leaf's default tier too.
+    # Wrapping the input spec instead would expand CodeMirror's &light/&dark
+    # selectors against the at-rule rather than their editor class.
+    style_mod = work / "node_modules/style-mod"
+    shutil.copytree(NODE_MODULES / "style-mod", style_mod)
+    style_source = style_mod / "src/style-mod.js"
+    style_text = style_source.read_text(encoding="utf-8")
+    seam = "for (let prop in spec) render(splitSelector(prop), spec[prop], this.rules)"
+    if style_text.count(seam) != 1:
+        raise ValueError("CodeMirror style-module generation seam changed")
+    style_text = style_text.replace(
+        seam,
+        seam + '\n    this.rules = ["@layer lf-base {\\n" + this.getRules() + "\\n}"]',
+    )
+    style_source.write_text(style_text, encoding="utf-8")
     out = ASSETS / "vendor/codemirror.esm.js"
     (work / "entry.mjs").write_text(
         (
@@ -268,6 +290,7 @@ def build_codemirror(work: Path) -> list[Path]:
         "--minify",
         "--legal-comments=inline",
         f"--alias:@codemirror/view={source_path}",
+        f"--alias:style-mod={style_source}",
         f"--outfile={out}",
         cwd=work,
     )

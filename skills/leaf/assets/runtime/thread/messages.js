@@ -49,7 +49,7 @@ import {
 import { rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";
 import { keeps } from "../keeps.js";
-import { motion } from "../motion.js";
+import { flashDuration, motion } from "../motion.js";
 
 export const loadMessageMarkdown = () =>
   loadMarkdown((error) =>
@@ -328,7 +328,7 @@ export class MessageView {
       this.#arrivalMotion = motion(
         this.node,
         [{ "--lf-msg-arrival": 1, offset: 0 }],
-        1200,
+        flashDuration(),
       );
     }
     return this.node;

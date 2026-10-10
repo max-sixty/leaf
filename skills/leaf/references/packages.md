@@ -116,26 +116,67 @@ and keyboard routes" and "Widget-local Thread placement", describe those shared 
 
 ### Styles and composition
 
-Theme files concatenate into one cascade layer, `lf-base`; specificity,
-native scope proximity, then source order decide between its rules. Layouts and
-semantic state rank above package defaults; the page's unlayered stylesheet ranks
-above all of them. In declared shadow trees, shared `shadow.css` rules rank above
-widget defaults and below semantic state. A behavior module placing third-party
-CSS in a `<style>` uses `inBaseLayer(text)` from `/runtime/widget-api.js`: it puts
-the vendor's rules, including any nested layers, in the widget-default tier.
-Composition wraps each widget package's sheets in native `@scope`: the document
-roots are its declared widget tags, and shadow roots are their `:host`. Matching
-stays inside those roots automatically. Ordinary selectors name descendants;
-`:scope` names a root, with `:scope:is(lf-tag)` selecting one kind in a package.
-In shadow CSS, `:scope:host(.state)` reads the host's state. Outside conditions
-belong in nested scopes, such as `@scope (html[data-lf-interactive] :scope)`.
-A rule for `p` styles only paragraphs inside the package's widgets. A rule for
-`html`, `body`, or a widget's containing box matches nothing. Put shared page
-vocabulary in the kernel; a package without widgets is an unscoped page theme.
-A widget module's adopted sheet joins the same layer. Shadow files concatenate:
-a declared `x-shadow` root built with `shadowStage` receives every package's `shadow.css`
-in layer order, and the document reads each package's `shadow.css` just ahead of its
-`theme.css`. Icon, widget,
+CSS has three independent boundaries: the component that owns a rule, the roots
+its selectors reach, and the cascade tier that decides competing declarations.
+A shared face has one owner, even when composition includes it in both document
+and shadow sheets. A package supplies complete `theme.css` and `shadow.css` files;
+composition reads those files directly. Custom packages require no npm command or
+CSS build. Leaf's shared reading, controls and response primitives are already
+included in the roots described below.
+
+Composition declares the order `lf-reset`, `lf-base`, `lf-layouts`, `lf-shadow`,
+`lf-state`. In the document, kernel and package theme/shadow sheets share `lf-base`;
+Layouts occupy `lf-layouts`, and semantic state occupies `lf-state`. In declared
+shadow roots, adopted widget defaults occupy `lf-base`, shared and package shadow
+sheets occupy `lf-shadow`, and state occupies `lf-state`; document Layout rules do
+not cross the root. Normal declarations in the page's
+unlayered stylesheet outrank these defaults. Within a tier, specificity, native scope
+proximity, then source order decide. `!important` reverses layer priority, and inline
+styles outrank ordinary stylesheet declarations; neither is a customization API.
+Runtime chrome and annotation marks remain unlayered and own their apparatus paint.
+`page-authoring.md`, "Theme and vocabulary", describes how page selectors opt into
+Leaf controls; broad content selectors leave that apparatus alone. Inherited theme
+inputs are the supported way to change its shared colors and type.
+Keep dependency defaults in the same tier with `inBaseLayer(text)` from
+`/runtime/widget-api.js`. Bundled CodeMirror applies this at its style provider;
+Plot and trace apply it to generated styles. Preserve explicitly authored inline
+options, whose priority the author chose.
+
+Composition wraps each widget package's sheets in native `@scope`: document roots
+are its declared widget tags, and shadow roots are their `:host`. Ordinary selectors
+name descendants; `:scope` names a root, with `:scope:is(lf-tag)` selecting one kind
+in a package. In shadow CSS, `:scope:host(.state)` reads the host's state. Outside
+conditions belong in nested scopes, such as `@scope (html[data-lf-interactive] :scope)`.
+A rule for `p` styles paragraphs inside that package's widgets. A rule for `html`,
+`body`, or a widget's containing box matches nothing. Put page vocabulary in the
+kernel; a package without widgets is an unscoped page theme. Later packages refine
+a face through tokens or rules in their own scope, rather than reaching into another
+widget's private DOM. For example, `lf-shot` owns image modes, crop and scale;
+visual-review allocates its pane and requests inspection through the image owner's API.
+
+Document selectors do not cross a shadow root. A declared `x-shadow` root built
+with `shadowStage` receives shared primitives and every package's `shadow.css` in
+layer order. The document reads each package's `shadow.css` just ahead of its
+`theme.css` in `lf-base`; an adopted widget default sheet also uses `lf-base`. Use inherited
+theme inputs for changes that should reach both roots, a package shadow sheet for
+its internal selectors, or an explicitly exported `::part` for a public control.
+A page selector alone cannot restyle private shadow descendants.
+
+The override contract distinguishes four kinds of custom property:
+
+| Kind | Owner and supported use |
+| --- | --- |
+| Theme inputs | Page authors and themes may set semantic colors (`--paper`, `--ink`, `--muted`, `--accent`, `--ok`, `--danger`), type faces (`--serif`, `--sans`, `--mono`), type/reading scales, radius (`--r`), code palette (`--code-*`), and focus inputs. Set them on the document root for a page-wide change; inherited inputs can also style a local subtree. The theme owns shared defaults and derivations; diff additions and deletions derive from the widget's local `--ok`, `--danger` and `--pre-bg`. Derived custom properties resolve where declared, so changing a local base color does not recompute an inherited derived token. `--focus-ring` draws outlines; `--focus-shadow` draws the equivalent shadow-based cue, so a custom complete ring updates both. Shared duration inputs `--lf-motion-flash`, `--lf-motion-fold`, and `--lf-motion-agent-arrival` are nonnegative document-root time values. `--lf-thread-panel-default-width` is a root length input until the user chooses a panel width. |
+| Layout declarations | The allocating box sets `--lf-full-height`, `--lf-density`, `--lf-block-frame`, and `--lf-holds-edge` according to the contracts below. These express room or layout behavior; they are not palette knobs. |
+| Runtime outputs | Runtime owners write measurements and choices such as `--lf-thread-panel-width`, banner row counts, anchor geometry, and retained body extents. Consumers read them; themes do not set them. `--lf-banner-face` is a stylesheet-owned responsive decision consumed by chrome and JavaScript. |
+| Vendor bridges | The dependency adapter maps Leaf inputs to provider properties such as `--wa-*`, `--diffs-*`, and `--plot-background`. Change the Leaf input or the owning adapter, rather than repeating a provider recipe in each consumer. |
+
+A `--lf-` prefix alone does not identify an input: most such values are private
+outputs. A package documents any additional supported inputs beside its component.
+A control's geometry remains constrained by its touch target and focus clearance;
+a typography or color override does not remove those requirements.
+
+Icon, widget,
 and vendor files replace by path. Runtime modules add package-owned paths; they
 cannot replace the kernel or default package's JavaScript, including `leaf.js`.
 Those modules are private and may be compiled together in an installation.
@@ -222,7 +263,7 @@ it rather than taking one item's margin and leaving the others'.
 
 Delivery paints declared layout facts into the served document as `[data-lf-inline]`,
 `[data-lf-space]`, `[data-lf-bound]`, `[data-lf-height]`, `[data-lf-exhibit]`, and
-`[data-lf-views]`; shared selectors read those attributes instead of naming widget
+`[data-lf-views]`, `[data-lf-content]`, and `[data-lf-verbatim]`; shared selectors read those attributes instead of naming widget
 tags. The registry's `$keys` entries for `x-space`, `x-bound`, and `x-height` say what
 each declaration requests; none of them chooses the widget's internal layout, which the
 package arranges inside the allocation.

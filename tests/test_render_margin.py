@@ -6949,6 +6949,78 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(browser,
     assert page.evaluate("() => window.__cardOpenings") == []
 
 
+def test_the_first_rail_allocation_matches_its_native_row(browser, serve):
+    """A first comment clears touch-sized entries and the actual focus-ring inset."""
+    source = leaf_page(
+        "First rail allocation",
+        "<h1>First rail allocation</h1>"
+        '<p id="subject">A passage without an existing margin entry.</p>'
+        '<p id="next-subject">Another passage beside the same rail.</p>',
+        head="<style>:root {--focus-ring-w:7px; --focus-ring-gap:4px}</style>",
+    )
+    context = browser.new_context(
+        viewport={"width": 1400, "height": 900}, has_touch=True
+    )
+    page = open_page(browser, serve(source), context=context)
+    expect(page.locator("main")).to_have_attribute(
+        "data-lf-margin", re.compile(r"rail")
+    )
+    expect(page.locator(".lf-margin-entry")).to_have_count(0)
+    prospective = page.evaluate("""async () => {
+      const owner = await __lfRuntimeImport('/runtime/annotation-overlay/margin-layout.js');
+      return owner.marginSpot(document.querySelector('#subject'));
+    }""")
+    assert prospective["right"] - prospective["left"] == pytest.approx(55)
+    expect(page.locator(".lf-margin-entry")).to_have_count(0)
+    page.locator("#subject").click(modifiers=["Alt"])
+    editor = page.locator(".lf-fab-input")
+    expect(editor).to_be_focused()
+    editor.press_sequentially("The first comment")
+    with sending(page, "the first rail comment"):
+        editor.press("Control+Enter")
+    entry = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
+    expect(entry).to_be_visible()
+    actual = entry.evaluate("""entry => {
+      const row = entry.closest('.lf-margin-cluster').getBoundingClientRect();
+      return {left:row.left, right:row.right, entry:entry.offsetWidth};
+    }""")
+    assert actual["entry"] == 44
+    assert actual["left"] == pytest.approx(prospective["left"])
+    assert actual["right"] == pytest.approx(prospective["right"])
+    reused = page.evaluate("""async () => {
+      const owner = await __lfRuntimeImport('/runtime/annotation-overlay/margin-layout.js');
+      const observer = new MutationObserver(() => {});
+      observer.observe(document.body, {childList:true, subtree:true});
+      const spot = owner.marginSpot(document.querySelector('#next-subject'));
+      const writes = observer.takeRecords().length;
+      observer.disconnect();
+      return {spot, writes};
+    }""")
+    assert reused["spot"]["right"] - reused["spot"]["left"] == pytest.approx(55)
+    assert reused["writes"] == 0, "An existing rail should need no measuring DOM writes"
+
+    # Opening peer actions leaves one direct entry beside an options group. That
+    # wider row cannot supply the allocation of a new single-entry comment row.
+    page.evaluate("""async () => {
+      const {contributionEntry, registerContribution} =
+        await __lfRuntimeImport('/runtime/widget-api.js');
+      registerContribution({key: 'rail-details', target: document.querySelector('#subject'),
+        read: () => ({entries: [contributionEntry({
+          key: 'details', icon: 'comment', label: 'Rail details',
+          behavior: 'disclosure', rank: 'reading'
+        })]}), activate: () => {}});
+    }""")
+    entry.focus()
+    expect(
+        entry.locator("xpath=..").locator(":scope > .lf-margin-options")
+    ).to_be_visible()
+    expanded = page.evaluate("""async () => {
+      const owner = await __lfRuntimeImport('/runtime/annotation-overlay/margin-layout.js');
+      return owner.marginSpot(document.querySelector('#next-subject'));
+    }""")
+    assert expanded["right"] - expanded["left"] == pytest.approx(55)
+
+
 @pytest.mark.parametrize("width", [1440, 1920, 2400])
 def test_a_margin_card_clears_its_row_where_its_minimum_fits(browser, serve, width):
     """Where the room past the margin row holds the card's minimum, the card

@@ -4675,14 +4675,14 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
 
 
 def test_forced_colors_restore_a_real_outline_to_shadow_focused_fields(browser, serve):
-    """High-contrast mode does not erase the only visible sign of textarea focus."""
+    """High-contrast mode keeps a real outline on the focused comment frame."""
     context = browser.new_context(
         viewport={"width": 420, "height": 800}, forced_colors="active"
     )
     page = open_page(browser, serve(LONG_PAGE), context=context)
     box = page_comment(page)
     focus = box.evaluate(
-        "el => { const s = getComputedStyle(el);"
+        "el => { const s = getComputedStyle(el.closest('.lf-compose-field'));"
         " return {style: s.outlineStyle, width: s.outlineWidth}; }"
     )
     assert focus["style"] != "none" and focus["width"] != "0px", focus

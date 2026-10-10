@@ -3,7 +3,12 @@ import test from "node:test";
 import { createSemanticApplication } from "./application.ts";
 import { createPresentationCoordinator } from "./presentation.ts";
 import { stateDefinition } from "../../skills/leaf/assets/runtime/registry-contract.js";
-import { servedReading, servedThread, servedWorkflow } from "../../tests/served.mjs";
+import {
+  servedGestureSequence,
+  servedReading,
+  servedThread,
+  servedWorkflow,
+} from "../../tests/served.mjs";
 
 const spec = {
   unit: "widget",
@@ -601,6 +606,16 @@ test("a local send's workflow takes the served workflow's shape", () => {
     [move.subject, move.thread, move.holds_thread, move.coordinate],
     [{ kind: "widget", id: "choice" }, null, false, coordinate],
   );
+  app.release(new Set(["move"]));
+  for (const event of [
+    { kind: "done", version: 1 },
+    { kind: "resolve", parent: "root" },
+  ]) {
+    app.enqueue({ ...event, attempt: "other" }, "now");
+    app.refuse("other");
+    assert.deepEqual(app.read().effective.workflows, []);
+    app.release(new Set(["other"]));
+  }
   // Every field the server sends but the undelivered-only ones it has no reading of.
   const { quiet: _quiet, dropped: _dropped, ...served } = servedWorkflow();
   assert.deepEqual(Object.keys(move).sort(), Object.keys(served).sort());
@@ -718,24 +733,143 @@ test("filtered widget state is selected inside the publisher", () => {
   assert.equal(outcomeOf(app.selectWidgets(null).get("choice").state), "accept");
 });
 
-test("undoing the standing decision reveals the newest one the server says stands", () => {
-  const older = { ...action("older", "reject"), id: "e1", seq: 1 };
-  const newer = { ...action("newer"), id: "e2", seq: 2 };
-  // Whether the older decision survives is the server's reading: taken back or
-  // retracted, it no longer stands, and the authored state shows through instead.
-  for (const [olderStands, revealed] of [
-    [true, "reject"],
-    [false, null],
-  ]) {
-    const app = setup();
-    const reading = state(2, [older, newer]);
-    const projection = reading.browser.views[1].document.projection;
-    projection.entries[0].stands = olderStands;
-    projection.actions = [newer.id];
-    app.adopt(reading);
-    assert.equal(decision(app), "accept");
-    app.enqueue({ kind: "undo", undoes: newer.id, attempt: "undo" }, "now");
-    assert.equal(decision(app), revealed);
+test("admitted edits, a raced undo refusal, and revisions share one sequence", () => {
+  const sequence = servedGestureSequence();
+  for (const refusalFirst of [false, true]) {
+    const app = createSemanticApplication();
+    app.identify(1);
+    const declaration = sequence.declaration;
+    const specs = new Map(Object.entries(declaration["x-state"]));
+    const document = (revision) => ({
+      ...app.read().document,
+      revision,
+      registry: { "lf-draft": declaration },
+      authored: new Map([
+        [
+          "draft-ops",
+          {
+            tag: "lf-draft",
+            specs,
+            positions: {},
+            state: {
+              edit: {
+                action: null,
+                value: sequence.authored[revision],
+                detail: { value: sequence.authored[revision] },
+              },
+            },
+          },
+        ],
+      ]),
+      descriptors: new Map([
+        [
+          "draft-ops",
+          {
+            id: "draft-ops",
+            tag: "lf-draft",
+            declaration,
+            document: { kind: "page", revision },
+            parent: null,
+            ancestors: [],
+            quoted: false,
+          },
+        ],
+      ]),
+    });
+    app.captureDocument(document(1));
+    const adopt = (index) =>
+      assert.equal(
+        app.adopt(
+          sequence.states[index],
+          document(sequence.states[index].active.revision),
+        ),
+        true,
+      );
+    const value = () => app.read().effective.widgets.get("draft-ops").state.edit.value;
+    adopt(0);
+    assert.equal(value(), "Authored words.");
+    for (const [index, expected] of [
+      [1, "First edit."],
+      [2, "Second edit."],
+      [3, "Authored words."],
+    ]) {
+      adopt(index);
+      assert.equal(value(), expected);
+      assert.deepEqual(
+        [...app.read().effective.projection.desired.keys()],
+        [JSON.stringify(["draft-ops", "draft-ops", "edit"])],
+        "the wire and local gestures share the declared coordinate",
+      );
+    }
+
+    // The other tab's accepted undo arrives while this tab is still sending its own.
+    const undo = sequence.refused;
+    app.enqueue(undo, "now");
+    assert.equal(value(), "Second edit.");
+    if (!refusalFirst)
+      assert.equal(
+        app.adopt(
+          { ...sequence.states[4], taken: sequence.states[4].taken + 0.5 },
+          document(1),
+        ),
+        true,
+      );
+    assert.equal(value(), "Second edit.");
+    const publications = [];
+    const stop = app.select((root) => root).subscribe(() => publications.push(value()));
+    if (refusalFirst) adopt(4);
+    else assert.equal(app.adopt(sequence.states[4], document(1)), false);
+    app.refuse(undo.attempt);
+    stop();
+    assert.ok(publications.length > 1);
+    assert.ok(
+      publications.every((value) => value === "Second edit."),
+      "fresh state and refusal never expose stale e3",
+    );
+    assert.equal(value(), "Second edit.");
+    assert.equal(app.entry(undo.attempt).state, "refused");
+    app.release(new Set([undo.attempt]));
+    assert.ok(!app.entry(undo.attempt));
+
+    adopt(5);
+    assert.equal(value(), "Rewritten words.");
+    const edit = app.enqueue(
+      {
+        ...sequence.commands[0],
+        revision: 2,
+        attempt: "sequence-new-edit",
+        detail: { value: "Pending words." },
+      },
+      "now",
+    );
+    assert.equal(value(), "Pending words.");
+    app.enqueue(
+      { kind: "undo", undoes: edit.localId, attempt: "sequence-new-undo" },
+      "now",
+    );
+    assert.equal(
+      value(),
+      "Rewritten words.",
+      "undo cannot revive a retracted older edit",
+    );
+    const refusedPublications = [];
+    const stopRefused = app
+      .select((root) => root)
+      .subscribe(() => refusedPublications.push(value()));
+    adopt(5);
+    assert.deepEqual(app.refuse("sequence-new-edit"), ["sequence-new-undo"]);
+    stopRefused();
+    assert.ok(refusedPublications.length > 1);
+    assert.ok(refusedPublications.every((value) => value === "Rewritten words."));
+    assert.equal(value(), "Rewritten words.", "refusal restores state before release");
+    app.release(new Set(["sequence-new-edit"]));
+    assert.equal(value(), "Rewritten words.");
+    adopt(6);
+    assert.equal(
+      value(),
+      "Rewritten words.",
+      "a later revision inherits the retraction",
+    );
   }
 });
 
@@ -1178,6 +1312,7 @@ test("the publisher carries the server's Ask reading, page asks before thread as
     thread: null,
   };
   assert.deepEqual(app.read().effective.asks, {
+    phase: "ready",
     all: [
       record,
       {
@@ -1288,7 +1423,8 @@ test("a Done this tab sends ends its task at once, and its undo puts the task ba
     (candidate) => candidate.ends === "done",
   );
   const onYou = (app) => app.read().effective.queues.onYou.map(({ id }) => id);
-  const done = (app) => app.read().effective.done.map(({ id, state }) => [id, state]);
+  const done = (app) =>
+    app.read().effective.queues.done.map(({ id, state }) => [id, state]);
 
   const app = setup();
   const open = state(2);
@@ -1318,6 +1454,35 @@ test("a Done this tab sends ends its task at once, and its undo puts the task ba
   later.enqueue({ kind: "undo", undoes: "e20", attempt: "undo" }, "now");
   assert.deepEqual(onYou(later), [task.id]);
   assert.deepEqual(done(later), []);
+});
+
+test("approval leaves Questions in its sending turn and undo restores the exact version", () => {
+  const wire = servedReading("approval");
+  const task = wire.views["1"].document.tasks.find(
+    (candidate) => candidate.ends === "approval",
+  );
+  const app = setup();
+  const reading = state(2);
+  reading.browser.views[1].document.tasks = [task];
+  app.adopt(reading);
+  const questions = () => app.read().effective.queues.onYou;
+  assert.equal(questions()[0].id, task.id);
+  assert.equal(questions()[0].offers.done, false);
+  app.enqueue({ kind: "done", version: 2, attempt: "other-version" }, "now");
+  assert.equal(questions().length, 1);
+  app.enqueue({ kind: "done", version: 1, attempt: "approve" }, "now");
+  assert.equal(questions().length, 0);
+  app.refuse("approve");
+  assert.equal(questions().length, 1);
+  const accepted = state(3);
+  accepted.browser.views[1].document.tasks = [];
+  accepted.browser.views[1].document.ended_tasks = [
+    { ...task, state: "done", outcome: { id: "approval-event", ts: "now" } },
+  ];
+  app.adopt(accepted);
+  assert.equal(questions().length, 0);
+  app.enqueue({ kind: "undo", undoes: "approval-event", attempt: "undo" }, "now");
+  assert.equal(questions()[0].id, task.id);
 });
 
 test("a revision preserves pending delivery while replacing incompatible speculative state", () => {

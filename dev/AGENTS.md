@@ -1,20 +1,16 @@
 # The `leaf-dev` package
 
-`leaf_dev` is Leaf's developer tooling as a package: the mechanisms the suite and
-the eval harnesses share, and the `leaf-dev` commands built on them.
+`leaf_dev` is Leaf's developer tooling: the mechanisms the suite and the eval
+harnesses share, and the `leaf-dev` commands built on them. `uv run leaf-dev --help`
+lists the commands, and each command's `--help` says what it does.
 
-```sh
-uv run leaf-dev --help
-```
-
-It is a uv workspace member that only the root dev group depends on, so the checkout's
+Only the root dev group depends on this uv workspace member, so the checkout's
 environment installs it editable and `bin/leaf`, which runs `--no-dev`, never does.
-Nothing in `skills/` may import it. Its code runs under the same pre-commit hooks as
-the rest of the tree.
+Nothing in `skills/` may import it.
 
-A command's output lands under `.tmp/` unless its reader finds it at a committed
-path, as `examples/corpus.html` and its companions are. Evidence, previews, and probe
-results leave the tracked tree unchanged.
+A command writes under `.tmp/` unless its reader finds the output at a committed
+path, as with `examples/corpus.html` and its companions. Evidence, previews, and
+probe results leave the tracked tree unchanged.
 
 ## Where tooling goes
 
@@ -108,28 +104,29 @@ CI, `worker/`'s npm scripts and `.config/wt.toml` run these. The images they
 write live in `max-sixty/leaf-assets`, so outside `.tmp/` they write only the pin
 in `leaf-assets.json` and the README's image URLs that name it.
 
-- `leaf-dev site` builds <https://leaf.page/> into `.tmp/site`; `--output` gives an
+- `leaf-dev site` builds <https://leaf.page/> into `.tmp/site`, its edge assets into
+  `.tmp/site-assets`, and the prepared installation that vendors its pages and that
+  the container image installs into `.tmp/site-install`; `--output` gives an
   independent build its own destination. Writes to one destination are serialized.
   `npm run dev --prefix worker` builds and serves it through `wrangler dev`, which
   chooses available HTTP and inspector ports.
-- `leaf-dev verify-site` verifies a release at an origin, or with `wrangler` the
-  site `leaf-dev site` built, through the local Worker and container, and prints the
-  startup profile; CI runs `wrangler` on pull requests. Each local run has private
-  listener ports, temporary site, container build context and state, and retained
-  logs under `.tmp/verify-site/run-*/`. `worker/README.md` owns hosted-agent
+- `leaf-dev verify-site` verifies a release at an origin, or with `website-worker`
+  the site `leaf-dev site` built, through the local Worker and container, and prints
+  the startup profile; CI runs `website-worker` on pull requests. Each local run
+  has private listener ports, temporary site, container build context and state,
+  and retained logs under `.tmp/verify-site/run-*/`. `worker/README.md` owns hosted-agent
   diagnostics and the failure contract.
-- `leaf-dev journey TARGET` runs one user's journey, a request through Threads to
-  record that a release passed its checks, answered with a revision and a reply, on
-  any harness: `claude-code` or `codex`
-  on this working tree, `local` for the website's adapter, `wrangler`, or a website
-  origin. It prints one JSON sample: the title, published revision and reply timed
-  on the page server's clock from the comment's admission, and what only the browser
-  sees from the send; on `claude-code` or `codex`, also the agent's turn split into delivery,
-  model and tool phases. Each sample is also appended to
-  `$XDG_STATE_HOME/leaf-dev/journey.jsonl` on the machine that ran it, and
-  `leaf-dev journey-chart` prints an `lf-chart` of those samples, for the latest
-  version each target ran, to put on a page. `publish-site` runs it against each
-  release.
+- `leaf-dev journey TARGET` runs one user's journey against a real agent: it asks
+  for a release that passed its checks to be recorded, and requires a revision and
+  a reply; on a harness ("Harnesses" below) it takes further steps. For the website,
+  TARGET is an origin, `website-adapter` for the website's adapter on this machine,
+  or `website-worker` for the built site through the local Worker and container,
+  and the user is in Chrome; `publish-site` runs it against each release. It prints
+  one JSON sample: each comment's milestones timed on the page server's clock from
+  its admission, and in Chrome what only the browser sees from the send. Each sample
+  is also appended to `$XDG_STATE_HOME/leaf-dev/journey.jsonl` on the machine that
+  ran it, and `leaf-dev journey-chart` prints an `lf-chart` of those samples, for
+  the latest version each target ran at each user end, to put on a page.
 - `worker/deploy-dev.sh` (`npm run deploy:dev --prefix worker`) deploys the checkout
   to the standing `leaf-website-dev` environment and verifies it. Production deploys
   only through `.github/workflows/publish-site.yaml`.
@@ -142,39 +139,25 @@ in `leaf-assets.json` and the README's image URLs that name it.
 - `leaf-dev publish-media FILE...` adds media the example pages show under its
   `examples/media/`, and moves the pin.
 
-## Claude Code
+## Harnesses
 
-- `leaf-dev verify-claude-code-task` runs a real interactive Claude Code session, in a
-  tmux pane, with this working tree as its plugin under a throwaway home holding only
-  the host's login. It posts comments while the session is idle, during a shell
-  command, after an Escape, and after an Escape that stopped a turn the watch had
-  woken, and fails when a comment is not answered exactly once, a comment posted
-  during a turn is not picked up in it, or quitting leaves the session's claim
-  active. `--hooks-module` turns the plugin's hooks module on, and then also fails
-  when Escape leaves the turn open or nothing watching. Each step prints when its
-  comments were picked up and answered and whether the page nudged the session,
-  the reading that compares the two watchers. It spends the host's Claude Code
-  login, so CI does not run it.
-
-## Codex
-
-- `leaf-dev verify-codex-task` runs real Codex tasks with this working tree's
-  plugin through both transports of automatic server handoff. It posts comments while the
-  task is idle, mid-turn, during an empty-input resume, and after the adapter is
-  killed, and fails when a comment is
-  not answered exactly once, queue-backed work does not pick up and answer a comment
-  in the same active turn, or the page's claim does not name the task's last turn,
-  closed. It spends the host's Codex login, so CI does not run it.
-  `--preview` runs that journey through `leaf-dev preview --user`, also checking
-  the retained keyed URL and feedback after automatic page-server recovery.
-
-## Pi
-
-- `leaf-dev verify-pi-task` runs a real Pi session in RPC mode with this working
-  tree installed as its Pi package. It posts comments while Pi is idle, during a
-  shell command, and after an Escape, and fails when a comment is not answered
-  exactly once, a comment posted during a run is not answered in that run, Escape
-  leaves the turn open or Pi running, or quitting leaves the session's claim
-  active. Pi is the version `dev/pi/package.json` pins, which only this command
-  installs, and its only login is a copy of the host's Codex login, so CI does not
-  run it.
+`leaf-dev journey TARGET` also runs the user's journey on a real session of each
+harness, with this working tree as its plugin under a throwaway home holding only
+the host's login. TARGET is `claude-code` (interactive, in a tmux pane),
+`codex-app-server` or `codex-queue` (a Codex task on that transport; the queue is
+the desktop app's and IDE extension's), or `pi` (the version `dev/pi/package.json`
+pins, in RPC mode, on a copy of the host's Codex login). `journey.py` owns what the
+harnesses share: the isolation and its evidence under `.tmp/journey/`, the
+`Terminal` every wait hears the session through, and the `User`, at one end for
+every step: over HTTP by default, posting each comment as the page's tab does with no
+browser, which is what agent and harness behaviour and timing need, or in Chrome with
+`--browser`, typing each comment as a user does and timing what the page shows, the whole
+user journey. Either way each comment is timed from the page's log on the server's
+clock, with the agent's work on it split into delivery, model and tool phases.
+Between steps the journey fails unless every comment so far has one reply and
+entered the session's context, and the page's claim names the session with its turn closed; what else each
+target checks is its harness's promise, which its module lists with its steps
+(`journey_claude_code.py`, `journey_codex.py`, `journey_pi.py`). `--hooks-module`
+turns Claude Code's hooks module on; `--preview` has Codex serve the page through
+`leaf-dev preview --user` and checks it recovers its page server. These targets
+spend the host's logins, so CI does not run them.

@@ -14,6 +14,9 @@
   to start, find, and continue conversations about the whole page.
 - **Build coherent UI without repeated patches.** Improve the layout and
   interaction mechanisms so each new case does not require another fix.
+- **Reduce the burden of tests.** Tests now take long enough to meaningfully
+  slow development. Reduce their runtime and the work needed to run them while
+  preserving useful coverage.
 
 Priority runs from **Now** to **Next** to **Etc**. Themes group related work within
 each priority; bullets are outcomes, not implementation plans. Linked notes hold the
@@ -165,8 +168,8 @@ has tried; settle that before building it.
   available, such as a banner control under a coarse pointer, a reaction row on the
   sent card, or a control that keeps the field's measure
   (`skills/leaf/assets/runtime/composing/selection.js`).
-- **Give the thread panel's touch grip its own space.** Reserve room for the grip
-  and collapse inactive reply controls if more thread cards should fit.
+- **Reconsider thread navigation.** Decide how the Threads panel should change
+  before refining it (`skills/leaf/assets/AGENTS.md`, "Space and scrolling").
 
 ### Layout
 
@@ -255,24 +258,17 @@ Boxes that still move without input, which the "Stability" rule in
 `skills/leaf/assets/AGENTS.md` forbids. `tests/known_widget_findings.py` lists each widget
 that changes size after first paint, with its cause.
 
-- **Size the activity feed and text documents at first paint.** `lf-activity` draws the
-  log's history and `lf-text-document` its bound source's value, and both arrive with
-  the first state answer, after first paint. Serving that state inside the page does
-  not work: modules run after first paint, and a page revision is immutable while the
-  log keeps changing. Follow #1566's Command Hub pattern instead: draw a summary whose
-  structure is fixed, declared as the widget's `x-prepaint` so the first paint lays it
-  out, open the rows from it, and hold later growth with
-  `HeldReading` (`runtime/thread/held-news.js`) while it would be seen. Check first
-  whether a text document, which the reader came to read, can stand behind a summary.
+- **Size text documents at first paint.** `lf-text-document` draws its bound source's
+  value after the first state answer. Check whether the document can be laid out from
+  a synchronous source reading, or whether a summary can serve the reader who came
+  to read it. The activity feed now opens log-sized rows deliberately and holds later
+  growth with `HeldReading`.
 - **Decide the contents' form before first paint.** `lf-toc` changes size because the
   margin pass decides after first paint whether it is the fixed map in the margin or
   the outline in the flow (`data-lf-margin`, `margin-layout.js`), from the room
   it measures at that point. A held summary does not answer that cause. Check first whether a
   container or media query on the space beside the column can make the same decision
   in CSS.
-- **Find a first-paint fix for targeting.** `lf-targeting` has no recorded cause;
-  read `lf-targeting.js` for what it builds after first paint before choosing an
-  approach.
 - **Check that margin markers paint in place in their first frame.** The shift watch
   exempts the page until it is presented (`tests/shift_watch.js`), and #1603 records
   startup shifts only as diagnostics, so a marker drawn in the wrong place in its first
@@ -353,7 +349,7 @@ on 2026-10-07.
   It runs a page once in the host's browser, about 1.3 s, where the page has a script
   or places a page widget or a data widget (`needs_browser`,
   `render_gate/page_code.py`); any other page checks in about 0.15 s. Widgets that fail on their attribute values
-  (`lf-playground`, `lf-targeting`, `lf-shot`, `lf-visual-review`, `lf-text-document`)
+  (`lf-playground`, `lf-shot`, `lf-visual-review`, `lf-text-document`)
   and every widget in thread markup report through `leaf wait` once a browser draws
   them, but nothing runs them first. Write `evals/` cases in which agents author each
   kind and measure how often what they write fails to draw, then run the kinds agents
@@ -556,3 +552,5 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **MCP Apps:** rebuild inline hosting as the direct-resource design when a host
   the user runs renders MCP Apps. See [notes/mcp-apps/PROJECT.md](notes/mcp-apps/PROJECT.md).
 - **Release labels:** prefer an exact tag when Leaf adopts named releases.
+- **Diff controls:** consider author-configurable wrapping and per-file review tracking
+  when a page needs them. Keep their controls optional.

@@ -4,7 +4,7 @@
     <title>Compare built code readers</title>
     <meta
       name="description"
-      content="Drive two real Leaf code readers from one viewport, isolate candidate settings, and target the built output for exact changes."
+      content="Drive two real Leaf code readers from one viewport, isolate candidate settings, and comment on exact elements of the built output."
     />
     <style>
       code-reader-comparison {
@@ -258,8 +258,9 @@
       <p class="eyebrow">controlled A/B playground</p>
       <h1>Compare built code readers</h1>
       <p class="lede">
-        Both candidates are the shipped <code>lf-code</code> widget. One width gesture
-        reaches both; candidate settings stay explicit and copyable.
+        Both examples use Leaf's <code>lf-code</code> widget. Comparison viewport
+        changes both widths. The density controls change each example separately. Copy A
+        to B and Copy B to A copy the density and line-wrapping settings.
       </p>
       <lf-ask id="code-comparison-ask" data-width="available">
         <h2>Which built code-reader treatment should the agent keep?</h2>
@@ -347,29 +348,26 @@ export function releaseLabels(releases) {
           </lf-playground-output>
         </lf-playground>
       </lf-ask>
-      <lf-ask id="code-targeting-ask" data-width="available">
-        <h2>Which exact reader element should change?</h2>
-        <p>
-          Targeting keeps element identity separate from the comparison's visual labels
-          and settings.
+      <section id="code-reader-feedback" data-width="available">
+        <h2>Point at the reader element you want changed</h2>
+        <p id="code-reader-feedback-guide">
+          Turn on Design mode with <kbd>l</kbd> or the More menu, then press the heading
+          or code reader below. For a keyboard choice, press <kbd>s</kbd>, browse
+          targets with <kbd>Tab</kbd>, and choose with <kbd>Enter</kbd>. Your comment
+          stays beside that element as its treatment changes. Describe a shared change
+          in the comment when both readers should inherit it.
         </p>
-        <lf-targeting
-          id="code-comparison-targeting"
-          data-height="767"
-          submit-label="Propose exact edit"
-        >
-          <lf-target-preview id="code-target-preview">
-            <section id="target-reader-artifact" class="code-candidate">
-              <h3 class="reader-treatment-title">Built reader treatment</h3>
-              <lf-code id="target-built-code" language="javascript" hi="2">
-                <pre>
+        <section id="target-reader-artifact" class="code-candidate">
+          <h3 id="target-reader-heading" class="reader-treatment-title">
+            Built reader treatment
+          </h3>
+          <lf-code id="target-built-code" language="javascript" hi="2">
+            <pre>
 export const summarize = checks =>
   `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;</pre>
-              </lf-code>
-            </section>
-          </lf-target-preview>
-        </lf-targeting>
-      </lf-ask>
+          </lf-code>
+        </section>
+      </section>
     </main>
   </body>
 </html>

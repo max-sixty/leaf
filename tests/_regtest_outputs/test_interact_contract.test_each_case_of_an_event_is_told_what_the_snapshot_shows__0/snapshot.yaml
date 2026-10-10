@@ -45,12 +45,12 @@
 #              page's words from the first to the last inside the ink's extents: the
 #              neighbourhood of the mark rather than the mark, so an arrow across a
 #              paragraph says the whole paragraph. It is absent where the extents hold
-#              no words, as over a picture or in a margin. `drawing.strokes` are
-#              offsets from the top-left corner of the element the comment is anchored
-#              on and `drawing.box` is its width and height, so a stroke's share of
-#              the box says which part of a picture it marks. Where the words and
-#              offsets leave unclear what the mark covers, `leaf page picture PAGE
-#              ID`, given the comment's `id`, shows what the user saw: it prints the
+#              no words, as over a picture or in a margin. `drawing.strokes` are local
+#              coordinates in one frame: HTML CSS pixels, SVG user units, or intrinsic
+#              image, canvas and video pixels. Optional `drawing.frame` identifies
+#              that visual inside the semantic comment target by a structural path;
+#              `drawing.box` is the frame's size. Prefer `leaf page picture PAGE ID`,
+#              given the comment's `id`, to see what the mark covers: it prints the
 #              path of a PNG of the comment's revision laid out in their window and
 #              color scheme (`drawing.viewport`, `drawing.scheme`), with the ink over
 #              it. Any `text` explains the mark. Otherwise it is an ordinary comment,
@@ -68,18 +68,18 @@
 #      clause 4, does not apply:
 #        when: {"required": ["about"], "properties": {"about": {"const": "design"}}}
 #        text: A design comment is about how the page looks or behaves rather than
-#              what it says. Its anchor's `section` is a widget's id or, when it
-#              starts `lf-`, a part of Leaf's own chrome, such as `lf-banner`,
+#              what it says. Its anchor's `section` is an authored element's id or,
+#              when it starts `lf-`, a part of Leaf's own chrome, such as `lf-banner`,
 #              `lf-threads` (the Threads panel), `lf-queue` (the Questions panel),
-#              `lf-versions` or `lf-composer`; `part`, when present, names the control
-#              the click landed on. Find the source that produces what it names and
-#              fix it in this page's own source, unless the behavior belongs to a
-#              package's widget or the user asks for a wider fix: then change the
-#              package as the Leaf skill's `references/packages.md` says, re-vendor,
-#              and note the re-vendor on the stamp. A fix that belongs in Leaf itself
-#              is the user's to raise, as the Leaf skill's "Improve Leaf through use"
-#              says. The stamped version that carries the fix is the result the reply
-#              reports.
+#              `lf-versions` or `lf-composer`; `part`, when present, describes the
+#              control, region or picture the click landed on. Find the source that
+#              produces what it names and fix it in this page's own source, unless the
+#              behavior belongs to a package's widget or the user asks for a wider
+#              fix: then change the package as the Leaf skill's
+#              `references/packages.md` says, re-vendor, and note the re-vendor on the
+#              stamp. A fix that belongs in Leaf itself is the user's to raise, as the
+#              Leaf skill's "Improve Leaf through use" says. The stamped version that
+#              carries the fix is the result the reply reports.
 #      clause 5, applies:
 #        when: {"required": ["thread", "answer"], "properties": {"thread": {"required": ["title"], "properties": {"title": {"type": "null"}}}, "answer": {"properties": {"kind": {"const": "reply"}, "writer": {"const": "agent"}}}}}
 #        text: This event's thread has no title yet: name it by adding `--title "<a
@@ -354,7 +354,7 @@ comment with a drawing:
   event:
     kind: comment
     drawing:
-      format: leaf-drawing/2
+      format: leaf-drawing/3
       strokes: [[[0, 0], [9, 9]]]
       box: [640, 120]
       viewport: [1200, 900]
@@ -369,12 +369,12 @@ comment with a drawing:
         words from the first to the last inside the ink's extents: the neighbourhood
         of the mark rather than the mark, so an arrow across a paragraph says the
         whole paragraph. It is absent where the extents hold no words, as over a
-        picture or in a margin. `drawing.strokes` are offsets from the top-left
-        corner of the element the comment is anchored on and `drawing.box` is its
-        width and height, so a stroke's share of the box says which part of a picture
-        it marks. Where the words and offsets leave unclear what the mark covers,
-        `leaf page picture PAGE ID`, given the comment's `id`, shows what the user
-        saw: it prints the path of a PNG of the comment's revision laid out in their
+        picture or in a margin. `drawing.strokes` are local coordinates in one frame:
+        HTML CSS pixels, SVG user units, or intrinsic image, canvas and video pixels.
+        Optional `drawing.frame` identifies that visual inside the semantic comment
+        target by a structural path; `drawing.box` is the frame's size. Prefer `leaf
+        page picture PAGE ID`, given the comment's `id`, to see what the mark covers:
+        it prints the path of a PNG of the comment's revision laid out in their
         window and color scheme (`drawing.viewport`, `drawing.scheme`), with the
         ink over it. Any `text` explains the mark. Otherwise it is an ordinary comment,
         answered the same way.
@@ -488,17 +488,17 @@ design comment:
     - when: {"required": ["about"], "properties": {"about": {"const": "design"}}}
       text: >-
         A design comment is about how the page looks or behaves rather than what
-        it says. Its anchor's `section` is a widget's id or, when it starts `lf-`,
-        a part of Leaf's own chrome, such as `lf-banner`, `lf-threads` (the Threads
-        panel), `lf-queue` (the Questions panel), `lf-versions` or `lf-composer`;
-        `part`, when present, names the control the click landed on. Find the source
-        that produces what it names and fix it in this page's own source, unless
-        the behavior belongs to a package's widget or the user asks for a wider
-        fix: then change the package as the Leaf skill's `references/packages.md`
-        says, re-vendor, and note the re-vendor on the stamp. A fix that belongs
-        in Leaf itself is the user's to raise, as the Leaf skill's "Improve Leaf
-        through use" says. The stamped version that carries the fix is the result
-        the reply reports.
+        it says. Its anchor's `section` is an authored element's id or, when it
+        starts `lf-`, a part of Leaf's own chrome, such as `lf-banner`, `lf-threads`
+        (the Threads panel), `lf-queue` (the Questions panel), `lf-versions` or
+        `lf-composer`; `part`, when present, describes the control, region or picture
+        the click landed on. Find the source that produces what it names and fix
+        it in this page's own source, unless the behavior belongs to a package's
+        widget or the user asks for a wider fix: then change the package as the
+        Leaf skill's `references/packages.md` says, re-vendor, and note the re-vendor
+        on the stamp. A fix that belongs in Leaf itself is the user's to raise,
+        as the Leaf skill's "Improve Leaf through use" says. The stamped version
+        that carries the fix is the result the reply reports.
     - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
       text: >-
         When the event asks for work, say in its thread what you will do before

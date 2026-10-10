@@ -95,6 +95,7 @@ export function createDelivery({
       ) {
         return {
           accepted: null,
+          state: answer.state,
           refusal: `Couldn't send — ${answer.error || "the server refused it"}`,
         };
       }
@@ -111,18 +112,17 @@ export function createDelivery({
       for (;;) {
         const entry = ledger.nextSending();
         if (!entry) break;
-        const { accepted, application, refusal } = await deliver(entry);
+        const { accepted, application, refusal, state } = await deliver(entry);
         if (accepted) ledger.accept(entry, accepted);
-        else ledger.refuse(entry);
-        pendingTraffic(ledger.sending());
         try {
           if (!accepted) {
-            await settleRejected(entry);
+            await settleRejected(entry, state);
           }
           settlementChanged(entry, accepted);
         } catch (error) {
           reportApplicationError(error);
         } finally {
+          pendingTraffic(ledger.sending());
           if (application) void application.finally(() => entry.resolve(accepted));
           else {
             entry.resolve(accepted);
@@ -144,7 +144,7 @@ export function createDelivery({
 // Send one bookkeeping event and apply the state its answer carries. Resolves
 // "accepted" once that state is applied, "refused" when the server's answer is final,
 // and "unreached" when no complete answer came back, which a later send may still get.
-export async function deliverBookkeeping(event, applyAcceptedState) {
+export async function deliverBookkeeping(event, applyState) {
   let response;
   try {
     response = await postEvent(event);
@@ -158,11 +158,11 @@ export async function deliverBookkeeping(event, applyAcceptedState) {
   } catch {
     return "unreached";
   }
-  if (response.ok && answer?.ok === true && answer.state) {
-    await applyAcceptedState(answer.state).catch((error) =>
+  const accepted = response.ok && answer?.ok === true && Boolean(answer.state);
+  if (answer?.state) {
+    await applyState(answer.state).catch((error) =>
       console.error("leaf: state in event response", error),
     );
-    return "accepted";
   }
-  return answer?.final === true ? "refused" : "unreached";
+  return accepted ? "accepted" : answer?.final === true ? "refused" : "unreached";
 }

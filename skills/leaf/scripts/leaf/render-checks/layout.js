@@ -1,5 +1,5 @@
 import {
-  openAsks,
+  readAsks,
   pageScroller,
   readingPosture,
   readingRegions,
@@ -152,8 +152,8 @@ export function overflowingRegions() {
         "layout");
   // Shown ones only: a queue's closed items hold open Asks too, and a region that
   // already is the queue is not stacking them.
-  const asks = openAsks()
-    .map((ask) => document.getElementById(ask.id))
+  const asks = readAsks()
+    .user.map((ask) => document.getElementById(ask.id))
     .filter((ask) => ask?.checkVisibility());
   return readingRegions().flatMap((region) => {
     if (!main.contains(region.host) || !screenRegion(region.host)) return [];

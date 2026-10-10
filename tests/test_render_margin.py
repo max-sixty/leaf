@@ -2884,14 +2884,20 @@ def test_page_map_filtering_keeps_search_and_close_in_place(browser, serve, view
     groups = dialog.locator(".lf-page-map-group:visible")
     expect(groups).to_have_count(12)
     expect(search).to_be_focused()
-    before = {"search": search.bounding_box(), "close": close.bounding_box()}
+    search_field = dialog.locator(".lf-page-map-search")
+    before = {"search": search_field.bounding_box(), "close": close.bounding_box()}
     top = dialog.bounding_box()["y"]
 
     for query, count in [("Map note 12", 1), ("No such map entry", 0), ("", 12)]:
-        search.fill(query)
+        if query:
+            search.fill(query)
+        else:
+            search_field.get_by_role("button", name="Clear entry").click()
+            expect(search).to_have_value("")
+            expect(search).to_be_focused()
         expect(groups).to_have_count(count)
         rendered(page)
-        assert search.bounding_box() == before["search"]
+        assert search_field.bounding_box() == before["search"]
         assert close.bounding_box() == before["close"]
         assert dialog.bounding_box()["y"] == top
         assert (
@@ -5540,17 +5546,24 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
           const {contributionEntry, registerContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
           let primaryVisible = true;
+          let peers = [];
           const registration = registerContribution({
             key: 'fixture', target: document.querySelector('#how-cap'),
             read: () => ({entries: [contributionEntry({
               key: 'act', glyph: 'A', label: 'Act', behavior: 'action',
               visible: primaryVisible
-            })]}), activate: () => {}
+            }), ...peers]}), activate: () => {}
           });
           window.lfThreadOwner = {
             registration,
             showPrimary(visible) {
               primaryVisible = visible;
+              registration.update({immediate: true});
+            },
+            addPeers() {
+              peers = [1, 2, 3].map(i => contributionEntry({
+                key: `peer-${i}`, glyph: 'P', label: `Peer ${i}`, behavior: 'action'
+              }));
               registration.update({immediate: true});
             }
           };
@@ -5588,7 +5601,7 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     expect(thread).to_have_attribute("data-stable-proof", "same-thread-button")
     expect(thread).to_have_attribute("aria-expanded", "true")
 
-    append_carried_log_record(
+    second = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -5634,6 +5647,22 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(thread).to_have_attribute("aria-expanded", "false")
     assert page.evaluate("() => document.activeElement === document.body")
+
+    page.evaluate("window.lfThreadOwner.addPeers()")
+    expect(options).to_be_hidden()
+    comment_note(page, "#how-cap").press("Enter")
+    expect(options).to_be_visible()
+    assert page.evaluate(
+        """async id => {
+          const {openThread} = await window.__lfRuntimeImport('/runtime/application.js');
+          return Boolean(await openThread(id, {focus: 'thread'}));
+        }""",
+        second["id"],
+    )
+    expect(options).to_be_visible()
+    expect(thread).to_have_attribute("aria-expanded", "true")
+    page.locator(".lf-margin-preview-close").click()
+    expect(options).to_be_hidden()
 
 
 def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(
@@ -6807,26 +6836,49 @@ def test_anchored_thread_reading_keys_and_page_return(browser, serve):
 
 
 def test_a_thread_card_is_unseen_until_its_first_placement_lands(browser, serve):
-    """A card opened before it has anywhere to stand is neither seen nor pressed at the
-    corner it opens in, and appears once its placement lands."""
+    """An unplaced card is unseen; switching and closing retire its pending work."""
     context = browser.new_context(viewport={"width": 1440, "height": 900})
     held = []
     context.route("**/vendor/floating-ui.esm.js", lambda route: held.append(route))
     page = open_page(
         browser,
-        serve(ASK_PAGE, events=[COMMENT_ON_ASK]),
+        serve(
+            ASK_PAGE,
+            events=[
+                COMMENT_ON_ASK,
+                {
+                    **COMMENT_ON_ASK,
+                    "text": "Check the tools separately.",
+                    "anchor": {"section": "tools"},
+                },
+            ],
+        ),
         context=context,
         upgraded=False,
     )
     preview = page.locator(".lf-margin-preview")
     try:
         holding(page, held, 1, "the positioning module")
-        page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
+        first = page.locator('[data-lf-margin-for="bracket"] .lf-margin-marker')
+        second = page.locator('[data-lf-margin-for="tools"] .lf-margin-marker')
+        first.click()
         expect(preview).not_to_have_attribute("hidden", "")
         expect(preview).to_have_css("opacity", "0")
         expect(preview).to_have_css("pointer-events", "none")
 
+        second.click()
+        expect(preview).to_contain_text("Check the tools separately.")
+        page.keyboard.press("Escape")
+        expect(preview).to_be_hidden()
+        page.locator(".lf-threads-toggle").focus()
+
         held.pop(0).continue_()
+        rendered(page)
+        expect(preview).to_be_hidden()
+        expect(page.locator(".lf-threads-toggle")).to_be_focused()
+        expect(preview).not_to_have_attribute("data-lf-thread-placement")
+
+        first.click()
         expect(preview).to_have_attribute("data-lf-thread-placement", re.compile(r".+"))
         expect(preview).to_have_css("opacity", "1")
         expect(preview).to_have_css("pointer-events", "auto")
@@ -7585,6 +7637,29 @@ def send_anchored_comment(page, text):
     for actual, expected in zip(accepted, lines, strict=True):
         assert actual == pytest.approx(expected, abs=0.5), (lines, accepted)
     return frame["x"], len(lines)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "better; is there a way of shortening? or maybe we just remove it??",
+        "Check the January failure mode before accepting this design. " * 3,
+    ],
+)
+@pytest.mark.parametrize("zoom", [1, 1.1])
+def test_a_sent_comment_keeps_its_text_viewport(browser, serve, text, zoom):
+    """Carrying the editor's measure leaves the sent words inside their scrollport."""
+    page = open_page(browser, serve(ASK_PAGE), init_script=MARGIN_EDITOR_ROOTS)
+    resized(page, 1200, 900)
+    page.evaluate("zoom => document.documentElement.style.zoom = zoom", zoom)
+    send_anchored_comment(page, text.rstrip())
+    reading = page.locator(".lf-margin-preview")
+    overflow = reading.evaluate("""card => [...card.querySelectorAll('*')]
+        .filter(node => node.clientWidth && /auto|scroll/.test(getComputedStyle(node).overflow))
+        .filter(node => node.scrollWidth > node.clientWidth || node.scrollHeight > node.clientHeight)
+        .map(node => ({class: node.className, width: node.clientWidth,
+            scrollWidth: node.scrollWidth, height: node.clientHeight, scrollHeight: node.scrollHeight}))""")
+    assert not overflow, overflow
 
 
 @pytest.mark.parametrize("wrapping", [False, True])
@@ -9180,7 +9255,12 @@ def test_a_card_beside_an_element_scrolled_past_its_top_waits_at_the_windows_top
     leaves with it. On an Ask's options, the binding badge the banner holds in stands
     in the window's plane too, for the same reason."""
     comment = {**COMMENT_ON_ASK, "anchor": {"section": target}}
-    page = open_page(browser, serve(ASK_PAGE, events=[comment]))
+    # Give the last Ask room to pass above the viewport before scroll reaches the
+    # document's end; the fixture otherwise stops with #bracket still visible.
+    source = ASK_PAGE.replace(
+        "</main>", '<div style="height: 800px" aria-hidden="true"></div></main>'
+    )
+    page = open_page(browser, serve(source, events=[comment]))
     resized(page, 1440, 600)
     marker = page.locator(f'[data-lf-margin-for="{target}"] .lf-margin-marker')
     marker.evaluate(
@@ -9200,7 +9280,8 @@ def test_a_card_beside_an_element_scrolled_past_its_top_waits_at_the_windows_top
     }"""
 
     def scroll_by(by):
-        page.evaluate("by => document.scrollingElement.scrollBy(0, by)", by)
+        page.mouse.wheel(0, by)
+        scroll_settled(page)
         rendered(page)
         return page.evaluate(reading, target)
 
@@ -9214,6 +9295,7 @@ def test_a_card_beside_an_element_scrolled_past_its_top_waits_at_the_windows_top
     at = page.evaluate(reading, target)
     assert at["card"] == pytest.approx(at["window"], abs=0.5), at
     at = scroll_by(at["bottom"] - at["window"] + 20)
+    assert at["bottom"] < at["window"], at
     expect(card).to_have_attribute("data-lf-plane", "page")
     assert at["card"] == pytest.approx(at["bottom"], abs=0.5), at
 
@@ -11711,7 +11793,7 @@ def test_observed_scroll_retains_the_seat_of_a_constrained_target(
               const source = position === 'fixed' ? document : host;
               return await new Promise(resolve => {
                 source.addEventListener('scroll', () => requestAnimationFrame(() =>
-                  resolve({top: parseFloat(row.style.top), scrollY,
+                  resolve({top: row.getBoundingClientRect().top,
                     withheld: row.classList.contains('lf-withheld')})), {once: true});
                 if (position === 'fixed') window.scrollTo(0, scroll);
                 else host.scrollTop = scroll;
@@ -11724,7 +11806,63 @@ def test_observed_scroll_retains_the_seat_of_a_constrained_target(
         assert after["offset"] == pytest.approx(before["offset"], abs=1), after
         assert after["hit"] and not after["withheld"], after
         assert not first["withheld"], first
-        assert first["top"] - first["scrollY"] == pytest.approx(after["top"], abs=1)
+        assert first["top"] == pytest.approx(after["top"], abs=1)
+
+
+def test_distant_margin_coordinates_follow_small_moves_without_restatement(
+    browser, serve
+):
+    """Document coordinates retain layout precision beyond CSS length serialization."""
+    page = open_page(browser, serve(PANEL_PAGE))
+    resized(page, 1280, 900)
+    page.evaluate(
+        """async () => {
+          const {contributionEntry, registerContribution} =
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const main = document.querySelector('main');
+          main.dataset.lfMargin = 'none';
+          const space = document.createElement('div');
+          space.style.cssText = 'position: relative; height: 1400000px';
+          const target = document.createElement('p');
+          target.id = 'distant-margin-target';
+          target.textContent = 'A distant passage';
+          target.style.cssText = 'position: absolute; left: 40px; top: var(--target-y);'
+            + 'width: 300px; height: 30px; margin: 0';
+          target.style.setProperty('--target-y', '1234567.578125px');
+          space.append(target); main.append(space);
+          const contribution = registerContribution({key: 'distant', target,
+            read: () => ({entries: [contributionEntry({key: 'distant',
+              glyph: '!', label: 'Distant controls'})]}), activate: () => {}});
+          window.__distantMargin = {target, contribution};
+        }"""
+    )
+    page.locator("#distant-margin-target").scroll_into_view_if_needed()
+    rendered(page)
+    reading = """() => {
+      const {target, contribution} = window.__distantMargin;
+      const row = contribution.control('distant', 'margin').closest('.lf-margin-cluster');
+      return {target: target.getBoundingClientRect().top, row: row.getBoundingClientRect().top};
+    }"""
+    before = page.evaluate(reading)
+    for delta in (1, 2, 4):
+        page.locator("#distant-margin-target").evaluate(
+            "(target, y) => target.style.setProperty('--target-y', `${y}px`)",
+            1234567.578125 + delta,
+        )
+        page.wait_for_function(
+            """expected => {
+              const {contribution} = window.__distantMargin;
+              const row = contribution.control('distant', 'margin').closest('.lf-margin-cluster');
+              return row.getBoundingClientRect().top === expected;
+            }""",
+            arg=before["row"] + delta,
+        )
+        after = page.evaluate(reading)
+        assert after["target"] - before["target"] == delta, after
+    # The shared browser write watch rejects any unchanged style during these passes.
+    for _ in range(3):
+        page.evaluate("window.dispatchEvent(new Event('resize'))")
+        rendered(page)
 
 
 def test_signed_scroll_motion_survives_unobserved_extent_changes(browser, serve):

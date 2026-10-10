@@ -3963,6 +3963,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     # delivery Claude Code's prompt hook takes.
     (page_dir / "index.html").write_text(WALKTHROUGH_PAGE)
     publish(page_dir)
+    service_model.claim_page(page_dir)
     session_model.cmd_waiting(page_dir, "")
     posted = {
         "kind": "comment",

@@ -2136,6 +2136,7 @@ def test_a_start_is_one_log_record_read_at_the_banner_and_the_move(
     ] == [("c1", "working"), ("c2", "sent")]
     activity = state["activity"]
     assert (activity["counts"]["total"], activity["counts"]["active"]) == (1, 0)
+    assert service_model.claim_page(page_dir)
     assert session_model.cmd_wait(page_dir) == 0
     delivered(capsys)
     pickup = events_model.read_events(page_dir)[-1]
@@ -6073,6 +6074,7 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
     ):
         append_carried_log_record(page_dir, event)
 
+    assert service_model.claim_page(page_dir)
     assert session_model.cmd_wait(page_dir) == 0
     envelope, header, shown = delivered(capsys)
     handling = header["handling"]
@@ -6135,6 +6137,7 @@ def test_active_handling_survives_a_mutable_layer_edit(page_dir, capsys):
     session_model.cmd_waiting(page_dir, "")
     append_carried_log_record(page_dir, comment)
 
+    assert service_model.claim_page(page_dir)
     assert session_model.cmd_wait(page_dir) == 0
     _, batch, [shown] = delivered(capsys)
     assert active and [batch["handling"][ref] for ref in shown["handling"]] == [
@@ -6588,6 +6591,7 @@ def test_first_delivery_carries_thread_title_without_repeating_messages(
             ],
         )
         assert named.exit_code == 0, named.output
+    assert service_model.claim_page(page_dir)
     waited = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
     assert waited.exit_code == 0, waited.output
     _, header, shown = woken(waited.output)
@@ -7390,6 +7394,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
         },
     )
 
+    assert service_model.claim_page(page_dir)
     assert session_model.cmd_wait(page_dir) == 0
     _, header, shown = delivered(capsys)
     assert [e["id"] for e in shown] == [chose["id"]]
@@ -7478,6 +7483,7 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
             "detail": {},
         },
     )
+    assert service_model.claim_page(page_dir)
     assert session_model.cmd_wait(page_dir) == 0
     _, _, shown = delivered(capsys)
     assert [e["id"] for e in shown] == [answered["id"]]
@@ -7909,6 +7915,7 @@ def test_the_envelope_stops_growing_with_the_thread(page_dir, capsys):
     )
     initial_thread_state_size = len(json.dumps(state_json(page_dir)["threads"]))
     parent, headers = root["id"], []
+    assert service_model.claim_page(page_dir)
     for turn in range(30):
         agent = append_carried_log_record(
             page_dir,
@@ -8244,6 +8251,7 @@ def test_a_cursor_past_the_log_holds_nothing_in_the_log_that_replaced_it(page_di
 
     assert page_state(page_dir)["cursor"] == 0
     assert page_state(page_dir)["pending"] == 1
+    assert service_model.claim_page(page_dir)
     wait_result = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
     assert wait_result.exit_code == 0, wait_result.output
     _, _, events = woken(wait_result.output)
@@ -13261,7 +13269,7 @@ def test_a_codex_session_id_with_no_codex_above_it_is_refused(page_dir, monkeypa
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("CODEX_THREAD_ID", "thread-nobody")
     monkeypatch.setattr(machine_model, "process_info", lambda _pid: (1, "python"))
-    refused = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
+    refused = CliRunner().invoke(cli_model.cli, ["page", "claim", str(page_dir)])
     assert refused.exit_code == 1, refused.output
     assert "no codex process runs above this one" in refused.output
     assert service_model.page_claim(page_dir) is None
@@ -13366,7 +13374,8 @@ cli_model.cli()
         )
         assert idled.returncode == 0, idled.stderr
         picked_up = subprocess.run(
-            [*LEAF_COMMAND, "wait", page],
+            claim_and_wait_command(page),
+            shell=True,
             env=os.environ
             | {
                 "CLAUDE_CODE_SESSION_ID": "new-owner",
@@ -14562,6 +14571,7 @@ def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
     # The lines stand together, so the user reaches every page before the
     # first protocol rather than one page per protocol.
     assert reason.index(str(second)) < reason.index(schema_model.ANSWER_ASK_INSTRUCTION)
+    reason = re.sub(r'(<leaf-delivery id=")[0-9a-f]{8}(" )', r"\1<delivery>\2", reason)
     snapshot.check(
         yaml_document(
             "Two pages carry distinct debts and one shared answering instruction.",
@@ -15189,13 +15199,13 @@ def test_a_user_move_no_watcher_will_pick_up_messages_its_claude_code_session(
             listener.close()
 
 
-def test_only_serving_or_watching_a_page_puts_the_session_under_the_guard(
+def test_only_serving_or_claiming_a_page_puts_the_session_under_the_guard(
     page_dir, monkeypatch, capsys
 ):
     """Verifying a change to the page layer means driving throwaway pages, and the
     guard must not read a handful of test fixtures as a handful of abandoned
     pages. A directory this session only built and linted was handed to nobody.
-    Listening on one is what puts a user on the other end, and from there the
+    Claiming one is what puts a user on the other end, and from there the
     guard holds the session to it."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s7")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
@@ -15209,6 +15219,10 @@ def test_only_serving_or_watching_a_page_puts_the_session_under_the_guard(
     append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "hi"}
     )
+    assert CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)]).exit_code == 2
+    assert service_model.owned_pages("s7") == []
+    claimed = CliRunner().invoke(cli_model.cli, ["page", "claim", str(page_dir)])
+    assert claimed.exit_code == 0, claimed.output
     assert CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)]).exit_code == 0
     assert service_model.owned_pages("s7") == [page_dir.resolve()]
 
@@ -18878,11 +18892,8 @@ def test_archived_abandonment_recovers_a_late_final_from_paginated_history(
     page_dir, app_server, task_connection
 ):
     prepared = _codex_delivery(page_dir)
-    codex_model.abandon_uncertain_delivery("codex-thread", prepared.payload)
-    assert isinstance(
-        codex_model.read_task_delivery("codex-thread", prepared.payload["id"]),
-        codex_model.Offering,
-    )
+    # The start request may have reached the provider before its acknowledgement
+    # was lost. Abandon that uncertain start, then recover its actual late final.
     assert codex_model.begin_delivery_start("codex-thread", prepared.payload["id"])
     codex_model.abandon_uncertain_delivery("codex-thread", prepared.payload)
     assert isinstance(

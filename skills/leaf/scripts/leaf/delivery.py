@@ -12,8 +12,9 @@ Each batch carries distinct handling clause texts once, with ordered references
 on the events they apply to. Clause identities belong only to that batch.
 
 The envelope names who confirms receipt through `acknowledge`. A hook confirms
-what it hands over inline; reading a pointer confirms it through the reading
-session's harness. `turn_replies` assigns final custody to the provider turn.
+what it hands over inline; a pointer reader explicitly confirms a complete
+reading through its session's harness. `turn_replies` assigns final custody to the
+provider turn.
 An answer's `writer` guides initial handling at capture; the current binding alone
 controls final custody when writing. It is separate from the semantic operation:
 reply and markup requirements retain their meaning on every transport.
@@ -282,7 +283,12 @@ def stream_reply_target(payload: dict) -> dict | None:
 
 
 def handled(
-    batch: dict, delivery_id: str, batch_index: int, *, turn_replies: bool
+    batch: dict,
+    delivery_id: str,
+    batch_index: int,
+    *,
+    turn_replies: bool,
+    preserve_refs: bool = False,
 ) -> dict:
     """One captured batch with exact references, writer custody and handling.
 
@@ -311,7 +317,9 @@ def handled(
             {
                 "answer": {
                     **event["answer"],
-                    "ref": f"{delivery_id}:{batch_index}:{event['id']}",
+                    "ref": event["answer"]["ref"]
+                    if preserve_refs
+                    else f"{delivery_id}:{batch_index}:{event['id']}",
                     **(
                         {
                             "writer": "turn"
@@ -350,6 +358,7 @@ def freeze_delivery(
     turn_replies: bool = False,
     delivery_id: str | None = None,
     created_at: float | None = None,
+    correction: dict | None = None,
 ) -> dict:
     """Persist and return one immutable delivery envelope, as its transport hands
     it over.
@@ -376,10 +385,17 @@ def freeze_delivery(
             "id": delivery_id,
             "created_at": created_at if created_at is not None else time.time(),
             "acknowledge": acknowledge(delivery_id) if acknowledge else None,
+            **({"correction": correction} if correction is not None else {}),
             "batches": [
                 {field: batch[field] for field in _BATCH_FIELDS}
                 for batch in (
-                    handled(batch, delivery_id, index, turn_replies=turn_replies)
+                    handled(
+                        batch,
+                        delivery_id,
+                        index,
+                        turn_replies=turn_replies,
+                        preserve_refs=correction is not None,
+                    )
                     for index, batch in enumerate(batches)
                 )
             ],
@@ -398,6 +414,16 @@ def freeze_delivery(
 
 def readable_delivery(payload, delivery_id: str) -> bool:
     """Whether this immutable identity has the envelope this version consumes."""
+    if isinstance(payload, dict) and "correction" in payload:
+        correction = payload["correction"]
+        if not isinstance(correction, dict):
+            return False
+        claim = correction.get("claim")
+        if not isinstance(claim, dict) or any(
+            not isinstance(claim.get(key), str) or not claim[key]
+            for key in ("id", "generation", "acquisition")
+        ):
+            return False
     return bool(
         isinstance(payload, dict)
         and payload.get("format") == DELIVERY_FORMAT
@@ -418,15 +444,74 @@ def read_delivery(delivery_id: str) -> dict:
     return payload
 
 
-def cmd_delivery_read(delivery_id: str) -> None:
-    """Print one envelope, confirming it where reading is its receipt: a pointer
-    that names no other acknowledger, offered to the reading session, which its
-    harness confirms (`Harness.receive_pointer`)."""
+# Bound each CLI reading in bytes, including JSON escaping and instructions. A
+# single event may exceed this budget, so page the immutable serialized text
+# rather than dropping fields or changing the captured batch boundaries.
+READ_BYTES = 24000
+READ_CHARS = 3500
+
+
+def pointer_acknowledgement(delivery_id: str) -> str:
+    return (
+        "After every part of this delivery is in context, confirm complete receipt "
+        f"with `leaf delivery ack {delivery_id}` before handling its input. "
+        "If any output is missing, reread that part before confirming."
+    )
+
+
+def delivery_reading(payload: dict, *, part: int = 1) -> dict:
+    """Render bounded reader input, leaving its captured facts and refs immutable.
+
+    The stored envelope's acknowledger belongs to its original transport. A CLI
+    reader instead attests complete receipt explicitly, even when the original
+    transport could establish entry itself. Large readings expose lossless text
+    parts with a next command; only the last offers confirmation.
+    """
+    reading = {
+        **payload,
+        "acknowledge": payload["acknowledge"] or pointer_acknowledgement(payload["id"]),
+    }
+    serialized = json.dumps(reading, indent=2, ensure_ascii=False)
+    if len(serialized.encode("utf-8")) + 1 <= READ_BYTES:
+        if part != 1:
+            raise ValueError("this delivery has only one part")
+        return reading
+    count = (len(serialized) + READ_CHARS - 1) // READ_CHARS
+    if not 1 <= part <= count:
+        raise ValueError(f"delivery part must be between 1 and {count}")
+    return {
+        "id": payload["id"],
+        "part": part,
+        "parts": count,
+        "text": serialized[(part - 1) * READ_CHARS : part * READ_CHARS],
+        "next": (
+            f"leaf delivery read {payload['id']} --part {part + 1}"
+            if part < count
+            else None
+        ),
+        "acknowledge": reading["acknowledge"] if part == count else None,
+    }
+
+
+def cmd_delivery_read(delivery_id: str, *, part: int = 1) -> None:
+    """Print bounded immutable input without changing receipt or ownership."""
+    print(
+        json.dumps(
+            delivery_reading(read_delivery(delivery_id), part=part),
+            indent=2,
+            ensure_ascii=False,
+        )
+    )
+
+
+def cmd_delivery_ack(delivery_id: str) -> None:
+    """Accept the reader's attestation that every part reached its context."""
     payload = read_delivery(delivery_id)
     harness = session_harness()
     if payload["acknowledge"] is None and harness is not None:
         harness.receive_pointer(payload)
-    print(json.dumps(payload, indent=2, ensure_ascii=False))
+    else:
+        receive(payload, harness.session if harness else None)
 
 
 def pickup_receipts(

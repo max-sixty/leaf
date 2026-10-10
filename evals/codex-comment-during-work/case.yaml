@@ -1,9 +1,9 @@
-# A comment offered between steps belongs to the running turn. Reading its
-# pointer confirms receipt; the agent still replies explicitly on the page.
+# A comment offered between steps belongs to the running turn. Read every pointer
+# part before confirming receipt; reply on the page and leave successor ownership alone.
 description: codex-comment-during-work
 metadata:
   purpose: 'Codex delivery: read and answer a comment offered between tool steps in the current turn without
-    starting another waiter or acknowledgement.'
+    starting another waiter; a failed named wait observes successor ownership.'
   tags:
   - wait-loop
 vars:
@@ -20,7 +20,15 @@ vars:
     "Keep the existing layout; only change the cache behavior."
     Its answer is {kind: reply, to: 9b52c1a3, for: 7c41d0e2,
     ref: "3fa1c2d9:0:7c41d0e2", writer: agent}.
-    The returned envelope has `acknowledge: null`.
+    The first reading is part 1 of 2 and returns
+    `next: "leaf delivery read 3fa1c2d9 --part 2"`, `acknowledge: null`.
+    Part 2 completes the envelope and says to confirm complete receipt with
+    `leaf delivery ack 3fa1c2d9` before handling the input.
+
+    Earlier you had also started a named `leaf wait` on a separate page,
+    ~/.local/state/leaf/pages/cache-options. It ended because another session
+    now owns that page. That page remains the other session's work; you only
+    need to finish cache-plan.
 
     Read whatever instructions you need. Only Skill and Read run here, so write the
     exact commands you would run next, including the reply to the page, and say
@@ -32,12 +40,16 @@ assert:
   metric: judgment
   value: |
     Pass only if the reply reads the pointer with `leaf delivery read 3fa1c2d9`
-    and writes `leaf response reply 3fa1c2d9:0:7c41d0e2`, confirming the layout
-    will be kept, before finishing the current implementation turn. Replying after the requested
+    then reads `leaf delivery read 3fa1c2d9 --part 2`, confirms with
+    `leaf delivery ack 3fa1c2d9`, and writes
+    `leaf response reply 3fa1c2d9:0:7c41d0e2`, confirming the layout will be kept,
+    before finishing the current implementation turn. Replying after the requested
     implementation is finished is valid if it happens before the current turn's
     final chat response. Fail if it waits for another turn, starts
-    `leaf wait`, runs any delivery acknowledgement command, queues or forwards
-    the comment, or treats its final Codex chat message as the page reply.
+    another `leaf wait`, confirms receipt before reading both parts, omits the
+    confirmation, queues or forwards the comment, or treats its final Codex chat
+    message as the page reply. Fail if it reclaims cache-options with `leaf page
+    claim` or retries the ended named wait, since no ownership transfer was requested.
 - type: llm-rubric
   metric: handoff
   value: |

@@ -10,7 +10,7 @@ Codex's synchronous prompt hook records the provider turn even before the sessio
 claims a page. Its native transcript also records turns resumed without input,
 which run no prompt hook. Hooks reconcile that provider evidence before checking
 their turn identity, then offer a pointer between steps or before Stop and leave
-receipt to the agent's actual delivery read.
+receipt to the agent's explicit confirmation of complete input.
 An accepted TurnStart opens the same lifecycle as UserPromptSubmit without
 reading or receiving page input. Pi calls it after its SDK reserves the run;
 accepted message finalization or a live turn boundary confirms the receipt.

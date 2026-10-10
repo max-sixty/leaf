@@ -158,15 +158,14 @@ class Harness:
         return self.hooks_carry()
 
     def receive_pointer(self, payload: dict) -> None:
-        """Confirm a pointer this session read whose `acknowledge` names nobody,
-        the receipt its hooks left to the read.
+        """Confirm the reader's complete-reading attestation for a pointer whose
+        original `acknowledge` names nobody, the receipt its hooks left to the reader.
 
-        Hooks that deliver confirm each batch the session still holds; a harness
-        whose hooks hand nothing over has no pointer of its own to confirm."""
-        if self.hook_delivers:
-            from .delivery import receive_held
+        Explicit reader confirmation is strict: a transferred page or ended turn
+        reports refusal rather than silently accepting a partial receipt."""
+        from .delivery import receive
 
-            receive_held(payload, self.session)
+        receive(payload, self.session)
 
     def input_unpicked(self, page_dir: Path, *, listening: bool) -> str:
         """What to do about events past this page's cursor that nothing will
@@ -512,9 +511,9 @@ class CodexHarness(EnvironmentHarness):
         return step_hook_ran(self.session)
 
     def receive_pointer(self, payload: dict) -> None:
-        from .codex_state import accept_codex_delivery_read
+        from .codex_state import confirm_codex_pointer
 
-        accept_codex_delivery_read(self.session, payload["id"])
+        confirm_codex_pointer(self.session, payload)
 
     def watcher_live(self, *, listening: bool) -> bool:
         """A wait lease says only that some process can read page events. The

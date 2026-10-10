@@ -752,9 +752,8 @@ def prepare_claim(harness: Harness, page_dir: Path) -> dict:
 def take_page_claim(page_dir: Path) -> tuple[dict | None, dict] | None:
     """Make the harness session the page's watcher, if a harness supplied one.
 
-    `server start`, a named `leaf wait` and `page claim` claim; authoring
-    commands do not. A
-    bare-shell serve makes no claim and therefore starts as standing.
+    `server start` and `page claim` claim; waiting and authoring commands do not.
+    A bare-shell serve makes no claim and therefore starts as standing.
     """
     from leaf.harness import session_harness
 

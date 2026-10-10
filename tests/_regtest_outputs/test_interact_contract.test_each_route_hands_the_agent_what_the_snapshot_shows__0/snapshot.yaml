@@ -78,10 +78,11 @@ leaf wait:
     acknowledge: >-
       Whoever ran the `leaf wait` that printed this delivery acknowledges it; until
       then the user's moves read Sent rather than Picked up. If the output was cut
-      off, acknowledge nothing and rerun the wait with room for the whole envelope.
-      If you handle it, acknowledge before any other work; if you forward it, acknowledge
-      once it durably arrives there. To acknowledge, start `leaf wait --ack 11111111`
-      as the next background task: it confirms this delivery and waits for the next.
+      off, reread it with `leaf delivery read 11111111`. Follow any `next` commands
+      before confirming. If you handle it, acknowledge before any other work; if
+      you forward it, acknowledge once it durably arrives there. To acknowledge,
+      start `leaf wait --ack 11111111` as the next background task: it confirms
+      this delivery and waits for the next.
     batches:
       - page: /path/to/page
         claim: null
@@ -242,7 +243,10 @@ Codex queue:
     format: leaf-delivery-v5
     id: '22222222'
     created_at: 1790046750.29
-    acknowledge: null
+    acknowledge: >-
+      After every part of this delivery is in context, confirm complete receipt
+      with `leaf delivery ack 22222222` before handling its input. If any output
+      is missing, reread that part before confirming.
     batches:
       - page: /path/to/page
         claim: null

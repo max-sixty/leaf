@@ -32,8 +32,8 @@ publishing, and leaves pending any page whose lock is still held at the deadline
 Stopped before it confirms, it has confirmed nothing, and it never waits on a
 lock past the deadline into the harness's timeout. Claude Code cuts context over a limit to a preview
 (`HOOK_CONTEXT_LIMIT`), so a delivery that large goes as a pointer, and so does
-one the hook was too slow to confirm; the agent's `leaf delivery read` of a
-pointer is its receipt, as it is of the pointer Codex's tool hook offers. What remains is a turn that ends
+one the hook was too slow to confirm; the reader's explicit `leaf delivery ack`
+is its receipt, including for pointers Codex's tool hook offers. What remains is a turn that ends
 just after it starts, as an interrupt can; its moves then read Picked up in a
 turn that ended, as an App Server turn's do."""
 
@@ -316,7 +316,7 @@ def render(
     """The hook's context, and whether it hands `delivery` over inline, which
     confirms it: only where `inline` allows and the whole message fits under
     `HOOK_CONTEXT_LIMIT`. Otherwise it hands over the pointer its reader's
-    `leaf delivery read` confirms."""
+    `leaf delivery ack` confirms after complete reading."""
     if delivery is None:
         return "\n".join(attention), False
     message = "\n".join(
@@ -332,7 +332,7 @@ def render(
         [
             (
                 "Leaf has new input for this turn. Read it with "
-                f"`leaf delivery read {delivery['id']}`, which confirms it."
+                f"`leaf delivery read {delivery['id']}` and follow its receipt instruction."
             ),
             *attention,
         ]

@@ -528,6 +528,68 @@ def events(dir: str, after: int, follow: bool) -> None:
     cmd_events(resolve_dir(dir), after, follow=follow)
 
 
+@page.command(short_help="Read browser interactions and request diagnostics.")
+@click.argument("dir", metavar="PAGE")
+@click.option(
+    "--session", help="Select one browser tab; excludes unassociated server requests."
+)
+@click.option(
+    "--since",
+    metavar="ISO_TIME",
+    help="Include observations at or after this time, with timezone offset.",
+)
+@click.option(
+    "--until",
+    metavar="ISO_TIME",
+    help="Exclude observations at or after this time, with timezone offset.",
+)
+@click.option(
+    "--type",
+    "types",
+    multiple=True,
+    help="Select an observation type; repeat to select several.",
+)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    help="Print complete reconstructed records as JSON lines.",
+)
+def interactions(
+    dir: str,
+    session: str | None,
+    since: str | None,
+    until: str | None,
+    types: tuple[str, ...],
+    as_json: bool,
+) -> None:
+    """Read diagnostics chronologically, without acknowledging user input.
+
+    Times print in the local timezone. Retries are deduplicated, split records
+    are reconstructed, and gaps remain visible even with a type filter.
+    """
+    from leaf.interaction_log import (
+        format_interaction,
+        interaction_time,
+        read_interactions,
+    )
+
+    try:
+        start = interaction_time(since) if since else None
+        stop = interaction_time(until) if until else None
+        if start is not None and stop is not None and start >= stop:
+            raise ValueError("--since must precede --until")
+        rows = read_interactions(
+            resolve_dir(dir), session=session, since=start, until=stop, types=types
+        )
+    except ValueError as error:
+        raise click.ClickException(str(error)) from error
+    for row in rows:
+        click.echo(
+            json.dumps(row, ensure_ascii=False) if as_json else format_interaction(row)
+        )
+
+
 @page.command(short_help="Take a page this session did not serve.")
 @click.argument("dir", metavar="PAGE")
 def claim(dir: str) -> None:
@@ -872,7 +934,7 @@ def _titled(page_dir: Path, title: str | None) -> None:
 @click.option("--section", metavar="ID", help="element ID to anchor or scope --quote")
 @click.option("--part", metavar="ID", help="declared visual part within --section")
 @click.option("--text", help="comment text (default: stdin)")
-@click.option("--markup", help="widget markup to render after the text, validated here")
+@click.option("--markup", help="HTML fragment after the text, validated here")
 @_title_option
 def thread_open(
     dir: str,
@@ -910,7 +972,7 @@ def _reply_options(command):
         click.option("--detach", is_flag=True, help="remove the thread's page target"),
         click.option("--text", help="reply text (default: stdin)"),
         click.option(
-            "--markup", default="", help="frozen widget markup after the text"
+            "--markup", default="", help="frozen HTML fragment after the text"
         ),
         click.option(
             "--awaits", is_flag=True, help="the reply asks the user a question"
@@ -941,7 +1003,7 @@ def response_reply(
 ) -> None:
     """Answer the exact REFERENCE printed in a delivery's answer.ref.
 
-    Text, frozen widgets, prose questions, titles and anchor moves share this command.
+    Text, frozen HTML, prose questions, titles and anchor moves share this command.
     It validates and activates saved page edits, then commits the reply immediately.
     A provider's later final yields to the recorded answer; failure receipts are
     refused while that provider still owns the answer.
@@ -988,7 +1050,7 @@ def thread_edit(dir: str, message: str, text: str | None, title: str | None) -> 
     or with --title rename the thread MESSAGE is in, whoever opened it.
 
     The original and every revision remain in the append-only event log. Frozen
-    widget markup is not editable. Keep a title stable unless the thread's
+    markup is not editable. Keep a title stable unless the thread's
     subject changes.
     """
     from leaf.thread import cmd_edit, cmd_title

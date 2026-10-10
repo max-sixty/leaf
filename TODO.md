@@ -14,6 +14,9 @@
   to start, find, and continue conversations about the whole page.
 - **Build coherent UI without repeated patches.** Improve the layout and
   interaction mechanisms so each new case does not require another fix.
+- **Reduce the burden of tests.** Tests now take long enough to meaningfully
+  slow development. Reduce their runtime and the work needed to run them while
+  preserving useful coverage.
 
 Priority runs from **Now** to **Next** to **Etc**. Themes group related work within
 each priority; bullets are outcomes, not implementation plans. Linked notes hold the
@@ -26,6 +29,12 @@ has tried; settle that before building it.
 
 ### User experience
 
+- **Verify cancellation when a browser document departs.** Reproduce navigation
+  away during registry loading, state response decoding, and presentation, plus
+  removal of a loading sample iframe. Confirm which work survives departure and
+  whether it produces errors before changing shared startup or presentation
+  lifetimes. Include real back/forward-cache restoration so cancellation cannot
+  break a returning page.
 - **#25 — Answer one decision beside its evidence and on a board.** A section's
   picker and its board card currently record independent facts. Choose the owner
   and test both views against one decision, including ordering, write-ins and
@@ -549,3 +558,5 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **MCP Apps:** rebuild inline hosting as the direct-resource design when a host
   the user runs renders MCP Apps. See [notes/mcp-apps/PROJECT.md](notes/mcp-apps/PROJECT.md).
 - **Release labels:** prefer an exact tag when Leaf adopts named releases.
+- **Diff controls:** consider author-configurable wrapping and per-file review tracking
+  when a page needs them. Keep their controls optional.

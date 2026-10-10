@@ -1,7 +1,9 @@
 # Questions and sign-off
 
 Pose a Question for every decision waiting on the user. A recommendation leaves
-that decision open until the user decides.
+that decision open until the user decides. `conversation-loop.md`, "Questions and
+Tasks", owns the complete queue contract, including conversational questions and
+requests for actions outside the page.
 
 The user answers a Question from what is on screen when they reach it. The `q`
 key takes them to its answering widget and context. Keep its question,
@@ -49,8 +51,7 @@ Question is identified by `widget:<widget-id>`; a prose question in a thread by
 `reply:<message-id>`. If a widget Question stops mattering before the user answers,
 retire its source in a version or mark that source `restated` as
 `authoring-revisions.md` says. A task is work you ask the user to do, such as trying
-a build, rather than a question they answer (`conversation-loop.md`, "Tasks on
-the user").
+a build, rather than a question they answer (`conversation-loop.md`, "Questions and Tasks").
 
 The user can finish each independently answerable proposal as they review it.
 Give each its own answering widget with explicit accept and reject choices.
@@ -83,7 +84,8 @@ A page whose approval unblocks work declares:
 ```
 
 An informational page omits it. The banner offers approval only on a stamped
-version that declares it. Approval requires every widget Question on the page
-and in its unresolved threads to be answered or withdrawn. Widget Questions in
+version that declares it. This creates a Question identified by `approval:v<version>`;
+that version's approval answers it, and Undo reopens it. Approval requires every
+widget Question on the page and in its unresolved threads to be answered or withdrawn. Widget Questions in
 resolved threads and prose Questions do not block approval. Discussion alone
 leaves a widget's answer incomplete.

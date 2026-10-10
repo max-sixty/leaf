@@ -163,6 +163,7 @@ def browser_state(
             if revision == active_revision
             else read_document(page, threads)
         )
+        stamp = stamped_version(events, revision)
         document = browser_document(reading, revision)
         documents[revision] = reading
         projection = reading.projection
@@ -203,7 +204,7 @@ def browser_state(
                 reading,
                 thread_projection,
                 undo_reading=undo_reading,
-                stamp=stamped_version(events, revision),
+                stamp=stamp,
             ),
             "coverage": coverage,
             "published_at": published_at,

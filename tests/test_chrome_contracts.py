@@ -2265,7 +2265,7 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
         resized(page, width, 900)
         orders[width] = page.evaluate(BANNER_ORDER)
     phone = orders.pop(390)
-    moved = ["Approve version", "Comment on the page", "Questions: 4 waiting on you"]
+    moved = ["Approve version", "Comment on the page", "Questions"]
     assert phone[: len(moved)] == moved, phone
     rest = phone[len(moved) :]
     assert rest[:-1] + moved + rest[-1:] == orders[800], (phone, orders[800])

@@ -70,7 +70,7 @@ THREAD_READER_DECLARATION = {
 }
 
 THREAD_FILTER = r"""
-import {keepsText, openThread, readThreads, threadSummary, watchThreads} from '/runtime/widget-api.js';
+import {keepsText, threadActions, readThreads, threadSummary, watchThreads} from '/runtime/widget-api.js';
 customElements.define('lf-thread-filter', class extends HTMLElement {
   connectedCallback() {
     if (!this.input) {
@@ -103,7 +103,7 @@ customElements.define('lf-thread-filter', class extends HTMLElement {
         this.list.append(item);
       }
       keepsText(item.firstChild, threadSummary(thread).topic);
-      item.firstChild.onclick = () => openThread(thread.id);
+      item.firstChild.onclick = () => threadActions.open(thread.key);
     });
     for (const item of items.slice(shown.length)) item.remove();
   }
@@ -150,7 +150,7 @@ customElements.define('lf-thread-mirror', class extends HTMLElement {
       const query = this.input.value.toLowerCase();
       for (const thread of collection.threads)
         if (threadSummary(thread).topic.toLowerCase().includes(query))
-          surfaces.render(thread.key, this.outlet);
+          surfaces.thread(thread.key, this.outlet);
     });
   }
   disconnectedCallback() {
@@ -2185,7 +2185,7 @@ customElements.define('lf-thread-actions', class extends HTMLElement {
     this.stop = watchThreads(this, collection => {
       this.thread = collection.threads[0];
       keeps(this, 'data-resolved', Boolean(this.thread?.resolved));
-      keeps(this, 'data-reacted', Boolean(this.thread?.msgs.some(msg => msg.token === 'keep')));
+      keeps(this, 'data-reacted', Boolean(this.thread?.msgs.find(msg => msg.author === 'agent')?.reactions?.choices.find(choice => choice.name === 'keep')?.standing));
     });
     this.querySelectorAll('button').forEach(button => button.onclick = () => {
       const key = this.thread.key;
@@ -2196,7 +2196,7 @@ customElements.define('lf-thread-actions', class extends HTMLElement {
           ? threadActions.resolve(key)
           : button.textContent === 'Reopen'
             ? threadActions.reopen(key)
-            : threadActions.toggleReaction(key, agent.id, 'keep');
+            : threadActions.setReaction(key, agent.key, 'keep', !agent.reactions.choices.find(choice => choice.name === 'keep').standing);
       keeps(this, 'data-accepted', this.last !== null);
     });
   }
@@ -2272,6 +2272,19 @@ def test_package_thread_actions_share_core_admission_and_current_availability(
     with sending(page, "a package reaction"):
         actions.get_by_role("button", name="React").click()
     expect(actions).to_have_attribute("data-reacted", "true")
+    assert actions.evaluate("""node => {
+      const thread = node.thread;
+      const agent = thread.msgs.find(message => message.author === 'agent');
+      const choice = agent.reactions.choices.find(choice => choice.name === 'keep');
+      return thread.offers.reply && thread.offers.resolve && !thread.offers.reopen &&
+        choice.standing && choice.glyph && choice.label && Object.isFrozen(choice);
+    }""")
+    assert page.evaluate("""async () => {
+      const {threadActions,readThreads} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const thread = readThreads().threads[0];
+      const agent = thread.msgs.find(message => message.author === 'agent');
+      return threadActions.setReaction(thread.key, agent.key, 'keep', true) === null;
+    }""")
     pressed = page.locator(
         '.lf-thread[data-id="thread-action-root"] .lf-react[aria-pressed="true"]'
     )
@@ -2582,6 +2595,7 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
         serve.page_dir,
         {
             "id": "nested-question",
+            "attempt": "nested-question-key",
             "kind": "comment",
             "author": "agent",
             "revision": 1,
@@ -2604,6 +2618,9 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
         "document.querySelector('#workspace').shadowRoot.querySelector('lf-nested-reader').shadowRoot !== null"
     )
     workspace.get_by_role("button", name="Feed", exact=True).click()
+    assert email.evaluate(
+        "node => node === nestedOption && node.closest('#workspace') !== null"
+    )
     round_trip(page)
     assert page.evaluate("api.readThreads().threads[0].unread") == [
         {"message": "nested-question", "version": "nested-question"}
@@ -2628,7 +2645,7 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
     ] == [[{"message": "nested-question", "version": "nested-question"}]]
     assert email.evaluate("node => node === nestedOption")
     assert page.evaluate(
-        "async () => await api.openThread('nested-question', {focus:'message'}) !== null"
+        "async () => await api.threadActions.open('nested-question-key', {message:'nested-question-key'}) !== null"
     )
     expect(workspace.locator('.lf-msg[data-event="nested-question"]')).to_be_focused()
     assert page.evaluate("api.standingIn(document.querySelector('#workspace').reader)")
@@ -2659,6 +2676,232 @@ def test_queue_ask_arrival_selects_the_primary_reader(browser, serve):
     )
     assert page.evaluate(
         "document.querySelector('leaf-thread-list').getBoundingClientRect().width === 0"
+    )
+
+
+def test_primary_parts_keep_identity_and_nomination_order_through_admission(
+    browser, serve
+):
+    """A shared outlet follows nomination order without remounting admitted turns."""
+    page = open_page(browser, package_workspace(serve))
+    page.evaluate("""async () => {
+      window.api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const workspace = document.querySelector('#workspace');
+      const present = (collection, parts) => {
+        const messages = collection.threads.flatMap(thread =>
+          api.threadTurns(thread).map(message => [thread, message]));
+        if (workspace.reversed) messages.reverse();
+        for (const [thread, message] of messages)
+          parts.message(thread.key, message.key, workspace.reader);
+      };
+      document.addEventListener('keydown', async event => {
+        if (event.key === 'F8') {
+          workspace.present = present;
+          workspace.reader.replaceChildren();
+          await workspace.presentation.update();
+          window.firstPart = workspace.querySelector('[data-event="answer"]');
+        }
+        if (event.key === 'F9') {
+          workspace.reversed = true;
+          await workspace.presentation.update();
+        }
+        if (event.key === 'F10')
+          window.created = api.threadActions.create({text:'Retain this turn'});
+      });
+    }""")
+    page.keyboard.press("F8")
+    rendered(page)
+    order = """node => [...node.shadowRoot.querySelector('.reader').children]
+      .flatMap(slot => slot.assignedElements())
+      .map(part => part.querySelector('.lf-msg').dataset.event)"""
+    workspace = page.locator("#workspace")
+    assert workspace.evaluate(order) == ["channel-question", "opening", "answer"]
+    page.keyboard.press("F9")
+    rendered(page)
+    assert workspace.evaluate(order) == ["answer", "opening", "channel-question"]
+    assert page.evaluate("document.querySelector('[data-event=answer]') === firstPart")
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.keyboard.press("F10")
+    holding(page, held, 1, "the new fragment's admission")
+    rendered(page)
+    page.evaluate("""() => {
+      window.pendingPart = document.querySelector('.lf-msg[data-attempt="' + created.key + '"]');
+    }""")
+    assert page.evaluate("pendingPart !== null")
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    page.evaluate("created.delivery")
+    rendered(page)
+    assert page.evaluate("""() => pendingPart.isConnected &&
+      document.querySelector('.lf-msg[data-attempt="' + created.key + '"]') === pendingPart &&
+      !pendingPart.dataset.event.startsWith('pending:')""")
+
+
+@pytest.mark.parametrize("mode", ["Conversation", "Feed", "Reply only"])
+def test_primary_reading_holds_remote_changes_before_package_layout(
+    browser, serve, mode
+):
+    """A primary reader keeps one shown thread reading until its native notice opens it."""
+    page = open_page(browser, package_workspace(serve))
+    workspace = page.locator("#workspace")
+    workspace.get_by_role("button", name="Keep it concise.", exact=True).click()
+    if mode == "Reply only":
+        workspace.evaluate("""async workspace => {
+          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const outlet = workspace.outlet('reply-only');
+          workspace.present = (collection, parts) => {
+            api.setChildren(workspace.reader, [outlet]);
+            parts.reply(collection.threads.find(thread => thread.id === 'opening').key, outlet);
+          };
+          await workspace.presentation.update({release: true});
+        }""")
+    else:
+        workspace.get_by_role("button", name=mode, exact=True).click()
+    editor = workspace.get_by_role("textbox", name="Reply", exact=True)
+    write(editor, "Keep this draft while updates wait.")
+    assert editor.evaluate("""async editor => {
+      const {scrollerFor, readingRegionFor} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const reader = document.querySelector('#workspace').reader;
+      return scrollerFor(editor) === reader && readingRegionFor(editor).body === reader;
+    }""")
+    editor.evaluate("node => node.setSelectionRange(2, 8, 'backward')")
+    page.evaluate("""() => {
+      const workspace = document.querySelector('#workspace');
+      window.readerNodes = [...workspace.reader.children];
+      window.heldMessage = workspace.querySelector('[data-event="answer"]');
+      window.heldEditor = workspace.querySelector('leaf-text');
+    }""")
+    before = editor.bounding_box()
+    page.wait_for_timeout(600)  # Let Chrome's recent-input grace expire before news.
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "edit",
+            "author": "agent",
+            "message": "answer",
+            "text": "A much longer edited answer. " * 25,
+        },
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "id": "later-answer",
+            "kind": "reply",
+            "author": "agent",
+            "revision": 1,
+            "parent": "opening",
+            "text": "A later turn.",
+        },
+    )
+    told(page)
+    if mode != "Reply only":
+        expect(workspace.locator('[data-event="answer"] .lf-msg-text')).to_have_text(
+            "One paragraph."
+        )
+    expect(workspace.locator('[data-event="later-answer"]')).to_have_count(0)
+    assert page.evaluate("""() => {
+      const current = [...document.querySelector('#workspace').reader.children];
+      return current.length === readerNodes.length && current.every((node, i) => node === readerNodes[i]);
+    }""")
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", "Keep this draft while updates wait.")
+    assert editor.evaluate(
+        "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
+    ) == [2, 8, "backward"]
+    assert editor.bounding_box() == before
+    workspace.evaluate("async node => await node.presentation.update()")
+    if mode != "Reply only":
+        expect(workspace.locator('[data-event="answer"] .lf-msg-text')).to_have_text(
+            "One paragraph."
+        )
+    expect(workspace.locator('[data-event="later-answer"]')).to_have_count(0)
+    assert editor.bounding_box() == before
+    workspace.get_by_role("button", name="2 new replies", exact=True).click()
+    if mode != "Reply only":
+        expect(workspace.locator('[data-event="later-answer"]')).to_contain_text(
+            "A later turn."
+        )
+        expect(workspace.locator('[data-event="answer"] .lf-msg-text')).to_contain_text(
+            "A much longer edited answer."
+        )
+        assert page.evaluate(
+            "document.querySelector('#workspace [data-event=answer]') === heldMessage"
+        )
+    expect(
+        workspace.get_by_role("button", name="2 new replies", exact=True)
+    ).to_have_count(0)
+    expect(editor).to_have_js_property("value", "Keep this draft while updates wait.")
+    rendered(page)
+
+
+def test_primary_navigation_cancels_while_waiting_for_presentation(browser, serve):
+    """Superseding a navigation completes its promise even when a renderer is blocked."""
+    page = open_page(browser, package_workspace(serve))
+    assert page.evaluate("""async () => {
+      const {createThreadDestinations} = await window.__lfRuntimeImport('/runtime/thread/destination.js');
+      const workspace = document.querySelector('#workspace');
+      const reached = Promise.withResolvers();
+      const blocked = Promise.withResolvers();
+      const router = createThreadDestinations({
+        panelIsOpen: () => true, showThread: () => null,
+      });
+      let calls = 0;
+      const unregister = router.register(workspace, () => {}, {
+        update: () => ++calls === 1 ? (reached.resolve(), blocked.promise) : Promise.resolve(),
+        destination: () => null,
+      });
+      window.firstNavigation = router.openPageThread('opening', {focus:false});
+      await reached.promise;
+      await router.openPageThread('opening', {focus:false});
+      const result = await firstNavigation;
+      blocked.resolve();
+      unregister();
+      return result === null;
+    }""")
+
+
+@pytest.mark.parametrize("earlier_release", [False, True])
+def test_prepared_thread_reading_consumes_only_its_own_release(
+    browser, serve, earlier_release
+):
+    """A paint awaiting widget proof cannot consume a later request to show news."""
+    page = open_page(browser, package_workspace(serve))
+    assert page.evaluate(
+        """async earlier => {
+      const {HeldNews} = await window.__lfRuntimeImport('/runtime/thread/held-news.js');
+      const {readThreads} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const base = readThreads().threads.find(thread => thread.id === 'opening');
+      const reading = text => {
+        const source = {...base, msgs: base.msgs.map(message =>
+          ({...message, text, body:{...message.body, text}}))};
+        source.root = source.msgs[0];
+        const descriptor = source => ({
+          id: source.id, key: source.key, source, messages: source.msgs,
+          resolved: source.resolved, summaries: source.summaries, reread: descriptor,
+        });
+        return {threads: [descriptor(source)]};
+      };
+      const owner = document.querySelector('#workspace');
+      const held = new HeldNews(owner, () => ({node:owner, newsMoves:()=>true}), () => {});
+      const options = {row:false};
+      held.hold(reading('old'), options);
+      if (earlier) held.release();
+      const pending = held.prepare(reading('new'), options);
+      held.release();
+      pending.commit();
+      const replacement = held.prepare(reading('new'), options);
+      const opened = replacement.reading.threads[0].source.msgs[0].text === 'new';
+      replacement.commit();
+      const next = held.prepare(reading('later'), options);
+      const holdingAgain = next.reading.threads[0].source.msgs[0].text === 'new' &&
+        Boolean(next.reading.threads[0].news);
+      held.dispose();
+      return opened && holdingAgain;
+    }""",
+        earlier_release,
     )
 
 

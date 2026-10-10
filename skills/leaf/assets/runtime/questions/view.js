@@ -28,15 +28,11 @@
    method. They preserve one admitted action per widget rather than recording a second
    page-wide answer. */
 
+import { scrollIntoView } from "../landing-scroll.js";
 import { landingBand, shownBox, shownParts } from "../geometry.js";
 import { createQuestionBannerControls } from "./banner-controls.js";
 import { decisionControls } from "../keyboard/bindings.js";
-import {
-  closestAcross,
-  inChrome,
-  showsWords,
-  TEXT_BLOCK,
-} from "../passages.js";
+import { closestAcross, inChrome, showsWords, TEXT_BLOCK } from "../passages.js";
 import { scrollerFor } from "../reading-regions.js";
 import { reserve } from "../widget-elements.js";
 import { keeps } from "../keeps.js";
@@ -100,12 +96,16 @@ export function createQuestionView({
   //
   // A Question a held turn carries has no node until its thread shows what it holds
   // (held-news.js), and that release draws before `showHeld` returns.
-  const questionNodes = (question) => ({ target: questionNode(question), source: sourceNode(question) });
+  const questionNodes = (question) => ({
+    target: questionNode(question),
+    source: sourceNode(question),
+  });
   const reachQuestion = (question) => {
     if (question.thread && !questionNode(question)) showHeld(question.thread);
     return questionNodes(question);
   };
-  const unbuilt = (question, { target, source }) => (!target || !source) && question.thread;
+  const unbuilt = (question, { target, source }) =>
+    (!target || !source) && question.thread;
   async function materializeQuestion(question, intent = null) {
     reachQuestion(question);
     await openPageThread(question.thread, {
@@ -128,7 +128,9 @@ export function createQuestionView({
       for (const question of readQuestions().user) {
         if (questionEntry(question)?.all !== outcome) continue;
         const nodes = reachQuestion(question);
-        const { source } = unbuilt(question, nodes) ? await materializeQuestion(question) : nodes;
+        const { source } = unbuilt(question, nodes)
+          ? await materializeQuestion(question)
+          : nodes;
         await source?.[decisionFor(question.source.tag)?.verb]?.(outcome);
       }
     } finally {
@@ -175,7 +177,9 @@ export function createQuestionView({
   // core; which outcomes exist is the registry's answer.
   function blanketAnswers(questions) {
     return [...bulkAnswers].map(([outcome, label]) => {
-      const n = questions.filter((question) => questionEntry(question)?.all === outcome).length;
+      const n = questions.filter(
+        (question) => questionEntry(question)?.all === outcome,
+      ).length;
       return Object.freeze({
         busy: answeringAll.has(outcome),
         offered: Boolean(n),
@@ -237,7 +241,10 @@ export function createQuestionView({
   // (standing-target.js). DOM containment says where focus is; it never decides whether
   // the Question belongs to that inventory.
   const questionAt = (questions, node) =>
-    questionHolding(questions.filter((question) => question.source.kind === "widget"), placeOf(node));
+    questionHolding(
+      questions.filter((question) => question.source.kind === "widget"),
+      placeOf(node),
+    );
   // The question the user is standing in: the one holding the focus, or the one a control
   // hoisted into the margin decides, or the one a thread about it holds the focus for.
   //
@@ -348,7 +355,9 @@ export function createQuestionView({
     const wearing = new Set(
       here ? [here, ...shownParts(here), ...(row ? [row] : [])] : [],
     );
-    for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.question}]`))
+    for (const marked of document.querySelectorAll(
+      `[${PAGE_PAINT_ATTRIBUTE.question}]`,
+    ))
       if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.question);
     for (const marked of wearing) keeps(marked, PAGE_PAINT_ATTRIBUTE.question, "1");
   }
@@ -366,7 +375,9 @@ export function createQuestionView({
     if (!question || !source) return null;
     // A boxless decided Question can retain a zero-height layout rect after its
     // content retires. It has no visible surface to receive the return focus.
-    const target = [...question.getClientRects()].some((rect) => rect.width && rect.height)
+    const target = [...question.getClientRects()].some(
+      (rect) => rect.width && rect.height,
+    )
       ? question
       : (source.querySelector(QUESTION_CONTROL) ??
         actionsFor(source).map(({ control }) => presentedActionControl(control))[0] ??
@@ -502,7 +513,11 @@ export function createQuestionView({
       );
     });
     const heading = before.findLast((block) => block.matches(HEADING));
-    return [context, heading, closestAcross(question, TEXT_BLOCK) ?? before.at(-1)].find(fits) ?? question;
+    return (
+      [context, heading, closestAcross(question, TEXT_BLOCK) ?? before.at(-1)].find(
+        fits,
+      ) ?? question
+    );
   }
 
   // The arrival the user already has. The press then moves the ring and the focus and
@@ -608,7 +623,7 @@ export function createQuestionView({
       },
     );
     if (!arrived) return false;
-    questionRow(next)?.scrollIntoView({ block: "nearest" });
+    scrollIntoView(questionRow(next), { block: "nearest" });
     return true;
   }
 
@@ -658,7 +673,9 @@ export function createQuestionView({
     stopContextScopes?.();
     stopContextScopes = null;
     presenter.disconnect();
-    for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.question}]`))
+    for (const marked of document.querySelectorAll(
+      `[${PAGE_PAINT_ATTRIBUTE.question}]`,
+    ))
       marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.question);
   }
 

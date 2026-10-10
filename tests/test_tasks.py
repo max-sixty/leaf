@@ -35,6 +35,149 @@ def kinds(items) -> list:
     return [(item["kind"], item["id"]) for item in items]
 
 
+def test_page_state_tracks_questions_and_tasks_until_they_are_settled(page_dir):
+    """Discovery reads the user's actual queue, including all three question
+    sources, and keeps agent work after Questions reaches zero."""
+    asking(page_dir)
+    [ask] = state_json(page_dir)["queues"]["on_you"]
+    mine = written(leaf("task", "open", page_dir, "page", "Finish the plan"))
+    theirs = written(
+        leaf("task", "open", page_dir, "plan", "Check the plan", "--on", "user")
+    )
+    question = written(leaf("thread", "open", page_dir, "--text", "Merge or abandon?"))
+    queue = state_json(page_dir)
+    assert kinds(queue["queues"]["on_you"]) == [
+        ("question", ask["id"]),
+        ("question", f"reply:{question['id']}"),
+        ("task", theirs["id"]),
+    ]
+    assert kinds(queue["queues"]["on_agent"]) == [("task", mine["id"])]
+    assert queue["source"]["live"] is True
+
+    # An invalid save preserves the last valid document's questions and reports
+    # the source error beside them rather than implying the user owes nothing.
+    source = (page_dir / "index.html").read_text()
+    (page_dir / "index.html").write_text(source.replace('id="choice"', 'id="plan"'))
+    invalid = state_json(page_dir)
+    assert invalid["source"]["error"] is not None
+    assert invalid["queues"]["on_you"] == queue["queues"]["on_you"]
+    (page_dir / "index.html").write_text(source)
+
+    answer = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "revision": 1,
+            "parent": question["id"],
+            "text": "Merge.",
+        },
+    )
+    append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "choice",
+            "action": "choose",
+            "detail": {"value": ["flag-first"]},
+        },
+    )
+    assert done(page_dir, theirs["id"])[0] == 200
+    queue = state_json(page_dir)
+    assert queue["queues"]["on_you"] == []
+    assert ("answer", answer["id"]) in kinds(queue["queues"]["on_agent"])
+    assert ("task", mine["id"]) in kinds(queue["queues"]["on_agent"])
+    written(leaf("task", "end", page_dir, mine["id"], "done"))
+    assert ("task", mine["id"]) not in kinds(state_json(page_dir)["queues"]["on_agent"])
+
+
+def test_required_approval_is_a_question_for_its_exact_stamp_until_approved(page_dir):
+    """Required sign-off is one Question with a typed answer for its exact stamp.
+
+    It cannot block its own approval, and neither drafts nor another version
+    supply an answer. Undo restores the same Question without creating a Task.
+    """
+    source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>', 1)
+    source = source.replace(
+        "</head>", '<meta name="lf-review" content="sign-off"></head>'
+    )
+    (page_dir / "index.html").write_text(source)
+    assert not any(
+        item["ends"] == "approval" for item in state_json(page_dir)["queues"]["on_you"]
+    )
+    publish(page_dir)
+    queue = state_json(page_dir)
+    [approval] = [
+        item for item in queue["queues"]["on_you"] if item["ends"] == "approval"
+    ]
+    assert (approval["id"], approval["subject"], approval["question"]["source"]) == (
+        "approval:v1",
+        {"kind": "page"},
+        {"kind": "approval", "version": 1},
+    )
+    assert {item["ends"] for item in queue["queues"]["on_you"]} == {
+        "widget",
+        "approval",
+    }
+    assert done(page_dir, approval["id"])[0] == 400
+    refused = leaf("task", "end", page_dir, approval["id"], "done")
+    assert refused.exit_code != 0
+    assert "requires the user's approval of v1" in refused.output
+    status, response = endpoint_model.accept_event(
+        page_dir, {"kind": "done", "version": 1}, dict
+    )
+    assert status == 400 and "unanswered widget Questions" in json.dumps(response)
+    append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "choice",
+            "action": "choose",
+            "detail": {"value": ["flag-first"]},
+        },
+    )
+    assert kinds(state_json(page_dir)["queues"]["on_you"]) == [
+        ("question", "approval:v1")
+    ]
+    accepted = append_command(
+        page_dir, {"kind": "done", "author": "user", "version": 1}
+    )
+    assert state_json(page_dir)["queues"]["on_you"] == []
+    served = full_state(page_dir, events_model.read_events(page_dir))
+    [ended] = [
+        question
+        for question in served["browser"]["views"]["1"]["document"]["questions"]["all"]
+        if question["source"]["kind"] == "approval"
+    ]
+    assert (
+        ended["status"],
+        ended["answer"]["value"],
+        ended["answer"]["event"]["id"],
+    ) == ("answered", True, accepted["id"])
+    assert served["browser"]["tasks"] == served["browser"]["ended_tasks"] == []
+    append_command(
+        page_dir, {"kind": "undo", "author": "user", "undoes": accepted["id"]}
+    )
+    assert kinds(state_json(page_dir)["queues"]["on_you"]) == [
+        ("question", "approval:v1")
+    ]
+    append_command(page_dir, {"kind": "done", "author": "user", "version": 1})
+    (page_dir / "index.html").write_text(
+        source.replace("<title>t</title>", "<title>Revised</title>")
+    )
+    assert state_json(page_dir)["queues"]["on_you"] == []
+    publish(page_dir, version=2)
+    [next_approval] = state_json(page_dir)["queues"]["on_you"]
+    assert (next_approval["id"], next_approval["question"]["source"]) == (
+        "approval:v2",
+        {"kind": "approval", "version": 2},
+    )
+
+
 def test_a_task_holds_its_thread_on_the_agent_past_reply_and_resolve(page_dir):
     """The reply that answers a comment settles it, and resolving the thread closes
     it, but a task the agent opened on it stays on the agent's queue until the agent
@@ -706,7 +849,7 @@ def test_a_task_on_the_user_stands_on_any_element_until_their_done(page_dir):
         {"kind": "element", "id": "plan"},
     )
     state = state_json(page_dir)
-    asks = [("task", ask["id"]) for ask in questions_on_you(state)]
+    asks = [("question", ask["id"]) for ask in questions_on_you(state)]
     assert kinds(state["queues"]["on_you"]) == asks + [("task", task["id"])]
     assert state["queues"]["on_agent"] == []
     assert [item["owner"] for item in state["tasks"] if item["id"] == task["id"]] == [

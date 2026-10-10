@@ -322,7 +322,9 @@ export function createAnnotationInventory({
       );
     }
 
-    const questions = readQuestions().user.filter((question) => question.source.kind === "widget");
+    const questions = readQuestions().user.filter(
+      (question) => question.source.kind === "widget",
+    );
     for (const question of questions) {
       const id = question.id;
       const target = questionPlace(question).node;
@@ -337,7 +339,9 @@ export function createAnnotationInventory({
         // glyph already shows.
         label: addressableLabel(target) || null,
         activate: () => {
-          const standing = readQuestions().user.filter((question) => question.source.kind === "widget");
+          const standing = readQuestions().user.filter(
+            (question) => question.source.kind === "widget",
+          );
           const next = standing.find((candidate) => candidate.id === id);
           if (next) goToQuestion(next, standing);
         },

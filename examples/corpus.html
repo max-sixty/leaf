@@ -548,7 +548,9 @@
           #build() {
             const toolbar = document.createElement("div");
             toolbar.className = "query-toolbar";
-            toolbar.append(document.createTextNode("Filters run from top to bottom."));
+            toolbar.append(
+              document.createTextNode("Releases must match every filter."),
+            );
             const add = offer("button", "lf-btn query-add", "Add filter");
             add.addEventListener("click", () => {
               const id = `filter-${this.#next++}`;
@@ -610,11 +612,11 @@
               );
               const conditions = rows
                 .map((row) => `${row.field} ${row.operator} ${row.value}`)
-                .join(", then ");
+                .join(" and ");
               const filterTask = conditions
-                ? `Apply ${conditions}`
+                ? `Require ${conditions}`
                 : "Apply no filters";
-              return `Implement the release query in release-report.sql. ${filterTask}, return at most ${values.limit} releases in that order, and show the query plus its result-table test.`;
+              return `Implement the release query in release-report.sql. ${filterTask}. Return at most ${values.limit} matching releases in source order, and show the query plus its result-table test.`;
             });
           }
 
@@ -764,7 +766,7 @@
             }
             keepsText(
               this.#count,
-              `${filtered.length} matching ${filtered.length === 1 ? "release" : "releases"}`,
+              `${filtered.length} ${filtered.length === 1 ? "release" : "releases"} shown`,
             );
             layoutChanged(this);
           }
@@ -1981,6 +1983,10 @@
         box-shadow: 0 18px 46px color-mix(in srgb, var(--ink) 11%, transparent);
       }
 
+      #bg-rollout-tabs {
+        max-inline-size: 26rem;
+      }
+
       .interaction-gallery .lf-interaction-controls {
         display: flex;
         flex-wrap: wrap;
@@ -2736,8 +2742,9 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
         <h2>Most raw-log reads are within six weeks</h2>
         <p id="ret-why-body">
           Across eighteen months of query history, 90% of reads touch logs less than a
-          week old and 95% stay within 42 days. Query history cannot reveal work that
-          retention prevented, so I checked two years of incident write-ups as well.
+          week old and 95% stay within 42 days. Query history cannot reveal
+          investigations abandoned or solved another way, so I checked two years of
+          incident write-ups as well.
         </p>
         <p id="ret-why-margin">
           The 45-day limit rounds the observed six-week boundary up by three days.
@@ -3048,10 +3055,9 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
 
           <lf-playground-preview id="notification-preview">
             <p>
-              Drag event pressure from a routine release to a burst. Both formats
-              receive the same updates, so their scan cost stays comparable. The Format
-              control selects the requested output while leaving both candidates visible
-              for comparison.
+              Increase Concurrent release events to compare both formats with more
+              notifications. Both show the same events. The Format control selects the
+              requested output while leaving both candidates visible for comparison.
             </p>
             <notification-simulator
               id="notification-simulator"
@@ -3087,8 +3093,8 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
 <lf-tab id="corpus-data-explorer" label="Data explorer">
 <h1>Shape a release query</h1>
       <p class="lede">
-        Compose ordered filters against a captured release set. The table and final
-        instruction derive from the same structured configuration.
+        Choose which releases to include in the report. Add filters, check the matching
+        rows, then ask the agent to build the query.
       </p>
       <lf-ask id="release-query-ask" data-width="available">
         <h2>Which release query should the agent build?</h2>
@@ -3102,10 +3108,10 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
             max="6"
             step="1"
           ></lf-playground-control>
-          <lf-playground-preset label="Focused query">
+          <lf-playground-preset label="Up to 4 results">
             <lf-playground-setting for="limit" value="4"></lf-playground-setting>
           </lf-playground-preset>
-          <lf-playground-preset label="Broad query">
+          <lf-playground-preset label="Up to 6 results">
             <lf-playground-setting for="limit" value="6"></lf-playground-setting>
           </lf-playground-preset>
           <lf-playground-preview id="release-query-preview">
@@ -3122,13 +3128,13 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
 </lf-tab>
 
 <lf-tab id="corpus-code-comparison" label="Code comparison">
-<h1>Compare built code readers</h1>
+<h1>Choose a code reader treatment</h1>
       <p class="lede">
-        Both candidates are the shipped <code>lf-code</code> widget. One width gesture
-        reaches both; candidate settings stay explicit and copyable.
+        Compare a scrolling code reader with a wrapping one. Adjust their spacing and
+        shared width, then choose the treatment to keep.
       </p>
       <lf-ask id="code-comparison-ask" data-width="available">
-        <h2>Which built code-reader treatment should the agent keep?</h2>
+        <h2>Which code-reader treatment should the agent keep?</h2>
         <lf-playground id="code-comparison-playground" submit-label="Apply treatment">
           <lf-playground-control
             name="width"
@@ -3149,11 +3155,11 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
             <lf-playground-choice value="A" label="A"></lf-playground-choice>
             <lf-playground-choice value="B" label="B"></lf-playground-choice>
           </lf-playground-control>
-          <lf-playground-preset label="Compact reader">
+          <lf-playground-preset label="A at 420px">
             <lf-playground-setting for="width" value="420"></lf-playground-setting>
             <lf-playground-setting for="chosen" value="A"></lf-playground-setting>
           </lf-playground-preset>
-          <lf-playground-preset label="Wrapped reader">
+          <lf-playground-preset label="B at 320px">
             <lf-playground-setting for="width" value="320"></lf-playground-setting>
             <lf-playground-setting for="chosen" value="B"></lf-playground-setting>
           </lf-playground-preset>
@@ -3224,7 +3230,7 @@ export function releaseLabels(releases) {
         </p>
         <section id="target-reader-artifact" class="code-candidate">
           <h3 id="target-reader-heading" class="reader-treatment-title">
-            Built reader treatment
+            Reader sample
           </h3>
           <lf-code id="target-built-code" language="javascript" hi="2">
             <pre>
@@ -3259,11 +3265,11 @@ export const summarize = checks =>
             </dl>
             <dl id="lp-k-checks" class="panel">
               <dt>checks passing</dt>
-              <dd><strong>4 of 5</strong> <small>change: -1</small></dd>
+              <dd><strong>4 of 5</strong></dd>
             </dl>
             <dl id="lp-k-latency" class="panel">
               <dt>p95 latency</dt>
-              <dd><strong>184 ms</strong> <small>change: -6 ms</small></dd>
+              <dd><strong>184 ms</strong></dd>
             </dl>
             <dl id="lp-k-observed" class="panel">
               <dt>last observation</dt>
@@ -3303,22 +3309,22 @@ export const summarize = checks =>
           <lf-chart id="lp-traffic-chart" data-height="220">
             <pre>
 {
-  ariaLabel: "Share of checkout traffic on checkout-v2 by minute since deploy: 0, 5, 10, then 25% from minute 3",
+  ariaLabel: "Share of checkout traffic on checkout-v2: 5% at 7 seconds, 10% at 23 seconds, then 25% from 35 seconds through the last observation at 163 seconds",
   marginBottom: 40,
-  x: {label: "minutes since deploy", ticks: 7},
+  x: {label: "seconds since deploy", ticks: 5},
   y: {grid: true, label: "share of checkout traffic (%)", domain: [0, 30]},
   marks: [
     Plot.lineY(
       [
-        {minute: 0, share: 0},
-        {minute: 1, share: 5},
-        {minute: 2, share: 10},
-        {minute: 3, share: 25},
-        {minute: 4, share: 25},
-        {minute: 5, share: 25},
-        {minute: 6, share: 25},
+        {second: 0, share: 0},
+        {second: 7, share: 5},
+        {second: 23, share: 10},
+        {second: 35, share: 25},
+        {second: 138, share: 25},
+        {second: 158, share: 25},
+        {second: 163, share: 25},
       ],
-      {x: "minute", y: "share", stroke: "var(--series-1)", strokeWidth: 2},
+      {x: "second", y: "share", curve: "step-after", stroke: "var(--series-1)", strokeWidth: 2},
     ),
     Plot.ruleY([0]),
   ],
@@ -3382,7 +3388,7 @@ export const summarize = checks =>
                   Error rate
                   <span class="release-check-result" data-status="pass">Pass</span>
                 </th>
-                <td><code>0.11%</code> / below <code>0.50%</code></td>
+                <td><code>0.08%</code> / below <code>0.50%</code></td>
               </tr>
               <tr id="lp-check-latency">
                 <th scope="row">
@@ -3410,7 +3416,7 @@ export const summarize = checks =>
                   Rollback target
                   <span class="release-check-result" data-status="pass">Pass</span>
                 </th>
-                <td>3 batches / zero delta</td>
+                <td>3 batches / final delta 0</td>
               </tr>
             </tbody>
           </table>
@@ -4022,13 +4028,13 @@ export const summarize = checks =>
           <a href="https://github.com/max-sixty/worktrunk/pull/3865"
             >Worktrunk PR #3865</a
           >
-          adds a unified-diff preview for the switch picker. The captured revision is
-          awaiting a merge decision; its exact 46-file patch closes the review.
+          added a unified-diff preview for the switch picker. Review this merged change
+          as if the decision were still open, using its exact 46-file patch and the
+          evidence below.
         </p>
         <p id="pr-tags">
           <span class="tag ok">Safe to approve</span>
           <span class="tag warn">2 follow-ups</span>
-          <span class="tag ok">5 checks passed</span>
           <span class="tag">46 files · +1,567 −701</span>
         </p>
       </header>
@@ -4260,9 +4266,10 @@ flowchart TB
             This exact hunk from <code>src/summary.rs</code> replaces direct Git
             argument assembly with the repository’s <code>PreparedDiff</code> API.
           </p>
-          <lf-diff id="pr-key-hunk" data-height="539" review>
+          <lf-diff id="pr-key-hunk" data-height="539">
             <pre>
 diff --git a/src/summary.rs b/src/summary.rs
+index b856171b57..cfa4f0448e 100644
 --- a/src/summary.rs
 +++ b/src/summary.rs
 @@ -258,16 +256,14 @@ pub(crate) fn compute_combined_diff(
@@ -4293,25 +4300,108 @@ diff --git a/src/summary.rs b/src/summary.rs
         <section class="panel" id="pr-invariants">
           <h2>Review invariants</h2>
           <p id="pr-invariant-intro">
-            The implementation is expected to preserve these three properties.
+            Exact excerpts from revision <code>9ca8f78b</code> show the byte-equality
+            and scheduling tests, followed by the temporary-index implementation.
           </p>
-          <lf-code id="pr-review-invariants" language="rust" hi="1-3">
+          <h3>Real index byte equality</h3>
+          <p id="pr-review-invariants-source">
+            <code>src/commands/picker/items.rs</code> ·
+            <code
+              >unified_diff_is_net_change_and_subsidiary_diffs_include_untracked</code
+            >
+          </p>
+          <lf-code
+            id="pr-review-invariants"
+            language="rust"
+            lines="3018-3023,3041-3044"
+            hi="3041-3044"
+          >
             <pre>
-assert_eq!(repo.read_index_bytes(&amp;worktree)?, index_before_preview, "preview preparation rewrote {worktree:?}");
-assert!(temp_index.is_operation_scoped());
-assert!(offscreen_worktree_preview.is_demand_loaded());
+        let real_index = repo.current_worktree().git_dir().unwrap().join("index");
+        let index_before = std::fs::read(&amp;real_index).unwrap();
+        let unified = PickerRow::compute_unified_diff_preview(&amp;repo, &amp;item, 80);
+        let working = PickerRow::compute_working_tree_preview(&amp;repo, &amp;item, 80);
+        let committed = PickerRow::compute_branch_diff_preview(&amp;repo, &amp;item, 80);
+        let index_after = std::fs::read(&amp;real_index).unwrap();
+        assert_eq!(
+            index_after, index_before,
+            "preview computation must leave the real index byte-identical"
+        );
 </pre>
-            <lf-note id="pr-note-real-index" at="1"
-              >A clean status is insufficient: preview preparation must preserve the
-              real index byte for byte.</lf-note
+            <lf-note id="pr-note-real-index" at="3044"
+              >The test reads the real index around all three preview computations and
+              requires its bytes to match exactly.</lf-note
             >
-            <lf-note id="pr-note-temp-index" at="2"
-              >Random, exclusive temporary files prevent concurrent previews from
-              sharing or replacing one another’s index.</lf-note
+          </lf-code>
+          <h3>Off-screen worktree scheduling</h3>
+          <p id="pr-demand-evidence-source">
+            <code>src/commands/picker/preview_orchestrator.rs</code> ·
+            <code>initial_precompute_skips_offscreen_worktrees_but_warms_branches</code>
+          </p>
+          <lf-code
+            id="pr-demand-evidence"
+            language="rust"
+            lines="1230-1248"
+            hi="1238-1248"
+          >
+            <pre>
+        orch.spawn_initial_precompute(
+            &amp;orch.generation(),
+            &amp;[first, Arc::clone(&amp;offscreen), Arc::clone(&amp;branch)],
+            (80, 24),
+            None,
+        );
+        orch.wait_for_idle();
+
+        assert!(
+            !orch
+                .cache
+                .contains_key(&amp;("offscreen".to_string(), PreviewMode::UnifiedDiff)),
+            "off-screen worktree should wait for selected-row demand"
+        );
+        assert!(
+            orch.cache
+                .contains_key(&amp;("branch-only".to_string(), PreviewMode::UnifiedDiff)),
+            "branch-only default should be prewarmed from the committed diff"
+        );
+</pre>
+            <lf-note id="pr-note-demand-load" at="1248"
+              >After prewarm finishes, the off-screen worktree has no cached unified
+              diff and the branch-only row does. This checks scheduling; selected-row
+              latency remains unmeasured.</lf-note
             >
-            <lf-note id="pr-note-demand-load" at="3"
-              >Moving off-screen worktrees out of prewarm protects startup, but leaves
-              selected-row latency as a separate measurement question.</lf-note
+          </lf-code>
+          <h3>Temporary-index implementation evidence</h3>
+          <p id="pr-temp-index-evidence-source">
+            <code>src/git/repository/working_tree.rs</code> ·
+            <code>WorkingTree::temp_index</code>
+          </p>
+          <lf-code
+            id="pr-temp-index-evidence"
+            language="rust"
+            lines="843-856"
+            hi="843-846,852-856"
+          >
+            <pre>
+        let mut temp_file = tempfile::Builder::new()
+            .prefix(TEMP_INDEX_PREFIX)
+            .tempfile()
+            .context("Failed to create temporary index")?;
+        let mut real_index_file = match std::fs::File::open(&amp;real_index) {
+            Ok(file) =&gt; Some(file),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound =&gt; None,
+            Err(error) =&gt; return Err(error).context("Failed to open index file"),
+        };
+        if let Some(real_index_file) = &amp;mut real_index_file {
+            std::io::copy(real_index_file, temp_file.as_file_mut())
+                .context("Failed to copy index file")?;
+        }
+        let temp = temp_file.into_temp_path();
+</pre>
+            <lf-note id="pr-note-temp-index" at="856"
+              >Each call creates a temporary file, copies the real index through its
+              open handle when present, and transfers ownership to a
+              <code>TempPath</code>.</lf-note
             >
           </lf-code>
         </section>
@@ -4368,9 +4458,7 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
                     >
                   </td>
                   <td><span class="tag ok">passed</span></td>
-                  <td>
-                    Also makes glob escaping load-bearing through a bracketed path.
-                  </td>
+                  <td>Also tests glob escaping with a bracketed path.</td>
                 </tr>
                 <tr>
                   <th scope="row">Off-screen worktrees are demand-loaded</th>
@@ -4498,7 +4586,7 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
           <lf-merge-film id="merge-film"></lf-merge-film>
         </lf-pane>
         <lf-pane id="merge-steps-pane" label="Steps">
-          <header><h2>The steps, as this run takes them</h2></header>
+          <header><h2>Steps in the selected run</h2></header>
           <div>
             <p id="lede">
               Worktrunk's <code>wt merge</code> takes a finished branch to main in one
@@ -5073,9 +5161,7 @@ flowchart LR
         </section>
 
         <section id="security-states">
-          <h2 id="security-states-heading">
-            The job has an irreversible handoff, not a hand-back
-          </h2>
+          <h2 id="security-states-heading">Sandbox execution and cleanup</h2>
           <lf-diagram
             id="security-proposed-states"
             parts="node:S0 node:S1 node:S2 node:S3 node:S4 node:S5 node:S6 node:S7 node:F"
@@ -5198,7 +5284,7 @@ stateDiagram-v2
         </section>
 
         <section id="security-bottlenecks">
-          <h2 id="security-bottlenecks-heading">Put policy at four bottlenecks</h2>
+          <h2 id="security-bottlenecks-heading">Boundary enforcement</h2>
           <table id="security-bottleneck-table">
             <thead>
               <tr>
@@ -5281,9 +5367,7 @@ stateDiagram-v2
         </section>
 
         <section id="security-vendor-sandboxes">
-          <h2 id="security-vendor-heading">
-            One outer sandbox is the enforcement seam for both harnesses
-          </h2>
+          <h2 id="security-vendor-heading">Shared sandbox for Claude and Codex</h2>
           <table id="security-vendor-table">
             <thead>
               <tr>
@@ -5353,7 +5437,7 @@ stateDiagram-v2
         </section>
 
         <section id="security-contracts">
-          <h2 id="security-contracts-heading">Setup becomes a clean ownership seam</h2>
+          <h2 id="security-contracts-heading">Runner setup and sandbox setup</h2>
           <table id="security-setup-contract">
             <thead>
               <tr>
@@ -5414,9 +5498,7 @@ stateDiagram-v2
         </section>
 
         <section id="security-implementation">
-          <h2 id="security-implementation-heading">
-            The proposal cut the work into three slices
-          </h2>
+          <h2 id="security-implementation-heading">Implementation steps</h2>
           <ol class="steps" id="security-implementation-steps">
             <li>
               <strong>Prove one shared outer adapter.</strong> On
@@ -5460,7 +5542,7 @@ stateDiagram-v2
         </section>
 
         <section id="security-proof">
-          <h2 id="security-proof-heading">Acceptance is end-to-end and adversarial</h2>
+          <h2 id="security-proof-heading">Integration and adversarial tests</h2>
           <table id="security-proof-table">
             <thead>
               <tr>
@@ -5590,10 +5672,11 @@ stateDiagram-v2
             </tbody>
           </table>
           <p id="security-not-proven">
-            The adapter probe and hosted integration tests subsequently exercised
-            current Claude, Codex, and SRT behavior on GitHub-hosted Ubuntu 24.04,
-            including the nested UID, TLS-intercepting proxy, headless command lines,
-            Unix-socket denial, runner-checkout isolation, and complete teardown.
+            The Ubuntu 24.04 <code>test-sandbox</code> job exercised SRT and Tend’s
+            Claude and Codex adapters with stub harness executables. It checked
+            Unix-socket denial, runner-checkout isolation, broker routing, sandbox-local
+            loopback, reap, and bounded export. The separate
+            <code>test-codex-surface</code> job checked the pinned Codex CLI interface.
           </p>
         </section>
 
@@ -5809,7 +5892,7 @@ stateDiagram-v2
 
 <lf-tab id="corpus-command-hub" label="Command">
 <header>
-        <p class="eyebrow">command hub · the plan is the interface</p>
+        <p class="eyebrow">command hub · importer rewrite</p>
         <h1>Atlas importer rewrite</h1>
         <p class="lede" id="hub-lede">
           Get the new importer through one shadow week with no unexplained variance. The
@@ -5833,13 +5916,13 @@ stateDiagram-v2
           <lf-atlas-worker id="atlas-lead" state="working"
             ><details>
               <summary>
-                <strong>atlas-lead</strong><output class="atlas-worker-state"></output>
+                <strong>atlas-lead</strong
+                ><span class="atlas-worker-state" role="status"></span>
               </summary>
               <div class="atlas-worker-body">
                 <p class="atlas-worker-report"></p>
-                Coordinates the whole rewrite: routes decisions, watches progress, and
-                changes focus wherever the tree needs it. Its placement is the
-                project-wide remit; it does not pretend to have one leaf assignment.
+                Coordinates the whole rewrite by routing decisions, monitoring progress,
+                and choosing which tasks to focus on.
               </div>
             </details></lf-atlas-worker
           >
@@ -5862,12 +5945,12 @@ stateDiagram-v2
           <lf-atlas-task id="goal-parser" status="active" when="week 3" talk>
             <strong>Replace the XML parser</strong>
             Two workers own separate worktrees; open each worker to inspect its
-            evidence. The stalled dedupe leaf filed itself around this goal rather than
-            turning a worker into a pet.
+            evidence. The stalled deduplication task appears under this goal.
             <lf-atlas-worker id="w-1" state="working" on="parser-declarations"
               ><details>
                 <summary>
-                  <strong>w-1</strong><output class="atlas-worker-state"></output>
+                  <strong>w-1</strong
+                  ><span class="atlas-worker-state" role="status"></span>
                 </summary>
                 <div class="atlas-worker-body">
                   <p class="atlas-worker-report"></p>
@@ -5886,7 +5969,8 @@ stateDiagram-v2
                 <lf-atlas-worker id="w-2" state="working" on="parser-cdata"
                   ><details>
                     <summary>
-                      <strong>w-2</strong><output class="atlas-worker-state"></output>
+                      <strong>w-2</strong
+                      ><span class="atlas-worker-state" role="status"></span>
                     </summary>
                     <div class="atlas-worker-body">
                       <p class="atlas-worker-report"></p>
@@ -5910,7 +5994,8 @@ stateDiagram-v2
               <lf-atlas-worker id="w-5" state="reaped" on="parser-dedupe"
                 ><details>
                   <summary>
-                    <strong>w-5</strong><output class="atlas-worker-state"></output>
+                    <strong>w-5</strong
+                    ><span class="atlas-worker-state" role="status"></span>
                   </summary>
                   <div class="atlas-worker-body">
                     <p class="atlas-worker-report"></p>
@@ -5970,8 +6055,8 @@ stateDiagram-v2
           </lf-atlas-task>
 
           <lf-atlas-task id="goal-schema" status="active" when="week 3" talk>
-            <strong>Reconcile schema and ledger</strong> Two goals and the nightly wait
-            behind the schema choice.
+            <strong>Reconcile schema and ledger</strong> The schema decision blocks the
+            backfill, ledger fixture, and nightly variance report.
             <lf-atlas-task
               id="schema-choice"
               status="review"
@@ -5982,7 +6067,8 @@ stateDiagram-v2
               <lf-atlas-worker id="w-8" state="waiting" on="schema-choice"
                 ><details>
                   <summary>
-                    <strong>w-8</strong><output class="atlas-worker-state"></output>
+                    <strong>w-8</strong
+                    ><span class="atlas-worker-state" role="status"></span>
                   </summary>
                   <div class="atlas-worker-body">
                     <p class="atlas-worker-report"></p>
@@ -6019,9 +6105,10 @@ stateDiagram-v2
               needs="schema-choice"
               stopped-at="2026-08-21T09:04:00-07:00"
             >
-              <strong>Bring one replica-only ledger fixture</strong> Run the exact
-              credentialed command, inspect the full cargo below, trim it, then save the
-              draft. The edit receipt tells the orchestrator that w-8 can resume.
+              <strong>Bring one replica-only ledger fixture</strong> Run the command
+              below, paste its CSV output into the draft, and remove
+              <code>customer_name</code> and <code>billing_email</code> before saving.
+              Saving the draft tells the orchestrator that w-8 can resume.
               <lf-ask id="decision-ledger-fixture-region">
                 <h3>Which replica-only ledger fixture should the worker use?</h3>
                 <pre><code class="language-bash">psql "$ATLAS_REPLICA" -c "\copy (select * from ledger_entry
@@ -6037,15 +6124,15 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
               status="planned"
               needs="schema-choice ledger-fixture"
             >
-              <strong>Nightly variance report</strong> Unreachable until both inputs
-              stand.
+              <strong>Nightly variance report</strong> Waiting for the schema decision
+              and ledger fixture.
             </lf-atlas-task>
           </lf-atlas-task>
 
           <lf-atlas-task id="goal-api" status="active" when="week 4" talk>
-            <strong>Publish the parser contract</strong> Review the branch, not its
-            author. A line comment routes to a fresh evidence worker and stays anchored
-            here.
+            <strong>Publish the parser contract</strong> Review the public API branch. A
+            line comment goes to a new evidence worker and stays attached to the source
+            line.
             <lf-atlas-task
               id="api-shape"
               status="review"
@@ -6055,7 +6142,8 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
               <lf-atlas-worker id="w-3" state="waiting" on="api-shape"
                 ><details>
                   <summary>
-                    <strong>w-3</strong><output class="atlas-worker-state"></output>
+                    <strong>w-3</strong
+                    ><span class="atlas-worker-state" role="status"></span>
                   </summary>
                   <div class="atlas-worker-body">
                     <p class="atlas-worker-report"></p>
@@ -6154,10 +6242,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
         </section>
         <section class="panel" id="hub-record">
           <h2>Record</h2>
-          <p>
-            Every consequential gesture, newest first. Each row leads back to what it
-            moved.
-          </p>
+          <p>Recent actions, newest first. Each row links to the affected item.</p>
           <lf-activity id="atlas-record"></lf-activity>
         </section>
       </aside>
@@ -6930,6 +7015,41 @@ observe --cohort staff</code></pre>
       <p id="tail">The rollout can proceed once the changed line is reviewed.</p>
 </lf-tab>
 
+<lf-tab id="corpus-diff-thread-gallery" label="Diff conversations">
+<h1 id="dfg-title">Review app.py</h1>
+      <p id="dfg-guide">
+        Two fictional conversations sit below the same file. Reply to one while keeping
+        the other separate. Resolve a conversation with its check, then open its
+        resolved summary to reopen it. Comment on app.py starts another conversation
+        without opening the patch.
+      </p>
+      <script id="dfg-history" type="application/json">
+        [
+          {
+            "kind": "comment",
+            "author": "user",
+            "text": "This change looks good.",
+            "anchor": { "section": "dfg-patch", "datum": "[\"app.py\",\"file\"]" },
+            "id": "file-comment-1"
+          },
+          {
+            "kind": "comment",
+            "author": "user",
+            "text": "This is a quick test comment, ignore please.",
+            "anchor": { "section": "dfg-patch", "datum": "[\"app.py\",\"file\"]" },
+            "id": "file-comment-2"
+          }
+        ]
+      </script>
+      <lf-sample id="dfg-sample" label="file conversations">
+        <template id="dfg-page" data-sample data-sample-events="dfg-history">
+          <lf-diff id="dfg-patch" source="dfg-patch-source" collapsed>
+            <pre></pre>
+          </lf-diff>
+        </template>
+      </lf-sample>
+</lf-tab>
+
 <lf-tab id="corpus-feature-gallery" label="Core features">
 <hgroup id="bg-title">
         <p class="eyebrow">Leaf core product</p>
@@ -6969,15 +7089,17 @@ observe --cohort staff</code></pre>
               or press <kbd>g</kbd> then <kbd>Shift+Q</kbd>, to see both lists in the
               panel Threads also opens in, with answered Questions and finished tasks
               folded under Done; Enter on a row goes where <kbd>q</kbd> would. The
-              Questions panel is experimental. Within a view, <kbd>q</kbd> scrolls to
-              the question. When it opens another view, the question appears immediately
-              and its tab name briefly highlights. <kbd>Shift+Q</kbd> walks back.
-              Reduced motion removes the glide and highlight. When <kbd>q</kbd> reaches
-              a commented Question, its discussion stays closed while you read and
-              choose, including when Tab enters its controls. Press <kbd>c</kbd> to
-              reply in that existing discussion, <kbd>t</kbd> to read it, or its Thread
-              marker to open it under a finger. Returning to a Question you have
-              answered also keeps its controls clear.
+              Questions panel is experimental. A stamped page asking for sign-off also
+              lists its version approval as a Question. That row reaches the banner's
+              Approve control; approving answers it, and Undo reopens it. Within a view,
+              <kbd>q</kbd> scrolls to the question. When it opens another view, the
+              question appears immediately and its tab name briefly highlights.
+              <kbd>Shift+Q</kbd> walks back. Reduced motion removes the glide and
+              highlight. When <kbd>q</kbd> reaches a commented Question, its discussion
+              stays closed while you read and choose, including when Tab enters its
+              controls. Press <kbd>c</kbd> to reply in that existing discussion,
+              <kbd>t</kbd> to read it, or its Thread marker to open it under a finger.
+              Returning to a Question you have answered also keeps its controls clear.
             </p>
             <lf-ask id="bg-choice-ask">
               <h3>Which map should the sample team carry?</h3>
@@ -7045,6 +7167,13 @@ observe --cohort staff</code></pre>
               quiet status line at the bottom right reports the current keyboard walk or
               a useful command result. It moves above the bottom-left shortcuts when
               room is tight.
+            </p>
+            <p id="bg-share-guide">
+              On a local server, open <strong>More → Share</strong> and copy the link,
+              then open it in a fresh browser profile. The link keeps the current
+              address and passage and includes the access key even after a reload. The
+              Share panel states that the key grants access to every Leaf page served by
+              the same machine. Sample windows and the public website omit Share.
             </p>
             <p id="bg-history-return-guide">
               Follow
@@ -7217,13 +7346,13 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <p id="bg-page-comment-card-guide">
                 With Threads shut, press the comment symbol beside Threads on the
                 banner, or press <kbd>c</kbd> with nothing selected. A card hangs from
-                the symbol; write a sentence and send it. Focus stays on the open card
-                and Threads flashes yellow, its count one higher, while the panel stays
-                shut; the new thread is in Threads. Press <kbd>c</kbd> to write again.
-                <kbd>Escape</kbd> or a click elsewhere puts the card away, keeping what
-                you wrote for the next time it opens. With Threads open, the same press
-                goes to its own “Comment on the page” box. On a phone, “Comment on the
-                page” is in “More page controls”.
+                the symbol; write a sentence and send it. The card closes and focus
+                returns to the symbol. Threads flashes yellow, its count one higher,
+                while the panel stays shut; the new thread is in Threads. Press
+                <kbd>c</kbd> to write again. <kbd>Escape</kbd> or a click elsewhere puts
+                the card away, keeping what you wrote for the next time it opens. With
+                Threads open, the same press opens the same card over the panel. On a
+                phone, “Comment on the page” is in “More page controls”.
               </p>
             </section>
 
@@ -7481,15 +7610,18 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <p id="bg-threads-guide">
               With Threads closed, a Thread control or marked passage opens the thread
               inline; <kbd>t</kbd> moves to the next inline card and <kbd>T</kbd> to the
-              previous one. Open Threads while one is focused, including with
-              <kbd>g</kbd> then <kbd>T</kbd>, and the same thread stays focused in the
-              panel. Under “View”, filters narrow the list to “Open”, “On you”, “On
-              agent”, or “Resolved”, and combine “Page” or “Anchored” with “Content” or
-              “Layer”. “Order” switches the list from the page's order to “Recent”,
-              which puts the thread spoken in last first under its day. Collapsed titles
-              retain their message count, last message activity, and current status; “On
-              you” also names the action owed. Each thread has a short title chosen by
-              the agent; open one to read the full messages beneath it. Reply follows a
+              previous one. Scroll far from a commented passage, then press
+              <kbd>t</kbd>: the card enters with its passage as the page approaches it.
+              Scroll away and back; it leaves and returns by the same attachment rule.
+              Open Threads while one is focused, including with <kbd>g</kbd> then
+              <kbd>T</kbd>, and the same thread stays focused in the panel. Under
+              “View”, filters narrow the list to “Open”, “On you”, “On agent”, or
+              “Resolved”, and combine “Page” or “Anchored” with “Content” or “Layer”.
+              “Order” switches the list from the page's order to “Recent”, which puts
+              the thread spoken in last first under its day. Collapsed titles retain
+              their message count, last message activity, and current status; “On you”
+              also names the action owed. Each thread has a short title chosen by the
+              agent; open one to read the full messages beneath it. Reply follows a
               short conversation directly; in a long conversation it stays visible while
               you scroll. Send a reply: focus stays on the conversation card or its
               title, including in the floating card. Press <kbd>c</kbd> to write again;
@@ -7562,6 +7694,46 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   <lf-conversation-workspace
                     id="conversation-workspace"
                   ></lf-conversation-workspace>
+                </template>
+              </lf-sample>
+            </section>
+            <section id="bg-native-replies">
+              <h3>Native HTML in replies</h3>
+              <p>
+                Open Threads in the sample. Read the checks table, then open Deploy log
+                by click or keyboard. Both are ordinary HTML carried by the reply,
+                without a widget wrapper.
+              </p>
+              <script id="bg-native-reply-history" type="application/json">
+                [
+                  {
+                    "id": "deploy-question",
+                    "kind": "comment",
+                    "author": "user",
+                    "text": "Did the deploy pass?"
+                  },
+                  {
+                    "id": "deploy-answer",
+                    "kind": "reply",
+                    "author": "agent",
+                    "parent": "deploy-question",
+                    "text": "The deploy passed both checks.",
+                    "markup": "<table><caption>Deploy checks</caption><thead><tr><th scope=\"col\">Check</th><th scope=\"col\">Result</th></tr></thead><tbody><tr><td>Build</td><td>Passed</td></tr><tr><td>Smoke test</td><td>Passed</td></tr></tbody></table><details><summary>Deploy log</summary><pre>Build complete&#10;Smoke test passed&#10;Ready</pre></details>"
+                  }
+                ]
+              </script>
+              <lf-sample
+                id="bg-native-reply-sample"
+                label="Native reply evidence"
+                window
+              >
+                <template
+                  id="bg-native-reply-page"
+                  data-sample
+                  data-sample-events="bg-native-reply-history"
+                >
+                  <h1>Deploy review</h1>
+                  <p>The release is ready. Open Threads to read the checks and log.</p>
                 </template>
               </lf-sample>
             </section>
@@ -7774,6 +7946,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 automatically when their final answer arrives, without adding a digest.
                 Choose “Progress messages” in the practice page, then use “Show 2
                 progress messages” beside the answer’s timestamp with a press or Enter.
+                Expanded progress runs have an inset border and ordinary message headers
+                on the page’s normal background. User replies separate the groups.
               </p>
               <p id="bg-thread-unread">
                 <strong>Unread replies.</strong> The seeded agent replies start unread.
@@ -8544,13 +8718,15 @@ gallery/
                 This embedded sample is a framed tabbed section. The browser test also
                 presents this same tab set at the root of a page, where it becomes
                 borderless top navigation for page-scale views. Both forms remember the
-                selected panel after reload. At page level, scroll a view and switch
-                away and back: an unread view opens below the tab strip, and a view you
-                already read returns to its place. The strip stays put even when the
-                next view is shorter than the window. Browser Back and Forward return to
-                the corresponding views. Narrow the window until the gallery’s own tab
-                names overflow, then page them with the edge arrows. Reduced motion
-                makes that move immediate.
+                selected panel after reload. Horizontal tab strips stay at the top of
+                the view while their panel is being read, below any enclosing tabs.
+                Switching a pinned embedded strip opens its new panel at the start. At
+                page level, scroll a view and switch away and back: an unread view opens
+                below the tab strip, and a view you already read returns to its place.
+                The strip stays put even when the next view is shorter than the window.
+                Browser Back and Forward return to the corresponding views. Narrow the
+                window until the gallery’s own tab names overflow, then page them with
+                the edge arrows. Reduced motion makes that move immediate.
               </p>
               <lf-tabs id="bg-tabs">
                 <lf-tab id="bg-tab-current" label="Current">
@@ -8561,6 +8737,53 @@ gallery/
                 <lf-tab id="bg-tab-context" label="Context">
                   <p id="bg-tab-context-text">
                     The earlier route crossed the courtyard.
+                  </p>
+                </lf-tab>
+              </lf-tabs>
+              <h4 id="bg-overflow-tabs-heading">A rollout review in a narrow column</h4>
+              <p id="bg-overflow-tabs-guide">
+                This review keeps six sections in one compact row. The native scrollbar
+                is hidden; use the edge arrows to reveal more names, or swipe the row on
+                a touch screen. Focus a tab and use Left or Right to switch sections, or
+                Home and End to reach the first and last. Narrow the window: the
+                selected name stays visible and its section stays open. The arrows
+                disappear at an edge with no more names.
+              </p>
+              <lf-tabs id="bg-rollout-tabs">
+                <lf-tab id="bg-rollout-summary" label="Summary">
+                  <p id="bg-rollout-summary-text">
+                    Ship the revised search index to the internal team first, then
+                    expand after one healthy working day.
+                  </p>
+                </lf-tab>
+                <lf-tab id="bg-rollout-scope" label="Release scope">
+                  <p id="bg-rollout-scope-text">
+                    This release changes ranking and query suggestions. Saved searches
+                    keep their current filters.
+                  </p>
+                </lf-tab>
+                <lf-tab id="bg-rollout-stages" label="Rollout stages">
+                  <p id="bg-rollout-stages-text">
+                    Begin with the search team, continue with a small customer cohort,
+                    then open access to everyone.
+                  </p>
+                </lf-tab>
+                <lf-tab id="bg-rollout-health" label="Health checks">
+                  <p id="bg-rollout-health-text">
+                    Compare query latency, empty results, and user reports with the
+                    previous index before expanding access.
+                  </p>
+                </lf-tab>
+                <lf-tab id="bg-rollout-recovery" label="Recovery plan">
+                  <p id="bg-rollout-recovery-text">
+                    Return traffic to the previous index if searches become slow or
+                    relevant results disappear.
+                  </p>
+                </lf-tab>
+                <lf-tab id="bg-rollout-handoff" label="Owner handoff">
+                  <p id="bg-rollout-handoff-text">
+                    The search team owns the rollout. Support collects reports and the
+                    on-call engineer can restore the previous index.
                   </p>
                 </lf-tab>
               </lf-tabs>
@@ -8810,7 +9033,9 @@ gallery/
                 Sample labels invented content. Choose “Before” or “After” above the
                 image, or press the Shot control or image to flip. The selected label is
                 red for Before and green for After; a split colors both labels without
-                selecting either. This pair carries
+                selecting either. Scroll through a tall pair: the Before/After rail
+                stays at the top of the view until the pair ends, below any page tabs.
+                This pair carries
                 <code>outlines</code>, so outlines mark each region where the two images
                 differ, on both sides of the divider, and the rail counts them.
               </p>
@@ -9313,6 +9538,12 @@ switch --readers checkout-api,orders-api</code></pre>
             Select Documentation reviewed or API reviewed on the timeline. Hover or
             focus each number to read its name and time; close moments stay separate.
             Zoom in to spread their times and Whole recording to restore the overview.
+          </li>
+          <li>
+            Start playback and scroll down over the captured image until the controls
+            leave the screen. Playback continues during wheel scrolling and vertical
+            touch swipes. Return to the controls to pause, or tap the image to inspect
+            it.
           </li>
           <li>
             Use Fit image, Actual size, or image zoom to inspect captured pixels. Drag

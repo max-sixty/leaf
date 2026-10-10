@@ -42,7 +42,7 @@ export function questionHolding(questions, node) {
   if (!node) return null;
   const places = questions
     .filter((question) => question.source.kind === "widget")
-    .map((question) => ({question, ...questionPlace(question, questions)}));
+    .map((question) => ({ question, ...questionPlace(question, questions) }));
   const holds = (element) => element && (element === node || under(node, element));
   const source = places.findLast((place) => holds(place.source));
   if (source) return source.question;
@@ -69,7 +69,9 @@ export function placeOf(node) {
   for (const side of sides) {
     const place = side(at);
     if (place)
-      return inChrome(place) && !questionHolding(readQuestions().all, place) ? null : place;
+      return inChrome(place) && !questionHolding(readQuestions().all, place)
+        ? null
+        : place;
   }
   return inChrome(at) ? null : at;
 }

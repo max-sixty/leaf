@@ -11,6 +11,7 @@ export function ownedQuestionControl(source, commandSource) {
 
 export function questionWords(question) {
   if (question.answer === null) return "";
+  if (question.source.kind === "approval") return "Approved";
   if (question.source.kind === "reply")
     return question.answer.value.text ?? question.answer.value.token ?? "";
   const source = elementById(question.source.id);

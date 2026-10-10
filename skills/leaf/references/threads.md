@@ -45,9 +45,17 @@ text, at most 80 characters. Keep the title stable; when it no longer describes 
 discussion, rename it with `leaf thread edit <page> <message-id> --title "<a few
 words>"`, which changes no message and adds no turn.
 
-Use `--markup` for a small question: an `lf-ask` containing one heading and its
-`lf-options` group; it follows the reply's text, and its ids must not appear in any
-version or earlier message. Thread markup is frozen in the log and has no revision
+Use `--markup` for an HTML fragment after the message's text: a native table, a
+bounded log, or a small question using `lf-ask` and `lf-options`. Native HTML needs
+no widget wrapper. Its ids must not appear in any version or earlier message.
+Markup passes the shared structure, vocabulary, media, and id checks; it cannot
+declare document settings or add a stylesheet for the whole page.
+
+```bash
+leaf response reply <answer.ref> --text "The deploy passed." --markup '<details><summary>Deploy log</summary><pre>Ready&#10;Done</pre></details>'
+```
+
+Thread markup is frozen in the log and has no revision
 boundary: every immutable historical document shows the same markup. It must therefore
 validate against every pinned revision's captured registry, not only the active
 registry. Use only widget vocabulary shared by those registries. If no shared widget
@@ -195,7 +203,7 @@ to expand and edit.
 Intervening user messages remain visible; separate runs of updates fold separately.
 One update can fold on its own. An explicit summary can cover those updates instead.
 
-An ephemeral update is progress text, so it cannot carry `--awaits`, widget markup,
+An ephemeral update is progress text, so it cannot carry `--awaits`, markup,
 failure or an anchor move. Put questions and results in ordinary replies. The shared
 disclosure appears in the panel and contextual thread surfaces. A completing reply
 held behind a new-reply notice keeps its progress visible until the reply is shown;
@@ -212,7 +220,7 @@ leaf thread edit <page> <comment-or-reply-id> --text "Corrected wording."
 ```
 
 The page labels the message `edited`. Leaf keeps the original and every revision
-in the append-only event log. Only text is revised; any widget markup stays frozen.
+in the append-only event log. Only text is revised; any HTML markup stays frozen.
 A committed reply or `leaf thread` write prints the records it appended, one JSON
 line each, as `leaf page events` prints them. A first `--title` travels in the same
 message record; an explicit `leaf thread edit <page> <thread-id> --title` is a separate naming gesture.

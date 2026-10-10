@@ -20,7 +20,10 @@
  * widgets against the arriving source. A widget declaring `x-patch: members` is
  * patched inside its members instead, while the revision keeps its shell.
  *
- * Composition, unresolved delivery, and an open version menu defer either install.
+ * Composition defers a reload or a patch that would discard an active native editor
+ * or change a selected passage/comment's complete authored anchor scope. Runtime
+ * chrome stays outside the authored patch and follows its own editor continuation.
+ * Unresolved delivery and an open version menu defer either install.
  * Ending composition releases its hold on the next heartbeat; pressing the newest-version
  * chip explicitly releases that hold. The chip remains available while activation waits.
  *
@@ -74,7 +77,7 @@ import { heldThreadId, replyDestination } from "./thread/focus.js";
 import { restoreReplyEditing } from "./thread/replies.js";
 import { focusDestination, onStanding, focused, closeLayer } from "./focus.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
-import { patchTree } from "./dom-children.js";
+import { patchTree, patchRetains } from "./dom-children.js";
 import { labelOf, PRESS } from "./keyboard/bindings.js";
 import { commandShortcut } from "./keyboard/control-keys.js";
 import { keys, paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
@@ -1281,6 +1284,29 @@ export function createVersionController({
     registry[before.localName]?.["x-patch"] === "members" &&
     sameAuthoredMarkup(shell(before), shell(after), arrivingRoot);
 
+  // Preparation and installation use the same matching, widget ownership, and resource
+  // equality. A retained subject is proved through every containing owner, not by an
+  // id or a matching digest alone.
+  function patchRules(doc) {
+    const source = doc.querySelector("body > main");
+    const arrivingWidgets = documentWidgetDigests(doc);
+    const arrivingRoot = artifactRoot(doc);
+    const heldKeys = widgetKeys(authoredSource);
+    const arrivingKeys = widgetKeys(source);
+    return {
+      pairs: sourcePairs,
+      contains: under,
+      declared: upgraded,
+      reaches: (before, after) => reachesMembers(before, after, arrivingRoot),
+      unchanged: (before, after) => {
+        const digest = authoredWidgets[heldKeys.get(before)];
+        return Boolean(digest) && arrivingWidgets[arrivingKeys.get(after)] === digest;
+      },
+      same: (before, after) => sameAuthoredMarkup(before, after, arrivingRoot),
+      sameValue: (name, held, value) => sameValue(name, held, value, arrivingRoot),
+    };
+  }
+
   // Patch against the authored baselines. Retained nodes keep their live state;
   // replacement nodes recover eligible state through carry and Question restoration.
   function captureEditingContinuity() {
@@ -1343,8 +1369,7 @@ export function createVersionController({
     const source = doc.querySelector("body > main");
     const arrivingWidgets = documentWidgetDigests(doc);
     const arrivingRoot = artifactRoot(doc);
-    const heldKeys = widgetKeys(authoredSource);
-    const arrivingKeys = widgetKeys(source);
+    const rules = patchRules(doc);
     retireProjectionCoverage();
     revisionDocuments.delete(target.revision);
 
@@ -1424,20 +1449,9 @@ export function createVersionController({
       // and the revision after this one is the patch that reads it.
       sourcePairs.set(source, live);
       patchTree(authoredSource, source, {
-        pairs: sourcePairs,
+        ...rules,
         arrive,
         generated,
-        declared: upgraded,
-        reaches: (before, after) => reachesMembers(before, after, arrivingRoot),
-        // The capture that wrote each revision said what every declared widget in it
-        // was written as. A widget the arriving revision spells the same way is the
-        // widget the user is holding, so it stays.
-        unchanged: (before, after) => {
-          const digest = authoredWidgets[heldKeys.get(before)];
-          return Boolean(digest) && arrivingWidgets[arrivingKeys.get(after)] === digest;
-        },
-        same: (before, after) => sameAuthoredMarkup(before, after, arrivingRoot),
-        sameValue: (name, held, value) => sameValue(name, held, value, arrivingRoot),
         touched: (element) => touched.push(element),
       });
       // The revision's sheets, in its head and in its body alike, keep off the layer.
@@ -1537,17 +1551,21 @@ export function createVersionController({
       target.revision <= runtime.currentRevision
     )
       return null;
-    const activates = () =>
+    const activates = (retains) =>
       target.revision > runtime.currentRevision &&
       !hasPending() &&
-      (!midComposition() || forceActivation) &&
+      (!midComposition(retains) || forceActivation) &&
       !versionMenuIsOpen();
     // The revision either install leaves this document showing. State application reads
     // it to judge the answer before the install edits anything, and adopts the answer
     // against it afterwards, so the document's revision and the state that speaks for it
     // become current in one reading.
     if (!servedExecutable || target.executable !== servedExecutable)
-      return { revision: target.revision, activates, install: reloadInto(target) };
+      return {
+        revision: target.revision,
+        activates: () => activates(),
+        install: reloadInto(target),
+      };
     let doc;
     try {
       doc = await revisionDocument(target);
@@ -1566,7 +1584,19 @@ export function createVersionController({
     }
     return {
       revision: target.revision,
-      activates,
+      activates: () =>
+        activates(
+          (node) =>
+            // Installation closes inline comparisons, which can own the comment’s
+            // rendered subject independently of the authored patch.
+            selectedBase() === null &&
+            patchRetains(
+              authoredSource,
+              doc.querySelector("body > main"),
+              node,
+              patchRules(doc),
+            ),
+        ),
       install: () => {
         forceActivation = false;
         return activateRevision(doc, target);

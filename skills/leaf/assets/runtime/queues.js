@@ -31,15 +31,23 @@ export const questionItem = (question) => ({
   kind: "question",
   id: question.id,
   owner: "user",
-  subject: question.source.kind === "widget"
-    ? { kind: "widget", id: question.source.id }
-    : { kind: "thread", id: question.thread },
+  subject:
+    question.source.kind === "widget"
+      ? { kind: "widget", id: question.source.id }
+      : question.source.kind === "approval"
+        ? { kind: "page" }
+        : { kind: "thread", id: question.thread },
   thread: question.thread,
   title: question.prompt.text,
   running: null,
   agent: null,
   session: null,
-  ends: question.source.kind === "widget" ? "widget" : "reply",
+  ends:
+    question.source.kind === "widget"
+      ? "widget"
+      : question.source.kind === "approval"
+        ? "approval"
+        : "reply",
   question,
 });
 
@@ -62,13 +70,23 @@ export function selectQueues({ threads, workflows, tasks, questions }) {
     workflow.stage === "sending" && workflow.subject.kind === "thread";
   const resent = new Set(workflows.filter(sending).map(({ thread }) => thread));
   for (const workflow of workflows) {
-    const item = { id: workflow.id, subject: workflow.subject, thread: workflow.thread };
+    const item = {
+      id: workflow.id,
+      subject: workflow.subject,
+      thread: workflow.thread,
+    };
     if (workflow.next_actor === "user") {
       if (workflow.thread === null) onYou.push({ kind: "recovery", ...item });
     } else if (
-      sending(workflow) || (workflow.answer !== null && !resent.has(workflow.thread))
+      sending(workflow) ||
+      (workflow.answer !== null && !resent.has(workflow.thread))
     )
-      onAgent.push({ kind: "answer", ...item, answer: workflow.answer, stage: workflow.stage });
+      onAgent.push({
+        kind: "answer",
+        ...item,
+        answer: workflow.answer,
+        stage: workflow.stage,
+      });
     else if (atWork(workflow))
       onAgent.push({ kind: "work", ...item, detail: workflow.detail });
   }
@@ -78,7 +96,8 @@ export function selectQueues({ threads, workflows, tasks, questions }) {
 
 export function selectDone({ tasks, questions }) {
   return [
-    ...(questions?.all ?? []).filter((question) => question.status !== "open")
+    ...(questions?.all ?? [])
+      .filter((question) => question.status !== "open")
       .map((question) => ({
         ...questionItem(question),
         state: question.status === "answered" ? "done" : "dropped",

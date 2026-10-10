@@ -358,7 +358,9 @@ test("focused owner exposes only its complete declared controls", () => {
 
 test("reading IDs belong to their contribution in both margin and Page Map", () => {
   const entry = inventory({
-    items: [null, "first", "second"].map((owner) => marker("same", "question", { owner })),
+    items: [null, "first", "second"].map((owner) =>
+      marker("same", "question", { owner }),
+    ),
   });
   const choices = readingChoices(entry);
   assert.equal(new Set(choices.map((choice) => choice.key)).size, 3);

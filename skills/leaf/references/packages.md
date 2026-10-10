@@ -99,7 +99,23 @@ package/
 ```
 
 No individual file is required. The kernel supplies the files every complete layer
-needs. Theme files concatenate into one cascade layer, `lf-base`; specificity,
+needs.
+
+### Widget interface
+
+Keep a widget's interface clear and simple: show the evidence and the actions the
+reader needs for the task. Each extra control competes with that work. Add optional
+controls when a caller needs them; let the author choose those options for the page.
+
+Use the inherited type, color and spacing tokens and shared control styles before
+adding widget-specific CSS. Declared shadow roots receive the shared `shadow.css`
+sheets too. Reuse Leaf's thread symbol, composer and keyboard hints so the same
+action looks and behaves the same across widgets. `module-authoring.md`, "Commands
+and keyboard routes" and "Widget-local Thread placement", describe those shared mechanisms.
+
+### Styles and composition
+
+Theme files concatenate into one cascade layer, `lf-base`; specificity,
 native scope proximity, then source order decide between its rules. Layouts and
 semantic state rank above package defaults; the page's unlayered stylesheet ranks
 above all of them. In declared shadow trees, shared `shadow.css` rules rank above

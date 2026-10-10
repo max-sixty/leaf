@@ -12,7 +12,7 @@ from typing import NamedTuple
 from .events import retractions, seats_with_agent
 from .passages import Passages
 from .projection import PageReading, StateProjection, retirement_outcomes
-from .questions import page_question_readings
+from .questions import approval_question, collection, page_question_readings
 from .structure import SourceDocument
 
 
@@ -55,6 +55,8 @@ def read_document(page: PageReading, threads: dict) -> DocumentReading:
         revision=revision,
         events=events,
     )
+    if approval := approval_question(document, revision, events):
+        questions = collection([*questions["all"], approval])
     return DocumentReading(
         document=document,
         projection=projection,

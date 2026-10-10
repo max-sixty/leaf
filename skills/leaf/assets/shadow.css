@@ -244,7 +244,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     + var(--lf-landing-room, 0px))) - var(--lf-landing-room, 0px)); }
 [data-lf-offer]:where(:not([data-lf-offer=""])) { cursor: pointer; }
 [data-lf-offer]:where(:not([data-lf-offer=""])):hover:where(:not([aria-disabled="true"], :disabled)) {
-  box-shadow: inset 0 0 0 100px color-mix(in srgb, var(--ink) 7%, transparent); }
+  box-shadow: var(--offer-hover-shadow); }
 [data-lf-offer]:where(:not([data-lf-offer=""])):is([aria-disabled="true"], :disabled) {
   cursor: default; opacity: .55; }
 [data-lf-offer]:where(:not([data-lf-offer=""])):is(:focus-visible, .lf-focus-visible) {
@@ -384,6 +384,11 @@ summary { align-content: center; }
           min-width: 0; overflow: hidden; white-space: nowrap;
           font-size: var(--t-6); --lf-msg-name-size: 13px; }
 .lf-msg-head .lf-msg-meta { flex: 0 1 auto; overflow: hidden; }
+.lf-primary-message > .lf-msg-head { position: relative; padding-inline-end: 5rem; }
+.lf-primary-part { position: relative; }
+.lf-primary-part[data-lf-part="reply"] { padding-block-start: max(28px, var(--aim-floor)); }
+.lf-primary-news { position: absolute; inset-block-start: 0; inset-inline-end: 0;
+          max-inline-size: 5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lf-msg-head .lf-msg-sending { min-width: 0; overflow: hidden;
           text-overflow: ellipsis; }
 .lf-msg-head b { flex: 0 1 auto; min-width: 0; overflow: hidden;
@@ -393,11 +398,10 @@ summary { align-content: center; }
    it covers. One disclosure beside that context controls the entire range. */
 .lf-thread-checkpoint { margin-block: 16px; }
 .lf-thread-checkpoint[hidden] { display: none; }
-/* The bracket joins the disclosure to exactly the messages it will hide. */
-.lf-thread-checkpoint[data-expanded="true"] { position: relative; }
-.lf-thread-checkpoint[data-expanded="true"]::before { content: ""; position: absolute;
-  inset-block: 4px; inset-inline-start: -10px; width: 6px;
-  border: 1px solid var(--muted-2); border-inline-end: 0; pointer-events: none; }
+/* An inset border groups the retained messages without changing their headers
+   or giving progress a separate background. Collapsed disclosures stay inline. */
+.lf-thread-checkpoint[data-expanded="true"] { margin-block: 12px;
+  border: 1px solid var(--rule); border-radius: 5px; padding: 6px 12px; }
 .lf-summary-checkpoint { padding-block: 4px; }
 /* Keep the context label readable when the disclosure needs another line. */
 .lf-summary-header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
@@ -416,9 +420,9 @@ summary { align-content: center; }
 .lf-msg-head > .lf-thread-disclosure { padding-block: 0; }
 .lf-thread-disclosure:hover { text-decoration: underline; text-underline-offset: 3px; }
 .lf-summary-required { margin-top: 6px; color: var(--turn-ink); font: 600 11px/1.4 var(--sans); }
-.lf-summary-originals { min-width: 0; padding-inline-start: 12px; }
+.lf-summary-originals { min-width: 0; }
 .lf-summary-originals[hidden] { display: none; }
-.lf-summary-originals > .lf-msg { margin-block: 16px; }
+.lf-summary-originals > .lf-msg { margin-block: 8px; }
 .lf-thread-disclosure:is(:focus-visible, .lf-focus-visible) {
   outline: var(--focus-ring); --lf-focus-ring: summary-fold;
   outline-offset: calc(-1 * var(--focus-ring-w)); }
@@ -1124,22 +1128,25 @@ pre:hover + .lf-code-copy,
   .lf-code-copy { display: none; }
 }
 
-/* A thread's reply is one field on every surface; its container decides where it stands.
-   The wrapper wears the border and focus band around the editor and its Send action. */
-.lf-thread-reply { display: block; margin-top: var(--sp-3); min-width: 0; }
-.lf-thread-reply .lf-compose-field {
-          --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px);
+/* Standard comment boxes share one frame around their editor and Send. Other
+   uses of the shared editor plumbing, such as option entry and the extended
+   anchored response control, supply their own face. Containers place comment
+   boxes; they do not supply a second frame. */
+.lf-comment-box > .lf-compose-field {
           border: 1px solid var(--border-2);
-          border-radius: 6px; background: var(--card); }
-.lf-thread-reply .lf-compose-field:has(> leaf-text:is(:focus, .lf-focus)) {
+          border-radius: var(--r); background: var(--card); }
+.lf-comment-box > .lf-compose-field:has(> leaf-text:is(:focus, .lf-focus)) {
           outline: var(--focus-ring); --lf-focus-ring: text-box;
           outline-offset: 0; border-color: transparent; }
-.lf-thread-reply .lf-compose-field > leaf-text { display: block; min-width: 0;
+.lf-comment-box > .lf-compose-field > leaf-text {
           padding: 8px var(--lf-compose-pad-inline-start);
           border: 0; border-radius: 0; background: transparent;
           color: var(--ink); font: var(--t-5)/1.5 var(--sans);
           max-height: 50vh; overflow-y: auto; }
-.lf-thread-reply .lf-compose-field > leaf-text:is(:focus, .lf-focus) { outline: none; }
+.lf-comment-box > .lf-compose-field > leaf-text:is(:focus, .lf-focus) { outline: none; }
+.lf-thread-reply { display: block; margin-top: var(--sp-3); min-width: 0; }
+.lf-thread-reply .lf-compose-field {
+          --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px); }
 
 .lf-msg-body a.detached { color: var(--muted-2); text-decoration: underline dashed; cursor: default; }
 .lf-msg-body.lf-suggest-body { white-space: pre-wrap; }

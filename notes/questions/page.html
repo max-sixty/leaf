@@ -69,7 +69,7 @@
         <lf-toc id="questions-contents" max-level="2"></lf-toc>
       </aside>
       <header id="questions-introduction">
-        <p class="proposal">Implemented locally · Claude review complete</p>
+        <p class="proposal">Implementation complete · Claude review complete</p>
         <h1>Questions contain their answers</h1>
         <p class="contract">
           A <strong>Question</strong> is one logical record containing the request, its
@@ -210,23 +210,25 @@
               <td><code>id</code></td>
               <td>
                 Stable source coordinate: <code>widget:&lt;widget-id&gt;</code> or
-                <code>reply:&lt;message-id&gt;</code>. The kind prevents a widget id
-                from colliding with a message id. A presentation wrapper has its own
+                <code>reply:&lt;message-id&gt;</code>, or
+                <code>approval:v&lt;version&gt;</code>. The kind keeps widget, message
+                and version identities distinct. A presentation wrapper has its own
                 element id, but does not replace this identity.
               </td>
             </tr>
             <tr>
               <td><code>source</code></td>
               <td>
-                The widget or thread/message that owns the canonical input and answer.
-                This is also where commands are admitted.
+                The widget, thread/message, or stamped version that owns the canonical
+                input and answer. This is also where commands are admitted.
               </td>
             </tr>
             <tr>
               <td><code>thread</code></td>
               <td>
                 The containing thread’s id for a prose question or a widget frozen into
-                a thread message; <code>null</code> for a page widget.
+                a thread message; <code>null</code> for a page widget or version
+                approval.
               </td>
             </tr>
             <tr>
@@ -269,10 +271,12 @@
           by the source family for its views and is never parsed back into data. It is
           not a semantic field or independent answer API. For a widget, the declaration
           selects its answer coordinates; for prose, the answer contains the settling
-          message or reaction and its event reference. <code>x-awaits.value</code> names
-          the state verb supplying a widget’s typed answer, separately from
-          <code>x-awaits.answered</code>. A record verb supplies its value; a custom
-          verb supplies its structured detail.
+          message or reaction and its event reference. A version approval uses
+          <code>source: {kind: "approval", version: N}</code> and a typed
+          <code>answer.value === true</code> once approved.
+          <code>x-awaits.value</code> names the state verb supplying a widget’s typed
+          answer, separately from <code>x-awaits.answered</code>. A record verb supplies
+          its value; a custom verb supplies its structured detail.
         </p>
         <p>
           A partial value can appear in <code>answer</code> while
@@ -287,8 +291,10 @@
         <ol>
           <li>
             <strong>The source declares the request.</strong> Authored widget state or
-            an agent’s thread message establishes the Question. Standalone widgets
-            participate automatically when their declarations say they are asking.
+            an agent’s thread message establishes the Question. A stamped version
+            declaring required sign-off establishes its approval Question. Standalone
+            widgets participate automatically when their declarations say they are
+            asking.
           </li>
           <li>
             <strong>Core publishes the Question.</strong> It combines authored state and
@@ -302,8 +308,9 @@
           </li>
           <li>
             <strong>The user acts through the source’s command.</strong> A selection,
-            edit, reply or reaction uses the existing admitted write path. A second view
-            invokes that same declared command against the same owner.
+            edit, reply, reaction or version approval uses the existing admitted write
+            path. A second view invokes that same declared command against the same
+            owner.
           </li>
           <li>
             <strong>The publication changes.</strong> The source’s state supplies the
@@ -315,13 +322,14 @@
           Pending input draws its semantic result immediately through the existing local
           ledger. Widget Question membership and completion move when the POST’s
           authoritative reading arrives; a pending conversational send can hand
-          attention to the agent immediately. Refusal restores the admitted state. The
-          record does not introduce a second fold or a second settlement decision.
+          attention to the agent immediately. Version approval and its undo update that
+          Question’s answer and status immediately. Refusal restores the admitted state.
+          The record does not introduce a second fold or a second settlement decision.
         </p>
       </section>
 
       <section id="questions-examples">
-        <h2>The same model in five situations</h2>
+        <h2>The same model in six situations</h2>
         <table id="questions-cases">
           <thead>
             <tr>
@@ -360,6 +368,15 @@
               <td>
                 The existing conversation rule settles the preceding questions. A closed
                 thread without a reply does not fabricate an answer.
+              </td>
+            </tr>
+            <tr>
+              <td>A stamped version requests sign-off</td>
+              <td>Null until approved; then typed true with the approval event.</td>
+              <td>
+                The banner's Approve answers that version's Question. Undo reopens it,
+                and a refused approval restores the admitted state. Arrival reaches the
+                actual approval control. This creates no work task.
               </td>
             </tr>
             <tr>
@@ -489,8 +506,8 @@ await questionActions.open(question.id);</code></pre>
         <h2>Implemented behavior and checks</h2>
         <ul>
           <li>
-            One canonical Question inventory includes widget and prose questions. Every
-            reader selects from it.
+            One canonical Question inventory includes widget, prose and version approval
+            questions. Every reader selects from it.
           </li>
           <li>
             Standalone widgets work without <code>lf-ask</code>; adding a context
@@ -664,11 +681,9 @@ await questionActions.open(question.id);</code></pre>
               of widget Questions.
             </li>
             <li>
-              <strong>Parallel ownership:</strong> the Approval chat in
-              <code>c568</code>, thread-view work in <code>8dbe</code>, and
-              <a href="https://github.com/max-sixty/leaf/pull/2166">PR 2166</a> touch
-              shared files. Their separate behaviors remain with their owners; these
-              changes require integration when combined.
+              <strong>Main integration:</strong> required version approval and canonical
+              conversation APIs are incorporated. Approval is another Question source
+              and keeps its exact stamped-version identity.
             </li>
             <li>
               <strong>Prose withdrawal:</strong> the already approved rule applies: an

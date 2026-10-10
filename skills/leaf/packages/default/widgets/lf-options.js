@@ -153,11 +153,14 @@ customElements.define(
       const authored = [...group.querySelectorAll(":scope > lf-option")].filter(
         (option) => picked.has(option.id) && !added.some(([id]) => id === option.id),
       );
-      return [
-        ...authored.map((option) => label(option) || option.id),
-        ...added.filter(([id]) => picked.has(id))
-          .map(([, { detail }]) => markdownWords(detail.text)),
-      ].join(", ") || "No options selected";
+      return (
+        [
+          ...authored.map((option) => label(option) || option.id),
+          ...added
+            .filter(([id]) => picked.has(id))
+            .map(([, { detail }]) => markdownWords(detail.text)),
+        ].join(", ") || "No options selected"
+      );
     }
 
     #addition = null;

@@ -31,6 +31,8 @@ Done or an agent end. Questions are separate canonical records (`questions`),
 selected directly by work queues, never synthesized into tasks. The existing
 `task_end` write can also withdraw an open prose request by its Question id or
 source-message id; that withdraws the request without recording a user answer.
+A stamped document declaring `lf-review=sign-off` adds an approval Question
+for that exact public version; only its unwithdrawn approval answers it.
 
 A start lasts until its item ends: a task's end, or for a move the reply or stamped
 version that answers it (`workflows.canonical_workflows`), and it holds its item
@@ -306,6 +308,11 @@ def task_error(
             None,
         )
         if question is not None:
+            if question["source"]["kind"] == "approval":
+                return (
+                    f"Question {identity!r} requires the user's approval of "
+                    f"v{question['source']['version']}; it ends at the page's Approval control"
+                )
             if question["source"]["kind"] == "widget":
                 return f"{identity!r} is a widget Question; its source owns the answer, so retire it in the document"
             if event["author"] != "agent":

@@ -8,7 +8,9 @@
  * what holds it there, so the page still answers for the upgrade as an arrival of its
  * own. A click on either image keeps
  * the quick endpoint toggle, while a click on the handle only puts the user on it.
- * Print stacks both frames.
+ * Separate Open before / Open after links inspect either full-size image in the
+ * shared media viewer; modified presses keep their native link destination.
+ * Both rail rows are reserved before upgrade. Print stacks both frames.
  *
  * Once the page has presented, the widget compares the two images pixel for pixel
  * (`runtime/image-difference.js` owns what counts as a difference) and puts its
@@ -22,7 +24,7 @@
  * Pairs compare one per frame, so a page of large captures does not hold input for the
  * whole batch.
  *
- * One two-ended rail stays fixed above the frames while CSS moves its active rule. Its
+ * One two-ended rail sticks above the visible frames while CSS moves its active rule. Its
  * labels are generated page words, available to selection, and become the order key
  * above the two stacked frames on paper.
  * A parent that reuses the aligned frames under another inspector sets
@@ -79,6 +81,7 @@ customElements.define(
     #chose = false;
     #frames = [];
     #captions = new Map();
+    #openers = new Map();
     #settleDifference;
     difference = new Promise((resolve) => {
       this.#settleDifference = resolve;
@@ -118,6 +121,13 @@ customElements.define(
         frame.append(img);
         this.#frames.push(frame);
         this.append(frame);
+
+        const open = offer("a", "lf-media-open lf-shot-open", `Open ${state}`);
+        open.dataset.lfShotOpen = state;
+        open.href = img.src;
+        open.dataset.lfMediaUrl = img.src;
+        this.#openers.set(state, open);
+        rail.append(open);
       }
 
       const box = offer("input", "lf-shotflip", undefined, "checkbox");
@@ -188,8 +198,14 @@ customElements.define(
       this.#alt = this.getAttribute("alt");
       for (const [state, caption] of this.#captions)
         keeps(caption, "aria-label", `${state} — ${this.#alt}`);
-      for (const frame of this.#frames)
-        frame.querySelector("img").alt = `${frame.dataset.lfState}: ${this.#alt}`;
+      for (const frame of this.#frames) {
+        const state = frame.dataset.lfState;
+        const alt = `${state}: ${this.#alt}`;
+        frame.querySelector("img").alt = alt;
+        const open = this.#openers.get(state);
+        open.dataset.lfMediaAlt = alt;
+        keeps(open, "aria-label", `Open ${state} image — ${this.#alt}`);
+      }
       keeps(this.#box, "aria-label", `Compare before and after — ${this.#alt}`);
       this.#paint();
       this.#margin?.update();
@@ -305,8 +321,8 @@ customElements.define(
     // Each region is placed in shares of the pair's frame, the natural width by the
     // taller image's height that `--lf-shot-ratio` sizes, so the marks scale with the
     // images at every width.
-    #markDifference(shots) {
-      const reading = compareImages(...shots);
+    async #markDifference(shots) {
+      const reading = await compareImages(...shots);
       const { width, height, regions } = reading;
       const share = (length, whole) => `${(100 * length) / whole}%`;
       for (const frame of this.#frames) {

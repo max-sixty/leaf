@@ -17,7 +17,11 @@ export const questionEntry = (question) => registry[question?.source.tag]?.["x-a
 // no admitted reading nothing says which Questions still stand, and this answers null.
 export function approvalBlockingQuestions() {
   const reading = readQuestions();
-  return reading.phase === "ready" ? reading.unanswered.filter((question) => question.source.kind === "widget" && question.next_actor !== null) : null;
+  return reading.phase === "ready"
+    ? reading.unanswered.filter(
+        (question) => question.source.kind === "widget" && question.next_actor !== null,
+      )
+    : null;
 }
 
 export function watchQuestions(owner, callback) {

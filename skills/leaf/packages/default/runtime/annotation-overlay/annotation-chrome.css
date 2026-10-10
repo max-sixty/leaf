@@ -137,7 +137,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-visual-mark-shape { display: block; width: 100%; height: 100%; overflow: hidden; }
   .lf-fab-bar:not([data-lf-presentation="inline"]) .lf-composer-media {
     grid-column: 1; grid-row: 1; min-width: 42px; }
-  /* margin-projection.js writes the width and height cap the card's placement gives it
+  /* thread-preview.js writes the width and height cap the card's placement gives it
      (comment-placement.js); these are the fallbacks for a card no placement has sized
      yet, so only they are held to the viewport. The selected thread's transcript is
      the card's reading scroller; metadata and reply stand outside it. Anchored to what
@@ -148,7 +148,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-preview { position: fixed; pointer-events: auto;
     z-index: var(--lf-z-margin-preview);
     /* As wide as its thread, between the bounds its placement gives it
-       (margin-projection.js, `placeThreadPreview`). */
+       (thread-preview.js, `placeThreadPreview`). */
     width: max-content;
     min-width: var(--lf-thread-min-width, 0);
     max-width: var(--lf-thread-width, min(var(--thread-card), calc(100vw - 16px)));
@@ -159,7 +159,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     border: 1px solid var(--border-2); border-radius: 10px;
     background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px var(--shade); }
   .lf-margin-preview:not([hidden]) { display: flex; flex-direction: column; }
-  /* Open before its first placement lands (margin-projection.js, `placeThreadPreview`),
+  /* Open before its first placement lands (thread-preview.js, `placeThreadPreview`),
      the card has no spot yet, so it is not seen or pressed where it happens to lie. */
   .lf-margin-preview:not([data-lf-thread-placement]) { opacity: 0; pointer-events: none; }
   /* The card is the thread's one frame. The thread fills it with no ground or ring of its
@@ -190,7 +190,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   }
   .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body {
     display: flex; flex-direction: column; min-height: 0;
-    box-sizing: border-box; width: min(100%, calc(var(--lf-comment-message-width) - var(--lf-thread-text-inset)));
+    box-sizing: border-box; width: min(100%, calc(var(--lf-comment-message-measure) + var(--lf-comment-text-pad-end)));
     margin-top: var(--lf-comment-body-gap);
   }
   /* Only the submitted words inherit the editor's viewport. Message metadata,

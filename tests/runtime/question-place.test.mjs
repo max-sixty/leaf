@@ -4,7 +4,8 @@ import { questionPlace } from "/runtime/questions/place.js";
 import { questionHolding } from "/runtime/standing-target.js";
 
 test("shared context keeps placement and containment specific to each Question", () => {
-  document.body.innerHTML = '<section id="context"><div id="first"><button>One</button></div><div id="second"><button>Two</button></div></section>';
+  document.body.innerHTML =
+    '<section id="context"><div id="first"><button>One</button></div><div id="second"><button>Two</button></div></section>';
   const question = (id) => ({
     id: `widget:${id}`,
     source: { kind: "widget", id },

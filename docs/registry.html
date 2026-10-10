@@ -215,13 +215,12 @@
             <h3><code>x-content</code></h3>
             <div class="reference-copy">
               <p>
-                The content model: <code>markup</code> (children are the author's
-                markup), <code>members</code> (children are this element's own member
-                elements and nothing else), <code>data</code> (one &lt;pre&gt; holding
-                text in the notation the description names, with &amp; &lt; &gt; escaped
-                as &amp;amp; &amp;lt; &amp;gt; — &lt;pre&gt; because it is the only
-                thing in HTML that says whitespace is load-bearing without a stylesheet
-                to read), or <code>empty</code>. Required.
+                The required content model: <code>markup</code> (the author's markup),
+                <code>members</code> (only this element's declared member elements),
+                <code>data</code> (one &lt;pre&gt; containing text in the notation the
+                description names), or <code>empty</code>. A data body uses &lt;pre&gt;
+                to preserve whitespace without CSS, with &amp; &lt; &gt; escaped as
+                &amp;amp; &amp;lt; &amp;gt;.
               </p>
             </div>
           </section>
@@ -260,13 +259,10 @@
             <h3><code>x-exhibit</code></h3>
             <div class="reference-copy">
               <p>
-                The element quotes what it holds rather than speaking it — a mention,
-                not a use: interactive widgets inside take no input (a choose group no
-                clicks, a board no drags, a suggestion no decision), and a Question
-                inside it counts for nothing. A module asks
-                <code>quoted(el)</code> before wiring any input, and the theme's
-                affordance rules — the hand, the lift, the joined shape — stand down
-                inside it on their own.
+                The element displays quoted content: nested widgets are not interactive,
+                and nested Questions do not enter the user's queue. Modules check
+                <code>quoted(el)</code> before enabling input. The theme suppresses
+                interactive styling inside quoted content.
               </p>
             </div>
           </section>
@@ -496,15 +492,15 @@
             <h3><code>x-paints</code></h3>
             <div class="reference-copy">
               <p>
-                Attributes the theme renders as paint alone — for example, a status
-                marker's tint.
+                Attributes the theme represents visually, such as a status marker's
+                tint.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-paints contract">Full contract</summary>
                 <p>
-                  The runtime speaks each to a user listening (the value, or a flag
-                  attribute's own name), silently on screen and out of every selection,
-                  so a fact stated in ink is not silent to whoever cannot see it.
+                  The runtime adds screen-reader text for each declared attribute, using
+                  its value or, for an empty flag attribute, its name. This text is
+                  visually hidden and excluded from text selection.
                 </p>
               </details>
             </div>
@@ -673,21 +669,18 @@
             <h3><code>x-says</code></h3>
             <div class="reference-copy">
               <p>
-                Attributes whose values the user sees as words, and where each renders.
+                Attributes whose values render as selectable text, and where that text
+                appears.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-says contract">Full contract</summary>
                 <p>
-                  <code>after</code> goes inside the element's own content, ahead of the
-                  apparatus that ends it, so a word does not land on the far side of a
-                  control that closes the row. <code>before</code> goes at the element's
-                  start, ahead of chrome as well: leading chrome is not something the
-                  words stand beside, it is a module speaking for the whole element, so
-                  an element's opening words go above it; where a declaration names two
-                  at that edge they render in the order the declaration lists them. The
-                  runtime writes them as selectable text the user can quote and comment
-                  on, where <code>content: attr()</code> would paint glyphs into no text
-                  node.
+                  <code>after</code> places the text inside the element, after its
+                  content and before trailing controls. <code>before</code> places it at
+                  the start, before content and controls; multiple
+                  <code>before</code> attributes render in declaration order. The
+                  runtime creates text nodes so the user can select, quote, and comment
+                  on these words; CSS <code>content: attr()</code> cannot provide that.
                 </p>
               </details>
             </div>
@@ -991,25 +984,21 @@
             <h3><code>x-word</code></h3>
             <div class="reference-copy">
               <p>
-                What x-word declares: this tag's own word for what it is comes from its
-                module, which answers <code>lfWord()</code> on the element, rather than
-                from the tag's name.
+                The module supplies the widget's type label through
+                <code>lfWord()</code>.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-word contract">Full contract</summary>
                 <p>
-                  Almost no widget declares it, and none needs to while one tag is one
-                  kind of thing: a name away from the page is then the tag with its
-                  prefix dropped. It is wrong where a tag holds several kinds. Every
-                  shape of lf-suggestion came out as "suggestion", so a row in the
-                  Questions panel named a deletion by the words it proposed to remove
-                  and read exactly like the insertion above it. The word is asked for
-                  wherever the page names an element away from itself — a drawer row, a
-                  comment's anchor label — and an element that has not upgraded yet, or
-                  answers nothing, falls back to the tag. The same declaration lets the
-                  module answer <code>lfSays()</code> with its own words, for a tag
-                  whose text nodes run together away from its paint (a rewrite's old and
-                  new); an element answering nothing is read as text.
+                  For example, <code>lf-suggestion</code> returns "insertion",
+                  "deletion", or "rewrite" according to its children. Leaf uses this
+                  label when referring to the widget in a panel row or comment anchor.
+                  If the widget has not upgraded, returns no label, or does not declare
+                  x-word, Leaf uses the tag name without its prefix. The same
+                  declaration lets the module supply descriptive text through
+                  <code>lfSays()</code>, for widgets whose text nodes alone do not
+                  convey their structure, such as a rewrite's old and new text. If no
+                  description is returned, Leaf reads the element's text.
                 </p>
               </details>
             </div>

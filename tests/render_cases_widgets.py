@@ -695,7 +695,7 @@ LONG_LINE_DIFF_PAGE = leaf_page(
     "patch",
     "<h1 id='t'>Review</h1>"
     + _filler("lead", 30)
-    + '<lf-diff id="patch" source="review-patch" review><pre></pre></lf-diff>'
+    + '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>'
     + _filler("tail", 30),
 )
 
@@ -705,7 +705,7 @@ PANE_DIFF_PAGE = leaf_page(
     "pane patch",
     "<header><h1 id='t'>Review</h1></header>"
     '<lf-pane id="patch-pane" label="Patch"><header><h2>Patch</h2></header>'
-    '<lf-diff id="patch" source="review-patch" review><pre></pre></lf-diff></lf-pane>',
+    '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff></lf-pane>',
     layout="workspace",
 )
 
@@ -780,10 +780,7 @@ DIFF_ROW_FILL = """() => {
     return out;
 }"""
 
-# Where each file's row starts against its own wrapper. The review press stands ahead of
-# the row and the row is pulled back up over it, so the row starts where it would with no
-# press at all — zero — on screen, and on paper, where an unreviewed press is not drawn
-# and there is nothing for the pull to take back.
+# Each file header begins at its wrapper in screen and print media.
 DIFF_ROW_PLACEMENT = """() => {
     const root = document.querySelector('lf-diff').shadowRoot;
     const files = [...root.querySelectorAll('.lf-diff-file')];
@@ -799,19 +796,19 @@ DIFF_ROW_PLACEMENT = """() => {
 # where the keyboard just landed. One pass, because every number here means something only
 # against the others. With nothing focused it answers for the first file, so the same
 # reading covers a page nobody has pressed a key on yet.
-# The first file's review press against its own header, and what a pointer at the
+# The first file's comment press against its own header, and what a pointer at the
 # press's centre would reach. Read through the shadow root, which is the tree the press
 # is in.
 DIFF_PRESS = """() => {
     const root = document.querySelector('lf-diff').shadowRoot;
     const file = root.querySelector('.lf-diff-file');
-    const box = file.querySelector('.lf-diff-review').getBoundingClientRect();
+    const box = file.querySelector('.lf-diff-file-comment').getBoundingClientRect();
     const head = file.querySelector('summary').getBoundingClientRect();
     const hit = root.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
     return { top: Math.round(box.top), bottom: Math.round(box.bottom),
              headTop: Math.round(head.top),
              fileBottom: Math.round(file.getBoundingClientRect().bottom),
-             hit: hit && hit.classList.contains('lf-diff-review') ? 'review'
+             hit: hit && hit.closest('.lf-diff-file-comment') ? 'comment'
                 : hit && (hit.localName + '.' + hit.className) };
 }"""
 

@@ -6,14 +6,12 @@ import threading
 from copy import deepcopy
 from datetime import datetime, timedelta
 from itertools import pairwise
-from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
 from interact_support import (
     COMMAND_HUB_PACKAGE,
     ROOT,
-    SHIPPED_PACKAGES,
     add_test_widget,
     append_carried_log_record,
     append_command,
@@ -31,11 +29,11 @@ from leaf import http as http_model
 from leaf import render_checks as render_checks_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
+from leaf.registry import storage as registry_storage
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
 from leaf.render_gate.readings import DevtoolsIssues
-from leaf.validation import compatibility as validation_model
 from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -210,15 +208,14 @@ def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, 
 <p id="agent-summary">The reviewer found one changed request path.</p>
 <lf-pr-brief id="reviewed-pr" source="pr-1842"></lf-pr-brief>
 """,
+        head='<style>@import url("/page/theme.css");</style>',
     )
     url = serve(
         authored,
-        packages=(
-            "~/"
-            + (ROOT / "examples/pr-walkthrough.page")
-            .relative_to(Path.home())
-            .as_posix(),
-        ),
+        packages=(ROOT / "examples/pr-walkthrough.page",),
+        page_files={
+            "theme.css": (ROOT / "examples/pr-walkthrough.page/theme.css").read_text()
+        },
     )
     record = {
         "repository": "acme/leaf",
@@ -256,6 +253,21 @@ def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, 
     expect(card).to_contain_text("main → retry-ledger · revision 8f3b2cd")
     expect(card.locator(".pr-description h4")).to_have_text("Author's description")
     description = card.locator(".pr-description > div")
+    paragraphs = description.locator(":scope > p")
+    assert paragraphs.count() >= 2
+    first, second = paragraphs.nth(0).bounding_box(), paragraphs.nth(1).bounding_box()
+    assert second["y"] > first["y"] + first["height"]
+    spacing = card.evaluate("""el => {
+      const description = el.querySelector('.pr-description');
+      const body = description.querySelector(':scope > div');
+      return {
+        heading: getComputedStyle(description.querySelector('h4')).marginBlockStart,
+        observed: getComputedStyle(el.querySelector('.pr-observed')).marginBlockStart,
+        first: getComputedStyle(body.firstElementChild).marginBlockStart,
+        last: getComputedStyle(body.lastElementChild).marginBlockEnd,
+      };
+    }""")
+    assert spacing == dict.fromkeys(("heading", "observed", "first", "last"), "0px")
     expect(description.locator("strong")).to_have_text("Retries")
     expect(description.locator("code")).to_have_text("Vec<T>")
     expect(description.get_by_role("link", name="retry notes")).to_have_attribute(
@@ -351,12 +363,7 @@ def test_pr_review_observed_age_refreshes_without_a_data_change(browser, serve):
     )
     url = serve(
         authored,
-        packages=(
-            "~/"
-            + (ROOT / "examples/pr-walkthrough.page")
-            .relative_to(Path.home())
-            .as_posix(),
-        ),
+        packages=(ROOT / "examples/pr-walkthrough.page",),
     )
     data_model.cmd_data_set(
         serve.page_dir,
@@ -402,12 +409,7 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve, recon
     )
     url = serve(
         authored,
-        packages=(
-            "~/"
-            + (ROOT / "examples/pr-walkthrough.page")
-            .relative_to(Path.home())
-            .as_posix(),
-        ),
+        packages=(ROOT / "examples/pr-walkthrough.page",),
     )
     data_model.cmd_data_set(
         serve.page_dir,
@@ -717,7 +719,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
 <h1 id="title">Request call change</h1>
 <pre id="code-surface">reference code surface</pre>
 <lf-call-diff id="request-calls" source="request-call-diff" diff="patch"></lf-call-diff>
-<lf-diff id="patch" source="review-patch" collapsed review><pre></pre></lf-diff>
+<lf-diff id="patch" source="review-patch" collapsed><pre></pre></lf-diff>
 """,
     )
     url = serve(authored, packages=("diff",))
@@ -790,7 +792,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     assert lines.nth(0).evaluate("line => line.scrollWidth <= line.clientWidth")
     # Ordinary buttons keep the same ink on tinted document and shadow surfaces.
     colors = []
-    for control in (".lf-call-toggle", ".lf-diff-next", ".lf-diff-review"):
+    for control in (".lf-call-toggle", ".lf-diff-file-comment"):
         colors.append(
             page.locator(control).first.evaluate("""button => {
             const parent = button.parentElement;
@@ -802,7 +804,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
             return [before, tinted];
         }""")
         )
-    assert len({color for pair in colors for color in pair}) == 1, colors
+    assert all(before == tinted for before, tinted in colors), colors
     widget.locator(".lf-call-toggle").click()
     expect(group).not_to_have_attribute("open", "")
     expect(widget.locator(".lf-call-toggle")).to_have_text("Expand all")
@@ -2123,13 +2125,11 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     assert reopened["y"] == pytest.approx(datum["y"] + datum["height"] + 8, abs=2)
 
 
-def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
-    browser, serve
-):
+def test_a_large_diff_filters_and_navigates_lazy_files(browser, serve):
     authored = leaf_page(
         "large diff review",
         '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
-        "collapsed review><pre></pre></lf-diff>",
+        "collapsed><pre></pre></lf-diff>",
     )
     url = serve(authored)
     manifest = {
@@ -2156,49 +2156,18 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
     diff = page.locator("#patch")
     progress = diff.locator(".lf-diff-progress")
     summaries = diff.locator("summary")
-    reviews = diff.locator(".lf-diff-review")
-
-    expect(progress).to_have_text("0 of 3 reviewed")
+    expect(progress).to_have_text("3 files")
     expect(summaries).to_have_count(3)
-    expect(reviews).to_have_count(3)
     expect(diff.locator("[data-line]")).to_have_count(0)
 
-    reviews.nth(0).click()
-    round_trip(page)
-    expect(reviews.nth(0)).to_have_attribute("aria-pressed", "true")
-    expect(reviews.nth(0)).to_have_text("✓ Reviewed")
-    expect(progress).to_have_text("1 of 3 reviewed")
-    event = actions(serve.page_dir)[-1]
-    assert event["widget"] == "patch"
-    assert event["action"] == "review"
-    assert event["detail"] == {"file": "src/first.py", "reviewed": True}
-
-    # A source refresh rebuilds the file shells. The current reviewed set comes back
-    # from the action projection rather than from those replaced nodes.
+    # A source refresh rebuilds file shells; lazy rows inherit its new revision.
     refreshed = json.loads(json.dumps(manifest))
     refreshed["files"][0]["additions"] = 2
     data_model.cmd_data_set(serve.page_dir, "review-patch", refreshed)
     refreshed_revision = source_revision(serve.page_dir, "review-patch")
     told(page)
-    reviews = diff.locator(".lf-diff-review")
-    expect(reviews.nth(0)).to_have_text("✓ Reviewed")
-
-    page.reload(wait_until="load")
-    page.wait_for_function(
-        "() => document.querySelector('lf-diff.lf-rendered') !== null"
-    )
-    diff = page.locator("#patch")
-    summaries = diff.locator("summary")
-    reviews = diff.locator(".lf-diff-review")
-    progress = diff.locator(".lf-diff-progress")
-    expect(reviews.nth(0)).to_have_text("✓ Reviewed")
-    expect(progress).to_have_text("1 of 3 reviewed")
-
-    next_unreviewed = diff.locator(".lf-diff-next")
-    next_unreviewed.click()
-    expect(summaries.nth(1)).to_be_focused()
-    next_unreviewed.click()
-    expect(summaries.nth(2)).to_be_focused()
+    summaries.nth(1).click()
+    summaries.nth(2).click()
     expect(diff.locator("[data-line]")).to_have_count(4)
     origins = diff.locator("[data-lf-origin]").evaluate_all(
         "nodes => nodes.map(node => JSON.parse(node.dataset.lfOrigin))"
@@ -2225,7 +2194,7 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
     expect(summaries.nth(0)).to_be_hidden()
     expect(summaries.nth(1)).to_be_visible()
     expect(summaries.nth(2)).to_be_hidden()
-    expect(progress).to_have_text("1 of 3 reviewed · 1 matching")
+    expect(progress).to_have_text("1 of 3")
 
     # The frame belongs to the diff, not to the query value globally. Leaving the widget
     # retires it: Escape over page prose must not clear a hidden filter or pull focus back.
@@ -2252,16 +2221,13 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
 
     page.keyboard.press("/")
     search.fill("second")
-    expect(progress).to_have_text("1 of 3 reviewed · 1 matching")
+    expect(progress).to_have_text("1 of 3")
 
     summaries.nth(1).focus()
-    page.keyboard.press("Alt+ArrowDown")
+    page.keyboard.press("}")
     expect(summaries.nth(1)).to_be_focused()
     expect(diff.locator("details").nth(1)).to_have_attribute("open", "")
     expect(diff.locator("[data-line]")).to_have_count(4)
-    reviews.nth(1).click()
-    round_trip(page)
-    expect(progress).to_have_text("2 of 3 reviewed · 1 matching")
 
     resized(page, 390, 900)
     assert root_overflow(page) == 0
@@ -2277,12 +2243,10 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
     expect(diff.locator(".lf-diff-tools")).to_be_hidden()
     for index in range(3):
         expect(summaries.nth(index)).to_be_visible()
-    expect(reviews.nth(0)).to_be_visible()
-    expect(reviews.nth(2)).to_be_hidden()
     page.emulate_media(media="screen")
 
 
-def test_a_diff_without_review_tracking_keeps_the_browsing_tools(browser, serve):
+def test_a_diff_counts_and_filters_inline_files(browser, serve):
     authored = leaf_page(
         "diff evidence",
         """
@@ -2315,9 +2279,7 @@ diff --git a/tests/second.py b/tests/second.py
     diff = page.locator("#patch")
 
     expect(page.locator("#single .lf-diff-progress")).to_have_text("1 file")
-    expect(diff.locator(".lf-diff-review, .lf-diff-next")).to_have_count(0)
     expect(diff.locator(".lf-diff-progress")).to_have_text("2 files")
-    expect(diff.locator(".lf-diff-wrap")).to_be_visible()
     search = diff.locator(".lf-diff-search input")
     search.fill("second")
     expect(diff.locator(".lf-diff-progress")).to_have_text("1 of 2")
@@ -2466,12 +2428,12 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
 @pytest.mark.watch_shifts
 @pytest.mark.parametrize("width", [1200, 390], ids=["desktop", "narrow"])
 def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve, width):
-    """Growing inline news waits without moving the user's simultaneous places.
+    """Live news keeps the user's simultaneous reading, editing, and pointer places.
 
     The following passage and editor are visible below the reply's insertion point.
-    Status paints immediately, a reply paints its fixed-row notice, and the revision
-    paints its offer while composition holds the current document. Opening the tall
-    reply proves this was growth the user would have seen without the hold.
+    Status paints immediately and a tall reply waits behind its fixed-row notice.
+    An unrelated source revision arrives while retaining the editor and restoring the
+    page's reading position. Opening the reply proves the notice held genuine growth.
     """
     source = SEATED_QUESTION_PAGE.replace(
         "</main>",
@@ -2557,9 +2519,8 @@ def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve, wi
         ).replace('<h1 id="h">', '<p id="new-context">New context.</p><h1 id="h">')
     )
     told(page)
-    expect_banner_control_offered(page.locator(".lf-latest-chip"))
-    expect(page).to_have_title("seated question")
-    expect(page.locator("#new-context")).to_have_count(0)
+    expect(page).to_have_title("Jobs updated")
+    expect(page.locator("#new-context")).to_have_count(1)
     rendered(page)
     kept()
 
@@ -2956,12 +2917,8 @@ def test_a_prose_revision_takes_only_the_words_it_rewrote(browser, serve):
     A native selection and the element a page was handed belong to nodes rather than
     markup. The selection still reads what it read over the same text node, the
     element is still the element, and the picker says the page moved. Focus follows
-    the user's route through More to the new-page control.
-
-    A standing selection is a composition, so the page waits rather than moving under
-    the user mid-sentence. This is the user releasing that hold themselves, which
-    is the one way the case can be reached and the way it is met in practice: they see
-    a new page is available and ask for it while their selection stands.
+    the user's route through the page. An unrelated rewrite arrives automatically
+    because the selected passage's complete authored scope remains unchanged.
     """
     first = leaf_page(
         "Prose first",
@@ -2996,11 +2953,6 @@ def test_a_prose_revision_takes_only_the_words_it_rewrote(browser, serve):
 
     (serve.page_dir / "index.html").write_text(second)
     told(page)
-    expect(page).to_have_title("Prose first")
-    chip = page.locator(".lf-latest-chip")
-    expect_banner_control_offered(chip)
-    banner_control(page, ".lf-latest-chip").click()
-
     expect(page).to_have_title("Prose second")
     expect(page.locator("#pr-edited")).to_have_text(
         "The cutover finished on the second attempt."
@@ -3017,9 +2969,7 @@ def test_a_prose_revision_takes_only_the_words_it_rewrote(browser, serve):
         "sameNode": True,
         "sameElement": True,
     }, f"the revision took something the user was holding: {standing}"
-    # The retained selection still names a commentable passage after the user
-    # leaves the menu; the menu gesture itself need not keep a composer open.
-    page.keyboard.press("Escape")
+    # The retained selection still names a commentable passage after the revision.
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_contain_text("account")
     banner_control(page, ".lf-version").click()
@@ -3619,6 +3569,185 @@ def test_a_revision_retires_every_declared_identity_it_removes(browser, serve):
         }"""
     )
     assert not {"gone-ask", "gone-options", "gone-yes"} & set(descriptors)
+
+
+@pytest.mark.parametrize("subject", ["paragraph", "diff", "selection"])
+def test_a_live_revision_updates_the_closed_questions_door(browser, serve, subject):
+    """Unrelated questions arrive while an anchored comment keeps its native editor."""
+    reading = (
+        '<p id="reading">Work under discussion.</p>'
+        if subject != "diff"
+        else '<lf-diff id="reading"><pre>'
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        "@@ -1 +1 @@\n-before()\n+after()\n</pre></lf-diff>"
+    )
+    first = leaf_page("Questions arriving", '<h1 id="h">Decisions</h1>' + reading)
+    questions = "".join(
+        f'<lf-ask id="question-{i}"><h2>Decision {i}?</h2>'
+        f'<lf-options id="options-{i}" choose>'
+        f'<lf-option id="yes-{i}">Yes</lf-option></lf-options></lf-ask>'
+        for i in range(3)
+    )
+    second = first.replace(reading, questions + reading)
+    page = open_page(browser, live_url(serve(first, packages=("diff",))))
+    door = page.locator(".lf-queue")
+    expect(door).to_have_text("Questions: 0")
+    target = (
+        page.locator("#reading")
+        if subject != "diff"
+        else page.locator("#reading [data-line]").last
+    )
+    if subject == "selection":
+        target.click(click_count=3)
+    else:
+        target.click(modifiers=["Alt"])
+    editor = page.locator(".lf-fab-input")
+    if subject != "selection":
+        expect(editor).to_be_focused()
+    editor.evaluate("node => { window.heldComposer = node; }")
+
+    # An empty but open composer was sufficient to hold the original report.
+    (serve.page_dir / "index.html").write_text(second)
+    expect(page.locator("lf-ask")).to_have_count(3)
+    expect(door).to_have_text("Questions: 3")
+    expect(door).to_have_attribute("aria-label", "Questions: 3 waiting on you")
+    if subject == "selection":
+        assert (
+            page.evaluate("getSelection().toString().trim()")
+            == "Work under discussion."
+        )
+    else:
+        expect(editor).to_be_focused()
+    expect(editor).to_be_in_viewport()
+    assert editor.evaluate("node => node === window.heldComposer")
+
+    write(editor, "Keep this comment while questions change.")
+    editor.evaluate("node => node.setSelectionRange(5, 9)")
+    (serve.page_dir / "index.html").write_text(first)
+    expect(page.locator("lf-ask")).to_have_count(0)
+    expect(door).to_have_text("Questions: 0")
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property(
+        "value", "Keep this comment while questions change."
+    )
+    assert editor.evaluate("node => node === window.heldComposer")
+    assert editor.evaluate("node => [node.selectionStart, node.selectionEnd]") == [5, 9]
+
+
+def test_a_live_revision_holds_a_changed_comment_anchor_scope(browser, serve):
+    """A retained paragraph is insufficient if the quote becomes ambiguous."""
+    paragraph = "<p>Work under discussion.</p>"
+    first = leaf_page(
+        "Comment scope",
+        '<h1 id="h">Decisions</h1><section id="subject">' + paragraph + "</section>",
+    )
+    second = first.replace("</section>", paragraph + "</section>").replace(
+        "</main>",
+        '<lf-ask id="question"><h2>Decision?</h2>'
+        '<lf-options id="options" choose><lf-option id="yes">Yes</lf-option>'
+        "</lf-options></lf-ask></main>",
+    )
+    page = open_page(browser, live_url(serve(first)))
+    page.locator("#subject p").click(click_count=3)
+    editor = page.locator(".lf-fab-input")
+    write(editor, "This occurrence matters.")
+
+    (serve.page_dir / "index.html").write_text(second)
+    expect_banner_control_offered(page.locator(".lf-latest-chip"))
+    expect(page.locator("#subject p")).to_have_count(1)
+    expect(page.locator(".lf-queue")).to_have_text("Questions: 0")
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", "This occurrence matters.")
+
+    editor.press("Escape")
+    expect(page.locator("#subject p")).to_have_count(2)
+    expect(page.locator(".lf-queue")).to_have_text("Questions: 1")
+
+
+def test_a_live_revision_preserves_a_reply_after_native_tab(browser, serve):
+    """Thread editing follows its log identity, independently of page-source changes."""
+    first = leaf_page(
+        "Reply continuity",
+        '<h1 id="h">Review</h1><p id="subject">Work under discussion.</p>',
+    )
+    question = (
+        '<lf-ask id="question"><h2>Decision?</h2><lf-options id="options" choose>'
+        '<lf-option id="yes">Yes</lf-option></lf-options></lf-ask>'
+    )
+    second = first.replace("</main>", question + "</main>")
+    url = serve(first)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Please review this.",
+            "anchor": {"section": "subject"},
+        },
+    )
+    page = open_page(browser, live_url(url))
+    page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-thread-summary").first.click()
+    editor = page.get_by_role("textbox", name="Reply", exact=True)
+    words = "Keep my reply while questions arrive."
+    write(editor, words)
+    editor.evaluate(
+        "node => { window.heldReply = node; node.setSelectionRange(5, 9); }"
+    )
+    editor.press("Tab")
+    send = page.locator(".lf-thread-send").filter(visible=True)
+    expect(send).to_be_focused()
+
+    (serve.page_dir / "index.html").write_text(second)
+    expect(page.locator(".lf-queue")).to_have_text("Questions: 1")
+    expect(send).to_be_focused()
+
+    third = second.replace('<p id="subject">Work under discussion.</p>', "")
+    (serve.page_dir / "index.html").write_text(third)
+    expect(page.locator("#subject")).to_have_count(0)
+    expect(send).to_be_focused()
+    assert editor.evaluate("node => node === window.heldReply")
+    expect(editor).to_have_js_property("value", words)
+    assert editor.evaluate("node => [node.selectionStart, node.selectionEnd]") == [5, 9]
+
+    # A fresh document cannot claim native retention and still waits for composition.
+    (serve.page_dir / "index.html").write_text(executable_revision(third, "reload"))
+    expect_banner_control_offered(page.locator(".lf-latest-chip"))
+    assert editor.evaluate("node => node === window.heldReply")
+    send.press("Shift+Tab")
+    expect(editor).to_be_focused()
+    editor.press("Escape")
+    page.wait_for_function("window.heldReply === undefined")
+    expect(page.locator(".lf-queue")).to_have_text("Questions: 1")
+
+
+def test_a_live_revision_preserves_an_unchanged_authored_editor(browser, serve):
+    """The patch's native-node proof covers ordinary content controls too."""
+    first = leaf_page(
+        "Editor continuity",
+        '<h1 id="h">Review</h1><label for="note">Review note</label>'
+        '<textarea id="note"></textarea><p id="news">Original account.</p>',
+    )
+    page = open_page(browser, live_url(serve(first)))
+    editor = page.locator("#note")
+    write(editor, "Keep my words.")
+    editor.evaluate("node => { window.heldNote = node; node.setSelectionRange(2, 7); }")
+    second = first.replace("Original account.", "A revised account.")
+    (serve.page_dir / "index.html").write_text(second)
+    expect(page.locator("#news")).to_have_text("A revised account.")
+    expect(editor).to_be_focused()
+    expect(editor).to_have_value("Keep my words.")
+    assert editor.evaluate("node => node === window.heldNote")
+    assert editor.evaluate("node => [node.selectionStart, node.selectionEnd]") == [2, 7]
+
+    third = second.replace('id="note"', 'id="note" placeholder="New instruction"')
+    (serve.page_dir / "index.html").write_text(third)
+    expect_banner_control_offered(page.locator(".lf-latest-chip"))
+    expect(editor).not_to_have_attribute("placeholder", "New instruction")
+    expect(editor).to_have_value("Keep my words.")
+    editor.press("Tab")
+    expect(editor).to_have_attribute("placeholder", "New instruction")
 
 
 def test_a_live_revision_reorders_the_page_and_ask_inventory_together(browser, serve):
@@ -5049,7 +5178,10 @@ customElements.define('page-counter', class extends HTMLElement {
 
 def test_an_old_document_state_request_cannot_update_the_new_revision(browser, serve):
     """A request started by the old realm cannot apply a later response in the new one."""
-    version_url = serve(LIVE_V1)
+
+    # A new executable identity requires the fresh-document path. An in-place patch
+    # can retain the page-comment editor and no longer waits for this draft.
+    version_url = serve(executable_revision(LIVE_V1, "one"))
     page = open_page(browser, live_url(version_url))
     general = page_comment(page)
     write(general, "Do not replace the page under these words.")
@@ -5057,7 +5189,7 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
     # Let the page learn that the second revision exists before holding a read. The
     # standing draft keeps the first revision shown and leaves the direct activation
     # route available through the latest-version chip.
-    (serve.page_dir / "index.html").write_text(LIVE_V2)
+    (serve.page_dir / "index.html").write_text(executable_revision(LIVE_V2, "two"))
     told(page)
     expect(page).to_have_title("Live first")
     expect_banner_control_offered(page.locator(".lf-latest-chip"))
@@ -5096,7 +5228,9 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
         chip.click()
         expect(page).to_have_title("Live second")
         page_comment(page)
-        (serve.page_dir / "index.html").write_text(LIVE_V3)
+        (serve.page_dir / "index.html").write_text(
+            executable_revision(LIVE_V3, "three")
+        )
 
         # The premise of the whole reading arrangement, stated rather than inferred: a read the
         # page took while it still stood on the first revision. Held after the press it
@@ -5131,8 +5265,8 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
         page.unroute("**/api/state*")
 
 
-def test_a_widget_textarea_holds_an_arriving_live_version(browser, serve):
-    """Composition reads the control inside a widget's shadow tree, not its host."""
+def test_a_generated_shadow_editor_follows_an_arriving_live_version(browser, serve):
+    """A retained generated shadow control follows unrelated authored changes."""
     version_url = serve(LIVE_V1)
     page = open_page(browser, live_url(version_url))
     page.evaluate(
@@ -5150,20 +5284,13 @@ def test_a_widget_textarea_holds_an_arriving_live_version(browser, serve):
 
     (serve.page_dir / "index.html").write_text(LIVE_V2)
     told(page)
-    expect(page).to_have_title("Live first")
-    expect_banner_control_offered(page.locator(".lf-latest-chip"))
+    expect(page).to_have_title("Live second")
     assert (
         page.evaluate(
             "() => document.querySelector('#shadow-editor').shadowRoot.activeElement?.tagName"
         )
         == "TEXTAREA"
     )
-
-    page.evaluate(
-        "() => document.querySelector('#shadow-editor').shadowRoot.activeElement.blur()"
-    )
-    wait_for_revision(page, 2)
-    expect(page).to_have_title("Live second")
 
 
 def test_a_pending_navigation_prevents_another_live_activation(browser, serve):
@@ -6153,7 +6280,7 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
           const owner = document.getElementById('ag-wren');
           window.__proofClock = 0;
           window.__proofReads = [];
-          api.watchUpdates(owner, updates => {
+          window.__proofWatching = api.watchUpdates(owner, updates => {
             clockValue(() => window.__proofClock);
             window.__proofReads.push(updates.map(update => update.text));
           });
@@ -6202,6 +6329,8 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
         # A same-epoch reopen has no semantic notification. The next clock paint
         # must still check proof rather than bypassing its readiness guard.
         reads = page.evaluate("window.__proofReads.length")
+        page.evaluate("window.__proofWatching.refresh()")
+        assert page.evaluate("window.__proofReads.length") == reads
         page.evaluate("window.__proofTick()")
         assert page.evaluate("window.__proofReads.length") == reads
     second = CliRunner().invoke(
@@ -6609,8 +6738,8 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
     """Absoluteness is what makes a fold a fold, and it is the one thing about a widget
     module no reading of a rendered page can see: a relative implementation renders
     perfectly and costs the user their gesture later, on the poll that replays it. So
-    the gate applies each standing action again and asks what moved, and the shipped
-    vocabulary has nothing to do — a card placed where it already is, a pick set to
+    the gate applies each standing action again and asks what moved, and the page's
+    composed vocabulary has nothing to do — a card placed where it already is, a pick set to
     what it already holds, a body assigned the words it already reads.
 
     The corpus cannot say this on its own: `test_page_fixture_renders` serves every page
@@ -6666,7 +6795,7 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
         standing_ids,
     )
     page.close()
-    registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
+    registry = registry_storage.load_registry(serve.page_dir)
     declared = {
         (tag, verb)
         for tag, entry in registry.items()
@@ -8062,13 +8191,13 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve, one_user):
 
 def test_a_followed_link_arrives_as_a_fresh_load_of_it_does(browser, serve):
     """A link followed on the page and the same URL opened in a new tab are one
-    destination, so they arrive alike: the worker's worktree sits in a goal the command
-    hub keeps shut (`display: none`, which `hidden="until-found"` would not be), and the
-    browser's own jump landed on nothing where the fresh load revealed it. Back then
-    returns the user to where they pressed, and Forward to the link's entry after the
-    goal is shut again arrives there as well: the offset that entry was left at was
-    read over the open goal, and restoring it over the shut one landed further down the
-    page with the worktree still hidden."""
+    destination, so they arrive alike: the worker's worktree sits in a disclosure
+    the command hub keeps shut, and the browser's own jump landed on nothing where
+    the fresh load revealed it. Back then returns the user to where they pressed,
+    and Forward to the link's entry after the disclosure is shut again arrives
+    there as well: the offset that entry was left at was read over the open
+    disclosure, and restoring it over the shut one landed further down the page
+    with the worktree still hidden."""
     url = live_url(serve(COMMAND_HUB_EXAMPLE))
     shown = """(id) => { const t = document.getElementById(id);
                          const r = t.getBoundingClientRect();
@@ -8089,7 +8218,7 @@ def test_a_followed_link_arrives_as_a_fresh_load_of_it_does(browser, serve):
 
     # Shut again and followed again: a press on a link to the fragment the page already
     # shows is still a trip there.
-    page.locator("#parser-dedupe > strong").click()
+    page.locator("#w-5 > details > summary").click()
     expect(page.locator("#tree-w-5")).to_be_hidden()
     link.click()
     page.wait_for_function(shown, arg="tree-w-5")
@@ -8100,7 +8229,7 @@ def test_a_followed_link_arrives_as_a_fresh_load_of_it_does(browser, serve):
         arg=pressed_at,
     )
 
-    page.locator("#parser-dedupe > strong").click()
+    page.locator("#w-5 > details > summary").click()
     expect(page.locator("#tree-w-5")).to_be_hidden()
     page.go_forward()
     page.wait_for_function(shown, arg="tree-w-5")

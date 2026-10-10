@@ -2,7 +2,7 @@
  * search marks, and status are synchronous Lit projections over native controller state. */
 import { anchoringIsReady } from "../anchor-resolution.js";
 import { bindings, bindingEnabled } from "../keyboard/bindings.js";
-import { el, LAYOUT, reserve } from "../widget-elements.js";
+import { el, LAYOUT, reserve, searchField } from "../widget-elements.js";
 import { coarsePointer } from "../pointer.js";
 import { html, nothing, render } from "../../vendor/browser-runtime.js";
 
@@ -64,18 +64,16 @@ targetPickerHintLayer.append(hintRoot, markRoot);
 export const pageSearchSurface = el("div", "lf-ui lf-page-search");
 pageSearchSurface.setAttribute("role", "search");
 pageSearchSurface.hidden = true;
-const pageSearchInput = document.createElement("input");
-pageSearchInput.className = "lf-page-search-box";
-pageSearchInput.type = "search";
-pageSearchInput.name = "page-search";
-pageSearchInput.autocomplete = "off";
-pageSearchInput.spellcheck = false;
-pageSearchInput.maxLength = 160;
-pageSearchInput.placeholder = "Search page text";
-pageSearchInput.setAttribute("aria-label", "Search page text");
+const pageSearchInput = searchField("lf-page-search-box", {
+  name: "page-search",
+  label: "Search page text",
+});
+pageSearchInput.maxlength = 160;
 const pageSearchStatus = el("span", "lf-page-search-status");
 pageSearchStatus.setAttribute("role", "status");
-pageSearchSurface.append(pageSearchInput, pageSearchStatus);
+pageSearchStatus.slot = "end";
+pageSearchInput.append(pageSearchStatus);
+pageSearchSurface.append(pageSearchInput);
 const noMatches = "No matches";
 const searchCount = (position, total) => `${position} of ${total}`;
 

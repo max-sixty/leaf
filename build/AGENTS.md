@@ -26,8 +26,9 @@ package authors continue to use native JavaScript without a build.
   each consumer needs or adapting an upstream browser module. `pierre/` and
   `webawesome/` hold the inputs their builders use.
 
-After `npm ci`, both reproduce the tracked bytes, so a diff after a rebuild means the
-lock, a build script, or the registry input changed:
+After `npm ci`, both builds reproduce the tracked bytes, so a diff after a rebuild
+means the lock, a build script, or the registry input a bundle reads changed.
+Rebuild after any of those changes:
 
 ```sh
 npm ci

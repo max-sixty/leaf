@@ -13,8 +13,11 @@ export function questionPlace(question, questions = readQuestions().all) {
     return { source: null, context: null, node: null };
   const source = elementById(question.source.id);
   const context = elementById(question.prompt.target);
-  const shared = questions.some((other) =>
-    other.id !== question.id && other.source.kind === "widget" &&
-    other.prompt.target === question.prompt.target);
+  const shared = questions.some(
+    (other) =>
+      other.id !== question.id &&
+      other.source.kind === "widget" &&
+      other.prompt.target === question.prompt.target,
+  );
   return { source, context, node: shared ? source : context };
 }

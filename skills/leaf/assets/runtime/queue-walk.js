@@ -55,6 +55,7 @@ import { taskNoun } from "./queues.js";
 import { watchSemantic } from "./semantic-state.js";
 import { retainUserIntent } from "./user-intent.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
+import { approvalTarget } from "./banner.js";
 
 const QUALIFIER = "waiting on you";
 const NOUNS = Object.freeze({
@@ -62,6 +63,7 @@ const NOUNS = Object.freeze({
   thread: "Thread",
   widget: "Move",
   page: "To do",
+  approval: "Approval",
 });
 // What a stop is called: by where it is arrived at, but a task on an element is a To do
 // rather than the Move a widget's stop otherwise is.
@@ -73,13 +75,15 @@ const nounOf = (item, stop) =>
 // whole at the page's head, or else the element it stands on, as a move is arrived at
 // on the widget it was made on.
 const stopOf = (item) =>
-  item.kind === "question" && item.question.source.kind === "widget"
-    ? { kind: "question", id: item.id, thread: item.thread, question: item.question }
-    : item.thread !== null
-      ? { kind: "thread", id: item.thread, thread: item.thread }
-      : item.subject.kind === "page"
-        ? { kind: "page", id: "page", thread: null }
-        : { kind: "widget", id: item.subject.id, thread: null };
+  item.kind === "question" && item.question.source.kind === "approval"
+    ? { kind: "approval", id: item.id, thread: null }
+    : item.kind === "question" && item.question.source.kind === "widget"
+      ? { kind: "question", id: item.id, thread: item.thread, question: item.question }
+      : item.thread !== null
+        ? { kind: "thread", id: item.thread, thread: item.thread }
+        : item.subject.kind === "page"
+          ? { kind: "page", id: "page", thread: null }
+          : { kind: "widget", id: item.subject.id, thread: null };
 const sameStop = (a, b) => a.kind === b.kind && a.id === b.id;
 
 // The page's head, where a task on the page as a whole is arrived at: its first
@@ -102,13 +106,17 @@ export function createQueueWalk({
 }) {
   // The element a stop stands at on the page, if it has one.
   const stopElement = (stop) =>
-    stop.kind === "question"
-      ? stop.thread !== null ? threadTarget(stop.thread) : questionPlace(stop.question).node
-      : stop.kind === "page"
-      ? pageHead()
-      : stop.thread !== null
-        ? threadTarget(stop.thread)
-        : elementById(stop.id);
+    stop.kind === "approval"
+      ? approvalTarget()
+      : stop.kind === "question"
+        ? stop.thread !== null
+          ? threadTarget(stop.thread)
+          : questionPlace(stop.question).node
+        : stop.kind === "page"
+          ? pageHead()
+          : stop.thread !== null
+            ? threadTarget(stop.thread)
+            : elementById(stop.id);
 
   function stops() {
     const placed = [];
@@ -146,6 +154,8 @@ export function createQueueWalk({
   // a thread that holds an open Question is not standing on that Question, as it never was for
   // the Question walk this replaces.
   function standingStop(list) {
+    if (documentFocused() === approvalTarget())
+      return list.find((stop) => stop.kind === "approval") ?? null;
     const held = threadHere();
     const thread = held?.dataset.id ?? held?.dataset.thread;
     if (thread) {
@@ -156,12 +166,11 @@ export function createQueueWalk({
     }
     const here = walkOrigin();
     if (!here) return null;
-    const question = questionHolding(
-      readQuestions().all,
-      placeOf(here),
-    );
+    const question = questionHolding(readQuestions().all, placeOf(here));
     if (question) {
-      const stop = list.find((candidate) => candidate.kind === "question" && candidate.id === question.id);
+      const stop = list.find(
+        (candidate) => candidate.kind === "question" && candidate.id === question.id,
+      );
       if (stop) return stop;
     }
     return (
@@ -331,7 +340,8 @@ export function createQueueWalk({
         id: "queue.next",
         binding: "q",
         title: "Next question",
-        description: "Next Question, thread, to-do or update to send again waiting on you",
+        description:
+          "Next Question, thread, to-do or update to send again waiting on you",
       },
       {
         id: "queue.previous",

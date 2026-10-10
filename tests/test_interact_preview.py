@@ -12,28 +12,41 @@ in a nightly module runs nowhere near the change that breaks it.
 """
 
 import json
+import os
 import shlex
 import shutil
 import socket
 import subprocess
 import sys
+import time
+from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlsplit
 
 import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
-from interact_support import ROOT, STATED_TIMEOUT, declare_idle, fetch, stamp, wait_for
+from interact_support import (
+    ROOT,
+    STATED_TIMEOUT,
+    declare_idle,
+    fetch,
+    record_claim,
+    stamp,
+    wait_for,
+)
 from leaf import cli as cli_model
 from leaf import codex_adapter, hosting, leases, server, service, session, state
+from leaf.harness import claim_harness
 from leaf.media import media_name
 from leaf.structure import SourceDocument
 from leaf_dev import page_fixtures, preview
 from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 
+@pytest.mark.parametrize("retirement", ["archive", "delete", "stop"])
 def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
-    tmp_path, under_codex, codex_env, codex_queue
+    tmp_path, under_codex, codex_env, codex_queue, native_codex_chat, retirement
 ):
     """The command returns; unloading its chat keeps the watcher, URL and carrier.
 
@@ -48,6 +61,8 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
     )
     page = tmp_path / "previews" / "review"
     sid = "desktop-preview"
+    transcript = native_codex_chat(sid)
+    sibling = tmp_path / "sibling"
     task = under_codex(
         shlex.join(
             [
@@ -81,6 +96,24 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
         url = next(line for line in output.splitlines() if line.startswith("http://"))
         acquired = service.page_claim(page)["acquisition"]
         before = state.session_record(sid)
+        old = time.time() - timedelta(hours=12).total_seconds()
+        claim_path = service.claim_path(page)
+        claim = json.loads(claim_path.read_text())
+        claim["ts"] = datetime.fromtimestamp(old).astimezone().isoformat()
+        state.write_json(claim_path, claim)
+        for entry in page.iterdir():
+            os.utime(entry, (old, old))
+        assert service.claim_is_active(service.page_claim(page))
+        # Allow the real watchdog's orphan window to pass without any HTTP
+        # request renewing page files; aged ownership must keep its listener.
+        time.sleep(2)
+        assert server.running_server(page)["url"] == url
+        if retirement != "stop":
+            shutil.copytree(
+                page, sibling, ignore=shutil.ignore_patterns("service.json")
+            )
+            sibling_claim = record_claim(sibling, id=sid, harness="codex", chat=True)
+            hosting.start_server(sibling, harness=claim_harness(sibling_claim))
         ended = subprocess.run(
             [*LEAF_COMMAND, "session-end"],
             check=False,
@@ -127,6 +160,31 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
             "--message",
         ]
         assert service.page_claim(page)["acquisition"] == acquired
+        if retirement == "archive":
+            archived = transcript.parent.parent / "archived_sessions"
+            archived.mkdir()
+            transcript.rename(archived / transcript.name)
+        elif retirement == "delete":
+            transcript.unlink()
+        else:
+            hosting.cmd_stop(page)
+        for served in [page, *([sibling] if sibling.exists() else [])]:
+            wait_for(
+                lambda served=served: server.running_server(served),
+                lambda running: not running,
+                failure=f"chat {retirement} left its page server running",
+            )
+        wait_for(
+            lambda: leases.lock_is_held(preview.preview_lease(page)),
+            lambda held: not held,
+            failure=f"chat {retirement} left its preview watcher running",
+        )
+        if retirement != "stop":
+            wait_for(
+                lambda: codex_adapter.adapter_is_live(sid),
+                lambda live: not live,
+                failure="the archived/deleted chat kept its delivery adapter",
+            )
     finally:
         if (page / "events.jsonl").exists():
             hosting.cmd_stop(page)
@@ -137,10 +195,49 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
                 lambda held: not held,
                 failure="the explicitly stopped detached preview kept watching",
             )
+        if sibling.exists():
+            hosting.cmd_stop(sibling)
+
+
+@pytest.mark.parametrize("evidence", ["missing", "deleted", "other-chat"])
+def test_desktop_start_requires_its_validated_native_chat(
+    tmp_path, under_codex, codex_env, native_codex_chat, evidence
+):
+    """Unsupported or absent native evidence cannot mint perpetual ownership."""
+    sid = "desktop-no-source"
+    if evidence == "deleted":
+        native_codex_chat(sid).unlink()
+    elif evidence == "other-chat":
+        other = native_codex_chat("another-chat")
+        from leaf.hooks import cmd_hook
+
+        cmd_hook(
+            "codex",
+            {
+                "hook_event_name": "UserPromptSubmit",
+                "session_id": sid,
+                "transcript_path": str(other),
+            },
+        )
+    page = tmp_path / "page"
+    subprocess.run([*LEAF_COMMAND, "page", "init", page], env=codex_env, check=True)
+    task = under_codex(
+        shlex.join([*LEAF_COMMAND, "server", "start", str(page)]),
+        codex_env | {"CODEX_THREAD_ID": sid},
+        app_server=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    output, errors = task.communicate(timeout=STATED_TIMEOUT)
+    assert task.returncode != 0, output
+    assert "validated native transcript is unavailable" in errors
+    assert "Codex hooks enabled" in errors
+    assert service.page_claim(page) is None
 
 
 def test_abandoned_desktop_preview_publishes_no_claim(
-    tmp_path, spawn, under_codex, codex_env
+    tmp_path, spawn, under_codex, codex_env, native_codex_chat
 ):
     """Outer preview acceptance owns both watcher readiness and HTTP publication."""
     source = tmp_path / "review.html"
@@ -149,6 +246,7 @@ def test_abandoned_desktop_preview_publishes_no_claim(
         "<body><main><h1>Review</h1></main></body></html>"
     )
     page = tmp_path / "previews" / "review"
+    native_codex_chat("abandoned-desktop")
     env = codex_env | {
         "CODEX_THREAD_ID": "abandoned-desktop",
         "LEAF_PREVIEWS_ROOT": str(page.parent),

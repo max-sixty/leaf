@@ -1,4 +1,11 @@
-"""Agent-facing projected page state."""
+"""Agent-facing page state, canonical Questions, explicit Tasks and work queues.
+
+The reading uses one transaction and canonical queue selection. The on-you queue
+selects open Questions, explicit user Tasks and delivery recovery; on-agent selects
+owed responses and committed work. The Question inventory also retains answered
+and withdrawn records. `source` states whether a document is live and whether an
+invalid source save leaves the last valid version active.
+"""
 
 import json
 from pathlib import Path
@@ -268,6 +275,7 @@ def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> 
             question
             for question in state["questions"]
             if question["thread"] is None
+            and question["source"]["kind"] == "widget"
             and (
                 inside(question["source"]["id"]) or inside(question["prompt"]["target"])
             )
@@ -299,21 +307,25 @@ def task_item(task: dict) -> dict:
 
 def question_item(question: dict) -> dict:
     """One Question on a work queue; it retains its canonical record."""
-    widget = question["source"]["kind"] == "widget"
+    source = question["source"]
+    subject = (
+        {"kind": "widget", "id": source["id"]}
+        if source["kind"] == "widget"
+        else {"kind": "page"}
+        if source["kind"] == "approval"
+        else {"kind": "thread", "id": question["thread"]}
+    )
     return {
         "kind": "question",
         "id": question["id"],
         "owner": "user",
-        "subject": {
-            "kind": "widget" if widget else "thread",
-            "id": question["source"]["id"] if widget else question["thread"],
-        },
+        "subject": subject,
         "thread": question["thread"],
         "title": question["prompt"]["text"],
         "running": None,
         "agent": None,
         "session": None,
-        "ends": "widget" if widget else "reply",
+        "ends": source["kind"],
         "question": question,
     }
 

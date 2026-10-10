@@ -49,7 +49,10 @@ function unreadContent(threadView) {
 function userObligations(page, threadView) {
   const held = new Map();
   for (const question of page.questions.user)
-    held.set(JSON.stringify(["page", question.id]), { source: question.id, thread: null });
+    held.set(JSON.stringify(["page", question.id]), {
+      source: question.id,
+      thread: null,
+    });
   for (const question of threadView.questions.user) {
     const version = question.source.kind === "reply" ? question.source.version : null;
     held.set(JSON.stringify(["thread", question.thread, question.id, version]), {

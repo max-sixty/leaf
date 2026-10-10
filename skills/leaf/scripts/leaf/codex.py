@@ -39,8 +39,9 @@ import tempfile
 import time
 from collections.abc import Iterator
 from contextlib import ExitStack, contextmanager
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
+from typing import ClassVar, Literal
 from urllib.parse import urlsplit
 from xml.etree import ElementTree
 
@@ -119,7 +120,7 @@ LEAF_THREAD_CONFIG = {
 # A collecting record holds captured events in the delivery's own shape, so the
 # version moves with it; a record of another version is ignored, and the events
 # its page has not acknowledged are captured afresh.
-RECORD_FORMAT = "leaf-codex-delivery-v3"
+RECORD_FORMAT = "leaf-codex-delivery-v4"
 STREAM_UPDATE_INTERVAL = 0.2
 STREAM_TEXT_METHODS = {"item/reasoning/summaryTextDelta"}
 STREAM_MESSAGE_METHOD = "item/agentMessage/delta"
@@ -1390,49 +1391,127 @@ def record_path(session_id: str, delivery_id: str) -> Path:
     return delivery_dir(session_id) / f"{delivery_id}.json"
 
 
-def read_record(path: Path) -> dict | None:
-    """Read a task delivery this version can consume, else treat it as absent.
+@dataclass(frozen=True)
+class DeliveryRecord:
+    """Task-owned capture. A transition replaces the record under its task lock.
 
-    Live and archived records share this boundary. Other checkouts write the
-    same state home, so missing fields or an unknown shape never authorize
-    deletion and never reach the task's delivery loop.
+    Offering states carry immutable input references. Only accepted or abandoned
+    outcomes carry pending page receipts; archiving is the empty-receipts outcome.
+    Provider turn lifetime remains with TurnFold, independent of delivery receipt.
+    """
+
+    created_at: float
+    batches: tuple[dict, ...]
+    state: ClassVar[str]
+
+
+@dataclass(frozen=True)
+class Collecting(DeliveryRecord):
+    state: ClassVar[str] = "collecting"
+
+
+@dataclass(frozen=True)
+class Offering(DeliveryRecord):
+    state: ClassVar[str] = "offering"
+
+
+@dataclass(frozen=True)
+class HookOffer(Offering):
+    turn: str
+    state: ClassVar[str] = "hook"
+
+
+@dataclass(frozen=True)
+class StartingOffer(Offering):
+    state: ClassVar[str] = "starting"
+
+
+@dataclass(frozen=True)
+class ReceiptOutcome(DeliveryRecord):
+    pending: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class Accepted(ReceiptOutcome):
+    state: ClassVar[str] = "queued"
+
+
+@dataclass(frozen=True)
+class Opened(Accepted):
+    turn: str
+    state: ClassVar[str] = "opened"
+
+
+@dataclass(frozen=True)
+class Abandoned(ReceiptOutcome):
+    state: ClassVar[str] = "abandoned"
+
+
+def read_record(path: Path) -> DeliveryRecord | None:
+    """Decode a complete record at the shared-state boundary, ignoring other versions.
+
+    Live and archived records use the same variants. No partial state may enter
+    delivery recovery, and an unreadable record never authorizes deletion.
     """
     try:
         record = read_json(path)
     except ValueError:
         return None
+    variants = {
+        variant.state: variant
+        for variant in (
+            Collecting,
+            Offering,
+            HookOffer,
+            StartingOffer,
+            Accepted,
+            Opened,
+            Abandoned,
+        )
+    }
     if (
         not isinstance(record, dict)
         or record.get("format") != RECORD_FORMAT
         or not isinstance(record.get("state"), str)
-        or record["state"] not in {"collecting", "offering", "accepted", "abandoned"}
+        or record["state"] not in variants
         or not isinstance(record.get("created_at"), (int, float))
         or not isinstance(record.get("batches"), list)
         or not record["batches"]
     ):
         return None
-    if record["state"] in {"offering", "accepted"}:
+    variant = variants[record["state"]]
+    if variant is not Collecting:
         try:
             payload = read_json(delivery_path(path.stem))
         except (ValueError, OSError):
             return None
         if not readable_delivery(payload, path.stem):
             return None
-    transport = record.get("transport")
-    if (record["state"] == "accepted" or "transport" in record) and (
-        not isinstance(transport, dict)
-        or not {"phase", "turn"} <= transport.keys()
-        or not isinstance(transport["phase"], str)
-        or transport["turn"] is not None
-        and not isinstance(transport["turn"], str)
-    ):
-        return None
+    record_fields = {
+        "created_at": record["created_at"],
+        "batches": tuple(record["batches"]),
+    }
+    if issubclass(variant, ReceiptOutcome):
+        pending = record.get("pending")
+        if (
+            not isinstance(pending, list)
+            or any(
+                type(index) is not int or not 0 <= index < len(record["batches"])
+                for index in pending
+            )
+            or pending != sorted(set(pending))
+        ):
+            return None
+        record_fields["pending"] = tuple(pending)
+    if variant in {HookOffer, Opened}:
+        if not isinstance(record.get("turn"), str) or not record["turn"]:
+            return None
+        record_fields["turn"] = record["turn"]
     for batch in record["batches"]:
         if (
             not isinstance(batch, dict)
             or not isinstance(batch.get("page"), str)
             or not isinstance(batch.get("session"), str)
-            or not isinstance(batch.get("receipted"), bool)
             or not isinstance(batch.get("events"), list)
             or not batch["events"]
             or any(
@@ -1479,34 +1558,34 @@ def read_record(path: Path) -> dict | None:
                     not isinstance(answer.get(key), str) for key in fields
                 ):
                     return None
-    return record
+    return variant(**record_fields)
 
 
 def _retire_record_if_gone(path: Path) -> None:
     """Retire only task records this version reads, under the task's lock."""
     record = read_record(path)
-    if record is not None and pages_gone(record["batches"]):
+    if record is not None and pages_gone(record.batches):
         path.unlink(missing_ok=True)
 
 
-def archive_record(path: Path, record: dict) -> None:
+def archive_record(path: Path, record: DeliveryRecord) -> bool:
     """Move completed delivery records out of the adapter's hot scan.
 
     `history/` is read one delivery at a time, so this, its one writer, is also
     where a readable archived record whose pages are all gone is removed."""
-    if record["state"] in {"accepted", "abandoned"} and all(
-        batch["receipted"] for batch in record["batches"]
-    ):
-        history = path.parent / "history"
-        history.mkdir(parents=True, exist_ok=True)
-        for archived in history.glob("*.json"):
-            _retire_record_if_gone(archived)
-        path.replace(history / path.name)
+    if not isinstance(record, ReceiptOutcome) or record.pending:
+        return False
+    history = path.parent / "history"
+    history.mkdir(parents=True, exist_ok=True)
+    for archived in history.glob("*.json"):
+        _retire_record_if_gone(archived)
+    path.replace(history / path.name)
+    return True
 
 
-def write_record(path: Path, record: dict) -> None:
+def write_record(path: Path, record: DeliveryRecord) -> None:
     """Store one delivery record, retiring it once nothing is owed on it."""
-    write_json(path, record)
+    write_json(path, {"format": RECORD_FORMAT, "state": record.state, **asdict(record)})
     archive_record(path, record)
 
 
@@ -1531,7 +1610,7 @@ def retire_gone_task_records() -> None:
                     emptied.rmdir()
 
 
-def delivery_records(session_id: str) -> list[tuple[Path, dict]]:
+def delivery_records(session_id: str) -> list[tuple[Path, DeliveryRecord]]:
     """Every standing delivery record one task holds, oldest first, removing each
     whose pages are all gone (`delivery.pages_gone`). Every caller holds the
     task's delivery lock."""
@@ -1547,19 +1626,21 @@ def delivery_records(session_id: str) -> list[tuple[Path, dict]]:
         record = read_record(path)
         if record is None:
             continue
-        if pages_gone(record["batches"]):
+        if pages_gone(record.batches):
             path.unlink()
             continue
+        if archive_record(path, record):
+            continue
         records.append((path, record))
-    return sorted(records, key=lambda item: (item[1]["created_at"], item[0].name))
+    return sorted(records, key=lambda item: (item[1].created_at, item[0].name))
 
 
-def _collecting_record(session_id: str) -> tuple[Path, dict] | None:
+def _collecting_record(session_id: str) -> tuple[Path, Collecting] | None:
     """The one record still collecting events for this task, if it has one."""
     current = [
         (path, record)
         for path, record in delivery_records(session_id)
-        if record["state"] == "collecting"
+        if isinstance(record, Collecting)
     ]
     if len(current) > 1:
         raise RuntimeError(
@@ -1578,14 +1659,13 @@ def delivery_pointer_prompt(delivery_id: str) -> str:
 
 @dataclass(frozen=True)
 class PreparedDelivery:
-    """One immutable delivery and the delivery record that prepared it, if any."""
+    """One immutable delivery and its claim transition for rollback."""
 
     prompt: str
     payload: dict
     claim_transition: tuple[dict | None, dict] | None = field(
         default=None, compare=False, repr=False
     )
-    record_path: Path | None = field(default=None, compare=False, repr=False)
 
 
 def _readdress_record(path: Path) -> Path:
@@ -1599,46 +1679,82 @@ def _readdress_record(path: Path) -> Path:
         return replacement
 
 
-def offer_delivery(path: Path, record: dict, *, turn_replies: bool) -> PreparedDelivery:
-    """Freeze one payload before offering its permanent pointer, with its thread
-    reply addressed to the turn it opens where that turn writes it
-    (`turn_replies`, `delivery.freeze_delivery`).
+@dataclass(frozen=True)
+class HookTurn:
+    turn: str
 
-    A record already offering keeps the payload it froze: its pointer may have
-    reached the task, and a delivery never changes under its id."""
-    if record["state"] == "offering":
+
+def offer_delivery(
+    path: Path,
+    record: Collecting | Offering,
+    *,
+    transport: Literal["app-server", "queue"] | HookTurn,
+) -> PreparedDelivery:
+    """Freeze a pointer and reserve its offer to a hook turn or the idle transport.
+
+    Existing frozen input never changes. An uncertain provider start keeps its
+    reservation; only provider evidence or a definitive refusal can move it.
+    """
+    if isinstance(record, StartingOffer) and transport != "app-server":
+        raise AppServerDeliveryUncertain("the delivery is awaiting reconciliation")
+    if isinstance(record, Offering):
         payload = read_delivery(path.stem)
-        return PreparedDelivery(
-            delivery_pointer_prompt(path.stem), payload, record_path=path
+        offered = record
+    else:
+        while True:
+            try:
+                payload = freeze_delivery(
+                    record.batches,
+                    turn_replies=transport == "app-server",
+                    delivery_id=path.stem,
+                    created_at=record.created_at,
+                )
+                break
+            except DeliveryIdConflict:
+                path = _readdress_record(path)
+        batches = tuple(
+            {
+                "page": batch["page"],
+                "session": batch["session"],
+                "events": [
+                    {"seq": event["seq"], "id": event["id"]}
+                    for event in batch["events"]
+                ],
+            }
+            for batch in record.batches
         )
+        offered = Offering(record.created_at, batches)
+    if not isinstance(offered, StartingOffer):
+        offered = (
+            HookOffer(offered.created_at, offered.batches, transport.turn)
+            if isinstance(transport, HookTurn)
+            else Offering(offered.created_at, offered.batches)
+        )
+    if offered != record:
+        write_record(path, offered)
+    return PreparedDelivery(delivery_pointer_prompt(path.stem), payload)
 
-    while True:
-        try:
-            payload = freeze_delivery(
-                record["batches"],
-                turn_replies=turn_replies,
-                delivery_id=path.stem,
-                created_at=record["created_at"],
-            )
-            break
-        except DeliveryIdConflict:
-            path = _readdress_record(path)
-    record["batches"] = [
-        {
-            "page": batch["page"],
-            "session": batch["session"],
-            "events": [
-                {"seq": event["seq"], "id": event["id"]} for event in batch["events"]
-            ],
-            "receipted": False,
-        }
-        for batch in record["batches"]
-    ]
-    record["state"] = "offering"
-    write_record(path, record)
-    return PreparedDelivery(
-        delivery_pointer_prompt(path.stem), payload, record_path=path
-    )
+
+def begin_delivery_start(session_id: str, delivery_id: str) -> bool:
+    """Reserve a provider start once, after its caller obtained fresh idle evidence."""
+    path = record_path(session_id, delivery_id)
+    with flocked(delivery_lock_path(session_id)):
+        record = read_record(path)
+        if isinstance(record, StartingOffer):
+            raise AppServerDeliveryUncertain("the delivery is awaiting reconciliation")
+        if not isinstance(record, Offering):
+            return False
+        write_record(path, StartingOffer(record.created_at, record.batches))
+    return True
+
+
+def release_delivery_start(session_id: str, delivery_id: str) -> None:
+    """A definitive provider refusal makes only its pending start offerable again."""
+    path = record_path(session_id, delivery_id)
+    with flocked(delivery_lock_path(session_id)):
+        record = read_record(path)
+        if isinstance(record, StartingOffer):
+            write_record(path, Offering(record.created_at, record.batches))
 
 
 def append_batch(
@@ -1656,19 +1772,14 @@ def append_batch(
             if not path.exists() and read_json(delivery_path(delivery_id)) is None:
                 break
         path.parent.mkdir(parents=True, exist_ok=True)
-        record = {
-            "format": RECORD_FORMAT,
-            "state": "collecting",
-            "created_at": time.time(),
-            "batches": [],
-        }
+        record = Collecting(time.time(), ())
     else:
         path, record = current
 
     delivered = {
         (entry["page"], event["seq"], event["id"])
         for _, standing in delivery_records(session_id)
-        for entry in standing["batches"]
+        for entry in standing.batches
         for event in entry["events"]
     }
     fresh = [
@@ -1683,7 +1794,7 @@ def append_batch(
     # starts has one reply to write with its messages.
     replies = sum(
         event["answer"]["kind"] == "reply"
-        for entry in record["batches"]
+        for entry in record.batches
         for event in entry["events"]
         if "answer" in event
     )
@@ -1703,11 +1814,10 @@ def append_batch(
     entry = {
         **data,
         "session": session_id,
-        "receipted": False,
     }
-    record["batches"].append(entry)
+    record = replace(record, batches=(*record.batches, entry))
     write_record(path, record)
-    return path, len(record["batches"]) - 1, entry
+    return path, len(record.batches) - 1, entry
 
 
 def offer_hook_delivery(session_id: str, turn_id: str) -> str | None:
@@ -1739,27 +1849,25 @@ def offer_hook_delivery(session_id: str, turn_id: str) -> str | None:
         records = delivery_records(session_id)
         if hook_turn(session_id) != expected:
             return None
-        if any(record["state"] != "collecting" for _, record in records):
+        if any(not isinstance(record, Collecting) for _, record in records):
             return None
         pending = next(
             (
                 (path, record)
                 for path, record in records
-                if record["state"] == "collecting"
+                if isinstance(record, Collecting)
             ),
             None,
         )
         if pending is None:
             return None
         path, record = pending
-        prepared = offer_delivery(path, record, turn_replies=False)
-        record["transport"] = {"phase": "hook", "turn": turn_id}
-        write_record(prepared.record_path, record)
+        prepared = offer_delivery(path, record, transport=HookTurn(turn_id))
         return prepared.prompt
 
 
 def finish_codex_batch(
-    path: Path, batch_index: int, batch: dict, transport: dict | None = None
+    path: Path, batch_index: int, batch: dict, outcome: Accepted
 ) -> dict | None:
     """Receipt and retire one accepted batch without opening a session turn.
 
@@ -1778,9 +1886,9 @@ def finish_codex_batch(
             record_pickup(
                 page,
                 events,
-                phase=(transport or {}).get("phase", "queued"),
+                phase="opened" if isinstance(outcome, Opened) else "queued",
                 session=batch["session"],
-                turn=(transport or {}).get("turn"),
+                turn=outcome.turn if isinstance(outcome, Opened) else None,
             )
             received = {
                 "page": Path(batch["page"]),
@@ -1789,11 +1897,50 @@ def finish_codex_batch(
     except (FileNotFoundError, ReceiptRefused):
         pass
     with flocked(delivery_lock_path(batch["session"])):
-        record = read_record(path)
-        if record is not None and not record["batches"][batch_index]["receipted"]:
-            record["batches"][batch_index]["receipted"] = True
-            write_record(path, record)
+        _receipt_completed(path, batch_index)
     return received
+
+
+def _receipt_completed(path: Path, index: int) -> None:
+    """Commit progress after idempotent page effects, with the task lock held."""
+    record = read_record(path)
+    if isinstance(record, ReceiptOutcome) and index in record.pending:
+        write_record(
+            path,
+            replace(record, pending=tuple(i for i in record.pending if i != index)),
+        )
+
+
+def recover_codex_receipt(session_id: str) -> bool:
+    """Retry the oldest outstanding page batch from its durable outcome.
+
+    Page effects are idempotent, so a crash after pickup, cursor commit, progress
+    commit or archive requires no cursor inference and cannot queue a new delivery.
+    """
+    settled = settle_answered_deliveries(session_id)
+    with flocked(delivery_lock_path(session_id)):
+        pending = min(
+            (
+                (path, index, record)
+                for path, record in delivery_records(session_id)
+                if isinstance(record, ReceiptOutcome)
+                for index in record.pending
+            ),
+            key=lambda item: (
+                item[2].batches[item[1]]["page"],
+                min(event["seq"] for event in item[2].batches[item[1]]["events"]),
+            ),
+            default=None,
+        )
+    if pending is None:
+        return settled
+    path, index, record = pending
+    batch = record.batches[index]
+    if isinstance(record, Abandoned):
+        finish_abandoned_batch(path, index, batch)
+    else:
+        finish_codex_batch(path, index, batch, record)
+    return True
 
 
 UNCONFIRMED_DELIVERY = "delivery_unconfirmed"
@@ -1820,8 +1967,7 @@ def settle_answered_deliveries(session_id: str) -> bool:
         pending = [
             path.stem
             for path, record in delivery_records(session_id)
-            if record["state"] == "offering"
-            and (record.get("transport") or {}).get("phase") == "starting"
+            if isinstance(record, StartingOffer)
         ]
     settled = False
     for delivery_id in pending:
@@ -1846,13 +1992,15 @@ def abandon_uncertain_delivery(session_id: str, payload: dict) -> None:
     path = record_path(session_id, payload["id"])
     with flocked(delivery_lock_path(session_id)):
         record = read_record(path)
-        if record is None or record["state"] not in {"offering", "abandoned"}:
+        if isinstance(record, StartingOffer):
+            record = Abandoned(
+                record.created_at, record.batches, tuple(range(len(record.batches)))
+            )
+            write_record(path, record)
+        if not isinstance(record, Abandoned):
             return
-        record["state"] = "abandoned"
-        write_record(path, record)
-    for index, batch in enumerate(record["batches"]):
-        if not batch["receipted"]:
-            finish_abandoned_batch(path, index, batch)
+    for index in record.pending:
+        finish_abandoned_batch(path, index, record.batches[index])
 
 
 def finish_abandoned_batch(path: Path, batch_index: int, batch: dict) -> None:
@@ -1900,10 +2048,7 @@ def finish_abandoned_batch(path: Path, batch_index: int, batch: dict) -> None:
     except (FileNotFoundError, ReceiptRefused):
         pass
     with flocked(delivery_lock_path(session_id)):
-        record = read_record(path)
-        if record is not None:
-            record["batches"][batch_index]["receipted"] = True
-            write_record(path, record)
+        _receipt_completed(path, batch_index)
 
 
 def delivery_owed_moves(payload: dict) -> list[dict]:
@@ -1926,14 +2071,14 @@ def delivery_stream_reply_target(session_id: str, delivery_id: str) -> dict | No
     return stream_reply_target(read_delivery(delivery_id))
 
 
-def delivery_record_state(session_id: str, delivery_id: str) -> str | None:
-    """Read one delivery's transport state from its live or archived delivery record."""
+def read_task_delivery(session_id: str, delivery_id: str) -> DeliveryRecord | None:
+    """Read one task-owned delivery variant, live or archived, under its lock."""
     path = record_path(session_id, delivery_id)
     with flocked(delivery_lock_path(session_id)):
         record = read_record(path)
         if record is None:
             record = read_record(path.parent / "history" / path.name)
-    return record.get("state") if record is not None else None
+    return record
 
 
 def prepare_codex_delivery(page_dir: Path, harness: Harness) -> PreparedDelivery:
@@ -1952,13 +2097,13 @@ def prepare_codex_delivery(page_dir: Path, harness: Harness) -> PreparedDelivery
                     (
                         (path, record)
                         for path, record in delivery_records(session_id)
-                        if record["state"] in {"collecting", "offering"}
+                        if isinstance(record, (Collecting, Offering))
                     ),
                     None,
                 )
                 if pending is not None:
-                    offered = offer_delivery(*pending, turn_replies=True)
-                    return PreparedDelivery(offered.prompt, offered.payload, transition)
+                    offered = offer_delivery(*pending, transport="app-server")
+                    return replace(offered, claim_transition=transition)
                 captured = append_batch(
                     session_id,
                     page_dir,
@@ -1968,8 +2113,10 @@ def prepare_codex_delivery(page_dir: Path, harness: Harness) -> PreparedDelivery
                 if captured is None:
                     raise RuntimeError("the page input is already in a Codex delivery")
                 path, _, _ = captured
-                offered = offer_delivery(path, read_record(path), turn_replies=True)
-                return PreparedDelivery(offered.prompt, offered.payload, transition)
+                offered = offer_delivery(
+                    path, read_record(path), transport="app-server"
+                )
+                return replace(offered, claim_transition=transition)
     except BaseException:
         restore_page_claim(page_dir, transition)
         raise
@@ -1997,34 +2144,27 @@ def accept_codex_delivery(
     path = record_path(session_id, delivery_id)
     with flocked(delivery_lock_path(session_id)):
         record = read_record(path)
-        if record is None or record["state"] not in {"offering", "accepted"}:
+        if not isinstance(record, (Offering, Accepted)):
             return []
         if hook_observation is not None and (
             hook_turn(session_id) != hook_observation
             or not hook_observation["running"]
             or hook_observation["turn"] != turn
-            or (
-                record["state"] == "offering"
-                and record.get("transport") != {"phase": "hook", "turn": turn}
-            )
-            or (
-                record["state"] == "accepted"
-                and record.get("transport") != {"phase": "opened", "turn": turn}
-            )
+            or not isinstance(record, (HookOffer, Opened))
+            or record.turn != turn
         ):
             return []
-        if record["state"] == "offering":
-            record["state"] = "accepted"
-            record["transport"] = {
-                "phase": "opened" if turn is not None else "queued",
-                "turn": turn,
-            }
+        if isinstance(record, Offering):
+            pending = tuple(range(len(record.batches)))
+            record = (
+                Opened(record.created_at, record.batches, pending, turn)
+                if turn is not None
+                else Accepted(record.created_at, record.batches, pending)
+            )
             write_record(path, record)
     accepted = []
-    for index, batch in enumerate(record["batches"]):
-        if batch["receipted"]:
-            continue
-        received = finish_codex_batch(path, index, batch, record["transport"])
+    for index in record.pending:
+        received = finish_codex_batch(path, index, record.batches[index], record)
         if received is not None:
             accepted.append(received)
     return accepted
@@ -2039,9 +2179,9 @@ def open_app_server_delivery(
 ) -> None:
     """Record a provider-observed App Server delivery as opened in its turn,
     accepting it when its record is still offering."""
-    state = delivery_record_state(session_id, delivery_id)
+    record = read_task_delivery(session_id, delivery_id)
     accepted = accept_codex_delivery(session_id, delivery_id, turn)
-    if state == "offering":
+    if isinstance(record, Offering):
         if [
             delivery["events"] for delivery in accepted if delivery["page"] == page_dir
         ] != [event_ids]:
@@ -2071,10 +2211,10 @@ def abandon_codex_delivery(session_id: str, event_id: str) -> None:
         matching = [
             path
             for path, record in delivery_records(session_id)
-            if record["state"] == "offering"
+            if isinstance(record, Offering)
             and any(
                 event["id"] == event_id
-                for batch in record["batches"]
+                for batch in record.batches
                 for event in batch["events"]
             )
         ]

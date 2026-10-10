@@ -177,7 +177,11 @@ export function readWork(scope) {
     if (!readings.has(element)) readings.set(element, widgetController(element).read());
     return readings.get(element);
   };
-  const open = new Set(readQuestions().user.filter((question) => question.source.kind === "widget").map((question) => question.source.id));
+  const open = new Set(
+    readQuestions()
+      .user.filter((question) => question.source.kind === "widget")
+      .map((question) => question.source.id),
+  );
   const goals = workElements(scope, "goal").map((goal) => goalView(goal, open, read));
   const byElement = new Map(goals.map((goal) => [goal.element, goal]));
   const workers = workElements(scope, "worker").map((worker) =>

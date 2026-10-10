@@ -33,9 +33,11 @@ const thread = (id, msgs, attention = null, userPrompt = null) =>
         .map((item) => ({ message: item.id, version: item.edited?.id ?? item.id })),
     },
   );
-const ask = (id, thread = null) => ({ id, thread, source: {kind: "widget", id} });
+const ask = (id, thread = null) => ({ id, thread, source: { kind: "widget", id } });
 const replyQuestion = (id, version = id) => ({
-  id, thread: "t", source: {kind: "reply", id, version},
+  id,
+  thread: "t",
+  source: { kind: "reply", id, version },
 });
 const activity = (kind = "away", extra = {}) => ({
   kind,
@@ -528,13 +530,14 @@ test("news is ordered by when each message last moved", () => {
   );
 });
 
-
 test("editing a prose Question creates news for its new content version", () => {
   const first = reading({ threadQuestions: [replyQuestion("same", "original")] });
   const baseline = observeSemanticNews(null, first);
   const edited = reading({ threadQuestions: [replyQuestion("same", "edit")] });
   const changed = observeSemanticNews(baseline.observed, edited);
-  assert.deepEqual(changed.news.map(({kind, source, thread}) => [kind, source, thread]),
-    [["user_obligation", "same", "t"]]);
+  assert.deepEqual(
+    changed.news.map(({ kind, source, thread }) => [kind, source, thread]),
+    [["user_obligation", "same", "t"]],
+  );
   assert.deepEqual(observeSemanticNews(changed.observed, edited).news, []);
 });

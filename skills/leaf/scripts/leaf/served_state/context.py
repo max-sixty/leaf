@@ -17,9 +17,9 @@ from pathlib import Path
 from ..data import read_data
 from ..files import (
     active_descriptor,
+    document_descriptor,
     list_revisions,
     version_descriptors,
-    version_revisions,
 )
 from ..passages import SourceReading
 from ..presence import presence_with_activity
@@ -76,11 +76,20 @@ class PageRead:
                 f"view sequence {sequence} is newer than log sequence {latest}"
             )
         events = [event for event in self.events if event["seq"] <= sequence]
-        stamped = version_revisions(events)
+        active = self.active
+        if active is not None:
+            active = document_descriptor(
+                active["revision"],
+                events,
+                url=active["url"],
+                executable=active["executable"],
+                activated_at=active["activated_at"],
+            )
         return replace(
             self,
+            active=active,
             events=events,
-            versions=tuple(v for v in self.versions if v["version"] in stamped),
+            versions=tuple(version_descriptors(events, self.revisions)),
             live_stream=None,
         )
 
@@ -102,11 +111,12 @@ def read_page(
         registry = page_vocabulary(page_dir, active["revision"] if active else None)
     except RegistryError:
         registry = None
+    revisions = frozenset(list_revisions(page_dir))
     present, live_stream = presence_with_activity(page_dir, events)
     return PageRead(
         active=active,
         events=events,
-        revisions=frozenset(list_revisions(page_dir)),
+        revisions=revisions,
         revision=lambda revision: read_revision(page_dir, revision),
         registry=registry,
         layer=(
@@ -117,7 +127,7 @@ def read_page(
             else layer_identity
         ),
         stored_data=lambda: read_data(page_dir, registry),
-        versions=tuple(version_descriptors(page_dir, events)),
+        versions=tuple(version_descriptors(events, revisions)),
         presence=present,
         live_stream=live_stream,
         now=now or now_iso(),

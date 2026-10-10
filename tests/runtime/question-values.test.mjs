@@ -2,13 +2,12 @@
    The browser must publish the same typed values, including empty answers, custom
    actions withdrawn by undo, member-unit records and complete position maps. */
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 import { foldWidgetStates, questionValue } from "/runtime/projection/model.js";
 
-const { question_values: cases } = JSON.parse(
-  readFileSync(new URL("../served_records.json", import.meta.url), "utf8"),
-);
+import { servedQuestionValues } from "../served.mjs";
+
+const cases = servedQuestionValues();
 
 for (const fixture of cases) {
   test(`Question value agrees with Python: ${fixture.name}`, () => {

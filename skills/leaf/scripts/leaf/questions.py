@@ -1,4 +1,4 @@
-"""Canonical Questions selected from widget state and standing conversations.
+"""Canonical Questions from widget state, conversations and stamped page sign-off.
 
 One record contains its prompt, typed answer, completion and next actor. A widget
 source owns identity; context wrappers contribute only prompt words and arrival.
@@ -7,7 +7,14 @@ older prompt. Tasks never stand in for these records."""
 
 from dataclasses import dataclass
 
-from leaf.events import conversation_turns, is_reaction, retractions, taken_back
+from leaf.events import (
+    conversation_turns,
+    is_reaction,
+    retractions,
+    standing_approvals,
+    taken_back,
+)
+from leaf.files import stamped_version
 from leaf.gesture_words import leading_title
 from leaf.projection import (
     FrozenThreadReading,
@@ -21,6 +28,7 @@ from leaf.projection import (
     state_projection,
 )
 from leaf.read_state import content_version
+from leaf.structure import review_mode
 
 
 def local_question_entry(entry: dict) -> bool:
@@ -72,6 +80,38 @@ def collection(records: list[dict]) -> dict:
         "all": records,
         "user": [record for record in records if record["next_actor"] == "user"],
         "unanswered": [record for record in records if record["status"] == "open"],
+    }
+
+
+def approval_question(document, revision: int, events: list) -> dict | None:
+    """Sign-off for an exact public stamp as one canonical Question.
+
+    Draft revisions owe none. Only a standing done event for this public version
+    supplies the typed answer; an undo makes the same Question open again.
+    Approval admission counts widget Questions alone, so this record cannot
+    block its own answer.
+    """
+    version = stamped_version(events, revision)
+    if version is None or review_mode(document) != "sign-off":
+        return None
+    approved = next(
+        (
+            event
+            for event in reversed(standing_approvals(events))
+            if event["version"] == version
+        ),
+        None,
+    )
+    return {
+        "id": f"approval:v{version}",
+        "source": {"kind": "approval", "version": version},
+        "thread": None,
+        "prompt": {"text": f"Approve v{version}?", "target": "lf-approve"},
+        "answer": {"value": True, "event": event_reference(approved)}
+        if approved
+        else None,
+        "status": "answered" if approved else "open",
+        "next_actor": None if approved else "user",
     }
 
 

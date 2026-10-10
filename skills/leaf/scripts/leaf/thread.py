@@ -786,20 +786,14 @@ def title_refusal(page_dir: Path, title: str) -> str | None:
     whose thread it names: a command that posts and names does neither when the name
     is refused, rather than posting and then failing."""
     from leaf.event_contracts import (
-        APPEND_STAMPED,
         admitting_registry,
-        command_record_schema,
+        command_error,
     )
     from leaf.page_view import PageView
-    from leaf.registry.schema import schema_error
 
     event = title_event("pending", title, message_identity())
     registry = admitting_registry(PageView(page_dir), event, read_events(page_dir))
-    error = schema_error(
-        command_record_schema(registry["$events"]["kinds"]["thread_title"]),
-        {**APPEND_STAMPED, **event},
-    )
-    return error and f"thread_title event is invalid: {error}"
+    return command_error(event, registry["$events"]["kinds"])
 
 
 def name_untitled(page, thread: str, title: str, identity: dict) -> dict | None:

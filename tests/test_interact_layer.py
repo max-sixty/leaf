@@ -8,21 +8,18 @@ import shutil
 import subprocess
 import sys
 import threading
-import tomllib
 from datetime import datetime
 from pathlib import Path
 
 import playwright
 import pytest
 import tinycss2
-import yaml
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND, PagePool, _retire
 from interact_support import (
     COMMAND_HUB_PACKAGE,
     COMPOSITE_TIMEOUT,
     PAGE,
-    PAGE_PACKAGES,
     PLUGIN_ROOT,
     ROOT,
     SHIPPED_PACKAGES,
@@ -37,6 +34,7 @@ from interact_support import (
     fetch,
     install_payload,
     lock_contention,
+    page_packages,
     publish,
     record_claim,
     shipped_payload,
@@ -293,49 +291,6 @@ def test_the_python_instructions_name_every_module_they_own():
         )
     ]
     assert not unnamed, f"unnamed in scripts/AGENTS.md: {unnamed}"
-
-
-def shell_commands(script):
-    """The simple commands of a hook or step script, split at newlines and `&&`."""
-    return [c.strip() for c in re.split(r"\n|&&", script) if c.strip()]
-
-
-def test_wt_merge_runs_every_npm_gate_ci_runs():
-    """Each npm gate CI runs, the direct landing path runs in the same directory.
-
-    Neither the suite nor pre-commit reaches the TypeScript under `worker/src/` and
-    `build/browser/`, so a `wt merge` that skipped one of their gates would land a
-    red main that a pull request would have caught. A step's `working-directory`
-    becomes `--prefix` in the hook, which runs from the root: npm's bare `test` in
-    `worker/` is `npm test --prefix worker` there. `npm ci` installs rather than gates.
-    The set comes from the workflow rather than a list here: a list is a second copy,
-    and the gate added to CI without the hook would stay green.
-    """
-    workflow = yaml.safe_load(
-        (ROOT / ".github" / "workflows" / "ci.yaml").read_text(encoding="utf-8")
-    )
-    config = tomllib.loads((ROOT / ".config" / "wt.toml").read_text(encoding="utf-8"))
-    hook = {
-        command
-        for block in config["pre-merge"]
-        for script in block.values()
-        for command in shell_commands(script)
-    }
-    gates = sorted(
-        {
-            f"{command} --prefix {step['working-directory']}"
-            if "working-directory" in step
-            else command
-            for job in workflow["jobs"].values()
-            for step in job["steps"]
-            for command in shell_commands(step.get("run", ""))
-            if command.startswith("npm ") and not command.startswith("npm ci")
-        }
-    )
-
-    assert gates, "no npm gate read — an empty set names itself"
-    ungated = [gate for gate in gates if gate not in hook]
-    assert not ungated, f"not in .config/wt.toml's pre-merge: {ungated}"
 
 
 def test_the_root_instructions_name_every_directory_of_the_projects_own_tree():
@@ -845,7 +800,7 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
     elsewhere.mkdir()
     work = elsewhere / "work"
     shutil.copytree(COMMAND_HUB_PACKAGE, work)
-    selected = ("./work", *PAGE_PACKAGES[1:])
+    selected = ("./work", *page_packages()[1:])
     launcher = installed / "bin" / "leaf"
     page = tmp_path / "state" / "page"
 
@@ -982,7 +937,7 @@ def test_init_vendors_the_layer(page_dir):
     assert (page_dir / "vendor" / "floating-ui.LICENSES.txt").is_file()
     # The selected packages land in the same flat directories as the default one,
     # which is what lets a widget import `/vendor/…` without knowing where it came
-    # from (PAGE_PACKAGES).
+    # from page_packages().
     assert (page_dir / "widgets" / "lf-diagram.js").is_file()
     assert (page_dir / "vendor" / "agentic-mermaid.esm.js").is_file()
     assert (page_dir / "vendor" / "agentic-mermaid.LICENSES.txt").is_file()
@@ -1033,8 +988,7 @@ def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypa
     stat moved.
 
     Runtime and vendor stay hard links into the shape across the loan, which is
-    the sharing the reset must not quietly spend (tests/AGENTS.md, "Fixtures own
-    the world they create")."""
+    the sharing the reset must not quietly spend (tests/AGENTS.md, "Fixtures")."""
     monkeypatch.chdir(tmp_path)
     pool = PagePool(tmp_path / "shapes")
 
@@ -2224,7 +2178,7 @@ def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
     close where the test ends with it does the same work a step early, and the
     reading it cuts short is its own. The exception is a page that keeps making
     the fault its test is about, where the consume has to follow a close of its own
-    (tests/AGENTS.md, "Consume a browser error where it is caused").
+    (tests/AGENTS.md, "Browser errors").
     """
     closes_to_stop_a_repeating_fault = {
         "test_a_website_session_reference_survives_a_failed_first_read",
@@ -2460,8 +2414,7 @@ def test_a_spawned_process_ends_with_what_it_started(spawn, launcher_ends):
 
 def test_no_test_ends_a_process_with_sigkill():
     """SIGKILL gives a process no chance to end what it started, so a test ends one
-    by closing the pipe it reads or with SIGTERM (tests/AGENTS.md, "A process the
-    suite starts ends with the run"). The source is read for it, since no fixture
+    by closing the pipe it reads or with SIGTERM (tests/AGENTS.md, "Processes and servers"). The source is read for it, since no fixture
     sees which signal a test sends: `Popen.kill()`, `signal.SIGKILL`, signal 9
     passed to `kill`, `killpg` or `send_signal`, and a shell `kill` given signal 9
     or KILL in a command a test runs."""
@@ -3379,7 +3332,7 @@ def test_revendoring_removes_stale_broken_links_before_a_file_returns(
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )

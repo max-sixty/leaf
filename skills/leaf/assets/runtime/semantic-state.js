@@ -21,6 +21,8 @@ const presentation = createPresentationCoordinator({
 // before any renderer touches the document.
 const schedule = createPresentationSchedule(bindQueuedWork);
 
+/** The compiled factory is generated from this checked source contract. */
+/** @type {ReturnType<typeof import("../../../../build/browser/application.ts").createSemanticApplication>} */
 export const applicationState = createSemanticApplication({
   presentation: {
     begin: (semanticEpoch) => presentation.begin(documentToken, semanticEpoch),

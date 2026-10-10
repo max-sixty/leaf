@@ -22,8 +22,9 @@
  * by press, key, Back, or Forward, is not fragment travel, because a view is not a
  * destination, so the strip stays where it is on screen and the view opens where this
  * user last read it, or at its start when they never read past it. Every other set is a
- * box ("box"): framed, its strip in flow, each panel a bounded box that what it holds
- * measures itself against, and a switch leaves the page where it stands. `list="side"`
+ * box ("box"): framed, its horizontal strip sticky within the set, each panel a bounded
+ * box that what it holds measures itself against. A switch leaves the page where it
+ * stands until the strip is pinned; then it opens the new panel at its start. `list="side"`
  * stands the list beside the panels, a queue beside the item it opens, walked up and
  * down as well as across (theme.css says where it stacks); a side list is a box even as
  * the root set, which keeps the root's history, and Back or Forward there lands the
@@ -50,6 +51,7 @@
  * inactive panels. Unupgraded,
  * panels stack as labeled sections; authored content is never replaced, so
  * there is no failSoft. */
+import { scrollIntoView } from "/runtime/widget-api.js";
 import {
   HIDDEN,
   PRESS,
@@ -81,6 +83,7 @@ import {
   replaceEntry,
   restorePlace,
   scrollBehavior,
+  scrollIntoReadingBand,
   selectableOffer,
   setRuntimeRootStyle,
   sizeObserver,
@@ -383,16 +386,24 @@ customElements.define(
           changed ? `Δ${changed}` : "",
         );
         const slot = btn.querySelector(":scope > .lf-tab-answer");
-        const questions = slot ? readQuestions().all.filter((question) => {
-          const source = question.status !== "withdrawn" && question.source.kind === "widget" && elementById(question.source.id);
-          return source && under(source, panel);
-        }) : [];
-        const answered = questions.length > 0 && questions.every((question) => question.status === "answered");
+        const questions = slot
+          ? readQuestions().all.filter((question) => {
+              const source =
+                question.status !== "withdrawn" &&
+                question.source.kind === "widget" &&
+                elementById(question.source.id);
+              return source && under(source, panel);
+            })
+          : [];
+        const answered =
+          questions.length > 0 &&
+          questions.every((question) => question.status === "answered");
         const only = questions.length === 1 ? questions[0] : null;
         const source = only && elementById(only.source.id);
-        const answer = answered && only?.answer && source
-          ? source.constructor.answerWords?.(only.answer.value, source) ?? ""
-          : "";
+        const answer =
+          answered && only?.answer && source
+            ? (source.constructor.answerWords?.(only.answer.value, source) ?? "")
+            : "";
         if (slot) {
           keeps(slot, "data-lf-answered", answered ? "" : null);
           keepsText(slot.firstElementChild, answer);
@@ -443,6 +454,12 @@ customElements.define(
       // A press or a traversal between views switches them; a reveal is travel to
       // something inside the view, which the traveller lands.
       const switched = this.#pageFlow && ["ordinary", "history"].includes(reason);
+      const pinnedBox =
+        previous &&
+        !this.#pageFlow &&
+        !this.#side &&
+        reason === "ordinary" &&
+        this.getBoundingClientRect().top < this.#strip.getBoundingClientRect().top - 1;
       const change = () => {
         const from = pageScroller.scrollTop;
         if (this.#pageFlow && previous) this.#leave(previous);
@@ -479,6 +496,7 @@ customElements.define(
           this.#revealMotion = backgroundFlash(name, 650);
         }
         if (switched) this.#open(active, from);
+        else if (pinnedBox) scrollIntoReadingBand(this, this, "start", "instant");
         else if (reason === "history") this.#land();
         keepView(this, active);
         const presentation = [];
@@ -722,7 +740,7 @@ customElements.define(
     // where it is.
     #land() {
       if (this.getBoundingClientRect().top < 0)
-        this.scrollIntoView({ block: "start", behavior: "instant" });
+        scrollIntoView(this, { block: "start", behavior: "instant" });
     }
 
     #placeKey(panel) {

@@ -1,50 +1,45 @@
 # Keyboard runtime
 
 This file owns the contracts the modules here share; each module's header owns its
-own. The parent `../../AGENTS.md` owns interactions with state, widgets, threads,
-and chrome.
+own.
 
 ## Ownership
 
-A command is one stable capability, owned by the layer that implements its
-result. A binding is a chord that invokes it, and a scope says where the binding
-applies. A contextual surface may add a binding to an existing command but never
-copies its callback. One register supplies dispatch, the shortcut bar, the
-command reference, control tooltips, announcements, and `aria-keyshortcuts`, so
-register a capability once and derive every presentation from its row; a visible
-control names the same command rather than creating a parallel action.
+A command is one capability, owned by the layer that implements its result. A binding
+is a chord that invokes it, and a scope says where the binding applies. One register
+supplies dispatch, the shortcut bar, the command reference, control tooltips,
+announcements, and `aria-keyshortcuts`, so register a capability once and derive every
+presentation from its row. A contextual surface or visible control names an existing
+command rather than copying its callback.
 
-Core owns commands on Leaf's page, chrome, navigation, comments, and shared thread
-state; a widget owns commands that interpret or change its content, and its
-scopes join the register only while the instance exists. Owners declare their keys
-during construction: element scopes through `keys(element, …)` and
-`commandScope(…)` in `scopes.js`, core scopes through `pageScope`, `pageCommand`,
-and `pageRung` in `register.js`. A new scope, page command, or Escape rung also
-needs an entry in the register's ordering tables.
+Core owns commands on the page, chrome, navigation, comments, and shared thread state;
+a widget owns commands that interpret or change its content, and its scopes join the
+register only while the instance exists. Element scopes declare through `keys(element,
+…)` and `commandScope(…)` in `scopes.js`, core scopes through `pageScope`,
+`pageCommand`, and `pageRung` in `register.js`. A new scope, page command, or Escape
+rung also needs its place in `STACK`, `PAGE_COMMANDS`, or `RUNG_LADDER`.
 
 ## Scope resolution
 
-Bindings resolve from the focused element outward: an exact control or active
-mode, native interaction, the nearest widget and its widget ancestors, Leaf's
-contextual and page scopes, then the browser. An implemented declaration gets
-first refusal while its scope stands; if its command is unavailable, the press
-does not fall through to another Leaf meaning. Text entry keeps characters,
-composition, caret movement, and deletion ahead of ancestor widgets, as radio,
-slider, and open-select navigation do; an exact control may still claim Enter or
-its own Escape step.
+Bindings resolve from the focused element outward: an exact control or active mode,
+native interaction, the nearest widget and its widget ancestors, Leaf's contextual and
+page scopes, then the browser. An implemented declaration gets first refusal while its scope applies
+(`dispatch.js`'s `standing`: the user is in it and the page has it); if its command is
+unavailable, the press does not fall through to another Leaf meaning. Text entry keeps
+characters, composition, caret movement, and deletion ahead of ancestor widgets; an
+exact control may still claim Enter or its own Escape step.
 
-## Escape unwinds the hierarchy, not the history
+## Escape
 
 Escape removes one layer of the current interaction and lands at its parent. The
-canonical keyboard route into a state defines that parent, pointer and Tab entry
-leave by the same route, and the runtime does not record how the user arrived.
-Containment decides order: the focused control's own claim, then steps inside the
-focused surface, then that surface, then steps outside it, with `STACK` and
-`RUNG_LADDER` ranking siblings. Native modal and popover layers keep the
-browser's order.
+canonical keyboard route into a state defines that parent; pointer and Tab entry leave
+by the same route, and the runtime does not record how the user arrived. Containment
+decides order: the focused control's own claim, then steps inside the focused surface,
+then that surface, then steps outside it, with `STACK` and `RUNG_LADDER` ranking
+siblings. Native modal and popover layers keep the browser's order.
 
-- The document is the base; a live sample holding focus adds a final step back
-  to its containing page.
+- The document is the base; a live sample holding focus adds a final step back to its
+  containing page.
 - Draw and Design are page modes; surfaces opened within them close first.
 - An auxiliary surface contains its own state, such as the Threads narrowing.
   Page-side selections, targets, clusters, and the page composer coexist beside
@@ -57,8 +52,8 @@ browser's order.
 - A reply, or the first comment that starts a thread, leaves the user standing on
   the thread's card or title once sent, including in the margin. Send never returns
   focus to the page; Escape follows the card's usual route back to its target.
-  The page comment card also stays open and focused after Send; `c` writes again,
-  and Escape closes it and returns to the control it hangs from.
+  The page comment card closes after Send and returns focus to its banner control
+  (More on a phone); `c` opens it again. Escape also closes it, keeping any draft.
   A box that stays open for more messages, such as a seat's, keeps the user in it.
 - Threads selects one thread whenever it shows any, and focus on the list is focus
   on that thread's title: `g T`, and an Escape from its find box, land there.
@@ -82,9 +77,9 @@ browser's order.
 
 Bounded interactions (Go-to, target hints, page search, reactions, the command
 reference) own the keyboard and their return while active and add no page mode.
-Unwinding closes a surface even if it was open before entry. Closing by pointer
-focuses the surviving reopening control. `register.js` exposes the innermost step
-as one `navigation.back` command.
+Unwinding closes a surface even if it was open before entry, and closing one by pointer
+focuses the control that reopens it. `register.js` exposes the innermost step as one
+`navigation.back` command.
 
 ## Page grammar
 
@@ -101,18 +96,16 @@ aliases in the same attachment, and every context alias follows native editing.
 
 ## Touch routes
 
-A finger has no keys, so every page capability that a key reaches and no direct gesture
-does has a banner control under a coarse pointer. A row declares `touch`, the control's
-words, or a routed row declares it on each route whose result needs its own control;
-`touch-controls.js` derives the control from that declaration, so its words, enabled
-state, and press come from the one row the key uses.
+Under a coarse pointer, every page capability that a key reaches and no direct gesture
+does has a banner control. A row declares the control's words as `touch`, or a routed
+row declares them on each route that needs its own control; `touch-controls.js` builds
+the control from the row the key uses.
 
 - A page command's control is an entry in the banner's More.
-- A page-scope row's control is a gesture step on the banner's row while its scope is
-  the innermost standing one with steps, since a phone's row has room for one
-  interaction's. A mode or bounded interaction a finger can enter declares its way out, since
-  Escape and the mode's letter are keys, and whatever else inside it a finger has no
-  other way to do, such as walking search matches.
+- A page-scope row's control is a step on the banner's row while its scope is the
+  innermost applying scope with steps, since a phone's row fits one interaction's. A
+  mode or bounded interaction a finger can enter declares its way out, and anything else
+  inside it a finger cannot otherwise do, such as walking search matches.
 
 Every page command declares `touch`, and the register refuses one that does not; `false`
 says a finger reaches the result directly. Walks, paging, scrolling, and Go-to move the

@@ -153,9 +153,10 @@ and, once shown, in the shape it stood in, until its going would move nothing th
 user sees or they change the view
 (`thread/thread-list-view.js`, `keeping`). A region whose rows only the
 log or the clock decides, so no first paint can size it, shows none of them until the
-reader opens them through a control of fixed size the widget already draws, as a
-command's counts open its lists; after that a change to its rows waits the same way
-while its growth would be seen (`HeldReading`, command-hub's `lf-command.js`). A
+reader opens them through a control of fixed size the widget already draws, as the
+Atlas plan's Stopped work disclosure opens its list; after that a change to its rows
+waits the same way while its growth would be seen (`HeldReading` in
+`examples/command-hub.page/widgets/lf-atlas-plan.js`). A
 fixed-height box that scrolls them is no answer: nothing tells the reader a row is
 cut off, since a scroller shows no edge until it is scrolled.
 A change the user requested may reflow the

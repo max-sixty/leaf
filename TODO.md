@@ -137,6 +137,10 @@ has tried; settle that before building it.
 
 ### User continuity and mobile access
 
+- **Bring back a rewrite Escape discarded.** Escape drops a rewrite's changed words, as
+  in Slack, Discord and Telegram, so an accidental press loses a long rewrite. Offer a
+  way back, such as `g D` restoring the last discarded rewrite into its editor (the
+  user's suggestion, 2026-10-06).
 - **Decide when a page merits a separate phone composition.** Many pages are
   ephemeral and authored for a user reading on a large screen, so a bespoke phone
   animation may not repay its cost. Decide how the agent weighs the user's viewing

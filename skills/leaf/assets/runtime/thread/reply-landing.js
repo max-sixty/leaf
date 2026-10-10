@@ -211,10 +211,31 @@ const revealWritingArea = (held, input, reply) => {
   const target = reply && shownBox(reply).height <= landingRoom(held) ? reply : input;
   scrollIntoReadingBand(target, target, "nearest", "instant");
 };
+// A rewrite opening in its message shows the message whole, its head with Cancel and
+// Save above the words, where the band holds it, and otherwise the line its caret stands
+// on, where the next key types. A reply row pinned at the scroller's foot covers what
+// stands behind it, so the box's foot clears it too.
+export function revealEditor(message, caretLine) {
+  const held = message.closest(SAYS_IN);
+  if (!held) return;
+  bringBackSurfaceOf(held, "instant");
+  const target = shownBox(message).height <= landingRoom(held) ? message : caretLine;
+  scrollIntoReadingBand(target, target, "nearest", "instant");
+  const reply = replyRowOf(held, held);
+  if (!replyPinned(reply)) return;
+  const margin = parseFloat(getComputedStyle(message).scrollMarginBlockEnd) || 0;
+  const over =
+    target.getBoundingClientRect().bottom + margin - reply.getBoundingClientRect().top;
+  if (over > 0) moveScrollerBy(scrollerFor(reply), over);
+}
 export function followBoxGrowth(input) {
   const held = input.closest(SAYS_IN);
   if (!held) return;
   const reply = replyRowOf(held, input);
+  // A box standing in the transcript rather than its reply row, as a rewrite stands in
+  // its message, keeps its caret in view itself: aimed at the whole box, a landing here
+  // pulled a long one's top into view on every key.
+  if (!reply) return;
   // A separate transcript gives up height rather than being covered by the editor.
   // A reader at its tail keeps the turn beside the growing box; someone reading back
   // keeps their own offset. The editor's before-edit reading precedes its layout.
@@ -245,9 +266,11 @@ export function followBoxGrowth(input) {
 export function readBoxPlace(input) {
   const held = input.closest(SAYS_IN);
   const reply = held && replyRowOf(held, input);
+  // A box in the transcript has no row to hold nor a tail to keep beside it.
+  if (!reply) return;
   // The edit may be the one that takes a natural row to its sticky floor.
-  if (reply) rowHeights.set(input, reply.getBoundingClientRect().height);
-  const transcript = held && separateTranscript(held);
+  rowHeights.set(input, reply.getBoundingClientRect().height);
+  const transcript = separateTranscript(held);
   if (transcript)
     transcriptPlaces.set(input, {
       transcript,

@@ -593,6 +593,50 @@ def _parent_error(event: dict, events: list) -> str | None:
     return None
 
 
+def _edit_error(event: dict, events: list) -> str | None:
+    """An edit revises the words of a message its own author wrote: the user's own,
+    or an agent's, whichever session posted it, so a successor can correct what a
+    predecessor said. A reaction or a bare drawing has none to revise.
+
+    An edit that names its `base`, the revision its words were written over (the
+    message's own id, or the latest edit of it; a browser names an edit of its own
+    still sending once the log has answered it), lands only on that revision: one
+    written over words another tab has since replaced would silently take their place.
+    Words the message already says are no revision, and no turn."""
+    if event["kind"] != "edit":
+        return None
+    name = event["message"]
+    target = next(
+        (
+            logged
+            for logged in events
+            if logged["kind"] in MESSAGE_KINDS and logged["id"] == name
+        ),
+        None,
+    )
+    if target is None:
+        return f"unknown message {name!r}"
+    if target["author"] != event["author"]:
+        return f"message {name!r} is not {event['author']}-authored"
+    if "text" not in target:
+        return f"message {name!r} has no words to revise"
+    revisions = [
+        logged
+        for logged in events
+        if logged["kind"] == "edit" and logged["message"] == name
+    ]
+    latest = revisions[-1] if revisions else target
+    if "base" in event and event["base"] != latest["id"]:
+        return Refusal(
+            f"edit of {name!r} was written over {event['base']!r}, and "
+            f"{latest['id']!r} has since revised it",
+            "The message changed while you edited it; edit it again.",
+        )
+    if event["text"] == latest["text"]:
+        return f"edit of {name!r} says what the message already says"
+    return None
+
+
 def _thread_presentation_error(view, event: dict, events: list) -> str | None:
     if event["kind"] not in {"summary", "thread_title"}:
         return None
@@ -647,6 +691,7 @@ def admission_error(
         or _reaction_error(event, registry)
         or _anchored_comment_error(view, event, registry)
         or _parent_error(event, events)
+        or _edit_error(event, events)
         or _thread_presentation_error(view, event, events)
         or _reanchor_error(view, event, events)
         or read_contract_error(event, events)

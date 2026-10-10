@@ -4189,10 +4189,10 @@ def test_a_phone_banner_keeps_fixed_primary_and_menu_seats(browser, serve, other
 
 
 def test_more_wears_a_dot_while_a_press_would_approve(browser, serve):
-    """On a phone Approval stands behind More, and More wears its dot, named in its
-    accessible name, while a press there would approve. Approving takes the dot down
-    and taking the approval back puts it up again; on a desk Approval stands on the
-    row and More wears no dot for it."""
+    """On a phone Approval stands behind More as a waiting Question, and More wears
+    its dot and names both reasons. Approving takes the dot down and taking the
+    approval back puts it up again; on a desk Approval stands on the row and More
+    wears no dot for it."""
     html = LONG_PAGE.replace(
         "<title>long</title>",
         '<title>long</title><meta name="lf-review" content="sign-off">',
@@ -4202,7 +4202,9 @@ def test_more_wears_a_dot_while_a_press_would_approve(browser, serve):
     more = page.locator(".lf-banner-more")
     approval = page.locator(".lf-signoff")
     expect(more).to_have_attribute("data-lf-news", "")
-    expect(more).to_have_attribute("aria-label", "More page controls, approval open")
+    expect(more).to_have_attribute(
+        "aria-label", "More page controls, approval open, questions waiting"
+    )
     more.click()
     expect(page.locator(".lf-banner-menu > :visible").first).to_have_class(
         re.compile(r"\blf-signoff\b")
@@ -5485,10 +5487,9 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(
     assert short["right"] < short["roomRight"] - 20, (
         f"a short status press still spans the banner's free room: {short}"
     )
-    # The page's suggestions wait on the user, on their Questions door, and the page
-    # task the status runs on waits on the agent, so its Tasks count stands beside the
-    # status.
-    expect(page.locator(".lf-queue")).to_have_text("Questions: 3")
+    # The page's three suggestions and required approval wait on the user in
+    # Questions. The page task waits on the agent, so Tasks stands beside status.
+    expect(page.locator(".lf-queue")).to_have_text("Questions: 4")
     expect(page.locator(".lf-status-queues")).to_have_text("Tasks: 1")
     page.evaluate(DEFINE_BOXES)
     beside = page.evaluate(

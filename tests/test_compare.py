@@ -60,9 +60,7 @@ def test_compare_follows_shared_source_and_stops_both_arms(
                 )
             )
 
-        urls = wait_for(
-            announced, lambda value: len(value) == 2, failure=log.read_text, timeout=120
-        )
+        urls = wait_for(announced, lambda value: len(value) == 2, failure=log.read_text)
 
         def contents(url):
             with urllib.request.urlopen(url) as response:

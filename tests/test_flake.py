@@ -9,7 +9,7 @@ from threading import Thread
 
 import pytest
 from click.testing import CliRunner
-from interact_support import wait_for
+from interact_support import STATED_TIMEOUT, wait_for
 
 
 @pytest.mark.parametrize("scenario", ["output", "candidate"])
@@ -74,6 +74,6 @@ def test_flake_copies_share_a_snapshot_but_not_outputs(tmp_path, monkeypatch, sc
         result = CliRunner().invoke(flake.flake, ["test_candidate.py"])
     finally:
         if editor:
-            editor.join(timeout=10)
+            editor.join(timeout=STATED_TIMEOUT)
     assert result.exit_code == 0, result.output
     assert "| 4 | 0 | 0 | 0 | 0 |" in result.output

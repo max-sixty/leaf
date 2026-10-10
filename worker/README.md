@@ -10,7 +10,8 @@ The existing session Durable Object stores the page's canonical files and
 Python-produced delivery publication. When its container is stopped, saved comments,
 choices, the private document and its resources are served from that publication.
 Reading a page, polling for changes and reporting optional browser geometry do not
-start a container. The next mutation starts Python, which restores the canonical
+start a container when a saved publication exists; a missing saved response starts
+Python. The next mutation starts Python, which restores the canonical
 record before accepting requests. Python remains the only event admission and
 projection implementation; stored responses never become fold inputs.
 Operations that need Python still start the container: version comparison projects
@@ -84,9 +85,9 @@ pages with (`.tmp/site-install`), the tree consumer installs follow. A revision 
 hosted session writes therefore captures the compiled kernel the published revisions
 were built from, rather than the checkout's source modules.
 
-The deployment admits up to 5,990 concurrent `basic` containers. A container
-sleeps after ten idle minutes. After any page in a session is
-active, a visible active page holds its container through Leaf's finite freshness requests; a passive
+The deployment admits as many concurrent `basic` containers as `max_instances` in
+`wrangler.toml` allows. A container sleeps after ten idle minutes. After any page in a session is
+active, a visible active page holds its running container through Leaf's finite freshness requests; a passive
 page makes none. Hidden tabs stop these requests, so the idle timer can begin after
 the browser session has no visible active Leaf page. Saved page records survive this
 compute lifetime; each site release deliberately selects fresh demo records.
@@ -97,17 +98,17 @@ Accepted browser events also write canonical metadata to the
 `leaf_website_events` Analytics Engine dataset. The data point omits event content,
 widget ids, IP addresses, and session cookies:
 
-| Field | Value |
-| --- | --- |
-| `index1` | Canonical event id |
-| `blob1` | Public page route |
-| `blob2` | `product` or `example` |
-| `blob3` | Event kind |
-| `blob4` | Action verb, when present |
-| `blob5` | Site release id |
-| `blob6` | Public 12-digit session reference shown in the page banner |
-| `double1` | Page revision, or `0` when absent |
-| `double2` | `1` when the event needs an agent reply |
+| Field     | Value                                                      |
+| --------- | ---------------------------------------------------------- |
+| `index1`  | Canonical event id                                         |
+| `blob1`   | Public page route                                          |
+| `blob2`   | `product` or `example`                                     |
+| `blob3`   | Event kind                                                 |
+| `blob4`   | Action verb, when present                                  |
+| `blob5`   | Site release id                                            |
+| `blob6`   | Public 12-digit session reference shown in the page banner |
+| `double1` | Page revision, or `0` when absent                          |
+| `double2` | `1` when the event needs an agent reply                    |
 
 The session reference is stable for the browser identity's lifetime, so it links that
 user's accepted events across pages and visits. It is a support handle rather than a
@@ -144,11 +145,11 @@ repository, and each arrives as `CLOUDFLARE_API_TOKEN` wherever it is used. The
 permissions below are Cloudflare's permission groups under the names its token API
 reports:
 
-| Token | Reaches | Held by |
-| --- | --- | --- |
-| `Leaf agent administration` | `Individual Workers Editor` on `leaf-website` and `leaf-website-dev`; `Workers Routes Write` on the `leaf.page` zone; `Workers Containers Write`, `Workers Observability Read`, `Account Analytics Read`, and `Workers Metadata Read-Only` on the account | Agents on the maintainer's machine |
-| `Leaf site deploy (CI)` | `Individual Workers Editor` on `leaf-website`; `Workers Routes Write` on the `leaf.page` zone; `Workers Containers Write` and `Account Settings Read` on the account | `publish-site`, through the `cloudflare-deploy` environment |
-| `Leaf observability (Tend CI)` | `Workers Observability Read` and `Account Analytics Read` on the account | Tend's agent, through the `tend` environment |
+| Token                          | Reaches                                                                                                                                                                                                                                                   | Held by                                                     |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `Leaf agent administration`    | `Individual Workers Editor` on `leaf-website` and `leaf-website-dev`; `Workers Routes Write` on the `leaf.page` zone; `Workers Containers Write`, `Workers Observability Read`, `Account Analytics Read`, and `Workers Metadata Read-Only` on the account | Agents on the maintainer's machine                          |
+| `Leaf site deploy (CI)`        | `Individual Workers Editor` on `leaf-website`; `Workers Routes Write` on the `leaf.page` zone; `Workers Containers Write` and `Account Settings Read` on the account                                                                                      | `publish-site`, through the `cloudflare-deploy` environment |
+| `Leaf observability (Tend CI)` | `Workers Observability Read` and `Account Analytics Read` on the account                                                                                                                                                                                  | Tend's agent, through the `tend` environment                |
 
 The account also serves Workers and zones that are not Leaf's, so each token that edits
 a Worker names the Workers it may edit. `Individual Workers Editor` deploys and

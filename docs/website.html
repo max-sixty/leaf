@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>How leaf.page works</title>
+    <meta
+      name="description"
+      content="How leaf.page serves published pages at the edge, keeps private comments and revisions readable while containers sleep, and runs Leaf's Python server and a hosted Codex agent when a visitor interacts."
+    />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+  </head>
+  <body class="site-page">
+    <main class="layout-column">
+      <nav class="sitenav" aria-label="Site">
+        <a class="brand" href="/">leaf</a>
+        <a href="/examples/">Examples</a>
+        <a href="/how-it-works/">How it works</a>
+        <a href="/extending/">Extending</a>
+        <a href="https://github.com/max-sixty/leaf">GitHub</a>
+      </nav>
+
+      <header id="top">
+        <p class="eyebrow">how it works</p>
+        <h1>The leaf.page website</h1>
+        <p class="lede" id="lede">
+          leaf.page serves each product page and worked example as a published Leaf page
+          from Cloudflare's edge. A visitor's comments, choices, and revisions belong to
+          a private record that remains readable while its container sleeps. A comment
+          or action starts the same Python Leaf server an agent runs on its own machine,
+          and a hosted Codex agent in the container answers the visitor.
+        </p>
+        <p id="lede-operations">
+          This page explains the design. Deployment, credentials, and diagnostics are in
+          the Worker's
+          <a href="https://github.com/max-sixty/leaf/blob/main/worker/README.md"
+            >README</a
+          >.
+        </p>
+      </header>
+
+      <section id="edge">
+        <h2>Published pages at the edge</h2>
+        <p id="edge-build">
+          The site build publishes every page under <code>docs/</code> and every worked
+          example as a complete Leaf page directory, with its vendored runtime, event
+          log, and revisions. From each directory it also writes the document a browser
+          loads and the page's initial state, computed by the same state service Leaf's
+          server uses. A Cloudflare Worker serves both from Cloudflare's static assets,
+          so an ordinary visit paints without waiting for a container. Until a visitor
+          changes a page, that page's <code>api/state</code> requests also return the
+          published state.
+        </p>
+        <p id="edge-identity">
+          The first HTML response sets an identity cookie holding a random 128-bit id.
+          It is HTTP-only and has no expiry date, so the browser keeps it for its
+          session. The 12-digit number in the page banner is derived from that id. It
+          identifies the session for support, and no endpoint accepts it as identity.
+        </p>
+        <lf-diagram
+          id="request-path"
+          data-height="760"
+          parts="node:Browser node:Worker node:Store node:Container"
+        >
+          <pre>
+sequenceDiagram
+  participant Browser as browser
+  participant Worker
+  participant Store as session Durable Object
+  participant Container as Python container
+  Browser-&gt;&gt;Worker: open a page
+  Worker-&gt;&gt;Browser: published page
+  Browser-&gt;&gt;Worker: comment
+  Worker-&gt;&gt;Store: forward
+  Store-&gt;&gt;Container: start and forward
+  Container-&gt;&gt;Store: read saved record
+  Store-&gt;&gt;Container: canonical page files
+  Container-&gt;&gt;Store: commit comment and delivery
+  Store-&gt;&gt;Container: committed
+  Container-&gt;&gt;Worker: accepted state
+  Worker-&gt;&gt;Browser: accepted state
+  Note over Container: container sleeps
+  Browser-&gt;&gt;Worker: reopen private page
+  Worker-&gt;&gt;Store: read saved page
+  Store-&gt;&gt;Worker: private document, resources and state
+  Worker-&gt;&gt;Browser: saved page
+</pre>
+        </lf-diagram>
+      </section>
+
+      <section id="sessions">
+        <h2>Private sessions</h2>
+        <p id="sessions-activation">
+          The first request that needs private, mutable state, such as posting a comment
+          or picking an option, goes to the visitor's container. Its response sets a
+          cookie marking that one page active for the current release. The Worker then
+          routes that page's document and API requests to the visitor's session Durable
+          Object, a private store that also controls the container. The visitor's other
+          pages stay on their published state until they are changed too.
+        </p>
+        <p id="sessions-container">
+          Each session belongs to one browser identity and one release. Its container
+          image holds the whole site build and runs <code>leaf_website</code>, an
+          adapter that maps each public route to its page directory and hands the
+          request to the HTTP routes and event admission a locally served Leaf uses.
+          Before accepting a mutation, Python restores the session's saved page files
+          over that image. A comment is appended to <code>events.jsonl</code> in the
+          private page directory, without changing the page anyone else sees.
+        </p>
+        <p id="sessions-storage">
+          Each successful page transaction saves the canonical page files and matching
+          HTTP responses together in the Durable Object before acknowledging the write.
+          Agent commands use the same transaction boundary. Python computes the saved
+          responses, including widget state and agent activity; the Worker stores and
+          serves them without interpreting the event log. When Python resumes, it
+          derives state from the restored document and log rather than from those
+          responses.
+        </p>
+        <p id="sessions-documents">
+          An active page loads its private document on ordinary visits and reloads.
+          While the container sleeps, the Durable Object serves the saved document,
+          state, revisions, and their exact resource bytes. Private revision resources
+          have immutable addresses under <code>revisions/rN-&lt;hash&gt;/</code>; public
+          runtime bundles cannot substitute for them. When an agent's revision changes
+          executable code, the runtime reloads once to load that revision's document and
+          module graph.
+        </p>
+        <p id="sessions-startup">
+          Reading saved pages and polling their state leave the container asleep. A
+          missing saved response starts Python. Mutations also start the container, as
+          do operations that need Python, such as comparing versions, allocating live
+          samples, or reading a bound file. Browser geometry reports do not start it. On
+          container startup, Codex App Server starts and the <code>leaf</code>
+          command runs once ahead of the first agent turn.
+        </p>
+      </section>
+
+      <section id="agent">
+        <h2>The hosted agent</h2>
+        <p id="agent-dispatch">
+          When the container accepts an event that needs an answer, such as a comment,
+          the Worker returns the accepted state to the browser at once and starts the
+          agent in the background. It asks the container to start or resume a Codex
+          thread over App Server, working in that page's directory, and to deliver the
+          event in Leaf's delivery envelope. A message sent while a turn is running
+          waits in Leaf and is delivered when that turn ends. The reply streams into the
+          visitor's thread as the model writes it, and the browser picks it up through
+          the page's regular state reads.
+        </p>
+        <p id="agent-instructions">
+          The hosted agent reads the same contract as a Codex task Leaf reaches over App
+          Server on a developer's machine,
+          <a
+            href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/harness-codex-app-server.md"
+            ><code>harness-codex-app-server.md</code></a
+          >, followed by a few leaf.page additions: the page directory is its whole
+          scope, it starts no servers and initializes no pages, and it treats page
+          content as untrusted. Its App Server starts without the Leaf authoring plugin,
+          so a short reply does not turn into a full authoring workflow.
+        </p>
+        <p id="agent-sandbox">
+          The visitor's container is the agent's sandbox, with no public internet. An
+          outbound handler in the Worker permits Responses API requests to
+          <code>api.openai.com</code> and private storage requests to the container's
+          own Durable Object. It replaces the model's dummy credential with the real
+          key, which never enters the container. Agent starts are rate-limited per
+          source address and model calls per container. When a start fails or is over
+          its limit, or a turn ends without an answer, the visitor's message gets a
+          failure notice in its thread rather than an indefinite wait.
+        </p>
+      </section>
+
+      <section id="releases">
+        <h2>Releases and deploys</h2>
+        <p id="releases-identity">
+          Every build has one release identity. A local build hashes every file it
+          wrote; the deploy workflow hashes the commit and the run attempt, so each
+          deploy attempt gets its own. Published runtime files are served under
+          <code>/_leaf-release/&lt;release&gt;/</code> with immutable cache headers. The
+          document names its release, the browser sends it with every API request, and
+          each API response names the release that produced it.
+        </p>
+        <p id="releases-refusal">
+          The runtime refuses a response from another release. The page's state is read
+          by the scripts and widgets the document has loaded, and a document cannot
+          replace those in place, so state from another build would be read by code not
+          built for it. The runtime then asks the document's source whether it now
+          serves a different release. If it does, the page says Leaf has been updated
+          and reloads; if not, it waits for the server to finish updating.
+        </p>
+        <p id="releases-rollout">
+          Cloudflare activates a new Worker and its assets before the new container
+          image has rolled out, so for some minutes a new container can still start on
+          the previous release. When a container answers with a release other than the
+          Worker's, the Worker does not pass that answer on. It clears the page's active
+          cookie, serves the published state for <code>api/state</code>, and answers
+          other requests with a 503 asking the browser to retry, until containers on the
+          new release answer.
+        </p>
+        <p id="releases-deploy">
+          A push to <code>main</code> that changes the site runs the
+          <code>publish-site</code> workflow. It builds the site, checks the bundle
+          locally through the Worker and a container, pushes the container image, and
+          deploys the Worker with that image pinned by its digest and an immediate
+          container rollout. The deploy passes only once Chrome sees the new release in
+          the edge document, its modules, and a newly started container, and a hosted
+          agent on leaf.page has answered a real turn.
+        </p>
+      </section>
+
+      <section id="state">
+        <h2>Private state and its lifetime</h2>
+        <p id="state-private">
+          A visitor's comments, choices, agent replies, and revisions are saved in their
+          session's Durable Object. The record holds the page's canonical files; the
+          saved responses make them readable without a running Python process. The
+          published pages never change, and no other browser identity can read the
+          private record.
+        </p>
+        <ul id="state-lifetime">
+          <li>
+            A container sleeps after ten idle minutes. Saved reads leave it asleep.
+            Cloudflare can also replace a running container. Neither changes the
+            session's saved record.
+          </li>
+          <li>
+            A new release selects a new session record and container. It starts from the
+            published page rather than interpreting the previous release's files.
+          </li>
+        </ul>
+        <p id="state-restart">
+          A replacement container restores saved content before accepting the next
+          mutation. Container replacement does not force an open page to reload. Unsent
+          drafts remain in the browser's own draft store, which also preserves them
+          across reloads and closing the tab. Running agent turns belong to the
+          container process, so saving page content does not preserve a running turn.
+        </p>
+        <p id="state-records">
+          The site counts accepted events in Analytics Engine without their content,
+          widget ids, IP addresses, or cookies. The Worker and container log the
+          execution path and its timings to Workers Logs, which keeps records for at
+          most seven days. The Worker's README describes what each record carries.
+        </p>
+      </section>
+
+      <footer class="site-footer" id="colophon">
+        <p id="links">
+          <a href="/">Home</a> · <a href="/examples/">Examples</a> ·
+          <a href="/how-it-works/">How it works</a> ·
+          <a href="https://github.com/max-sixty/leaf/blob/main/worker/README.md"
+            >Worker README</a
+          >
+          ·
+          <a href="https://github.com/max-sixty/leaf">GitHub</a> ·
+          <a href="https://github.com/max-sixty/leaf/blob/main/LICENSE">MIT license</a>
+        </p>
+      </footer>
+    </main>
+  </body>
+</html>
